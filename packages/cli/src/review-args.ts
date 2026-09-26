@@ -12,6 +12,8 @@ export interface ParsedReview {
   readonly against?: string;
   /** A directory to write `review.json` and `review.md` into, beside what is printed. */
   readonly out?: string;
+  /** The declared suite whose record is read. Required once the root config declares any. */
+  readonly suite?: string;
   readonly root: string;
   readonly format: ReviewFormat;
 }
@@ -25,11 +27,13 @@ export function parseReviewArgs(flags: Flags): ParsedReview {
   const since = flags.values.get('--since');
   const against = flags.values.get('--against');
   const out = flags.values.get('--out');
+  const suite = flags.values.get('--suite');
   return {
     command: 'review',
     ...(since === undefined ? {} : { since }),
     ...(against === undefined ? {} : { against: resolve(against) }),
     ...(out === undefined ? {} : { out: resolve(out) }),
+    ...(suite === undefined ? {} : { suite }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format,
   };

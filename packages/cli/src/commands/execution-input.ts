@@ -56,8 +56,11 @@ export async function readExecutionFor(
  * holds the answer and re-recording a suite to ask one question about one line
  * is not a reasonable price for a format change.
  */
-export async function defaultExecutionFile(root: string, suite?: string): Promise<string> {
-  const record = testCoverageFile(root, { suite });
+export async function defaultExecutionFile(
+  root: string,
+  suite?: string,
+  record: string = testCoverageFile(root, { suite }),
+): Promise<string> {
   const columns = `${record}.cases.bin`;
   if (await readable(columns)) return columns;
   const json = `${record}.cases.json`;
@@ -71,8 +74,12 @@ export async function defaultExecutionFile(root: string, suite?: string): Promis
  * defect somebody fixes, and this one is a project that never ran the recorder,
  * which a program asking on every edit has to be able to recognise.
  */
-export async function recordedExecutionFile(root: string, suite?: string): Promise<string> {
-  const file = await defaultExecutionFile(root, suite);
+export async function recordedExecutionFile(
+  root: string,
+  suite?: string,
+  record: string = testCoverageFile(root, { suite }),
+): Promise<string> {
+  const file = await defaultExecutionFile(root, suite, record);
   if (await readable(file)) return file;
   throw new OperatorError(
     `nothing is recorded in \`${root}\`: no run left a per-case index at \`${file}\`. ` +

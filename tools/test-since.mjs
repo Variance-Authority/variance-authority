@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   atDistance,
+  declaredSuites,
   distanceByExecution,
   distanceRange,
   groupByDistance,
@@ -185,7 +186,11 @@ async function main() {
   const asked = distanceAt < 0 ? undefined : (argv[distanceAt + 1] ?? '');
   const ref = argv.find((argument, at) => !argument.startsWith('-') && at !== distanceAt + 1);
 
-  const snapshotFile = testCoverageFile(ROOT);
+  // The record of the one suite the root declares, which `vitest.config.mts`
+  // names as the suite it is. `variance select` reads the same record by the
+  // same rule.
+  const declared = declaredSuites(ROOT);
+  const snapshotFile = testCoverageFile(ROOT, { suite: declared?.length === 1 ? declared[0].name : undefined });
   if (!existsSync(snapshotFile)) {
     say(
       'test:since: no execution snapshot on disk, so nothing here has an opinion about anything.',

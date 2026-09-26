@@ -105,43 +105,29 @@ jobs:
         shell: bash
         run: yarn measure
 
-      # Where the suite keeps its recording, asked of `sense` rather than spelled
-      # here: the directory is a digest of the checkout's path under whatever
-      # `cacheRoot` resolves to, and the package is the one that knows both.
+      # What this job restores, and where the change starts, asked of `variance
+      # carry` rather than spelled here. The root `variance.config.json`
+      # declares the `unit` suite and its carrier; the command answers the
+      # recording's directory, which is a digest of the checkout's path, and the
+      # keys. The key is cut for the branch the run belongs to, a pull request's
+      # being its base, so a pull request restores what that branch saved at the
+      # base commit, and failing that the newest it saved.
       #
-      # And where this change starts. On a pull request the checkout is the merge
-      # of its head into the base, and the merge's first parent is the base tip,
-      # so the change is the pull request's own and not whatever `main` gained
-      # since it branched. On a push it is the commit the push replaced; a push
-      # with none, or a manual run, starts one commit back.
-      - name: locate the recording
-        id: recording
+      # The base: on a pull request the checkout is the merge of its head into
+      # the base, and the merge's first parent is the base tip, so the change is
+      # the pull request's own. On a push it is the commit the push replaced.
+      - name: what to carry
+        id: carry
         shell: bash
-        env:
-          BEFORE: ${{ github.event.before }}
-        run: |
-          node --input-type=module -e "import { repositoryLayers } from '@variance-authority/sense/test-selection'; console.log('dir=' + repositoryLayers(process.cwd()).top)" >> "$GITHUB_OUTPUT"
-          if [ "$GITHUB_EVENT_NAME" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            echo "base=$BEFORE" >> "$GITHUB_OUTPUT"
-          else
-            echo "base=$(git rev-parse HEAD^1)" >> "$GITHUB_OUTPUT"
-          fi
+        run: node packages/cli/dist/bin.js carry restore --format github >> "$GITHUB_OUTPUT"
 
-      # The recording `main` saved at the base, or failing that the newest one
-      # it saved. Only `main` saves (below), so a pull request never reads
-      # another branch's run. `.run-*` is one run's scratch, which a finished run
-      # removes and a killed one leaves behind; it is excluded rather than
-      # carried forward.
       - name: restore the recording
-        id: restore
+        if: ${{ steps.carry.outputs.suite-unit-key != '' }}
         uses: actions/cache/restore@v4
         with:
-          path: |
-            ${{ steps.recording.outputs.dir }}
-            !${{ steps.recording.outputs.dir }}/.run-*
-          key: variance-${{ runner.os }}-${{ runner.arch }}-${{ steps.recording.outputs.base }}
-          restore-keys: |
-            variance-${{ runner.os }}-${{ runner.arch }}-
+          path: ${{ steps.carry.outputs.suite-unit-path }}
+          key: ${{ steps.carry.outputs.suite-unit-key }}
+          restore-keys: ${{ steps.carry.outputs.suite-unit-restore-keys }}
 
       # `vitest run` is the unit suites and the corpus. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
@@ -169,18 +155,19 @@ jobs:
         if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
         shell: bash
         env:
-          BASE: ${{ steps.recording.outputs.base }}
+          BASE: ${{ steps.carry.outputs.base }}
+          REVIEW: ${{ steps.carry.outputs.review }}
         run: |
           node packages/cli/dist/bin.js index
           node packages/cli/dist/bin.js review --since "$BASE" \
-            --out "$RUNNER_TEMP/variance-review" --format markdown >> "$GITHUB_STEP_SUMMARY"
+            --out "$REVIEW" --format markdown >> "$GITHUB_STEP_SUMMARY"
 
       - name: keep the review
         if: ${{ !cancelled() && steps.review.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: variance-review
-          path: ${{ runner.temp }}/variance-review/
+          path: ${{ steps.carry.outputs.review }}
 
       # One comment, rewritten on every push, found by the marker the review
       # writes on its first line. The marker is read from the file rather than
@@ -190,22 +177,29 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          REVIEW: ${{ steps.carry.outputs.review }}
         run: |
-          body="$RUNNER_TEMP/variance-review/review.md"
+          body="$REVIEW/review.md"
           node .github/actions/variance/post-comment.mjs --body-file "$body" --marker "$(head -n 1 "$body")"
 
-      # Only `main` saves, under the commit it recorded, which is the key a pull
-      # request based on that commit restores. A red suite on `main` still saves:
-      # the next change is reviewed against what `main` ran, not against an older
-      # recording that no longer describes it.
+      # Only a push to a mainline saves, under the commit it recorded, which is
+      # the key a pull request based on that commit restores. `carry save` prints
+      # no key anywhere else and says why on stderr, so the branch is not
+      # spelled here. A red suite on a mainline still saves: the next change is
+      # reviewed against what the mainline ran, not against an older recording
+      # that no longer describes it.
+      - name: what to save
+        id: save
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
+        shell: bash
+        run: node packages/cli/dist/bin.js carry save --format github >> "$GITHUB_OUTPUT"
+
       - name: save the recording
-        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test.outcome != 'skipped' }}
+        if: ${{ !cancelled() && steps.save.outputs.suite-unit-key != '' }}
         uses: actions/cache/save@v4
         with:
-          path: |
-            ${{ steps.recording.outputs.dir }}
-            !${{ steps.recording.outputs.dir }}/.run-*
-          key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          path: ${{ steps.save.outputs.suite-unit-path }}
+          key: ${{ steps.save.outputs.suite-unit-key }}
 
       # ## What this job does not do, stated rather than discovered
       #

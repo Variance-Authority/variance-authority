@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import {
@@ -43,7 +43,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
   afterEach(() => process.chdir(cwd));
 
   /** `main` at the base, the change in the working tree, and the run after it recorded. */
-  async function changed(options: { readonly gone?: boolean } = {}): Promise<{ root: string; first: string; against: string }> {
+  async function changed(options: { readonly gone?: boolean; readonly suites?: readonly string[] } = {}): Promise<{ root: string; first: string; against: string }> {
     const root = await mkdtemp(join(tmpdir(), 'variance-review-'));
     await mkdir(join(root, 'src'));
     await mkdir(join(root, 'test'));
@@ -53,6 +53,10 @@ describe('a review of what a change did, after the run that recorded it', () => 
     await writeFile(join(root, 'src/total.ts'), BEFORE);
     await writeFile(join(root, 'test/total.test.ts'), TEST);
     await writeFile(join(root, 'config.json'), '{}\n');
+    if (options.suites !== undefined) {
+      const suites = Object.fromEntries(options.suites.map((name) => [name, { kind: 'unit' }]));
+      await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites }));
+    }
     git(root, ['add', '-A']);
     git(root, ['commit', '--quiet', '-m', 'first']);
     const first = git(root, ['rev-parse', 'HEAD']);
@@ -64,7 +68,8 @@ describe('a review of what a change did, after the run that recorded it', () => 
     // A test the run recorded and the tree no longer holds, so the import graph has no node for it.
     const extra = options.gone === true ? ['test/round.test.ts'] : [];
 
-    const coverageFile = testCoverageFile(root);
+    const coverageFile = testCoverageFile(root, { suite: options.suites?.[0] });
+    await mkdir(dirname(coverageFile), { recursive: true });
     await writeTestCoverage(coverageFile, {
       version: 3,
       instrumentation: 'fixture',
@@ -97,6 +102,21 @@ describe('a review of what a change did, after the run that recorded it', () => 
     }));
     return { root, first, against };
   }
+
+  it('reads the record of the suite it is named, or of the only suite the root declares', async () => {
+    const { root, first, against } = await changed({ suites: ['unit'] });
+    const regions = (answer: Awaited<ReturnType<typeof review>>) =>
+      answer.files.find((file) => file.file === 'src/total.ts')?.regions?.map((region) => region.name);
+
+    expect(regions(await review(parse(['--since', first, '--against', against, '--suite', 'unit', '--root', root])))).toEqual(['applyDiscount', 'round']);
+    expect(regions(await review(parse(['--since', first, '--against', against, '--root', root])))).toEqual(['applyDiscount', 'round']);
+  });
+
+  it('refuses to pick one of several declared suites for the reader', async () => {
+    const { root, first } = await changed({ suites: ['unit', 'browser'] });
+
+    await expect(review(parse(['--since', first, '--root', root]))).rejects.toThrow(/declares the suites "browser", "unit"[^]*--suite <name>/);
+  });
 
   it('reads each edit, counts the changed regions no case covered, and names the cases added', async () => {
     const { root, first, against } = await changed();

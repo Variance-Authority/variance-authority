@@ -29,7 +29,6 @@ import {
   distanceToSource,
   readCommitRuns,
   readJourneyChange,
-  testCoverageFile,
   testsGovernedBy,
   type CommitRuns,
   type CoveringRegion,
@@ -39,6 +38,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
+import { suiteRecord } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { regionState } from './covering-frame.js';
 import { motionAgainst, motionOfLast, type CoveringMotion } from './covering-motion.js';
@@ -122,8 +122,8 @@ export interface Review {
 
 export async function review(request: ParsedReview): Promise<Review> {
   const { root } = request;
-  // TODO: a repository that declares suites is read suite by suite, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads the one record and refuses once suites are declared.
-  const coverageFile = testCoverageFile(root);
+  // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
+  const coverageFile = await suiteRecord(root, request.suite);
   const runs = await readCommitRuns(coverageFile);
   const ref = request.since ?? runs?.over;
   if (ref === undefined) {
@@ -161,7 +161,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   });
   const readings = new Map(reading.readings.map((read) => [read.file, read]));
 
-  const from = await recordedExecutionFile(root);
+  const from = await recordedExecutionFile(root, request.suite, coverageFile);
   const now = inTreeLines(changedLines(backward), root, readings);
   const { index } = await readExecutionFor(from, now);
   const covered = new Map(

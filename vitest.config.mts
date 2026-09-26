@@ -113,6 +113,8 @@ export const suite = defineConfig({
  */
 export const selection = {
   root: ROOT,
+  // The suite this run is, as the root `variance.config.json` declares it.
+  suite: 'unit',
   include: instrumentable,
   // What governs every observation rather than any one of them. The seam
   // declares this file and the local modules it imports, and
