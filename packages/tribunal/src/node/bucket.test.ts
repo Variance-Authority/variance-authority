@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -125,24 +125,30 @@ describe('a key is not a path until it has been checked', () => {
 });
 
 describe('two names one volume folds into one file', () => {
+  /**
+   * Whether the temporary directory's volume treats two spellings as one name.
+   * Asked of the volume, so every test below asserts what is true on it: a
+   * case-sensitive volume keeps two keys apart and must go on doing so, and a
+   * folding one must refuse or miss rather than answer another key's object.
+   */
+  async function volumeFolds(): Promise<boolean> {
+    await writeFile(join(directory, 'Probe'), '');
+    return (await stat(join(directory, 'pROBE')).catch(() => null)) !== null;
+  }
+
+  const read = async (key: string): Promise<number[] | null> => {
+    const object = await bucket.get(key);
+    return object === null ? null : [...new Uint8Array(await object.arrayBuffer())];
+  };
+
   it('refuses a write that would land on another key\'s object', async () => {
     await bucket.put('p/baselines/d/Card.png', bytes(1));
 
-    const folded = await readdir(join(bucket.root, 'p', 'baselines', 'd'));
-    if (folded.length === 1 && folded[0] === 'Card.png') {
-      const head = await bucket.head('p/baselines/d/card.png');
-      if (head === null) {
-        // Case-sensitive volume: the two are two objects and both are correct.
-        await bucket.put('p/baselines/d/card.png', bytes(2));
-        expect((await readdir(join(bucket.root, 'p', 'baselines', 'd'))).sort()).toEqual([
-          'Card.png',
-          'card.png',
-        ]);
-        return;
-      }
+    if (!(await volumeFolds())) {
+      await bucket.put('p/baselines/d/card.png', bytes(2));
+      expect((await readdir(join(bucket.root, 'p', 'baselines', 'd'))).sort()).toEqual(['Card.png', 'card.png']);
+      return;
     }
-
-    // Case-folding volume: the second key resolves onto the first key's file.
     await expect(bucket.put('p/baselines/d/card.png', bytes(2))).rejects.toThrow(/only by case/);
     expect([...new Uint8Array(await readFile(join(bucket.root, 'p/baselines/d/Card.png')))]).toEqual([1]);
   });
@@ -150,6 +156,38 @@ describe('two names one volume folds into one file', () => {
   it('still allows a key to be rewritten under its own name', async () => {
     await bucket.put('p/baselines/d/Card.png', bytes(1));
     await expect(bucket.put('p/baselines/d/Card.png', bytes(2))).resolves.toBeDefined();
+  });
+
+  it('keeps two lines whose branches differ only by case apart, or refuses the second', async () => {
+    const upper = 'p/share/branch/Feature/manifest.json';
+    const lower = 'p/share/branch/feature/manifest.json';
+    await bucket.put(upper, bytes(1), { onlyIf: { etagDoesNotMatch: '*' } });
+
+    if (!(await volumeFolds())) {
+      expect(await bucket.put(lower, bytes(2), { onlyIf: { etagDoesNotMatch: '*' } })).not.toBeNull();
+      expect([await read(upper), await read(lower)]).toEqual([[1], [2]]);
+      return;
+    }
+    // Refused, not answered as a conflict: the stored manifest is another line's,
+    // and a retry on its version would replace it.
+    await expect(bucket.put(lower, bytes(2), { onlyIf: { etagDoesNotMatch: '*' } })).rejects.toThrow(/"feature"/);
+    await expect(bucket.put(lower, bytes(2))).rejects.toThrow(/only by case/);
+    // A file the other line never wrote, under the folded directory, is refused too.
+    await expect(bucket.put('p/share/branch/feature/entries/0a', bytes(3))).rejects.toThrow(/only by case/);
+    expect(await read(upper)).toEqual([1]);
+  });
+
+  it('answers nothing for a key that reaches an object only through another spelling', async () => {
+    const upper = 'p/share/branch/Feature/manifest.json';
+    const lower = 'p/share/branch/feature/manifest.json';
+    await bucket.put(upper, bytes(1));
+
+    // On either volume, the lower-case line was never written.
+    expect(await read(lower)).toBeNull();
+    expect(await bucket.head(lower)).toBeNull();
+    await bucket.delete(lower);
+    expect(await read(upper)).toEqual([1]);
+    expect(await bucket.head(upper)).toEqual({ key: upper, size: 1 });
   });
 });
 
