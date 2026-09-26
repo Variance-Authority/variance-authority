@@ -28,6 +28,11 @@
  * it. With no config there are no taint tables beyond the mock reader, which
  * runs unasked.
  *
+ * The root `variance.config.json` is read when there is one, and only for what
+ * a record is: which suites are declared, and for a suite given to a share,
+ * where the share is. That is the file `variance run` recorded by, so it names
+ * the record `select` reads.
+ *
  * The install is compared at the same point the diff is measured from, for
  * the reason `variance run --since` compares it: a bumped package changes no
  * line a test covered, so a diff that touched only the lockfile reaches nobody
@@ -48,14 +53,17 @@ import {
 } from './installed.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { diffPoint, diffSince } from './since.js';
+import { checkoutRead, mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
 import { relationsFor } from './source-graph.js';
-import { suiteRecord } from './suite-record.js';
+import { recordedSuite } from './suite-record.js';
 import {
   formatSelection,
   selectionNotes,
   skippableTests,
   type SelectFormat,
   type SelectGround,
+  type SelectInput,
+  type SelectSource,
 } from './select.js';
 
 /** What `variance select` was asked for, once the flags are off the command line. */
@@ -99,14 +107,17 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   ) {
     return await journeyOutput({ ...request, execution: request.execution });
   }
-  const at = request.execution ?? (await suiteRecord(request.cwd, request.suite));
+  const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
+  const { at, source } = found;
+  const said = (input: Parameters<typeof saidOf>[0]) =>
+    saidOf(source === undefined ? input : { ...input, source }, request);
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to
   // produce a diff — which is what an operator would see if the commit were
   // looked for first and the answer were "pass --since".
-  if (!(await exists(at))) {
-    return said({ at, ground: { kind: 'no-journal' } }, request);
+  if (!found.held) {
+    return said({ at, ground: { kind: 'no-journal' } });
   }
 
   // The position, and nothing else decoded to reach it. A snapshot of this
@@ -141,7 +152,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     : await handedDiff(request.diff);
   if (diff === undefined) {
     const ground: SelectGround = { kind: 'no-diff', from: base };
-    return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
+    return said({ at, ...(commit === undefined ? {} : { commit }), ground });
   }
 
   // Read at the base the diff was measured from — the journal's own commit, or
@@ -154,7 +165,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     : await installDiffOfPatch(diff);
   if (installed !== undefined && 'whole' in installed) {
     const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
-    return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
+    return said({ at, ...(commit === undefined ? {} : { commit }), ground });
   }
 
   const relations = await relationsFor(request.cwd, ['.'], [], [], {
@@ -177,7 +188,36 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
           },
         };
 
-  return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
+  return said({ at, ...(commit === undefined ? {} : { commit }), ground });
+}
+
+/**
+ * This checkout's record of the suite, or, when it has none and the suite is
+ * given to a share, the one its mainline published (spec 0074, item 5).
+ *
+ * The local record wins whenever it is on disk, and nothing is fetched then.
+ * For a suite given to a share, either way, the first note after the verdict
+ * says whose record it read, because the two select differently and an
+ * operator reading a skip list cannot tell them apart otherwise.
+ */
+async function recordedOrMainline(
+  request: SelectRequest,
+): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource }> {
+  const recorded = await recordedSuite(request.cwd, request.suite);
+  const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
+  if (await exists(recorded.file)) {
+    return suite === undefined
+      ? { at: recorded.file, held: true }
+      : { at: recorded.file, held: true, source: { from: 'checkout', says: checkoutRead(suite) } };
+  }
+  const read = await mainlineBase(request.cwd, recorded.declared);
+  if (read === undefined) return { at: recorded.file, held: false };
+  if ('miss' in read) {
+    const mainline = read.mainline === undefined ? {} : { mainline: read.mainline };
+    return { at: recorded.file, held: false, source: { ...mainline, says: mainlineMissed(read) } };
+  }
+  const distance = read.distance === undefined ? {} : { distance: read.distance };
+  return { at: read.coverage, held: true, source: { from: 'mainline', mainline: read.mainline, ...distance, says: mainlineRead(read) } };
 }
 
 /**
@@ -207,7 +247,7 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
   const from = request.since ?? 'HEAD';
   const text = request.diff === undefined ? await diffSince(from) : await handedDiff(request.diff);
   if (text === undefined) {
-    return said({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request);
+    return saidOf({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request);
   }
   if (!/^diff --git /mu.test(text) && /^@@ /mu.test(text)) {
     throw new OperatorError(
@@ -228,7 +268,7 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     ? await installDiff(await diffPoint(from), [...selection.changedLines(text).keys()])
     : await installDiffOfPatch(text);
   if (installed !== undefined && 'whole' in installed) {
-    return said({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request);
+    return saidOf({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request);
   }
   const relations = await relationsFor(request.cwd, ['.'], [], [], {
     why: 'a whole-file change is answered by the file graph',
@@ -246,7 +286,7 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
   const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
   const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...moved.unplaced].sort();
-  return said(
+  return saidOf(
     { at: request.execution, given: true, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } },
     request,
   );
@@ -263,8 +303,8 @@ async function stdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-function said(
-  input: { readonly at: string; readonly commit?: string; readonly given?: boolean; readonly ground: SelectGround },
+function saidOf(
+  input: SelectInput,
   request: { readonly format: SelectFormat; readonly cwd: string },
 ): SelectOutput {
   const selection = skippableTests(input);

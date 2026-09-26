@@ -325,8 +325,6 @@ describe('`variance ask` in a checkout with no report', () => {
   });
 });
 
-it.todo('`variance review` and `variance select` take their base from the mainline record\'s `suite-v1` entry when this checkout recorded none, and say which they read — needs the base readers to read the mainline line before deriving a base');
-
 describe('a git share', () => {
   it('authenticates with the header your clone sends its remote, as a checkout on CI does', async () => {
     const seen: (string | undefined)[] = [];

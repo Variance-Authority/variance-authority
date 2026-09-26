@@ -134,6 +134,13 @@ describe('what a diff touched, named the way the run names files', () => {
     'measures from the tree the index was recorded over, not its commit, when that tree was dirty — needs the recorded text itself, which a digest of it cannot supply',
   );
 
+  // `review` and `select` fall back to the record the mainline published when
+  // this checkout recorded none (`mainline-base.ts`). `run --since` reads the
+  // same record in `journeyAgainst` and `indexPosition`, and does not.
+  it.todo(
+    'a run with `--since` in a checkout that recorded nothing takes the journeys it narrows by from the record its mainline published, and says which it read — needs `journeyAgainst` and `indexPosition` to read the path `mainlineBase` keeps when `suiteRecord` names a file that is not there',
+  );
+
   it('names a path with a character outside ASCII or a space as the file it is, in both answers', async () => {
     // `core.quotePath` writes `src/café.ts` as `"src/caf\303\251.ts"`, quotes
     // included, and a list holding that string matches nothing: the file is

@@ -38,12 +38,13 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
-import { suiteRecord } from './suite-record.js';
+import { recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { regionState } from './covering-frame.js';
 import { motionAgainst, motionOfLast, type CoveringMotion } from './covering-motion.js';
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
+import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
 import { diffPoint, diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
 
@@ -107,8 +108,25 @@ export interface BeforeReach {
 export interface Review {
   /** The commit the change is read from. */
   readonly from: string;
-  /** What `from` came from: `--since`, or the commit the recording stood at before these runs. */
-  readonly base: 'since' | 'recording';
+  /**
+   * What `from` came from: `--since`, the commit the recording stood at before
+   * these runs, or, when there was no recording before them, the record the
+   * suite's mainline published — `from` is its commit, or that commit's merge
+   * base with this checkout when it was published past it.
+   */
+  readonly base: 'since' | 'recording' | 'mainline';
+  /** The mainline record the base was read from, when `base` is `mainline`. */
+  readonly mainline?: {
+    readonly name: string;
+    readonly suite: string;
+    readonly commit: string;
+    /** Absent when this clone cannot count it. */
+    readonly distance?: number;
+    /** Where the record is kept in the cache. */
+    readonly kept: string;
+    /** Why the cases it published were not compared with, when it published cases that do not read. */
+    readonly casesUnread?: string;
+  };
   /** The runs recorded at this commit, when they listed themselves. */
   readonly runs?: CommitRuns;
   readonly files: readonly ReviewFile[];
@@ -123,29 +141,44 @@ export interface Review {
 export async function review(request: ParsedReview): Promise<Review> {
   const { root } = request;
   // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
-  const coverageFile = await suiteRecord(root, request.suite);
+  const recorded = await recordedSuite(root, request.suite);
+  const coverageFile = recorded.file;
   const runs = await readCommitRuns(coverageFile);
-  const ref = request.since ?? runs?.over;
+  const given = request.since ?? runs?.over;
+  // Runs that were laid over no recording, and no base named: a suite given to
+  // a share starts from the record its mainline published, which is the state
+  // a fresh CI checkout is always in (spec 0074, item 5). With no run here at
+  // all there is nothing to review, and nothing is fetched.
+  const shared = given === undefined && runs !== undefined ? await mainlineBase(root, recorded.declared) : undefined;
+  const mainline = shared === undefined || 'miss' in shared ? undefined : shared;
+  const ref = given ?? mainline?.commit;
   if (ref === undefined) {
     throw new OperatorError(
-      runs === undefined
+      (runs === undefined
         ? `no run has listed itself beside \`${coverageFile}\`, so nothing says where this change starts. ` +
             'Run the suite with `withTestSelection` first, or name the base with `--since <ref>`.'
         : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} were not laid over a recording of ` +
-            'the same instrumentation, so nothing says where this change starts. Name the base with `--since <ref>`.',
+            'the same instrumentation, so nothing says where this change starts. Name the base with `--since <ref>`.') +
+        (shared !== undefined && 'miss' in shared ? `\n${mainlineMissed(shared)}.` : ''),
       { kind: 'unrecorded' },
     );
   }
-
   const point = await diffPoint(ref);
   const forward = point === undefined ? undefined : await diffSince(ref, [], point.base);
   const backward = point === undefined ? undefined : await diffSince(ref, [], point.base, { reverse: true });
   if (point === undefined || forward === undefined || backward === undefined) {
+    const whose = mainline === undefined ? '' : `, where mainline ${mainline.mainline} published its record of "${mainline.suite}",`;
     throw new OperatorError(
-      `\`${ref}\` could not be read as a diff. Check the commit is in this checkout's history: ` +
+      `\`${ref}\`${whose} could not be read as a diff. Check the commit is in this checkout's history: ` +
         'a shallow clone holds only the tip, so fetch the base, or check out with `fetch-depth: 0`.',
     );
   }
+
+  // The mainline's own case index is the base the cases are compared with,
+  // unless one was named — and only when the diff starts at the commit it was
+  // recorded at. A record published past the merge base holds the mainline's
+  // later cases, and comparing with them would report its changes as this one's.
+  const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
   const here = process.cwd();
   const named = (file: string): string => relative(point.repository, resolve(here, file));
@@ -168,7 +201,7 @@ export async function review(request: ParsedReview): Promise<Review> {
     coveringChange(index, now, { relations }).map((file) => [file.file, file]),
   );
   const full = await readExecutionIndex(from);
-  const held = await baseIndex(request.against, from);
+  const held = await baseIndex(against, from, request.against === undefined && against !== undefined ? mainline : undefined);
   const near = await nearTests(coverageFile, [...covered.values()].filter((file) => file.recorded).map((file) => file.file), relations);
 
   const files: ReviewFile[] = [];
@@ -191,15 +224,16 @@ export async function review(request: ParsedReview): Promise<Review> {
 
   const suite = await preconditionsOf(coverageFile, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
-  const motion = request.against !== undefined
-    ? await motionAgainst(from, request.against, ref, root)
+  const motion = against !== undefined
+    ? await motionAgainst(from, against, ref, root)
     : runs === undefined
       ? undefined
       : await motionOfLast(full, from, full.tests.filter((test) => runs.files.includes(test.file)).map((test) => test.id), root, undefined, ref);
 
   return {
     from: point.base,
-    base: request.since === undefined ? 'recording' : 'since',
+    base: request.since !== undefined ? 'since' : mainline === undefined ? 'recording' : 'mainline',
+    ...(mainline === undefined ? {} : { mainline: mainlineOf(mainline) }),
     ...(runs === undefined ? {} : { runs }),
     files,
     ...(suite === undefined ? {} : {
@@ -316,17 +350,23 @@ async function nearTests(
 }
 
 /**
- * The case index the change is compared with: the one `--against` names, or
- * the cases the latest run replaced. Absent when neither can be read.
+ * The case index the change is compared with: the one `--against` names or
+ * the mainline published, or the cases the latest run replaced. Absent when
+ * none was named and the run replaced none.
  */
-async function baseIndex(against: string | undefined, from: string): Promise<ExecutionIndex | undefined> {
+async function baseIndex(
+  against: string | undefined,
+  from: string,
+  mainline: MainlineRecord | undefined,
+): Promise<ExecutionIndex | undefined> {
   try {
     return await readExecutionIndex(against ?? caseLayerFiles(from).before);
   } catch (error) {
     if (against === undefined) return undefined;
-    throw new OperatorError(
-      `\`--against ${against}\` could not be read (${error instanceof Error ? error.message : String(error)}).`,
-    );
+    const named = mainline === undefined
+      ? `\`--against ${against}\``
+      : `the cases mainline ${mainline.mainline} published with its record of "${mainline.suite}", kept at ${against},`;
+    throw new OperatorError(`${named} could not be read (${error instanceof Error ? error.message : String(error)}).`);
   }
 }
 
@@ -380,4 +420,16 @@ function beforeReach(changed: readonly string[], declared: ReadonlyMap<string, n
     .filter((file) => declared.has(file))
     .map((file) => ({ file, tests: declared.get(file)! }))
     .sort((left, right) => right.tests - left.tests || (left.file < right.file ? -1 : 1));
+}
+
+/** What a review says about the mainline record it started from: enough to name it, and where it is kept. */
+function mainlineOf(read: MainlineRecord): NonNullable<Review['mainline']> {
+  return {
+    name: read.mainline,
+    suite: read.suite,
+    commit: read.commit,
+    ...(read.distance === undefined ? {} : { distance: read.distance }),
+    kept: read.coverage,
+    ...(read.casesUnread === undefined ? {} : { casesUnread: read.casesUnread }),
+  };
 }

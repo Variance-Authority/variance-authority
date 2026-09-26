@@ -102,7 +102,9 @@ export {
   cacheRootFor,
   layeredFiles,
   repositoryLayers,
+  rootConfig,
   type CacheLayers,
+  type RootConfig,
 } from './cache-layers.js';
 export {
   readableTestCoverage,

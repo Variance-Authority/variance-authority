@@ -718,6 +718,30 @@ after a `yarn test` on a branch, `variance review` alone answers for everything
 since the previous run. A retry or a second shard at the same commit keeps the
 same starting commit and adds its test files to the list.
 
+A run in a checkout that had no recording before it, such as a fresh clone,
+has no previous commit to start from. When the root config gives that suite to
+the [share](../../docs/sharing.md) with `"carry": "share"`, the review starts at
+the commit your mainline published its record at, compares cases with that
+record's, and says so in its first line:
+
+```text
+Changes since 51ab09e7c2d4, where mainline main published its record of "unit", 3 commit(s) behind the merge base with this checkout. 1 run at 9c4e1d2a07b8 recorded 4 test files.
+```
+
+A record published past your merge base with the mainline is at a commit your
+branch does not contain. The review starts at the merge base instead, names
+both commits, and does not compare cases with the record's, because they were
+recorded over commits your branch does not have:
+
+```text
+Changes since 2f07c1a9be3d, the merge base with 51ab09e7c2d4, where mainline main published its record of "unit", 2 commit(s) past the merge base with this checkout. 1 run at 9c4e1d2a07b8 recorded 4 test files.
+```
+
+The record a branch published to the share, on its `branch/<name>` line, is
+never the start: the review would measure the change against itself. `--since`
+still names the start. When the mainline's record cannot be read either, the
+review stops, and the message says what the share answered.
+
 The review also lists the regions whose cases changed. It compares them with
 the cases the runs at this commit replaced, which the suite keeps beside its
 case index with the commit they were recorded at. What the base's branch changed
@@ -1226,6 +1250,21 @@ each suite records on its own, and `select` reads one of them: the one
 `--suite <name>` names, or the only one declared. With more than one declared
 and no `--suite`, it stops and lists them. `variance run --since` and
 `variance journeys` read the same way.
+
+When your checkout has not recorded the suite, as in a fresh clone, `select`
+reads the record your mainline published, if the root config gives that suite
+to the [share](../../docs/sharing.md) with `"carry": "share"`. The record is
+kept in [the cache](../../docs/cache.md), never where the suite records, and
+stderr says which of the two `select` read:
+
+```text
+record of "unit": read from mainline main, published at 51ab09e…, 3 commit(s) behind the merge base with this checkout; kept at <cache>/share/read/unit/51ab09e…/coverage.bin.
+```
+
+Once the suite runs in your checkout, its own recording is read instead. The
+record a branch published to the share, on its `branch/<name>` line, is never
+read: only a mainline's is. When the mainline's record cannot be read either,
+stderr says what the share answered, and `select` skips nothing.
 
 It prints a **skip** list, never a run list, and that is the whole of its safety.
 A run list has to be complete to be correct, and this journal is never

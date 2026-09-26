@@ -25,9 +25,13 @@ import {
  * it, and columns open on the little-endian length of a header.
  */
 export async function readExecutionIndex(file: string): Promise<ExecutionIndex> {
-  const bytes = await readFile(file);
+  return executionIndexOf(await readFile(file));
+}
+
+/** {@link readExecutionIndex} for bytes already in hand, such as a record a share gave. */
+export function executionIndexOf(bytes: Uint8Array): ExecutionIndex {
   if (isEncodedExecutionIndex(bytes)) return decodeExecutionIndex(bytes);
-  return parseExecutionIndex(JSON.parse(bytes.toString('utf8')));
+  return parseExecutionIndex(JSON.parse(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('utf8')));
 }
 
 /**

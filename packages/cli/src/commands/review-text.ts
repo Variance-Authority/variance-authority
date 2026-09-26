@@ -14,6 +14,7 @@
 import type { ReviewFormat } from '../review-args.js';
 import { motionText } from './covering-motion.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
+import { describeDistance } from './share.js';
 
 /** The first line of the markdown, which a workflow looks for to edit its own comment. */
 export const REVIEW_MARKER = '<!-- variance-authority: review -->';
@@ -88,11 +89,29 @@ function markdown(review: Review): string {
   return `${lines.join('\n')}\n`;
 }
 
+/**
+ * Where a review from the mainline's record starts. A record published past
+ * the merge base cannot be the start, so the header names both commits rather
+ * than let the reader take one for the other.
+ */
+function mainlineHeader(start: string, mainline: NonNullable<Review['mainline']>, code: (value: string) => string): string {
+  const from = code(start.slice(0, 12));
+  const record = `mainline ${mainline.name} published its record of "${mainline.suite}"`;
+  const where = mainline.commit === start
+    ? `Changes since ${from}, where ${record}, ${describeDistance(mainline.distance)}.`
+    : `Changes since ${from}, the merge base with ${code(mainline.commit.slice(0, 12))}, where ${record}, ` +
+      `${describeDistance(mainline.distance)}.`;
+  return mainline.casesUnread === undefined ? where : `${where} Cases are not compared with that record's: ${mainline.casesUnread}.`;
+}
+
 function header(review: Review, code: (value: string) => string = (value) => value): string {
   const from = code(review.from.slice(0, 12));
+  const mainline = review.mainline;
   const where = review.base === 'since'
     ? `Changes since ${from}.`
-    : `Changes since ${from}, the commit the recording was at before these runs.`;
+    : mainline !== undefined
+      ? mainlineHeader(review.from, mainline, code)
+      : `Changes since ${from}, the commit the recording was at before these runs.`;
   const runs = review.runs;
   if (runs === undefined) return where;
   return `${where} ${runs.runs} run${runs.runs === 1 ? '' : 's'}${

@@ -1,5 +1,6 @@
 // compass: variance-authority.reach
 
+import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
 
@@ -15,6 +16,18 @@ import { messageOf } from '../config-values.js';
  * about what a person typed, not about where a run records.
  */
 export async function suiteRecord(root: string, suite?: string): Promise<string> {
+  return (await recordedSuite(root, suite)).file;
+}
+
+/**
+ * {@link suiteRecord}, with the declaration the path was resolved from: a
+ * reader that falls back to the record a share holds asks the declaration
+ * whether the share holds one.
+ */
+export async function recordedSuite(
+  root: string,
+  suite?: string,
+): Promise<{ readonly file: string; readonly declared?: DeclaredSuite }> {
   const selection = await import('@variance-authority/sense/test-selection');
   try {
     const declared = selection.declaredSuites(root);
@@ -25,7 +38,9 @@ export async function suiteRecord(root: string, suite?: string): Promise<string>
           'and each records on its own; pass `--suite <name>` to say which record to read',
       );
     }
-    return selection.testCoverageFile(root, { suite: only });
+    const file = selection.testCoverageFile(root, { suite: only });
+    const named = declared?.find((one) => one.name === only);
+    return named === undefined ? { file } : { file, declared: named };
   } catch (error) {
     if (error instanceof OperatorError) throw error;
     throw new OperatorError(messageOf(error), { cause: error });
