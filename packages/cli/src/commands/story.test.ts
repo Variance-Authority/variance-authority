@@ -36,16 +36,16 @@ const ROUTE: Route = {
 const HEAD = [
   'story  src/cart.test.ts > cart > removes the last item',
   '  goes through 5 files in 5 steps',
-  "  another case's work ran in the middle of this one twice, and is left out",
+  "  another test's work ran in the middle of this one twice, and is left out",
 ];
 
 const KEY = [
-  '  key  step   one declaration, from entering or coming back to it until the case goes on to another',
-  '       ×N     beside a declaration, times it was entered at that step; beside an arm or a loop, times it ran',
-  '              there; under `steps a-b ran N times`, every pass of them is added',
-  '       ✗      an arm the case never took, or a loop whose body never ran',
-  '       ↑      an arm or a loop body entered at an earlier step, which this step runs inside',
-  '       in 255 then:  inside the `then` arm of the `if` on line 255',
+  '  key  step   one function, method or callback, from the test going in or coming back until it goes to another',
+  '       ×N     beside a function, how many times the test called it at this step; beside a branch or a loop, how',
+  '              many times it ran there; under `steps a-b ran N times`, every pass of them is added',
+  '       ✗      a branch the test never took, or a loop whose body never ran',
+  '       ↑      a branch or a loop body the test went into at an earlier step; this step runs inside it',
+  '       in 255 then:  inside the `then` branch of the `if` on line 255',
 ];
 
 const FILES = ['', '  in src: cart.test.ts, cart.ts, price.ts, format.ts, tax.ts', ''];
@@ -71,9 +71,9 @@ describe('a story read as a route', () => {
         ...HEAD,
         ...KEY,
         ...FILES,
-        '  before the case',
+        '  before the test',
         '  1  beforeEach.arg0  cart.test.ts:3-8',
-        '  the case',
+        '  the test',
         '  2  loaded 4 files: cart.ts, price.ts, format.ts, and 1 more',
         '  3  Cart/removeItem  cart.ts:12-30',
         '       if 14  then ×1',
@@ -116,7 +116,7 @@ describe('a story read as a route', () => {
       [
         'story  src/cart.test.ts > cart > removes the last item',
         '  goes through 5 files in 300 steps',
-        '  drawn by files, because by declarations it would be 7798 characters, over the 5000 a reading is held to;',
+        '  drawn by files: by declarations it would be 7798 characters, and a story is kept under 5000;',
         '  narrow it with --in <package or file> or --around <step>, or read every step with --whole',
         '',
         '  src/a.ts  steps 1-150',
@@ -132,9 +132,9 @@ describe('a story read as a route', () => {
       [
         'story  src/cart.test.ts > cart > removes the last item',
         '  goes through 2 files in 302 steps',
-        '  drawn by steps, because by every step it would be 8882 characters, over the 5000 a reading is held to;',
+        '  drawn by steps: by every step it would be 8882 characters, and a story is kept under 5000;',
         '  narrow it with --in <package or file> or --around <step>, or read every step with --whole',
-        '  passed through @acme/ui, a line for each run of steps; open one with --in <package>',
+        '  passed through @acme/ui, one line for each series of steps in a row there; open one with --in <package>',
         ...KEY,
         '',
         '  in src: app.ts',
@@ -173,16 +173,16 @@ describe('a story read as a route', () => {
         '  the steps through the package or file matching `cart.test`, and the step either side of each run of them',
         ...KEY,
         ...FILES,
-        '  before the case',
+        '  before the test',
         '  1  beforeEach.arg0  cart.test.ts:3-8',
-        '  the case',
+        '  the test',
         '  2  loaded 4 files: cart.ts, price.ts, format.ts, and 1 more',
         '     … steps 3-5 left out',
         '',
       ].join('\n'),
     );
     expect(formatStory({ route: ROUTE, zoom: { in: 'basket' } }, 'text')).toBe(
-      [...HEAD, '', '  the case goes through no package or file matching `basket`', ''].join('\n'),
+      [...HEAD, '', '  the test goes through no package or file matching `basket`', ''].join('\n'),
     );
   });
 
@@ -193,9 +193,9 @@ describe('a story read as a route', () => {
         '  the 3 steps either side of step 1, and the loops they sit in',
         ...KEY,
         ...FILES,
-        '  before the case',
+        '  before the test',
         '  1  beforeEach.arg0  cart.test.ts:3-8',
-        '  the case',
+        '  the test',
         '  2  loaded 4 files: cart.ts, price.ts, format.ts, and 1 more',
         '  3  Cart/removeItem  cart.ts:12-30',
         '       if 14  then ×1',

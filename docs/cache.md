@@ -77,7 +77,7 @@ back to the default, because you would not know where the recording went.
     coverage.bin                 which test ran which region of which module
     coverage.bin.cases.bin       the same, for each test case
     coverage.runs.json           the runs at the current commit, and the commit before them
-    coverage.stories/            a test story for each case a run taped, when you ask for them
+    coverage.stories/            a test story for each test a run recorded, when you ask for them
     suites/<name>/               the same files for each suite you declare
     names.bin                    the ids those records use for file paths
     source-index.bin             the source index, and its segments beside it

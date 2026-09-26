@@ -51,7 +51,7 @@ export function story(parsed: ParsedStory): StoryAnswer {
   const all = listStories(parsed.root);
   if (all.length === 0) {
     throw new OperatorError(
-      `no story in this checkout: run the case with ${STORY_VARIABLE}=1, and the runner writes one for every case it runs`,
+      `no story in this checkout: run the test with ${STORY_VARIABLE}=1, and the runner writes one for every test it runs`,
     );
   }
   const matching = all.filter(
@@ -140,30 +140,30 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
     }, null, 2)}\n`;
   }
   const text = header(route, steps);
-  if (steps === 0) text.push('', '  the case reached no instrumented code');
-  else if (part.lines.length === 0) text.push('', `  the case goes through no ${part.asked ?? 'such step'}`);
+  if (steps === 0) text.push('', '  the test ran no instrumented code');
+  else if (part.lines.length === 0) text.push('', `  the test goes through no ${part.asked ?? 'such step'}`);
   else {
     if (finer !== undefined) {
       text.push(
-        `  drawn by ${reading.level}, because by ${finer.level} it would be ${finer.characters} characters, over the ${BUDGET} a reading is held to;`,
+        `  drawn by ${reading.level}: by ${finer.level} it would be ${finer.characters} characters, and a story is kept under ${BUDGET};`,
         '  narrow it with --in <package or file> or --around <step>, or read every step with --whole',
       );
     }
     if (part.kept !== undefined) text.push(`  ${part.kept}`);
     if (reading.level === 'steps') {
-      text.push(`  passed through ${listed(reading.passed)}, a line for each run of steps; open one with --in <package>`);
+      text.push(`  passed through ${listed(reading.passed)}, one line for each series of steps in a row there; open one with --in <package>`);
     }
     if (reading.level === 'declarations') {
-      text.push('  key  step   entering a declaration or coming back to it; 39×6 is step 39, which came round 6 times');
+      text.push('  key  step   the test going into a function or coming back to it; 39×6 is step 39, repeated 6 times');
     }
     if ('lines' in reading) {
       text.push(
-        '  key  step   one declaration, from entering or coming back to it until the case goes on to another',
-        '       ×N     beside a declaration, times it was entered at that step; beside an arm or a loop, times it ran',
-        '              there; under `steps a-b ran N times`, every pass of them is added',
-        '       ✗      an arm the case never took, or a loop whose body never ran',
-        '       ↑      an arm or a loop body entered at an earlier step, which this step runs inside',
-        '       in 255 then:  inside the `then` arm of the `if` on line 255',
+        '  key  step   one function, method or callback, from the test going in or coming back until it goes to another',
+        '       ×N     beside a function, how many times the test called it at this step; beside a branch or a loop, how',
+        '              many times it ran there; under `steps a-b ran N times`, every pass of them is added',
+        '       ✗      a branch the test never took, or a loop whose body never ran',
+        '       ↑      a branch or a loop body the test went into at an earlier step; this step runs inside it',
+        '       in 255 then:  inside the `then` branch of the `if` on line 255',
       );
     }
     text.push(...texts[chosen]!);
@@ -194,10 +194,10 @@ function header(route: Route, steps: number): string[] {
     `story  ${route.file} > ${route.name}`,
     `  goes through ${files} ${files === 1 ? 'file' : 'files'} in ${steps} ${steps === 1 ? 'step' : 'steps'}`,
   ];
-  if (route.stopped === true) lines.push('  the case threw or rejected, so the route ends where it stopped');
-  if (route.untaped > 0) lines.push(`  the tape filled, and ${route.untaped} later visits are not on this route`);
+  if (route.stopped === true) lines.push('  the test threw or rejected, so the route ends where it stopped');
+  if (route.untaped > 0) lines.push(`  the recording filled up, and ${route.untaped} later visits are not on this route`);
   if (route.interleaved > 0) {
-    lines.push(`  another case's work ran in the middle of this one ${times(route.interleaved)}, and is left out`);
+    lines.push(`  another test's work ran in the middle of this one ${times(route.interleaved)}, and is left out`);
   }
   if (route.unresolved.length > 0) {
     lines.push(
@@ -260,7 +260,7 @@ function linesText(
       text.push(`  ${blank}  ${indent}… ${from === to ? `step ${from}` : `steps ${from}-${to}`} left out`);
       return;
     }
-    if (sections && line.before !== before) text.push(line.before ? '  before the case' : '  the case');
+    if (sections && line.before !== before) text.push(line.before ? '  before the test' : '  the test');
     before = line.before;
     const indent = '  '.repeat(line.depth);
     if ('through' in line) {
