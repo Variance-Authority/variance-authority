@@ -3086,6 +3086,8 @@
         "MIGRATIONS": "const",
         "R2Like": "interface",
         "R2ObjectLike": "interface",
+        "R2PutOptions": "interface",
+        "R2Written": "interface",
         "SCHEMA": "const",
         "SCHEMA_VERSION": "const",
         "TribunalBindings": "interface",
@@ -3189,6 +3191,7 @@
         "parseRoute": "function"
       },
       "./next": {
+        "Capability": "type",
         "TribunalRouteOptions": "interface",
         "TribunalRoutes": "interface",
         "createTribunalRoutes": "function"

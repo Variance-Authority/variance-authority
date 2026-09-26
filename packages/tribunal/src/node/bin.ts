@@ -8,11 +8,13 @@ import { createDirectoryBucket } from './bucket.js';
 import { openDatabase, type TribunalDatabase } from './database.js';
 import { serveTribunal, type TribunalService } from './serve.js';
 import { createTribunal } from '../worker.js';
+import type { Capability } from '../next.js';
 
 /**
  * `variance-authority-tribunal` — the thing the operator runs.
  *
- * A process, a port, a file, a directory and two tokens. The same review
+ * A process, a port, a file, a directory and two tokens, or three when something
+ * only reads the share. The same review
  * service a Cloudflare deployment serves, with SQLite where D1 was and a
  * directory where R2 was; every route, every refusal and every status code is
  * the same code.
@@ -46,6 +48,7 @@ export const STORAGE_VARIABLE = 'VARIANCE_TRIBUNAL_STORAGE';
 export const PROJECT_VARIABLE = 'VARIANCE_TRIBUNAL_PROJECT';
 export const INGEST_TOKEN_VARIABLE = 'VARIANCE_TRIBUNAL_INGEST_TOKEN';
 export const REVIEW_TOKEN_VARIABLE = 'VARIANCE_TRIBUNAL_REVIEW_TOKEN';
+export const SHARE_TOKEN_VARIABLE = 'VARIANCE_TRIBUNAL_SHARE_TOKEN';
 export const RETENTION_VARIABLE = 'VARIANCE_TRIBUNAL_RETENTION_DAYS';
 export const REVIEWER_VARIABLE = 'VARIANCE_TRIBUNAL_REVIEWER';
 export const TRUST_NETWORK_VARIABLE = 'VARIANCE_TRIBUNAL_TRUST_NETWORK';
@@ -68,6 +71,8 @@ export interface TribunalConfig {
   readonly project: string;
   readonly ingestToken: string;
   readonly reviewToken: string;
+  /** Reads the share and nothing else. Absent when the variable is unset. */
+  readonly shareToken?: string;
   readonly retentionDays?: number;
   readonly reviewer: string;
   /**
@@ -142,6 +147,7 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
     // it to be relaxed.
     ingestToken: env[INGEST_TOKEN_VARIABLE] ?? '',
     reviewToken: env[REVIEW_TOKEN_VARIABLE] ?? '',
+    ...(env[SHARE_TOKEN_VARIABLE] === undefined ? {} : { shareToken: env[SHARE_TOKEN_VARIABLE] }),
     ...(retentionDays === undefined ? {} : { retentionDays }),
     reviewer: orDefault(env[REVIEWER_VARIABLE], defaultReviewer()),
   };
@@ -158,7 +164,8 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
  * Three rules, in order:
  *
  * 1. **A caller holding a token gets what the token is for.** CI posts with the
- *    ingest token from wherever CI runs. The mount replaces the header before the
+ *    ingest token from wherever CI runs, and a machine that only reads the share
+ *    presents the share token. The mount replaces the header before the
  *    Worker sees it, so this is the only place the caller's own bearer is read.
  * 2. **On a loopback bind, a caller with no token reviews.** The socket is the
  *    gate: only this machine can reach it, and the person at this machine is the
@@ -166,12 +173,13 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
  * 3. **On a network bind, no token is no capability** — and the surface is not
  *    served at all, so there is no page to be tricked into carrying one.
  */
-export function authorizeFor(config: TribunalConfig): (request: Request) => 'ingest' | 'review' | null {
+export function authorizeFor(config: TribunalConfig): (request: Request) => Capability | null {
   return (request: Request) => {
     const bearer = bearerOf(request);
     if (bearer !== null) {
       if (bearer === config.ingestToken) return 'ingest';
       if (bearer === config.reviewToken) return 'review';
+      if (config.shareToken !== undefined && bearer === config.shareToken) return 'share';
       return null;
     }
     return config.loopback ? 'review' : null;
@@ -212,6 +220,7 @@ export async function start(
       project: config.project,
       ingestToken: config.ingestToken,
       reviewToken: config.reviewToken,
+      ...(config.shareToken === undefined ? {} : { shareToken: config.shareToken }),
       ...(config.retentionDays === undefined ? {} : { retentionDays: config.retentionDays }),
     });
 
@@ -220,7 +229,11 @@ export async function start(
       host: config.host,
       port: config.port,
       authorize: authorizeFor(config),
-      tokens: { ingest: config.ingestToken, review: config.reviewToken },
+      tokens: {
+        ingest: config.ingestToken,
+        review: config.reviewToken,
+        ...(config.shareToken === undefined ? {} : { share: config.shareToken }),
+      },
       ui: config.loopback,
       reviewer: config.reviewer,
     });
@@ -241,7 +254,9 @@ export async function start(
           ? `served at ${service.url} — this bind is reachable only from this machine`
           : `not served: ${HOST_VARIABLE} is a network address. The JSON API is up and wants a bearer token`
       }\n` +
-      `  auth:     bearer tokens from ${INGEST_TOKEN_VARIABLE} and ${REVIEW_TOKEN_VARIABLE}\n`,
+      `  auth:     bearer tokens from ${INGEST_TOKEN_VARIABLE} and ${REVIEW_TOKEN_VARIABLE}` +
+      (config.shareToken === undefined ? '' : `, and a share reader's from ${SHARE_TOKEN_VARIABLE}`) +
+      '\n',
   );
 
   return {
@@ -324,6 +339,7 @@ const VARIABLES: readonly (readonly [string, string])[] = [
   [PROJECT_VARIABLE, 'required — scopes every row and every object key'],
   [INGEST_TOKEN_VARIABLE, 'required — what CI pushes with'],
   [REVIEW_TOKEN_VARIABLE, 'required — what a person decides with'],
+  [SHARE_TOKEN_VARIABLE, 'optional — what a machine reads the share with'],
   [DATABASE_VARIABLE, `the SQLite file (default ${DEFAULT_DATABASE})`],
   [STORAGE_VARIABLE, `where images are kept (default ${DEFAULT_STORAGE})`],
   [PORT_VARIABLE, `default ${DEFAULT_PORT}`],

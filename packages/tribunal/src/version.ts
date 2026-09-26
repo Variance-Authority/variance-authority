@@ -22,7 +22,7 @@ import { SCHEMA_VERSION } from './schema.js';
  *
  * `worker.ts` authenticates before it routes, on the argument that an
  * unauthenticated 404 hands a stranger a map of the API. This route is that map,
- * so it is inside the same gate — either capability may ask, because both halves
+ * so it is inside the same gate — every capability may ask, because both halves
  * of a mismatch need to hear it and only one of them ever holds the review token.
  */
 
@@ -38,13 +38,15 @@ import { SCHEMA_VERSION } from './schema.js';
  * - **2** — `POST /review/have`, so a push may name bytes by digest; per-document
  *   `identity` on an ingested candidate, so a retina baseline is promoted under
  *   the digest a later run asks for.
+ * - **3** — the share under `/share/`, so an `http` share may use a deployment as
+ *   its store, and the optional share token that only reads it.
  *
  * A client that speaks 2 against a service that speaks 1 works, slowly and with
  * that identity caveat. A client that speaks 1 against a service that speaks 2
  * works, and sends more than it needs to. Neither is an error; both are worth a
  * line on the way past.
  */
-export const TRIBUNAL_API = 2;
+export const TRIBUNAL_API = 3;
 
 export const VERSION_PATH = '/version';
 

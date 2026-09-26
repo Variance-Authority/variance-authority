@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { createTribunalRoutes } from '../next.js';
+import { createTribunalRoutes, type Capability } from '../next.js';
 import type { Tribunal } from '../worker.js';
 import { isPagePath } from '../ui/route.js';
 import { reviewPage, uiAsset } from './ui-assets.js';
@@ -52,9 +52,9 @@ export interface TribunalServiceOptions {
    *
    * The shipped policy is in [`bin.ts`](./bin.ts), where an operator can read it.
    */
-  authorize(request: Request): Promise<'ingest' | 'review' | null> | 'ingest' | 'review' | null;
+  authorize(request: Request): Promise<Capability | null> | Capability | null;
   /** The tokens the tribunal was constructed with, for the mount to attach. */
-  readonly tokens: { readonly ingest: string; readonly review: string };
+  readonly tokens: { readonly ingest: string; readonly review: string; readonly share?: string };
   /**
    * Serve the review surface at `/`, not just the JSON API.
    *
@@ -172,8 +172,9 @@ async function pageOrAsset(request: Request, reviewer?: string): Promise<Respons
   return null;
 }
 
-function method(request: Request): 'GET' | 'POST' | 'HEAD' {
+function method(request: Request): 'GET' | 'POST' | 'PUT' | 'HEAD' {
   if (request.method === 'POST') return 'POST';
+  if (request.method === 'PUT') return 'PUT';
   if (request.method === 'HEAD') return 'HEAD';
   return 'GET';
 }

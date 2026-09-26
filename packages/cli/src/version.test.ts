@@ -24,12 +24,12 @@ function answering(payload: unknown, status = 200): typeof globalThis.fetch {
 describe('knowing which halves are talking', () => {
   it('reads the API version a deployment states', async () => {
     const reached = await reach(
-      answering({ service: 'variance-authority-tribunal', api: 2, schema: 17 }),
+      answering({ service: 'variance-authority-tribunal', api: 3, schema: 17 }),
       'https://review.example/api',
       'ingest-token-0123',
     );
 
-    expect(reached).toEqual({ known: true, api: 2, schema: 17 });
+    expect(reached).toEqual({ known: true, api: 3, schema: 17 });
     // And the agreement is silent: a tool that announces every normal state is
     // a tool whose output people stop reading.
     expect(versionNote(reached)).toBeUndefined();
@@ -66,6 +66,10 @@ describe('knowing which halves are talking', () => {
     const behind = versionNote({ known: true, api: NEEDS_API - 1 });
     expect(behind).toContain('Redeploy the tribunal');
     expect(behind).toContain(`variance ${CLI_VERSION}`);
+    // What is missing is said as what the operator would see: a deployment from
+    // before the share pushes whole, and one from before `/review/have` does not.
+    expect(behind).toContain('404 under /share/');
+    expect(versionNote({ known: true, api: 1 })).toContain('upload it cannot skip');
 
     const ahead = versionNote({ known: true, api: NEEDS_API + 1 });
     // Not an error and not a fix: an older CLI pushes correctly, and saying so

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createTribunalRoutes } from './next.js';
+import { createTribunalRoutes, type Capability } from './next.js';
 import type { Tribunal } from './worker.js';
 
 /**
@@ -9,6 +9,7 @@ import type { Tribunal } from './worker.js';
 
 const INGEST = 'ingest-token-0123456789';
 const REVIEW = 'review-token-0123456789';
+const SHARE = 'share-token-0123456789';
 
 let seen: { url: string; authorization: string | null; method: string }[];
 let worker: Tribunal;
@@ -27,12 +28,12 @@ beforeEach(() => {
   };
 });
 
-function routes(authorize: (request: Request) => 'ingest' | 'review' | null, basePath = '/variance') {
-  return createTribunalRoutes(worker, {
-    basePath,
-    authorize,
-    tokens: { ingest: INGEST, review: REVIEW },
-  });
+function routes(
+  authorize: (request: Request) => Capability | null,
+  basePath = '/variance',
+  tokens: { ingest: string; review: string; share?: string } = { ingest: INGEST, review: REVIEW, share: SHARE },
+) {
+  return createTribunalRoutes(worker, { basePath, authorize, tokens });
 }
 
 describe('mounting inside somebody else’s app', () => {
@@ -80,6 +81,40 @@ describe('the token stays on the server', () => {
     );
 
     expect(response.status).toBe(401);
+    expect(seen).toEqual([]);
+  });
+});
+
+describe('the share', () => {
+  it('writes with PUT, as an http share does, carrying the token the gate chose', async () => {
+    await routes(() => 'ingest').PUT(
+      new Request('https://app.example.com/variance/share/mainline/main/manifest.json', {
+        method: 'PUT',
+        body: '{}',
+      }),
+    );
+
+    expect(seen[0]).toMatchObject({ method: 'PUT', authorization: `Bearer ${INGEST}` });
+    expect(new URL(seen[0]?.url ?? '').pathname).toBe('/share/mainline/main/manifest.json');
+  });
+
+  it('attaches the share token when the gate grants a reader the share', async () => {
+    await routes(() => 'share').GET(
+      new Request('https://app.example.com/variance/share/mainline/main/manifest.json'),
+    );
+
+    expect(seen[0]?.authorization).toBe(`Bearer ${SHARE}`);
+  });
+
+  it('answers 500 when the gate grants the share and no share token was given', async () => {
+    // The operator's gate and the operator's configuration disagree, and no
+    // caller can fix that, so it is not a 401.
+    const response = await routes(() => 'share', '/variance', { ingest: INGEST, review: REVIEW }).GET(
+      new Request('https://app.example.com/variance/share/mainline/main/manifest.json'),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.text()).toContain('tokens.share');
     expect(seen).toEqual([]);
   });
 });

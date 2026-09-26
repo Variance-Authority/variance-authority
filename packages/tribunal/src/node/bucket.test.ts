@@ -152,3 +152,36 @@ describe('two names one volume folds into one file', () => {
     await expect(bucket.put('p/baselines/d/Card.png', bytes(2))).resolves.toBeDefined();
   });
 });
+
+describe('a manifest is replaced only on the version it was read at', () => {
+  const MANIFEST = 'todomvc/share/mainline/main/manifest.json';
+
+  it('writes a new key once under `etagDoesNotMatch: *`, and refuses the second writer', async () => {
+    const first = await bucket.put(MANIFEST, bytes(1), { onlyIf: { etagDoesNotMatch: '*' } });
+    const second = await bucket.put(MANIFEST, bytes(2), { onlyIf: { etagDoesNotMatch: '*' } });
+
+    expect(first?.httpEtag).toMatch(/^"[0-9a-f]{32}"$/);
+    expect(second).toBeNull();
+    expect([...new Uint8Array(await (await bucket.get(MANIFEST))!.arrayBuffer())]).toEqual([1]);
+  });
+
+  it('replaces on the version it was given, and refuses a version that has moved on', async () => {
+    const written = await bucket.put(MANIFEST, bytes(1));
+    const version = written!.httpEtag.slice(1, -1);
+    expect((await bucket.get(MANIFEST))?.httpEtag).toBe(written?.httpEtag);
+
+    const replaced = await bucket.put(MANIFEST, bytes(2), { onlyIf: { etagMatches: version } });
+    expect(replaced?.httpEtag).not.toBe(written?.httpEtag);
+    expect(await bucket.put(MANIFEST, bytes(3), { onlyIf: { etagMatches: version } })).toBeNull();
+  });
+
+  it('lets exactly one of two writers racing on one version win', async () => {
+    const version = (await bucket.put(MANIFEST, bytes(1)))!.httpEtag.slice(1, -1);
+
+    const results = await Promise.all([
+      bucket.put(MANIFEST, bytes(2), { onlyIf: { etagMatches: version } }),
+      bucket.put(MANIFEST, bytes(3), { onlyIf: { etagMatches: version } }),
+    ]);
+    expect(results.filter((result) => result === null)).toHaveLength(1);
+  });
+});

@@ -15,6 +15,8 @@ export interface TribunalEnvironment {
   readonly INGEST_TOKEN: string;
   /** Held by this Worker, never by a browser. Reads the review surface and decides. */
   readonly REVIEW_TOKEN: string;
+  /** Optional. Handed to machines that read the share under `/api/share/` and write nothing. */
+  readonly SHARE_TOKEN?: string;
   /** Scopes every row and object key. */
   readonly PROJECT: string;
   readonly RETENTION_DAYS?: string;

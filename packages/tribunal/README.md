@@ -109,6 +109,7 @@ add `baselines` beside it:
 | `VARIANCE_TRIBUNAL_PROJECT` | required | scopes every row and every object key, so one deployment serves several repositories without their `story:card` colliding. There is no default: an invented one puts two projects' baselines in one namespace and the first symptom is a mass `changed` |
 | `VARIANCE_TRIBUNAL_INGEST_TOKEN` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `VARIANCE_TRIBUNAL_REVIEW_TOKEN` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the ingest token |
+| `VARIANCE_TRIBUNAL_SHARE_TOKEN` | unset | given to machines that read the share and write nothing. 16 characters or more, and neither of the other two. Unset, only the ingest token opens the share |
 | `VARIANCE_TRIBUNAL_PORT` | `7789` | a whole number from 0 to 65535, or the process refuses to start |
 | `VARIANCE_TRIBUNAL_HOST` | `127.0.0.1` | the bind address. Any address other machines can connect to also needs `VARIANCE_TRIBUNAL_TRUST_NETWORK` |
 | `VARIANCE_TRIBUNAL_DB` | `variance-tribunal.db` | the SQLite file. Created and migrated on start; the startup line prints its absolute path and its schema version |
@@ -194,6 +195,7 @@ wrangler r2 bucket create variance-tribunal
 wrangler d1 migrations apply variance-tribunal --remote
 wrangler secret put INGEST_TOKEN            # 16 characters or more
 wrangler secret put REVIEW_TOKEN            # 16 characters or more, and not the other one
+wrangler secret put SHARE_TOKEN             # optional: 16 characters or more, and neither of the others
 wrangler deploy
 ```
 
@@ -203,18 +205,19 @@ after you upgrade the package. A release that adds a step applies that step
 alone; one that adds none applies nothing. `GET /version` reports the schema
 version the deployed build expects.
 
-The two tokens are secrets rather than `vars`: they are the deployment's
+The tokens are secrets rather than `vars`: they are the deployment's
 capabilities, and `wrangler.jsonc` is in your repository.
 
 `worker-entry` is the only file in the package that reads an environment, and it
-reads four names plus two optional ones:
+reads four names plus three optional ones:
 
 | name | kind | what it decides |
 |---|---|---|
 | `DB` | binding | D1. Rows: builds, verdicts, decisions, baseline metadata, history observations |
-| `BUCKET` | binding | R2. Baseline and candidate bytes; never a row |
+| `BUCKET` | binding | R2. Baseline and candidate bytes, and the share; never a row |
 | `INGEST_TOKEN` | secret | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `REVIEW_TOKEN` | secret | given to people. Reads the review surface and decides. 16 characters or more |
+| `SHARE_TOKEN` | secret, optional | given to machines that read the share and write nothing. 16 characters or more |
 | `PROJECT` | var, default `default` | scopes every row and object |
 | `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back instead of sweeping everything |
 
@@ -231,13 +234,13 @@ below, behind your own sign-in.
 
 ## The HTTP API
 
-Authentication happens before routing. A caller sending neither token gets the
+Authentication happens before routing. A caller sending no token it knows gets the
 same response for a wrong token, a missing token, and a path that does not exist.
 Every path takes `Authorization: Bearer <token>`; none may be asked anonymously.
 
 | method and path | token | what it does |
 |---|---|---|
-| `GET /version` | either | `{"service":"variance-authority-tribunal","api":2,"schema":18}` |
+| `GET /version` | any | `{"service":"variance-authority-tribunal","api":3,"schema":18}` |
 | `POST /baseline/find` | ingest | the approved image for a key, bytes and all |
 | `POST /baseline/describe` | ingest | the same lookup without moving the image |
 | `POST /baseline/put` | ingest | store an approved image |
@@ -245,11 +248,11 @@ Every path takes `Authorization: Bearer <token>`; none may be asked anonymously.
 | `POST /v1/observations` | ingest | append a run: its observations, its resolved token values, its instability reports. 204 |
 | `POST /v1/approvals` | ingest | append which subjects were signed off in which run. 204 |
 | `POST /v1/current` | ingest | a run asking what is currently recorded for a list of subject ids. A POST because three hundred ids in a query string is a 414 from a proxy nobody configured |
-| `GET /v1/last-changed?subject&component[&band]` | either | the last observation in which that component's hash changed for that subject |
-| `GET /v1/churn?component` | either | how often that component's own hashes changed, as a rate |
-| `GET /v1/flakiness?subject` | either | how often that subject read differently from itself |
-| `GET /v1/reach?component` | either | which subjects that component appears in now that it did not before |
-| `GET /v1/value-journey?token` | either | how one design token's resolved values drifted across approved runs |
+| `GET /v1/last-changed?subject&component[&band]` | ingest or review | the last observation in which that component's hash changed for that subject |
+| `GET /v1/churn?component` | ingest or review | how often that component's own hashes changed, as a rate |
+| `GET /v1/flakiness?subject` | ingest or review | how often that subject read differently from itself |
+| `GET /v1/reach?component` | ingest or review | which subjects that component appears in now that it did not before |
+| `GET /v1/value-journey?token` | ingest or review | how one design token's resolved values drifted across approved runs |
 | `POST /review/builds` | ingest | file a finished run as a build. What `variance push` calls |
 | `POST /review/have` | ingest | given image digests, which of them this deployment already has, so a push uploads only the rest |
 | `GET /review/builds[?limit]` | review | recent builds |
@@ -258,21 +261,47 @@ Every path takes `Authorization: Bearer <token>`; none may be asked anonymously.
 | `GET /review/builds/{id}/subjects/{subject}/{before\|after\|diff}.png` | review | one image, immutable and cacheable |
 | `GET /review/changelog[?component&subject&since&limit]` | review | every approval, grouped by shape |
 | `POST /review/sweep[?days=N]` | review | retention, below |
+| `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
+| `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none; a stale version answers 412 |
+| `GET /share/<mainline\|branch>/<line>/entries/<sha256>` | ingest or share | one entry's bytes, immutable and cacheable |
+| `PUT /share/<mainline\|branch>/<line>/entries/<sha256>` | ingest | store an entry. 400 when the bytes do not have that digest |
+| `GET /share/images/<sha256>`, `PUT /share/images/<sha256>` | ingest or share to read, ingest to write | an image any line names, stored once for every line |
 
 The four `/v1` reads take `since`, `until` and `limit` to bound the window, and
 `project` where one deployment is queried for another's rows.
 
 **The review token reads the record and never writes it.** The five reads answer
-either capability because they derive from rows already recorded, and the browser
+the ingest and review tokens because they derive from rows already recorded, and the browser
 drawing a review page sends the review token. `/v1/observations` and
 `/v1/approvals` are the ingest token's because they write; `/v1/current` is the
 ingest token's because its caller is a run deciding what to write.
 
+**The share is for runs, not for reviewers.** `/share/` is the store an `http`
+share reads and writes when its endpoint is this deployment:
+
+```json
+{ "share": { "kind": "http", "endpoint": "https://variance.example.com/share" } }
+```
+
+The ingest token publishes and reads it, so the CI job that runs the suite needs
+nothing new. The share token only reads it, and every other route refuses it
+with 403: hand it to a machine that should read what CI derived and should not be
+able to push a build or decide one. The review token is refused under `/share/`,
+because it is held by people and by the browser drawing the review page.
+
+Two writers publishing to one line do not lose each other's entries. Each writes
+the manifest against the version it read, the one that lost answers 412, and
+the client reads the winner's manifest, adds its own entries and writes again.
+Share objects sit under `<project>/share/` in the bucket and have no rows, so
+`POST /review/sweep` leaves them in place.
+
 `api` is the wire contract, not the package version — it changes when what a
 client may send or expect changes. `variance push` asks before it uploads and
 says so when the two disagree, because a CLI newer than its deployment is not an
-error: it works, sends more than it needs to, and until something prints both
-numbers it looks like a slow network.
+error: it works, and what the older deployment lacks shows up somewhere else —
+as upload it could have skipped before API 2, and as a share that is always
+empty before API 3. Until something prints both numbers, neither looks like a
+version mismatch.
 
 ## What a reviewer sees
 
@@ -361,7 +390,7 @@ that no shape could group are returned as `ungrouped`, not dropped.
 | `@variance-authority/tribunal/store` | D1 and R2 | `createBucketStore` — baselines |
 | `@variance-authority/tribunal/history` | D1 | `createD1Backend` — the record |
 | `@variance-authority/tribunal/review` | D1 and R2 | `createReviewStore` — builds, decisions, retention |
-| `@variance-authority/tribunal/worker` | D1, R2, two tokens | `createTribunal` — one `fetch` handler |
+| `@variance-authority/tribunal/worker` | D1, R2, two tokens and an optional third | `createTribunal` — one `fetch` handler |
 | `@variance-authority/tribunal/worker-entry` | the bindings, as an `env` | the deployable module: `export default { fetch }` |
 | `@variance-authority/tribunal/node` | Node 22, a writable file and directory | `openDatabase`, `createDirectoryBucket`, `serveTribunal`, and the `variance-authority-tribunal` executable |
 | `@variance-authority/tribunal/ui` | React 19 | the review surface, its JSON client, its stylesheet |
@@ -409,6 +438,7 @@ export default {
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
 | `ingestToken` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `reviewToken` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the same string as `ingestToken` |
+| `shareToken` | unset | given to machines that read the share and write nothing. 16 characters or more, and neither of the other two. Unset, only `ingestToken` opens `/share/` |
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request, not on a timer — a Worker has no timer, and this package will not invent a cron you did not ask for. Wire it to a scheduled trigger, call it from a CI job, or never |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
@@ -463,7 +493,8 @@ await service.close();
 ```
 
 `serveTribunal` takes the `tribunal` to serve, an `authorize` and `tokens` that
-mean exactly what they mean for `createTribunalRoutes` — it is the same function
+mean exactly what they mean for `createTribunalRoutes` (add `tokens.share` when
+`authorize` can return `'share'`) — it is the same function
 underneath — plus `host`, `port`, and two that only a served page needs: `ui`,
 which decides whether the review surface and its bundle are served at all, and
 `reviewer`, the name written on decisions made through it. `openDatabase` opens,
@@ -519,7 +550,7 @@ const worker = createTribunal({
   reviewToken: env.VARIANCE_REVIEW_TOKEN,
 });
 
-export const { GET, POST, HEAD } = createTribunalRoutes(worker, {
+export const { GET, POST, PUT, HEAD } = createTribunalRoutes(worker, {
   basePath: '/variance',
   authorize: async (request: Request) => ((await isSignedIn(request)) ? 'review' : null),
   tokens: { ingest: env.VARIANCE_INGEST_TOKEN, review: env.VARIANCE_REVIEW_TOKEN },
@@ -536,9 +567,12 @@ stripped before the request reaches the Worker. `tokens` is passed explicitly
 because the `Tribunal` object exposes only `fetch`, not the tokens it was created
 with.
 
-`authorize` has **no default**. It returns `'ingest'`, `'review'`, or `null`; a
-refused caller gets a 401 before the Worker sees the request, and a caller
-returned `'review'` has the review token attached on their behalf. A default that
+`authorize` has **no default**. It returns `'ingest'`, `'review'`, `'share'`, or
+`null`; a refused caller gets a 401 before the Worker sees the request, and a
+caller returned `'review'` has the review token attached on their behalf.
+Return `'share'` only with `tokens.share` set: without it the route answers 500,
+because the mistake is in your configuration and not in the request. `PUT` is
+what an `http` share writes with, so export it when the share is mounted too. A default that
 returned `'review'` would be a published approve button.
 
 ## Review invariants
@@ -561,9 +595,10 @@ object still exists rather than answering from the D1 row alone.
 looked, `[]` means inspected and clean. The same distinction applies to findings.
 
 **Two tokens, and they may not be equal.** The ingest token lives in CI
-configuration and writes builds, baselines and history; the review token belongs
-to people and decides. Construction refuses a token under 16 characters and
-refuses two identical tokens.
+configuration and writes builds, baselines, history and the share; the review
+token belongs to people and decides. An optional share token only reads the
+share. Construction refuses a token under 16 characters and refuses any two that
+are identical.
 
 **Which token a route requires is only revealed to a caller who already has
 one.** Authentication happens before routing.
@@ -622,6 +657,16 @@ deployment.** The router is one module and answers identically; what differs is
 underneath it. A SQLite file has a single writer and a lock, so the Node backend
 takes that lock before checking whether a run id is registered. Two Workers
 cannot. A unique index still refuses a run id pointing at two commits either way.
+
+**A share manifest is replaced on its version by the bucket, not by the router.**
+On Cloudflare the comparison is R2's own conditional `put`, so it holds across
+every Worker instance. That is why `R2Like.put` takes `onlyIf`, with
+`etagMatches` and `etagDoesNotMatch` as R2 spells them, and answers `null` when
+the condition fails. `createDirectoryBucket` compares and writes inside one
+process, which is the whole of a Node deployment; two processes pointed at one
+storage directory can both win a race and one line loses the other's entries.
+Share objects are never removed: a line outlives its branch, and an image no
+manifest names stays in the bucket.
 
 **A build's images are as large as the run kept.** Nothing here compresses,
 resizes, or deduplicates across builds.

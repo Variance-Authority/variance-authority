@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import type { DatabaseSync } from 'node:sqlite';
-import { base64Of, type R2Like, type R2ObjectLike } from './bindings.js';
+import { base64Of, type R2Like, type R2ObjectLike, type R2PutOptions, type R2Written } from './bindings.js';
 import { wrapSqlite, type SqliteDatabase } from './node/database.js';
 import { applySchema } from './schema.js';
 
@@ -75,7 +76,10 @@ export interface MemoryR2 extends R2Like {
 }
 
 export function createMemoryR2(): MemoryR2 {
-  const objects = new Map<string, ArrayBuffer>();
+  // An etag beside each buffer, spelled as R2 spells one for an object written in
+  // a single part: the MD5 of the bytes, in hex. What the share's conditional
+  // write compares is then the same kind of string a real bucket would hand it.
+  const objects = new Map<string, { readonly buffer: ArrayBuffer; readonly etag: string }>();
   let failures = 0;
   let reason = '';
 
@@ -85,9 +89,21 @@ export function createMemoryR2(): MemoryR2 {
     throw new Error(reason);
   };
 
-  const object = (buffer: ArrayBuffer): R2ObjectLike => ({
-    arrayBuffer: async (): Promise<ArrayBuffer> => buffer,
+  const object = (stored: { readonly buffer: ArrayBuffer; readonly etag: string }): R2ObjectLike => ({
+    httpEtag: `"${stored.etag}"`,
+    arrayBuffer: async (): Promise<ArrayBuffer> => stored.buffer,
   });
+
+  // R2's `onlyIf`, for the two fields this package sends. `*` matches any object
+  // and nothing else does, so "create unless present" and "replace only this
+  // version" are both one comparison.
+  const holds = (current: string | undefined, onlyIf: R2PutOptions['onlyIf']): boolean => {
+    if (onlyIf === undefined) return true;
+    const matches = (wanted: string): boolean => current !== undefined && (wanted === '*' || wanted === current);
+    if (onlyIf.etagMatches !== undefined && !matches(onlyIf.etagMatches)) return false;
+    if (onlyIf.etagDoesNotMatch !== undefined && matches(onlyIf.etagDoesNotMatch)) return false;
+    return true;
+  };
 
   return {
     async get(key: string): Promise<R2ObjectLike | null> {
@@ -99,10 +115,12 @@ export function createMemoryR2(): MemoryR2 {
       check();
       return objects.has(key) ? { key } : null;
     },
-    async put(key: string, value: ArrayBuffer): Promise<unknown> {
+    async put(key: string, value: ArrayBuffer, options?: R2PutOptions): Promise<R2Written | null> {
       check();
-      objects.set(key, value);
-      return { key };
+      if (!holds(objects.get(key)?.etag, options?.onlyIf)) return null;
+      const stored = { buffer: value, etag: createHash('md5').update(new Uint8Array(value)).digest('hex') };
+      objects.set(key, stored);
+      return { httpEtag: `"${stored.etag}"` };
     },
     async delete(keys: string | readonly string[]): Promise<unknown> {
       check();
@@ -113,7 +131,7 @@ export function createMemoryR2(): MemoryR2 {
     keys: () => [...objects.keys()].sort(),
     read: (key: string) => {
       const stored = objects.get(key);
-      return stored === undefined ? undefined : base64Of(stored);
+      return stored === undefined ? undefined : base64Of(stored.buffer);
     },
     fail: (message: string, count = 1): void => {
       reason = message;

@@ -20,7 +20,7 @@ import type { Tribunal } from './worker.js';
  *   reviewToken: process.env.VARIANCE_REVIEW_TOKEN!,
  * });
  *
- * export const { GET, POST, HEAD } = createTribunalRoutes(worker, {
+ * export const { GET, POST, PUT, HEAD } = createTribunalRoutes(worker, {
  *   basePath: '/variance',
  *   authorize: async (request) => (await isSignedIn(request)) ? 'review' : null,
  * });
@@ -59,7 +59,7 @@ export interface TribunalRouteOptions {
    *
    * `null` is a 401. There is no default — see the note above.
    */
-  authorize(request: Request): Promise<'ingest' | 'review' | null> | 'ingest' | 'review' | null;
+  authorize(request: Request): Promise<Capability | null> | Capability | null;
 
   /**
    * The tokens the Worker was constructed with.
@@ -67,20 +67,25 @@ export interface TribunalRouteOptions {
    * Passed again rather than read off the worker, because a `Tribunal` is
    * deliberately a `fetch` handler and nothing else: a handler that could be
    * asked for its own secrets is a handler that can leak them by being logged.
+   * `share` is needed only when `authorize` can answer `'share'`.
    */
-  readonly tokens: { readonly ingest: string; readonly review: string };
+  readonly tokens: { readonly ingest: string; readonly review: string; readonly share?: string };
 }
 
+/** What `authorize` may allow a request: one of the Worker's tokens, named by what it is for. */
+export type Capability = 'ingest' | 'review' | 'share';
+
 /**
- * The three method exports a Next.js route file needs.
+ * The four method exports a Next.js route file needs.
  *
- * `GET`, `POST` and `HEAD` are the same handler; the framework wants them named.
- * Spread them straight out of a route module — `export const { GET, POST, HEAD }
- * = createTribunalRoutes(...)`.
+ * `GET`, `POST`, `PUT` and `HEAD` are the same handler; the framework wants them
+ * named. `PUT` is the verb a share writes with. Spread them straight out of a
+ * route module — `export const { GET, POST, PUT, HEAD } = createTribunalRoutes(...)`.
  */
 export interface TribunalRoutes {
   GET(request: Request): Promise<Response>;
   POST(request: Request): Promise<Response>;
+  PUT(request: Request): Promise<Response>;
   HEAD(request: Request): Promise<Response>;
 }
 
@@ -108,6 +113,18 @@ export function createTribunalRoutes(
       });
     }
 
+    const token = options.tokens[granted];
+    if (token === undefined) {
+      // The operator's configuration, not the caller's: said as a failure of
+      // this deployment rather than as a refusal the caller could fix.
+      return new Response(
+        JSON.stringify({
+          error: 'authorize allowed this request the share token, and tokens.share is not set',
+        }),
+        { status: 500, headers: { 'content-type': 'application/json; charset=utf-8' } },
+      );
+    }
+
     const url = new URL(request.url);
     if (basePath !== '' && url.pathname.startsWith(basePath)) {
       url.pathname = url.pathname.slice(basePath.length) || '/';
@@ -116,10 +133,7 @@ export function createTribunalRoutes(
     const headers = new Headers(request.headers);
     // Replaced rather than added. A caller that sent its own bearer would
     // otherwise decide its own capability, and `authorize` would be advisory.
-    headers.set(
-      'authorization',
-      `Bearer ${granted === 'ingest' ? options.tokens.ingest : options.tokens.review}`,
-    );
+    headers.set('authorization', `Bearer ${token}`);
 
     return worker.fetch(
       new Request(url, {
@@ -135,6 +149,7 @@ export function createTribunalRoutes(
   return {
     GET: handle,
     POST: handle,
+    PUT: handle,
     // A `HEAD` is a `GET` whose body Next discards. Declared so the framework
     // does not answer 405 for a request every image preloader makes.
     HEAD: handle,

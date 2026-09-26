@@ -16,7 +16,7 @@
  *
  * **The cost is stated rather than hidden.** These are hand-written shapes, so a
  * breaking change to D1 or R2 is a runtime failure here rather than a compile
- * error. The mitigation is that the surface is tiny: five methods on D1, three on
+ * error. The mitigation is that the surface is tiny: five methods on D1, four on
  * R2, all of them years old and all of them exercised by the tests through a
  * `node:sqlite`-backed double that runs the same SQL a real D1 would.
  */
@@ -70,8 +70,35 @@ export interface D1Like {
   batch<Row = unknown>(statements: readonly D1PreparedLike[]): Promise<readonly D1ResultLike<Row>[]>;
 }
 
-export interface R2ObjectLike {
+/**
+ * What a write answers with: the object's version, as a response header spells it.
+ *
+ * R2's `httpEtag`, quoted. The share hands it to a reader as `ETag` and takes it
+ * back as `If-Match`, so the one version string makes the whole round trip
+ * without this package minting a second one.
+ */
+export interface R2Written {
+  readonly httpEtag: string;
+}
+
+/** An object read back: its bytes, and the version they were written at. */
+export interface R2ObjectLike extends R2Written {
   arrayBuffer(): Promise<ArrayBuffer>;
+}
+
+/**
+ * The condition a write may carry, and nothing else R2's `put` accepts.
+ *
+ * Both values are an unquoted etag, as R2 compares them, or `*` for *any
+ * object*. `etagDoesNotMatch: '*'` is a create that refuses to replace; the
+ * share's first manifest write is one, so two publishers starting a line at
+ * once cannot both win.
+ */
+export interface R2PutOptions {
+  readonly onlyIf?: {
+    readonly etagMatches?: string;
+    readonly etagDoesNotMatch?: string;
+  };
 }
 
 /**
@@ -79,7 +106,7 @@ export interface R2ObjectLike {
  *
  * Four methods, because that is all the store uses: read, exists, write, remove.
  * A bucket is never listed and never scanned — every key this package reads is
- * one a row already named.
+ * one a row or a share manifest already named.
  */
 export interface R2Like {
   /** `null` means the bucket answered and there is no such object. */
@@ -94,7 +121,11 @@ export interface R2Like {
    * spends a `stat` for exactly this; this spends a HEAD.
    */
   head(key: string): Promise<unknown | null>;
-  put(key: string, value: ArrayBuffer): Promise<unknown>;
+  /**
+   * Write, and answer the version written. `null` means `onlyIf` did not hold and
+   * nothing was stored, which is R2's own answer and is not a failure.
+   */
+  put(key: string, value: ArrayBuffer, options?: R2PutOptions): Promise<R2Written | null>;
   delete(keys: string | readonly string[]): Promise<unknown>;
 }
 

@@ -22,7 +22,8 @@
  *
  * ## Disjoint from the API by construction
  *
- * The service answers `/review/…`, `/baseline/…`, `/cache/…` and `/history/…`.
+ * The service answers `/review/…`, `/baseline/…`, `/cache/…`, `/history/…` and
+ * `/share/…`.
  * Pages live at `/builds/…` and `/changelog…`, which share no first segment with
  * any of them. `serve.test.ts` holds that apart rather than trusting the reading:
  * a page pattern that swallowed an API route would take the surface down and the

@@ -235,7 +235,7 @@ describe('the surface is a document and one script', () => {
     // that failure is worth catching here rather than in somebody's CI.
     await serve();
 
-    for (const path of ['/review/builds', '/review/changelog', '/baseline/find', '/cache/find']) {
+    for (const path of ['/review/builds', '/review/changelog', '/baseline/find', '/cache/find', '/share/mainline/main/manifest.json']) {
       const answered = await fetch(`${service.url}${path}`);
       expect([path, answered.headers.get('content-type')]).toEqual([path, 'application/json; charset=utf-8']);
     }

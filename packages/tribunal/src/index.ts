@@ -16,6 +16,8 @@ export type {
   D1Value,
   R2Like,
   R2ObjectLike,
+  R2PutOptions,
+  R2Written,
   TribunalBindings,
 } from './bindings.js';
 export { base64Of, bytesOf } from './bindings.js';

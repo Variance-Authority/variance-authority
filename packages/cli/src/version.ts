@@ -27,7 +27,7 @@ import { createRequire } from 'node:module';
  * number is the contract, and the contract is the thing a deployment can be
  * older than.
  */
-export const NEEDS_API = 2;
+export const NEEDS_API = 3;
 
 const require = createRequire(import.meta.url);
 
@@ -93,6 +93,17 @@ export async function reach(
 }
 
 /**
+ * What a deployment at `api` does not have that this CLI would use, said as the
+ * symptom an operator sees. Before 2 a push uploads what it could have named by
+ * digest; at 2 a push is whole, and only a share pointed at the deployment misses.
+ */
+function lacking(api: number): string {
+  return api < 2
+    ? 'the difference is upload it cannot skip'
+    : 'it answers 404 under /share/, so a share whose endpoint is this deployment holds nothing';
+}
+
+/**
  * The line an operator gets, or nothing when there is nothing to say.
  *
  * Silent when the two agree, because a tool that narrates its successes trains
@@ -112,7 +123,7 @@ export function versionNote(reached: Reached): string | undefined {
   if (reached.api < NEEDS_API) {
     return (
       `this deployment serves API ${String(reached.api)} and variance ${CLI_VERSION} speaks ` +
-      `${String(NEEDS_API)}: it is the older half, and the difference is upload it cannot skip. ` +
+      `${String(NEEDS_API)}: it is the older half, and ${lacking(reached.api)}. ` +
       'Redeploy the tribunal from a matching release'
     );
   }

@@ -24,7 +24,7 @@ import { createD1Backend } from './history.js';
 import { ReviewError, createReviewStore } from './review.js';
 import { createBucketStore } from './store.js';
 import { VERSION_PATH, serviceVersion } from './version.js';
-import { UNAUTHENTICATED, grant, refuseWeakTokens, requires, type Granted } from './worker-auth.js';
+import { UNAUTHENTICATED, grant, readable, refuseWeakTokens, requires, type Granted } from './worker-auth.js';
 import {
   BadRequest,
   Forbidden,
@@ -49,15 +49,17 @@ import {
   asRecordRequest,
   windowOf,
 } from './worker-input.js';
+import { SHARE_PREFIX, createShareRoutes, type ShareRoute } from './worker-share.js';
 
 /**
- * One `fetch` handler, three surfaces, and no outbound call.
+ * One `fetch` handler, four surfaces, and no outbound call.
  *
  * The operator writes the Worker entry and hands this their bindings; everything
- * below is the composition. Two of the three surfaces are protocols defined
+ * below is the composition. Three of the four surfaces are protocols defined
  * elsewhere and re-served here, so a CLI configured with
- * `baselines.kind: "remote"` and a client built from
- * `@variance-authority/history/client` both reach this deployment unchanged.
+ * `baselines.kind: "remote"`, a client built from
+ * `@variance-authority/history/client`, and an `http` share whose endpoint is
+ * `<deployment>/share` all reach this deployment unchanged.
  *
  * ## The Worker never calls anything
  *
@@ -67,16 +69,21 @@ import {
  * of a credential for somebody else's system: there is nothing here to steal that
  * is useful anywhere but here.
  *
- * ## Two tokens, and what each one is for
+ * ## Three tokens, and what each one is for
  *
- * `ingest` is written into CI configuration and can write builds, baselines and
- * history. `review` belongs to people and can read the review surface and decide.
- * They are separate because deciding *promotes a baseline*, and one secret doing
- * both means anything that can read a CI log can approve a regression.
+ * `ingest` is written into CI configuration and can write builds, baselines,
+ * history and the share. `review` belongs to people and can read the review
+ * surface and decide. They are separate because deciding *promotes a baseline*,
+ * and one secret doing both means anything that can read a CI log can approve a
+ * regression.
  *
- * They may not be equal, and construction refuses it. A deployment that set both
- * to the same value would satisfy every check in this file while having exactly
- * one secret, and nothing in a request would show it.
+ * `share` is optional and reads the share and nothing else: it is for a reader
+ * that should have a run's derived record and no more, such as a developer's
+ * machine, and would otherwise be handed the ingest token to get it.
+ *
+ * No two may be equal, and construction refuses it. A deployment that set two to
+ * the same value would satisfy every check in this file while having one secret
+ * fewer than it says, and nothing in a request would show it.
  *
  * ## Authentication happens before routing
  *
@@ -87,13 +94,14 @@ import {
  * nothing.
  *
  * The *capability* check happens after routing, and deliberately: it can only be
- * reached by someone already holding a valid token, so telling them which of the
- * two a route wants reveals nothing they could not learn by trying.
+ * reached by someone already holding a valid token, so telling them which one a
+ * route wants reveals nothing they could not learn by trying.
  *
  * ## What is next door
  *
  * The token comparison and the capability rule are in
- * [`worker-auth.ts`](./worker-auth.ts); the refusals and the readers every route
+ * [`worker-auth.ts`](./worker-auth.ts), the share in
+ * [`worker-share.ts`](./worker-share.ts); the refusals and the readers every route
  * validates in are in [`worker-http.ts`](./worker-http.ts) and
  * [`worker-input.ts`](./worker-input.ts). What is left here is the composition and
  * the routing table, which is the part an operator has to read.
@@ -106,6 +114,11 @@ export interface TribunalOptions extends TribunalBindings {
   readonly ingestToken: string;
   /** Held by people. Reads the review surface and decides. At least 16 characters. */
   readonly reviewToken: string;
+  /**
+   * Handed to machines that only read the share under `/share/`. At least 16
+   * characters when set; unset, only the ingest token opens the share.
+   */
+  readonly shareToken?: string;
   /**
    * Days of builds to keep when `POST /review/sweep` is called.
    *
@@ -151,7 +164,7 @@ const CACHE_FIND_PATH = '/cache/find';
 const CACHE_PUT_PATH = '/cache/put';
 
 /**
- * Build the service over a database, a bucket and two tokens.
+ * Build the service over a database, a bucket and its tokens.
  *
  * Refuses a token under 16 characters and refuses two identical ones, here
  * rather than on the first request: a deployment whose ingest token also
@@ -164,6 +177,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
   const baselines = createBucketStore(options);
   const history = createD1Backend(options.db);
   const review = createReviewStore(options);
+  const share = createShareRoutes(options);
   const retentionDays = options.retentionDays ?? 30;
 
   return {
@@ -181,7 +195,7 @@ export function createTribunal(options: TribunalOptions): Tribunal {
       }
 
       try {
-        return await route({ baselines, history, review, retentionDays }, granted, url, request);
+        return await route({ baselines, history, review, share, retentionDays }, granted, url, request);
       } catch (error) {
         if (error instanceof BadRequest) return json(400, { error: error.message });
         if (error instanceof Forbidden) return json(403, { error: error.message });
@@ -204,6 +218,7 @@ interface Surfaces {
   readonly baselines: ReturnType<typeof createBucketStore>;
   readonly history: ReturnType<typeof createD1Backend>;
   readonly review: ReturnType<typeof createReviewStore>;
+  readonly share: ShareRoute;
   readonly retentionDays: number;
 }
 
@@ -216,7 +231,7 @@ async function route(
   const path = url.pathname;
 
   // --------------------------------------------------------------- version
-  // First, and asked by both capabilities. Every other route in this file
+  // First, and asked by every capability. Every other route in this file
   // assumes the caller and this deployment agree about what it serves; this is
   // the one that lets them check, and a client that has to authenticate before
   // it can ask still asks before it uploads.
@@ -224,6 +239,9 @@ async function route(
     requireMethod(request, 'GET');
     return json(200, serviceVersion());
   }
+
+  // ----------------------------------------------------------------- share
+  if (path.startsWith(SHARE_PREFIX)) return surfaces.share(granted, path, request);
 
   // ------------------------------------------------------------- baselines
   if (path === BASELINE_FIND_PATH) {
@@ -467,29 +485,11 @@ async function route(
       `(${BASELINE_FIND_PATH}, ${BASELINE_DESCRIBE_PATH}, ${BASELINE_PUT_PATH}, ` +
       `${CACHE_FIND_PATH}, ${CACHE_PUT_PATH}), the history routes (${OBSERVATIONS_PATH}, ` +
       `${APPROVALS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
-      `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}), /review/builds, /review/have and ` +
-      `/review/changelog. ${VERSION_PATH} says which API version this is: a path from a ` +
-      'different one is a client and a service that disagree about a recorded shape',
+      `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}), /review/builds, /review/have, ` +
+      `/review/changelog and the share under ${SHARE_PREFIX}. ${VERSION_PATH} says which API ` +
+      'version this is: a path from a different one is a client and a service that disagree ' +
+      'about a recorded shape',
   });
-}
-
-/**
- * The history routes that answer a question rather than record one.
- *
- * Either capability may ask. The split everywhere else in this file is *who is
- * allowed to write*, and these five write nothing: churn, reach, flakiness, the
- * value journey and the last change are derived from rows already recorded. A
- * reviewer looking at a build needs exactly these to know whether the difference
- * in front of them is the third this week or the first this year, and the browser
- * that draws that page holds the review token — so refusing them here would mean
- * a review surface that can approve a change it cannot put in context.
- *
- * It stays a rule with a name rather than an omitted check, because the next
- * history route added is a write far more often than it is a read, and the
- * default has to be the strict one.
- */
-function readable(granted: Granted, path: string): void {
-  if (granted !== 'ingest') requires(granted, 'review', path);
 }
 
 /** Re-exported so a Worker entry can recognise a store failure without a second import. */

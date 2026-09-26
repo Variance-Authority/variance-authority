@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve, sep } from 'node:path';
-import type { R2Like, R2ObjectLike } from '../bindings.js';
+import type { R2Like, R2ObjectLike, R2PutOptions, R2Written } from '../bindings.js';
 
 /**
  * R2, as a directory somebody owns.
@@ -18,6 +19,15 @@ import type { R2Like, R2ObjectLike } from '../bindings.js';
  *
  * ```
  * <project>/objects/<sha256 of the bytes>.png
+ * ```
+ *
+ * A share stores its lines beside them, under names `linePath` has already cut
+ * down to `[A-Za-z0-9._-]` segments:
+ *
+ * ```
+ * <project>/share/<mainline|branch>/<line…>/manifest.json
+ * <project>/share/<mainline|branch>/<line…>/entries/<sha256>
+ * <project>/share/images/<sha256>
  * ```
  *
  * The digest is hex, so the only segment that is not already fixed by
@@ -86,6 +96,41 @@ export function createDirectoryBucket(root: string): DirectoryBucket {
     return full;
   };
 
+  // FIXME: a conditional write is exclusive only within this process. Two
+  // services sharing one storage directory can both pass the same `onlyIf` and
+  // the later rename wins, so two share publishers racing through two processes
+  // can lose an entry. A lock file beside the target would close it.
+  const pending = new Map<string, Promise<void>>();
+
+  /**
+   * Write, and make the write atomic.
+   *
+   * A baseline half on disk is worse than a baseline absent: `find` would
+   * return a truncated PNG, the decoder would fail, and the failure would
+   * arrive as a comparison error rather than as the disk-full it is. So the
+   * bytes land beside the target and are renamed onto it, which is atomic
+   * within a filesystem — and the temporary name carries the process id so two
+   * services sharing a directory cannot rename each other's half-written file
+   * into place.
+   */
+  const write = async (target: string, key: string, value: ArrayBuffer): Promise<R2Written> => {
+    await mkdir(join(target, '..'), { recursive: true });
+
+    const existing = await stat(target).catch(absentAsNull);
+    if (existing !== null) await refuseCaseFold(target, key);
+
+    const bytes = new Uint8Array(value);
+    const staging = `${target}.${process.pid}.${writes++}.part`;
+    try {
+      await writeFile(staging, bytes);
+      await rename(staging, target);
+    } catch (error) {
+      await rm(staging, { force: true });
+      throw error;
+    }
+    return { httpEtag: `"${etagOf(bytes)}"` };
+  };
+
   return {
     root: base,
 
@@ -93,6 +138,7 @@ export function createDirectoryBucket(root: string): DirectoryBucket {
       const bytes = await readFile(pathOf(key)).catch(absentAsNull);
       if (bytes === null) return null;
       return {
+        httpEtag: `"${etagOf(bytes)}"`,
         arrayBuffer: async (): Promise<ArrayBuffer> =>
           bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
       };
@@ -111,32 +157,35 @@ export function createDirectoryBucket(root: string): DirectoryBucket {
     },
 
     /**
-     * Write, and make the write atomic.
-     *
-     * A baseline half on disk is worse than a baseline absent: `find` would
-     * return a truncated PNG, the decoder would fail, and the failure would
-     * arrive as a comparison error rather than as the disk-full it is. So the
-     * bytes land beside the target and are renamed onto it, which is atomic
-     * within a filesystem — and the temporary name carries the process id so two
-     * services sharing a directory cannot rename each other's half-written file
-     * into place.
+     * Write, or with `onlyIf`, write only when the stored version agrees — R2's
+     * `put`, which answers `null` rather than throwing when the condition fails.
      */
-    async put(key: string, value: ArrayBuffer): Promise<unknown> {
+    async put(key: string, value: ArrayBuffer, options?: R2PutOptions): Promise<R2Written | null> {
       const target = pathOf(key);
-      await mkdir(join(target, '..'), { recursive: true });
+      const onlyIf = options?.onlyIf;
+      if (onlyIf === undefined) return write(target, key, value);
 
-      const existing = await stat(target).catch(absentAsNull);
-      if (existing !== null) await refuseCaseFold(target, key);
-
-      const staging = `${target}.${process.pid}.${writes++}.part`;
-      try {
-        await writeFile(staging, new Uint8Array(value));
-        await rename(staging, target);
-      } catch (error) {
-        await rm(staging, { force: true });
-        throw error;
-      }
-      return { key };
+      // A condition is a read and a write that must not interleave with another
+      // conditional write to the same key, so those are queued per key. The
+      // queue is this process's; see the FIXME above for two processes.
+      const before = pending.get(target) ?? Promise.resolve();
+      const turn = before.then(async () => {
+        const current = await readFile(target).catch(absentAsNull);
+        const etag = current === null ? undefined : etagOf(current);
+        const matches = (wanted: string): boolean => etag !== undefined && (wanted === '*' || wanted === etag);
+        if (onlyIf.etagMatches !== undefined && !matches(onlyIf.etagMatches)) return null;
+        if (onlyIf.etagDoesNotMatch !== undefined && matches(onlyIf.etagDoesNotMatch)) return null;
+        return write(target, key, value);
+      });
+      const settled = turn.then(
+        () => undefined,
+        () => undefined,
+      );
+      pending.set(target, settled);
+      void settled.then(() => {
+        if (pending.get(target) === settled) pending.delete(target);
+      });
+      return turn;
     },
 
     async delete(keys: string | readonly string[]): Promise<unknown> {
@@ -214,6 +263,15 @@ async function refuseCaseFold(target: string, key: string): Promise<void> {
       'comparison would run against the wrong one. Put the object store on a case-sensitive ' +
       'filesystem, or give the two subjects ids that differ by more than case',
   );
+}
+
+/**
+ * An object's version: the MD5 of its bytes, which is what R2 answers for an
+ * object written in one part. Derived from the content rather than kept beside
+ * it, so a file somebody replaced by hand still answers a version that differs.
+ */
+function etagOf(bytes: Uint8Array): string {
+  return createHash('md5').update(bytes).digest('hex');
 }
 
 /** Distinguishes two staging files written in the same millisecond by one process. */
