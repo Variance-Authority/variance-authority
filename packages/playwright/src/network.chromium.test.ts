@@ -211,7 +211,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   if (server !== undefined) await new Promise<void>((resolve) => server!.close(() => resolve()));
-});
+}, 60_000);
 
 /**
  * Screenshot the image until it changes, or until the budget runs out.
@@ -225,17 +225,20 @@ afterAll(async () => {
  * the exact false statement this suite exists to make impossible. **A flaky
  * test for a flake fix is a joke with a long setup.**
  *
- * So the reproduction arm stops as soon as it has its evidence and the frozen
- * arm spends the whole budget failing to find any. The two are asymmetric on
- * purpose: "it moved" is proven by one difference, and "it did not move" is only
- * as strong as how long you looked.
+ * A wall-clock deadline alone can expire after too few screenshots when the
+ * whole suite loads the browser. The reproduction arm therefore takes up to
+ * 25 actual samples, stopping as soon as one differs. The frozen arm takes at
+ * least 15 samples and watches for three seconds. Unequal gaps keep regular
+ * screenshot overhead from repeatedly landing on the same GIF phase.
  *
  * `animations: 'allow'` is passed explicitly rather than left to the default,
  * because the default is Playwright's to change and this arm's whole job is to
  * let the page move.
  */
 const BUDGET_MS = 3_000;
-const GAP_MS = 50;
+const MIN_SHOTS = 15;
+const MAX_SHOTS = 25;
+const GAPS_MS = [37, 71, 109, 53, 89];
 
 async function distinctRenderings(watch: boolean, stopOnChange: boolean): Promise<number> {
   const page: Page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
@@ -258,11 +261,15 @@ async function distinctRenderings(watch: boolean, stopOnChange: boolean): Promis
     const seen = new Set<string>();
     const until = Date.now() + BUDGET_MS;
 
-    while (Date.now() < until) {
+    for (
+      let sample = 0;
+      stopOnChange ? sample < MAX_SHOTS : sample < MIN_SHOTS || Date.now() < until;
+      sample += 1
+    ) {
       const shot = await page.locator('#spinner').screenshot({ animations: 'allow' });
       seen.add(shot.toString('base64'));
       if (stopOnChange && seen.size > 1) break;
-      await new Promise((resolve) => setTimeout(resolve, GAP_MS));
+      await new Promise((resolve) => setTimeout(resolve, GAPS_MS[sample % GAPS_MS.length]));
     }
 
     await network?.close();
