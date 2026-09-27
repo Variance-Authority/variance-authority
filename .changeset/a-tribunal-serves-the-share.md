@@ -1,6 +1,0 @@
----
-'@variance-authority/tribunal': minor
-'@variance-authority/cli': patch
----
-
-A tribunal serves the share under `/share/`, so an `http` share whose `endpoint` is `<deployment>/share` stores its lines there. The ingest token reads and writes it. The new optional share token (`shareToken`, `SHARE_TOKEN` on Cloudflare, `VARIANCE_TRIBUNAL_SHARE_TOKEN` for the Node executable) only reads it. Every other route answers it with 403, except `GET /version`, which answers every token. The review token is refused under `/share/`. A manifest is replaced only on the version it was read at, so two writers publishing to one line keep both sets of entries. A manifest write with neither `If-Match` nor `If-None-Match` answers 428. `createTribunalRoutes` exports `PUT`, and `authorize` may return `'share'` when `tokens.share` is set. `R2Like.put` takes R2's `onlyIf` and returns the written object's `httpEtag`. The API version is 3. The note `push` prints about an older deployment names every capability it lacks, and names the share only when `PushOptions.share` is an `http` share under the deployment's endpoint, so a push to a deployment at API 2 whose share is elsewhere prints no note.

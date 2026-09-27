@@ -1,5 +1,23 @@
 # @variance-authority/store
 
+## 0.10.0
+
+### Minor Changes
+
+- c743d3a: A share holds lines only. `SharedCache`, `SharedHit`, `neverFails`, `shareKey`, `firstShared`, `memoryShare`, `httpShare` and `HttpShareOptions` are removed from `@variance-authority/core/share`, and `createDirectoryShare` from `@variance-authority/store/share`. Use `httpLineCell`, `memoryLineCell`, `createDirectoryLineCell` or `createGitLineCell` with `publishLine` and `readLine`: a line keeps the latest entries a mainline or a branch published, and a miss says why. `neverFails` in `@variance-authority/raster` is unchanged.
+- 6e5d53a: A file-backed baseline store files each baseline under a directory named for the renderer identity that painted it: a digest of the renderer, engine, platform, scale and fonts. That directory is now named `v1-<hex>`. It was named with the digest as written, `v1:<hex>`. NTFS refuses a colon in a file name, so a baseline root that still holds a `v1:` directory cannot be checked out on Windows, and `actions/upload-artifact` refuses to upload it. The render cache, which is in your cache directory unless `cacheRoot` says otherwise, now uses `v1-` for its identity directories and for each entry's file name.
+
+  A store treats `v1:<hex>` and `v1-<hex>` as the same identity and reads both. When `v1-<hex>` has no baseline for a subject, the store looks in `v1:<hex>`. A baseline under another machine's identity, in either spelling, still makes the subject `incomparable`.
+
+  `variance accept` writes each subject it accepts under `v1-<hex>` and deletes that subject's copy under `v1:<hex>`. It does not touch a subject whose pixels did not change, so a baseline that never changes stays under the old name, and the root stays unreadable on Windows until you move it. For each `v1:` directory, `variance doctor` prints how many baselines it holds and the `v1-` directory to move them into. Move the files with `git mv`. Render-cache entries under the old names are never read again, and the sweep every run applies to the cache deletes them.
+
+  `@variance-authority/core/format` exports `digestFileName`, which spells a digest as a path segment, and `digestOfFileName`, which reads a digest back from either spelling.
+
+### Patch Changes
+
+- ee3f00f: `createDirectoryLineCell` compares each segment of a line's name with the name the volume stores. On a volume that treats two spellings as one name, such as the default volume on macOS or Windows, branches `Feature` and `feature` are two lines and one directory. A line that finds its directory only through another spelling is absent: `load` answers `{ kind: 'absent' }`, and so does `blob` for an entry path, so `readLine` answers `absent` too. `store` refuses the line with a detail that names it, the segment as the line spells it, and the spelling the volume stores, so `publishLine` answers `refused` instead of replacing the other line's entries. `store` checks after it makes the directory, so when two writers publish both spellings at once, in one process or in two, one is written and the other is refused. On a case-sensitive volume the two branches are still two lines. An image path is read under any spelling, because every line shares the images. The check costs one `readdir` for each segment of the name, on each read that finds a manifest or an entry and on each write.
+- 6b3642c: `share.token` is read from its environment variable when a share command reads it, not when the config loads. A job without that variable still loads the config and runs, and `variance share`, `variance ask` and `variance serve` report the share as unconfigured, naming the field and the variable. When no mainline is known and a run's branch was written to its own line for that reason, `variance share --publish` says so and names the answers that were missing; a pull request's line is its head branch either way, and it says nothing of the mainline. When it writes the report, it also says how many images the report names that this machine could not read, and names the first. `createDirectoryLineCell` answers an entry or image path that resolves outside its root as `refused`, from `store` and from `blob`, and the detail names the path.
+
 ## 0.9.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
