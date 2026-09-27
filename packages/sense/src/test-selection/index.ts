@@ -225,6 +225,13 @@ export interface CoverageTest {
   readonly complete: boolean;
   /** Test source, mocks, hooks, setup, configuration, and supplied knowledge. */
   readonly preconditions: readonly CoveragePrecondition[];
+  /**
+   * Milliseconds the runner reported for the file: Vitest's file result, Jest's
+   * `perfStats.runtime`, Rstest's file duration. Nothing here times a test.
+   * Absent when the runner reported none, and a snapshot stores it to the whole
+   * millisecond.
+   */
+  readonly duration?: number;
 }
 
 /**

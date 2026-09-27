@@ -448,6 +448,7 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | snapshot | `snapshot.commit` | zero or one string id, the commit the record describes |
 | tests | `tests.path` | the test file path, sorted by code unit |
 | tests | `tests.complete` | one byte, `1` when every case in the file ran and passed |
+| tests | `tests.duration` | the whole milliseconds the test runner reported for the file, `0xffffffff` when it reported none |
 | tests | `tests.preconditions` | range into the precondition rows |
 | preconditions | `preconditions.name`, `preconditions.digest` | a path the test's answer depends on, and the digest it had |
 | modules | `modules.path`, `modules.source` | the module path, sorted by code unit, and the digest of its source |
@@ -460,6 +461,15 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | blocks | `blocks.set` | the pooled set of tests that executed the block |
 | blocks | `blocks.loadedSet` | the pooled set of tests that had executed the block before their own file began, empty for most regions |
 | sets | `sets.blob`, `sets.off` | the pool both of those name: one copy of each distinct set of tests, however many regions name it |
+
+**Durations.** `tests.duration` is the runner's own figure for the file, never a
+second clock: Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
+duration, or the `duration` you pass to `startRecording().finish()`. A file the
+runner reported nothing for stores the sentinel, and a reader answers it as
+absent, not as zero. When two projects record the same file, its duration is
+their sum, and it is absent if either is. `variance ask slowest-tests` lists the
+slowest recorded files, and `yarn test:since` adds up the recorded cost of the
+files it selects.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —
@@ -1032,6 +1042,12 @@ bound either lands in the crossings or is refused by them.
 
 Any of those becomes an absent record rather than an empty one, so a corrupt
 file costs you one full run and never a narrowed one.
+
+One older layout is read rather than refused: the one written before
+`tests.duration` existed, which the JVM agent still writes. It opens with every
+duration absent, and a merge over it writes the current layout. A duration
+column that is missing from a current file, or that does not have one row per
+test, is refused at open.
 
 ## Complexity summary
 

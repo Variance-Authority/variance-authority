@@ -23,10 +23,12 @@ import {
 import { type CrossingSetsPool } from './crossing-sets.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import {
+  DURATION,
   FORMAT,
   KINDS,
   NAMES,
   NO_OWNER,
+  readableFormat,
   validSections,
   type Header,
   type Section,
@@ -57,6 +59,12 @@ export interface TestCoverageView {
   readonly testPath: WordColumn;
   readonly testComplete: ByteColumn;
   readonly testPreconditions: WordColumn;
+  /**
+   * What the runner said each test file cost, in whole milliseconds, one row a
+   * test; `NO_DURATION` where it said nothing. Absent from a snapshot written in
+   * the layout before durations were recorded.
+   */
+  readonly testDuration: WordColumn | undefined;
   readonly preconditionName: WordColumn;
   readonly preconditionDigest: WordColumn;
   readonly modulePath: WordColumn;
@@ -141,7 +149,8 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   if (headerLength > file.length - 4) throw invalid();
   const head = buffered(file.read(0, 4 + headerLength));
   const header = JSON.parse(head.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
-  if (header.version !== FORMAT) throw new Error(`unsupported test coverage version: ${header.version}`);
+  if (!readableFormat(header.version)) throw new Error(`unsupported test coverage version: ${header.version}`);
+  const timed = header.version === FORMAT;
   const base = 4 + headerLength;
   if (!validSections(header.sections, file.length - base)) throw invalid();
   const found = new Map(header.sections.map((section) => [section.name, section]));
@@ -158,7 +167,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   };
 
   const rows: Record<string, number> = {};
-  for (const name of NAMES) {
+  for (const name of timed ? [...NAMES, DURATION] : NAMES) {
     const section = at(name);
     if (section.rows !== undefined) rows[name] = section.rows;
     else {
@@ -305,6 +314,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
     testPreconditions: settled(words('tests.preconditions'), (values) =>
       csr(values, rows['preconditions.name']!),
     ),
+    testDuration: timed ? words(DURATION) : undefined,
     preconditionName: words('preconditions.name', (values) => ids(values, strings)),
     preconditionDigest: words('preconditions.digest', (values) => ids(values, strings)),
     modulePath: words('modules.path', (values) => ids(values, strings)),
@@ -389,6 +399,7 @@ export function allColumns(view: TestCoverageView) {
     testPath: view.testPath.all(),
     testComplete: view.testComplete.all(),
     testPreconditions: view.testPreconditions.all(),
+    testDuration: view.testDuration?.all(),
     preconditionName: view.preconditionName.all(),
     preconditionDigest: view.preconditionDigest.all(),
     modulePath: view.modulePath.all(),

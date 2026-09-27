@@ -183,7 +183,7 @@ is not a package name and the registry will report it missing. `--root` is the
 workspace to read; omit it when you are standing in that workspace.
 
 A workspace that already has `@variance-authority/cli` installed needs neither
-this package nor its binary, over either transport. The eight questions are on
+this package nor its binary, over either transport. The nine questions are on
 `variance ask`, beside the questions about a run, and read the checkout under
 the working directory:
 
@@ -198,7 +198,7 @@ The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
 generation. [Ask a run from the command
 line](agent-cli.md#ask-the-code-when-the-name-is-not-in-the-run) shows each one.
 
-The eight are also tools on `variance serve`, under the same names as below, so
+The nine are also tools on `variance serve`, under the same names as below, so
 a workspace with the CLI declares one server for the run and the source
 together. The rest of this page is that contract, whichever of the two serves
 it.

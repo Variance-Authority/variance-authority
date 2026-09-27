@@ -44,6 +44,7 @@ export function validateCoverageShape(rows: CoverageRows): void {
     (rows['snapshot.commit'] ?? 1) > 1 ||
     rows['tests.complete'] !== tests ||
     rows['tests.preconditions'] !== tests + 1 ||
+    (rows['tests.duration'] ?? tests) !== tests ||
     rows['preconditions.name'] !== rows['preconditions.digest'] ||
     rows['modules.source'] !== modules ||
     rows['modules.instrumented'] !== modules ||

@@ -254,6 +254,8 @@ ${recording}
 // Beside it, whether this runner wrote skips of its own: a name filter, in the
 // configuration the worker collected under, and a cancel, which rewrites the
 // tests it had not reached in this worker's copy of the tree and no other.
+// A file's own result also keeps the duration the runner measured for it, which
+// is the one the record stores; nothing here reads a clock.
 const finished = ${JSON.stringify(runner.finished ?? null)};
 const tree = (task) => ({
   ...(task.mode === undefined ? {} : { mode: task.mode }),
@@ -269,7 +271,16 @@ export default class extends VitestTestRunner {
     const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
+      JSON.stringify(files.map((file) => {
+        const cut = tree(file);
+        const duration = file.result?.duration;
+        return {
+          filepath: file.filepath,
+          runnerSkipped,
+          ...cut,
+          ...(cut.result === undefined || typeof duration !== 'number' ? {} : { result: { ...cut.result, duration } }),
+        };
+      })),
     );
   }
 

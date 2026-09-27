@@ -7,12 +7,12 @@ import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, type Question } from './asking.js';
-import { grep, orient, search, type Help } from '@variance-authority/help/tools';
+import { grep, orient, search, slowestTests, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { readTree, type CostsSubject, type Tree } from '@variance-authority/mcp/tools';
 import { questions } from './ask-questions.js';
-import { grepSource, orientSource, readChanged, readSource, readTaint, searchSource, wholeSource } from './ask-source.js';
+import { grepSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -48,12 +48,11 @@ export { costsSubject } from './ask-costs.js';
  * `VARIANCE_AUTHORITY_VANTAGE` the suite was started with — the reader asks on
  * the string it already had to set.
  *
- * The checkout is the third. `search`, `grep`, `orient`, `symbol`, `uses`,
- * `entrypoint`, `packages` and `gaps` are the tools `@variance-authority/help` serves, and
- * they read the source tree under the working directory: what each package
- * publishes, who imports a name, where a thing somebody can only describe is
- * declared. No run has to have happened and no config has to exist, which is
- * why they answer before one is read. They are here because `locate` is here:
+ * The checkout is the third. The tools `@variance-authority/help` serves read
+ * the source tree under the working directory: what each package publishes,
+ * who imports a name, where a thing somebody can only describe is declared.
+ * `orient` and `slowest-tests` also read the latest recording. No config has
+ * to exist, which is why they answer before one is read. They are here because `locate` is here:
  * a reader with a description and no name should not have to know whether the
  * names live in a report or in the code before they can ask.
  *
@@ -245,6 +244,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
     : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
     : tool.name === grep.name ? await grepSource(process.cwd(), input)
     : tool.name === orient.name ? orientSource(input)
+    : tool.name === slowestTests.name ? slowestSource(input)
     : await wholeSource(readSource, tool, input, reading);
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it

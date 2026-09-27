@@ -1,6 +1,6 @@
 import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
 import { invalid } from './format-validation.js';
-import { FORMAT } from './format-layout.js';
+import { readableFormat } from './format-layout.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
 import type { Bytes } from './columns.js';
 
@@ -139,7 +139,7 @@ export function isTestCoverageFile(file: string): boolean {
     const header = JSON.parse(Buffer.from(at.read(4, 4 + headerLength)).toString('utf8').replace(/\0+$/, '')) as {
       readonly version?: unknown;
     };
-    return header.version === FORMAT;
+    return readableFormat(header.version);
   } catch {
     return false;
   } finally {

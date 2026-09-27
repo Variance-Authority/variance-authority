@@ -192,6 +192,11 @@ function twins(
 
 const WIDE = ['src/alpha.ts', 'src/decide.ts', 'src/zeta.ts'];
 
+/** The same snapshot with every test timed by its runner at `duration` milliseconds. */
+function timed(coverage: TestCoverage, duration: number): TestCoverage {
+  return { ...coverage, tests: coverage.tests.map((test) => ({ ...test, duration })) };
+}
+
 interface Case {
   readonly previous: TestCoverage | undefined;
   readonly current: TestCoverage;
@@ -202,6 +207,18 @@ const CASES: Readonly<Record<string, Case>> = {
   'nothing underneath': {
     previous: undefined,
     current: at(LOCAL, 'test/beta.test.ts'),
+  },
+  'a carried test timed by its runner, beside a re-recorded one': {
+    previous: timed(at(BASELINE, 'test/alpha.test.ts'), 12.4),
+    current: timed(at(LOCAL, 'test/beta.test.ts'), 7.6),
+  },
+  'a timed test re-recorded by a runner that reported no duration': {
+    previous: timed(at(BASELINE, 'test/alpha.test.ts'), 30),
+    current: at(LOCAL, 'test/alpha.test.ts'),
+  },
+  'a timed test re-recorded with a new duration': {
+    previous: timed(at(BASELINE, 'test/alpha.test.ts'), 30),
+    current: timed(at(LOCAL, 'test/alpha.test.ts'), 41.5),
   },
   'a baseline recorded under another probe recipe': {
     previous: { ...at(BASELINE, 'test/alpha.test.ts'), instrumentation: 'another-recipe' },

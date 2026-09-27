@@ -34,7 +34,8 @@ export interface RunnerTask {
   readonly filepath?: string;
   /** How the runner meant to treat the task: `run`, or `skip` and `todo` for one it never starts. */
   readonly mode?: string;
-  readonly result?: { readonly state: string };
+  /** `duration` is the milliseconds the runner measured for the task, when it did. */
+  readonly result?: { readonly state: string; readonly duration?: number };
   readonly tasks?: readonly RunnerTask[];
   readonly meta?: object;
   /** Vitest 2's name for the project that ran the file. */
@@ -63,6 +64,8 @@ export interface ReportedModule {
   readonly meta?: () => object;
   /** The project that ran it, whose Vite server loaded its configuration. */
   readonly project?: RunnerProject;
+  /** Vitest 3 and 4: `duration` is every test and hook in the module, as the runner timed them. */
+  readonly diagnostic?: () => { readonly duration?: number } | undefined;
 }
 
 /**
@@ -111,6 +114,17 @@ export interface FinishedFile {
    * both match ran under both. Absent when the runner did not say.
    */
   readonly configs?: readonly string[];
+  /** Milliseconds the runner reported for the file; absent when it reported none. */
+  readonly duration?: number;
+}
+
+/**
+ * The runner's duration for a file, as a field to spread, or nothing when what
+ * it handed over is not one. Nothing here times a file: a runner that did not
+ * say leaves the file untimed.
+ */
+export function reportedDuration(value: unknown): Pick<FinishedFile, 'duration'> {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? { duration: value } : {};
 }
 
 /** What a page's two drains carry: before the first test, and after it. */
@@ -355,10 +369,18 @@ export function oneRowPerFile(
       : seen.configs === undefined || file.configs === undefined
       ? undefined
       : [...new Set([...seen.configs, ...file.configs])];
+    // The file cost what every project spent on it, and a project that did not
+    // say leaves the sum unknown rather than short.
+    const duration = seen === undefined
+      ? file.duration
+      : seen.duration === undefined || file.duration === undefined
+      ? undefined
+      : seen.duration + file.duration;
     byPath.set(path, {
       filepath: seen?.filepath ?? file.filepath,
       complete: (seen?.complete ?? true) && file.complete,
       ...(configs === undefined ? {} : { configs }),
+      ...(duration === undefined ? {} : { duration }),
     });
   }
   return [...byPath.values()];
@@ -415,7 +437,12 @@ export async function coverageTest(
       require({ name: module.file, digest: module.sourceDigest });
     }
   }
-  return { file, complete: task.complete && recorded, preconditions: [...preconditions.values()] };
+  return {
+    file,
+    complete: task.complete && recorded,
+    preconditions: [...preconditions.values()],
+    ...reportedDuration(task.duration),
+  };
 }
 
 /**
@@ -450,6 +477,7 @@ export async function readFinished(directory: string): Promise<readonly Finished
   return trees.flat().map((file) => ({
     filepath: file.filepath,
     complete: taskComplete(file, file.runnerSkipped !== false),
+    ...reportedDuration(file.result?.duration),
   }));
 }
 

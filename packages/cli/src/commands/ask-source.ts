@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { answerSearch, grep, orient, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { answerSearch, grep, orient, slowestTests, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -87,6 +87,15 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
  */
 export function orientSource(input: Readonly<Record<string, unknown>>): Answering {
   return { answer: () => orient.run(undefined, input), at: undefined };
+}
+
+/**
+ * `slowest-tests` is `orient`'s shape for the same reason: it opens the
+ * recording a run published and nothing else, so there is no workspace value
+ * to read first and no generation to date the answer with.
+ */
+export function slowestSource(input: Readonly<Record<string, unknown>>): Answering {
+  return { answer: () => slowestTests.run(undefined, input), at: undefined };
 }
 
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {

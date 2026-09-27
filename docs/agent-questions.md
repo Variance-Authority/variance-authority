@@ -23,6 +23,7 @@ A missing domain is unavailable, never an empty measurement.
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
 | current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance ask search --query <word> --from <path>` | `docs_search` on the workspace API server |
 | current workspace source | Which packages are these files in, what crosses their edges, and which tests ran them? | `variance ask orient --files <path>[,...]` | `docs_orient` on the workspace API server |
+| a recorded test run | Which test files did the runner spend longest in? | `variance ask slowest-tests [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
 
 For [source orientation](orientation.md), ask three questions in this order:
 
@@ -37,7 +38,7 @@ Those relations are resolved module imports, not runtime function calls.
 
 `variance ask` with no question lists every report, watcher and source question
 and its arguments. The source questions read the checkout under the working
-directory and need no `variance.config.json`; the same eight are on the
+directory and need no `variance.config.json`; the same nine are on the
 `variance-authority-help` binary for a workspace that installs nothing else. `variance_observability` inventories the domains supplied to a
 combined MCP connection before an agent asks from one of them. For every
 unavailable domain it also names the producer and integration guide.

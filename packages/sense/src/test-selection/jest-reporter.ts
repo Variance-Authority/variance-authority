@@ -26,7 +26,7 @@ import journalFormat from './journal-format.cjs';
 import { writeCaseIndex } from './case-fold.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
-import { noteAnEmptyRecord } from './finished-files.js';
+import { noteAnEmptyRecord, reportedDuration } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { landRun } from './commit-runs.js';
 import { cacheRootFor, markCheckout } from './cache-layers.js';
@@ -69,6 +69,8 @@ export interface JestRunResults {
     readonly skipped: boolean;
     readonly testExecError?: unknown;
     readonly testResults: ReadonlyArray<{ readonly status: string }>;
+    /** `runtime` is the milliseconds Jest measured for the file. */
+    readonly perfStats?: { readonly runtime?: number };
   }>;
 }
 
@@ -322,7 +324,7 @@ async function coverageTest(
     result.testResults.every(
       (assertion) => assertion.status === 'passed' || assertion.status === 'pending' || assertion.status === 'todo',
     );
-  return { file, complete, preconditions };
+  return { file, complete, preconditions, ...reportedDuration(result.perfStats?.runtime) };
 }
 
 /**
