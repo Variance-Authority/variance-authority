@@ -32,18 +32,25 @@ variance index
 ```
 
 It scans the whole checkout, reuses the record of every file whose bytes are
-unchanged, and appends what changed as a new layer. It prints two lines. The
+unchanged, and appends what changed as a new layer. It prints three lines. The
 first says how many files the index holds, and how many it read again. The
 second describes the code map it builds from the index and writes beside it, as
 `source-index.bin.map`, for `variance ask orient` to read. When the index and
 the manifests are unchanged, the map it keeps stands and nothing is folded
 again. When there is nothing to fold, the line says why, as
 `code map: none, because no manifest names a package`, and the index is still
-published:
+published. The third describes the journeys: each case of the latest recording
+walked over the static call graph, written beside the index as
+`source-index.bin.journeys`, so `variance ask orient --files` can name the
+callers and callees of a file's recorded functions. When the recording, the
+index and the test runner's `resolve.alias` configs are unchanged, the journeys
+it keeps stand. With no recording, the line says
+`journeys: not prepared: nothing is recorded at <path>`:
 
 ```text
 source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin
 code map: 59 packages in 11 areas, 2 deep, over 8 dependency layers
+journeys: 2438 cases walked; a caller is found for 27987 of the 34608 functions they ran (81%); 1773 calls, 52 package flows
 ```
 
 These commands read what `variance index` published, and do not scan:

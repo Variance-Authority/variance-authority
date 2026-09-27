@@ -7,17 +7,19 @@
  * get a paragraph. Nothing is counted here: every share and every number is
  * the addon's, and this only chooses the words and the order.
  *
- * The answer is for an agent at a terminal. It is four parts, each one a
+ * The answer is for an agent at a terminal. It is five parts, each one a
  * narrower reading of the one above it — the files asked about, which packages
  * they belong to and what crosses their edges, which recorded cases ran
- * those files, and the commands that ask about one name or one file — and a
+ * those files, the calls those cases took into and out of them, and the
+ * commands that ask about one name or one file — and a
  * part that could not be read is left out with one line saying why, so an
  * absent part is never mistaken for an empty one.
  */
 
 // compass: variance-authority.report.agent-surface
 
-import type { CasesEntered, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
+import type { CasesEntered, JourneysAround, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
+import { formatJourneys } from './orient-journeys-format.js';
 
 /** Everything an orientation answer is made of. */
 export interface OrientReading {
@@ -25,6 +27,8 @@ export interface OrientReading {
   readonly files: readonly string[];
   readonly around: PackagesAround;
   readonly recorded: readonly RecordedCases[];
+  /** Each suite's journeys; absent when they were not asked for. */
+  readonly journeys?: readonly JourneysAround[];
 }
 
 const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
@@ -197,6 +201,7 @@ export function formatOrientation(reading: OrientReading): string {
     '',
     ...packages(reading),
     ...cases(reading),
+    ...formatJourneys(reading.journeys ?? []),
     ...(asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)]),
   ].join('\n');
 }

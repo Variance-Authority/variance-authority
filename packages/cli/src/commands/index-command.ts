@@ -12,12 +12,24 @@
  * keeps it beside the index: the fold reads every record, so it is paid here
  * once rather than by every question.
  *
- * Two lines on stdout, because the step's output is read by the person looking
- * at a pipeline log: where the index is, how many files it holds and how many
- * this run had to read again; then what the code map holds, or why there is none.
+ * It last walks each suite's latest recording over the index and keeps the
+ * journeys beside it, which `variance ask orient` reads for the calls into and
+ * out of a file.
+ *
+ * One line per step on stdout, because the step's output is read by the person
+ * looking at a pipeline log: where the index is, how many files it holds and how
+ * many this run had to read again; what the code map holds, or why there is
+ * none; then per suite what the walk found, or why it was not made.
  */
 
-import { prepareCodeMap, updateSourceIndex, type PreparedCodeMap, type SourceUpdate } from '@variance-authority/sense';
+import {
+  prepareCodeMap,
+  prepareJourneys,
+  updateSourceIndex,
+  type PreparedCodeMap,
+  type PreparedJourneys,
+  type SourceUpdate,
+} from '@variance-authority/sense';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -27,7 +39,39 @@ export interface IndexRequest {
 
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const update = await updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {});
-  return `${describe(update)}\n${codeMap(request.cwd, update)}\n`;
+  return `${[describe(update), codeMap(request.cwd, update), ...(await journeys(request.cwd, update))].join('\n')}\n`;
+}
+
+/**
+ * Journeys are walked last, from each suite's latest recording, so a walk that
+ * fails leaves the index and the map standing and says why. Walking is kept
+ * when the recording, the index and the runner's alias table are the ones the
+ * kept journeys were made from.
+ */
+async function journeys(cwd: string, update: SourceUpdate): Promise<readonly string[]> {
+  try {
+    return (await prepareJourneys(cwd, update.path)).map(walked);
+  } catch (error) {
+    return [`journeys: not prepared: ${error instanceof Error ? error.message : String(error)}`];
+  }
+}
+
+function walked(one: PreparedJourneys): string {
+  const named = one.suite === undefined ? 'journeys' : `journeys, suite ${one.suite}`;
+  if ('unprepared' in one) return `${named}: not prepared: ${one.unprepared}`;
+  const { prepared } = one;
+  const share = prepared.functionsEntered === 0 ? '' : ` (${Math.round((prepared.placed / prepared.functionsEntered) * 100)}%)`;
+  const notes = [
+    prepared.kept ? 'kept, because the recording, the index and the runner\'s aliases are the ones they were walked from' : '',
+    prepared.aliased > 0 ? `${prepared.aliased} imports resolved by the runner's aliases` : '',
+    prepared.fellBack > 0 ? `${prepared.fellBack} imports the index did not resolve were resolved by the walk` : '',
+    ...prepared.runnerUnread.map((unread) => `runner config not read: ${unread}`),
+  ].filter((note) => note !== '');
+  return [
+    `${named}: ${prepared.cases} cases walked; a caller is found for ${prepared.placed} of the ${prepared.functionsEntered} functions they ran${share}; ` +
+      `${prepared.calls} calls, ${prepared.flows} package flows`,
+    ...notes,
+  ].join('; ');
 }
 
 /**

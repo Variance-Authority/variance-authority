@@ -125,7 +125,7 @@ tree is the answer. Both are exact and need no Variance index.
 | Nothing yet, in a repository you do not know | `variance ask orient` | The code map: the repository's packages in areas, each with its size, its dependency layers and the packages the rest of the repository imports most from it; `--area <id>` opens one area |
 | An exact string in the working tree | `rg -n <text> .` | Current files containing that text |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
-| Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[,...]` | Each file's package, with the names it imports from other packages and the names they import from it, and the recorded tests that ran each file |
+| Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[:<line>][,...]` | Each file's package, with the names it imports from other packages and the names they import from it, the recorded tests that ran each file, the functions in other files that call into it and those it calls, and the package flows those tests take through it; a line narrows the calls to the function holding it |
 | Words for an exported source name | `variance ask search --query <words>` | Matching exported names |
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
 | An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation and consumers |

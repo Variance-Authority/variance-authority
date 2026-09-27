@@ -8,11 +8,14 @@
  * reaches, so nothing here reads the text of a file. This answers the graph
  * questions each of those files raises: the package it belongs to, the names
  * that cross that package's edge in both directions, the recorded cases that
- * ran it, and the commands that ask about one of the names it printed.
+ * ran it, the calls those cases took into and out of it, and the commands that
+ * ask about one of the names it printed. A file asked as `path:line` narrows the
+ * calls to the function holding that line.
  *
  * The package graph and the recorded cases are the addon's, through
  * `@variance-authority/sense`: they read what an earlier `variance index` and
- * an earlier recorded run published, and nothing here scans or runs anything.
+ * an earlier recorded run published, and the calls are the journeys `variance
+ * index` walked from that run; nothing here scans or runs anything.
  * A reading that was never published is said to be absent, with the command
  * that publishes it.
  *
@@ -26,7 +29,7 @@
 
 import type { Tool } from '@variance-authority/mcp/tools';
 import { basename } from 'node:path';
-import { codeMapPage, packagesAround, recordedCases } from '@variance-authority/sense';
+import { codeMapPage, journeysAround, packagesAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
 import { formatCodeMapPage } from './code-map-format.js';
 import { formatOrientation } from './orient-format.js';
 
@@ -46,6 +49,14 @@ export function filesOf(input: Readonly<Record<string, unknown>>): readonly stri
   return [...new Set(files)];
 }
 
+/** Each file as said, split at a trailing `:<line>` into the path and the line asked about. */
+export function asksOf(files: readonly string[]): readonly JourneysAsk[] {
+  return files.map((said) => {
+    const at = /^(.+):(\d+)$/u.exec(said);
+    return at === null ? { file: said } : { file: at[1]!, line: Number(at[2]) };
+  });
+}
+
 /**
  * Typed over nothing, like `docs_grep`: it reads no workspace value. The
  * checkout is the one the host names on the call, as `invocation.root`; with
@@ -62,15 +73,20 @@ export const orient: Tool<unknown> = {
     'which find them. Says which package each file is in, what that package imports from other packages and ' +
     'what other packages import from it, as each package\'s share of that side with the names it takes, ' +
     'each name weighed against all the outside use of the package that exports it, ' +
-    'which recorded test cases ran each file or a test file declares, and the narrower questions to ask next. Reads the ' +
-    'source index `variance index` publishes and the latest recorded run; reads no file\'s text and runs nothing itself.',
+    'which recorded test cases ran each file or a test file declares, which functions in other files call into it and ' +
+    'which it calls, as the recorded cases were walked over the static call graph, with how each call is known, the package ' +
+    'flows those cases take through it, and the narrower questions to ask next. Reads the source index `variance index` ' +
+    'publishes, the latest recorded run and the journeys `variance index` prepares from it; reads no file\'s text and runs ' +
+    'nothing itself.',
   inputSchema: {
     type: 'object',
     properties: {
       files: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Paths from the root, as git lists them. Every one is answered, in the order given.',
+        description:
+          'Paths from the root, as git lists them, each with an optional `:<line>`. Every one is answered, in the order given; ' +
+          'a line narrows the journeys to the function holding it.',
       },
       area: {
         type: 'string',
@@ -81,13 +97,15 @@ export const orient: Tool<unknown> = {
   },
 
   run: (_subject, input, invocation) => {
-    const files = filesOf(input);
+    const said = filesOf(input);
+    const asks = asksOf(said);
+    const files = [...new Set(asks.map((ask) => ask.file))];
     const area = typeof input['area'] === 'string' ? input['area'].trim() : undefined;
     const root = invocation?.root;
     if (root === undefined) {
       throw new Error('`orient` reads what a checkout published, and this host named no checkout to read');
     }
-    if (files.length === 0) return mapPage(root, area === '' ? undefined : area);
+    if (said.length === 0) return mapPage(root, area === '' ? undefined : area);
     if (area !== undefined) {
       throw new Error(
         '`orient` reads either the graph around some files or one page of the code map, and was given both; ' +
@@ -102,6 +120,7 @@ export const orient: Tool<unknown> = {
       // answer and this builds no graph; `variance covering --file` builds one
       // and names them, so the answer points there instead of counting them.
       recorded: recordedCases(root, files, TITLES),
+      journeys: journeysAround(root, asks),
     });
   },
 };

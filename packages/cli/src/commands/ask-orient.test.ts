@@ -191,11 +191,13 @@ describe('variance ask orient', () => {
     expect(both.out).toBe('');
   });
 
-  it('answers with the files, the names crossing each package, the absent recording, and what to ask next', async () => {
+  it('answers with the files, the names crossing each package, the absent recording and journeys, and what to ask next', async () => {
     const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const indexed = await run(['index']);
+    expect(indexed.code).toBe(EXIT_CLEAN);
+    expect(indexed.out.split('\n')[2]).toBe(`journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}.cases.bin`);
 
-    const answered = await run(['ask', 'orient', '--files', 'packages/checkout/src/total.ts,./packages/cart/src/price.ts,src/gone.ts']);
+    const answered = await run(['ask', 'orient', '--files', 'packages/checkout/src/total.ts:2,./packages/cart/src/price.ts,src/gone.ts']);
 
     expect(answered).toEqual({
       code: EXIT_CLEAN,
@@ -221,6 +223,8 @@ describe('variance ask orient', () => {
         '    100%  @t/checkout  priceOf 67%, currency 33%',
         '',
         `Recorded cases: none read from ${testCoverageFile(root)}.cases.bin, nothing is recorded there. A run with \`withTestSelection\` records them.`,
+        '',
+        'Journeys: not prepared: there is no recording to walk. `variance index` prepares them from the latest recording.',
         '',
         'Narrower questions:',
         '  variance ask uses --name priceOf --package @t/cart',
