@@ -53,7 +53,9 @@ export interface ReportOptions {
 export function formatReport(options: ReportOptions): string {
   if (options.format === 'json') return asJson(options);
   if (options.format === 'html') return asHtml(options);
-  return asText(options);
+  // Terminated like the other two, or the next line a CI log prints lands on
+  // the end of the report's last sentence.
+  return `${asText(options)}\n`;
 }
 
 /**

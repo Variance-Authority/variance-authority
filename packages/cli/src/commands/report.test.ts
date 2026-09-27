@@ -109,6 +109,17 @@ describe('formatReport, text', () => {
     expect(occurrences).toBe(1);
   });
 
+  it.each([
+    ['the whole run', undefined],
+    ['one subject', 'story:toggle'],
+  ] as const)('ends %s on a newline, like the json and html forms', (_label, subject) => {
+    // Found in a CI log, where the step's next line printed onto the end of the
+    // report's last sentence: "…and is carried.cache miss".
+    const text = formatReport({ report: REPORT, format: 'text', ...(subject ? { subject } : {}) });
+    expect(text.endsWith('\n')).toBe(true);
+    expect(text.endsWith('\n\n')).toBe(false);
+  });
+
   it('prints the composition section, and stays silent when there is none', () => {
     // The section is the MCP tool's answer, through `tool()` like every other
     // shared one. What is decided here is only whether to ask: an absent
