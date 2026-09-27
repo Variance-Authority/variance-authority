@@ -217,3 +217,31 @@ export function readingLines(readings) {
   if (readings.length === 0) return [];
   return ['', ...formatReadings(readings).map((line) => `  ${line}`)];
 }
+
+/**
+ * What the files a run takes cost, summed from the durations their runner
+ * last reported for them.
+ *
+ * A file the recording holds no duration for is counted apart and never as
+ * zero: a total that quietly drops them would read as a cheaper run than the
+ * one about to start. The sum is of what each file took, and a runner that
+ * runs files in parallel finishes sooner than that.
+ */
+export function costLine(files, durations) {
+  let total = 0;
+  let known = 0;
+  for (const file of files) {
+    const duration = durations.get(file);
+    if (duration === undefined) continue;
+    total += duration;
+    known += 1;
+  }
+  if (known === 0) return `  cost     unknown: none of these ${files.length} file(s) has a recorded duration`;
+  const untimed = files.length - known;
+  return `  cost     ${spent(total)} recorded for ${known} of ${files.length} file(s)` +
+    `${untimed === 0 ? '' : `; ${untimed} without a recorded duration`}`;
+}
+
+function spent(milliseconds) {
+  return milliseconds < 1000 ? `${milliseconds} ms` : `${(milliseconds / 1000).toFixed(1)} s`;
+}

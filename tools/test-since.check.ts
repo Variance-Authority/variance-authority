@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { inSnapshotCoordinates } from './since-diff.mjs';
-import { explain, findingLines, readingLines, runningLines } from './since-report.mjs';
+import { costLine, explain, findingLines, readingLines, runningLines } from './since-report.mjs';
 import { selectedFiles } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
@@ -212,5 +212,20 @@ describe('a reader and a reading are printed where the reader looks', () => {
       '  read src/a.ts: unread (the diff does not apply to the recorded text) — its changed lines are charged',
     ]);
     expect(readingLines([])).toEqual([]);
+  });
+});
+
+describe('what a run costs is summed from what the runner reported', () => {
+  const recorded = new Map([['a.test.ts', 1200], ['b.test.ts', 350]]);
+
+  it('sums the files it knows, and counts the ones it does not apart', () => {
+    expect(costLine(['a.test.ts', 'b.test.ts', 'c.test.ts'], recorded))
+      .toBe('  cost     1.6 s recorded for 2 of 3 file(s); 1 without a recorded duration');
+    expect(costLine(['b.test.ts'], recorded)).toBe('  cost     350 ms recorded for 1 of 1 file(s)');
+  });
+
+  it('says the cost is unknown rather than printing a zero', () => {
+    expect(costLine(['c.test.ts'], recorded))
+      .toBe('  cost     unknown: none of these 1 file(s) has a recorded duration');
   });
 });

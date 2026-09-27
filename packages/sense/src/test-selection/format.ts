@@ -8,9 +8,11 @@ import type {
 import {
   KINDS,
   MODEL,
+  NO_DURATION,
   NO_OWNER,
   blob,
   column,
+  durationWord,
   kindId,
   sections,
 } from './format-layout.js';
@@ -67,6 +69,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
       : Uint32Array.of(stringId(normalized.commit));
   const testPaths = Uint32Array.from(normalized.tests, (test) => stringId(test.file));
   const testComplete = Uint8Array.from(normalized.tests, (test) => test.complete ? 1 : 0);
+  const testDuration = Uint32Array.from(normalized.tests, (test) => durationWord(test.duration));
   const testPreconditions = new Uint32Array(normalized.tests.length + 1);
   const preconditionName = new Uint32Array(preconditionCount);
   const preconditionDigest = new Uint32Array(preconditionCount);
@@ -156,6 +159,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     'tests.path': column(testPaths),
     'tests.complete': column(testComplete),
     'tests.preconditions': column(testPreconditions),
+    'tests.duration': column(testDuration),
     'preconditions.name': column(preconditionName),
     'preconditions.digest': column(preconditionDigest),
     'modules.path': column(modulePaths),
@@ -205,6 +209,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const testPath = view.testPath.all();
   const testComplete = view.testComplete.all();
   const testPreconditions = view.testPreconditions.all();
+  const testDuration = view.testDuration?.all();
   const preconditionName = view.preconditionName.all();
   const preconditionDigest = view.preconditionDigest.all();
   const tests: CoverageTest[] = [];
@@ -216,10 +221,12 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
         digest: string(preconditionDigest[input]!),
       });
     }
+    const duration = testDuration?.[test] ?? NO_DURATION;
     tests.push({
       file: string(testPath[test]!),
       complete: testComplete[test] === 1,
       preconditions,
+      ...(duration === NO_DURATION ? {} : { duration }),
     });
   }
   const modulePath = view.modulePath.all();

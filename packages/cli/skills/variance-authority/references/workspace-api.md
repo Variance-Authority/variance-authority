@@ -1,9 +1,10 @@
 # What a workspace publishes, and where a name is used
 
-Eight questions read a workspace's manifests and source. Seven answer what it
-publishes, and each of their answers names the UTC time of the workspace
-generation it used. The eighth, `orient`, starts from files you already have
-and says what the code around them is.
+Nine questions read a workspace's manifests, source and test recording. Seven
+answer what it publishes, and each of their answers names the UTC time of the
+workspace generation it used. `orient` starts from files you already have and
+says what the code around them is. `slowest-tests` reads the latest recorded
+test run and lists the files it spent longest in.
 They describe source, not a build or a generated site, and they need no run and
 no config.
 
@@ -34,11 +35,11 @@ it:
 | --- | --- | --- |
 | `@variance-authority/help` | the npm package | a manifest, a package runner |
 | `variance-authority-help` | the binary that package installs | a shell, an MCP `command` |
-| `docs_packages` … `docs_gaps` | the eight MCP tool names | an MCP client's tool list |
+| `docs_packages` … `docs_gaps` | the nine MCP tool names | an MCP client's tool list |
 | `workspace-api` | the server key you chose | your own MCP config; rename it freely |
 
-The `docs_` prefix is the MCP namespace. Drop it and you have the verb:
-`docs_search` is `search`.
+The `docs_` prefix is the MCP namespace. Drop it, turn `_` into `-`, and you
+have the verb: `docs_search` is `search`, `docs_slowest_tests` is `slowest-tests`.
 
 ## Before the first question
 
@@ -67,7 +68,7 @@ variance-authority-help [root] [--just-answer]            # serve over MCP on st
 variance-authority-help write [root] [--out <dir>] [--base <url>]
 ```
 
-**Any first word that is not one of the eight verbs and not `write` is read as a
+**Any first word that is not one of the nine verbs and not `write` is read as a
 root directory, and the binary starts an MCP stdio server on it.** There is no
 "unknown verb" error at this level: `variance-authority-help serve` tries to
 serve a directory named `serve`. That rule is also why the MCP config in
@@ -107,7 +108,7 @@ name's contract, and `uses` for its exact import sites and worked examples.
 This is a module graph, not a call graph. Never turn an import site into a claim
 that one function calls another; open the file or ask a language server.
 
-## The eight verbs, in the order to ask them
+## The nine verbs, in the order to ask them
 
 Every block below is real output from the repository that develops this tool,
 shortened only.
@@ -402,7 +403,24 @@ than the count says. `variance covering --file` names them, from the test files
 that import it. A test file is answered with the cases it declares. The
 `--from` question starts at the first shown file the index has a record for.
 
-### 8. `gaps`
+### 8. `slowest-tests [--limit <n>]`
+
+The test files the latest recorded run spent longest in, slowest first, with the
+duration the test runner reported for each file. Nothing here times a test: a
+file whose runner reported no duration, or one a recording older than durations
+holds, is counted apart and never ranked as instant. It reads the recording
+`yarn test` writes for `test:since`, suite by suite, and says where it looked
+when there is none.
+
+```
+$ variance ask slowest-tests --limit 2
+Slowest recorded test files, suite unit, as their runner reported them, from <cache>/test-selection/<key>/suites/unit/coverage.bin:
+  658 ms  packages/sense/src/test-selection/durations.integration.test.ts
+  353 ms  packages/sense/src/test-selection/format.test.ts
+2 of 4 timed file(s) shown; 600 recorded file(s) have no duration.
+```
+
+### 9. `gaps`
 
 Names other packages import with nothing written above the declaration. A work
 queue, not an answer about one name.

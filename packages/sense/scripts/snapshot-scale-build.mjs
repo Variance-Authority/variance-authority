@@ -13,7 +13,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { CrossingSets } from '../dist/test-selection/crossing-sets.js';
-import { blob, column, sections, NO_OWNER } from '../dist/test-selection/format-layout.js';
+import { blob, column, sections, NO_DURATION, NO_OWNER } from '../dist/test-selection/format-layout.js';
 import {
   BARRELS,
   BLOCKS,
@@ -262,6 +262,8 @@ export function buildSnapshot() {
     'tests.path': column(testPaths),
     'tests.complete': column(new Uint8Array(TESTS).fill(1)),
     'tests.preconditions': column(testPreconditions),
+    // No runner timed these tests, so every row says so.
+    'tests.duration': column(new Uint32Array(TESTS).fill(NO_DURATION)),
     'preconditions.name': column(preconditionName),
     'preconditions.digest': column(preconditionDigest),
     'modules.path': column(modulePaths),

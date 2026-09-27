@@ -49,6 +49,7 @@ import {
   type RecordWriter,
 } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
+import { reportedDuration } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
 import { newRun } from './selection-run.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
@@ -93,6 +94,11 @@ export interface FinishedTestFile {
    * is kept as evidence that selects it rather than as a reach that excludes it.
    */
   readonly complete: boolean;
+  /**
+   * Milliseconds your runner reported the file took. Recorded as given; left
+   * out, the file is recorded with no duration rather than a zero.
+   */
+  readonly duration?: number;
 }
 
 export interface Recording {
@@ -150,7 +156,11 @@ export function startRecording(options: RecordingOptions = {}): Recording {
     env: { [RECORDING_VARIABLE]: value },
     async finish(files) {
       try {
-        await fold(files.map((file) => ({ filepath: resolve(file.file), complete: file.complete })));
+        await fold(files.map((file) => ({
+          filepath: resolve(file.file),
+          complete: file.complete,
+          ...reportedDuration(file.duration),
+        })));
       } finally {
         if (process.env[RECORDING_VARIABLE] === value) delete process.env[RECORDING_VARIABLE];
       }

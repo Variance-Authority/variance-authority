@@ -11,6 +11,7 @@ import { recordedFrame } from './source-lines.js';
 import {
   carriedJournal,
   readFinished,
+  reportedDuration,
   reportedComplete,
   runnerSkipped,
   taskComplete,
@@ -444,6 +445,7 @@ function selectionReporter(
         : [{
           filepath: file.filepath,
           complete: taskComplete(file, runnerSkipped(runner)),
+          ...reportedDuration(file.result?.duration),
           ...carriedJournal(file.filepath, file.meta),
           ...configsOf(byName.get(file.projectName ?? '')),
         }]),
@@ -452,6 +454,7 @@ function selectionReporter(
       reported.map((module) => ({
         filepath: module.moduleId,
         complete: reportedComplete(module, runnerSkipped(runner, reason)),
+        ...reportedDuration(module.diagnostic?.()?.duration),
         ...carriedJournal(module.moduleId, module.meta?.()),
         ...configsOf(projectConfig(module.project)),
       })),

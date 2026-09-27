@@ -26,7 +26,7 @@ import { answerSearch, search } from './tools/search.js';
 
 /** What a tool is called from a shell: its wire name without the transport's prefix. */
 export function verbOf(tool: Tool<Help>): string {
-  return tool.name.replace(/^docs_/, '');
+  return tool.name.replace(/^docs_/, '').replace(/_/g, '-');
 }
 
 export function toolNamed(verb: string): Tool<Help> {

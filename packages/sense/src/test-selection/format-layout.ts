@@ -39,11 +39,42 @@ export const MODEL = 3;
  * stored as its pairs. It is a set of the same tests the crossings are, so it
  * names one out of the same pool: `blocks.loaded` and `loaded.test` are gone
  * and `blocks.loadedSet` holds one id a region in their place.
+ *
+ * And again for `tests.duration`, what the runner said each test file cost.
+ * Unlike the moves before it, the previous layout stays readable: every section
+ * it has still means what it did, and the one it lacks is a fact nobody
+ * reported, which a reader answers with absence rather than a refusal. The JVM
+ * agent still writes that layout.
  */
-export const FORMAT = 8;
+export const FORMAT = 9;
+
+/** The layout before `tests.duration`, read as one whose runner reported no durations. */
+export const UNTIMED_FORMAT = 8;
+
+/** The layouts a reader opens. */
+export function readableFormat(version: unknown): version is typeof FORMAT | typeof UNTIMED_FORMAT {
+  return version === FORMAT || version === UNTIMED_FORMAT;
+}
 
 const ALIGNMENT = 8;
 export const NO_OWNER = 0xffff_ffff;
+
+/**
+ * A test file whose runner reported no duration. Not zero: zero milliseconds is
+ * a duration a runner can report, and a file nobody timed did not cost nothing.
+ */
+export const NO_DURATION = 0xffff_ffff;
+
+/**
+ * The word `tests.duration` holds for a duration: whole milliseconds, as the
+ * runner reported them to the nearest one. A value no runner could have meant —
+ * negative, not finite, or too large for the column — is stored as absent.
+ */
+export function durationWord(duration: number | undefined): number {
+  if (duration === undefined || !Number.isFinite(duration) || duration < 0) return NO_DURATION;
+  const whole = Math.round(duration);
+  return whole >= NO_DURATION ? NO_DURATION : whole;
+}
 
 /**
  * Stored as runs above this, and as it is below it.
@@ -83,6 +114,9 @@ export const NAMES = [
   'sets.blob',
   'sets.off',
 ] as const;
+
+/** The section `FORMAT` added over `UNTIMED_FORMAT`: one word a test, see {@link NO_DURATION}. */
+export const DURATION = 'tests.duration';
 
 export interface Section {
   readonly name: string;

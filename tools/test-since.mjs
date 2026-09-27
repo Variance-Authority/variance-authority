@@ -17,7 +17,7 @@ import {
 import { sourceStem } from './page-side.mjs';
 import { inSnapshotCoordinates } from './since-diff.mjs';
 import { importGraph, isManifest, movedManifests, movedPackageFiles, movedPackages } from './since-graph.mjs';
-import { describeRange, distanceLines, explain, findingLines, helpLines, readingLines, runningLines } from './since-report.mjs';
+import { costLine, describeRange, distanceLines, explain, findingLines, helpLines, readingLines, runningLines } from './since-report.mjs';
 
 /**
  * Run the tests a change reached, from the suite's own record of itself.
@@ -243,6 +243,12 @@ async function main() {
     return 1;
   }
 
+  // What the runner reported each file cost when it was recorded; a file it did
+  // not time is absent here, and the cost line counts it apart.
+  const recorded = new Map(
+    coverage.tests.flatMap((test) => (test.duration === undefined ? [] : [[test.file, test.duration]])),
+  );
+
   if (ref === undefined && coverage.commit === undefined) {
     say(
       'test:since: the snapshot names no commit, so there is no coordinate to measure from.',
@@ -386,7 +392,12 @@ async function main() {
     base,
   });
   if (decided.widened !== undefined) {
-    say(`test:since: running the whole suite — ${decided.widened}.`, `  ${suite.length} files`, '');
+    say(
+      `test:since: running the whole suite — ${decided.widened}.`,
+      `  ${suite.length} files`,
+      costLine(suite, recorded),
+      '',
+    );
     if (dryRun) return 0;
     return spawnSync('yarn', ['vitest', 'run'], { cwd: ROOT, stdio: 'inherit' }).status ?? 1;
   }
@@ -430,6 +441,7 @@ async function main() {
     `  base     ${base.slice(0, 12)}${ref === undefined ? ' — where the snapshot was recorded' : ' — merged with HEAD'}`,
     `  changed  ${changed.length} path(s): ${touched.length} test file(s), ${changed.length - consequential.length} manifest(s), ${unentered.length} unlisted`,
     `  skipped  ${suite.length - selected.length} file(s): recorded whole, ran nothing that changed`,
+    costLine(running, recorded),
     ...(narrowing.stale.length === 0
       ? []
       : [

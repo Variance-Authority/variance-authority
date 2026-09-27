@@ -7,7 +7,7 @@ import { layeredDictionary } from './format-dictionary.js';
 import { layeredRows } from './format-layer-rows.js';
 import { CrossingSets } from './crossing-sets.js';
 import { openCrossingSets } from './crossing-sets-read.js';
-import { NO_OWNER, blob, column, kindId, sections } from './format-layout.js';
+import { NO_DURATION, NO_OWNER, blob, column, durationWord, kindId, sections } from './format-layout.js';
 import { samePreconditions } from './merge.js';
 import { NO_LINE } from './written-lines.js';
 import type { CoverageTest, TestCoverage } from './index.js';
@@ -51,7 +51,7 @@ export function layerTestCoverage(
   if (view.instrumentation !== current.instrumentation) return encodeTestCoverage(current);
 
   const {
-    testPath, testComplete, testPreconditions, preconditionName, preconditionDigest,
+    testPath, testComplete, testPreconditions, testDuration, preconditionName, preconditionDigest,
     modulePath, moduleSource, moduleInstrumented, moduleBlocks,
     blockOrdinal, blockKind, blockOwner, blockDigest, blockName, blockPath,
     blockStart, blockEnd, blockSource, blockSet, blockLoadedSet, crossings,
@@ -70,10 +70,12 @@ export function layerTestCoverage(
         digest: view.string(preconditionDigest[at]!),
       });
     }
+    const duration = testDuration?.[test] ?? NO_DURATION;
     previousTestRows.push({
       file: view.string(testPath[test]!),
       complete: testComplete[test] === 1,
       preconditions,
+      ...(duration === NO_DURATION ? {} : { duration }),
     });
   }
   const previousTests = new Map(previousTestRows.map((test) => [test.file, test]));
@@ -133,6 +135,7 @@ export function layerTestCoverage(
   const preconditionCount = tests.reduce((sum, test) => sum + test.preconditions.length, 0);
   const testPaths = Uint32Array.from(tests, (test) => id(test.file));
   const outComplete = Uint8Array.from(tests, (test) => (test.complete ? 1 : 0));
+  const outDuration = Uint32Array.from(tests, (test) => durationWord(test.duration));
   const outPreconditions = new Uint32Array(tests.length + 1);
   const outName = new Uint32Array(preconditionCount);
   const outDigest = new Uint32Array(preconditionCount);
@@ -259,6 +262,7 @@ export function layerTestCoverage(
     'tests.path': column(testPaths),
     'tests.complete': column(outComplete),
     'tests.preconditions': column(outPreconditions),
+    'tests.duration': column(outDuration),
     'preconditions.name': column(outName),
     'preconditions.digest': column(outDigest),
     'modules.path': column(outPath),

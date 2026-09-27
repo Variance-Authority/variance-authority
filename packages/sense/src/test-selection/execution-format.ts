@@ -146,6 +146,9 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       'tests.id': column(Uint32Array.from(index.tests, (test) => id(test.id))),
       'tests.file': column(Uint32Array.from(index.tests, (test) => id(test.file))),
       'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
+      // TODO: a case's duration is not written; only the whole file's is, in the
+      // snapshot's `tests.duration`, so a question about the slowest case has no
+      // column to read.
       'tests.stopped': column(stoppedColumn(index.tests)),
       'modules.file': column(moduleFile),
       'modules.blocks': column(moduleBlocks),

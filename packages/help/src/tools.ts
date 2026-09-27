@@ -7,11 +7,12 @@ import { grep } from './tools/grep.js';
 import { orient } from './tools/orient.js';
 import { packages } from './tools/packages.js';
 import { search } from './tools/search.js';
+import { slowestTests } from './tools/slowest-tests.js';
 import { symbol } from './tools/symbol.js';
 import { uses } from './tools/uses.js';
 
 /**
- * The eight questions, and the order they are meant to be asked in.
+ * The nine questions, and the order they are meant to be asked in.
  *
  * `docs_packages` needs nothing and answers with the arguments the next call
  * takes; `docs_entrypoint` and `docs_search` narrow to a name; `docs_symbol`
@@ -38,6 +39,10 @@ import { uses } from './tools/uses.js';
  * nothing itself. Its answer ends in the narrower questions above, spelled with
  * the names it printed.
  *
+ * `docs_slowest_tests` is about the suite rather than the source: which test
+ * files the latest recorded run says took longest, as the runner reported them.
+ * It sits here because it reads the same recording `docs_orient` reads.
+ *
  * `docs_gaps` is the one that is not for using the library. It is for the person
  * maintaining it, and it lives here rather than in a lint rule because the
  * reading that ranks it is the same reading, and an agent that has just been
@@ -56,21 +61,21 @@ function dated(tool: Tool<Help>): Tool<Help> {
 
 /** The source-orientation tools shared by shell dispatch and the server. */
 export const HELP_TOOLS: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, orient, gaps];
+  [packages, entrypoint, symbol, uses, search, grep, orient, slowestTests, gaps];
 
 const DATED_HELP_TOOLS = HELP_TOOLS.map(dated);
 
 export const SERVER_NAME = 'variance-authority-help';
 export const SERVER_VERSION = '0.0.0';
 
-/** What a server answers with: these eight tools, over one workspace's reading. */
+/** What a server answers with: these nine tools, over one workspace's reading. */
 export const HELP: Served<Help> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
   tools: DATED_HELP_TOOLS,
 };
 
-export { entrypoint, gaps, grep, orient, packages, search, symbol, uses };
+export { entrypoint, gaps, grep, orient, packages, search, slowestTests, symbol, uses };
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
 export { answerSearch, searchIndexOf } from './tools/search.js';
 export type {

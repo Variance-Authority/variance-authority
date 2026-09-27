@@ -25,7 +25,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { defaultInclude } from './instrumented-modules.js';
-import { carriedJournal, statusesComplete } from './finished-files.js';
+import { carriedJournal, reportedDuration, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
 import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
@@ -107,6 +107,8 @@ export interface RstestFileResult {
   readonly meta?: object;
   /** The name of the project that ran it. */
   readonly project?: string;
+  /** The milliseconds Rstest measured for the file, when it did. */
+  readonly duration?: number;
 }
 
 /** What `onTestRunEnd` is handed: `rerunTestPaths` is there only when Rstest watches. */
@@ -223,6 +225,7 @@ export function withTestSelection(
       cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
+        ...reportedDuration(file.duration),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
       })),
