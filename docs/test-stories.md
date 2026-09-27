@@ -1,107 +1,273 @@
-# See what one test runs, in order
+# Read what one test ran, in order
 
-A **test story** shows you the code one test ran, in the order it ran it: each
-function it went through, the branch it took at each `if`, the code it never
-ran, and how many times each loop ran. You record one when reading the test has
-not answered your question: before you change code you do not know, when a test
-fails and nothing names the cause, or when a test fails on some runs and passes
-on others.
+A **test story** is the code one test ran, in the order it ran it, on one page:
+each function the test went through, the branch it took at each `if`, the
+branches it never took, and how many times each loop ran. A debugger shows you
+one line at a time, and coverage shows you what the whole suite ran. A story
+shows you the whole run of one test, and you read it from top to bottom.
 
-## One test, start to finish
+## Two questions reading the code does not answer
 
-Say you are about to change what `removeItem` does when it is called on a cart
-that is already empty, and the test `removes the last item` looks like it
-covers that. Before you trust it, record its story and read it:
+Two questions come up about one test, again and again:
+
+- **Does this test run the code I am about to change?**
+- **Why does this test fail on some runs and pass on others?**
+
+Both are about the order the test ran code in. One test runs code in many
+files: the cart, then the prices, then the formatting, then the cart again.
+Today you find that order in one of three ways:
+
+- **Read the files.** You open each file, find the function, decide which
+  branch this input takes, and remember the steps so far while you open the
+  next one. When you are interrupted, you start again from the test.
+- **Step through it in a debugger.** You see the values, but one line at a
+  time, and only the part you step through. A test that fails one run in five
+  usually passes under the debugger.
+- **Open a coverage report.** It marks the lines the whole suite ran. It does
+  not say which of them this test ran, or in what order.
+
+A test story is that order, recorded while the test runs and written out as
+numbered steps. Each step names the file and the lines it ran, so you can read
+from the top to see what the test does, or go straight to one branch to see
+whether the test ever took it. The figure shows one test both ways: file by
+file, and as its story.
+
+The format and the name come from [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/),
+which shows a test story inside your editor. Here your own test runner records
+it, under Vitest, Jest or Rstest, and you read it with one command, in a
+terminal or in any editor.
+
+## Does this test run the code you are changing?
+
+Say you want to change what `removeItem` does when the cart is already empty.
+This is the method, from line 13 to line 23 of `src/cart.ts`:
+
+```ts
+  removeItem(id: string): void {
+    if (this.items.length === 0) {
+      throw new Error('the cart is empty');
+    }
+    this.items = this.items.filter((item) => item.id !== id);
+    for (const item of this.items) {
+      const cents = applyTier(item.cents, item.quantity);
+      this.lines.push(formatPrice(cents));
+    }
+    this.notify();
+  }
+```
+
+A test named `removes the last item` looks like it checks the empty cart:
+
+```ts
+it('removes the last item', () => {
+  cart.removeItem('C3');
+  expect(cart.lines).toEqual(['5.00', '2.70']);
+});
+```
+
+Before you trust it, read its story. [Sense](../packages/sense/README.md), the
+package that records which code each test ran, writes it, and `variance story`
+from [the CLI](../packages/cli/README.md) prints it. With Sense set up for your
+runner, that is two commands:
 
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 variance story --name "removes the last item"
 ```
 
+In the output, `✗` is a branch the test never took, and `×2` is how many times
+something ran:
+
 ```text
 story  src/cart.test.ts > cart > removes the last item
-  goes through 4 files in 7 steps
-  key  …
+  goes through 3 files in 7 steps
 
-  in src: cart.test.ts, cart.ts, price.ts, format.ts
-
-  before the test
-  1  beforeEach.arg0  cart.test.ts:3-8
-  the test
-  2  loaded 3 files: cart.ts, price.ts, format.ts
-  3  Cart/removeItem  cart.ts:12-30
+  1  Cart/removeItem  cart.ts:13-23
        if 14  then ✗  else ×1
-       for 18 ×2
-     steps 4-5 ran 2 times in all:
-  4    applyTier  price.ts:6-8 ×2
+  2  Cart/removeItem/filter.arg0  cart.ts:17 ×3
+     steps 3-5 ran 2 times in all:
+  3    Cart/removeItem  cart.ts:13-23
+         if 14  then ✗
+         for 18 ×2
+  4    applyTier  price.ts:6-9 ×2
          if 7  then ×1  else ×1
-  5    formatPrice  format.ts:14-19 ×2
-  6  Cart/removeItem  cart.ts:12-30
+  5    formatPrice  format.ts:14-18 ×2
+  6  Cart/removeItem  cart.ts:13-23
        if 14  then ✗
-  7  Cart/notify  cart.ts:33-35
+  7  Cart/notify  cart.ts:25-27
 ```
 
-Read it top to bottom. The runner ran `beforeEach`. Then the test loaded three
-modules, called `removeItem`, took the `else` at line 14, called `applyTier` and
-`formatPrice` twice from the loop at line 18, came back to `removeItem`, and
-ended in `notify`.
+Each step is one function the test ran, named by where it is declared:
+`Cart/removeItem` is the `removeItem` method of `Cart`, and
+`Cart/removeItem/filter.arg0` is the callback passed to `filter` inside it.
+Under a step are the branches and loops the test ran there. Read it from the
+top:
 
-The line that answers your question is `if 14  then ✗`. The `then` at line 14
-is the empty-cart branch, and this test never ran it. Whatever you write there,
-this test passes. So you write a test for that branch before you change it, and
-you open only the files and lines the story names.
+- **Step 1.** The test called `removeItem`. The condition on line 14 was
+  false, so it skipped the `throw`.
+- **Step 2.** The callback passed to `filter` ran three times, once for each
+  item.
+- **Steps 3 to 5.** The loop on line 18 ran twice. Each pass went from
+  `removeItem` to `applyTier` and then to `formatPrice`, so the three steps are
+  shown once, with the counts of both passes added.
+- **Steps 6 and 7.** The test ran `removeItem` again and ended in `notify`.
 
-A story this short prints a key to its marks above the route, left out here:
-`✗` is code the test never ran, and `×2` is how many times it ran. Each step
-is one function the test was in, named by where it is declared:
-`Cart/removeItem` is the `removeItem` method of `Cart`, and `beforeEach.arg0`
-is the callback passed to `beforeEach`. Under a step are the branches and loops
-the test went through there.
+The line that answers your question is `if 14  then ✗`. The `then` on line 14
+is the empty-cart branch, and this test never ran it: "the last item" is the
+last one in the list, so the cart is never empty. Whatever you write in that
+branch, this test passes. So you write a test for the empty cart before you
+change it.
 
-## Why reading the test is not enough
+`✗` is shown at every step in `removeItem`, because the test ran that method
+at three steps and never took the branch at any of them.
 
-A test names what it calls, not what that call does. `cart.removeItem()` can go
-through four files or forty, and the imports at the top of a file do not say
-which of them run for this input. Most of what a test imports, it never runs:
-in TanStack Query, 149 of 188 test files load `query.ts`, and the median
-function body, branch or loop body in it runs in 29 of them, as [test
-selection](coverage-test-selection.md#what-the-record-keeps) measures.
+## Why does this test fail on some runs?
 
-So you open files one at a time and guess which parts matter, or you set
-breakpoints and step through one place at a time. An agent works the same way,
-and every file it opens to find the order costs tokens before it reads a line
-it needs. A test story gives you the order in one command, on one page: it is
-drawn to fit 5,000 characters, and says how to open any part of it in more
-detail.
+Say the test `saves the total it charges` fails on some runs. It calls
+`checkout` in `src/checkout.ts`, which saves the order and reprices it at the
+same time, then checks that it saved the total it charges:
 
-Coverage answers a different question. It counts how often each line ran
-across the whole suite, and says nothing about which test ran it or in what
-order. Test selection records, for every test on every run, the set of code
-that one test ran, and calls it the test's [journey](journeys.md): each
-function and branch ran or did not, in no order. A test story is the same code
-in the order the test ran it, with a number for each step and a count for each
-loop, and a run writes one only when you ask. The figure draws one test both
-ways.
+```ts
+export async function checkout(order: Order): Promise<void> {
+  await Promise.all([save(order), reprice(order)]);
+  console.log(`charged ${order.total}, saved ${order.saved}`);
+  if (order.saved !== order.total) {
+    throw new Error(`saved ${order.saved}, charged ${order.total}`);
+  }
+}
 
-[Wallaby.js](https://wallabyjs.com/docs/features/test-stories/) shows the same
-idea inside your editor while a test runs. Here your own runner writes the
-story, under Vitest, Jest or Rstest, and you read it with one command, in a
-terminal or from an agent.
+async function save(order: Order): Promise<void> {
+  await wait();
+  console.log('saving');
+  order.saved = order.total;
+}
+
+async function reprice(order: Order): Promise<void> {
+  await wait();
+  order.total = applyTier(order.total, 2);
+}
+```
+
+A story writes each line the code prints under the step that printed it, after
+`»`. This is the end of the story of a run that failed:
+
+```text
+   8  save  checkout.ts:18-22
+        await 19 ×1
+        » console.log saving
+   9  reprice  checkout.ts:24-27
+        await 25 ×1
+  10  applyTier  price.ts:6-9
+        if 7  then ×1  else ✗
+  11  checkout  checkout.ts:10-16
+        await 11 ×1
+        if 13  then ×1  else ✗
+        » console.log charged 450, saved 500
+```
+
+**One story does not tell you why.** Code after an `await` runs when its promise
+settles, and two promises started together settle in either order, so an async
+test can run in a different order on each run, including runs that pass. Put
+two stories side by side and most of what differs is not the cause.
+
+### Compare readings of one test
+
+Each run of a test writes one story, and the cache keeps the stories of a
+test's last 16 runs. The output calls each kept story a **reading**. Record the test until
+it has both passed and failed, two or three times each, then compare:
+
+```bash
+variance story --name "saves the total it charges" --compare outcome
+```
+
+`--compare outcome` puts the readings in two groups, the runs that passed and
+the runs that threw. It lists only what is true of every reading in one group
+and of no reading in the other:
+
+```text
+compare  src/checkout.test.ts > saves the total it charges
+  passed (4 readings) against threw (6 readings, every one threw)
+
+  only when it passed, on every reading:
+    went into  checkout  src/checkout.ts:10-16, the else of the if on 13
+    said       » console.log charged 450, saved 450
+
+  only when it threw, on every reading:
+    went into  checkout  src/checkout.ts:10-16, the then of the if on 13
+    said       » console.log charged 450, saved 500
+
+  in the opposite order when it passed and when it threw, on every reading:
+    applyTier  src/price.ts:6-9
+      before » console.log saving when it passed, after it when it threw
+```
+
+This says three things, and each one names a place to open:
+
+- **Where the test went.** Every run that failed took the `then` of the `if`
+  on line 13, which throws, and no run that passed did.
+- **What the code printed.** Every run that failed saved 500 and charged 450,
+  and every run that passed saved 450.
+- **In what order.** On every run that passed, `applyTier` ran before `save`
+  printed `saving`, and on every run that failed, after it. That is the cause:
+  `save` stores the total before `reprice` changes it.
+
+The comparison can also answer in three other ways:
+
+- **A last line counts what it left out**, such as `left out, because they
+  differ between readings of one side as well: 1 place, 4 lines said, 37 pairs
+  in changing order`. Those differ between runs that passed too, so none of
+  them is the cause. They are what you would read through if you compared two
+  stories by hand.
+- **`nothing separates the sides`** means the runs went to the same places,
+  printed the same lines, and ran in the same order wherever every run had
+  one order. The difference is in a value nothing prints, or in code that is not
+  recorded, such as a dependency. Print the value you suspect with
+  `console.log`, and record again.
+- **With one reading in a group**, the comparison cannot tell what the group
+  does from what that one run happened to do, and it says so under its first
+  line. Record the test again. The runs you made earlier still count.
+
+### Choose the sides
+
+The output calls each group a side. A side is either the same test read again,
+where only the run differs, or a setup you chose, where you name what differs:
+
+| `--compare` | One side | The other side | What differs |
+|---|---|---|---|
+| `outcome` | the readings that passed | the readings that threw | nothing you chose: the run |
+| `last` | the newest reading | the reading before it | the run, and anything you edited between the two |
+| `<a>,<b>` | the readings labelled `a` | the readings labelled `b` | what you set up differently for each label |
+
+You label a run by setting `VARIANCE_AUTHORITY_STORY` to a name in place of
+`1`. Use labels for a test that passes alone and fails with its file, a feature flag on and off,
+or two versions of a dependency. For a test that passes alone and fails with
+its file, record each setup twice under its own label, then compare the labels:
+
+```bash
+VARIANCE_AUTHORITY_STORY=alone yarn vitest run src/cart.test.ts -t "removes the last item"
+VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
+variance story --name "removes the last item" --compare alone,file
+```
+
+`before the test`, at the top of each story, shows the code the runner ran right before the
+test, such as code another test's `afterEach` called.
+
+`--compare last` is always one reading against one, so use it to see what an
+edit changed, not to explain a test that fails on some runs.
 
 ## When to record one
 
-Most tests you can follow by reading them and the code they call. Record a
-story when that reading does not answer your question:
+You understand most tests by reading them and the code they call. Record a
+story when the code does not answer your question:
 
-- **You are about to change code you do not know.** Reading the source does not
+- **You are about to change code you do not know.** The source does not
   always say which code runs: a call through an interface, a plugin, or a
-  handler registered in another file. Ask which tests run the function, and
-  read the story of one to three of them. A branch marked `✗` is code those
-  tests never ran, so they pass whatever an edit there does. [Test-level
-  coverage](test-level-coverage.md#the-process) describes `covering`:
+  handler registered in another file. Ask [`variance
+  covering`](test-level-coverage.md#the-process) which tests run the function,
+  and read the stories of the first few it names.
 
   ```bash
-  variance covering --file src/cart.ts --function removeItem --hops
+  variance covering --file src/cart.ts --function removeItem
   ```
 
 - **A test gives a result you do not expect, and nothing names the cause.** A
@@ -109,22 +275,14 @@ story when that reading does not answer your question:
   value. Find the step where the story differs from the path you expected. A
   test that passes when it should not may have its branch marked `✗`, or run a
   mock and not the code it names.
-- **A test fails on some runs and passes on others.** Record it until it has
-  done both, then compare the runs that passed with the runs that failed.
-  [Compare readings](#compare-readings-of-one-test) shows how.
-- **A test passes alone and fails with its file**, or fails alone and passes
-  with it.
-  Record it both ways and compare them the same way. `before the test` in each
-  story shows what the runner ran just before it, such as another test's
-  `afterEach`.
-- **You give one test to an agent to fix or extend.** The agent reads the story
-  first and opens only the lines it names. The `variance-authority` skill that
-  ships with [the CLI](../packages/cli/README.md) tells an agent when to ask for
-  one.
+- **A test fails on some runs, or fails with its file and passes alone.** Record it both ways
+  and [compare the readings](#compare-readings-of-one-test).
+- **You hand one test to an agent to fix or extend.** The story tells it which
+  files and lines to open, so it reads those and not the whole package.
 
 ## When not to record one
 
-Recording adds work at every piece of code the test runs, and writes a story
+Recording adds work to every function the test runs, and writes a story
 for every test in the run. For the one test you are looking into, the run takes
 about as long as without it. For many tests the run is slower, the stories are
 large, and nobody reads them.
@@ -141,7 +299,8 @@ large, and nobody reads them.
 
 ## Record one
 
-A story comes from the same recording as test selection, so your suite needs
+A story comes from the same recording as [test
+selection](coverage-test-selection.md), so your suite needs
 [Sense](../packages/sense/README.md) set up for its runner first. Then set
 `VARIANCE_AUTHORITY_STORY=1` and name the tests with your runner's own
 arguments, one test or one file:
@@ -151,168 +310,61 @@ VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
 ```
 
-Each test the run runs writes its story into [the cache](cache.md), under
-`coverage.stories/`. A test keeps the stories of its last 16 runs, and each one
-is a **reading** of that test. `variance story` shows the newest, and its
-header says how many are kept. A story is removed 14 days after it was written,
-with [the rest of the cache](cache.md#what-is-removed-and-when).
+The variable adds the stories and changes nothing else about the run.
 
-To tell runs apart later, set the variable to a label in place of `1`, such as
-`VARIANCE_AUTHORITY_STORY=flag-on`, and read the newest reading under it with
-`--label flag-on`. A label is letters, digits, `_` and `-`, up to 40
-characters: any other character is written as `-`, so `flag on` is recorded as
-`flag-on`, and `--label` takes the recorded form. A run with the variable set
-to `1` has no label, and `--label` and `--compare` call it `1`.
+- **Where stories are kept.** In [the cache](cache.md), under
+  `coverage.stories/`. A story is removed 14 days after it was written, with
+  [the rest of the cache](cache.md#what-is-removed-and-when).
+- **Which one you read.** `variance story` shows the newest reading, and its
+  header says how many are kept. `--label <name>` shows the newest under one
+  label.
+- **When to record again.** A story is the code as it was when the test ran.
+  After you edit that code, run the test again before you read its story.
+- **As data.** `--format json` gives any story or comparison as JSON.
 
-The variable adds the stories and changes nothing else: the record the run
-keeps for test selection is the one it keeps without it. A story is the code
-as it was when the test ran, so after you edit that code, run the test again
-before you read its story again.
-
-## A long test starts with a table of contents
+## A long story opens as a summary
 
 A test that goes through hundreds of functions does not fit on a page, and you
-do not need all of it. So a story is shown at the most detailed level that fits
-in 5,000 characters: every step; then every step, with the steps inside other
-workspace packages shown as one line; then each function with the steps it was
-at; then each file; then each workspace package. The header says which level it
-chose and how long the next one down would be:
+do not need all of it. So a long story opens as a summary, at the finest level
+that fits one page: each function once, with the numbers of the steps it was
+at, or each file, or each package. The header says so, and how to open the
+part you want:
 
 ```text
-story  packages/core/src/relate/merkle.test.ts > the closure digest > calls a new node changed rather than absent
-  goes through 5 files in 116 steps
+story  src/checkout.test.ts > checkout > pays with a saved card
+  goes through 14 files in 116 steps
   drawn by declarations: by every step it would be 11712 characters, and a story is kept under 5000;
   narrow it with --in <package or file> or --around <step>, or read every step with --whole
 ```
 
-Then you ask for the part you need, and the level is picked again inside it:
+Then you ask for the part you need, and that part opens at the finest level
+that fits:
 
 ```bash
-variance story --name "calls a new node" --in hash.ts     # the steps through one file or package
-variance story --name "calls a new node" --around 40      # three steps either side of step 40
-variance story --name "calls a new node" --whole          # every step, however long
+variance story --name "pays with a saved card" --in price.ts   # the steps through one file or package
+variance story --name "pays with a saved card" --around 40     # three steps either side of step 40
+variance story --name "pays with a saved card" --whole         # every step, however long
 ```
 
 When steps inside another workspace package, such as your design system, are
 shown as one line, that line names the package, and `--in` opens it.
 
-## See the values the code printed
+## What the code prints
 
-A step says where the test was, not with which values. But the code can print
-the values, and a story writes each line it prints under the step where it
-printed it, after `»`:
-
-```text
-  3  Cart/removeItem  cart.ts:12-30
-       if 14  then ✗  else ×1
-       » console.log removing A1, stock 0
-       » eyes getByRole("button", {"name":"Save"}) → button "Save" in SaveBar
-```
-
-Three sources write these lines, and you install nothing more for any of them:
+A step shows where the test was, not the values it had. The lines the code
+prints are what give the values, and three sources write them under their step:
 
 - **`console`.** Each line printed with `console.log`, `info`, `warn`, `error`
   or `debug`. The console still prints it.
 - **[Eyes](eyes.md)**, when your tests use it. Each query with its arguments and
   what it found, each event and the element it fired on, each React commit with
   the components that rendered, and each Arrange, Act and Assert phase you mark.
-- **[`vae`](../packages/event/README.md).** Each announcement the product code
-  makes, such as `vae once checkout upsell-modal decided`.
+- **[`vae`](../packages/event/README.md)**, when your product code uses it.
+  Each announcement it makes.
 
-So when you need to know which value a call got, add a `console.log`
-that prints it, record the test again, and read the line at its step. A step
-shows its first 5 lines and counts the rest.
-
-## Compare readings of one test
-
-A test that fails on some runs is where you most want to compare two runs, and
-where reading two stories side by side misleads you most. Code after an
-`await` runs when its promise settles, and two promises started together settle
-in either order, so an async test can run in a different order on each run,
-including runs that all pass. A changed order is not a flake. But sometimes the
-order is the cause: on every run that fails, the response arrives before the
-click, and on every run that passes, it arrives after.
-
-**`--compare` shows only the differences that are true of every reading on one
-side and of no reading on the other, and counts the rest without listing
-them.** Record the test until it has both passed and failed, two or three times
-each, then:
-
-```bash
-variance story --name "removes the last item" --compare outcome
-```
-
-```text
-compare  src/cart.test.ts > cart > removes the last item
-  passed (3 readings) against threw (2 readings, every one threw)
-
-  only when it passed, on every reading:
-    went into  removeItem  src/cart.ts:12-30, the then of the if on 19
-
-  only when it threw, on every reading:
-    said       » console.log stock 0
-
-  in the opposite order when it passed and when it threw, on every reading:
-    » eyes click on button "Save" in SaveBar
-      before price  src/cart.ts:32-36 when it passed, after it when it threw
-
-  left out, because they differ between readings of one side as well: 1 place, 4 lines said, 37 pairs in changing order
-```
-
-This says three things, and each one names a place to open:
-
-- **Where the test went.** Every run that passed took the `then` at line 19 of
-  `cart.ts`, and no run that failed did.
-- **What the code printed.** Every run that failed printed `stock 0`, and no run
-  that passed did. A line with a time or an id in it has different text on every
-  run, so it is counted, not listed.
-- **In what order.** On every run that passed, the click on Save came before
-  `price` ran, and on every run that failed, after it. When several pairs are
-  listed, the first is where the two orders first differ.
-
-The last line counts everything that also differs between runs on the same
-side: here one place some runs went and others did not, four printed lines, and
-37 pairs of functions whose order changed from run to run. One pair changed
-order the same way every time. Those 37 are what you would have read
-through if you compared two stories by hand.
-
-When nothing is true of every reading on one side, the comparison says
-`nothing separates the sides`. That is an answer too: the runs went to the same
-places, printed the same lines, and kept the same order wherever the order was
-steady. The difference is in a value nothing prints, or in code that is not
-recorded, such as a dependency. Print the value you suspect with `console.log`,
-and record again.
-
-With one reading on a side, the comparison cannot tell what the side does from
-what that one run happened to do, and it says so under its first line. A test
-keeps its last 16 readings, so the runs you made earlier still count.
-
-### Choose the sides
-
-A side is either the same test read again, where only the run differs, or a
-setup you chose, where you name what differs. [A/B
-testing](a-b-testing.md#every-pair-states-what-differs) makes the same
-distinction for screenshots:
-
-| `--compare` | One side | The other side | What differs |
-|---|---|---|---|
-| `outcome` | the readings that passed | the readings that threw | nothing you chose: the run |
-| `last` | the newest reading | the reading before it | the run, and anything you edited between the two |
-| `<a>,<b>` | the readings labelled `a` | the readings labelled `b` | what you set up differently for each label |
-
-Use `outcome` for a test that fails on some runs. Use labels for a test that
-passes alone and fails in its file, a feature flag on and off, or two versions
-of a dependency. For a test that passes alone and fails with its file, record
-each setup twice under its own label, then compare the labels:
-
-```bash
-VARIANCE_AUTHORITY_STORY=alone yarn vitest run src/cart.test.ts -t "removes the last item"
-VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
-variance story --name "removes the last item" --compare alone,file
-```
-
-`--compare last` is always one reading against one, so use it to see what an
-edit changed, not to explain a flake.
+So when you need to know which value a call got, add a `console.log` that
+prints it, record the test again, and read the line at its step. A step shows
+its first 5 lines and counts the rest.
 
 ## What a story does not show
 
@@ -325,17 +377,14 @@ edit changed, not to explain a flake.
   lists its branches in the order the code has them, and a loop is shown once,
   with the counts of all its passes added together. Use a debugger for that.
 - **Calls and returns.** A story is not a call stack. The step before another is
-  where the test came from, not always its caller, and code after an `await`
+  the code that ran just before it, not always its caller, and code after an `await`
   appears where it ran, not under the call that started it.
 
-The header says when a story is incomplete: the recording filled up before the
-test ended, the test printed more than the 4,096 lines a story keeps, the test
-threw and the story ends where it stopped, another test's work ran in the
-middle of this one and was left out, or a file is shown by name alone because
-it changed since the test ran. For the last one, run the test
-again.
+The header says when a story is incomplete, and why:
 
-Nothing selects tests on a story. [Test selection](coverage-test-selection.md)
-reads journeys, which are sets, so the order async code happens to run in does
-not change what it selects. `--format json` gives any story or comparison as
-data.
+- The recording filled up before the test ended.
+- The test printed more than the 4,096 lines a story keeps.
+- The test threw, and the story ends where it stopped.
+- Another test's work ran in the middle of this one, and was left out.
+- A file is shown by name alone, because it changed since the test ran. Run
+  the test again.

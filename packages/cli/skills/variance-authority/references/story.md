@@ -88,20 +88,19 @@ with a key for the marks and each step's branches and loops drawn as the code
 nests them:
 
 ```text
-  before the test
-  1  beforeEach.arg0  cart.test.ts:3-8
-  the test
-  2  loaded 3 files: cart.ts, price.ts, format.ts
-  3  Cart/removeItem  cart.ts:12-30
+  1  Cart/removeItem  cart.ts:13-23
        if 14  then ✗  else ×1
-       for 18 ×2
-     steps 4-5 ran 2 times in all:
-  4    applyTier  price.ts:6-8 ×2
+  2  Cart/removeItem/filter.arg0  cart.ts:17 ×3
+     steps 3-5 ran 2 times in all:
+  3    Cart/removeItem  cart.ts:13-23
+         if 14  then ✗
+         for 18 ×2
+  4    applyTier  price.ts:6-9 ×2
          if 7  then ×1  else ×1
-  5    formatPrice  format.ts:14-19 ×2
-  6  Cart/removeItem  cart.ts:12-30
+  5    formatPrice  format.ts:14-18 ×2
+  6  Cart/removeItem  cart.ts:13-23
        if 14  then ✗
-  7  Cart/notify  cart.ts:33-35
+  7  Cart/notify  cart.ts:25-27
 ```
 
 A long one opens coarser, and the header says how to go finer:
@@ -145,8 +144,9 @@ variance story --name "removes the last item" --whole         # every step, howe
   its edge to read further.
 - `loaded N files` is modules loaded one inside another; each file is named
   once.
-- `before the test` is what the runner ran outside the test just before it:
-  `beforeEach`, the previous test's `afterEach`.
+- `before the test` is the code the runner ran outside the test just before
+  it, such as code a `beforeEach` or the previous test's `afterEach` called.
+  Test files are not recorded by default, so the hook itself is not a step.
 - At the declarations level, `steps 36, 39×6` lists each step the function was
   at; `39×6` is step 39, repeated six times, as calls or returns.
 - `» text` under a step is a line the code said at that step: a `console` line
@@ -157,24 +157,26 @@ variance story --name "removes the last item" --whole         # every step, howe
 ## Compare readings
 
 ```bash
-variance story --name "removes the last item" --compare outcome   # passed against threw
-variance story --name "removes the last item" --compare last      # newest against the one before
-variance story --name "removes the last item" --compare 1,flag-on # two labels
+variance story --name "saves the total it charges" --compare outcome   # passed against threw
+variance story --name "saves the total it charges" --compare last      # newest against the one before
+variance story --name "saves the total it charges" --compare 1,flag-on # two labels
 ```
 
 ```text
-compare  src/cart.test.ts > cart > removes the last item
-  passed (3 readings) against threw (2 readings, every one threw)
+compare  src/checkout.test.ts > saves the total it charges
+  passed (4 readings) against threw (6 readings, every one threw)
 
   only when it passed, on every reading:
-    went into  removeItem  src/cart.ts:12-30, the then of the if on 19
+    went into  checkout  src/checkout.ts:10-16, the else of the if on 13
+    said       » console.log charged 450, saved 450
 
   only when it threw, on every reading:
-    said       » console.log stock 0
+    went into  checkout  src/checkout.ts:10-16, the then of the if on 13
+    said       » console.log charged 450, saved 500
 
   in the opposite order when it passed and when it threw, on every reading:
-    » eyes click on button "Save" in SaveBar
-      before price  src/cart.ts:32-36 when it passed, after it when it threw
+    applyTier  src/price.ts:6-9
+      before » console.log saving when it passed, after it when it threw
 
   left out, because they differ between readings of one side as well: 1 place, 4 lines said, 37 pairs in changing order
 ```

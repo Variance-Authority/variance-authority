@@ -1,11 +1,11 @@
 /**
- * One test's code read twice. The journey is the set: each function and
- * branch either ran or never ran, and nothing says in what order. The test
- * story is the same code joined in the order the test ran it, each stop
- * numbered by its step, with the loop that went round twice and the branch
- * the test never took. The code and the numbers are the example on the
- * test-stories page, so the figure and the printed story can be read side by
- * side.
+ * One test's code read twice. File by file, as a reader opens it, each
+ * function and branch either ran or never ran, and nothing says in what
+ * order. The test story is the same code joined in the order the test ran
+ * it, each stop numbered by its step, with the loop that went round twice
+ * and the branch the test never took. The code and the numbers are the
+ * example on the test-stories page, recorded from a real run, so the figure
+ * and the printed story can be read side by side.
  *
  * Ivory marks code that ran, dashed warm grey code that never ran, and one
  * orange path the route, per docs/visual-guidelines.md.
@@ -18,10 +18,9 @@ const QUIET = "#8f8580";
 const GROUND = "#181b1d";
 
 const FILES = [
-  { x: 4, name: "cart.test.ts" },
-  { x: 102, name: "cart.ts" },
-  { x: 200, name: "price.ts" },
-  { x: 298, name: "format.ts" },
+  { x: 4, name: "cart.ts" },
+  { x: 136, name: "price.ts" },
+  { x: 268, name: "format.ts" },
 ];
 
 interface Place {
@@ -35,25 +34,25 @@ interface Place {
 }
 
 const PLACES: readonly Place[] = [
-  { label: "beforeEach", x: 13, y: 84, width: 78, ran: true, steps: [1] },
-  { label: "removeItem", x: 111, y: 96, width: 78, ran: true, steps: [3, 6] },
-  { label: "if 14 then", x: 113, y: 160, width: 78, ran: false, steps: [] },
-  { label: "notify", x: 111, y: 232, width: 78, ran: true, steps: [7] },
-  { label: "applyTier", x: 209, y: 130, width: 78, ran: true, steps: [4] },
-  { label: "formatPrice", x: 307, y: 170, width: 78, ran: true, steps: [5] },
+  { label: "removeItem", x: 18, y: 84, width: 100, ran: true, steps: [1, 3, 6] },
+  { label: "filter.arg0", x: 18, y: 128, width: 100, ran: true, steps: [2] },
+  { label: "if 14 then", x: 18, y: 172, width: 100, ran: false, steps: [] },
+  { label: "notify", x: 18, y: 232, width: 100, ran: true, steps: [7] },
+  { label: "applyTier", x: 150, y: 110, width: 100, ran: true, steps: [4] },
+  { label: "formatPrice", x: 282, y: 150, width: 100, ran: true, steps: [5] },
 ];
 
 const HEIGHT = 26;
 
 /** The route between the places, in step order; the loop back is drawn apart. */
 const ROUTE = [
-  "M 91 97 C 101 97, 101 105, 111 105",
-  "M 189 105 C 199 105, 199 137, 209 137",
-  "M 287 143 C 297 143, 297 183, 307 183",
-  "M 209 149 C 199 149, 199 117, 189 117",
-  "M 111 116 C 106 116, 106 120, 106 128 L 106 237 C 106 245, 106 245, 111 245",
+  "M 76 110 L 76 128",
+  "M 96 128 L 96 110",
+  "M 118 97 C 134 97, 134 123, 150 123",
+  "M 250 123 C 266 123, 266 163, 282 163",
+  "M 18 104 C 12 104, 10 110, 10 118 L 10 237 C 10 245, 12 245, 18 245",
 ];
-const LOOP = "M 346 196 C 346 232, 248 210, 248 156";
+const LOOP = "M 332 176 L 332 200 C 332 208, 326 210, 318 210 L 132 210 C 126 210, 124 206, 124 200 L 124 112 C 124 106, 122 104, 118 104";
 
 function Step({ x, y, n }: { x: number; y: number; n: number }) {
   return (
@@ -74,12 +73,12 @@ function Panel({ story }: { story: boolean }) {
       role="img"
       aria-label={
         story
-          ? "Test story: the same code joined in the order the test ran it, steps 1 to 7, with a loop that ran twice and one branch never taken"
-          : "Journey: five pieces of code the test ran and one branch it never ran, with no order"
+          ? "Test story: the same code joined in the order the test ran it, steps 1 to 7, with steps 3 to 5 run twice and one branch never taken"
+          : "File by file: five pieces of code the test ran and one branch it never ran, with no order"
       }
     >
       <text className="font-mono" x={0} y={18} fill={IVORY} fontSize={13}>
-        {story ? "test story" : "journey"}
+        {story ? "test story" : "file by file"}
       </text>
       <text className="font-mono" x={400} y={18} textAnchor="end" fill={QUIET} fontSize={12}>
         {story ? "in what order, how often" : "what ran"}
@@ -87,7 +86,7 @@ function Panel({ story }: { story: boolean }) {
 
       {FILES.map((file) => (
         <g key={file.name}>
-          <rect x={file.x} y={40} width={96} height={232} rx={8} fill="none" stroke={WARM} strokeWidth={1.5} />
+          <rect x={file.x} y={40} width={128} height={232} rx={8} fill="none" stroke={WARM} strokeWidth={1.5} />
           <text className="font-mono" x={file.x + 9} y={60} fill={QUIET} fontSize={10}>
             {file.name}
           </text>
@@ -101,7 +100,7 @@ function Panel({ story }: { story: boolean }) {
       {story && (
         <>
           <path d={LOOP} fill="none" stroke={ORANGE} strokeWidth={2} strokeDasharray="4 3" strokeLinecap="round" />
-          <text className="font-mono" x={322} y={232} textAnchor="middle" fill={ORANGE} fontSize={11}>
+          <text className="font-mono" x={228} y={226} textAnchor="middle" fill={ORANGE} fontSize={11}>
             ×2
           </text>
         </>
@@ -135,7 +134,6 @@ function Panel({ story }: { story: boolean }) {
 
       {story && (
         <>
-          <Step x={101} y={101} n={2} />
           {PLACES.flatMap((place) =>
             place.steps.map((n, i) => <Step key={n} x={place.x + 2 + i * 18} y={place.y - 2} n={n} />),
           )}

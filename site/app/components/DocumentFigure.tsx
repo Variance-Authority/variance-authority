@@ -55,7 +55,7 @@ const CAPTIONS: Record<string, string> = {
   journeys:
     "One decision is one mark, however many regions the run records for it. An arm that entered is lit, and the line that fell through is dashed.",
   "test-stories":
-    "One test, drawn twice. The journey says which code ran. The test story lists the same code in the order the test ran it: step 2 loads the modules, steps 4 and 5 run twice, and the branch at line 14 never runs.",
+    "One test, drawn twice. File by file, even with the code that ran marked, you have to work out the order. As a test story, the same code is numbered in the order the test ran it: steps 3 to 5 run twice, and the branch at line 14 never runs.",
 };
 
 function Figure({ children, caption }: { children: ReactNode; caption: string }) {
