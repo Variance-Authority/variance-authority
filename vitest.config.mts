@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { probeable } from './tools/page-side.mjs';
@@ -95,6 +98,13 @@ export const suite = defineConfig({
     // `// @vitest-environment jsdom` docblock, so the DOM-free packages stay
     // DOM-free (ADR-0001) and nothing accidentally acquires a `document`.
     environment: 'node',
+    // A cache of the run's own, for the workers only. A test that folds, saves
+    // or indexes a fixture it made in a temporary directory otherwise writes a
+    // layer keyed by that directory into this machine's cache, and the
+    // directory is gone before anything can say whose the layer was: one
+    // machine held seven thousand of them. The recording is folded in the main
+    // process, which does not read `env`, so it still lands in the real cache.
+    env: { XDG_CACHE_HOME: mkdtempSync(join(tmpdir(), 'va-test-cache-')) },
   },
   esbuild: {
     jsx: 'automatic',

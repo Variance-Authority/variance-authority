@@ -57,6 +57,8 @@ import {
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
 import { landRun } from './commit-runs.js';
+import { markCheckout } from './cache-layers.js';
+import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
@@ -405,6 +407,7 @@ export async function recordExecution(
       [...byId.values()].map((module) => module.file),
       lock,
     );
+    markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {
     return {

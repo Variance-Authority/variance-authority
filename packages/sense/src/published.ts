@@ -27,7 +27,9 @@ import { seedPaths } from './files.js';
 import { seedImmutableLog } from './immutable-log.js';
 import type { RecordCache } from './reuse.js';
 import { scanRelations } from './scan.js';
+import { realPath } from './resolve.js';
 import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
+import { markCheckout } from './test-selection/cache-layers.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
 import { usesOf } from './uses.js';
 
@@ -175,6 +177,8 @@ export async function updateSourceIndex(
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   });
   await source.save();
+  // The checkout's own index names its checkout, so the cache can tell when it is gone.
+  if (options.index === undefined) markCheckout(realPath(where));
   return {
     path,
     was,

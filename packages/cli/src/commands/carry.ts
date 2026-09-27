@@ -218,7 +218,7 @@ export function carryPlan(input: CarryInput): CarryPlan {
     const mainlines = 'names' in input.mainlines ? input.mainlines.names.filter((name) => name !== line) : [];
     keyed(
       artifact,
-      [top, `!${top}/.run-*`, `!${top}/.work`],
+      [top, `!${top}/**/.run-*`, `!${top}/.work`],
       prefix,
       run.base,
       // Then the mainlines, for a line that saves none: a push to a branch

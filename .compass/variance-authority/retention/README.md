@@ -27,15 +27,17 @@ SQLite through `node:sqlite` for the shipped record backend.
 
 ## Implementation coordinates
 
-- `packages/raster/src/store.ts` — the store contract, the refusal, the
-  in-memory store, the identity codec
-- `packages/store/` — `durable.ts`, `lfs.ts`, `changelog.ts`
+- `packages/raster/src/store.ts` — the store contract, refusal, in-memory
+  store, identity codec
+- `packages/store/`
 - `packages/remote/src/store.ts`, `packages/remote/src/serve-store.ts`,
   `packages/remote/src/transport.ts`
 - `packages/history/` — rows, contract, arithmetic, client
 - `packages/server/` — the record service and its pluggable backend
 - `packages/cli/src/commands/history.ts`, `history-report.ts`, `accept.ts`,
   `images.ts`
+- `packages/sense/src/test-selection/prune.ts`,
+  `packages/cli/src/commands/prune-cache.ts`, `doctor-cache.ts` — pruning the caches
 
 ## Communicates with
 

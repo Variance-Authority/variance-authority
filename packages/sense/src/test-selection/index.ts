@@ -125,6 +125,26 @@ export {
   type SuiteKind,
 } from './suites.js';
 export { repositoryRoot } from './repository-root.js';
+export {
+  PRUNE_REASONS,
+  applyPrune,
+  bytesUnder,
+  counted,
+  machineOwners,
+  planPrune,
+  mib,
+  prunedLine,
+  pruneWhenDue,
+  PRUNE_EVERY_MS,
+  STORY_AGE_MS,
+  UNMARKED_AGE_MS,
+  type KeptEntry,
+  type PruneEntry,
+  type PruneOwners,
+  type PrunePlan,
+  type PruneReason,
+  type Pruned,
+} from './prune.js';
 // The write path's counterpart to `mergeCoverage`: the same fold, over the
 // columns of the file it is about to write over, not over a decoded model.
 export { layerTestCoverage, layeredCoverage } from './format-layer.js';

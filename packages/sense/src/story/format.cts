@@ -167,6 +167,31 @@ function decodeStory(bytes: Uint8Array): Story {
   return { ...header, before: all.subarray(0, header.before), visits: all.subarray(header.before) };
 }
 
+/**
+ * The file, the case and how many visits the case made, read from a story's
+ * header and its size without reading the visits. Listing a directory of
+ * stories must not cost the sum of them: one hot loop writes tens of megabytes.
+ */
+function storyHeader(file: string): { readonly file: string; readonly name: string; readonly visits: number } {
+  const damaged = (): Error => new Error(`variance-authority: ${file} is not a story this build writes`);
+  const descriptor = fs.openSync(file, 'r');
+  try {
+    const size = fs.fstatSync(descriptor).size;
+    const lead = Buffer.alloc(MAGIC.length + 4);
+    if (size < lead.length || fs.readSync(descriptor, lead, 0, lead.length, 0) !== lead.length) throw damaged();
+    for (let at = 0; at < MAGIC.length; at += 1) if (lead[at] !== MAGIC[at]) throw damaged();
+    const length = lead.readUInt32LE(MAGIC.length);
+    const body = lead.length + ((length + 3) & ~3);
+    if (body > size || (size - body) % 4 !== 0) throw damaged();
+    const text = Buffer.alloc(length);
+    if (fs.readSync(descriptor, text, 0, length, lead.length) !== length) throw damaged();
+    const header = JSON.parse(text.toString('utf8')) as { file: string; name: string; before: number };
+    return { file: header.file, name: header.name, visits: (size - body) / 4 - header.before };
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
 /** What a collector hands a story to: one file per case in `directory`, the last write kept. */
 function storyWriter(directory: string): (key: string, bytes: Uint8Array) => void {
   return (key, bytes) => {
@@ -176,4 +201,4 @@ function storyWriter(directory: string): (key: string, bytes: Uint8Array) => voi
   };
 }
 
-export = { storyName, storyWriter, encodeStory, decodeStory, EVALUATING };
+export = { storyName, storyWriter, encodeStory, decodeStory, storyHeader, EVALUATING };

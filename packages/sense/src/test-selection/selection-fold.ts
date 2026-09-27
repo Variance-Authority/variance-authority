@@ -38,6 +38,9 @@ import {
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import type { SelectionRun } from './selection-run.js';
 import { governingPreconditions } from './governing-config.js';
+import { cacheRootFor, markCheckout } from './cache-layers.js';
+import { prunedLine, pruneWhenDue } from './prune.js';
+import { repositoryRoot } from './repository-root.js';
 import {
   seedTestCoverage,
   type CoverageModule,
@@ -147,6 +150,7 @@ export function foldRun(
         [...modules.values()].map((module) => module.file),
         lock,
       );
+      markCheckout(repositoryRoot(root));
     });
     if (!merged.held) noteABusyIndex(coverageFile);
     // Beside the snapshot, never inside it. The snapshot answers *which files
@@ -165,6 +169,9 @@ export function foldRun(
   };
 
   return async (files: readonly FinishedFile[]): Promise<void> => {
+    // FIXME: under watch mode the first run settles and every rerun returns
+    // here, so a rerun's files are never folded and its `.run-*` directory
+    // stays until the process exits and a later prune finds its pid gone.
     if (run.settled) return;
     run.settled = true;
     try {
@@ -172,6 +179,9 @@ export function foldRun(
     } finally {
       for (const shim of destination.shims) await rm(shim, { force: true });
     }
+    // After the lock is released, and at most once a day: see `prune.ts`.
+    const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));
+    if (pruned !== '') console.warn(pruned);
   };
 }
 

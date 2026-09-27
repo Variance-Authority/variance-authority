@@ -1,6 +1,7 @@
 import { digestFileName } from '@variance-authority/core/format';
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 import type { CachedIdentity, Diagnosis, FontFinding, Partition, RenderCacheFinding } from './doctor.js';
+import { formatCache } from './doctor-cache.js';
 import { formatSkills } from './doctor-skills.js';
 
 /**
@@ -88,6 +89,8 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     `  ${diagnosis.renders.root}`,
     `  ${diagnosis.renders.because}`,
     ...cacheLines(diagnosis.renders),
+    '',
+    ...formatCache(diagnosis.cache),
     '',
     `history: ${diagnosis.history.configured ? 'configured' : 'none'}`,
     `  ${diagnosis.history.because}`,

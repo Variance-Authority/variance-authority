@@ -29,6 +29,9 @@ import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { landRun } from './commit-runs.js';
+import { cacheRootFor, markCheckout } from './cache-layers.js';
+import { prunedLine, pruneWhenDue } from './prune.js';
+import { repositoryRoot } from './repository-root.js';
 import {
   codeUnitOrder,
   crossingsOf,
@@ -215,6 +218,7 @@ class JestCoverageReporter {
         [...modules.values()].map((module) => module.file),
         lock,
       );
+      markCheckout(repositoryRoot(root));
     });
     if (!merged.held) noteABusyIndex(coverageFile);
     // A run that finished test files and placed no module at all is a seam that
@@ -233,6 +237,9 @@ class JestCoverageReporter {
       await rm(caseDirectory, { recursive: true, force: true });
     }
     await rm(runDirectory, { recursive: true, force: true });
+    // After the lock is released, and at most once a day: see `prune.ts`.
+    const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));
+    if (pruned !== '') console.warn(pruned);
   }
 }
 

@@ -30,6 +30,7 @@ import {
   type Plan,
 } from './commands/run.js';
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
+import { prunedLines, pruneNow, pruneWhenDueLines } from './commands/prune-cache.js';
 import { ask } from './commands/ask.js';
 import { questionFor } from './commands/asking.js';
 import { said } from './here.js';
@@ -191,7 +192,7 @@ export async function dispatch(
         // run rather than on the durable ones, because a machine that has moved
         // to a tribunal is the machine whose leftover cache nothing else will
         // ever come back for.
-        const renders = renderCacheLine(await sweepRenders(effective));
+        const renders = renderCacheLine(await sweepRenders(effective)) + (await pruneWhenDueLines(effective));
 
         streams.out(
           `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}${renders}`,
@@ -396,6 +397,8 @@ export async function dispatch(
       return EXIT_CLEAN;
 
     case 'doctor': {
+      // Pruned first, so the finding below reports the cache as it now stands.
+      if (parsed.prune === true) streams.out(prunedLines(await pruneNow(config)) || 'cache: nothing to prune\n');
       const diagnosis = await doctor(config, machineProbes(config));
       streams.out(`${formatDiagnosis(diagnosis)}\n`);
       return exitForDiagnosis(diagnosis);

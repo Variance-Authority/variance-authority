@@ -67,7 +67,7 @@ describe('a recording', () => {
     expect(plan.cached).toEqual([
       {
         artifact: 'suite-unit',
-        paths: [layer, `!${layer}/.run-*`, `!${layer}/.work`],
+        paths: [layer, `!${layer}/**/.run-*`, `!${layer}/.work`],
         key: `${prefix}:main:${BASE}`,
         // `main-2`'s keys begin `…:main-2:`, which no prefix here matches.
         restoreKeys: [`${prefix}:main:${BASE}-`, `${prefix}:main:`, `${prefix}:release/2:`],

@@ -105,7 +105,8 @@ VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts
 ```
 
 Each test the run runs writes its story, and a later run of the same test
-replaces it. Sense writes stories from the same instrumented build that records
+replaces it. A story is removed 14 days after it was written, with
+[the rest of the cache](cache.md#what-is-removed-and-when). Sense writes stories from the same instrumented build that records
 journeys, and nothing else changes: the coverage a run records with the
 variable is the same, byte for byte, as the coverage it records without it, and
 a run without the variable writes no story.

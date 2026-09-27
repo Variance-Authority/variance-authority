@@ -76,12 +76,16 @@ back to the default, because you would not know where the recording went.
   test-selection/<repository>/
     coverage.bin                 which test ran which region of which module
     coverage.bin.cases.bin       the same, for each test case
+    coverage.bin.cases.*         the cases each run replaced, kept for `variance review`
+    coverage.bin.lock            held while a run writes the recording
     coverage.runs.json           the runs at the current commit, and the commit before them
     coverage.stories/            a test story for each test a run recorded, when you ask for them
     suites/<name>/               the same files for each suite you declare
     names.bin                    the ids those records use for file paths
     source-index.bin             the source index, and its segments beside it
     <label>/                     one record store per runner or plugin
+    checkout.json                the checkout this directory belongs to
+    .run-<pid>-*/                a run in progress, removed when it ends
     .work/<worktree>/            a git worktree's own layer, the same files again
   renders/                       the images a run took, reused while they match
   suite/<project>/<commit>.bin   every run's suite index, by the commit it names
@@ -149,7 +153,45 @@ Delete the directory for your checkout and run `yarn test` again:
 rm -rf "<cache>/test-selection/<repository>"
 ```
 
-That is the whole reset. Nothing expires and nothing is checked for age, so a
-recording stays as it is until a run replaces it. To reset only the source index
-and keep the recording, delete `source-index.bin` and `source-index.bin.segments/`
-and run `variance index`.
+That is the whole reset. To reset only the source index and keep the
+recording, delete `source-index.bin` and `source-index.bin.segments/` and run
+`variance index`.
+
+## What is removed, and when
+
+A recording is removed only with its checkout. It is one file each run
+rewrites, so it stays the same size however long you keep it, and without it
+the next `test:since` runs the whole suite. Everything else in
+`test-selection/<repository>/` stays as long as that directory does.
+
+The rest is removed when git, the file system or the process table shows that
+nothing uses it any more, or when it is older than a fixed age:
+
+| What | Removed when | Checked against |
+|---|---|---|
+| `test-selection/<repository>/` | the checkout named in its `checkout.json` is no longer on disk | the file system |
+| `.work/<worktree>/` | `git worktree list` in the primary checkout no longer lists it | git |
+| `.run-<pid>-*/`, and the `.tmp` files a run writes beside a record | it was last written more than an hour ago, and the process that wrote it has exited: no process has that id, or the one that has it started later | the process table |
+| a test story | it was written more than 14 days ago | its modification time |
+| `suite/<project>/<commit>.bin`, `share/read/<suite>/<commit>/` | your checkout's `HEAD` is more than 200 commits past that commit, or does not contain it and it was written more than 14 days ago; the newest in each directory stays | git, and its modification time |
+| `report/<digest>/`, `report/<digest>.images.json` | it was written more than 14 days ago | its modification time |
+| `renders/` | nothing asked for it in 14 days, or the renders are over 512 MiB, oldest first | its modification time |
+
+Every test run writes `checkout.json` beside the recording. A directory without one,
+a commit your clone does not have, and anything git could not answer for stay
+until nothing in them has been written for 30 days. `share/<digest>.git` is
+not removed.
+
+`variance run` checks `renders/` at the end of every run, as
+[the render cache](placement.md#the-cache-prunes-itself) describes. Everything
+else is checked at the end of a test run or a `variance run`, at most once a
+day, and each part prints one line when it removed something:
+
+```
+cache: freed 17.8 MiB in <cache>/test-selection: 218 runs whose processes are gone, 7 worktrees git no longer lists
+cache: freed 4.1 MiB in <cache>: 12 commits more than 200 behind HEAD
+```
+
+`variance doctor` prints what the next check would remove, by rule, and what it
+keeps because git or the process table could not answer. `variance doctor
+--prune` removes it now.

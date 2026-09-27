@@ -559,6 +559,26 @@ instability.
 
 `variance run --flakes`
 
+## **Prune**
+
+### Meaning
+
+Removing from a cache what its owner says is no longer used: a checkout the
+file system no longer has, a worktree git no longer lists, a run whose process
+is gone, a commit far behind or off the line of `HEAD`. When the owner cannot
+answer, the entry is kept until it has gone unwritten for a month. The
+test-selection recording is never pruned while its checkout exists. Not a
+**sweep**, which is a run.
+
+### Bounded context
+
+[**Identity and retention**](./DOMAIN.md#identity-and-retention)
+
+### Implementation aliases
+
+`planPrune`, `pruneWhenDue`, `planCachePrune`, `sweepRenderCache`;
+`variance doctor --prune`
+
 ## **Flake**
 
 ### Meaning

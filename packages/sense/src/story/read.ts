@@ -117,8 +117,8 @@ export function listStories(root: string): StoryEntry[] {
     for (const name of readdirSync(directory)) {
       if (!name.endsWith('.story')) continue;
       const path = join(directory, name);
-      const story = stories.decodeStory(readFileSync(path));
-      entries.push({ path, file: inCheckout(root, story.file), name: story.name, visits: story.visits.length });
+      const story = stories.storyHeader(path);
+      entries.push({ path, file: inCheckout(root, story.file), name: story.name, visits: story.visits });
     }
   }
   return entries.sort((left, right) => compare(left.file, right.file) || compare(left.name, right.name));

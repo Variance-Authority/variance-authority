@@ -46,7 +46,7 @@
 
 // compass: variance-authority.reach
 
-import { cpSync, existsSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { digestString } from '../digest.js';
@@ -201,8 +201,59 @@ export function layeredFiles(layers: CacheLayers, name: string): readonly string
     : [resolve(layers.top, name), resolve(layers.base, name)];
 }
 
-function keyOf(checkout: string): string {
+/** The directory name a checkout's layer is kept under: its path, digested. */
+export function checkoutKey(checkout: string): string {
   return digestString(checkout).replace(/^[^:]+:/, '');
+}
+
+const keyOf = checkoutKey;
+
+/** The file a layer names its checkout in, so the cache can ask whether the checkout is still there. */
+export const CHECKOUT_MARKER = 'checkout.json';
+
+/** What {@link CHECKOUT_MARKER} holds. */
+export interface CheckoutMarker {
+  /** The checkout that writes this layer, spelled as the key was spelled from it. */
+  readonly checkout: string;
+  /** The checkout it was cut from; the same path in the primary checkout. */
+  readonly primary: string;
+}
+
+/**
+ * Write down which checkout a layer belongs to.
+ *
+ * A layer is named by a digest of its checkout's path, and a digest cannot be
+ * read back into a path. Without this the cache holds thousands of directories
+ * and can say of none of them whether the checkout that wrote it still exists,
+ * so nothing can be removed on a fact and everything can only be aged out. The
+ * file is rewritten by every run that records, which makes its mtime the time
+ * the layer was last written.
+ *
+ * Called by the writers, never by {@link cacheLayers}: a command that only reads
+ * the cache must leave it as it found it. Silent on failure, because a layer
+ * with no marker is kept until it is old, which is what happened before this
+ * file existed.
+ */
+export function markCheckout(root: string, cacheRoot?: string): void {
+  const checkout = resolve(root);
+  const { top } = cacheLayers(checkout, cacheRoot);
+  const marker: CheckoutMarker = { checkout, primary: primaryCheckout(checkout) };
+  try {
+    mkdirSync(top, { recursive: true });
+    writeFileSync(resolve(top, CHECKOUT_MARKER), `${JSON.stringify(marker)}\n`);
+  } catch { /* the layer is kept until it is old, as before */ }
+}
+
+/** The checkout a layer names, or undefined when it names none or cannot be read. */
+export function readCheckoutMarker(layer: string): CheckoutMarker | undefined {
+  try {
+    const value = JSON.parse(readFileSync(resolve(layer, CHECKOUT_MARKER), 'utf8')) as Partial<CheckoutMarker>;
+    return typeof value.checkout === 'string' && typeof value.primary === 'string'
+      ? { checkout: value.checkout, primary: value.primary }
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const primaries = new Map<string, string>();

@@ -9,6 +9,7 @@ import { SUBJECT_PATH, type Renderer } from '@variance-authority/raster';
 import { said } from '../here.js';
 import type { Config } from '../config.js';
 import type { DoctorProbes } from './doctor-probes.js';
+import { cacheFinding, type CacheFinding } from './doctor-cache.js';
 import { agentSkills, type SkillsFinding } from './doctor-skills.js';
 
 /**
@@ -57,6 +58,7 @@ export interface Diagnosis {
   readonly fonts: FontFinding;
   readonly baselines: BaselineFinding;
   readonly renders: RenderCacheFinding;
+  readonly cache: CacheFinding;
   readonly history: HistoryFinding;
   readonly skills: SkillsFinding;
 }
@@ -167,6 +169,7 @@ export interface HistoryFinding {
 // because a caller needs the probes and the reasoning together or neither.
 export { machineProbes, rendererOptionsFor } from './doctor-probes.js';
 export type { DoctorProbes, RenderCacheReading } from './doctor-probes.js';
+export type { CacheFinding, CacheReading } from './doctor-cache.js';
 
 export async function doctor(config: Config, probes: DoctorProbes): Promise<Diagnosis> {
   let renderer: Renderer | null = null;
@@ -197,6 +200,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       profile: config.profile,
       baselines: await baselines(config, probes, undefined),
       renders: await renders(probes, undefined),
+      cache: cacheFinding(await probes.cache()),
       history: history(config),
       skills: agentSkills(process.cwd()),
     };
@@ -228,6 +232,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       fonts,
       baselines: await baselines(config, probes, rendererFinding.identity),
       renders: await renders(probes, rendererFinding.identity),
+      cache: cacheFinding(await probes.cache()),
       history: history(config),
       skills: agentSkills(process.cwd()),
     };
@@ -262,7 +267,7 @@ async function renders(
         ? 'nothing is cached here yet. Renders land in this directory so that a document ' +
           'that has not changed is not repainted, and it is outside the work tree so that ' +
           'no repository ever carries them'
-        : 'painted here, keyed by document; pruned by each directory-store run (unused 14 days, ' +
+        : 'painted here, keyed by document; pruned at the end of every run (unused 14 days, ' +
           'then oldest first); deleting it costs only renders',
   };
 }

@@ -135,7 +135,7 @@ export function sharedReportRoot(config: Pick<Config, 'cacheRoot'>): string {
  * The cache `loadConfig` resolved, or the one this directory's repository
  * names when the config was built in code and never read from a file.
  */
-function cacheOf(config: Pick<Config, 'cacheRoot'>): string {
+export function cacheOf(config: Pick<Config, 'cacheRoot'>): string {
   return config.cacheRoot ?? cacheRootFor(process.cwd());
 }
 

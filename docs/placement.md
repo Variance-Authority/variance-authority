@@ -342,6 +342,9 @@ ages out over a fortnight and the directory goes with it.
 Nothing here touches baselines: the sweep walks the cache root only. Deleting
 the whole directory costs you renders and nothing else.
 
+A run also checks the rest of the cache, at most once a day, by the rules
+[the cache](cache.md#what-is-removed-and-when) page lists.
+
 ### The records, if the diffs are the problem
 
 An image and its record can be kept in separate places, which is what you use

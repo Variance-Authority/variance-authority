@@ -34,7 +34,13 @@ import {
   stagingDirectory,
   type InstrumentMode,
 } from '@variance-authority/sense/journal';
-import { recordFileFor, repositoryRoot } from '@variance-authority/sense/test-selection';
+import {
+  cacheRootFor,
+  prunedLine,
+  pruneWhenDue,
+  recordFileFor,
+  repositoryRoot,
+} from '@variance-authority/sense/test-selection';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -172,5 +178,8 @@ export default class implements Reporter {
     } finally {
       await closeStage(directory);
     }
+    // After the fold has let go of the index, and at most once a day.
+    const pruned = prunedLine(await pruneWhenDue(this.#options.cacheRoot ?? cacheRootFor(this.#root)));
+    if (pruned !== '') process.stderr.write(`${pruned}\n`);
   }
 }

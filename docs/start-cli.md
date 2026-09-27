@@ -188,6 +188,10 @@ on what your config selected, before the first expensive run:
 - **baselines** — the kind, the identities already in the store, and
   `NOT COMPARABLE HERE` when nothing in it was painted by a machine like this one;
 - **renders** — the size of the render cache and where it is;
+- **cache** — the size of the rest of [the cache](cache.md), which entries the
+  next prune removes and under which rule, and which it keeps because git or
+  the process table could not answer. `variance doctor --prune` runs that
+  prune now;
 - **history** — configured or none.
 
 Doctor exits `2` for exactly two findings: no renderer could be opened here, and

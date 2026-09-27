@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { digestOfFileName, type Digest } from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
+import { readCache, type CacheReading } from './doctor-cache.js';
 import { renderCacheRoot } from './resources.js';
 
 /**
@@ -49,6 +50,9 @@ export interface DoctorProbes {
    * still two different problems.
    */
   renderCache(): Promise<RenderCacheReading>;
+
+  /** The rest of the cache: what it holds, and what a prune would remove and keep. See `doctor-cache.ts`. */
+  cache(): Promise<CacheReading>;
 }
 
 /** One machine's baselines under a root, summed over every directory named for it. */
@@ -109,6 +113,7 @@ export function machineProbes(config: Config): DoctorProbes {
       }
     },
     renderCache: async () => readRenderCache(renderCacheRoot(config)),
+    cache: async () => readCache(config),
     partitions: async (root) => {
       const found = new Map<Digest, { baselines: number; colonSpelled: number }>();
       // A root that cannot be listed is reported by `exists` in the same finding.

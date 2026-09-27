@@ -116,7 +116,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   review: ['--since', '--against', '--suite', '--out', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
-  doctor: [],
+  doctor: ['--prune'],
   share: ['--mainline', '--publish'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
@@ -142,7 +142,7 @@ export const USAGE = [
   'variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] [--suite <name>] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>',
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
-  'variance doctor  [--config <path>]',
+  'variance doctor  [--config <path>] [--prune]',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>]',
   'variance carry   restore | save [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',
