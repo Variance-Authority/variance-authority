@@ -36,6 +36,7 @@ import index from "../../../docs/README.md?raw";
 import information from "../../../docs/information.md?raw";
 import instruments from "../../../docs/instruments.md?raw";
 import journeys from "../../../docs/journeys.md?raw";
+import jvm from "../../../docs/jvm.md?raw";
 import testStories from "../../../docs/test-stories.md?raw";
 import lexicon from "../../../docs/lexicon.md?raw";
 import locate from "../../../docs/locate.md?raw";
@@ -167,6 +168,7 @@ const documents = [
   ["execution-record", executionRecord, "docs/execution-record.md"],
   ["observability", observability, "docs/observability.md"],
   ["journeys", journeys, "docs/journeys.md"],
+  ["jvm", jvm, "docs/jvm.md"],
   ["across-dimensions", acrossDimensions, "docs/across-dimensions.md"],
   ["test-stories", testStories, "docs/test-stories.md"],
   ["locate", locate, "docs/locate.md"],

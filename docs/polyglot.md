@@ -207,7 +207,8 @@ being assumed. Types in the same package are visible with no import at all, so
 every file asks for its own package as well; on a JVM codebase those are most of
 the real edges, and leaving them out would report a class and the class beside
 it as unrelated. Kotlin adds one difference: a top-level function may live in
-any file of its package, because Kotlin has no filename rule.
+any file of its package, because Kotlin has no filename rule. To select Java tests from what they ran rather
+than from this graph, see [Java tests](jvm.md).
 
 **Swift.** The language does not have the edge the rest of this rests on.
 `import Core` names a module, which is a whole target, and files inside a target

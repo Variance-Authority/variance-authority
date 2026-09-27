@@ -101,7 +101,7 @@ never loaded reads as exactly that. `--suite <name>` asks one record alone.
 
 ## What each host records
 
-Five hosts write this file, and they write the same structures into it. What
+Six hosts write this file, and they write the same structures into it. What
 differs is the owner of an observation — the key a crossing joins, which is
 whatever that host schedules — and where the bracket goes that separates one
 case from the next.
@@ -113,9 +113,10 @@ case from the next.
 | Rstest | the test file | `it` and `test` wherever the suite reads them — off the realm, or off the object an import of `@rstest/core` compiles to |
 | Playwright | the spec file | the test, which is already the window the driver closes |
 | Storybook | the story | the story, which is already the unit the preview shows |
+| [A JVM on the JUnit Platform](jvm.md) | the test class's source file | the top-level test class, which the listener closes as the next one starts |
 | [Any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) | the test file it observes | the body it hands to `observer.case` |
 
-None of the seams asks you to change a runner option to record cases, and the
+None of the Node seams asks you to change a runner option to record cases, and the
 snapshot's bytes do not depend on them — the case axis is a second file beside
 it. A test file that runs in a page, under Vitest or Rstest browser mode, is
 recorded per file only: that run writes no case index and prints a warning.

@@ -97,7 +97,8 @@ Each path needs different evidence:
   explicit acceptance before you decide how much of the suite belongs in the
   workflow.
 - Source discovery needs only a readable TypeScript checkout.
-- Test selection and reduction need an [execution record](execution-record.md).
+- Test selection and reduction need an [execution record](execution-record.md), which a
+  Node runner or a [JVM test suite](jvm.md) writes.
 - Live investigation needs a watcher running before the suite starts.
 
 Each guide states the evidence it can read and leaves an unavailable reading

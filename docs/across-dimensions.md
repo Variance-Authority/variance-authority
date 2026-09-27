@@ -38,8 +38,7 @@ browser specs, seed six backend changes, and score two selectors against the
 specs that fail. [`variance reach`](polyglot.md) reads Java as well as it
 reads TypeScript and still selects no spec for any of the four breaking
 changes, because no spec imports the service. The
-[execution record](execution-record.md) selects 9 of 18 spec runs and misses none of the failures. [The JVM agent's
-README](../jvm/README.md#tests) has the setup.
+[execution record](execution-record.md) selects 9 of 18 spec runs and misses none of the failures. [Java tests](jvm.md) has the setup.
 
 What the graph lacks is not a better parser. It lacks the fact that *this*
 case's request reached *that* branch, and only the running system knows that.
@@ -248,7 +247,7 @@ A JVM service wraps each request in `Journey.enter(cookie, baggage)` and runs
 with the agent and `-Dva.parts=<dir>` (or `VARIANCE_AUTHORITY_PARTS`). At exit
 it writes a frames file and the regions those frames name into the same
 directory, so a JVM head needs no entry in `heads`. [Record a service a Jest
-case calls](../jvm/README.md#record-a-service-a-jest-case-calls) has the build
+case calls](jvm.md#record-a-service-a-jest-case-calls) has the build
 and flags.
 
 ### A browser spec calling a JVM service
@@ -258,7 +257,7 @@ Without a JavaScript record for the spec to join, you keep a table of
 `Coverage` converter reads the table beside the service's record. Each journey
 row goes to its spec, and each row for work outside a journey goes to every
 spec. [Record a service browser specs
-drive](../jvm/README.md#record-a-service-browser-specs-drive) has the command.
+drive](jvm.md#record-a-service-browser-specs-drive) has the command.
 
 ### A Cloudflare Worker behind a service binding
 
