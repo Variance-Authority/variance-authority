@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -126,6 +126,30 @@ describe('the native tree against the JavaScript one', () => {
     expect(tree.get('src/fresh/deep/leaf.ts')).toBeDefined();
     expect([...tree.paths()]).not.toContain('src/fresh/built.ts');
     expect(tree.get('src/Button.tsx')).toBe(`git:${edited}`);
+  });
+
+  it.runIf(native)('agrees beside paths git names that are not files', async () => {
+    const root = await repository();
+    // A submodule checked out past its recorded commit, which `status` names
+    // with no trailing slash, and links to a directory and to nothing. Any one
+    // of them in the `hash-object` batch fails it for every edited file.
+    const sub = join(root, 'vendor/sub');
+    await write(root, 'vendor/sub/readme.md', 'one\n');
+    await git(sub, ['init', '--quiet']);
+    await git(sub, ['add', '-A']);
+    await git(sub, ['commit', '--quiet', '-m', 'one']);
+    await git(root, ['-c', 'advice.addEmbeddedRepo=false', 'add', 'vendor/sub']);
+    await git(root, ['commit', '--quiet', '-m', 'submodule']);
+    await git(sub, ['commit', '--quiet', '--allow-empty', '-m', 'two']);
+    await symlink('src/panel', join(root, 'linked'));
+    await symlink('nowhere', join(root, 'dangling'));
+    await write(root, 'src/Button.tsx', 'export function Button() { return <b /> }\n');
+
+    const { oracle, answered } = await both(root);
+    const edited = await git(root, ['hash-object', 'src/Button.tsx']);
+
+    expect(answered).toEqual(oracle);
+    expect((await gitTreeOf(root))!.get('src/Button.tsx')).toBe(`git:${edited}`);
   });
 
   it.runIf(native)('seeds from the Git-visible path set', async () => {

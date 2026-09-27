@@ -212,15 +212,19 @@ checkout the status is asked with `--untracked-files=normal` and no pathspec,
 the one shape git's untracked cache answers, and any directory it reports whole
 is listed with `git ls-files --others --exclude-standard`. Below the top it is
 asked with `--untracked-files=all -- .`. Every path the status names is
-re-hashed in one `git hash-object --stdin-paths` call. Deleted and renamed-away paths are dropped. An ignored path, or one the
-hash failed on, gets no entry, and the scan hashes it itself on read.
+re-hashed in one `git hash-object --stdin-paths` call, except a path that is not
+a file on disk: a submodule, or a link to a directory or to nothing, has no bytes
+to hash and would fail the call for every file in it. Deleted and renamed-away
+paths are dropped. An ignored path, one that is not a file, or one in a call the
+hash failed on gets no entry, and the scan hashes any file among them itself on
+read.
 
 **Key.** The repository-relative path, forward-slashed.
 
 **Lookup.** One map read, O(1).
 
 **Cost to build.** Three subprocesses, or four when the status collapsed a new
-directory, the last hashing every dirty path in one batch: O(n) to parse the tree listing and O(d) to hash. Outside a git checkout
+directory, the last hashing every dirty file in one batch: O(n) to parse the tree listing and O(d) to hash. Outside a git checkout
 none of this is available, nothing is reused, and every file is read and hashed —
 so a run in an exported tarball or a non-git checkout pays the cold column every
 time.

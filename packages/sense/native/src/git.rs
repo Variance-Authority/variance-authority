@@ -235,13 +235,17 @@ fn overlay(root: &str, status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)>
         return Some((moved, Vec::new()));
     }
 
-    // Hashed nothing: the file is unreadable or vanished between the two calls.
-    // Withdrawing the entry hands the question back to the scan rather than
-    // answering it with a digest for contents nobody saw.
+    // Hashed nothing: the path is not a file, or it is unreadable or vanished
+    // between the two calls. Withdrawing the entry hands the question back to
+    // the scan rather than answering it with a digest for contents nobody saw.
     for path in &dirty {
         moved.insert(path.clone(), None);
     }
-    for (path, oid) in hash_on_disk(root, &dirty) {
+    // Only files go to `hash-object`. A submodule `status` names without a
+    // trailing slash, or a link to a directory or to nothing, fails the batch,
+    // and a failed batch withdraws every edited file's digest with its own.
+    let files: Vec<&[u8]> = dirty.iter().map(Vec::as_slice).filter(|path| is_file(root, path)).collect();
+    for (path, oid) in hash_on_disk(root, &files) {
         moved.insert(path, Some(oid));
     }
     let unhashed = dirty.into_iter().filter(|path| moved.get(path).is_some_and(Option::is_none)).collect();
@@ -264,14 +268,31 @@ fn merge(left: Vec<(Vec<u8>, Oid)>, right: Vec<(Vec<u8>, Oid)>) -> Vec<(Vec<u8>,
     }
 }
 
+/// Whether `path` is a file on disk, following a link as `hash-object` does.
+///
+/// Asked of the disk because the disk is what `hash-object` reads: a gitlink's
+/// or a link's entry in `status` does not say what it points at now.
+fn is_file(root: &str, path: &[u8]) -> bool {
+    #[cfg(unix)]
+    let path = std::path::Path::new(<std::ffi::OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(path));
+    #[cfg(not(unix))]
+    let Ok(path) = std::str::from_utf8(path).map(std::path::Path::new) else {
+        return false;
+    };
+    std::fs::metadata(std::path::Path::new(root).join(path)).is_ok_and(|meta| meta.is_file())
+}
+
 /// Blob digests for the bytes currently on disk.
 ///
 /// The paths come back in the order they went in, which is the only thing
 /// pairing them — `hash-object` prints digests and nothing else. A short answer
-/// means git stopped early, on a directory or a path it could not open, and
-/// pairing the survivors by position would attach one file's digest to
-/// another's name; the whole batch is discarded instead.
-fn hash_on_disk(root: &str, paths: &[Vec<u8>]) -> Vec<(Vec<u8>, Oid)> {
+/// means git stopped early, on a path that went away or could not be opened
+/// after `is_file` saw it, and pairing the survivors by position would attach
+/// one file's digest to another's name; the whole batch is discarded instead.
+fn hash_on_disk(root: &str, paths: &[&[u8]]) -> Vec<(Vec<u8>, Oid)> {
+    if paths.is_empty() {
+        return Vec::new();
+    }
     let mut stdin = Vec::with_capacity(paths.iter().map(|path| path.len() + 1).sum());
     for path in paths {
         stdin.extend_from_slice(path);
@@ -293,7 +314,7 @@ fn hash_on_disk(root: &str, paths: &[Vec<u8>]) -> Vec<(Vec<u8>, Oid)> {
     lines
         .iter()
         .zip(paths)
-        .filter_map(|(line, path)| parse_oid(trim(line)).map(|oid| (path.clone(), oid)))
+        .filter_map(|(line, path)| parse_oid(trim(line)).map(|oid| (path.to_vec(), oid)))
         .collect()
 }
 
@@ -384,3 +405,7 @@ fn git(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Option<Vec<u8>> {
 
     Some(output.stdout)
 }
+
+#[cfg(all(test, unix))]
+#[path = "git_tests.rs"]
+mod tests;

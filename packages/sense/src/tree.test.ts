@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -138,6 +138,40 @@ describe('digests read out of git', () => {
     expect(digests?.has('src/theme.css')).toBe(true);
   });
 
+  it('keeps an edited file\'s digest beside paths that are not files', async () => {
+    const root = await repository();
+    await moveSubmodule(root, 'vendor/sub');
+    await symlink('src', join(root, 'linked'));
+    await symlink('nowhere', join(root, 'dangling'));
+    await write(root, 'src/Button.tsx', 'export function Button() { return <b /> }\n');
+    const edited = await onDisk(root, 'src/Button.tsx');
+
+    // `status` names the submodule and both links as paths, and `hash-object`
+    // fails a batch holding any of them. Only their own digests are missing.
+    const found = await gitDigests(root);
+    const known = await gitDigests(root, ['src/Button.tsx', 'vendor/sub', 'linked', 'dangling']);
+
+    for (const digests of [found, known]) {
+      expect(digests?.get('src/Button.tsx')).toBe(edited);
+      expect([...digests?.keys() ?? []].sort()).toEqual(['src/Button.tsx', 'src/tokens.css']);
+    }
+  });
+
+  it.skipIf(process.getuid?.() === 0)('withdraws every edited digest when a file cannot be hashed', async () => {
+    const root = await repository();
+    await write(root, 'src/Button.tsx', 'export function Button() { return <b /> }\n');
+    await write(root, 'src/locked.ts', 'export const locked = 1\n');
+    await chmod(join(root, 'src/locked.ts'), 0o000);
+
+    const digests = await gitDigests(root);
+
+    // A file `hash-object` cannot open fails the batch, and the committed digest
+    // of an edited file does not name the bytes on disk. Both are left to the scan.
+    expect(digests?.has('src/Button.tsx')).toBe(false);
+    expect(digests?.has('src/locked.ts')).toBe(false);
+    expect(digests?.get('src/tokens.css')).toBe(await committed(root, 'HEAD:src/tokens.css'));
+  });
+
   it('accepts an authoritative changed-file list instead of discovering status', async () => {
     const root = await repository();
     const committedTokens = await committed(root, 'HEAD:src/tokens.css');
@@ -207,6 +241,18 @@ async function git(root: string, args: readonly string[]): Promise<string> {
   );
 
   return stdout.trim();
+}
+
+/** A submodule at `path`, recorded at one commit and checked out at the next. */
+async function moveSubmodule(root: string, path: string): Promise<void> {
+  const sub = join(root, path);
+  await write(root, `${path}/readme.md`, 'one\n');
+  await git(sub, ['init', '--quiet']);
+  await git(sub, ['add', '-A']);
+  await git(sub, ['commit', '--quiet', '-m', 'one']);
+  await git(root, ['-c', 'advice.addEmbeddedRepo=false', 'add', path]);
+  await git(root, ['commit', '--quiet', '-m', 'submodule']);
+  await git(sub, ['commit', '--quiet', '--allow-empty', '-m', 'two']);
 }
 
 /** The object name git holds for a revision, as the map spells it. */

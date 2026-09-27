@@ -27,7 +27,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { lstat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { digestString, type Digest } from './digest.js';
@@ -112,15 +112,7 @@ async function overlayKnownChanges(
     // the committed object name from claiming the old bytes are still present.
     digests.delete(path);
   }
-  const present = (await Promise.all(paths.map(async (path) => {
-    try {
-      const status = await lstat(join(root, path));
-      return status.isFile() || status.isSymbolicLink() ? path : undefined;
-    } catch {
-      return undefined;
-    }
-  }))).filter((path): path is string => path !== undefined);
-  for (const [path, digest] of await hashOnDisk(root, present)) digests.set(path, digest);
+  for (const [path, digest] of await hashOnDisk(root, await filesAmong(root, paths))) digests.set(path, digest);
 }
 
 /**
@@ -195,15 +187,30 @@ async function overlayWorkingTree(root: string, digests: Map<string, Digest>, to
     for (const path of listed.split('\0')) if (path !== '' && !path.endsWith('/')) dirty.push(path);
   }
 
-  if (dirty.length === 0) return;
+  // Removed before the refill, so a path that hashes nothing — not a file,
+  // unreadable, or vanished between the two calls — hands the question back to
+  // the scan rather than keeping a committed digest for contents nobody saw.
+  for (const path of dirty) digests.delete(path);
+  for (const [path, digest] of await hashOnDisk(root, await filesAmong(root, dirty))) digests.set(path, digest);
+}
 
-  for (const [path, digest] of await hashOnDisk(root, dirty)) digests.set(path, digest);
-  for (const path of dirty) {
-    // Hashed nothing: the file is unreadable or vanished between the two calls.
-    // Removing the entry hands the question back to the scan rather than
-    // answering it with a digest for contents nobody saw.
-    if (!digests.has(path)) digests.delete(path);
-  }
+/**
+ * The paths that are files on disk, following a link as `hash-object` does.
+ *
+ * A submodule `status` names without a trailing slash, or a link to a directory
+ * or to nothing, fails `hash-object` for the whole batch, and a failed batch
+ * withdraws every edited file's digest with its own. Asked of the disk because
+ * the disk is what `hash-object` reads.
+ */
+async function filesAmong(root: string, paths: readonly string[]): Promise<string[]> {
+  const files = await Promise.all(paths.map(async (path) => {
+    try {
+      return (await stat(join(root, path))).isFile() ? path : undefined;
+    } catch {
+      return undefined;
+    }
+  }));
+  return files.filter((path): path is string => path !== undefined);
 }
 
 /**
@@ -218,6 +225,7 @@ async function hashOnDisk(
   paths: readonly string[],
 ): Promise<ReadonlyMap<string, Digest>> {
   const hashed = new Map<string, Digest>();
+  if (paths.length === 0) return hashed;
 
   let stdout: string;
   try {
@@ -232,9 +240,10 @@ async function hashOnDisk(
   }
 
   const lines = stdout.split('\n').filter((line) => line !== '');
-  // A short answer means git stopped early — on a directory, or a path it could
-  // not open. Pairing the survivors by position would attach one file's digest to
-  // another's name, so the whole batch is discarded instead.
+  // A short answer means git stopped early, on a path that went away or could
+  // not be opened after `filesAmong` saw it. Pairing the survivors by position
+  // would attach one file's digest to another's name, so the whole batch is
+  // discarded instead.
   if (lines.length !== paths.length) return hashed;
 
   for (const [at, line] of lines.entries()) hashed.set(paths[at]!, blob(line.trim()));
