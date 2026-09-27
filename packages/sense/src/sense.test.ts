@@ -172,6 +172,27 @@ describe('reading a module', () => {
     ]);
   });
 
+  it('names the identifier behind `export default name`, imported or declared', () => {
+    const published = (source: string) =>
+      readModule('index.ts', source).exports?.map(({ signature: _, doc: __, ...rest }) => rest);
+    const imported = "import OriginalLogger from './logger';\nexport default OriginalLogger;\nexport const logger = OriginalLogger;\n";
+
+    // `default` is already the exported name, so a `local` of `default` said
+    // nothing; the identifier is what joins the default to `./logger`'s binding.
+    // `logger` binds a name of its own: the const it declares, not the import
+    // its initialiser names.
+    expect(published(imported)).toEqual([
+      { exported: 'default', local: 'OriginalLogger', type: false, line: 2 },
+      { exported: 'logger', local: 'logger', type: false, line: 3 },
+    ]);
+    expect(readModule('index.ts', imported).requests[0]?.bindings).toEqual([
+      { imported: 'default', local: 'OriginalLogger', type: false, line: 1 },
+    ]);
+    expect(published('const Local = 1;\nexport default Local;\n')).toEqual([
+      { exported: 'default', local: 'Local', type: false, line: 2 },
+    ]);
+  });
+
   it('reads a literal dynamic import and refuses a computed one', () => {
     const read = readModule(
       'a.ts',

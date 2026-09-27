@@ -6,9 +6,7 @@ use std::sync::OnceLock;
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
-use oxc_syntax::module_record::{
-    ExportExportName, ExportImportName, ExportLocalName, ImportImportName,
-};
+use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
 use regex::Regex;
 use serde::Serialize;
 
@@ -222,7 +220,10 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
             .map(|name| name.name.to_string());
         let exported = export_name(&entry.export_name);
         let imported = source_name(&entry.import_name);
-        let local = local_name(&entry.local_name);
+        // The record's own bound name, which for `export default name` is
+        // `name`: `exported` already says `default`, and the identifier is what
+        // a reader follows through this file's imports to where it comes from.
+        let local = entry.local_name.name().map(|name| name.to_string());
 
         exports.push(Export {
             exported: exported.clone(),
@@ -343,14 +344,6 @@ fn source_name(name: &ExportImportName<'_>) -> Option<String> {
         ExportImportName::Name(name) => Some(name.name.to_string()),
         ExportImportName::All | ExportImportName::AllButDefault => Some("*".to_owned()),
         ExportImportName::Null => None,
-    }
-}
-
-fn local_name(name: &ExportLocalName<'_>) -> Option<String> {
-    match name {
-        ExportLocalName::Name(name) => Some(name.name.to_string()),
-        ExportLocalName::Default(_) => Some("default".to_owned()),
-        ExportLocalName::Null => None,
     }
 }
 

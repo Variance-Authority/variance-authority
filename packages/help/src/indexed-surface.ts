@@ -135,17 +135,14 @@ export async function indexedNames(
 
     for (const file of wanted) {
       const source = sources.get(file);
-      const text = texts.get(file);
-      if (source === undefined || text === undefined) continue;
-      const local = localDeclarations(file, source, text);
+      if (source === undefined) continue;
       for (const published of source.parsed.exports ?? []) {
-        if (published.from !== undefined || published.exported === undefined) continue;
-        const written = published.exported === DEFAULT
-          ? defaultIdentifier(text, published.signature, local)
-          : undefined;
-        const localName = written ?? published.local ?? published.exported;
+        // Only a name this file binds can be a name it imports. A default with
+        // no name of its own is a value written here, and binds nothing.
+        const bound = published.local;
+        if (published.from !== undefined || bound === undefined) continue;
         for (const [index, request] of source.parsed.requests.entries()) {
-          if (!request.bindings.some((binding) => binding.local === localName)) continue;
+          if (!request.bindings.some((binding) => binding.local === bound)) continue;
           const target = source.targets[index];
           if (target !== undefined && sources.has(target) && !wanted.has(target)) {
             wanted.add(target);
@@ -199,18 +196,27 @@ export async function indexedNames(
       if (published.imported === NAMESPACE) {
         add(found, name, written);
       } else if (specifier === undefined) {
-        const writtenName = name === DEFAULT ? defaultIdentifier(text, published.signature, local) : undefined;
-        const value = local.get(published.local ?? name)
-          ?? (name === DEFAULT ? local.get(DEFAULT) : undefined)
-          ?? (writtenName === undefined ? undefined : local.get(writtenName));
+        // `local` is the name this file binds the export under, as Sense read
+        // it: a declaration's own name, or the identifier `export default name`
+        // writes. A default with no name of its own has none, and the harvest
+        // keeps it under `default`, the name it is published as.
+        //
+        // A name this file declares is answered by that declaration and is not
+        // followed further. `export const logger = OriginalLogger` is a `const`
+        // here even when `OriginalLogger` is imported, and reads as a different
+        // thing from `export default OriginalLogger` beside it, because that is
+        // how TypeScript's declaration emit publishes the pair: the default as
+        // the import it names, `logger` as `const logger: typeof OriginalLogger`.
+        // Only a name bound here and declared nowhere here goes to its import.
+        const bound = published.local ?? name;
+        const value = local.get(bound);
         if (value !== undefined) {
           add(found, name, value);
           continue;
         }
-        const localName = writtenName ?? published.local ?? name;
         const imported = source.parsed.requests.flatMap((request, index) =>
           request.bindings
-            .filter((binding) => binding.local === localName)
+            .filter((binding) => binding.local === bound)
             .map((binding) => ({ name: binding.imported, target: source.targets[index] })),
         )[0];
         if (imported?.target === undefined) {
@@ -252,19 +258,6 @@ export async function indexedNames(
   };
 
   return (source) => namesAt(pathOf(root, source));
-}
-
-function defaultIdentifier(
-  text: string,
-  span: TextSpan | undefined,
-  local: ReadonlyMap<string, Declaration>,
-): string | undefined {
-  const written = headOf(text, span);
-  if (written === undefined) return undefined;
-  const identifiers = written.match(/[\p{ID_Start}_$][\p{ID_Continue}_$]*/gu) ?? [];
-  const reversed = identifiers.reverse();
-  return reversed.find((name) => local.has(name))
-    ?? [...reversed].reverse().find((name) => !['export', 'default', 'as', 'typeof'].includes(name));
 }
 
 function pathOf(root: string, file: string): string {

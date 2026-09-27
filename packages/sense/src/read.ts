@@ -168,7 +168,16 @@ export interface Export {
    */
   readonly exported?: string;
 
-  /** The local declaration behind it, when this file declares it. */
+  /**
+   * The name this file binds it under, when it binds one.
+   *
+   * A declaration's own name for `export const x` and `export default function
+   * Named() {}`, and the identifier written for `export default name` — which
+   * may be a name this file imports, so the default is followed through
+   * `requests[].bindings` to the module it comes from. Absent for a default
+   * that is an expression or an anonymous declaration, and for a name
+   * republished `from` another module, since neither binds a name here.
+   */
   readonly local?: string;
 
   /** The specifier it was republished from, when it was republished. */
