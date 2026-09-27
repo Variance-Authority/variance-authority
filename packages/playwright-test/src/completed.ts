@@ -65,7 +65,14 @@ export const varianceCompletedFixtures: Fixtures<
       // Automatic fixtures are set up before the ones a test asked for, so this
       // is torn down after them and reads the status they have already settled.
       if (varianceRecorder === undefined) return;
-      varianceRecorder.mark(varianceRecorder.owner(testInfo), usableOutcome(testInfo.status), testOf(testInfo));
+      // Playwright has already set `duration` for the body, its `beforeEach`
+      // hooks and the fixtures set up for it; `afterEach` and teardown are not in it.
+      varianceRecorder.mark(
+        varianceRecorder.owner(testInfo),
+        usableOutcome(testInfo.status),
+        testOf(testInfo),
+        testInfo.duration,
+      );
     },
     { auto: true },
   ],

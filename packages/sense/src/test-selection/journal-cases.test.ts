@@ -17,7 +17,7 @@ import {
   testSelectionProbes,
   type ExecutionJournal,
 } from './journal.js';
-import { selectTestFiles } from './index.js';
+import { readTestCoverage, selectTestFiles } from './index.js';
 import { coveringChange, coveringTests, ranWhileLoading, type ExecutionIndex } from './reverse.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import {
@@ -221,6 +221,39 @@ describe('a run recorded by more than one process', () => {
       await closeStage(directory);
       expect(stagingDirectory()).toBeUndefined();
       expect(await foldStage(directory)).toEqual({ subjects: [] });
+    });
+  });
+
+  it('keeps what the runner timed and how a retry settled across the processes that staged it', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+      const directory = resolve(root, '.stage');
+      openStage(directory);
+
+      // Case `a` failed in one worker and passed on its retry in another, as a
+      // Playwright retry lands wherever a worker is free.
+      for (const [stopped, duration] of [
+        [true, 300],
+        [false, 200],
+      ] as const) {
+        await stageExecution(directory, {
+          subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium, complete: !stopped, duration }],
+          cases: [{ file: 'e2e/price.spec.ts', name: 'case a', id: 'a', stopped, duration, journal: run.premium }],
+        });
+      }
+      const staged = await foldStage(directory);
+      expect(staged.subjects.map((subject) => subject.duration)).toEqual([500]);
+      expect(staged.cases!.map(({ stopped, duration }) => ({ stopped, duration }))).toEqual([
+        { stopped: false, duration: 500 },
+      ]);
+
+      await recordExecution({ root, cacheRoot: resolve(root, 'cache'), coverageFile, subjects: staged.subjects, cases: staged.cases! });
+      expect((await readTestCoverage(coverageFile)).tests.map((test) => test.duration)).toEqual([500]);
+      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      expect(index.tests.map(({ stopped, duration }) => ({ stopped, duration }))).toEqual([{ stopped: false, duration: 500 }]);
+      await closeStage(directory);
     });
   });
 

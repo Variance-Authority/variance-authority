@@ -40,6 +40,12 @@ export interface ObservedSubject {
    * justify an exclusion.
    */
   readonly complete?: boolean;
+  /**
+   * Milliseconds the runner reported for this owner's tests in this source,
+   * never a clock of the driver's. Absent from a source that timed nothing —
+   * a head reports crossings, not time — so a join sums what its sources carry.
+   */
+  readonly duration?: number;
 }
 
 /**
@@ -66,6 +72,8 @@ export interface ObservedCase {
   readonly id: string;
   /** {@link ExecutionTest.stopped}: absent when the driver cannot say how the case settled. */
   readonly stopped?: boolean;
+  /** {@link ExecutionTest.duration}: the runner's milliseconds, summed over the attempts this source saw. */
+  readonly duration?: number;
   readonly journal: ExecutionJournal;
 }
 
@@ -85,6 +93,7 @@ export function joinObservations(
     readonly preconditions: Map<string, CoveragePrecondition>;
     complete: boolean;
     instrumentation: string;
+    duration?: number;
   }
   const byOwner = new Map<string, Held>();
   const union = (into: Map<ModuleId, Set<number>>, id: ModuleId, ordinals: readonly number[]): void => {
@@ -108,6 +117,7 @@ export function joinObservations(
         held.preconditions.set(precondition.name, precondition);
       }
       if (subject.complete === false) held.complete = false;
+      if (subject.duration !== undefined) held.duration = (held.duration ?? 0) + subject.duration;
       // A recipe that does not match this driver's has to survive the fold, or
       // the refusal it exists to trigger is folded away with it.
       if (subject.journal.instrumentation !== INSTRUMENTATION_ID) {
@@ -122,6 +132,7 @@ export function joinObservations(
     .map(([owner, held]) => ({
       owner,
       complete: held.complete,
+      ...(held.duration === undefined ? {} : { duration: held.duration }),
       journal: {
         instrumentation: held.instrumentation,
         modules: [...held.modules]
@@ -182,6 +193,7 @@ export function caseJournals(cases: readonly ObservedCase[]): readonly CaseJourn
       name: observed.name,
       id: observed.id,
       ...(observed.stopped === undefined ? {} : { stopped: observed.stopped }),
+      ...(observed.duration === undefined ? {} : { duration: observed.duration }),
       modules: observed.journal.modules,
     })),
     ...files.map((file) => ({ file, name: AMBIENT, id: AMBIENT, modules: shared })),

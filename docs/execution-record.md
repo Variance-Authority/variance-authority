@@ -465,20 +465,26 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 
 **Durations.** `tests.duration` is the runner's own figure for the file, never a
 second clock: Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
-duration, or the `duration` you pass to `startRecording().finish()`. A file the
+duration, Playwright's `testInfo.duration` summed over the file's tests, or the
+`duration` you pass to `startRecording().finish()`. A file the
 runner reported nothing for stores the sentinel, and a reader answers it as
 absent, not as zero. When two projects record the same file, its duration is
 their sum, and it is absent if either is.
 
 The case index beside the snapshot carries the same figure for each case, in a
 `tests.duration` column of its own: Vitest's task result, Jest's assertion
-result, Rstest's test result, or the `duration` a case carries in what you pass
-to `startRecording().finish()`. A case is joined to the runner's report by the
+result, Rstest's test result, Playwright's `testInfo.duration`, or the
+`duration` a case carries in what you pass to `startRecording().finish()`.
+Playwright's figure covers the test body, its `beforeEach` hooks and the
+fixtures set up for it, and not its `afterEach` hooks or fixture teardown, which
+run after Playwright has set it. A retried case is timed as the sum of its
+attempts, the same way a file recorded by two projects is. A case is joined to the runner's report by the
 id the runner gave it, or by its declaration path under the file where the
 runner gives none. A path the file declares twice cannot say which of the two it
 is, so neither is timed. A case index written before cases carried durations
-opens with every case untimed. Playwright and Storybook report no duration per
-case, so their cases are recorded without one.
+opens with every case untimed. A Storybook case is recorded without one: the
+run times each story from its first collection to its decision, and
+`variance ask costs` answers from those times.
 
 `variance ask slowest-tests` lists the slowest recorded files and the slowest
 recorded cases, anywhere or under the paths you name, and `yarn test:since`

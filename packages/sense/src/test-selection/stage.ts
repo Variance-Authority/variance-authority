@@ -12,7 +12,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { packCase, unpackCase } from './cases.js';
+import { packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
 import { codeUnitOrder, isMissing } from './instrumented-modules.js';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
 
@@ -101,14 +101,26 @@ export async function foldStage(directory: string): Promise<StagedExecution> {
   for (const name of names.filter((name) => name.endsWith('.json')).sort(codeUnitOrder)) {
     staged.push(JSON.parse(await readFile(resolve(directory, name), 'utf8')) as StagedExecution);
   }
-  const cases = joinObservations([
-    staged.flatMap((one) =>
-      (one.cases ?? []).map((observed) => ({
-        owner: packCase(observed.file, observed.name, observed.id),
-        journal: observed.journal,
-      })),
-    ),
-  ]).map((subject): ObservedCase => ({ ...unpackCase(subject.owner), journal: subject.journal }));
+  // How each case settled and what it cost ride beside the join, which knows
+  // neither: a case retried in another worker settled once it finished once,
+  // and cost both attempts.
+  const settled = new Map<string, { stopped?: boolean; duration?: number }>();
+  const staging = staged.flatMap((one) =>
+    (one.cases ?? []).map((observed) => {
+      const owner = packCase(observed.file, observed.name, observed.id);
+      const held = settled.get(owner) ?? {};
+      settled.set(owner, {
+        ...settledAcross(held.stopped, observed.stopped),
+        ...timedAcross(held.duration, observed.duration),
+      });
+      return { owner, journal: observed.journal };
+    }),
+  );
+  const cases = joinObservations([staging]).map((subject): ObservedCase => ({
+    ...unpackCase(subject.owner),
+    ...settled.get(subject.owner),
+    journal: subject.journal,
+  }));
   return {
     subjects: joinObservations(staged.map((one) => one.subjects)),
     heads: [...new Set(staged.flatMap((one) => one.heads ?? []))],

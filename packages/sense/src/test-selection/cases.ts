@@ -184,6 +184,11 @@ export interface CaseJournal {
   readonly id: string;
   /** How this frame's case settled; see {@link ExecutionTest.stopped}. */
   readonly stopped?: boolean;
+  /**
+   * The runner's milliseconds for the case, where the driver that observed it
+   * carried them on the case itself rather than in a report at the run's end.
+   */
+  readonly duration?: number;
   readonly modules: readonly {
     readonly id: ModuleId;
     readonly hits: readonly number[];
@@ -223,6 +228,7 @@ export function executionIndexFrom(
       ...first,
       modules: [...first.modules, ...journal.modules],
       ...settledAcross(first.stopped, journal.stopped),
+      ...timedAcross(first.duration, journal.duration),
     });
   }
   const cases = [...byCase.values()];
@@ -244,7 +250,10 @@ export function executionIndexFrom(
     const coordinate = `${journal.file} > ${journal.name}`;
     const repeat = seen.get(coordinate) ?? 0;
     seen.set(coordinate, repeat + 1);
-    const duration = durations(journal.file, journal.name, journal.id);
+    // One owner or the other: a driver that carries the time on the case has no
+    // end-of-run report to join, and a runner that reports at the end writes
+    // frames that carry none.
+    const duration = durations(journal.file, journal.name, journal.id) ?? journal.duration;
     return {
       id: repeat === 0 ? coordinate : `${coordinate}#${repeat}`,
       file: journal.file,
@@ -323,6 +332,19 @@ export function settledAcross(
   if (first === false || second === false) return { stopped: false };
   if (first === true || second === true) return { stopped: true };
   return {};
+}
+
+/**
+ * The time of one case across the frames written under its coordinate: what
+ * the frames carry, summed, since each timed frame is an attempt the runner
+ * timed; a frame that carries none is work that outlived the case, not time.
+ */
+export function timedAcross(
+  first: number | undefined,
+  second: number | undefined,
+): { readonly duration?: number } {
+  if (first === undefined && second === undefined) return {};
+  return { duration: (first ?? 0) + (second ?? 0) };
 }
 
 /** How many test-to-region crossings an index holds: the number that grows. */

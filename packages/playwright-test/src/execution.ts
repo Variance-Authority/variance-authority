@@ -41,7 +41,10 @@ import {
 import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
 import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { listen, type Wire } from '@variance-authority/wire/listen';
-import { relative, resolve, sep } from 'node:path';
+import { resolve } from 'node:path';
+import { ownerOf, type ObservedTest } from './test-coordinate.js';
+
+export { ownerOf, testOf, type ObservedTest } from './test-coordinate.js';
 
 /** Where the index and the block records live, when the defaults are wrong. */
 export interface ExecutionRecording {
@@ -146,32 +149,14 @@ export interface ExecutionRecorder {
   /**
    * Say whether this owner's tests finished; an incomplete owner never excludes.
    * With the test, the case carries it too, as whether its journey stopped.
+   *
+   * `duration` is the milliseconds Playwright counted for the attempt, as
+   * `testInfo.duration` holds them when the test's fixtures tear down. The file
+   * and the case each sum their attempts; nothing here reads a clock.
    */
-  readonly mark: (owner: string, complete: boolean, subject?: ObservedTest) => void;
+  readonly mark: (owner: string, complete: boolean, subject?: ObservedTest, duration?: number) => void;
   /** Merge this worker's contribution into the index, or explain the silence. */
   readonly close: () => Promise<void>;
-}
-
-/** Which test a window belongs to, where the run is recording that. */
-export interface ObservedTest {
-  /** The declaration path inside the spec file, as a person reads it. */
-  readonly name: string;
-  /** Stable across retries, so a flake and its retry are one case read twice. */
-  readonly id: string;
-}
-
-/**
- * Where a test is declared, as the execution index names it.
- *
- * Playwright's own `titlePath` opens with the project and the file, which the
- * index already holds as the owner; what is left is the path a person reads in
- * the report, and the one a `describe` in a diff moves.
- */
-export function testOf(testInfo: TestInfo): ObservedTest {
-  const path = [...testInfo.titlePath];
-  if (path[0] === testInfo.project.name) path.shift();
-  if (path[0] !== undefined && testInfo.file.endsWith(path[0])) path.shift();
-  return { name: path.join(' > '), id: testInfo.testId };
 }
 
 interface Accumulated {
@@ -183,11 +168,6 @@ interface Accumulated {
 
 /** How long a worker waits at its end for requests a head is still serving. */
 const SETTLING_MS = 5_000;
-
-/** The test file a subject's crossings belong to, repository-relative. */
-export function ownerOf(root: string, testInfo: TestInfo): string {
-  return relative(resolve(root), testInfo.file).split(sep).join('/');
-}
 
 
 /**
@@ -218,6 +198,9 @@ export function createExecutionRecorder(
   // How each case settled, by the key `cases` uses. A retry in the same worker
   // settles the case again, and one attempt that finished is a whole journey.
   const stopped = new Map<string, boolean>();
+  // What the runner counted, per owner and per case key, summed over attempts.
+  const spent = new Map<string, number>();
+  const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
   const reports: JourneyReport[] = [];
   let seen = false;
   let announced = false;
@@ -283,9 +266,11 @@ export function createExecutionRecorder(
       return journey;
     },
 
-    mark: (owner, complete, subject) => {
+    mark: (owner, complete, subject, duration) => {
+      if (duration !== undefined) add(owner, duration);
       if (subject !== undefined) {
         const key = `${owner}\u0000${subject.id}`;
+        if (duration !== undefined) add(key, duration);
         stopped.set(key, stopped.get(key) === false ? false : !complete);
         // A case that stopped before the page had anything to drain is still a
         // case, and the one a reader most needs to hear about.
@@ -371,7 +356,13 @@ export function createExecutionRecorder(
   function observedCases(): readonly ObservedCase[] {
     return [...cases].map(([key, held]) => {
       const settled = stopped.get(key);
-      return { ...held.of, ...(settled === undefined ? {} : { stopped: settled }), journal: journalOf(held.hits) };
+      const duration = spent.get(key);
+      return {
+        ...held.of,
+        ...(settled === undefined ? {} : { stopped: settled }),
+        ...(duration === undefined ? {} : { duration }),
+        journal: journalOf(held.hits),
+      };
     });
   }
 
@@ -428,6 +419,7 @@ export function createExecutionRecorder(
       subjects.push({
         owner,
         complete: accumulated.complete && stitched.complete,
+        ...(spent.has(owner) ? { duration: spent.get(owner)! } : {}),
         journal: journalOf(accumulated),
         ...(preconditions.has(owner) ? { preconditions: preconditions.get(owner)! } : {}),
       });
