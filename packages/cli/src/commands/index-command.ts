@@ -45,27 +45,37 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
 /**
  * Journeys are walked last, from each suite's latest recording, so a walk that
  * fails leaves the index and the map standing and says why. Walking is kept
- * when the recording, the index and the runner's alias table are the ones the
- * kept journeys were made from.
+ * when the recording, the index, the runner's alias table and the walk are the
+ * ones the kept journeys were made from. They carry the update's listing of the
+ * checkout rather than asking git again.
  */
 async function journeys(cwd: string, update: SourceUpdate): Promise<readonly string[]> {
   try {
-    return (await prepareJourneys(cwd, update.path)).map(walked);
+    return (await prepareJourneys(cwd, update.path, update)).map(walked);
   } catch (error) {
     return [`journeys: not prepared: ${error instanceof Error ? error.message : String(error)}`];
   }
+}
+
+/** A share as a whole percent; a share that rounds to nothing but is not nothing is `<1%`. */
+function percent(part: number, whole: number): string {
+  const share = (part / whole) * 100;
+  return part > 0 && share < 0.5 ? '<1%' : `${Math.round(share)}%`;
 }
 
 function walked(one: PreparedJourneys): string {
   const named = one.suite === undefined ? 'journeys' : `journeys, suite ${one.suite}`;
   if ('unprepared' in one) return `${named}: not prepared: ${one.unprepared}`;
   const { prepared } = one;
-  const share = prepared.functionsEntered === 0 ? '' : ` (${Math.round((prepared.placed / prepared.functionsEntered) * 100)}%)`;
+  const share = prepared.functionsEntered === 0 ? '' : ` (${percent(prepared.placed, prepared.functionsEntered)})`;
   const notes = [
-    prepared.kept ? 'kept, because the recording, the index and the runner\'s aliases are the ones they were walked from' : '',
+    prepared.kept ? 'kept, because the recording, the index, the runner\'s aliases and the walk are the ones they were made from' : '',
+    prepared.tree === undefined || prepared.tree === null
+      ? ''
+      : `the files were parsed as the working tree has them, not as the recording ran them, because ${prepared.tree}`,
     prepared.aliased > 0 ? `${prepared.aliased} imports resolved by the runner's aliases` : '',
     prepared.fellBack > 0 ? `${prepared.fellBack} imports the index did not resolve were resolved by the walk` : '',
-    ...prepared.runnerUnread.map((unread) => `runner config not read: ${unread}`),
+    ...prepared.runnerUnread,
   ].filter((note) => note !== '');
   return [
     `${named}: ${prepared.cases} cases walked; a caller is found for ${prepared.placed} of the ${prepared.functionsEntered} functions they ran${share}; ` +

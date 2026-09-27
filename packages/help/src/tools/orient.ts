@@ -31,7 +31,7 @@ import type { Tool } from '@variance-authority/mcp/tools';
 import { basename } from 'node:path';
 import { codeMapPage, journeysAround, packagesAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
 import { formatCodeMapPage } from './code-map-format.js';
-import { formatOrientation } from './orient-format.js';
+import { formatOrientation, type OrientReading } from './orient-format.js';
 
 /** Other packages shown per side, and names shown per package. */
 const LIMITS = { rows: 5, names: 4 } as const;
@@ -120,10 +120,19 @@ export const orient: Tool<unknown> = {
       // answer and this builds no graph; `variance covering --file` builds one
       // and names them, so the answer points there instead of counting them.
       recorded: recordedCases(root, files, TITLES),
-      journeys: journeysAround(root, asks),
+      ...journeysOf(root, asks),
     });
   },
 };
+
+/** The journeys part, or why it could not be read; the rest of the answer stands either way. */
+function journeysOf(root: string, asks: readonly JourneysAsk[]): Pick<OrientReading, 'journeys' | 'journeysUnread'> {
+  try {
+    return { journeys: journeysAround(root, asks) };
+  } catch (error) {
+    return { journeysUnread: error instanceof Error ? error.message : String(error) };
+  }
+}
 
 /** One page of the code map, or why there is none to print. */
 function mapPage(root: string, area: string | undefined): string {

@@ -132,6 +132,11 @@ tree is the answer. Both are exact and need no Variance index.
 | A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path |
 | A description of a captured UI state | `variance ask locate --query <words>` | Subject ids and the observed fields that matched |
 
+A **package flow** is the ordered list of packages a recorded test's calls pass
+through, in the order the calls reach them. Tests that pass through the same
+packages in the same order share one flow, so the few most taken flows through
+a file's package show how that package is reached under test.
+
 [Inspect the workspace public API](agent-workspace-api.md) is the source
 orientation how-to and contract. [Find the subject you mean](locate.md) is the
 subject orientation how-to. [How search finds a subject](lexicon.md) explains

@@ -29,6 +29,8 @@ export interface OrientReading {
   readonly recorded: readonly RecordedCases[];
   /** Each suite's journeys; absent when they were not asked for. */
   readonly journeys?: readonly JourneysAround[];
+  /** Why the journeys could not be read, when reading them threw. */
+  readonly journeysUnread?: string;
 }
 
 const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
@@ -201,7 +203,7 @@ export function formatOrientation(reading: OrientReading): string {
     '',
     ...packages(reading),
     ...cases(reading),
-    ...formatJourneys(reading.journeys ?? []),
+    ...(reading.journeysUnread === undefined ? formatJourneys(reading.journeys ?? []) : ['', `Journeys: not read: ${reading.journeysUnread.replace(/\.$/u, '')}.`]),
     ...(asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)]),
   ].join('\n');
 }

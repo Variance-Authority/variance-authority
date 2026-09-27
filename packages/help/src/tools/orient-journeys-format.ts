@@ -15,26 +15,38 @@ import type { JourneysAround, JourneysBlock, JourneysCall, JourneysFile, Journey
 
 const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
+/** The way an inferred call was matched, as each is printed; the legend is made from the same rows. */
+const INFERRED: readonly (readonly [string, string])[] = [
+  ['name-match', 'by name'],
+  ['new', 'by `new`'],
+  ['handed', 'handed to a call'],
+  ['parameter', 'as a parameter'],
+  ['made', 'made by a factory'],
+  // The step runs from the function a callee is written in to the callee, so
+  // the words name the callee's side whichever end of the row is printed.
+  ['enclosed', 'written inside its caller'],
+];
+
+const SAID: ReadonlyMap<string, string> = new Map(INFERRED);
+
 /** How each call is known, said once above the files. */
 const KNOWN =
   'Each call says how it is known: observed, the call site ran in those cases; static, resolved from the source, ' +
   'and no recorded region shows it ran; unrecorded, a function in a file the recording does not cover; test, a helper ' +
-  'the test file declares; inferred, no static target, so the way it was matched is named: by name, by `new`, as a ' +
-  'value handed to a call, as a parameter, as what a factory made, or as the function it is written in.';
+  'the test file declares; inferred, no static target, so the way it was matched is named: ' +
+  `${INFERRED.slice(0, -1).map(([, said]) => said).join(', ')}, or ${INFERRED[INFERRED.length - 1]![1]}.`;
 
 const TAGS = new Set(['observed', 'static', 'unrecorded', 'test']);
 
 function known(how: string): string {
   if (TAGS.has(how)) return how;
-  const said: Readonly<Record<string, string>> = {
-    'name-match': 'by name',
-    new: 'by `new`',
-    handed: 'handed to a call',
-    parameter: 'as a parameter',
-    made: 'made by a factory',
-    enclosed: 'written inside it',
-  };
-  return `inferred, ${said[how] ?? how}`;
+  return `inferred, ${SAID.get(how) ?? how}`;
+}
+
+/** A share as a whole percent, and a share too small to round to one said as that. */
+function percent(part: number, whole: number): string {
+  const rounded = Math.round((part / whole) * 100);
+  return rounded === 0 && part > 0 ? '<1%' : `${rounded}%`;
 }
 
 const lines = (block: { readonly line: number; readonly end: number }): string =>
@@ -42,7 +54,8 @@ const lines = (block: { readonly line: number; readonly end: number }): string =
 
 /** The far end of a call, and the asked file's own function when the question was the whole file. */
 function callRow(call: JourneysCall, into: boolean): { readonly cases: string; readonly text: string } {
-  const far = call.name == null ? 'the test case' : `${call.name}  ${call.file ?? ''}:${call.line ?? ''}`;
+  const where = call.file == null ? '' : call.line == null ? `  ${call.file}` : `  ${call.file}:${call.line}`;
+  const far = call.name == null ? 'the test itself' : `${call.name}${where}`;
   const near = call.at == null ? '' : into ? ` → ${call.at}` : `${call.at} → `;
   return { cases: String(call.cases), text: `${into ? `${far}${near}` : `${near}${far}`}  ${known(call.known)}` };
 }
@@ -70,12 +83,14 @@ function blocks(heading: string, rows: readonly JourneysBlock[], more: number, i
 
 function flows(flows: JourneysFlows, cases: number, indent: string): readonly string[] {
   const party = flows.package ?? 'files in no package';
-  if (flows.through === 0) return [`${indent}No recorded case runs through ${party}.`];
-  const share = cases === 0 ? '' : ` (${Math.max(1, Math.round((flows.through / cases) * 100))}%)`;
+  if (flows.through === 0) return [`${indent}No recorded case entered ${party}.`];
+  const share = cases === 0 ? '' : ` (${percent(flows.through, cases)})`;
+  const entered = `${indent}Package flows: ${flows.through} of ${plural(cases, 'case')}${share} entered ${party}, as recorded`;
+  if (flows.placed === 0 || flows.top.length === 0) return [`${entered}; the walk placed no call into it.`];
   const wide = Math.max(...flows.top.map((flow) => String(flow.cases).length));
   return [
-    `${indent}${flows.through} of ${plural(cases, 'case')}${share} run through ${party}, along ${plural(flows.distinct, 'distinct package flow')}; ` +
-      `the ${flows.top.length === 1 ? 'one' : `${flows.top.length} most`} taken, each with a case that takes it:`,
+    `${entered}; the walk placed calls into it for ${flows.placed}, along ${plural(flows.distinct, 'package flow')}, ` +
+      `the order its calls pass through packages; the ${flows.top.length === 1 ? 'one' : `${flows.top.length} most`} taken, with an example case:`,
     ...flows.top.map((flow) => {
       const path = flow.packages.map((one) => one ?? 'no package').join(' → ');
       return `${indent}  ${String(flow.cases).padStart(wide)}  ${path}  (${flow.exampleFile} > ${flow.exampleName})`;
@@ -89,7 +104,7 @@ function region(focus: JourneysRegion, indent: string): readonly string[] {
   const placed = focus.placedIn === focus.cases
     ? `a caller is found in every one of its ${plural(focus.cases, 'case')}`
     : `a caller is found in ${focus.placedIn} of its ${plural(focus.cases, 'case')}`;
-  out.push(...calls(`Called from, ${placed}`, focus.callers, focus.moreCallers, true, indent));
+  out.push(...calls(`Called from (${placed})`, focus.callers, focus.moreCallers, true, indent));
   out.push(...calls('Calls', focus.goes, focus.moreGoes, false, indent));
   out.push(...blocks('Functions written inside it that cases ran', focus.inner, focus.moreInner, indent));
   return out;
@@ -98,9 +113,11 @@ function region(focus: JourneysRegion, indent: string): readonly string[] {
 /** The line asked about, where it sits, and whether the recording saw it. */
 function lineHead(file: JourneysFile, line: number): string {
   const asked = `${file.file}:${line}`;
-  const then = file.changed === true
+  const changed = file.changed === true
     ? file.atCommit == null ? ' The file changed since the recording.' : ` The file changed since the recording; this was line ${file.atCommit} then.`
     : '';
+  const today = file.unplaced == null ? '' : ` The line is read as it is numbered today, because ${file.unplaced}.`;
+  const then = `${changed}${today}`;
   if (file.writtenSince) return `  ${asked}  was written after the recording, so no recorded case ran it.${then}`;
   const holding = file.holding == null ? '' : `; the line is in a ${file.holding.kind} (${lines(file.holding)}) that ${plural(file.holding.cases, 'case')} ran`;
   if (file.focus == null) return `  ${asked}  is in no function a recorded case ran${holding}.${then}`;
@@ -138,6 +155,9 @@ export function formatJourneys(journeys: readonly JourneysAround[]): readonly st
     }
     const commit = answer.commit == null ? '' : ` at commit ${answer.commit.slice(0, 12)}`;
     out.push('', `${named}, from the recording${commit}, ${plural(answer.cases, 'case')} walked over the static call graph:`);
+    if (answer.tree != null) {
+      out.push(`The files were parsed as the working tree has them, not as the recording ran them, because ${answer.tree}.`);
+    }
     if (!explained) {
       out.push(KNOWN);
       explained = true;
