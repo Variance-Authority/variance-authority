@@ -2,7 +2,7 @@
 
 You already have visual regression covered — `toHaveScreenshot`, Chromatic,
 Percy, `jest-image-snapshot` — and the question you bring to a red build is
-rarely *did these pixels move*. It is which tests this edit could reach, whether
+rarely *did these pixels change*. It is which tests this edit could affect, whether
 the change on screen is the change somebody authored, or why one state keeps
 disagreeing with itself. [Variance Authority](README.md) answers those from
 different readings — a parse of the source, a completed run report, a record of
@@ -12,7 +12,7 @@ This page is how you pick the reading before you pay for it.
 
 ## Start from the decision, not the tool
 
-A **subject** is one named UI state a run captures and compares against its
+A [**subject**](information.md#things-a-run-addresses) is one named UI state a run captures and compares against its
 approved baseline — a Storybook story, a route at a viewport, a component
 mounted in a test. Which reading you need depends on the decision, not on what
 renders those subjects.
@@ -70,7 +70,7 @@ Some evidence already exists in source, artifacts, retained history, or a
 running system. Read it where it is. Other evidence disappears with the
 process that produced it. Instrument that moment and retain the answer.
 
-Neither mode is inherently better. The question decides whether a source
+Neither mode is better in general. The question decides whether a source
 index, a browser observer, an execution trace, a comparison, or an existing
 external system should answer it. [Instruments](instruments.md) names the
 reading behind each product claim and where it stops.

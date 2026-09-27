@@ -70,7 +70,7 @@ export default async function Page({ params }: PageProps) {
         }
       : slug === "changed"
         ? {
-            "the-middle-carries-the-explanation": (
+            "the-explanation-is-in-the-middle": (
               <figure className="doc-figure doc-figure-panel">
                 <ChangePath />
                 <figcaption>

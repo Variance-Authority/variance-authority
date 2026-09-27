@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Attribution from "./Attribution";
 import BetterTests from "./BetterTests";
 import DiffReport from "./DiffReport";
+import EverywhereAtOnce from "./EverywhereAtOnce";
 import EvidenceMap from "./EvidenceMap";
 import EvidenceSlices from "./EvidenceSlices";
 import GreatData from "./GreatData";
@@ -19,6 +20,8 @@ import TestStory from "./TestStory";
 import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
+  "adjacent-possible":
+    "Visual review is where Variance Authority starts. Every capability on the ring works from the same centre, and each one made the next cheaper to build.",
   tests:
     "The test proves that its codified path still holds. It cannot prove that nothing else changed.",
   "better-tests":
@@ -169,6 +172,12 @@ export default function DocumentFigure({ slug }: { slug: string }) {
       return (
         <Figure caption={CAPTIONS["test-stories"]!}>
           <TestStory />
+        </Figure>
+      );
+    case "adjacent-possible":
+      return (
+        <Figure caption={CAPTIONS["adjacent-possible"]!}>
+          <EverywhereAtOnce />
         </Figure>
       );
     default:

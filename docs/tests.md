@@ -28,7 +28,7 @@ the interface changed. That can be harmless, intended, or damage, and the pass
 alone cannot separate the three.
 
 The pass has answered the question it was written to answer. To ask what changed
-beside that promise, keep [the middle of the change](changed.md#the-middle-carries-the-explanation)
+beside that promise, keep [the middle of the change](changed.md#the-explanation-is-in-the-middle)
 rather than weakening the assertion until it notices everything.
 
 ## Confidence has a boundary and a bill
@@ -46,20 +46,20 @@ Spend that effort where it buys confidence:
   when it tells you something the existing cases do not.
 - **Choose the level that can answer the question.** Exercise calculation close
   to the logic, use integration tests for the contracts between parts, and
-  product journeys for whether those parts deliver the promise.
+  end-to-end tests for whether those parts deliver the promise.
 - **Keep the protection while the risk remains.** A migration rehearsal may
   serve one change; a regression test can keep the same mistake from returning
-  for years. Its lifetime follows the promise, even as implementations come
-  and go.
+  for years. It stays as long as the promise does, through any number of
+  implementations.
 
-Coverage settles none of this. It answers whether an execution reached code, not
+Coverage settles none of this. It answers whether code ran, not
 whether the test noticed the behaviour that matters, would fail when that
 behaviour breaks, or can explain the cause when it does. A suite can execute
 every line and leave its important promises untested.
 
 Adding an assertion for every nuance increases the work, couples the test to
-details, and turns unrelated changes into failures. Add tests while they
-materially improve confidence in the changes ahead; when the next one mostly
+details, and turns unrelated changes into failures. Add tests while each one
+improves confidence in the changes ahead; when the next one mostly
 repeats what the suite already tells you, look for a risk it leaves open before
 adding to the count.
 
@@ -71,8 +71,8 @@ test cannot supply the second one when the intended effect sits outside its
 assertion.
 
 Neither substitutes for the other. Preserving the path while producing no effect
-means the work did not land. Producing the effect while breaking the path means
-it landed badly.
+means the change did nothing. Producing the effect while breaking the path means
+the change did what you wanted and broke what you promised.
 
 [Seeing what changed](changed.md) is the companion question, and
 [Variance Authority](README.md) answers it from what a run recorded beside your

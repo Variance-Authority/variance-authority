@@ -29,6 +29,7 @@ export const NAVIGATION = [
       { href: "/docs/reasoning", label: "Follow the reasoning loop" },
       { href: "/docs/evidence-field", label: "Use the evidence you have" },
       { href: "/docs/great-data", label: "What one run leaves you" },
+      { href: "/docs/adjacent-possible", label: "Why it does so many things" },
     ],
   },
   {

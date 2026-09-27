@@ -1,4 +1,5 @@
 import acrossDimensions from "../../../docs/across-dimensions.md?raw";
+import adjacentPossible from "../../../docs/adjacent-possible.md?raw";
 import architecture from "../../../docs/architecture.md?raw";
 import agentCli from "../../../docs/agent-cli.md?raw";
 import agentCodeReview from "../../../docs/agent-code-review.md?raw";
@@ -100,6 +101,7 @@ const documents = [
   ["reasoning", reasoning, "docs/reasoning.md"],
   ["evidence-field", evidenceField, "docs/evidence-field.md"],
   ["great-data", greatData, "docs/great-data.md"],
+  ["adjacent-possible", adjacentPossible, "docs/adjacent-possible.md"],
   ["better-tests", betterTests, "docs/better-tests.md"],
   ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
   ["test-level-coverage", testLevelCoverage, "docs/test-level-coverage.md"],
