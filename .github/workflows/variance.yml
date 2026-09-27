@@ -129,6 +129,15 @@ jobs:
       - shell: bash
         run: yarn build
 
+      # In the checkout, not in `~`, so the entry `variance-shards.yml` saves
+      # unpacks where this run reads it: `actions/cache` stores a path relative
+      # to the workspace, and `~` sits somewhere else relative to it inside a
+      # container than on a bare runner. Set after the install, so nothing else
+      # that reads `XDG_CACHE_HOME` moves with it.
+      - name: keep the cache in the checkout
+        shell: bash
+        run: echo "XDG_CACHE_HOME=$GITHUB_WORKSPACE/.variance/cache" >> "$GITHUB_ENV"
+
       # The subject has to exist before it can be observed, and Storybook's own
       # build is what produces the `index.json` the collector reads. `yarn build`
       # above builds this repository's packages and knows nothing about it.
@@ -166,7 +175,7 @@ jobs:
       - name: restore the mainline evaluation
         uses: actions/cache/restore@v4
         with:
-          path: ~/.cache/variance-authority/suite
+          path: .variance/cache/variance-authority/suite
           key: variance-suite-${{ github.sha }}
           restore-keys: |
             variance-suite-

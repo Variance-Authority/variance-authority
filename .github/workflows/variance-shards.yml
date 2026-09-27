@@ -136,12 +136,24 @@ jobs:
       - shell: bash
         run: yarn build
 
+      # The cache in the checkout, not in `~`. `actions/cache` stores a path
+      # relative to the workspace, and `~` sits somewhere else relative to it
+      # inside a container than on a bare runner: an entry the merge job saves
+      # from `~/.cache` unpacks, in a container shard, at `/.cache`, where no run
+      # reads, and the shards place by checksum with nothing red to say so. What
+      # the cache holds is already portable — every path in it is relative to
+      # the repository root — so only where it sits has to agree. Set after the
+      # install, so nothing else that reads `XDG_CACHE_HOME` moves with it.
+      - name: keep the cache in the checkout
+        shell: bash
+        run: echo "XDG_CACHE_HOME=$GITHUB_WORKSPACE/.variance/cache" >> "$GITHUB_ENV"
+
       # The suite index and subject costs mainline recorded. Every shard restores
       # the same entry and reads the same costs, so every shard places the same.
       - name: restore the mainline evaluation
         uses: actions/cache/restore@v4
         with:
-          path: ~/.cache/variance-authority/suite
+          path: .variance/cache/variance-authority/suite
           key: variance-suite-${{ github.sha }}
           restore-keys: |
             variance-suite-
@@ -230,16 +242,10 @@ jobs:
 
     runs-on: ubuntu-24.04
 
-    # The shards' image, and not for a browser: `report`, `share` and `comment`
-    # open none. It is for the cache entry this job saves. `actions/cache` stores
-    # a path relative to the workspace, and the workspace and `~` sit in
-    # different places inside a container than outside one — so an entry saved
-    # from a bare runner unpacks, in the next build's shards, somewhere their run
-    # never reads, and they place by checksum with nothing red to say so. One
-    # layout for every job that touches the entry keeps it where it was saved.
-    container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
-
+    # No container. `report`, `share` and `comment` open no browser, so this job
+    # has no reason to pay for an image, and giving it one would invite somebody
+    # to run a subject here. The cache entry it saves unpacks in the shards'
+    # container all the same, because both keep it in the checkout.
     permissions:
       contents: read
       pull-requests: write
@@ -252,6 +258,11 @@ jobs:
 
       - shell: bash
         run: yarn build
+
+      # In the checkout, for the reason given at the same step in the shard job.
+      - name: keep the cache in the checkout
+        shell: bash
+        run: echo "XDG_CACHE_HOME=$GITHUB_WORKSPACE/.variance/cache" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@v4
         with:
@@ -345,7 +356,7 @@ jobs:
       - name: restore the mainline evaluation
         uses: actions/cache/restore@v4
         with:
-          path: ~/.cache/variance-authority/suite
+          path: .variance/cache/variance-authority/suite
           key: variance-suite-${{ github.sha }}
           restore-keys: |
             variance-suite-
@@ -378,7 +389,7 @@ jobs:
         name: keep the mainline evaluation
         uses: actions/cache/save@v4
         with:
-          path: ~/.cache/variance-authority/suite
+          path: .variance/cache/variance-authority/suite
           key: variance-suite-${{ github.sha }}
 
       - if: ${{ github.event_name == 'pull_request' && steps.report.outputs.exit-code != '2' }}

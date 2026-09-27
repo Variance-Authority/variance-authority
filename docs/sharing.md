@@ -231,20 +231,33 @@ command with `npx variance share --ref <ref>`.
 ## GitHub Actions
 
 The expected arrangement, and the one to use first: a cache step around the
-directory the index is kept in, before the run. That directory is
-`<cache>/suite`, which is `~/.cache/variance-authority/suite` unless your
-repository names another [cache](cache.md):
+directory the index is kept in, before the run. Keep that directory in the
+checkout, by naming the [cache](cache.md) in the `variance.config.json` at your
+repository root:
+
+```json
+{ "cacheRoot": ".variance/cache" }
+```
 
 ```yaml
       - name: Restore the mainline evaluation
         uses: actions/cache@v4
         with:
-          path: ~/.cache/variance-authority/suite
+          path: .variance/cache/suite
           key: variance-suite-${{ github.sha }}
           restore-keys: |
             variance-suite-
       - run: npx variance run --commit ${{ github.sha }} --run ${{ github.run_id }}
 ```
+
+Everything in the index is already portable: every path in it is relative to
+the repository root. Where the directory sits is what `actions/cache` records,
+relative to the workspace, and `~` is somewhere else relative to the workspace
+inside a container than on a bare runner. A sharded build usually has both — the
+shards in the browser's image, the merge job without one — and an entry the
+merge saves from `~/.cache` unpacks in the next build's shards at `/.cache`,
+where no run reads. The shards then place by checksum, and nothing turns red to
+say so. In the checkout, the entry lands where it was saved in every job.
 
 No `share` section is needed for this. The run writes its index into that
 directory, `actions/cache` saves it under this commit's key, and the next job —
