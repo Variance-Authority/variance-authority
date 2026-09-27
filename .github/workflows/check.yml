@@ -3,13 +3,14 @@ name: check
 # This repository's own gate. Everything in it that is a decision is commented as
 # one.
 #
-# This job runs the suite and the repository's own rules, and it launches no
-# browser — see the note at the bottom of the steps. Until it existed, nothing ran
-# `yarn build`, `yarn check` or `yarn test` anywhere but a laptop, so
-# `tools/boundaries.check.ts` and the `tools/docs-*.check.ts` rules were enforcing
-# themselves only against whoever happened to type the command.
+# These jobs run the suite and the repository's own rules, one job per harness,
+# and they launch no browser — see the note at the bottom of the suite's steps.
+# Until they existed, nothing ran `yarn build`, `yarn check` or `yarn test`
+# anywhere but a laptop, so `tools/boundaries.check.ts` and the
+# `tools/docs-*.check.ts` rules were enforcing themselves only against whoever
+# happened to type the command.
 #
-# `.github/workflows/variance.yml` answers the other half: it observes
+# `.github/workflows/variance-shards.yml` answers the other half: it observes
 # `cases/storybook-case` in a pinned container and gates on what moved. Both are
 # this repository's gates. A green check here is still not a green suite, and a
 # green variance run is about twelve stories in a fixture rather than about this
@@ -29,7 +30,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  rules:
+    # The repository's own rules, read as data: lint, and the `tools/*.check.ts`
+    # suite. The cheapest failures there are, so they report while the suite is
+    # still installing.
     runs-on: ubuntu-24.04
 
     steps:
@@ -68,16 +72,15 @@ jobs:
         shell: bash
         run: yarn build
 
-      # Between build and test because it is the fastest of the three and its
-      # failures are the cheapest to act on: an unused import is a one-line fix,
-      # and finding it after a 35-second suite wastes the difference.
+      # Before the checks because it is the fastest of the two and its failures
+      # are the cheapest to act on: an unused import is a one-line fix.
       - name: lint
         shell: bash
         run: yarn lint
 
-      # Before the tests, because a repository in an illegal state — a dangling
-      # link, an undeclared import, a file past the size limit — is cheaper to
-      # learn about in half a second than after a 35-second suite. These are
+      # In its own job rather than before the suite, so a repository in an
+      # illegal state — a dangling link, an undeclared import, a file past the
+      # size limit — is reported in seconds whatever the suite does. These are
       # checks and not tests: they exercise no behaviour and have no subject,
       # they read the repository as data. `yarn test` used to run them too, and
       # over half of what it reported as passing tests was this.
@@ -85,19 +88,60 @@ jobs:
         shell: bash
         run: yarn check
 
+  measure:
+    # Timed on a machine nothing else is running on. The suite instruments every
+    # module it loads and heats the machine doing it, so a bound on what the
+    # product costs is read in its own job rather than after three hundred files.
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24, for the reason written at the same step in `rules`.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - name: build
+        shell: bash
+        run: yarn build
+
       # The cost arguments, timed. Separate from the suite because the suite
       # instruments every product module it loads, and a bound on how long the
       # product takes cannot be read through the thing reading it — see
-      # `vitest.measure.config.ts`. Before the suite because it is seconds, and
-      # because a machine that has just run three hundred files is not the one
-      # these numbers describe.
+      # `vitest.measure.config.ts`. Its own job because a machine that has just
+      # run three hundred files is not the one these numbers describe.
       - name: measure
         shell: bash
         run: yarn measure
 
+  suite:
+    # `vitest run`, the unit suites and the corpus.
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24, for the reason written at the same step in `rules`.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - name: build
+        shell: bash
+        run: yarn build
+
       # `vitest run` is the unit suites and the corpus. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
-      # 2026-08-04 and now run in the step above.
+      # 2026-08-04 and now run in the `rules` job.
       - name: test
         shell: bash
         run: yarn test
@@ -125,3 +169,27 @@ jobs:
         shell: bash
         run: |
           echo "::notice::Browser suites did not run: no Chromium is installed. Every measurement in this repository comes from one Mac and one Chromium, and re-measuring on Linux is docker/linux-verify.sh, which has never been executed."
+
+  # The one check a branch rule names, and the one line that combines the three
+  # above. `needs` alone would skip this job when one of them failed, and a
+  # skipped job counts as passing to a branch rule — so it runs `always()` and
+  # turns every harness's result into its own colour. Anything but `success`
+  # is red, `cancelled` and `skipped` included: a harness that did not finish
+  # said nothing about the change.
+  check:
+    needs: [rules, measure, suite]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: combine the harnesses
+        shell: bash
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          failed=$(echo "$RESULTS" | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key): \(.value.result)"')
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if [ -n "$failed" ]; then
+            echo "::error::not every harness passed — $(echo "$failed" | paste -sd, -)"
+            exit 1
+          fi

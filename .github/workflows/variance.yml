@@ -14,6 +14,14 @@ name: variance
 # interface. That is the gap it closes and the gap it does not:
 # [`site/`](../../site) still has no subject of any kind.
 #
+# ## On demand, because the gate is sharded
+#
+# `variance-shards.yml` observes the same twelve subjects on every pull request
+# and every push to `main`, and it is the gate. This file observes them in one
+# job, and runs only when somebody dispatches it: to accept, or to compare the
+# suite unsharded when a sharded answer looks wrong. The two render their dockets
+# with the same marker, so on the same event they would fight over one comment.
+#
 # ## Where the baselines come from, since nothing here is committed
 #
 # `.variance/` is ignored, on purpose: a record changes whenever the document
@@ -21,9 +29,10 @@ name: variance
 # moved no pixel. So the store is the runner's cache, and three events read it
 # while exactly one writes it.
 #
-# - **`pull_request`** and **`push` to `main`** compare. Both restore the newest
-#   store and gate on the CLI's exit code. Both are red when pixels moved, and
-#   neither promotes anything.
+# - **`pull_request`** and **`push` to `main`** compare, in `variance-shards.yml`.
+#   Both restore the newest store and gate on the CLI's exit code. Both are red
+#   when pixels moved, and neither promotes anything.
+# - **`workflow_dispatch`** here compares the same way, in one job.
 # - **`workflow_dispatch` with `accept: true`** promotes. It runs with
 #   `--exit-zero-on-changes`, accepts what that run proposed, and saves the store.
 #
@@ -60,7 +69,10 @@ name: variance
 # baselines this workflow writes are comparable with the ones produced there. Pin
 # it by digest for a guarantee that survives a tag being moved.
 #
-# ## Why `pull_request` and not `pull_request_target`
+# ## Why the gate is `pull_request` and not `pull_request_target`
+#
+# Said here because this is the file you copy first, and it holds for
+# `variance-shards.yml`, which is the gate in this repository.
 #
 # `pull_request` gives a fork's run a read-only token, so the docket cannot be
 # posted as a comment on a pull request from a fork. That is a real limitation and
@@ -70,9 +82,6 @@ name: variance
 # check's verdict still arrives as the exit code, which no token can change.
 
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
     inputs:
       accept:
@@ -95,8 +104,8 @@ permissions:
 # duplication the marker exists to prevent.
 #
 # `cancel-in-progress` on `main` as well, and that is safe here: a cancelled paint
-# saves no cache, so the previous store stays the newest one and the next push
-# repaints from the same place.
+# saves no cache, so the previous store stays the newest one and the next
+# dispatch repaints from the same place.
 concurrency:
   group: variance-${{ github.ref }}
   cancel-in-progress: true
@@ -150,10 +159,10 @@ jobs:
           restore-keys: |
             variance-baselines-playwright-v1.62.1-noble-
 
-      # The suite index and subject costs this run publishes under its commit —
-      # it names itself from `GITHUB_RUN_ID` and `GITHUB_SHA` — kept where the
-      # next build looks: a pull request's run starts from main's, and the
-      # sharded workflow balances its shards on main's costs.
+      # The suite index mainline's sharded builds saved, which this run reads
+      # rather than deriving again. It publishes its own under its commit — it
+      # names itself from `GITHUB_RUN_ID` and `GITHUB_SHA` — and saves nothing:
+      # the entry has one writer, the gate's merge job.
       - name: restore the mainline evaluation
         uses: actions/cache/restore@v4
         with:
@@ -162,14 +171,16 @@ jobs:
           restore-keys: |
             variance-suite-
 
-      # The gate, on both events that are not an acceptance. It exits 1 when a
+      # The compare, on every dispatch that is not an acceptance. It exits 1 when a
       # subject moved and nothing here suppresses that, on `main` as much as on a
       # branch: a red `main` is the tool saying the pixels are not the ones
       # anybody approved, and the way to answer it is to look and then dispatch an
       # accept — not to make the check quieter.
       #
-      # `comment` is on only where there is a pull request to comment on. On a
-      # push the action would render a docket, find no issue number, and warn.
+      # `comment` is on only where there is a pull request to comment on, which a
+      # dispatch never is here; the expression stays so a copy that runs this
+      # file on `pull_request` comments without an edit. Elsewhere the action
+      # would render a docket, find no issue number, and warn.
       - if: ${{ !inputs.accept }}
         id: variance
         uses: ./.github/actions/variance
@@ -236,15 +247,6 @@ jobs:
           node packages/cli/dist/bin.js accept \
             --config cases/storybook-case/variance.config.json \
             --all
-
-      # Mainline's only: a pull request's costs are timed on a change nobody has
-      # merged, and every build after it would balance on them.
-      - if: ${{ always() && github.event_name == 'push' && steps.variance.outputs.exit-code != '2' }}
-        name: keep the mainline evaluation
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.cache/variance-authority/suite
-          key: variance-suite-${{ github.sha }}
 
       # Saved under this commit's sha, so the next pull request restores this run
       # and not an older one. A key that already exists is not overwritten, which

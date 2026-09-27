@@ -31,11 +31,16 @@ The other two files here, [`check.yml`](check.yml) and
 [`release.yml`](release.yml), are this repository's own build and publish. They
 are not recipes and observe nothing.
 
-Here, the gate runs on every pull request and on every push to `main`, the sweep
-nightly, and the shards on demand only — sharding twelve subjects across three
-installs saves nothing, and the shards find their pull-request comment by the
-same hidden HTML marker the gate uses, so on the same event the two would
-overwrite each other.
+Here, the shards are the gate: they run on every pull request and every push to
+`main`, two shards over the twelve subjects, and their merge job combines the
+shards into one verdict, one docket and one published suite index. `variance.yml`
+runs on demand, to accept or to compare unsharded, because it finds its
+pull-request comment by the same hidden HTML marker, so on the same event the
+two would overwrite each other. The sweep runs nightly.
+
+`check.yml` runs one job per harness — the repository's rules, the timed
+measurements, and the vitest suite — and a `check` job that turns their three
+results into the one check a branch rule names.
 
 ## How the CLI reaches the runner
 
@@ -86,8 +91,9 @@ pixel. The store is the runner's cache instead, written by `variance.yml` under
 `accept: true` and by nothing else.
 
 Every run restores it and none of them writes it. A pull request and a push to
-`main` are both gates, both red when a subject moved, and the way to answer a red
-one is to look at the comment and then dispatch an accept. A cache key that does
+`main` are both gates, in `variance-shards.yml`, both red when a subject moved,
+and the way to answer a red one is to look at the comment and then dispatch an
+accept. A cache key that does
 not match the renderer cannot produce a wrong diff: a baseline whose identity
 differs from the run's is reported `incomparable` and no image is produced, so
 the worst a stale key does is make a check loud.

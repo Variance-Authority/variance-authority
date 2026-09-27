@@ -27,7 +27,7 @@ name: variance shards
 # ## What the merge job publishes
 #
 # The suite index and the subject costs, once, for the whole build. No shard
-# publishes either: a shard composed a third of the suite, and an index counted
+# publishes either: a shard composed part of the suite, and an index counted
 # from it would be believed as the whole. Each shard writes its part of the index
 # beside its report instead — `report.suite-part.json`, in the artifact it
 # already uploads — and `share --publish` over every shard's report composes the
@@ -39,18 +39,23 @@ name: variance shards
 # which is why they check out with full history: a shallow clone has no merge
 # base to walk from, and places by checksum.
 
-# ## Why this one is not on `pull_request` here, and would be in your repository
+# ## This is the gate here
 #
-# It observes the same twelve subjects `variance.yml` does, and the two render
-# their dockets with the same marker — so run on the same event they would fight
-# over one comment, each rewriting the other. A repository picks one gate. This
-# one is kept on demand because the suite it would shard is a fixture with twelve
-# subjects, where sharding costs three installs to save nothing.
+# It runs on every pull request and every push to `main`, over the twelve
+# subjects of `cases/storybook-case` in five story files, and it is the check
+# whose colour a change is held to. `variance.yml` observes the same subjects
+# with the same comment marker, so it runs on demand only: on the same event the
+# two would fight over one comment, each rewriting the other. A repository picks
+# one gate.
 #
-# Add `pull_request:` below and delete the gate workflow to swap them. Nothing
-# else in this file changes: the docket steps in the merge job already ask what
-# event they are on, and post only when there is a pull request to post to.
+# Two shards, not more: five files is not a suite that needs sharding, and a
+# third shard would buy an install and a Storybook build to save nothing. What
+# the fixture proves is the wiring — placement, the merge, the composed index —
+# on every change, rather than on the day somebody dispatches it.
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -80,9 +85,8 @@ jobs:
           # One entry per shard; the count is the `n` of `--shard k/n`, and the
           # merge job reads it from here rather than being told a second time.
           shards='[
-            {"name": "1-of-3", "shard": "1/3"},
-            {"name": "2-of-3", "shard": "2/3"},
-            {"name": "3-of-3", "shard": "3/3"}
+            {"name": "1-of-2", "shard": "1/2"},
+            {"name": "2-of-2", "shard": "2/2"}
           ]'
 
           {
@@ -114,7 +118,7 @@ jobs:
     # Every shard in the same image, and this one is not optional the way the
     # sweep's pin is. Shards whose renderer identity differs were not one run, and
     # the merge refuses them naming both files (ADR-0011). A matrix that varied
-    # the image would produce three reports that cannot be added up.
+    # the image would produce reports that cannot be added up.
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
       options: --ipc=host
@@ -178,25 +182,25 @@ jobs:
 
           # Identical across shards, and it has to be: the merge refuses shards
           # whose `--intent` differs, because a run's intent is what lets the
-          # verdict say *this is the change you said you were making*, and three
-          # shards claiming three intents were three runs.
+          # verdict say *this is the change you said you were making*, and shards
+          # claiming different intents were different runs.
           intent: ${{ github.event.pull_request.title || format('sharded run of {0}', github.sha) }}
 
           # OFF, once per shard, and the reason is not the same as the gate's.
           # There, one comment per run is what the marker keeps in place. Here,
-          # three shards commenting would produce three dockets each describing a
-          # third of the suite, and the marker would make them fight over one
+          # shards commenting would produce one docket each, every one describing
+          # part of the suite, and the marker would make them fight over one
           # comment — each rewriting the last with a narrower answer.
           comment: 'false'
 
           # OFF, and it must stay off in a sharded workflow specifically. `accept
-          # --all` in a shard promotes what *that shard* observed, so three
-          # concurrent jobs would race to push three partial baseline commits to
-          # one branch. Approval belongs to a person, after the merged docket.
+          # --all` in a shard promotes what *that shard* observed, so concurrent
+          # jobs would race to push partial baseline commits to one branch.
+          # Approval belongs to a person, after the merged docket.
           commit-baselines: 'false'
 
       # The report, kept whole. `--format html` is not rendered per shard: image
-      # paths in it are relative to the report, and a page describing a third of
+      # paths in it are relative to the report, and a page describing part of
       # the suite would look like a complete run with most of it missing.
       - if: always()
         uses: actions/upload-artifact@v4
@@ -226,9 +230,16 @@ jobs:
 
     runs-on: ubuntu-24.04
 
-    # No container. `report` and `comment` open nothing — no browser, no store, no
-    # network beyond the comment itself — so this job has no reason to pay for an
-    # image, and giving it one would invite somebody to run a subject here.
+    # The shards' image, and not for a browser: `report`, `share` and `comment`
+    # open none. It is for the cache entry this job saves. `actions/cache` stores
+    # a path relative to the workspace, and the workspace and `~` sit in
+    # different places inside a container than outside one — so an entry saved
+    # from a bare runner unpacks, in the next build's shards, somewhere their run
+    # never reads, and they place by checksum with nothing red to say so. One
+    # layout for every job that touches the entry keeps it where it was saved.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+
     permissions:
       contents: read
       pull-requests: write
@@ -248,8 +259,8 @@ jobs:
           path: shards
           # NOT `merge-multiple`. Every shard writes its report to the same path
           # from its config, so flattening them into one directory would have each
-          # overwrite the last and leave one file where there should be three —
-          # and `variance report` over one file is a valid, quiet, wrong answer
+          # overwrite the last and leave one file where there should be one per
+          # shard — and `variance report` over one file is a valid, quiet, wrong answer
           # about the suite.
           merge-multiple: false
 
@@ -340,7 +351,7 @@ jobs:
             variance-suite-
 
       # The suite index composed from every shard's part, and what each subject
-      # cost, under this commit. Saved so the next build reads one evaluation and
+      # cost, under this commit. Saved on a push so the next build reads one evaluation and
       # its shards balance on it. Skipped when the merge refused: the shards were
       # not one run, and their parts are not one suite's.
       - if: ${{ steps.report.outputs.exit-code != '2' }}
@@ -359,11 +370,16 @@ jobs:
           node packages/cli/dist/bin.js share --publish \
             --config cases/storybook-case/variance.config.json "${reports[@]}"
 
-      - if: ${{ steps.report.outputs.exit-code != '2' }}
+      # Mainline's only: a pull request's costs are timed on a change nobody has
+      # merged, and every build after it would balance on them. This is the one
+      # writer of the entry now that the unsharded workflow runs on demand, so
+      # the key is the commit and nothing else.
+      - if: ${{ github.event_name == 'push' && steps.report.outputs.exit-code != '2' }}
+        name: keep the mainline evaluation
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/variance-authority/suite
-          key: variance-suite-${{ github.sha }}-shards
+          key: variance-suite-${{ github.sha }}
 
       - if: ${{ github.event_name == 'pull_request' && steps.report.outputs.exit-code != '2' }}
         id: render
@@ -383,7 +399,7 @@ jobs:
           done <<< "$REPORTS"
 
           # Naming reports replaces the configured one rather than adding to it,
-          # so this body is about the three shards and nothing else. The body is
+          # so this body is about the shards and nothing else. The body is
           # written even when empty: the poster distinguishes "nothing needs
           # review" — which may clear a previous docket — from "the render never
           # happened", which may not.
