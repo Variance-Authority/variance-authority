@@ -91,6 +91,12 @@
       "default": 1,
       "description": "How many subjects may be in the raster tier at once. Collection stays strictly serial however high this is set. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
     },
+    "workers": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "How many standing worlds collect at once, each from the collector's `openWorker` with its own serial lane. Files go to workers whole, longest recorded first, and a worker that finishes takes the next. A collector with no `openWorker` runs one, and the report says so."
+    },
     "cacheRoot": {
       "type": "string",
       "minLength": 1,

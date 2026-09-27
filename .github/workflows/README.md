@@ -138,8 +138,8 @@ What differs is what reaching `1` *means*:
 - In the gate, a subject changed.
 - In the sweep, a subject did not read the same way twice — **even when every
   verdict is green**. That is the finding, not a break.
-- In the shards, the merged suite changed, or a subject that every shard filtered
-  out is recorded as `failed`. A shard's own exit code is about its slice and is
+- In the shards, the merged suite changed, or a subject every shard left to
+  another is recorded as `failed`. A shard's own exit code is about its slice and is
   never the check's colour.
 
 ## Two things none of these files does

@@ -143,7 +143,7 @@ ids are the safe default after initial setup.
 ## Commands
 
 ```bash
-variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
+variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
@@ -159,7 +159,7 @@ variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shar
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
-variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]
+variance share   [--config <path>] [--ref <ref>] [--publish] [<report>...]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
 ```
 
@@ -177,7 +177,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one |
-| `share` | says what the share has for mainline, or publishes what this run derived |
+| `share` | says what the share has for mainline, or publishes what this run derived and what each subject cost |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
 | `serve` | exposes the last run's report, and the source questions `ask` answers, to an MCP client over stdio |
@@ -1211,10 +1211,45 @@ checkout.
 
 ### Sharding: `report` takes more than one file
 
-A suite big enough to split across CI jobs runs `variance run --subjects <glob>`
-once per job and ends with one artifact each. Name them all and `report` answers
-about the suite, not about a slice — one exit code, one body for
-`comment`:
+A suite big enough to split across CI jobs runs `variance run --shard k/n` once
+per job:
+
+```bash
+variance run --shard 1/3    # and 2/3, 3/3 in the other two jobs
+```
+
+Every job computes the same split without talking to the others, and the split
+follows three rules:
+
+- **A file goes to one shard whole.** Every story one CSF file declares, and
+  every width of one route, are observed by the same job. They import the same
+  modules, so two jobs would each pay to load them.
+- **Recorded cost decides first.** Each observation in a report records
+  `costMs`, the time from its collection to its verdict. The run reads the costs
+  mainline recorded at the newest commit this checkout descends from, and places
+  the longest files first, each on the shard with the least work so far. A
+  subject with no recorded cost is priced at the median of the ones that have
+  one.
+- **A checksum decides when nothing was recorded.** Each file goes to the shard
+  with the highest `sha256` of the file and the shard number, so adding a file
+  moves no other one.
+
+Costs are published from the whole suite, never from one shard: name every
+shard's report to `share --publish`, and it writes the costs under the commit
+the shards share.
+
+```bash
+variance share --publish shard-1.json shard-2.json shard-3.json
+```
+
+The lookup is the same one the [suite index](../../docs/sharing.md#looking-up)
+uses: a checkout with no history to walk places by checksum.
+
+`--subjects <glob>` is the other way to split, when you want to choose the
+slices yourself.
+
+Either way each job ends with one report. Name them all and `report` answers
+about the suite, not about a slice — one exit code, one body for `comment`:
 
 ```bash
 variance report shard-1.json shard-2.json shard-3.json
@@ -1232,15 +1267,17 @@ Naming report files replaces the configured one; it does not merge into it.
 The merge refuses shards whose renderer identity, retention, or `--intent`
 (the free-text label recorded for what a run was meant to do) differ, naming
 both files — those were not one run. Two shards observing the same subject
-means the globs overlapped, which only the operator can resolve.
+means the slices overlapped, which only the operator can resolve.
 
 What it does accept is the arithmetic nobody wants to do by hand. Each shard
 records every subject outside its slice as `excluded`, so three shards report
 each subject as excluded twice and observed once; the merge resolves those
-against what was actually observed. **A subject that every shard filtered out is
-promoted to `failed` and turns the merged run red** — each shard exits `0`
+against what was actually observed. **A subject that every shard left to another
+is promoted to `failed` and turns the merged run red** — each shard exits `0`
 because each did exactly what it was told, and the merge is what notices the
-suite is missing a component.
+suite is missing a component. With `--shard`, an exclusion names the shard that
+owns the subject and what placed it there, so two jobs that read different costs
+show it in their reports.
 
 `comment` renders the same report as a pull-request body: causes first,
 collateral counted rather than listed, and **nothing when the check is green** —
@@ -1385,6 +1422,10 @@ owns its own collector, renderer, storage, or review surface:
   working tree differs from it by — and it travels into the report so a reader
   can see what `--since` would have cost on this run. `narrowingFor` resolves
   `since`, `against` and `index` together from the refs a caller was given.
+- `run` takes `shard` as `{ index, total }`, the library form of `--shard k/n`,
+  and `costs` as `{ commit, costs }`, the subject costs that place files on
+  shards and order each worker's queue longest first. The executable reads
+  `costs` from the share; without them a checksum places each file.
 - `formatReport` takes a `format` of `text`, `json`, or `html`. `subject` narrows
   text or JSON to one id and is refused for HTML because a narrowed page would
   hide coverage. Use the CLI's `report` command when the report must be loaded
@@ -1540,6 +1581,7 @@ The remaining top-level keys:
 | `sensitivity` | narrows a named subject to a sensitivity level |
 | `decoder` | which PNG implementation to use |
 | `concurrency` | how many subjects may be in flight at once |
+| `workers` | how many browser worlds one run collects in. Each world collects one subject at a time; a world that finishes takes the next file from a shared queue, longest file first. A collector without `openWorker` collects in one world and the run warns |
 | `intent` | the default `--intent` label |
 | `alone.limit` | how many changed subjects a run re-collects in isolation to confirm the change reproduces — the same budget `run --flakes` ignores, above |
 

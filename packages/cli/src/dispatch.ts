@@ -18,7 +18,6 @@ import {
   affectedProjects,
   historyFor,
   identityOf,
-  readCliRunReport,
   relationsFor,
   run,
   journeyAgainst,
@@ -28,7 +27,6 @@ import {
   storeFor,
   writeArtifactToDisk,
   writeCliRunReport,
-  type CliRunReport,
   type Plan,
 } from './commands/run.js';
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
@@ -43,7 +41,9 @@ import {
   readClaims,
 } from './commands/adjudicate.js';
 import { liveIgnores } from './commands/ignores.js';
-import { mergeReports } from './commands/merge.js';
+import { reportsAt } from './commands/merge.js';
+import { costsLine, mainlineCosts, publishedCostsLine } from './commands/costs.js';
+import { workersOf } from './commands/lanes.js';
 import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
@@ -139,10 +139,18 @@ export async function dispatch(
         process.env,
       );
 
+      // Read only when something is placed by them: a shard's files, or the order
+      // several workers take them in. Every shard of a build descends from one
+      // merge base, so every shard reads the same costs and agrees on placement.
+      const costs =
+        parsed.shard !== undefined || workersOf(effective) > 1 ? await mainlineCosts(effective) : null;
+
       try {
         const report = await run({
           config: effective,
           ...(parsed.subjects !== undefined ? { subjects: parsed.subjects } : {}),
+          ...(parsed.shard !== undefined ? { shard: parsed.shard } : {}),
+          ...(costs !== null ? { costs } : {}),
           ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
           ...(parsed.flakes ? { flakes: true } : {}),
           ...(identity !== undefined ? { identity } : {}),
@@ -152,6 +160,7 @@ export async function dispatch(
             store: await storeFor(effective),
             renderer: () => rendererFor(effective),
             now: () => new Date().toISOString(),
+            elapsed: () => performance.now(),
             writeArtifact: writeArtifactToDisk,
             writeReport: writeCliRunReport,
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
@@ -179,6 +188,7 @@ export async function dispatch(
         // publishing is the last thing a run does for somebody else, and the
         // first thing that must not change what this run concluded.
         const shared = await publishedLine(effective, report);
+        const priced = await publishedCostsLine(effective, report);
 
         // Last, and for the same reason: the cache this run may have added to
         // is regenerable, so nothing it does here can reach a verdict. It runs
@@ -190,7 +200,7 @@ export async function dispatch(
         const renders = renderCacheLine(await sweepRenders(effective));
 
         streams.out(
-          `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}${renders}`,
+          `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}${priced}${renders}`,
         );
         return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
       } finally {
@@ -199,7 +209,7 @@ export async function dispatch(
     }
 
     case 'report': {
-      const report = await reportsFor(parsed.reports, config);
+      const report = await reportsAt(parsed.reports, config.report);
       streams.out(
         formatReport({
           report,
@@ -223,7 +233,7 @@ export async function dispatch(
           ...parsed,
           ...(at === undefined ? {} : { at }),
           report: config.report,
-          read: () => reportsFor(parsed.reports, config),
+          read: () => reportsAt(parsed.reports, config.report),
         }),
       );
       // A reading is not a verdict. `report` and `adjudicate` are where a run is
@@ -236,7 +246,7 @@ export async function dispatch(
       // Both halves before either is used, so a broken declaration is reported
       // as a broken declaration rather than as a run with nothing in it.
       const claims = await readClaims(parsed.claims);
-      const report = await reportsFor(parsed.reports, config);
+      const report = await reportsAt(parsed.reports, config.report);
       const result = adjudicateReport({ report, claims });
 
       streams.out(formatAdjudication(result));
@@ -362,7 +372,7 @@ export async function dispatch(
       let pushed;
       try {
         pushed = await push({
-          report: await reportsFor(parsed.reports, config),
+          report: await reportsAt(parsed.reports, config.report),
           reportDir: dirname(config.report),
           review: config.review,
           build: identity.run,
@@ -396,12 +406,17 @@ export async function dispatch(
     }
 
     case 'share': {
-      streams.out(`${(await shareLines(config, parsed)).join('\n')}\n`);
+      const [only, ...more] = parsed.reports;
+      const lines = more.length === 0
+        ? await shareLines(config, { ...parsed, ...(only === undefined ? {} : { report: only }) })
+        : ['suite index: not published from a merge; each shard composed a slice of the suite'];
+      const costs = parsed.publish ? [await costsLine(config, await reportsAt(parsed.reports, config.report))] : [];
+      streams.out(`${[...lines, ...costs].join('\n')}\n`);
       return EXIT_CLEAN;
     }
 
     case 'comment': {
-      const report = await reportsFor(parsed.reports, config);
+      const report = await reportsAt(parsed.reports, config.report);
       const body = renderComment({
         report,
         ...(parsed.runUrl !== undefined ? { runUrl: parsed.runUrl } : {}),
@@ -466,21 +481,6 @@ function sideJob(
       'This job is reporting, not gating. Operator errors are still exit 2.\n',
   );
   return EXIT_CLEAN;
-}
-
-/**
- * The report the operator meant: the configured one, or the shards they named.
- *
- * Shared by `report` and `comment` so a sharded suite gets *one* of each. Having
- * only the first take shard paths would leave the pull-request body reading a
- * single slice while the text output described the suite — two answers about one
- * run, from one binary, differing by which subcommand asked.
- */
-async function reportsFor(paths: readonly string[], config: Config): Promise<CliRunReport> {
-  const named = paths.length === 0 ? [config.report] : paths;
-  return mergeReports(
-    await Promise.all(named.map(async (path) => ({ path, report: await readCliRunReport(path) }))),
-  );
 }
 
 /** The generic half of planning, when the config named a source that has one. */

@@ -77,6 +77,9 @@ export interface PlannedSubject {
    * apply here, rather than applying to everything.
    */
   readonly tags?: readonly string[];
+
+  /** What declares the subject; every width of one route shares its route. */
+  readonly declaredIn?: string;
 }
 
 export interface Plan {
@@ -152,6 +155,13 @@ export interface Collector {
    * up to `alone.limit`.
    */
   collectAlone?(subject: PlannedSubject): Promise<Collected>;
+
+  /**
+   * Another standing world from the same recipe and the same server, for a
+   * second worker. Optional in the contract the CLI declares; absent, a run
+   * configured with `workers` collects in one world and says so.
+   */
+  openWorker?(): Promise<Collector>;
 
   close(): Promise<void>;
 }

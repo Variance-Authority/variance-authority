@@ -41,14 +41,23 @@ export type { NotObserved, NotObservedKind } from '@variance-authority/report';
  * package, and the check below is what keeps them from drifting apart.
  */
 const SHARD_FILTER = 'did not match --subjects ';
+const SHARD_OWNED = 'assigned to shard ';
 
 export function shardFilterBecause(glob: string): string {
   return `${SHARD_FILTER}${glob}`;
 }
 
+/** `--shard`'s sentence: whose subject this is, and what decided it. */
+export function shardOwnedBecause(index: number, total: number, by: string): string {
+  return `${SHARD_OWNED}${index}/${total} by ${by}, with every subject its file declares`;
+}
+
 /** Whether an entry is another shard's subject rather than a decision. */
 export function isShardFilter(entry: NotObserved): boolean {
-  return entry.kind === 'excluded' && entry.because.startsWith(SHARD_FILTER);
+  return (
+    entry.kind === 'excluded' &&
+    (entry.because.startsWith(SHARD_FILTER) || entry.because.startsWith(SHARD_OWNED))
+  );
 }
 
 /**
@@ -135,6 +144,14 @@ export interface CliObservationRecord extends ObservationRecord {
    * exactly as they did.
    */
   readonly placement?: string;
+
+  /**
+   * Wall milliseconds from this subject's first collection to its decision,
+   * second readings included — what the next run's `--costs-from` balances on.
+   *
+   * Absent when the run could not time it, never zero.
+   */
+  readonly costMs?: number;
 }
 
 /**

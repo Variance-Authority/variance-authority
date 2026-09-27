@@ -11,6 +11,7 @@ import type { JourneyReading } from './journeys.js';
 import type { InstallDiff } from './installed.js';
 import type { MovedExports } from './reach.js';
 import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
+import type { Costs, Shard } from './shard.js';
 
 /**
  * What a run is handed, and what one subject's decision is handed.
@@ -41,6 +42,11 @@ export interface RunDeps {
   renderer(): Promise<Renderer>;
   /** ISO 8601. Injected because nothing in a report should come from a hidden clock. */
   now(): string;
+  /**
+   * A monotonic clock in milliseconds, for `costMs`. Absent means no subject is
+   * timed: a cost read off a test's fake clock would balance nothing real.
+   */
+  readonly elapsed?: () => number;
   /** Writes candidate images. Injected so the run loop is testable with no disk. */
   writeArtifact(path: string, bytes: Buffer): Promise<void>;
   writeReport(path: string, report: CliRunReport): Promise<void>;
@@ -130,6 +136,14 @@ export interface RunOptions {
   readonly intent?: string;
   /** `--subjects`. Non-matching subjects are listed as excluded, never dropped. */
   readonly subjects?: string;
+  /** `--shard k/n`. Subjects another shard owns are excluded with the shard's name. */
+  readonly shard?: Shard;
+  /**
+   * What each subject cost the newest mainline run this checkout descends from.
+   * Places groups on shards and orders the queue longest first; absent, a
+   * checksum places them and the queue keeps plan order.
+   */
+  readonly costs?: { readonly commit: string; readonly costs: Costs };
 
   /**
    * `--flakes`: read **every** subject twice, not only the ones that changed.

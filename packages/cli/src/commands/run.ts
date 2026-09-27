@@ -7,7 +7,7 @@ import { profileById, type SemanticSnapshot } from '@variance-authority/core/for
 import { RasterStoreError } from '@variance-authority/raster';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
-import { keyFor, matchesGlob, type Plan } from './collector.js';
+import { keyFor, type Plan } from './collector.js';
 import { observeOne } from './observe-one.js';
 import type { SubjectHistory } from './history.js';
 import { customProperties } from './history-rows.js';
@@ -17,11 +17,12 @@ import { variationsOf, variationsWanted } from './variations.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
-import { concurrencyOf, pool, serial } from './schedule.js';
+import { assign, declinedBy, placedElsewhere } from './shard.js';
+import { closeLanes, contextFor, openLanes, steal, timed, workersOf } from './lanes.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
 import { selectionFor } from './run-select.js';
 import { unplannedNotes } from './unplanned.js';
-import { shardFilterBecause, type CliObservationRecord, type CliRunReport, type NotObserved } from './run-report.js';
+import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
 
 /**
  * `variance run` — collect, decide, and write down what was decided.
@@ -52,9 +53,10 @@ import { shardFilterBecause, type CliObservationRecord, type CliRunReport, type 
  * observe, and where documents come from), `settle.ts` (whether a subject needs
  * an image at all), `observe-one.ts` (the decision about one subject),
  * `record.ts` (what the report records), `images.ts` (the bytes `accept` will
- * need), `alone.ts` (regression or leak), `schedule.ts` (how wide, and what may
- * never widen), `resources.ts` (decoder, store, disk) and `run-report.ts` (the
- * artifact's shape and its reader). Every public name any of them exports is
+ * need), `alone.ts` (regression or leak), `schedule.ts` and `lanes.ts` (how wide, and
+ * what may never widen), `shard.ts` (which subjects are this run's),
+ * `resources.ts` (decoder, store, disk) and `run-report.ts` (the artifact's
+ * shape and its reader). Every public name any of them exports is
  * re-exported below, so `commands/run.js` is still the one import path.
  */
 
@@ -214,12 +216,13 @@ async function observeAll(
   const varying = variationsWanted(plan, config.names);
   const retained = new Map<string, SemanticSnapshot>();
 
-  // The collector is a single standing world (ADR-0009), so exactly one call may
-  // be in flight — collecting two subjects at once would render them into one
-  // document and let each decide the other's verdict. The raster tier has no
-  // such constraint and is where the time is, so this is the shape: a serial
-  // lane for collection, everything downstream concurrent.
-  const collecting = serial();
+  // Which of the plan this shard owns, decided before anything is collected. A
+  // subject another shard owns is one this run never looks up, mounts or paints,
+  // and it is excluded under that shard's name so the merge can prove coverage.
+  const assignment = assign(plan.subjects, options.shard, options.costs?.costs);
+  for (const [index, entry] of placedElsewhere(plan.subjects, assignment, options)) {
+    slots[index] = { kind: 'not-observed', entry };
+  }
 
   let storeFailure: unknown;
 
@@ -242,21 +245,21 @@ async function observeAll(
   // a no-op; a store across a hop turns the whole suite into one request.
   deps.store.expect?.(
     plan.subjects
-      .filter((planned) => selected?.skipped.get(planned.subject.id) === undefined)
+      .filter((planned, i) => !selected?.skipped.has(planned.subject.id) && !assignment.elsewhere.has(i))
       .map(keyFor),
   );
 
-  await pool(concurrencyOf(config), plan.subjects, async (planned, index) => {
+  // Each lane is a standing world with one collection in flight (ADR-0009);
+  // lanes take whole files off one queue, longest first, until it is empty.
+  const { lanes, warnings: laneWarnings } = await openLanes(deps.collector, workersOf(config));
+  await steal(lanes, assignment.queue, config, async (index, lane) => {
+    const planned = plan.subjects[index]!;
     const id = planned.subject.id;
+    let started: number | undefined;
 
-    // `unreached`, not `excluded`: nobody configured this. The run derived from
-    // the diff and the stored baselines that the change cannot arrive here.
-    const ruledOut = selected?.skipped.get(id);
-    if (ruledOut !== undefined) {
-      slots[index] = {
-        kind: 'not-observed',
-        entry: { subject: id, kind: 'unreached', because: ruledOut },
-      };
+    const declined = declinedBy(id, selected?.skipped, options.subjects);
+    if (declined !== undefined) {
+      slots[index] = { kind: 'not-observed', entry: declined };
       return;
     }
 
@@ -264,19 +267,10 @@ async function observeAll(
     // than each paying a render to reach the same conclusion.
     if (storeFailure !== undefined) return;
 
-    if (options.subjects !== undefined && !matchesGlob(options.subjects, id)) {
-      slots[index] = {
-        kind: 'not-observed',
-        entry: {
-          subject: id,
-          kind: 'excluded',
-          because: shardFilterBecause(options.subjects),
-        },
-      };
-      return;
-    }
-
-    const collected = await collecting(async () => deps.collector.collect(planned));
+    const collected = await lane.collecting(async () => {
+      started = deps.elapsed?.();
+      return lane.collector.collect(planned);
+    });
     if (collected.ok && collected.source !== undefined) declared = collected.source;
     if (!collected.ok) {
       slots[index] = {
@@ -326,7 +320,8 @@ async function observeAll(
     }
 
     try {
-      slots[index] = await observeOne(planned, collected, context, collecting);
+      const outcome = await observeOne(planned, collected, contextFor(context, lane), lane.collecting);
+      slots[index] = timed(outcome, started, deps.elapsed);
     } catch (error) {
       if (error instanceof RasterStoreError) {
         // Spec 0004: a store failure is not a verdict. Reporting an unreachable
@@ -354,7 +349,7 @@ async function observeAll(
         },
       };
     }
-  });
+  }).finally(async () => closeLanes(lanes));
 
   if (storeFailure !== undefined) throw storeFailure;
 
@@ -481,8 +476,8 @@ async function observeAll(
           },
         }
       : {}),
-    ...(warnings.length + selection.length + orphaned.length + recorded.warnings.length > 0
-      ? { warnings: [...warnings, ...selection, ...orphaned, ...recorded.warnings] }
+    ...(warnings.length + laneWarnings.length + selection.length + orphaned.length + recorded.warnings.length > 0
+      ? { warnings: [...warnings, ...laneWarnings, ...selection, ...orphaned, ...recorded.warnings] }
       : {}),
     ...(ignores !== undefined ? { ignores } : {}),
     ...(sensitivities !== undefined ? { sensitivities } : {}),

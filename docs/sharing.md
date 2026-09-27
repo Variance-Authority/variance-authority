@@ -103,6 +103,16 @@ To publish from a report that is already on disk, or to check the wiring:
 npx variance share --publish
 ```
 
+The same command publishes what each subject cost to collect, beside the suite
+index and under the same commit. `npx variance run --shard k/n` reads those
+costs through the same lookup to split the suite evenly. They are published from
+the whole suite: name every shard's report, and a report from one shard alone
+is refused.
+
+```bash
+npx variance share --publish shard-1.json shard-2.json shard-3.json
+```
+
 ## Looking up
 
 ```bash

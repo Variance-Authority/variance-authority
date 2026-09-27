@@ -5,32 +5,33 @@ name: variance shards
 # An example workflow, meant to be copied and edited rather than read as the only
 # way to wire this up. Everything in it that is a decision is commented as one.
 #
-# ## Read this before copying: sharding introduces a failure nothing else can see
+# ## How the suite is split
 #
-# Each shard runs `variance run --subjects <glob>` and records every subject
-# outside its slice as `excluded`. So three shards report each subject as excluded
-# twice and observed once, and each shard exits `0` because each did exactly what
-# it was told.
+# Each shard runs `variance run --shard k/n`. The unit is a file, never a subject:
+# every story one CSF file declares, and every width of one route, go to the same
+# shard, because they load the same module graph and splitting them pays for it
+# twice. Files are placed by the time each subject took on the newest mainline
+# commit this checkout descends from — longest first, onto the least loaded
+# shard — and by a checksum of the file when no such record exists. Both are
+# functions of the plan and the shard count, so every shard computes the same
+# placement without talking to the others.
 #
-# A subject that **every** shard excluded was observed by nobody. Its slice has no
-# component in the report to be missing from, and every individual job is green.
-# `variance report` over all the shard files resolves the excludes against what
-# was actually observed and promotes that subject to `failed`, turning the merged
-# run red — which is the entire reason the merge job below exists and the reason
-# no shard job may be the gate.
-#
-# ## The two ways an operator's globs can be wrong, and what catches each
-#
-# **They overlap.** Two shards observe the same subject, the merge refuses naming
-# both files, and only the operator can resolve it — the tool cannot know which
-# of two observations of one subject was the one you meant.
-#
-# **They leave a gap.** Every shard excludes the subject, and the paragraph above
-# happens. Red, named, at the merge.
-#
-# Both are caught, which is why the globs below do not have to be proven a
-# partition before they are written. What is *not* caught is a shard that never
+# Every subject another shard owns is recorded as `excluded`, naming the shard and
+# what placed it there. `variance report` over all the shard files resolves those
+# against what was observed, and a subject every shard left to another is
+# promoted to `failed` — two shards that read different cost records disagree,
+# and this is where it shows. That is the reason the merge job exists and the
+# reason no shard job may be the gate. What is *not* caught is a shard that never
 # ran at all — see the guard in the merge job.
+#
+# ## What the costs ride on
+#
+# The subject costs sit beside the suite index under `<cache>/suite`, keyed by
+# commit. The merge job publishes them from the merged report — never from one
+# shard, which timed a third of the suite — and saves the directory. The next
+# build's shards restore it and walk their lineage to it, which is why they check
+# out with full history: a shallow clone has no merge base to walk from, and
+# places by checksum.
 
 # ## Why this one is not on `pull_request` here, and would be in your repository
 #
@@ -70,18 +71,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # `subjects` is a glob over subject **ids**, not over files. What an id
-          # looks like is the collector's business — `story:checkout--empty` from
-          # Storybook, a route path from the route collector — so a partition that
-          # made sense for one subject source is meaningless for another.
-          #
-          # Splitting by first letter is the example, not the advice. The useful
-          # split is by cost: the slowest shard sets the wall clock, and a suite
-          # where one component has 200 stories does not divide alphabetically.
+          # One entry per shard; the count is the `n` of `--shard k/n`, and the
+          # merge job reads it from here rather than being told a second time.
           shards='[
-            {"name": "a-h", "subjects": "*:[a-h]*"},
-            {"name": "i-p", "subjects": "*:[i-p]*"},
-            {"name": "q-z", "subjects": "*:[q-z]*"}
+            {"name": "1-of-3", "shard": "1/3"},
+            {"name": "2-of-3", "shard": "2/3"},
+            {"name": "3-of-3", "shard": "3/3"}
           ]'
 
           {
@@ -119,13 +114,27 @@ jobs:
       options: --ipc=host
 
     steps:
+      # Full history, so the lineage walk has a merge base with `origin/main` to
+      # find subject costs at. A shallow clone places by checksum instead.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - shell: bash
         run: corepack enable && yarn install --immutable
 
       - shell: bash
         run: yarn build
+
+      # The suite index and subject costs mainline recorded. Every shard restores
+      # the same entry and reads the same costs, so every shard places the same.
+      - name: restore the mainline evaluation
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/variance-authority/suite
+          key: variance-suite-${{ github.sha }}
+          restore-keys: |
+            variance-suite-
 
       # The subject has to exist before a shard can slice it. Every shard builds
       # its own copy: `storybook-static/` is ignored and a build artifact passed
@@ -156,7 +165,10 @@ jobs:
           config: cases/storybook-case/variance.config.json
           profile: chromium
           command: node packages/cli/dist/bin.js
-          subjects: ${{ matrix.shard.subjects }}
+          # No `--run` or `--commit`: every shard names itself from
+          # `GITHUB_RUN_ID` and `GITHUB_SHA`, which are the same across the
+          # matrix, so the merge carries one run and costs publish under it.
+          shard: ${{ matrix.shard.shard }}
 
           # Identical across shards, and it has to be: the merge refuses shards
           # whose `--intent` differs, because a run's intent is what lets the
@@ -310,6 +322,42 @@ jobs:
           echo "exit-code=$code" >> "$GITHUB_OUTPUT"
           echo "variance report exited $code"
 
+      # Restored first so the entry saved below carries what mainline already
+      # had, not the costs alone: the next build restores whichever entry is
+      # newest, and one holding only costs would cost it the suite index.
+      - name: restore the mainline evaluation
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/variance-authority/suite
+          key: variance-suite-${{ github.sha }}
+          restore-keys: |
+            variance-suite-
+
+      # What each subject cost, from the whole suite, under this commit. Saved so
+      # the next build's shards balance on it. Skipped when the merge refused:
+      # the shards were not one run, and their timings are not one suite's.
+      - if: ${{ steps.report.outputs.exit-code != '2' }}
+        name: publish the subject costs
+        shell: bash
+        env:
+          REPORTS: ${{ steps.collect.outputs.reports }}
+        run: |
+          set -euo pipefail
+
+          reports=()
+          while IFS= read -r line; do
+            [ -n "$line" ] && reports+=("$line")
+          done <<< "$REPORTS"
+
+          node packages/cli/dist/bin.js share --publish \
+            --config cases/storybook-case/variance.config.json "${reports[@]}"
+
+      - if: ${{ steps.report.outputs.exit-code != '2' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/variance-authority/suite
+          key: variance-suite-${{ github.sha }}-costs
+
       - if: ${{ github.event_name == 'pull_request' && steps.report.outputs.exit-code != '2' }}
         id: render
         name: render one docket
@@ -360,7 +408,7 @@ jobs:
               echo "nothing needs review, across every shard."
               ;;
             1)
-              echo "::error::variance found changes that need review; the docket is in the pull request comment. A subject listed as failed with no diff is one that every shard filtered out — that is a hole in the globs, not a change in the product."
+              echo "::error::variance found changes that need review; the docket is in the pull request comment. A subject listed as failed with no diff is one that every shard left to another — the shards placed the suite differently, which is not a change in the product."
               exit 1
               ;;
             2)

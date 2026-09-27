@@ -13,6 +13,7 @@ import { parseReachArgs, type ParsedReach } from './reach-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
+import { parseShard, type Shard } from './commands/shard.js';
 
 export { USAGE } from './usage.js';
 /**
@@ -61,6 +62,8 @@ export type Parsed =
       readonly config: string;
       readonly profile?: ProfileId;
       readonly subjects?: string;
+      /** `--shard k/n`: this run observes the files placed on shard k of n. */
+      readonly shard?: Shard;
       readonly intent?: string;
       /**
        * `--run` and `--commit`: which run this is, for a history record.
@@ -237,6 +240,9 @@ export function parseArgs(argv: readonly string[]): Parsed {
         throw new OperatorError(`--profile must be jsdom or chromium, not \`${profile}\``);
       }
       const subjects = flags.values.get('--subjects');
+      const shardText = flags.values.get('--shard');
+      const shard = shardText === undefined ? undefined : parseShard(shardText);
+      if (typeof shard === 'string') throw new OperatorError(shard);
       const intent = flags.values.get('--intent');
       const runId = flags.values.get('--run');
       const commit = flags.values.get('--commit');
@@ -249,6 +255,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         config,
         ...(profile !== undefined ? { profile } : {}),
         ...(subjects !== undefined ? { subjects } : {}),
+        ...(shard !== undefined ? { shard } : {}),
         ...(intent !== undefined ? { intent } : {}),
         ...(runId !== undefined ? { run: runId } : {}),
         ...(commit !== undefined ? { commit } : {}),

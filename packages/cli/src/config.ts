@@ -3,6 +3,7 @@ import { profileById, type ProfileId, type Viewport } from '@variance-authority/
 import type { Retention } from '@variance-authority/raster';
 import {
   fail,
+  integer,
   nonEmpty,
   object,
   optionalText,
@@ -305,16 +306,20 @@ export interface Config {
    * writing — which is also where the time is, by roughly an order of magnitude
    * over collecting.
    *
-   * Raising it is the operator's call because the cost is theirs. Each lane
-   * holds a browser page and the decoded pixels of two images, so on a large
-   * suite this is a memory decision as much as a speed one, and a two-vCPU
-   * runner will not reward the same number a laptop does.
-   *
-   * The report does not depend on it. Observations are written in plan order no
+   * Each lane holds a browser page and the decoded pixels of two images, so
+   * this is a memory decision as much as a speed one. The report does not
+   * depend on it. Observations are written in plan order no
    * matter which subject finishes first, so raising this changes what a run
    * costs and never what it says.
    */
   readonly concurrency?: number;
+
+  /**
+   * How many standing worlds collect at once, each from the collector's
+   * `openWorker` with its own serial lane. Defaults to 1. Files go to workers
+   * whole, longest recorded first, and a worker that finishes takes the next.
+   */
+  readonly workers?: number;
 }
 
 /**
@@ -353,6 +358,7 @@ const TOP_LEVEL = [
   'names',
   'decoder',
   'concurrency',
+  'workers',
   'cacheRoot',
 ] as const;
 
@@ -433,13 +439,8 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
       ? undefined
       : parseSensitivities(root['sensitivity'], options);
 
-  const concurrency = root['concurrency'];
-  if (
-    concurrency !== undefined &&
-    (typeof concurrency !== 'number' || !Number.isInteger(concurrency) || concurrency < 1)
-  ) {
-    fail('concurrency', `must be an integer of at least 1, not ${quote(String(concurrency))}`, options);
-  }
+  const concurrency = root['concurrency'] === undefined ? undefined : integer(root, 'concurrency', 'concurrency', options);
+  const workers = root['workers'] === undefined ? undefined : integer(root, 'workers', 'workers', options);
 
   const browser = root['browser'] === undefined ? undefined : text(root, 'browser', options);
   if (browser !== undefined && !(BROWSERS as readonly string[]).includes(browser)) {
@@ -492,6 +493,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(sensitivity !== undefined ? { sensitivity } : {}),
     ...(names !== undefined ? { names } : {}),
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
-    ...(concurrency === undefined ? {} : { concurrency: concurrency as number }),
+    ...(concurrency === undefined ? {} : { concurrency }),
+    ...(workers === undefined ? {} : { workers }),
   };
 }

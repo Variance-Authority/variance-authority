@@ -95,6 +95,18 @@ describe('a sharded suite becomes one report', () => {
     expect(mergeReports(split()).at).toBe('2026-08-04T10:00:00.000Z');
   });
 
+  it('carries the run when every shard names the same one, and drops it when they differ', () => {
+    // The commit is what `share --publish` files the suite's costs under, so a
+    // merge that guessed one would price the next build on another commit's run.
+    const same = { id: 'build-7', commit: '3f1c' };
+    const agreed = split().map(({ path, report }) => ({ path, report: { ...report, run: same } }));
+    expect(mergeReports(agreed).run).toEqual(same);
+
+    const [first, ...rest] = agreed;
+    const disagreed = [{ ...first!, report: { ...first!.report, run: { id: 'build-7', commit: '9e2d' } } }, ...rest];
+    expect(mergeReports(disagreed).run).toBeUndefined();
+  });
+
   it('carries a change through, so the merged run needs review', () => {
     expect(exitFor(mergeReports(split()))).toBe(1);
   });

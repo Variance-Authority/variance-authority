@@ -44,6 +44,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   run: [
     '--profile',
     '--subjects',
+    '--shard',
     '--intent',
     '--run',
     '--commit',
@@ -115,7 +116,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 };
 
 export const USAGE = [
-  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
+  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
   'variance index   [--no-git]',
   'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
@@ -131,7 +132,7 @@ export const USAGE = [
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>]',
-  'variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]',
+  'variance share   [--config <path>] [--ref <ref>] [--publish] [<report>...]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
   '',
   '`--version` prints this tool. `push` also prints the deployment it reached, and says so when the two disagree.',

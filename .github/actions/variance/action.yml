@@ -54,6 +54,15 @@ inputs:
     required: false
     default: ''
 
+  shard:
+    description: >-
+      `k/n`: observe the files placed on shard k of n, by the costs the mainline
+      lineage recorded or by checksum when there are none. Every other subject is
+      reported as another shard's, never dropped, and `variance report` over all n
+      reports is the suite.
+    required: false
+    default: ''
+
   intent:
     description: 'What this run is comparing, in the operator’s words. Carried into the comment.'
     required: false
@@ -132,6 +141,7 @@ runs:
         VARIANCE_CONFIG: ${{ inputs.config }}
         VARIANCE_PROFILE: ${{ inputs.profile }}
         VARIANCE_SUBJECTS: ${{ inputs.subjects }}
+        VARIANCE_SHARD: ${{ inputs.shard }}
         VARIANCE_INTENT: ${{ inputs.intent }}
       run: |
         set -uo pipefail
@@ -139,6 +149,7 @@ runs:
         args=(run --config "$VARIANCE_CONFIG")
         if [ -n "$VARIANCE_PROFILE" ]; then args+=(--profile "$VARIANCE_PROFILE"); fi
         if [ -n "$VARIANCE_SUBJECTS" ]; then args+=(--subjects "$VARIANCE_SUBJECTS"); fi
+        if [ -n "$VARIANCE_SHARD" ]; then args+=(--shard "$VARIANCE_SHARD"); fi
         if [ -n "$VARIANCE_INTENT" ]; then args+=(--intent "$VARIANCE_INTENT"); fi
 
         # `if` rather than `set +e`: the condition of an `if` is exempt from

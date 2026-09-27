@@ -79,6 +79,16 @@ export interface PlannedSubject {
    * its own; `''` says this subject's code is at the root, which is a place.
    */
   readonly path?: string;
+
+  /**
+   * The file that declares this subject, when the plan knows one.
+   *
+   * What `--shard` keeps together: every story of one CSF file, every width of
+   * one route, lands on the same shard and the same worker, because they share
+   * a module graph that the first of them pays to load. Absent means the
+   * subject is its own group — no file is invented for it.
+   */
+  readonly declaredIn?: string;
 }
 
 export interface Plan {
@@ -226,6 +236,18 @@ export interface Collector {
   collectAlone?(subject: PlannedSubject): Promise<Collected>;
 
   /**
+   * Another standing world from the same recipe, for a second worker.
+   *
+   * Same build, same server, same origin — a world served from another port is
+   * another page as far as a baseline is concerned, and every comparison against
+   * it would be `incomparable`. A worker is a whole collector: the run hands it
+   * subjects in its own serial lane and closes it before this one.
+   *
+   * Absent means one world, and a run configured with `workers` says so.
+   */
+  openWorker?(): Promise<Collector>;
+
+  /**
    * Once, after the last subject and before the report. Whatever a collector
    * writes on the way out — the execution journal, for one — is on disk by the
    * time the report is assembled, so the report can carry it.
@@ -308,6 +330,7 @@ export async function planStorybook(
       ...(story.viewport !== undefined ? { viewport: story.viewport } : {}),
       ...(story.story.tags.length > 0 ? { tags: story.story.tags } : {}),
       path: declaringDirectory(story.story.importPath),
+      declaredIn: story.story.importPath.replace(/^\.\//, ''),
     })),
     notObserved: plan.excluded.map((entry) => ({
       subject: storySubjectId(entry.id),

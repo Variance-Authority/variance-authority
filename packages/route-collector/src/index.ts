@@ -207,7 +207,7 @@ export function routeCollector(
       ...(source !== undefined ? { source } : {}),
     });
 
-    return {
+    const collector: Collector = {
       async plan(): Promise<Plan> {
         // A discovered plan, when the operator asked for one. Resolved on first
         // ask rather than at construction: a collector that fetched a sitemap
@@ -308,12 +308,33 @@ export function routeCollector(
         }
       },
 
+      /**
+       * A second standing world for a worker: the same recipe, so the same
+       * server, fonts and network options, and therefore the key the run's own
+       * world produces. Its engine reader is its own, because what an engine has
+       * met is a fact about one page. It plans nothing and opens nothing alone;
+       * the run asks those of this collector.
+       */
+      async openWorker(): Promise<Collector> {
+        const lane = await openWorld(recipe);
+        const declaredHere = createDeclarationReader(lane.page);
+        return {
+          plan: async () => collector.plan(),
+          collect: async (planned) => withDeclared(await readRoute(lane, reading(), planned), declaredHere),
+          callSites,
+          async close(): Promise<void> {
+            await declaredHere.close();
+            await lane.close();
+          },
+        };
+      },
+
       callSites,
 
       async close(): Promise<void> {
         await declared.close();
         // Only the run's own world. An isolated one is opened and closed inside
-        // `collectAlone`, so there is never a second world alive at this point.
+        // `collectAlone`, and a worker's by the run before this is called.
         await world.close();
         // Last, and always: a file server that outlives the run holds a port,
         // and a run that produced a correct report and then hung on exit is the
@@ -321,6 +342,7 @@ export function routeCollector(
         await served?.close();
       },
     };
+    return collector;
   };
 }
 

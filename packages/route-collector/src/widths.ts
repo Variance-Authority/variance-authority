@@ -37,6 +37,8 @@ export function widthsOf(plan: Plan, widths: readonly number[] | undefined, view
         : distinct.map((width) => ({
             ...planned,
             subject: { ...planned.subject, id: `${planned.subject.id}@${width}` },
+            // One route, one module graph: a shard keeps its widths together.
+            declaredIn: planned.declaredIn ?? planned.subject.id,
             viewport: { ...viewport, width },
           })),
     ),

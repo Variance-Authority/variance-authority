@@ -32,7 +32,7 @@ describe('parseArgs', () => {
     const error = attempt(['run', '--subject', 'story:button']);
 
     expect(error.message).toContain('`--subject` is not a flag `variance run` accepts');
-    expect(error.message).toContain('--profile, --subjects, --intent');
+    expect(error.message).toContain('--profile, --subjects, --shard, --intent');
   });
 
   it('refuses a flag that belongs to another command', () => {

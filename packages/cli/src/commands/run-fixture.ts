@@ -20,6 +20,7 @@ import type { ExecutionNarrowing } from '@variance-authority/sense/test-selectio
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import type { InstallDiff } from './installed.js';
+import type { Costs, Shard } from './shard.js';
 import {
   run,
   type CliRunReport,
@@ -334,6 +335,9 @@ export async function runWith(
       packages?: readonly string[],
     ) => Promise<ExecutionNarrowing | undefined>;
     readJourneys?: (subjects: readonly string[]) => Promise<JourneyReading>;
+    shard?: Shard;
+    costs?: { readonly commit: string; readonly costs: Costs };
+    elapsed?: () => number;
   } = {},
 ): Promise<{ report: CliRunReport; written: Written }> {
   const written: Written = { artifacts: new Map(), reports: [] };
@@ -344,7 +348,10 @@ export async function runWith(
     ...(options.intent !== undefined ? { intent: options.intent } : {}),
     ...(options.flakes === true ? { flakes: true } : {}),
     ...(options.since !== undefined ? { since: options.since } : {}),
+    ...(options.shard !== undefined ? { shard: options.shard } : {}),
+    ...(options.costs !== undefined ? { costs: options.costs } : {}),
     deps: {
+      ...(options.elapsed !== undefined ? { elapsed: options.elapsed } : {}),
       ...(options.scanSource !== undefined ? { scanSource: options.scanSource } : {}),
       ...(options.scanRelations !== undefined ? { scanRelations: options.scanRelations } : {}),
       ...(options.readJourney !== undefined ? { readJourney: options.readJourney } : {}),

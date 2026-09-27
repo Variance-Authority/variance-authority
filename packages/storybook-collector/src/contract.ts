@@ -182,5 +182,12 @@ export interface Collector {
    */
   collectAlone?(subject: PlannedSubject): Promise<Collected>;
 
+  /**
+   * Another standing world from the same recipe and the same server, for a
+   * second worker. Optional in the contract the CLI declares; absent, a run
+   * configured with `workers` collects in one world and says so.
+   */
+  openWorker?(): Promise<Collector>;
+
   close(): Promise<void>;
 }
