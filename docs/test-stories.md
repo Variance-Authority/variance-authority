@@ -1,43 +1,53 @@
 # Read what one test ran, in order
 
-A **test story** is the code one test ran, in the order it ran it, on one page:
-each function the test went through, the branch it took at each `if`, the
-branches it never took, and how many times each loop ran. A debugger shows you
-one line at a time, and coverage shows you what the whole suite ran. A story
-shows you the whole run of one test, and you read it from top to bottom.
+A **test story** is the order one test ran its code in, written out as
+numbered steps: each function the test ran, the branch it took at each `if`,
+how many times each loop ran, and the lines the code printed. Every run already
+records which code each test ran. A story adds the order, the counts and the
+printed lines, and you read it from top to bottom.
 
-## Two questions reading the code does not answer
+## What you already know, and what you do not
 
-Two questions come up about one test, again and again:
+With [Sense](../packages/sense/README.md) set up for your runner, every run
+records which code each test ran: each function, branch and loop body, as ran
+or not ran. That record is the test's [journey](journeys.md), and every run
+records one for every test. [`variance
+covering`](test-level-coverage.md#the-process) reads the journeys and names the
+tests that ran a function:
 
-- **Does this test run the code I am about to change?**
+```bash
+variance covering --file src/cart.ts --function removeItem
+```
+
+A journey is a set. It says that a test ran `removeItem`, `applyTier` and
+`formatPrice`, and which of their branches it took. It does not say in what
+order the test ran them, how many times, or what the code printed on the way.
+Two questions need that:
+
+- **What does this test do with the code I am about to change?**
 - **Why does this test fail on some runs and pass on others?**
 
-Both are about the order the test ran code in. One test runs code in many
-files: the cart, then the prices, then the formatting, then the cart again.
-Today you find that order in one of three ways:
+Without a story, you find the order in one of two ways:
 
-- **Read the files.** You open each file, find the function, decide which
-  branch this input takes, and remember the steps so far while you open the
+- **Read the files.** You open each file, find the function, work out which
+  function this one calls next, and remember the steps so far while you open the
   next one. When you are interrupted, you start again from the test.
 - **Step through it in a debugger.** You see the values, but one line at a
   time, and only the part you step through. A test that fails one run in five
   usually passes under the debugger.
-- **Open a coverage report.** It marks the lines the whole suite ran. It does
-  not say which of them this test ran, or in what order.
 
 A test story is that order, recorded while the test runs and written out as
 numbered steps. Each step names the file and the lines it ran, so you can read
-from the top to see what the test does, or go straight to one branch to see
-whether the test ever took it. The figure shows one test both ways: file by
-file, and as its story.
+from the top to see what the test does, or go straight to one step to see
+which steps ran before it. The figure shows one test both ways: file by file,
+and as its story.
 
 The format and the name come from [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/),
 which shows a test story inside your editor. Here your own test runner records
 it, under Vitest, Jest or Rstest, and you read it with one command, in a
 terminal or in any editor.
 
-## Does this test run the code you are changing?
+## What does this test do with the code you are changing?
 
 Say you want to change what `removeItem` does when the cart is already empty.
 This is the method, from line 13 to line 23 of `src/cart.ts`:
@@ -56,7 +66,8 @@ This is the method, from line 13 to line 23 of `src/cart.ts`:
   }
 ```
 
-A test named `removes the last item` looks like it checks the empty cart:
+`variance covering` names `removes the last item` as a test that runs
+`removeItem`, and from its name it looks like it checks the empty cart:
 
 ```ts
 it('removes the last item', () => {
@@ -65,10 +76,10 @@ it('removes the last item', () => {
 });
 ```
 
-Before you trust it, read its story. [Sense](../packages/sense/README.md), the
-package that records which code each test ran, writes it, and `variance story`
-from [the CLI](../packages/cli/README.md) prints it. With Sense set up for your
-runner, that is two commands:
+Its journey already says that the test never took the `then` on line 14, the
+empty-cart branch. It does not say what the test did instead. Run the test once
+with `VARIANCE_AUTHORITY_STORY=1`, and `variance story` from [the
+CLI](../packages/cli/README.md) prints that, step by step:
 
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
@@ -110,16 +121,14 @@ top:
 - **Steps 3 to 5.** The loop on line 18 ran twice. Each pass went from
   `removeItem` to `applyTier` and then to `formatPrice`, so the three steps are
   shown once, with the counts of both passes added.
-- **Steps 6 and 7.** The test ran `removeItem` again and ended in `notify`.
+- **Steps 6 and 7.** After the loop, the test continued in `removeItem` and
+  ended in `notify`.
 
-The line that answers your question is `if 14  then ✗`. The `then` on line 14
-is the empty-cart branch, and this test never ran it: "the last item" is the
-last one in the list, so the cart is never empty. Whatever you write in that
-branch, this test passes. So you write a test for the empty cart before you
-change it.
-
-`✗` is shown at every step in `removeItem`, because the test ran that method
-at three steps and never took the branch at any of them.
+So the test that looks like it checks the empty cart removes one item from
+three, reprices the two that are left and notifies. The cart is never empty,
+so the `then` on line 14 is `✗` at all three steps in `removeItem`. Whatever
+you write in that branch, this test passes, so you write a test for the empty
+cart before you change it.
 
 ## Why does this test fail on some runs?
 
@@ -148,7 +157,7 @@ async function reprice(order: Order): Promise<void> {
 }
 ```
 
-A story writes each line the code prints under the step that printed it, after
+A story lists each line the code prints under the step that printed it, after
 `»`. This is the end of the story of a run that failed:
 
 ```text
@@ -165,7 +174,10 @@ A story writes each line the code prints under the step that printed it, after
         » console.log charged 450, saved 500
 ```
 
-**One story does not tell you why.** Code after an `await` runs when its promise
+The journeys of the runs that failed differ from the runs that passed only at
+the `if` on line 13. That says what happened, not why.
+
+**One story does not tell you why either.** Code after an `await` runs when its promise
 settles, and two promises started together settle in either order, so an async
 test can run in a different order on each run, including runs that pass. Put
 two stories side by side and most of what differs is not the cause.
@@ -203,7 +215,7 @@ compare  src/checkout.test.ts > saves the total it charges
 
 This says three things, and each one names a place to open:
 
-- **Where the test went.** Every run that failed took the `then` of the `if`
+- **Which branch the test took.** Every run that failed took the `then` of the `if`
   on line 13, which throws, and no run that passed did.
 - **What the code printed.** Every run that failed saved 500 and charged 450,
   and every run that passed saved 450.
@@ -218,7 +230,7 @@ The comparison can also answer in three other ways:
   in changing order`. Those differ between runs that passed too, so none of
   them is the cause. They are what you would read through if you compared two
   stories by hand.
-- **`nothing separates the sides`** means the runs went to the same places,
+- **`nothing separates the sides`** means the runs ran the same code,
   printed the same lines, and ran in the same order wherever every run had
   one order. The difference is in a value nothing prints, or in code that is not
   recorded, such as a dependency. Print the value you suspect with
@@ -255,16 +267,31 @@ test, such as code another test's `afterEach` called.
 `--compare last` is always one reading against one, so use it to see what an
 edit changed, not to explain a test that fails on some runs.
 
+## Why the journey has no order
+
+The journey and the story answer different questions, so a run keeps them
+differently:
+
+- **The journey is kept for every test, on every run.** Test selection and
+  `variance covering` need it for every test. Two runs that ran the same code
+  in a different order have one journey, so the order async code happens to
+  run in does not change which tests [test
+  selection](coverage-test-selection.md#what-the-record-keeps) runs.
+- **The story is written only when you ask**, for the tests you name. Keeping
+  the order adds work to every function the test runs, and a story for every
+  test. Setting `VARIANCE_AUTHORITY_STORY` does not change the journeys: the
+  record the run keeps is the same, byte for byte, as without the variable.
+
 ## When to record one
 
 You understand most tests by reading them and the code they call. Record a
 story when the code does not answer your question:
 
-- **You are about to change code you do not know.** The source does not
-  always say which code runs: a call through an interface, a plugin, or a
-  handler registered in another file. Ask [`variance
-  covering`](test-level-coverage.md#the-process) which tests run the function,
-  and read the stories of the first few it names.
+- **You are about to change code you do not know.** The journey names the
+  code a test ran. When the call goes through an interface, a plugin, or a
+  handler registered in another file, the source does not show the order it
+  ran in. Ask [`variance covering`](test-level-coverage.md#the-process) which
+  tests run the function, and read the stories of the first few it names.
 
   ```bash
   variance covering --file src/cart.ts --function removeItem
@@ -277,21 +304,21 @@ story when the code does not answer your question:
   mock and not the code it names.
 - **A test fails on some runs, or fails with its file and passes alone.** Record it both ways
   and [compare the readings](#compare-readings-of-one-test).
-- **You hand one test to an agent to fix or extend.** The story tells it which
-  files and lines to open, so it reads those and not the whole package.
+- **You hand one test to an agent to fix or extend.** The story gives it the
+  steps in order, each with its file and lines, so it reads those and not the whole package.
 
 ## When not to record one
 
 Recording adds work to every function the test runs, and writes a story
 for every test in the run. For the one test you are looking into, the run takes
-about as long as without it. For many tests the run is slower, the stories are
-large, and nobody reads them.
+about as long as without it. For many tests the run is slower, and the stories are
+large.
 
 - **Not the whole suite, not a package, and not in CI.** A run records every
   test it runs, so a run given a directory, a pattern or nothing records all of
   them. Name one test file, and a test name when you have one.
-- **Not to find which tests run a line.** That question has no order in it.
-  `variance covering` answers it from the record every run already keeps.
+- **Not to find which tests run a line.** That question does not need the order.
+  `variance covering` answers it from the journeys every run already keeps.
 - **Not a performance test or a benchmark.** A loop that runs many thousands of
   times runs many times slower while it is recorded, and a story has counts,
   not times. Use a profiler for time.
@@ -299,9 +326,8 @@ large, and nobody reads them.
 
 ## Record one
 
-A story comes from the same recording as [test
-selection](coverage-test-selection.md), so your suite needs
-[Sense](../packages/sense/README.md) set up for its runner first. Then set
+A story comes from the same recording as the journeys, so your suite needs
+Sense set up for its runner first. Then set
 `VARIANCE_AUTHORITY_STORY=1` and name the tests with your runner's own
 arguments, one test or one file:
 
@@ -309,8 +335,6 @@ arguments, one test or one file:
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
 ```
-
-The variable adds the stories and changes nothing else about the run.
 
 - **Where stories are kept.** In [the cache](cache.md), under
   `coverage.stories/`. A story is removed 14 days after it was written, with
@@ -351,7 +375,7 @@ shown as one line, that line names the package, and `--in` opens it.
 
 ## What the code prints
 
-A step shows where the test was, not the values it had. The lines the code
+A step shows which code ran, not the values it had. The lines the code
 prints are what give the values, and three sources write them under their step:
 
 - **`console`.** Each line printed with `console.log`, `info`, `warn`, `error`
