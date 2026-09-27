@@ -1,0 +1,143 @@
+/**
+ * What the native scanner's layer-2 journey calls take and answer: every
+ * recorded case walked once over the static call graph and kept beside the
+ * source index, then asked about a file or a line.
+ *
+ * Declared apart from `native.ts` for the reason `native-journey.ts` is: the
+ * scanner's contract is long, and each family of calls is read on its own.
+ * `native/src/journeys.rs` prepares and `native/src/journeys_read.rs` answers.
+ */
+
+/** What preparing the journeys walked and kept. */
+export interface NativeJourneysPrepared {
+  /** The file was already stamped with this recording, this index and this runner table. */
+  readonly kept: boolean;
+  readonly cases: number;
+  /** Functions outside the test files the cases entered, summed per case. */
+  readonly functionsEntered: number;
+  /** Of those, the ones a walk placed on a route. */
+  readonly placed: number;
+  readonly calls: number;
+  readonly flows: number;
+  /** Specifiers the index did not answer, which the walk resolved itself. */
+  readonly fellBack: number;
+  /** Specifiers the runner's alias table answered. */
+  readonly aliased: number;
+  /** Runner configs that did not load and aliases that did not compile, each with why. */
+  readonly runnerUnread: readonly string[];
+}
+
+/** One question: a file, or a line in it. */
+export interface NativeJourneysAsk {
+  /** From the checkout's root. */
+  readonly file: string;
+  readonly line?: number | null;
+}
+
+/** A function or branch the recording holds, with the cases that ran it. */
+export interface NativeJourneysBlock {
+  readonly name: string;
+  readonly kind: string;
+  readonly line: number;
+  readonly end: number;
+  readonly cases: number;
+}
+
+/** One placed call, named by its far end. */
+export interface NativeJourneysCall {
+  /** Absent for the test itself. */
+  readonly name?: string | null;
+  readonly file?: string | null;
+  readonly line?: number | null;
+  /** The asked file's own function the call lands on or leaves from, when the question was the whole file. */
+  readonly at?: string | null;
+  readonly cases: number;
+  /** `observed`, `static`, the way an inferred call was found, or `test`. */
+  readonly known: string;
+}
+
+/** The function holding an asked line: who calls it, what it calls, and what is written inside it. */
+export interface NativeJourneysRegion extends NativeJourneysBlock {
+  /** It ran while its module loaded. */
+  readonly loaded: boolean;
+  /** Cases that placed a caller for it, summed over its callers. */
+  readonly placedIn: number;
+  readonly callers: readonly NativeJourneysCall[];
+  readonly moreCallers: number;
+  readonly goes: readonly NativeJourneysCall[];
+  readonly moreGoes: number;
+  /** Functions written directly inside it that cases entered; listed only when it goes nowhere. */
+  readonly inner: readonly NativeJourneysBlock[];
+  readonly moreInner: number;
+}
+
+export interface NativeJourneysFlow {
+  readonly cases: number;
+  /** In the order the flow reached them; `null` for files no named manifest sits above. */
+  readonly packages: readonly (string | null)[];
+  readonly exampleFile: string;
+  readonly exampleName: string;
+}
+
+/** The package flows through the asked file: the ordered packages each case crossed. */
+export interface NativeJourneysFlows {
+  /** The asked file's package; absent when no named manifest sits above it. */
+  readonly package?: string | null;
+  /** Cases whose flow passes through it. */
+  readonly through: number;
+  readonly distinct: number;
+  readonly top: readonly NativeJourneysFlow[];
+}
+
+/** The answer for one ask. */
+export interface NativeJourneysFile {
+  readonly file: string;
+  readonly line?: number | null;
+  /** The recording has functions in this file. */
+  readonly recorded: boolean;
+  /** The file differs from the recorded commit; absent when no line was asked, or git could not say. */
+  readonly changed?: boolean | null;
+  /** The asked line was written after the recording. */
+  readonly writtenSince: boolean;
+  /** The asked line's number at the recorded commit, when the file changed. */
+  readonly atCommit?: number | null;
+  /** Without a line: the file's most-entered blocks, and what crosses its edge. */
+  readonly blocks: readonly NativeJourneysBlock[];
+  readonly moreBlocks: number;
+  readonly callers: readonly NativeJourneysCall[];
+  readonly moreCallers: number;
+  readonly goes: readonly NativeJourneysCall[];
+  readonly moreGoes: number;
+  /** With a line: the innermost function holding it. */
+  readonly focus?: NativeJourneysRegion | null;
+  /** The innermost block holding the line, when it is not the focus. */
+  readonly holding?: NativeJourneysBlock | null;
+  readonly flows: NativeJourneysFlows;
+}
+
+export interface NativeJourneysAnswer {
+  /** Why the prepared file cannot answer; every other field is empty then. */
+  readonly notPrepared?: string | null;
+  readonly cases: number;
+  readonly commit?: string | null;
+  readonly files: readonly NativeJourneysFile[];
+}
+
+/** The addon's layer-2 journey calls. */
+export interface NativeJourneys {
+  /** The files the runner stamp of the journeys kept at `out` covers; `null` when none are kept or they were prepared without a runner table. */
+  journeysRunnerFiles?(out: string): string[] | null;
+  /** The journeys kept at `out`, when they were prepared from this recording, this index and a runner table under `runnerDigest`. */
+  journeysKept?(index: string, recording: string, out: string, runnerDigest?: string | null): NativeJourneysPrepared | null;
+  /** Walk every case of the recording and keep the journeys at `out`; `null` when there is no source index. */
+  prepareJourneys?(
+    root: string,
+    index: string,
+    recording: string,
+    commit: string | null,
+    out: string,
+    runner: string | null,
+  ): NativeJourneysPrepared | null;
+  /** Answer each ask from the journeys kept at `out`. */
+  journeysFor?(root: string, index: string, recording: string, out: string, asks: NativeJourneysAsk[]): NativeJourneysAnswer;
+}

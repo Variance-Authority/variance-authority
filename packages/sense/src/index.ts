@@ -109,6 +109,23 @@ export {
   type CodeMapShare,
   type PreparedCodeMap,
 } from './code-map.js';
+export {
+  journeysAround,
+  journeysPath,
+  prepareJourneys,
+  type JourneysAnswer,
+  type JourneysAround,
+  type JourneysAsk,
+  type JourneysBlock,
+  type JourneysCall,
+  type JourneysFile,
+  type JourneysFlow,
+  type JourneysFlows,
+  type JourneysPrepared,
+  type JourneysRegion,
+  type PreparedJourneys,
+} from './journeys.js';
+export { runnerAliases, runnerConfigs, runnerDigest, type RunnerAlias, type RunnerAliases } from './runner-aliases.js';
 
 export { gitDigests } from './tree.js';
 

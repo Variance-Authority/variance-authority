@@ -122,3 +122,39 @@ fn directory_owner<'a>(directory: &'a str, named: &HashMap<&str, u32>, known: &m
     known.insert(directory, owner);
     owner
 }
+
+/// Each package's name as a reader is shown it, and the packages shallowest
+/// first. The shallowest manifest keeps a name two declare; a deeper one is
+/// shown with its directory.
+pub(crate) fn shown(owners: &Owners) -> (Vec<u32>, Vec<String>) {
+    let mut order: Vec<u32> = (0..owners.packages.len() as u32).collect();
+    let depth = |at: u32| owners.packages[at as usize].directory.split('/').filter(|part| !part.is_empty()).count();
+    order.sort_by(|&a, &b| {
+        depth(a).cmp(&depth(b)).then_with(|| crate::order::code_unit(&owners.packages[a as usize].directory, &owners.packages[b as usize].directory))
+    });
+    let mut claimed: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut shown: Vec<String> = vec![String::new(); owners.packages.len()];
+    for &at in &order {
+        let package = &owners.packages[at as usize];
+        shown[at as usize] = if claimed.insert(&package.name) { package.name.clone() } else { format!("{} ({})", package.name, package.directory) };
+    }
+    (order, shown)
+}
+
+/// Any path's package, tracked or not: the listing's answer, else its nearest
+/// named directory. `directories` maps each package's directory to it.
+pub(crate) fn owner_of(owners: &Owners, directories: &HashMap<&str, u32>, path: &str) -> Option<u32> {
+    if let Some(&(owner, _)) = owners.files.get(path) {
+        return (owner != NO_OWNER).then_some(owner);
+    }
+    let mut directory = parent(path);
+    loop {
+        if let Some(&owner) = directories.get(directory) {
+            return Some(owner);
+        }
+        if directory.is_empty() {
+            return None;
+        }
+        directory = parent(directory);
+    }
+}

@@ -19,7 +19,7 @@ use regex::Regex;
 
 use crate::compact::Layer;
 use crate::package_graph::{fold, join_parses, Crossing};
-use crate::package_owners::{owners, parent, NO_OWNER};
+use crate::package_owners::{owner_of, owners, parent, shown, NO_OWNER};
 
 /// One package: a manifest with a name. A second manifest declaring a name
 /// already taken keeps its place, not its name: `name (directory)`.
@@ -108,18 +108,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     };
     let owners = owners(root, paths);
 
-    // The shallowest manifest keeps a name two declare.
-    let mut order: Vec<u32> = (0..owners.packages.len() as u32).collect();
-    let depth = |at: u32| owners.packages[at as usize].directory.split('/').filter(|part| !part.is_empty()).count();
-    order.sort_by(|&a, &b| {
-        depth(a).cmp(&depth(b)).then_with(|| crate::order::code_unit(&owners.packages[a as usize].directory, &owners.packages[b as usize].directory))
-    });
-    let mut claimed: HashSet<&str> = HashSet::new();
-    let mut shown: Vec<String> = vec![String::new(); owners.packages.len()];
-    for &at in &order {
-        let package = &owners.packages[at as usize];
-        shown[at as usize] = if claimed.insert(&package.name) { package.name.clone() } else { format!("{} ({})", package.name, package.directory) };
-    }
+    let (order, shown) = shown(&owners);
     let mut by_name: Vec<u32> = (0..owners.packages.len() as u32).collect();
     by_name.sort_by(|&a, &b| crate::order::code_unit(&shown[a as usize], &shown[b as usize]));
     let mut index = vec![0u32; owners.packages.len()];
@@ -139,22 +128,8 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
 
     // Any path's package, tracked or not: its nearest named directory.
     let directories: HashMap<&str, u32> =
-        owners.packages.iter().enumerate().map(|(at, package)| (package.directory.as_str(), index[at])).collect();
-    let owner_of = |path: &str| -> Option<u32> {
-        if let Some(&(owner, _)) = owners.files.get(path) {
-            return (owner != NO_OWNER).then(|| index[owner as usize]);
-        }
-        let mut directory = parent(path);
-        loop {
-            if let Some(&owner) = directories.get(directory) {
-                return Some(owner);
-            }
-            if directory.is_empty() {
-                return None;
-            }
-            directory = parent(directory);
-        }
-    };
+        owners.packages.iter().enumerate().map(|(at, package)| (package.directory.as_str(), at as u32)).collect();
+    let owner_of = |path: &str| -> Option<u32> { owner_of(&owners, &directories, path).map(|owner| index[owner as usize]) };
 
     // A counted file is tracked, not output, and owned.
     let mut crossings: Vec<Crossing> = folded
