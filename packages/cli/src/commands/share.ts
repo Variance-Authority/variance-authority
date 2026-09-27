@@ -20,6 +20,7 @@ import { createDirectoryShare } from '@variance-authority/store/share';
 import type { Config } from '../config.js';
 import { suiteIndexRoot } from './resources.js';
 import { readCliRunReport } from './run.js';
+import { isSlice, suitePartPath } from './run-report.js';
 
 /**
  * Publishing and fetching a mainline evaluation — the CLI half of the seam.
@@ -86,14 +87,31 @@ export function suiteIndexPath(config: Pick<Config, 'project' | 'cacheRoot'>, co
  * run — a developer's laptop mid-edit has no commit that describes what it just
  * observed — but an evaluation whose address is a guess is worse than no
  * evaluation, because the next machine would believe it.
+ *
+ * One shard's report publishes nothing either. Its census counts some of the
+ * suite, and an index written from it would be believed as the whole; the
+ * build that holds every shard composes the index from their parts instead.
  */
 export async function publishSuiteIndex(
   config: Config,
   report: RunReport,
 ): Promise<{ readonly commit: string; readonly shared: boolean } | undefined> {
+  if (isSlice(report)) return undefined;
   const index = suiteIndexOf(report);
   if (index?.commit === undefined) return undefined;
+  return publishIndex(config, index as SuiteIndex & { readonly commit: string });
+}
 
+/**
+ * Keep one index on this machine under its commit, and offer it to the share.
+ *
+ * The one writer both roads end at: a run that composed the whole suite, and
+ * a merge that composed it from every shard's part.
+ */
+export async function publishIndex(
+  config: Config,
+  index: SuiteIndex & { readonly commit: string },
+): Promise<{ readonly commit: string; readonly shared: boolean }> {
   try {
     await writeSuiteIndex(suiteIndexPath(config, index.commit), index);
   } catch {
@@ -117,7 +135,12 @@ export async function publishSuiteIndex(
  * names no commit says nothing at all, and neither of those is a fact about how
  * the command line is wired.
  */
-export async function publishedLine(config: Config, report: RunReport): Promise<string> {
+export async function publishedLine(config: Config, report: RunReport, reportPath?: string): Promise<string> {
+  if (isSlice(report)) {
+    return reportPath === undefined
+      ? ''
+      : `suite index: not published from one shard; its part is ${suitePartPath(reportPath)}, for the merge\n`;
+  }
   const published = await publishSuiteIndex(config, report);
   if (published === undefined) return '';
   const where = suiteIndexPath(config, published.commit);
@@ -252,7 +275,14 @@ export async function shareLines(
   const where = describeShare(config);
 
   if (options.publish) {
-    const report = await readCliRunReport(options.report ?? config.report);
+    const path = options.report ?? config.report;
+    const report = await readCliRunReport(path);
+    if (isSlice(report)) {
+      return [
+        `nothing published: ${path} is one shard of a build.`,
+        "Name every shard's report to `share --publish`; the index is composed from all of them.",
+      ];
+    }
     const published = await publishSuiteIndex(config, report);
     if (published === undefined) {
       return [

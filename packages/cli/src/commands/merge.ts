@@ -49,6 +49,9 @@ import { ledgerOf, type IgnoreLedger } from './ignores.js';
  * `lexiconOf` — under the fields every shard read.
  */
 
+/** How a merged report begins the entry for a subject every shard left to another. */
+export const UNCOVERED = 'no shard observed it: ';
+
 export interface Shard {
   /** Where it was read from. Named in every refusal, because "two disagree" is useless without both. */
   readonly path: string;
@@ -294,7 +297,7 @@ function coverageOf(shards: readonly Shard[]): { notObserved?: readonly NotObser
         subject,
         kind: 'failed',
         because:
-          `no shard observed it: all ${entries.length} reports left it to another ` +
+          `${UNCOVERED}all ${entries.length} reports left it to another ` +
           'shard. The `--subjects` globs, or the `--shard` placements, do not cover the ' +
           'suite, so this subject is unwatched rather than excluded.',
       });

@@ -82,10 +82,10 @@ export type {
 
 export type { Divergence, DivergenceParting } from './divergence.js';
 
-export { lexiconOf, structureOf, LEXICON_CAP } from './lexicon.js';
+export { lexiconOf, lexiconOfValues, lexiconValuesOf, structureOf, withExamples, LEXICON_CAP } from './lexicon.js';
 export { LANDMARK_CAP } from './landmark.js';
 export type { Landmark } from './landmark.js';
-export type { BoundaryRow, LexiconField, LexiconOptions, SubjectLexicon } from './lexicon.js';
+export type { BoundaryRow, LexiconField, LexiconOptions, LexiconValues, SubjectLexicon } from './lexicon.js';
 
 export { attributeMovement } from './movement.js';
 export type { Attribution, Cause, Evidence, Moved, Movement } from './movement.js';

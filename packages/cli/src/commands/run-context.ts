@@ -11,6 +11,7 @@ import type { JourneyReading } from './journeys.js';
 import type { InstallDiff } from './installed.js';
 import type { MovedExports } from './reach.js';
 import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
+import type { SuitePart } from './suite-part.js';
 import type { Costs, Shard } from './shard.js';
 
 /**
@@ -50,6 +51,8 @@ export interface RunDeps {
   /** Writes candidate images. Injected so the run loop is testable with no disk. */
   writeArtifact(path: string, bytes: Buffer): Promise<void>;
   writeReport(path: string, report: CliRunReport): Promise<void>;
+  /** Writes a shard's part of the suite index beside its report. Absent writes none. */
+  writeSuitePart?(reportPath: string, part: SuitePart): Promise<void>;
 
   /**
    * Where this run's observations and instabilities are written down.

@@ -42,7 +42,7 @@ import {
 } from './commands/adjudicate.js';
 import { liveIgnores } from './commands/ignores.js';
 import { reportsAt } from './commands/merge.js';
-import { costsLine, mainlineCosts, publishedCostsLine } from './commands/costs.js';
+import { mainlineCosts, publishedCostsLine } from './commands/costs.js';
 import { workersOf } from './commands/lanes.js';
 import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
@@ -53,7 +53,8 @@ import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { renderComment } from './commands/comment.js';
 import { doctor, machineProbes } from './commands/doctor.js';
-import { publishedLine, shareLines } from './commands/share.js';
+import { publishedLine } from './commands/share.js';
+import { shareOutput, writeSuitePart } from './commands/suite-part.js';
 import { answerConfigless, constantAnswer, withoutConfig } from './commands/configless.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
@@ -163,6 +164,7 @@ export async function dispatch(
             elapsed: () => performance.now(),
             writeArtifact: writeArtifactToDisk,
             writeReport: writeCliRunReport,
+            writeSuitePart,
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             scanRelations: async (dirs) =>
               relationsFor(process.cwd(), dirs, effective.source?.taints, effective.source?.before),
@@ -187,7 +189,7 @@ export async function dispatch(
         // After the report is on disk and before the exit code is decided:
         // publishing is the last thing a run does for somebody else, and the
         // first thing that must not change what this run concluded.
-        const shared = await publishedLine(effective, report);
+        const shared = await publishedLine(effective, report, effective.report);
         const priced = await publishedCostsLine(effective, report);
 
         // Last, and for the same reason: the cache this run may have added to
@@ -406,12 +408,7 @@ export async function dispatch(
     }
 
     case 'share': {
-      const [only, ...more] = parsed.reports;
-      const lines = more.length === 0
-        ? await shareLines(config, { ...parsed, ...(only === undefined ? {} : { report: only }) })
-        : ['suite index: not published from a merge; each shard composed a slice of the suite'];
-      const costs = parsed.publish ? [await costsLine(config, await reportsAt(parsed.reports, config.report))] : [];
-      streams.out(`${[...lines, ...costs].join('\n')}\n`);
+      streams.out(`${(await shareOutput(config, parsed)).join('\n')}\n`);
       return EXIT_CLEAN;
     }
 

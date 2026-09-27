@@ -1234,13 +1234,19 @@ follows three rules:
   with the highest `sha256` of the file and the shard number, so adding a file
   moves no other one.
 
-Costs are published from the whole suite, never from one shard: name every
-shard's report to `share --publish`, and it writes the costs under the commit
-the shards share.
+A shard publishes neither the suite index nor the costs, since each counts part
+of the suite. It writes its part of the index beside its report
+(`report.suite-part.json` next to `report.json`). Name every shard's report to
+`share --publish` in the job that merges them, and it composes the index one
+run over the whole suite would have written and publishes it, with the costs,
+under the commit the shards share:
 
 ```bash
-variance share --publish shard-1.json shard-2.json shard-3.json
+variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
 ```
+
+It publishes nothing when a report has no part beside it or a shard is missing,
+and names which. An unsharded run publishes its own index and needs no merge.
 
 The lookup is the same one the [suite index](../../docs/sharing.md#looking-up)
 uses: a checkout with no history to walk places by checksum.

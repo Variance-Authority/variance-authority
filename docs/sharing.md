@@ -84,8 +84,9 @@ a baseline loses the comparison; losing a share costs a rebuild.
 
 ## Publishing
 
-Every `npx variance run` writes its suite index to [your cache](cache.md) on
-this machine, under the commit the report names, and offers it to the share when one is configured:
+Every `npx variance run` over the whole suite writes its suite index to
+[your cache](cache.md) on this machine, under the commit the report names, and
+offers it to the share when one is configured:
 
 ```text
 report: .variance/report.json
@@ -105,13 +106,33 @@ npx variance share --publish
 
 The same command publishes what each subject cost to collect, beside the suite
 index and under the same commit. `npx variance run --shard k/n` reads those
-costs through the same lookup to split the suite evenly. They are published from
-the whole suite: name every shard's report, and a report from one shard alone
-is refused.
+costs through the same lookup to split the suite evenly.
+
+### A sharded build
+
+A sharded build publishes once, from the job that holds every shard's report. A
+shard publishes nothing: its census counts part of the suite, and an index
+written from it would be read as the whole suite by the next machine. Each shard
+writes its part of the index beside its report instead, as
+`report.suite-part.json` next to `report.json`, and prints where:
+
+```text
+suite index: not published from one shard; its part is .variance/report.suite-part.json, for the merge
+```
+
+Name every shard's report to `share --publish`. It composes the index one run
+over the whole suite would have written — the same census, the same lexicon,
+counted across every shard — and publishes it with the costs of the merged
+report:
 
 ```bash
-npx variance share --publish shard-1.json shard-2.json shard-3.json
+npx variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
 ```
+
+Keep each part beside its report when you move the reports between jobs. The
+command publishes nothing, and names the file, when a report has no part beside
+it, when a shard is missing, or when you name one shard's report alone. A build
+that does not shard publishes from its own run and needs no extra job.
 
 ## Looking up
 

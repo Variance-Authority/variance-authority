@@ -52,6 +52,26 @@ export function shardOwnedBecause(index: number, total: number, by: string): str
   return `${SHARD_OWNED}${index}/${total} by ${by}, with every subject its file declares`;
 }
 
+/**
+ * Whether a report is one shard's slice of a build rather than the build.
+ *
+ * A slice has observed some of the suite, so nothing suite-wide may be
+ * published from it: the build that holds every shard's report does that once.
+ */
+export function isSlice(report: { readonly notObserved?: readonly NotObserved[] }): boolean {
+  return report.notObserved?.some(isShardFilter) === true;
+}
+
+/**
+ * Where a shard keeps its part of the suite index: beside its report, so the
+ * artifact a CI job uploads for the report carries the part with it.
+ */
+export function suitePartPath(reportPath: string): string {
+  return reportPath.endsWith('.json')
+    ? `${reportPath.slice(0, -'.json'.length)}.suite-part.json`
+    : `${reportPath}.suite-part.json`;
+}
+
 /** Whether an entry is another shard's subject rather than a decision. */
 export function isShardFilter(entry: NotObserved): boolean {
   return (

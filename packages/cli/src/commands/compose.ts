@@ -1,12 +1,14 @@
 import {
   attributeMovement,
   composeSubjects,
-  lexiconOf,
+  lexiconOfValues,
+  lexiconValuesOf,
   structureOf,
   type Divergence,
   type Echo,
   type Evidence,
   type LexiconField,
+  type LexiconValues,
   type Moved,
   type Movement,
   overlaySourceIndex,
@@ -15,6 +17,7 @@ import {
 } from '@variance-authority/core/attribute';
 import { BANDS, type Band } from '@variance-authority/core/compare';
 import type {
+  ComponentRecord,
   CompositionReport,
   DivergenceRecord,
   EchoRecord,
@@ -122,18 +125,7 @@ export function compositionOf(input: ComposeInput): CompositionReport | undefine
 
   return {
     subjects: composition.subjects,
-    components: composition.components.map((entry) => ({
-      component: entry.component,
-      subjects: entry.subjects,
-      instances: entry.instances,
-      examples: entry.examples,
-      within: entry.within,
-      createdBy: entry.createdBy,
-      renders: entry.renders,
-      tokens: entry.tokens,
-      variants: entry.classes.length,
-      renderings: entry.classes.reduce((total, group) => total + group.renderings.length, 0),
-    })),
+    components: composition.components.map(componentRecord),
     echoes: echoes.slice(0, MAX_ECHOES),
     divergences: composition.divergences.map(divergenceRecord),
     movements: attribution.movements.map((movement) =>
@@ -145,6 +137,49 @@ export function compositionOf(input: ComposeInput): CompositionReport | undefine
     })),
     ...(echoes.length > MAX_ECHOES ? { truncated: { echoes: echoes.length - MAX_ECHOES } } : {}),
   };
+}
+
+/**
+ * The census alone: the part of the composition that is a fact about the suite.
+ *
+ * Every field of it is a fold over subjects, so shards that each hold some of
+ * the subjects compose the same census as one run holding all of them — handed
+ * the union in plan order. Echoes, divergences and movements are readings of
+ * one run and are not asked for.
+ */
+export function censusOf(
+  present: readonly SubjectComposition[],
+): Pick<CompositionReport, 'subjects' | 'components'> {
+  const composition = composeSubjects(present);
+  return { subjects: composition.subjects, components: composition.components.map(componentRecord) };
+}
+
+function componentRecord(entry: ReturnType<typeof composeSubjects>['components'][number]): ComponentRecord {
+  return {
+    component: entry.component,
+    subjects: entry.subjects,
+    instances: entry.instances,
+    examples: entry.examples,
+    within: entry.within,
+    createdBy: entry.createdBy,
+    renders: entry.renders,
+    tokens: entry.tokens,
+    variants: entry.classes.length,
+    renderings: entry.classes.reduce((total, group) => total + group.renderings.length, 0),
+  };
+}
+
+/**
+ * What a run read for its lexicon, before the cap.
+ *
+ * The cap keeps the values the fewest subjects hold, which is a count over the
+ * whole suite. A shard cannot make it, so a shard writes this down and the build
+ * that holds every shard's reading folds them with {@link lexiconReportFrom}.
+ */
+export interface LexiconReading {
+  readonly values: readonly LexiconValues[];
+  readonly fields: readonly LexiconField[];
+  readonly declaredIn?: Readonly<Record<string, readonly string[]>>;
 }
 
 /**
@@ -161,6 +196,22 @@ export function compositionOf(input: ComposeInput): CompositionReport | undefine
  * hits, so a miss on a field nobody read is never reported as a miss.
  */
 export function lexiconReportOf(input: ComposeInput): LexiconReport | undefined {
+  const reading = lexiconReadingOf(input);
+  return reading === undefined ? undefined : lexiconReportFrom(reading);
+}
+
+/** The cap and the report, over readings already taken. */
+export function lexiconReportFrom(reading: LexiconReading): LexiconReport {
+  return {
+    version: 1,
+    fields: FIELD_ORDER.filter((field) => reading.fields.includes(field)),
+    ...(reading.declaredIn === undefined ? {} : { declaredIn: reading.declaredIn }),
+    subjects: lexiconOfValues(reading.values),
+  };
+}
+
+/** Each subject's names before the cap, and which fields the run read. */
+export function lexiconReadingOf(input: ComposeInput): LexiconReading | undefined {
   const present = input.subjects.filter((subject) => subject !== null);
   if (present.length === 0) return undefined;
 
@@ -171,11 +222,12 @@ export function lexiconReportOf(input: ComposeInput): LexiconReport | undefined 
     declaredIn.set(component, [...new Set(refs.map((ref) => ref.file))]);
   }
 
-  const subjects = lexiconOf(present, {
+  const options = {
     examples,
     ...(input.source === undefined ? {} : { declaredIn }),
     ...(input.regions === undefined ? {} : { regions: input.regions }),
-  });
+  };
+  const values = present.map((subject) => lexiconValuesOf(subject, options));
 
   // Carrying a snapshot is evidence for `names`, `text` and `roles`, because
   // every node has a role and most have a name. It is not evidence for `files`:
@@ -186,7 +238,7 @@ export function lexiconReportOf(input: ComposeInput): LexiconReport | undefined 
   // provenance)` — on exactly the runs that needed it. So the index answers for
   // itself: with no source index, `files` was read if the fold produced one.
   const withSnapshot = present.some((subject) => subject.snapshot !== undefined);
-  const located = subjects.some((subject) => subject.terms.files !== undefined);
+  const located = values.some((subject) => subject.fields.files !== undefined);
 
   const fields: LexiconField[] = ['example', 'components', 'createdBy', 'tokens'];
   if (withSnapshot) fields.push('names', 'text', 'roles');
@@ -194,15 +246,14 @@ export function lexiconReportOf(input: ComposeInput): LexiconReport | undefined 
   if (input.regions !== undefined) fields.push('regions');
 
   return {
-    version: 1,
-    fields: FIELD_ORDER.filter((field) => fields.includes(field)),
+    values,
+    fields,
     ...(input.source === undefined ? {} : { declaredIn: Object.fromEntries(declaredIn) }),
-    subjects,
   };
 }
 
 /** Subject → the components it is the narrow example of, from the census. */
-function examplesOf(present: readonly SubjectComposition[]): ReadonlyMap<string, readonly string[]> {
+export function examplesOf(present: readonly SubjectComposition[]): ReadonlyMap<string, readonly string[]> {
   const examples = new Map<string, string[]>();
   for (const entry of composeSubjects(present).components) {
     for (const subject of entry.examples) {
@@ -408,13 +459,20 @@ function bandsOf(bands: readonly string[]): readonly Band[] {
  * same subjects the two ways round, and a run that handed them different
  * inputs would write a lexicon naming subjects its census never counted.
  */
-export function composeReports(given: ComposeInput): Pick<CliRunReport, 'composition' | 'lexicon'> {
+export function composeReports(given: ComposeInput): {
+  readonly sections: Pick<CliRunReport, 'composition' | 'lexicon'>;
+  /** The lexicon before the cap, which a shard writes down for the build. */
+  readonly reading?: LexiconReading;
+} {
   const input = withDeclared(given);
   const composition = compositionOf(input);
-  const lexicon = lexiconReportOf(input);
+  const reading = lexiconReadingOf(input);
   return {
-    ...(composition === undefined ? {} : { composition }),
-    ...(lexicon === undefined ? {} : { lexicon }),
+    sections: {
+      ...(composition === undefined ? {} : { composition }),
+      ...(reading === undefined ? {} : { lexicon: lexiconReportFrom(reading) }),
+    },
+    ...(reading === undefined ? {} : { reading }),
   };
 }
 

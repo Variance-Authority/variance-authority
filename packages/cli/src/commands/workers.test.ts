@@ -142,6 +142,17 @@ describe('--shard', () => {
     expect(merged.notObserved).toEqual([]);
   });
 
+  it('writes its part of the suite index for the merge, and an unsharded run writes none', async () => {
+    const plan = planOf(4, 1);
+    const sharded = await runWith(configOf(), workingCollector(plan).collector, storeAnswering(null), {
+      shard: { index: 2, total: 2 },
+    });
+    const whole = await runWith(configOf(), workingCollector(plan).collector, storeAnswering(null));
+
+    expect(sharded.written.parts).toMatchObject([{ version: 1, shard: { index: 2, total: 2 }, planned: 4 }]);
+    expect(whole.written.parts).toEqual([]);
+  });
+
   it('balances on the costs it is given, and names their commit', async () => {
     const plan = planOf(4, 1);
     const costs = new Map(plan.subjects.map((planned, i) => [planned.subject.id, (i + 1) * 100]));

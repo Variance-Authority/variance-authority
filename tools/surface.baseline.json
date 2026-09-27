@@ -436,6 +436,7 @@
         "Landmark": "interface",
         "LexiconField": "type",
         "LexiconOptions": "interface",
+        "LexiconValues": "interface",
         "LocatableSite": "interface",
         "Location": "interface",
         "LocationStep": "interface",
@@ -481,6 +482,8 @@
         "isVendorPath": "function",
         "isolateRegions": "function",
         "lexiconOf": "function",
+        "lexiconOfValues": "function",
+        "lexiconValuesOf": "function",
         "locate": "function",
         "locateInstability": "function",
         "locateProvenance": "function",
@@ -501,6 +504,7 @@
         "subtractRegions": "function",
         "summarizeCoverage": "function",
         "summarizeInstability": "function",
+        "withExamples": "function",
         "writerLocationOf": "function"
       },
       "./relate": {

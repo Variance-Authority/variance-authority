@@ -24,14 +24,20 @@ name: variance shards
 # reason no shard job may be the gate. What is *not* caught is a shard that never
 # ran at all — see the guard in the merge job.
 #
-# ## What the costs ride on
+# ## What the merge job publishes
 #
-# The subject costs sit beside the suite index under `<cache>/suite`, keyed by
-# commit. The merge job publishes them from the merged report — never from one
-# shard, which timed a third of the suite — and saves the directory. The next
-# build's shards restore it and walk their lineage to it, which is why they check
-# out with full history: a shallow clone has no merge base to walk from, and
-# places by checksum.
+# The suite index and the subject costs, once, for the whole build. No shard
+# publishes either: a shard composed a third of the suite, and an index counted
+# from it would be believed as the whole. Each shard writes its part of the index
+# beside its report instead — `report.suite-part.json`, in the artifact it
+# already uploads — and `share --publish` over every shard's report composes the
+# index one unsharded run would have written, and the costs of the merged report.
+# A build that does not shard, like `variance.yml`, publishes from its own run.
+#
+# Both sit under `<cache>/suite`, keyed by commit, and the merge job saves the
+# directory. The next build's shards restore it and walk their lineage to it,
+# which is why they check out with full history: a shallow clone has no merge
+# base to walk from, and places by checksum.
 
 # ## Why this one is not on `pull_request` here, and would be in your repository
 #
@@ -323,8 +329,8 @@ jobs:
           echo "variance report exited $code"
 
       # Restored first so the entry saved below carries what mainline already
-      # had, not the costs alone: the next build restores whichever entry is
-      # newest, and one holding only costs would cost it the suite index.
+      # had beside this commit: the next build restores whichever entry is
+      # newest, and walks its lineage through what that entry holds.
       - name: restore the mainline evaluation
         uses: actions/cache/restore@v4
         with:
@@ -333,11 +339,12 @@ jobs:
           restore-keys: |
             variance-suite-
 
-      # What each subject cost, from the whole suite, under this commit. Saved so
-      # the next build's shards balance on it. Skipped when the merge refused:
-      # the shards were not one run, and their timings are not one suite's.
+      # The suite index composed from every shard's part, and what each subject
+      # cost, under this commit. Saved so the next build reads one evaluation and
+      # its shards balance on it. Skipped when the merge refused: the shards were
+      # not one run, and their parts are not one suite's.
       - if: ${{ steps.report.outputs.exit-code != '2' }}
-        name: publish the subject costs
+        name: publish the suite index and the subject costs
         shell: bash
         env:
           REPORTS: ${{ steps.collect.outputs.reports }}
@@ -356,7 +363,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/variance-authority/suite
-          key: variance-suite-${{ github.sha }}-costs
+          key: variance-suite-${{ github.sha }}-shards
 
       - if: ${{ github.event_name == 'pull_request' && steps.report.outputs.exit-code != '2' }}
         id: render

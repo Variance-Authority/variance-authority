@@ -22,7 +22,8 @@ import { closeLanes, contextFor, openLanes, steal, timed, workersOf } from './la
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
 import { selectionFor } from './run-select.js';
 import { unplannedNotes } from './unplanned.js';
-import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
+import { isSlice, type CliObservationRecord, type CliRunReport, type NotObserved } from './run-report.js';
+import { suitePartOf } from './suite-part.js';
 
 /**
  * `variance run` — collect, decide, and write down what was decided.
@@ -456,7 +457,7 @@ async function observeAll(
     ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
     ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),
     ...(parted?.recorded !== undefined ? { journeys: parted.recorded } : {}),
-    ...composed,
+    ...composed.sections,
     ...(variations !== undefined ? { variations } : {}),
     // The third axis, and the only one that names a file somebody edited. Carried
     // rather than consumed: the selector used this to decide what not to look at,
@@ -485,6 +486,9 @@ async function observeAll(
   };
 
   await deps.writeReport(config.report, report);
+  // A shard's census is short; what it counts from goes beside it for the merge.
+  const part = isSlice(report) ? suitePartOf(compositions, composed.reading, options.identity?.commit, options.shard) : null;
+  if (part !== null) await deps.writeSuitePart?.(config.report, part);
   return report;
 }
 

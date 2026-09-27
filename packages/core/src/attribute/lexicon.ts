@@ -117,17 +117,26 @@ export function lexiconOf(
   subjects: readonly SubjectComposition[],
   options: LexiconOptions = {},
 ): readonly SubjectLexicon[] {
-  const rows = subjects.map((subject) => valuesOf(subject, options));
+  return lexiconOfValues(subjects.map((subject) => lexiconValuesOf(subject, options)));
+}
+
+/**
+ * The fold over readings already taken: the suite-wide count, then the cap.
+ *
+ * Exported for the reader that holds readings and no subjects — the shards of
+ * one build, each of which read its own subjects and none of which saw how
+ * widely the whole suite holds a value. Handed every shard's readings in plan
+ * order, it writes the lexicon one unsharded run would have.
+ */
+export function lexiconOfValues(rows: readonly LexiconValues[]): readonly SubjectLexicon[] {
   const holders = holdersOf(rows);
 
-  return rows.map((row, at) => {
-    const subject = subjects[at]!;
-    const fields = row.fields;
+  return rows.map((row) => {
     const terms: Partial<Record<LexiconField, readonly string[]>> = {};
     const elided: Partial<Record<LexiconField, number>> = {};
     for (const field of FIELDS) {
-      const values = fields.get(field);
-      if (values === undefined || values.size === 0) continue;
+      const values = row.fields[field];
+      if (values === undefined || values.length === 0) continue;
 
       // Code-unit first, so the result is byte-stable, and only then by how
       // widely the suite holds the value — a `sort` that keeps the order of
@@ -148,8 +157,8 @@ export function lexiconOf(
     const landmarks = found.length <= LANDMARK_CAP ? found : capLandmarks(found);
 
     return {
-      subject: subject.subject,
-      boundaries: rows[at]!.boundaries,
+      subject: row.subject,
+      boundaries: row.boundaries,
       terms,
       ...(Object.keys(elided).length === 0 ? {} : { elided }),
       ...(landmarks.length === 0 ? {} : { landmarks }),
@@ -158,9 +167,14 @@ export function lexiconOf(
   });
 }
 
-/** One subject's values per field before any cap, its landmarks, its boundary count. */
-interface SubjectValues {
-  readonly fields: ReadonlyMap<LexiconField, Set<string>>;
+/**
+ * One subject's values per field before any cap, its landmarks, its boundary
+ * count. Plain data, so a shard can write it down and another machine fold it.
+ */
+export interface LexiconValues {
+  readonly subject: string;
+  /** Distinct values per field, code-unit sorted; a field with none is absent. */
+  readonly fields: Partial<Record<LexiconField, readonly string[]>>;
   readonly landmarks: readonly Landmark[];
   readonly boundaries: number;
 }
@@ -173,7 +187,7 @@ interface SubjectValues {
  * single subject carries. So the pass that reads a subject and the pass that
  * decides what survives are two passes, with the counting in between.
  */
-function valuesOf(subject: SubjectComposition, options: LexiconOptions): SubjectValues {
+export function lexiconValuesOf(subject: SubjectComposition, options: LexiconOptions = {}): LexiconValues {
   {
     const fields = new Map<LexiconField, Set<string>>();
     const add = (field: LexiconField, value: string | undefined) => {
@@ -219,8 +233,28 @@ function valuesOf(subject: SubjectComposition, options: LexiconOptions): Subject
       });
     }
 
-    return { fields, landmarks, boundaries: held.length };
+    const read: Partial<Record<LexiconField, readonly string[]>> = {};
+    for (const field of FIELDS) {
+      const values = fields.get(field);
+      if (values !== undefined && values.size > 0) read[field] = [...values].sort(codeUnit);
+    }
+    return { subject: subject.subject, fields: read, landmarks, boundaries: held.length };
   }
+}
+
+/**
+ * A reading with its `example` field taken again from a census.
+ *
+ * Which subject is the narrow example of a component is decided against every
+ * subject that renders it, so a shard's reading answers it for the shard alone.
+ * The build that holds every shard's census replaces the field with this.
+ */
+export function withExamples(row: LexiconValues, examples: readonly string[]): LexiconValues {
+  const kept = [...new Set(examples.map((value) => value.trim()))]
+    .filter((value) => value !== '' && !isDigest(value))
+    .sort(codeUnit);
+  const { example: _dropped, ...rest } = row.fields;
+  return { ...row, fields: kept.length === 0 ? rest : { ...rest, example: kept } };
 }
 
 /**
@@ -232,11 +266,11 @@ function valuesOf(subject: SubjectComposition, options: LexiconOptions): Subject
  * distinguishes it. Counted rather than listed, so it costs nothing to be
  * wrong about which framework wrote the wrapper.
  */
-function holdersOf(rows: readonly SubjectValues[]): ReadonlyMap<string, number> {
+function holdersOf(rows: readonly LexiconValues[]): ReadonlyMap<string, number> {
   const holders = new Map<string, number>();
   for (const row of rows) {
-    for (const [field, values] of row.fields) {
-      for (const value of values) {
+    for (const [field, values] of Object.entries(row.fields)) {
+      for (const value of values ?? []) {
         const key = `${field} ${value}`;
         holders.set(key, (holders.get(key) ?? 0) + 1);
       }

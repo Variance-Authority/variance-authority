@@ -21,6 +21,7 @@ import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import type { InstallDiff } from './installed.js';
 import type { Costs, Shard } from './shard.js';
+import type { SuitePart } from './suite-part.js';
 import {
   run,
   type CliRunReport,
@@ -310,6 +311,7 @@ export function configOf(overrides: Partial<Config> = {}): Config {
 export interface Written {
   readonly artifacts: Map<string, Buffer>;
   reports: CliRunReport[];
+  readonly parts: SuitePart[];
 }
 
 export async function runWith(
@@ -340,7 +342,7 @@ export async function runWith(
     elapsed?: () => number;
   } = {},
 ): Promise<{ report: CliRunReport; written: Written }> {
-  const written: Written = { artifacts: new Map(), reports: [] };
+  const written: Written = { artifacts: new Map(), reports: [], parts: [] };
 
   const report = await run({
     config,
@@ -365,6 +367,9 @@ export async function runWith(
       },
       writeReport: async (_path, value) => {
         written.reports.push(value);
+      },
+      writeSuitePart: async (_path, part) => {
+        written.parts.push(part);
       },
     },
   });

@@ -72,7 +72,10 @@ with every cross-shard edge missing and nothing marking where. The structure
 rows go with it. The [lexicon](lexicon.md) does not: a subject's names are a fact about one
 subject, and one subject is in one shard, so the merged report includes every
 entry under the fields all the shards read. A slice run without a journal keeps
-`regions` out of the whole, and the tool says so.
+`regions` out of the whole, and the tool says so. The census is not lost to the
+build: each shard keeps its part beside its report, and
+[publishing every shard's report](sharing.md#a-sharded-build) composes the suite
+index one unsharded run would have written.
 
 ## Where a boundary is placed
 
