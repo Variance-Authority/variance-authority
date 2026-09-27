@@ -1447,7 +1447,8 @@ follows three rules:
   every width of one route, are observed by the same job. They import the same
   modules, so two jobs would each pay to load them.
 - **Recorded cost decides first.** Each observation in a report records
-  `costMs`, the time from its collection to its verdict. The run reads the costs
+  `costMs`, the time from its collection to its verdict, and `declaredIn`, the
+  file that declares its subject. The run reads the costs
   your mainline's line holds, `subject-costs-v1`, and places
   the longest files first, each on the shard with the least work so far. A
   subject with no recorded cost is priced at the median of the ones that have
@@ -1455,6 +1456,10 @@ follows three rules:
 - **A checksum decides when nothing was recorded.** Each file goes to the shard
   with the highest `sha256` of the file and the shard number, so adding a file
   moves no other one.
+
+The shard that finishes last is the file `variance ask costs` lists first: it
+prints the slowest files with their summed time, then the slowest subjects, from
+the same line the split reads.
 
 A shard keeps neither the suite index nor the costs, since each counts part of
 the suite. It writes its part of the index beside its report

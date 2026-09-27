@@ -61,7 +61,7 @@ baseline costs you the comparison.
 | Entry | What it is | Published when |
 | --- | --- | --- |
 | `suite-index-v1` | the [suite index](lexicon.md#where-it-is-kept) of the run | the run report has a [composition](composition.md) section and names a commit |
-| `subject-costs-v1` | what each subject took to collect, in whole milliseconds | the run report timed a subject, and is not one shard of a sharded build |
+| `subject-costs-v1` | what each subject took to collect, in whole milliseconds, and the file that declares it | the run report timed a subject, and is not one shard of a sharded build |
 | `report-v1` | the run report byte for byte, and a table from each image path it names to that image's digest | `report.carry` is `"share"` |
 | `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, and its execution record here was recorded at the run report's commit |
 
@@ -366,7 +366,9 @@ left out 2 image(s) the report names and this machine could not read, the first 
 The same publish gives the line `subject-costs-v1`: what each subject took to
 collect, under the same commit. `npx variance run --shard k/n` reads it back from
 the mainline to split the suite evenly, and a run with `workers` reads it to take
-the slowest files first.
+the slowest files first. `npx variance ask costs` reads the same line to tell you,
+or an agent, which files and subjects the suite spends its time on; see
+[the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
 
 ### A sharded build
 

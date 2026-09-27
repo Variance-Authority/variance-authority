@@ -340,6 +340,34 @@ The walk happens once per session and only when something asks for it: most
 questions do not name a path, and a repository is not a thing to read before
 anybody wanted it.
 
+## Say where the suite's time goes
+
+`variance_costs` answers from the time each subject took in a run: the files the
+suite spends longest on, each with its summed time and subject count, then the
+slowest subjects with the file that declares each. `COSTS_TOOLS` holds it, and
+its subject is a `CostsSubject` — one sentence naming where the times were read,
+and a `SubjectCost` per timed subject. A subject the run could not time is left
+out of the list, never counted as zero.
+
+It is a subject of its own rather than a report because the times a reader
+wants are usually the mainline's, which cover the whole suite, and no report
+anybody has open holds them. `variance serve` reads them from the share, and
+`variance ask costs` asks the same tool from a shell; see
+[the CLI](../cli/README.md).
+
+```js
+import { COSTS_TOOLS } from '@variance-authority/mcp/tools';
+
+const [costs] = COSTS_TOOLS;
+console.log(costs.run({
+  from: 'Mainline main at 3f1c9a0e',
+  subjects: [
+    { subject: 'story:card--wide', ms: 900, file: 'src/card.stories.tsx' },
+    { subject: 'route:/pricing', ms: 400 },
+  ],
+}, { limit: 5 }));
+```
+
 ## Watch a suite that has not finished
 
 Every tool above answers about a run that is over. `--watch` answers about one
