@@ -119,6 +119,17 @@ side, because there is no record there to continue from.
 stylesheet extension: `./config` finds `src/config.json` when nothing else
 answers, and records the same `asset` edge.
 
+A declaration file is tried last, and only when the request finds no other
+file, inside your repository or outside it. `./context` finds
+`src/context.d.ts` when no module, stylesheet or `.json` file of that name sits
+beside it, and so does `./context.js`, the way `nodenext` writes the request,
+when there is no `context.js`. A package of shared types is connected file to
+file this way. Beside a `.js` the `.js` stays the target. TypeScript checks your
+types against the declaration there, but the `.js` is what a runtime import
+loads, and a change to it has to reach the files that import it. A declaration
+under a build's `outDir` never answers this way, so a request into built output
+resolves the same whether you have built or not.
+
 ## Requests, bindings and published names
 
 A **request** is one import, re-export, literal `import()`, or literal
