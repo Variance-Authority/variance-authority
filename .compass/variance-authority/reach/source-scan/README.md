@@ -14,12 +14,12 @@ edges, its content digest, and the components it declares.
 ## Inputs and outputs
 
 In: a repository root, the directories to seed from, the individual files a run
-rests on that nothing imports, the installed dependencies and path mappings a
-specifier needs to resolve, and — when something already knows them — a map of
-content digests. Out: one record per file, carrying resolved edges, the digest
-the record was read from, the component names the file declares, specifiers that
-resolved nowhere, and, when not all of the file's edges could be enumerated,
-the sentence saying which.
+rests on that nothing imports, the installed dependencies, path mappings and
+build layouts a specifier needs to resolve, and — when something already knows
+them — a map of content digests. Out: one record per file, carrying resolved
+edges, the digest the record was read from, the component names the file
+declares, specifiers that resolved nowhere, and, when not all of the file's
+edges could be enumerated, the sentence saying which.
 
 Content digests come from the version control object store, so a file edited and
 then edited back to its committed contents lands on its committed digest and
@@ -46,11 +46,20 @@ working tree, as the operator chooses; the digest names the record either way.
 Configured directories are seeds and not a boundary: an imported stylesheet
 outside them still enters the graph, because a scan that only knows the files it
 was pointed at cannot answer the question it exists for. It stops at the
-repository edge for *files* — a specifier resolving into a sibling package's
-built output, or anywhere above the root, is dropped, since nothing in a diff of
-this repository can be that file. That leaves a real gap at every package
-boundary, and it is filled by [`selection`](../selection/README.md) taking
-another tool's affected-project answer as more changed input.
+repository edge for *files*: a specifier resolving anywhere above the root is
+dropped, since nothing in a diff of this repository can be that file.
+
+A package line inside the repository is not that edge. A specifier landing in a
+sibling package's built output is read as the source file that output is built
+from, by the layout the package's own build configuration declares, whether or
+not the package was built: nobody edits built output, and whether it is on disk
+records what somebody last ran rather than what the code is. An installed
+package declares no layout, since its source is not in this repository. Output
+no configuration accounts for — a bundler's, or a build whose configuration does
+not name the tree it mirrors — is read as itself, so under a directory the scan
+excludes it is dropped. That remaining gap is filled by
+[`selection`](../selection/README.md) taking another tool's affected-project
+answer as more changed input.
 
 A specifier that names an installed dependency does not vanish at that edge: it
 is kept as an edge to the package under the name the source asked for, so a
@@ -83,6 +92,8 @@ sentence naming it and the edge is left to the recorded run.
 - `packages/sense/src/resolve.ts` — specifier to file, export conditions,
   `tsconfig` paths, and the case-folding checks that are invisible on a
   case-sensitive machine
+- `packages/sense/native/src/emitted.rs` — `Emitted`, the file system the
+  resolver reads through, where built output is the source it is built from
 - `packages/sense/src/tree.ts` — `gitDigests`, content digests without opening a file
 - `packages/core/src/relate/records.ts` — the `FileRecord` shape the scan produces
 

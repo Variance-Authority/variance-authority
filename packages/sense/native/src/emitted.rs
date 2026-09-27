@@ -38,6 +38,8 @@
 //! The JavaScript oracle reads output back by the same rule (`src/emitted.ts`),
 //! and the two are compared on a fixture.
 
+// compass: variance-authority.reach.source-scan
+
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::io;
