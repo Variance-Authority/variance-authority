@@ -32,6 +32,7 @@ import type {
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
+import type { NativeCasesEntered, NativeOrientation } from './native-orient.js';
 import { witnessesOf } from './witness.js';
 
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
@@ -241,6 +242,10 @@ export interface NativeScanner {
     graph?: NativeJourneyGraph,
     packages?: string[],
   ): NativeJourneySelection;
+  /** The packages `files` belong to and the names crossing their edges, read off the source index at `index`; `null` when none was published. */
+  orientPackages?(root: string, index: string, files: string[], rows: number, names: number): NativeOrientation | null;
+  /** For each of `files`, the cases in the journey file at `file` that ran it. */
+  casesEntered?(file: string, files: string[], titles: number): NativeCasesEntered[];
 }
 
 /** `Relations`, flattened to the columns the addon walks. */

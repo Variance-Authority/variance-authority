@@ -110,16 +110,19 @@ fn joined(digest: &str, way: &str) -> String {
     if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }
 }
 
-struct Layer<'a> {
-    stored: Stored<'a>,
+/// One segment's columns, opened in place. The package graph
+/// (`package_graph.rs`) reads the same layers for the same chain, so it opens
+/// them here rather than keeping a second list of what a segment holds.
+pub(crate) struct Layer<'a> {
+    pub(crate) stored: Stored<'a>,
     config: Option<&'a str>,
-    parses: Parses<'a>,
-    records: Records<'a>,
+    pub(crate) parses: Parses<'a>,
+    pub(crate) records: Records<'a>,
     directories: Directories<'a>,
 }
 
 impl<'a> Layer<'a> {
-    fn open(bytes: &'a [u8]) -> Result<Self, String> {
+    pub(crate) fn open(bytes: &'a [u8]) -> Result<Self, String> {
         let stored = Stored::open(bytes)?;
         let config = stored.u32s("index.config")?;
         let config = if config.len() == 1 { stored.optional(config.at(0)) } else { return Err("no configuration row".to_owned()) };

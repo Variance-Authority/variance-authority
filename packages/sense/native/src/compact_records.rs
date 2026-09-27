@@ -13,10 +13,10 @@ use crate::stored::{same_length, Stored, U32s};
 
 use super::flag;
 
-pub(super) struct Records<'a> {
+pub(crate) struct Records<'a> {
     pub file: U32s<'a>,
     pub deleted: U32s<'a>,
-    digest: U32s<'a>,
+    pub digest: U32s<'a>,
     edges: U32s<'a>,
     edges_present: &'a [u8],
     declares: U32s<'a>,
@@ -27,10 +27,10 @@ pub(super) struct Records<'a> {
     unresolved_present: &'a [u8],
     unknown: U32s<'a>,
     witnesses: U32s<'a>,
-    targets: U32s<'a>,
-    targets_present: &'a [u8],
+    pub targets: U32s<'a>,
+    pub targets_present: &'a [u8],
     witness_directory: U32s<'a>,
-    target_path: U32s<'a>,
+    pub target_path: U32s<'a>,
     edge_to: U32s<'a>,
     edge_kind: U32s<'a>,
     declare_name: U32s<'a>,

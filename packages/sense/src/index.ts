@@ -74,6 +74,20 @@ export {
 } from './published.js';
 export type { SourceIndexState } from './source-index-file.js';
 
+export {
+  packagesAround,
+  recordedCases,
+  type CasesEntered,
+  type Orientation,
+  type OrientFlow,
+  type OrientFlows,
+  type OrientLimits,
+  type OrientPackage,
+  type OrientShare,
+  type PackagesAround,
+  type RecordedCases,
+} from './orient.js';
+
 export { gitDigests } from './tree.js';
 
 export {
