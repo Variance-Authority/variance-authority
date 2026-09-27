@@ -26,7 +26,7 @@ import {
   type ResolvedViteConfig,
   type RunnerContext,
 } from './governing-config.js';
-import { reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
@@ -200,6 +200,7 @@ export function withTestSelection(
       // than virtual — see {@link writeSeamModule}.
       setupFiles: [
         writeSeamModule(
+          run,
           setupId,
           setupSource(run.runDirectory, run.caseDirectory, {
             continuations: options.continuations === true,
@@ -219,7 +220,7 @@ export function withTestSelection(
       // being told; the case runner could extend the configured class instead.
       ...(config.test?.runner === undefined
         ? {
-          runner: writeSeamModule(runnerId, caseRunnerSource({
+          runner: writeSeamModule(run, runnerId, caseRunnerSource({
             module: runnerImport(configRoot, runnerId, '@vitest/runner'),
             utils: runnerImport(configRoot, runnerId, '@vitest/runner/utils'),
             finished: run.finishedDirectory,
@@ -294,7 +295,7 @@ function selectionPlugin(
     // `afterEach`, carried on each test's `meta` as the file's is.
     config(config) {
       if (config.test?.browser?.enabled !== true) return;
-      writeSeamModule(setupId, browserSetupSource(mode));
+      writeSeamModule(run, setupId, browserSetupSource(mode));
       if (config.test.runner === runnerId) delete config.test.runner;
       // An index with no case in it answers *which cases walk this line* with
       // none, so a run that recorded no case writes no index.
@@ -355,7 +356,8 @@ function selectionPlugin(
 
 /**
  * Fold a run no reporter folded, from the trees its workers wrote, and take
- * the shims off: a watching run kept them for its reruns, and this is its last.
+ * the shims off, with the directory the run made for them once they leave it
+ * empty: a watching run kept them for its reruns, and this is its last.
  *
  * A run whose runner is the project's own left journals and no tree, and a
  * journal alone cannot say whether its file passed: it is said, and nothing is
@@ -369,7 +371,7 @@ async function closeRun(
   try {
     await foldUnfolded(run, settle);
   } finally {
-    for (const shim of shims) rmSync(shim, { force: true });
+    removeSeamModules(run, shims);
   }
 }
 

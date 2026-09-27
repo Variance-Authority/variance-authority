@@ -138,7 +138,7 @@ describe('what a wrapped Rstest configuration becomes', () => {
 });
 
 describe('a watching Rstest', () => {
-  it('folds every cycle, only the files that cycle ran, and takes its shim off at exit', async () => {
+  it('folds every cycle, only the files that cycle ran, and takes its shim off at exit with the directory it made', async () => {
     const directory = await root();
     const coverageFile = resolve(directory, 'coverage.bin');
     for (const file of ['a.test.ts', 'b.test.ts', 'c.test.ts']) await writeFile(resolve(directory, file), `// ${file}\n`, 'utf8');
@@ -164,7 +164,8 @@ describe('a watching Rstest', () => {
     expect(await shims()).toHaveLength(1);
 
     await reporter.onExit();
-    expect(await shims()).toEqual([]);
+    // Nothing held the directory before the run, and nothing is left in it.
+    await expect(shims()).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 

@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { readModuleNames, type ModuleNames } from '../module-names.js';
@@ -55,6 +55,12 @@ export interface SelectionRun {
   include: (file: string) => boolean;
   /** Files this seam generated, which no transform may instrument. */
   readonly shims: Set<string>;
+  /**
+   * Directories this run created to hold its shims, deepest first. Only these
+   * may come off with them: a directory the project already had is the
+   * project's, whatever is in it.
+   */
+  readonly made: Set<string>;
   /** Whether this run records per-case crossings: every run does, unless its files run in a page. */
   cases: boolean;
   /**
@@ -109,6 +115,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     mode,
     include: defaultInclude,
     shims: new Set<string>(),
+    made: new Set<string>(),
     cases: true,
     settled: false,
     watching: false,
@@ -146,11 +153,65 @@ export function runOf(coverageFile: string): SelectionRun | undefined {
  * version bump has to land, and a stale file here would be another release's
  * shim wrapping this one's run. `.mjs`, because the project it lands in may not
  * declare `"type": "module"`.
+ *
+ * A directory this call had to create is noted on the run, so the run can take
+ * it off with its shims — see {@link removeSeamModules}. Left behind, an empty
+ * `.variance-authority/` in the project is a trace of a run that has nothing
+ * left in it.
  */
-export function writeSeamModule(id: string, source: string): string {
-  mkdirSync(dirname(id), { recursive: true });
+export function writeSeamModule(run: Pick<SelectionRun, 'made'>, id: string, source: string): string {
+  try {
+    return writeShim(run, id, source);
+  } catch (error) {
+    // Another run that made the directory took it off, empty, between this
+    // one finding it and writing into it; this run makes it again, and owns it.
+    if (!isErrno(error, 'ENOENT')) throw error;
+    return writeShim(run, id, source);
+  }
+}
+
+function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string): string {
+  // `mkdirSync` answers with the first directory it had to create, and with
+  // nothing when every one was there: whether this run made it is that answer.
+  const first = mkdirSync(dirname(id), { recursive: true });
+  if (first !== undefined) {
+    for (let made = dirname(id); ; made = dirname(made)) {
+      run.made.add(made);
+      if (made === first || made === dirname(made)) break;
+    }
+  }
   writeFileSync(id, source, 'utf8');
   return id;
+}
+
+/**
+ * Take this seam's modules off disk, and every directory the run made for them
+ * that they leave empty.
+ *
+ * `rmdir` refuses a directory that holds anything, which is the whole of the
+ * emptiness check: a shim of a run still going, or a file somebody put there,
+ * keeps the directory where it is, and a later call tries again.
+ *
+ * The directories are tidied, not required gone: an empty one left on disk is
+ * a trace nothing reads, so a run whose tests passed does not fail over one the
+ * platform would not let go of — a lock, a scanner, a read-only mount.
+ */
+export function removeSeamModules(run: Pick<SelectionRun, 'made'>, shims: Iterable<string>): void {
+  for (const shim of shims) rmSync(shim, { force: true });
+  for (const directory of run.made) {
+    try {
+      rmdirSync(directory);
+    } catch (error) {
+      // Still holding something, or held by the platform: it stays on the run,
+      // and a later call tries again.
+      if (!isErrno(error, 'ENOENT')) continue;
+    }
+    run.made.delete(directory);
+  }
+}
+
+function isErrno(error: unknown, code: string): boolean {
+  return (error as NodeJS.ErrnoException | undefined)?.code === code;
 }
 
 /** The pid-and-uuid stamp a run names its directories and its shims after. */

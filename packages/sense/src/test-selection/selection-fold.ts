@@ -36,7 +36,7 @@ import {
   type FinishedFile,
 } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
-import type { SelectionRun } from './selection-run.js';
+import { removeSeamModules, type SelectionRun } from './selection-run.js';
 import { governingPreconditions } from './governing-config.js';
 import { cacheRootFor, markCheckout } from './cache-layers.js';
 import { prunedLine, pruneWhenDue } from './prune.js';
@@ -156,9 +156,11 @@ export function foldRun(
     });
     if (!merged.held) noteABusyIndex(coverageFile);
     // Beside the snapshot, never inside it. The snapshot answers *which files
-    // must run*, and its readers are unchanged. A run whose files ran in a page
-    // recorded no case, and an index with no case in it would answer *which
-    // cases walk this line* with none.
+    // must run*, and its readers are unchanged. `run.cases` is whether the run
+    // could record a case: one whose files ran in a page could not. One that
+    // could, and recorded no case and finished no file — no worker loaded this
+    // seam's modules — is declined by the writer, which leaves the index there
+    // as it was.
     if (run.cases) {
       await writeCaseIndex(executionFile, caseDirectory, root, modules, {
         tests,
@@ -177,7 +179,7 @@ export function foldRun(
       await record(files);
     } finally {
       // A watching runner loads them again for every rerun; its close takes them off.
-      if (!run.watching) for (const shim of destination.shims) await rm(shim, { force: true });
+      if (!run.watching) removeSeamModules(run, destination.shims);
     }
     // After the lock is released, and at most once a day: see `prune.ts`.
     const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));

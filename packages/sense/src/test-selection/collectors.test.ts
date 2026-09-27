@@ -271,6 +271,8 @@ describe('how a case settles', () => {
     expect(settled).toEqual([['threw', true], ['rejected', true], ['abandoned', true]]);
   });
 
+  it.todo('writes a frame for a case that returned without crossing anything, so the case index names every case that ran and `variance covering --cases` reads a test file whose cases entered nothing instead of refusing it — needs `close` in `collectors.cts` to keep the frame of every settled case');
+
   it('names a case that handed out a journey by both its settling and its journey', () => {
     const holder: Record<PropertyKey, unknown> = {};
     const collector = collectors.scoped(holder, true);

@@ -147,6 +147,22 @@ const DEFAULT_BUDGET = 128 * 1_048_576;
  * 200-case run over a thousand ambient modules — the heap arriving at the end
  * of a worker-heavy run, when the machine has least of it. A `.json` file is
  * still written from the object index, because JSON is that index spelled out.
+ *
+ * A run that recorded no case and finished no test file writes nothing, and
+ * leaves an index that is already there as it was. Absent is not empty: such
+ * a run — projects that loaded none of this seam's modules, so no case wrote a
+ * frame and no file wrote a journal — did not learn that no case walks any
+ * line. Laid over the index anyway, it would name itself the last run with no
+ * case and put the cases of every file it was handed in the before layer, as
+ * though it had replaced them; written where none was, it would answer *which
+ * cases walk this line* with none.
+ *
+ * A file that finished did learn, even when none of its cases entered
+ * anything: its cases walk no line, and what an earlier run recorded for them
+ * is retired. The run already carries that answer — a test is `complete` only
+ * when its file wrote a journal and ran to the end — so it is read from
+ * `run.tests`, not worked out again from the case journals. The cases decide
+ * and the modules do not: the fold keeps a module only when a case entered it.
  */
 export async function writeCaseIndex(
   file: string,
@@ -155,13 +171,17 @@ export async function writeCaseIndex(
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   run: CaseRunTests,
 ): Promise<void> {
+  const finished = run.tests.some((test) => test.complete);
   if (file.endsWith('.json')) {
     // TODO: lay a JSON index over the one it replaces, as the columns are — a
     // `.json` name is still rewritten with the last run's cases alone.
-    await writeCoverageBytes(file, executionIndexBytes(file, executionIndexFrom(await readCaseJournals(directory, root), modules)));
+    const index = executionIndexFrom(await readCaseJournals(directory, root), modules);
+    if (index.tests.length > 0 || finished) await writeCoverageBytes(file, executionIndexBytes(file, index));
     return;
   }
-  const fresh = (await foldCaseRun(await inspectCaseRun(directory, root), modules)).bytes;
+  const inspected = await inspectCaseRun(directory, root);
+  if (inspected.tests.length === 0 && !finished) return;
+  const fresh = (await foldCaseRun(inspected, modules)).bytes;
   const layers = caseLayerFiles(file);
   const written = await withIndexLock(file, async () => {
     const ran = new Set(run.tests.map((test) => test.file));

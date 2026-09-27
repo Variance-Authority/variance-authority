@@ -20,14 +20,14 @@
  * ```
  */
 
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { defaultInclude } from './instrumented-modules.js';
 import { carriedJournal, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
-import { reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
@@ -228,7 +228,7 @@ export function withTestSelection(
       })),
     ),
     // A watching run kept its shim for the cycles after the first.
-    onExit: () => rmSync(setupId, { force: true }),
+    onExit: () => removeSeamModules(run, [setupId]),
   };
   const reporters = config.reporters === undefined ? ['default'] : array(config.reporters);
 
@@ -253,6 +253,7 @@ export function withTestSelection(
     // module finds the probe log its header resolves.
     setupFiles: [
       writeSeamModule(
+        run,
         setupId,
         setupSource(run.runDirectory, run.caseDirectory, {
           runner: RSTEST_API,
@@ -311,7 +312,7 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
     name: 'variance-authority:test-selection',
     setup(api: RsbuildPluginApi): void {
       if (api.useExposed('rstest')?.getRstestConfig().browser?.enabled !== true) return;
-      writeSeamModule(setupId, browserSetupSource(mode, RSTEST_API));
+      writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API));
       // TODO: record cases in a page — a drain per test, carried on each
       // test's `meta` as the file's is.
       if (run.cases) {
