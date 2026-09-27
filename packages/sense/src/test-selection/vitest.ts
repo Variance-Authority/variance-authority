@@ -12,6 +12,7 @@ import {
   carriedJournal,
   readFinished,
   reportedComplete,
+  runnerSkipped,
   taskComplete,
   type FinishedFile,
   type ReportedModule,
@@ -422,12 +423,16 @@ function selectionReporter(
   // resolved it: Vitest 3 and 4 hand the project over, and Vitest 2 hands its
   // name, which `onInit` has already mapped to the project.
   let byName = new Map<string, string>();
+  // Held, not copied: a name filter and a cancel are both set on the runner
+  // after `onInit`, and each run's end asks it afresh.
+  let runner: RunnerContext | undefined;
   const configsOf = (config: string | undefined) => (config === undefined ? {} : { configs: [config] });
   // A rerun starts as `onWatcherRerun` in every major and as `onTestRunStart`
   // from Vitest 3, both after the last run's end was awaited: the fold reopens
   // there, and the rerun's end folds the files the rerun ran.
   return {
     onInit: (context: RunnerContext) => {
+      runner = context;
       byName = noteRunner(run, context);
       run.watching = context.config?.watch === true;
     },
@@ -438,15 +443,15 @@ function selectionReporter(
         ? []
         : [{
           filepath: file.filepath,
-          complete: taskComplete(file),
+          complete: taskComplete(file, runnerSkipped(runner)),
           ...carriedJournal(file.filepath, file.meta),
           ...configsOf(byName.get(file.projectName ?? '')),
         }]),
     ),
-    onTestRunEnd: (reported: readonly ReportedModule[]) => settle(
+    onTestRunEnd: (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => settle(
       reported.map((module) => ({
         filepath: module.moduleId,
-        complete: reportedComplete(module),
+        complete: reportedComplete(module, runnerSkipped(runner, reason)),
         ...carriedJournal(module.moduleId, module.meta?.()),
         ...configsOf(projectConfig(module.project)),
       })),

@@ -90,8 +90,15 @@ export interface RunnerProject {
 /** The runner itself, as far as a reporter's `onInit` reads it. */
 export interface RunnerContext extends RunnerProject {
   readonly projects?: readonly RunnerProject[];
-  /** The resolved configuration, command line merged in: `watch` says whether it runs again. */
-  readonly config?: { readonly watch?: boolean };
+  /**
+   * The resolved configuration, command line merged in: `watch` says whether it
+   * runs again, and `testNamePattern` is the `-t` it started with.
+   */
+  readonly config?: { readonly watch?: boolean; readonly testNamePattern?: unknown };
+  /** What the run changed since it started: watch mode's `t` sets the pattern here. */
+  readonly configOverride?: { readonly testNamePattern?: unknown };
+  /** Vitest 2: a cancel — `--bail`, an interrupted watch run — is under way or ended the run. */
+  readonly isCancelling?: boolean;
 }
 
 /** The config file Vite loaded for a project, as a key. */

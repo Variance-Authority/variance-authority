@@ -8,6 +8,7 @@ import { decodeTestCoverage } from './format.js';
 import {
   oneRowPerFile,
   reportedComplete,
+  runnerSkipped,
   taskComplete,
   type ReportedModule,
   type RunnerTask,
@@ -68,11 +69,11 @@ describe('what a finished test file is worth', () => {
   });
 
   it('refuses a Vitest 2 file where a suite failed under passing and skipped leaves', () => {
-    expect(taskComplete(taskTree('fail'))).toBe(false);
+    expect(taskComplete(taskTree('fail'), false)).toBe(false);
   });
 
   it('still counts a Vitest 2 file whose own skips are in its text', () => {
-    expect(taskComplete(taskTree('pass'))).toBe(true);
+    expect(taskComplete(taskTree('pass'), false)).toBe(true);
   });
 
   it('refuses a reported module on any one of the signals, taken alone', () => {
@@ -80,16 +81,16 @@ describe('what a finished test file is worth', () => {
     // its author believed the runner's API was called, so the only case that
     // notices `allSuites` being renamed is the case with nothing else left to
     // refuse on.
-    expect(reportedComplete(reported('module verdict'))).toBe(false);
-    expect(reportedComplete(reported('module errors'))).toBe(false);
-    expect(reportedComplete(reported('suite errors'))).toBe(false);
-    expect(reportedComplete(reported('module verdict', 'module errors', 'suite errors'))).toBe(false);
+    expect(reportedComplete(reported('module verdict'), false)).toBe(false);
+    expect(reportedComplete(reported('module errors'), false)).toBe(false);
+    expect(reportedComplete(reported('suite errors'), false)).toBe(false);
+    expect(reportedComplete(reported('module verdict', 'module errors', 'suite errors'), false)).toBe(false);
   });
 
   it('counts a reported module no signal objects to, so the refusals are what refused', () => {
     // The control the three above are read against: the same passed-and-skipped
     // leaves, and nothing saying the file stopped part-way.
-    expect(reportedComplete(reported())).toBe(true);
+    expect(reportedComplete(reported(), false)).toBe(true);
   });
 
   it('answers what the other writer answered about the same file', () => {
@@ -97,9 +98,28 @@ describe('what a finished test file is worth', () => {
     // called — so a file worth nothing read through the task tree has to be
     // worth nothing read through the reported modules, or what a suite is
     // allowed to skip depends on which major ran it.
-    expect(reportedComplete(reported('module verdict', 'suite errors')))
-      .toBe(taskComplete(taskTree('fail')));
-    expect(reportedComplete(reported())).toBe(taskComplete(taskTree('pass')));
+    expect(reportedComplete(reported('module verdict', 'suite errors'), false))
+      .toBe(taskComplete(taskTree('fail'), false));
+    expect(reportedComplete(reported(), false)).toBe(taskComplete(taskTree('pass'), false));
+  });
+
+  it('counts no skip the runner may have written, and still counts a todo', () => {
+    // A name filter and a cancel both leave `skip` in the mode and nothing in
+    // the result, and a reported test is `skipped` whoever skipped it.
+    const unrun = (mode: string): RunnerTask => ({ tasks: [test('pass'), { mode }] });
+    expect(taskComplete(unrun('skip'), false)).toBe(true);
+    expect(taskComplete(unrun('skip'), true)).toBe(false);
+    expect(taskComplete(unrun('todo'), true)).toBe(true);
+    expect(reportedComplete(reported(), true)).toBe(false);
+  });
+
+  it('reads a filter or a cancel off the runner, and no runner as either', () => {
+    expect(runnerSkipped({ config: { watch: true } })).toBe(false);
+    expect(runnerSkipped({ config: { testNamePattern: /alpha/ } })).toBe(true);
+    expect(runnerSkipped({ configOverride: { testNamePattern: /alpha/ } })).toBe(true);
+    expect(runnerSkipped({ isCancelling: true })).toBe(true);
+    expect(runnerSkipped({}, 'interrupted')).toBe(true);
+    expect(runnerSkipped(undefined)).toBe(true);
   });
 });
 

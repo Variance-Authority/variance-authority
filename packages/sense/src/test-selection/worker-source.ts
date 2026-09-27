@@ -249,8 +249,14 @@ ${recording}
 // The runner's own tree, cut to what the fold reads a file's outcome from. The
 // reporter is handed the same tree, and a command-line \`--reporter\` replaces
 // the reporter: an editor that runs one test from the gutter passes its own.
+// The mode is in the cut because a test the runner never started, a todo or a
+// skip, has no result on Vitest 2, and its mode is the only outcome it has.
+// Beside it, whether this runner wrote skips of its own: a name filter, in the
+// configuration the worker collected under, and a cancel, which rewrites the
+// tests it had not reached in this worker's copy of the tree and no other.
 const finished = ${JSON.stringify(runner.finished ?? null)};
 const tree = (task) => ({
+  ...(task.mode === undefined ? {} : { mode: task.mode }),
   ...(task.result === undefined ? {} : { result: { state: task.result.state } }),
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
@@ -260,9 +266,10 @@ export default class extends VitestTestRunner {
     await super.onAfterRunFiles?.(files);
     if (finished === null) return;
     await mkdir(finished, { recursive: true });
+    const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => ({ filepath: file.filepath, ...tree(file) }))),
+      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
     );
   }
 

@@ -56,8 +56,8 @@ it('records every rerun of a watching Vitest, and leaves no run directory or shi
 
   const coverage = decodeTestCoverage(await readFile(coverageFile));
   expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([
-    // A skipped case leaves the file incomplete.
-    [ext('test/alpha.case.ts'), false],
+    // A case the file's own source skips is an outcome, so alpha is whole too.
+    [ext('test/alpha.case.ts'), true],
     [ext('test/beta.case.ts'), true],
   ]);
   expect((await readdir(directory)).filter((name) => name.startsWith('.run-'))).toEqual([]);
