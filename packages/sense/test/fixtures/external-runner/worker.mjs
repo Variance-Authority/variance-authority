@@ -1,4 +1,7 @@
 // Runs one test file: load it, run each case it declared, exit 1 on a failure.
+// It times each case the way a runner does and prints what it measured as its
+// last line, for the parent to report.
+import { performance } from 'node:perf_hooks';
 import { observeTestFile, registerRecording } from '@variance-authority/sense/runner';
 
 const [file, flag] = process.argv.slice(2);
@@ -17,13 +20,17 @@ globalThis.test = (name, body) => cases.push({ name, body });
 await import(file);
 
 let failed = false;
+const timed = [];
 for (const { name, body } of cases) {
+  const started = performance.now();
   try {
     await (observer ? observer.case(name, body) : body());
   } catch (error) {
     failed = true;
     console.error(name, error);
   }
+  timed.push({ name, duration: performance.now() - started });
 }
 observer?.finish();
+console.log(JSON.stringify(timed));
 process.exitCode = failed ? 1 : 0;

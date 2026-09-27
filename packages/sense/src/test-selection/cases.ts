@@ -122,6 +122,7 @@ import type { ModuleId } from '../instrument/index.js';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import { codeUnitOrder, idOrder, isMissing, projectPath } from './instrumented-modules.js';
+import { UNTIMED, type CaseDurations } from './case-durations.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 
@@ -205,6 +206,7 @@ export interface CaseJournal {
 export function executionIndexFrom(
   journals: readonly CaseJournal[],
   modules: ReadonlyMap<ModuleId, CapturedModule>,
+  durations: CaseDurations = UNTIMED,
 ): ExecutionIndex {
   const ambient = new Map<string, CaseJournal[]>();
   // A case is written when it settles, so work that outlived it arrives as a
@@ -242,11 +244,13 @@ export function executionIndexFrom(
     const coordinate = `${journal.file} > ${journal.name}`;
     const repeat = seen.get(coordinate) ?? 0;
     seen.set(coordinate, repeat + 1);
+    const duration = durations(journal.file, journal.name, journal.id);
     return {
       id: repeat === 0 ? coordinate : `${coordinate}#${repeat}`,
       file: journal.file,
       name: journal.name,
       ...(journal.stopped === undefined ? {} : { stopped: journal.stopped }),
+      ...(duration === undefined ? {} : { duration }),
     };
   });
 

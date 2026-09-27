@@ -16,6 +16,12 @@ export interface ExecutionTest {
    * not see how its cases settled, which is neither.
    */
   readonly stopped?: boolean;
+  /**
+   * How long the case ran, in whole milliseconds, as its runner reported it —
+   * summed over every project that ran it. Absent when a runner reported none,
+   * which is not zero.
+   */
+  readonly duration?: number;
 }
 
 export interface ExecutionCrossing {

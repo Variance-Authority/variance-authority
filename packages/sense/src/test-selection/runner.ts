@@ -50,6 +50,7 @@ import {
 } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import { reportedDuration } from './finished-files.js';
+import { finishedCase } from './case-durations.js';
 import { foldRun } from './selection-fold.js';
 import { newRun } from './selection-run.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
@@ -98,6 +99,21 @@ export interface FinishedTestFile {
    * Milliseconds your runner reported the file took. Recorded as given; left
    * out, the file is recorded with no duration rather than a zero.
    */
+  readonly duration?: number;
+  /**
+   * Every case your runner reported in the file, with the milliseconds it
+   * reported for each. A case is matched by the name you passed to
+   * {@link TestFileObserver.case}; one you leave out, or a name the file
+   * declares twice, is recorded with no duration.
+   */
+  readonly cases?: readonly FinishedTestCase[];
+}
+
+/** One case your runner reported, as {@link FinishedTestFile.cases} lists it. */
+export interface FinishedTestCase {
+  /** The name the case was observed under: a string, or the declaration path. */
+  readonly name: string | readonly string[];
+  /** Milliseconds your runner reported the case took; left out, the case is untimed. */
   readonly duration?: number;
 }
 
@@ -160,6 +176,13 @@ export function startRecording(options: RecordingOptions = {}): Recording {
           filepath: resolve(file.file),
           complete: file.complete,
           ...reportedDuration(file.duration),
+          ...(file.cases === undefined ? {} : {
+            cases: file.cases.map((test) => finishedCase(
+              typeof test.name === 'string' ? test.name : test.name.join(' > '),
+              undefined,
+              test.duration,
+            )),
+          }),
         })));
       } finally {
         if (process.env[RECORDING_VARIABLE] === value) delete process.env[RECORDING_VARIABLE];

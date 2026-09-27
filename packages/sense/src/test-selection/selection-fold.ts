@@ -28,6 +28,7 @@ import {
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { writeCaseIndex } from './case-fold.js';
+import { caseDurations } from './case-durations.js';
 import {
   coverageTest,
   noteAnEmptyRecord,
@@ -165,6 +166,7 @@ export function foldRun(
       await writeCaseIndex(executionFile, caseDirectory, root, modules, {
         tests,
         ...(commit === undefined ? {} : { commit }),
+        durations: caseDurations(files, root),
       });
     }
     await rm(runDirectory, { recursive: true, force: true });

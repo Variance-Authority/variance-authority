@@ -16,6 +16,7 @@ import {
 } from './instrumented-modules.js';
 import { AMBIENT, executionIndexFrom, readCaseJournals, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { executionIndexBytes } from './execution-format.js';
+import { UNTIMED, type CaseDurations } from './case-durations.js';
 import { writeCoverageBytes, type CoverageTest } from './index.js';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
@@ -58,7 +59,11 @@ interface Coordinate {
  * `scanJournal`; the fold replays them later in slices rather than retaining the
  * run's test-by-region product.
  */
-export async function inspectCaseRun(directory: string, root: string): Promise<CaseRun> {
+export async function inspectCaseRun(
+  directory: string,
+  root: string,
+  durations: CaseDurations = UNTIMED,
+): Promise<CaseRun> {
   let names: readonly string[];
   try {
     names = await readdir(directory);
@@ -118,11 +123,13 @@ export async function inspectCaseRun(directory: string, root: string): Promise<C
     const name = `${coordinate.file} > ${coordinate.name}`;
     const repeat = seen.get(name) ?? 0;
     seen.set(name, repeat + 1);
+    const duration = durations(coordinate.file, coordinate.name, coordinate.id);
     return {
       id: repeat === 0 ? name : `${name}#${repeat}`,
       file: coordinate.file,
       name: coordinate.name,
       ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
+      ...(duration === undefined ? {} : { duration }),
     };
   });
   const testsByFile = new Map<string, readonly [number, number]>();
@@ -175,11 +182,11 @@ export async function writeCaseIndex(
   if (file.endsWith('.json')) {
     // TODO: lay a JSON index over the one it replaces, as the columns are — a
     // `.json` name is still rewritten with the last run's cases alone.
-    const index = executionIndexFrom(await readCaseJournals(directory, root), modules);
+    const index = executionIndexFrom(await readCaseJournals(directory, root), modules, run.durations);
     if (index.tests.length > 0 || finished) await writeCoverageBytes(file, executionIndexBytes(file, index));
     return;
   }
-  const inspected = await inspectCaseRun(directory, root);
+  const inspected = await inspectCaseRun(directory, root, run.durations);
   if (inspected.tests.length === 0 && !finished) return;
   const fresh = (await foldCaseRun(inspected, modules)).bytes;
   const layers = caseLayerFiles(file);
@@ -220,6 +227,8 @@ export interface CaseRunTests {
   readonly tests: readonly Pick<CoverageTest, 'file' | 'complete'>[];
   /** The commit the run was made at, as the snapshot carries it. */
   readonly commit?: string;
+  /** Each case's duration as the runner reported it; absent, no case is timed. */
+  readonly durations?: CaseDurations;
 }
 
 /**

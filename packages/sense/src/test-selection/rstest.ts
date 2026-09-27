@@ -32,6 +32,7 @@ import { browserSetupSource, caseGlobalsSource, setupSource } from './worker-sou
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
+import { finishedCase } from './case-durations.js';
 
 export interface RstestTestSelectionOptions {
   /**
@@ -102,7 +103,13 @@ export interface RstestTestSelectionOptions {
 export interface RstestFileResult {
   readonly testPath: string;
   readonly status: string;
-  readonly results?: ReadonlyArray<{ readonly status: string }>;
+  /** Each case: its names are what `currentTestName` joins with ` > `. */
+  readonly results?: ReadonlyArray<{
+    readonly status: string;
+    readonly name?: string;
+    readonly parentNames?: readonly string[];
+    readonly duration?: number;
+  }>;
   /** What the file's own `afterAll` put on its context, carried from wherever it ran. */
   readonly meta?: object;
   /** The name of the project that ran it. */
@@ -226,6 +233,13 @@ export function withTestSelection(
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
         ...reportedDuration(file.duration),
+        ...(file.results === undefined ? {} : {
+          cases: file.results.map((test) => finishedCase(
+            [...(test.parentNames ?? []), test.name].filter(Boolean).join(' > '),
+            undefined,
+            test.duration,
+          )),
+        }),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
       })),

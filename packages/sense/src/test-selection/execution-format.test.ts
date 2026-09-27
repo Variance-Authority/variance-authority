@@ -203,3 +203,37 @@ describe('the execution index as columns', () => {
     return { tests, modules };
   }
 });
+
+describe('the duration each case carries', () => {
+  const timed: ExecutionIndex = {
+    tests: [
+      { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', duration: 12 },
+      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', duration: 0 },
+      { id: 'a.test.ts > three', file: 'a.test.ts', name: 'three' },
+    ],
+    modules: [],
+  };
+
+  it('is kept as the runner reported it, and a case with none stays without one', () => {
+    const back = decodeExecutionIndex(encodeExecutionIndex(timed));
+
+    expect(back.tests).toEqual(timed.tests);
+    expect('duration' in back.tests[2]!).toBe(false);
+  });
+
+  it('is absent from every case of an index written before cases carried one', () => {
+    const bytes = encodeExecutionIndex(timed);
+    const headerLength = bytes.readUInt32LE(0);
+    const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as {
+      version: number;
+      sections: { name: string }[];
+    };
+    const sections = header.sections.filter((section) => section.name !== 'tests.duration');
+    expect(sections.length).toBe(header.sections.length - 1);
+    const older = Buffer.from(JSON.stringify({ version: 4, sections }).padEnd(headerLength, '\0'), 'utf8');
+
+    const back = decodeExecutionIndex(Buffer.concat([bytes.subarray(0, 4), older, bytes.subarray(4 + headerLength)]));
+
+    expect(back.tests.map((test) => 'duration' in test)).toEqual([false, false, false]);
+  });
+});

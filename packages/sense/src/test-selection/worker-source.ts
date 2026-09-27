@@ -254,12 +254,20 @@ ${recording}
 // Beside it, whether this runner wrote skips of its own: a name filter, in the
 // configuration the worker collected under, and a cancel, which rewrites the
 // tests it had not reached in this worker's copy of the tree and no other.
-// A file's own result also keeps the duration the runner measured for it, which
-// is the one the record stores; nothing here reads a clock.
+// Every result also keeps the duration the runner measured, and every task its
+// name and id, which is what joins a case's duration to the case the scope
+// recorded under the same id; nothing here reads a clock.
 const finished = ${JSON.stringify(runner.finished ?? null)};
 const tree = (task) => ({
+  ...(task.name === undefined ? {} : { name: task.name }),
+  ...(task.id === undefined ? {} : { id: task.id }),
   ...(task.mode === undefined ? {} : { mode: task.mode }),
-  ...(task.result === undefined ? {} : { result: { state: task.result.state } }),
+  ...(task.result === undefined ? {} : {
+    result: {
+      state: task.result.state,
+      ...(typeof task.result.duration === 'number' ? { duration: task.result.duration } : {}),
+    },
+  }),
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
 
@@ -271,16 +279,7 @@ export default class extends VitestTestRunner {
     const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => {
-        const cut = tree(file);
-        const duration = file.result?.duration;
-        return {
-          filepath: file.filepath,
-          runnerSkipped,
-          ...cut,
-          ...(cut.result === undefined || typeof duration !== 'number' ? {} : { result: { ...cut.result, duration } }),
-        };
-      })),
+      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
     );
   }
 

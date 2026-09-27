@@ -282,11 +282,19 @@ describe('the Jest integration', () => {
     // The `it.skip` in alpha runs nothing, so it tapes nothing.
     expect(names.sort()).toEqual(['ran after the project\'s own setup file', 'takes the alpha path']);
     // Each run records the duration its runner reported, which two runs never
-    // share; every file has one, and the rest of the two recordings is the same.
+    // share; every file and every case has one, and the rest of the two
+    // recordings is the same.
     const recorded = async (into: string): Promise<unknown> => {
       const { tests, ...rest } = decodeTestCoverage(await readFile(resolve(into, 'coverage.bin')));
       expect(tests.every((test) => test.duration !== undefined)).toBe(true);
-      return { ...rest, tests: tests.map(({ duration: _, ...test }) => test) };
+      const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin.cases.bin')));
+      expect(cases.tests.length).toBeGreaterThan(0);
+      expect(cases.tests.every((test) => test.duration !== undefined)).toBe(true);
+      return {
+        ...rest,
+        tests: tests.map(({ duration: _, ...test }) => test),
+        cases: { ...cases, tests: cases.tests.map(({ duration: _, ...test }) => test) },
+      };
     };
     expect(await recorded(taped)).toEqual(await recorded(plain));
   }, 120_000);

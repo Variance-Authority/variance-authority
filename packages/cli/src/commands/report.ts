@@ -1,6 +1,5 @@
-import { notObservedSentence, toolByName } from '@variance-authority/mcp/tools';
+import { didYouMean, notObservedSentence, toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
-import { didYouMean } from '../nearest.js';
 import { listed } from './reach.js';
 import type { CliRunReport } from './run.js';
 import { reportHtml } from './report-html.js';

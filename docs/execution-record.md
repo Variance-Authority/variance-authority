@@ -197,6 +197,7 @@ those entry points, not functions you can call.
 | block | `(module path, ordinal)` | `kind`, `name`, `path` | module record, coverage |
 | module | file path | the number the names table gave the path | module record, coverage |
 | test | test file path, or a story id | the same | coverage |
+| case | test file path and the case's declaration path under it | the runner's id where it hands one over, otherwise the same pair | the case index, with the duration its runner reported |
 | precondition | `name` and `digest` together | the same pair | coverage, per test |
 | crossing | `(block, test)` | the same pair | coverage |
 | module names table | repository-relative path | the number, for as long as the file exists | the repository's cache |
@@ -467,9 +468,21 @@ second clock: Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
 duration, or the `duration` you pass to `startRecording().finish()`. A file the
 runner reported nothing for stores the sentinel, and a reader answers it as
 absent, not as zero. When two projects record the same file, its duration is
-their sum, and it is absent if either is. `variance ask slowest-tests` lists the
-slowest recorded files, and `yarn test:since` adds up the recorded cost of the
-files it selects.
+their sum, and it is absent if either is.
+
+The case index beside the snapshot carries the same figure for each case, in a
+`tests.duration` column of its own: Vitest's task result, Jest's assertion
+result, Rstest's test result, or the `duration` a case carries in what you pass
+to `startRecording().finish()`. A case is joined to the runner's report by the
+id the runner gave it, or by its declaration path under the file where the
+runner gives none. A path the file declares twice cannot say which of the two it
+is, so neither is timed. A case index written before cases carried durations
+opens with every case untimed. Playwright and Storybook report no duration per
+case, so their cases are recorded without one.
+
+`variance ask slowest-tests` lists the slowest recorded files and the slowest
+recorded cases, anywhere or under the paths you name, and `yarn test:since`
+adds up the recorded cost of the files it selects.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —
