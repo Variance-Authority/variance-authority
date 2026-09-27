@@ -46,7 +46,7 @@ export const costs: Tool<CostsSubject> = {
     'the last run recorded — the same times the next run balances its shards on. Read from the ' +
     'mainline’s published costs, so it covers the whole suite, or from the report you name. ' +
     'Ask this before narrowing a run, splitting a file of stories, or deciding which subjects a ' +
-    'quick local loop can skip.',
+    'quick local loop can skip. `from` narrows it to the subjects declared at or under the paths you name.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -55,17 +55,33 @@ export const costs: Tool<CostsSubject> = {
         minimum: 1,
         description: `Optional. How many files and how many subjects to list; ${String(DEFAULT_LIMIT)} of each by default.`,
       },
+      from: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Optional. Paths from the repository root: only the subjects declared in these files, or in files under ' +
+          'these directories. A subject whose collector names no file is outside every path.',
+      },
     },
     additionalProperties: false,
   },
 
   run(subject, input) {
     const limit = limitOf(input['limit']);
-    const timed = [...subject.subjects].sort(slowestFirstSubject);
-    if (timed.length === 0) return `${subject.from} timed no subject.`;
+    const paths = pathsOf(input['from']);
+    const all = [...subject.subjects].sort(slowestFirstSubject);
+    if (all.length === 0) return `${subject.from} timed no subject.`;
+    const timed = paths === undefined ? all : all.filter((entry) => paths.some((path) => under(entry.file, path)));
+    const where = paths === undefined ? '' : ` under ${paths.join(', ')}`;
+    if (timed.length === 0) return nothingUnder(subject.from, where, all);
 
     const total = timed.reduce((sum, entry) => sum + entry.ms, 0);
-    const lines = [`${subject.from}: ${count(timed.length, 'subject')} timed, ${seconds(total)} in all.`];
+    const outside = all.filter((entry) => entry.file === undefined).length;
+    const share = paths === undefined
+      ? ''
+      : ` of the ${seconds(all.reduce((sum, entry) => sum + entry.ms, 0))} the run timed` +
+        (outside === 0 ? '' : `; ${count(outside, 'subject')} ${outside === 1 ? 'names' : 'name'} no file and no path holds ${outside === 1 ? 'it' : 'them'}`);
+    const lines = [`${subject.from}: ${count(timed.length, 'subject')} timed${where}, ${seconds(total)} in all${share}.`];
 
     const files = filesOf(timed);
     const unfiled = timed.filter((entry) => entry.file === undefined).length;
@@ -87,6 +103,42 @@ export const costs: Tool<CostsSubject> = {
     return lines.join('\n');
   },
 };
+
+/** The paths asked about, spelled as the file field spells them; absent when none were. */
+function pathsOf(given: unknown): readonly string[] | undefined {
+  if (given === undefined) return undefined;
+  if (!Array.isArray(given) || given.some((path) => typeof path !== 'string')) {
+    throw new Error('`from` takes a list of paths from the repository root');
+  }
+  const paths = (given as string[]).map((path) => path.trim().replace(/^\.\//u, '').replace(/\/+$/u, '')).filter((path) => path !== '');
+  if (paths.length === 0) throw new Error('`from` takes paths from the repository root, and none was given');
+  return paths;
+}
+
+/** The file itself, or a file under the directory; `.` is the whole repository. */
+function under(file: string | undefined, path: string): boolean {
+  if (file === undefined) return false;
+  return path === '.' || file === path || file.startsWith(`${path}/`);
+}
+
+/**
+ * An empty scope, answered with where the time is instead: the directories two
+ * segments deep that hold the most of it, so a mistyped or too-narrow path is
+ * one step from a path that answers.
+ */
+function nothingUnder(from: string, where: string, all: readonly SubjectCost[]): string {
+  const dirs = new Map<string, number>();
+  for (const entry of all) {
+    if (entry.file === undefined) continue;
+    const dir = entry.file.split('/').slice(0, -1).slice(0, 2).join('/') || '.';
+    dirs.set(dir, (dirs.get(dir) ?? 0) + entry.ms);
+  }
+  const heaviest = [...dirs].map(([dir, ms]) => ({ dir, ms })).sort(slowestFirst<{ dir: string; ms: number }>((entry) => entry.dir)).slice(0, 5);
+  const hint = heaviest.length === 0
+    ? ' No timed subject names a file, so no path can hold one.'
+    : ` The timed subjects are declared under ${heaviest.map((entry) => `${entry.dir} (${seconds(entry.ms)})`).join(', ')}.`;
+  return `${from} timed no subject${where}.${hint}`;
+}
 
 function limitOf(given: unknown): number {
   if (given === undefined) return DEFAULT_LIMIT;

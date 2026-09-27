@@ -132,6 +132,7 @@ one boundary whichever transport asks: [inspect a live run](agent-live-run.md).
 ```bash
 variance ask costs
 variance ask costs --limit 20
+variance ask costs --from packages/checkout,src/card.stories.tsx
 variance ask costs .variance/report.json
 ```
 
@@ -148,9 +149,16 @@ commit the times belong to and how far your checkout is from it. When the
 mainline has published none, the answer says so and does not fall back to your
 last local run. Name a report to read that run's own times instead.
 
+`--from` narrows the answer to the subjects declared in the files you name, or
+in files under the directories you name. The first line then gives both totals,
+the scope's and the whole run's, so you can see what share of the suite the
+scope costs. A scope that holds no timed subject is answered with the
+directories that hold the most time, not with an empty table.
+
 A subject the run could not time is left out of the list, never counted as zero.
 A subject whose collector names no file is listed with the subjects and counted
-under the file table's heading.
+under the file table's heading. A path scope cannot hold such a subject, so a
+scoped answer counts it in the first line instead.
 
 ## Ask the code, when the name is not in the run
 

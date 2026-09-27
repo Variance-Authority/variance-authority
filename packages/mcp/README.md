@@ -347,7 +347,9 @@ suite spends longest on, each with its summed time and subject count, then the
 slowest subjects with the file that declares each. `COSTS_TOOLS` holds it, and
 its subject is a `CostsSubject` — one sentence naming where the times were read,
 and a `SubjectCost` per timed subject. A subject the run could not time is left
-out of the list, never counted as zero.
+out of the list, never counted as zero. `from` takes a list of paths and keeps
+the subjects declared at or under them, and the first line then gives the
+scope's total beside the run's.
 
 It is a subject of its own rather than a report because the times a reader
 wants are usually the mainline's, which cover the whole suite, and no report
@@ -365,7 +367,7 @@ console.log(costs.run({
     { subject: 'story:card--wide', ms: 900, file: 'src/card.stories.tsx' },
     { subject: 'route:/pricing', ms: 400 },
   ],
-}, { limit: 5 }));
+}, { limit: 5, from: ['src'] }));
 ```
 
 ## Watch a suite that has not finished

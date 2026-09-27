@@ -231,7 +231,7 @@ variance ask summary
 variance ask changes --component Toggle
 variance ask describe --subject story:card
 variance ask search --query viewport    # the code, not the run: no report and no config needed
-variance ask costs --limit 20           # where the suite's time goes, from the mainline's published times
+variance ask costs --from src           # where the suite's time goes under src, from the mainline's published times
 ```
 
 `ask` calls the tools `serve` serves and prints what they return. The same

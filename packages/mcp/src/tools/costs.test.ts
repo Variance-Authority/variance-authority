@@ -49,4 +49,23 @@ describe('variance_costs', () => {
     const answer = costs.run({ from: 'x', subjects: [{ subject: 'route:/', ms: 5 }] }, {});
     expect(answer).not.toContain('Slowest files');
   });
+
+  it('narrows to the subjects declared at or under the paths asked about, and says what it left out', () => {
+    expect(costs.run(SUBJECT, { from: ['src/card.stories.tsx'] }).split('\n')[0]).toBe(
+      'Mainline main at 3f1c9a0e: 2 subjects timed under src/card.stories.tsx, 1.3 s in all of the 2.9 s the run timed; ' +
+        '1 subject names no file and no path holds it.',
+    );
+    const both = costs.run(SUBJECT, { from: ['./src/', 'lib'] });
+    expect(both).toContain('3 subjects timed under src, lib, 2.5 s in all');
+    expect(both).not.toContain('route:/pricing');
+    expect(costs.run(SUBJECT, { from: ['src/card'] })).toContain('timed no subject under src/card.');
+  });
+
+  it('answers an empty scope with where the time is, and refuses a scope that is not paths', () => {
+    expect(costs.run(SUBJECT, { from: ['lib'] })).toBe(
+      'Mainline main at 3f1c9a0e timed no subject under lib. The timed subjects are declared under src (2.5 s).',
+    );
+    expect(() => costs.run(SUBJECT, { from: 'src' })).toThrow(/list of paths/);
+    expect(() => costs.run(SUBJECT, { from: [' '] })).toThrow(/none was given/);
+  });
 });
