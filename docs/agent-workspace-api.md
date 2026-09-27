@@ -68,38 +68,71 @@ without scanning the repository again. Producing and answering are separate oper
 a CI step can publish once, then every agent in that step can ask the same dated
 facts without making freshness checks part of query latency.
 
-This path is measured on seven copies of [Material
-UI](https://github.com/mui/material-ui) side by side in one checkout: 288,197
-tracked paths. Every figure is the median of seven runs, each run a separate
+This path is measured on two public repositories. The first is seven copies of
+[Material UI](https://github.com/mui/material-ui) side by side in one checkout:
+288,197 tracked paths. The second is [Kibana](https://github.com/elastic/kibana)
+at `df0daaddcc`: 125,804 tracked paths in 1,488 packages, each declared in a
+`kibana.jsonc`. Every figure is the median of seven runs, each run a separate
 process looking for `button`, on an Apple M4 Max with 64 GB, macOS 27.0, Node
-v26.7.0, ripgrep 15.2.0 and a warm filesystem cache.
+v26.7.0, ripgrep 15.2.0 and a warm filesystem cache. The first chart is seven
+Material UIs and the second is Kibana, on the same scale:
 
 ```mermaid
 xychart-beta horizontal
-  accTitle: Milliseconds to answer button over 288,197 paths
+  accTitle: Milliseconds to answer button over seven Material UIs, 288,197 paths
   x-axis ["git grep", "rg", "produce the generation, once", "ask search --to", "ask search --from", "ask search"]
   y-axis "milliseconds" 0 --> 10000
   bar [9688, 7862, 6695, 263, 228, 101]
 ```
 
-| One process | Milliseconds |
-| --- | --- |
-| `git grep -niF button` | 9,688 |
-| `rg -niF button .` | 7,862 |
-| produce the generation into an empty index, once | 6,695 |
-| `variance ask search --query button --to …/ButtonBase.js` | 263 |
-| `variance ask search --query button --from …/Autocomplete.js` | 228 |
-| `variance ask search --query button` | 101 |
+```mermaid
+xychart-beta horizontal
+  accTitle: Milliseconds to answer button over Kibana, 125,804 paths
+  x-axis ["git grep", "rg", "produce the generation, once", "ask search --to", "ask search --from", "ask search"]
+  y-axis "milliseconds" 0 --> 10000
+  bar [4643, 4777, 8144, 250, 230, 122]
+```
+
+| One process | Seven Material UIs, ms | Kibana, ms |
+| --- | --- | --- |
+| `git grep -niF button` | 9,688 | 4,643 |
+| `rg -niF button .` | 7,862 | 4,777 |
+| produce the generation into an empty index, once | 6,695 | 8,144 |
+| `variance ask search --query button --to` a shared button | 263 | 250 |
+| `variance ask search --query button --from` an input with suggestions | 228 | 230 |
+| `variance ask search --query button` | 101 | 122 |
+
+Each start point is one file. `--to` names a shared button: `…/ButtonBase.js`
+in Material UI, and
+`src/platform/packages/shared/shared-ux/button_toolbar/src/buttons/toolbar_button/toolbar_button.tsx`
+in Kibana. `--from` names an input that offers suggestions as you type:
+`…/Autocomplete.js`, and Kibana's KQL query input,
+`src/platform/plugins/shared/kql/public/components/query_string_input/query_string_input.tsx`.
 
 The text searches pay their whole cost again for the next word, and they return
-every file that contains the string. The producer pays once, in less than the
-time of one text search, and every question after it reads the published
-generation. A question without a path costs about 100 ms at 2,500 paths, at
-41,000 and at 288,000: it opens a search file the producer publishes beside the
-generation and decodes only the rows it prints, so nearly all of that 100 ms is
-Node starting. `--from` and `--to` also load the import graph and walk it.
-`--from` is reachability at any depth, not a
-maximum hop count; the answer prints import distances where it has them.
+every file that contains the string: on Kibana, `git grep` prints 115,305 lines
+from 12,577 files. The producer pays once, and every question after it reads the
+published generation. On seven Material UIs, producing costs less than one text
+search. On Kibana, with less than half the paths, the text searches take
+4,643 ms and 4,777 ms, against 9,688 and 7,862, and producing takes 8,144 ms,
+against 6,695. That is less than two text searches, so from the second question
+on, producing once and asking costs less than searching the text for each one.
+The producer on Kibana peaks at 2,702 MiB of resident memory, against 2,402 MiB
+on seven Material UIs.
+
+A question without a path costs about 100 ms at 2,500 paths, at 41,000 and at
+288,000: it opens a search file the producer publishes beside the generation and
+decodes only the rows it prints, so nearly all of that 100 ms is Node starting.
+In the session that measured Kibana, `variance ask` with no question, which
+reads no index, takes 108 ms, so the search itself costs about 14 ms.
+
+`--from` and `--to` also load the import graph and walk it. The walks from
+Kibana's start points cover more files than those from Material UI's, and take
+about the same time: 36,108 files import Kibana's shared button, directly or
+through other files, against 25,271 for `…/ButtonBase.js`, and its KQL input
+imports 4,927 files the same way, against 788 for `…/Autocomplete.js`.
+`--from` is reachability at any depth, not a maximum hop count; the answer
+prints import distances where it has them.
 
 `git grep` and `rg` read the text in different ways: `git grep` can read packed
 objects, and `rg` opens each file in parallel.

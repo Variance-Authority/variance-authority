@@ -1,35 +1,30 @@
 import {
-  codeUnitOrder as order,
-  encodeSegment,
   flagOf,
-  intern,
   NONE,
   openSegment,
   rangeOf,
   sameLength as sameLengthOf,
-  stringColumns,
   stringReader as openStrings,
   validateOffsets,
-  type Column,
 } from '@variance-authority/core/segment';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed, ParseKey } from './cache.js';
 import type { Export } from './read.js';
-import { dictionary, joinedKey, partsOf } from './source-index-codec.js';
-import { encodeHarvest, openHarvest } from './source-index-harvest.js';
-import { encodeMembers, openMembers } from './source-index-members.js';
-import { encodeMocks, openMocks } from './source-index-mocks.js';
+import { native, nativeRefusal } from './addon.js';
+import type { NativeScanner } from './native.js';
+import { openHarvest } from './source-index-harvest.js';
+import { openMembers } from './source-index-members.js';
+import { openMocks } from './source-index-mocks.js';
 import { packageOf } from './specifier.js';
 
 /**
- * One durable generation of source facts, as bytes.
+ * One durable generation of source facts, as bytes, and its reader.
  *
- * The schema is here and the arithmetic is not:
- * [`core/segment`](../../core/src/segment/index.ts) owns sections, alignment,
- * interning and the checks a decode runs before it believes a file, because the
- * suite index needed the same four hundred lines and two copies of offset
- * validation is one copy that eventually stops matching.
+ * The writer is the addon's (`native/src/generation.rs`); this file hands it
+ * documents and reads back what it wrote. The segment arithmetic is not here
+ * either: [`core/segment`](../../core/src/segment/index.ts) owns sections,
+ * alignment and the checks a decode runs before it believes a file.
  *
  * What stays is the part that is about *source*: which columns exist, which of
  * them is a list, and the two absences this format has to keep apart — a parse
@@ -38,6 +33,8 @@ import { packageOf } from './specifier.js';
 const FORMAT = 'variance-authority-source-index';
 const VERSION = 12;
 const WHAT = 'source index';
+/** Rows per document: a few megabytes of JSON, far under any string limit. */
+const ROWS = 4096;
 
 /** A record, and the directories whose contents could still change its edges. */
 export interface IndexedRecord {
@@ -60,206 +57,64 @@ export interface StoredSourceIndex {
   readonly deletedRecords?: ReadonlySet<string>;
 }
 
-/** Encode source facts once: interned strings, dense columns, and offset lists. */
+/**
+ * One generation as bytes, written by the addon (`encode_source_index` in
+ * `native/src/graph_index.rs`) from {@link sourceIndexDocuments}. It is the only
+ * encoder: a cold build's closure is encoded on that side, and a warm save's
+ * delta crosses to it rather than keep a second copy of the layout here.
+ */
 export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
-  const parses = [...stored.parses].sort(([left], [right]) => order(left, right));
-  const records = [...stored.records].sort(([left], [right]) => order(left, right));
-  const directories = [...stored.directories].sort(([left], [right]) => order(left, right));
-  // `intern` refuses a string `dictionary` never collected. Looked up in a bare
-  // map it was `undefined`, which a typed column writes as row 0 — a real
-  // string, and the wrong one: package names were not collected, and a row
-  // named `@variance-authority/core` read back as the `../exit.js` that sorted first.
-  const { strings, id } = intern(dictionary(stored, parses, records));
+  return encoder().encodeSourceIndex(sourceIndexDocuments(stored));
+}
 
-  const { blob: stringBlob, off: stringOff } = stringColumns(strings);
+/**
+ * A chain's segments folded into one generation, on the addon's side
+ * (`native/src/compact.rs`): the segments are already bytes in the layout it
+ * wrote, so the whole index never crosses back as objects to be written again.
+ */
+export function compactSourceIndex(layers: readonly Uint8Array[]): Buffer {
+  return encoder().compactSourceIndex([...layers]);
+}
 
-  const parseDigest = new Uint32Array(parses.length);
-  const parseWay = new Uint32Array(parses.length);
-  const parseRequests = new Uint32Array(parses.length + 1);
-  const parseExports = new Uint32Array(parses.length + 1);
-  const parseExportPresent = new Uint8Array(parses.length);
-  const parseDeclares = new Uint32Array(parses.length + 1);
-  const parseDeclarePresent = new Uint8Array(parses.length);
-  const parseUnknown = new Uint32Array(parses.length).fill(NONE);
-  const parseHarvested = new Uint8Array(parses.length);
-  const requestValue: number[] = [];
-  const requestKind: number[] = [];
-  const requestLine: number[] = [];
-  const requestBindings: number[] = [0];
-  const bindingImported: number[] = [];
-  const bindingLocal: number[] = [];
-  const bindingType: number[] = [];
-  const bindingLine: number[] = [];
-  const exportExported: number[] = [];
-  const exportLocal: number[] = [];
-  const exportFrom: number[] = [];
-  const exportImported: number[] = [];
-  const exportType: number[] = [];
-  const exportLine: number[] = [];
-  const declareName: number[] = [];
-
-  for (const [index, [key, parsed]] of parses.entries()) {
-    const [digest, way] = partsOf(key);
-    parseDigest[index] = id(digest);
-    parseWay[index] = id(way);
-    parseRequests[index] = requestValue.length;
-    for (const request of parsed.requests) {
-      requestValue.push(id(request.value));
-      requestKind.push(id(request.kind));
-      // A line is a small integer, not a string: interning it would put every
-      // distinct line number a repository ever wrote into the dictionary.
-      requestLine.push(request.line);
-      for (const binding of request.bindings) {
-        bindingImported.push(id(binding.imported));
-        bindingLocal.push(id(binding.local));
-        bindingType.push(binding.type ? 1 : 0);
-        bindingLine.push(binding.line);
-      }
-      requestBindings.push(bindingImported.length);
-    }
-    parseExports[index] = exportExported.length;
-    parseExportPresent[index] = parsed.exports === undefined ? 0 : 1;
-    for (const published of parsed.exports ?? []) {
-      exportExported.push(optionalId(published.exported, id));
-      exportLocal.push(optionalId(published.local, id));
-      exportFrom.push(optionalId(published.from, id));
-      exportImported.push(optionalId(published.imported, id));
-      exportLine.push(published.line);
-      exportType.push(published.type ? 1 : 0);
-    }
-    parseDeclares[index] = declareName.length;
-    parseDeclarePresent[index] = parsed.declares === undefined ? 0 : 1;
-    for (const name of parsed.declares ?? []) declareName.push(id(name));
-    parseUnknown[index] = optionalId(parsed.unknown, id);
-    parseHarvested[index] = parsed.harvested === true ? 1 : 0;
+function encoder(): NativeScanner {
+  const addon = native();
+  if (addon === undefined) {
+    throw new Error(`the ${WHAT} is encoded by the native addon, which did not load: ${nativeRefusal()}`);
   }
-  parseRequests[parses.length] = requestValue.length;
-  parseExports[parses.length] = exportExported.length;
-  parseDeclares[parses.length] = declareName.length;
+  return addon;
+}
 
-  const recordFile = new Uint32Array(records.length);
-  const recordDigest = new Uint32Array(records.length).fill(NONE);
-  const recordEdges = new Uint32Array(records.length + 1);
-  const recordEdgePresent = new Uint8Array(records.length);
-  const recordDeclares = new Uint32Array(records.length + 1);
-  const recordDeclarePresent = new Uint8Array(records.length);
-  const recordPackages = new Uint32Array(records.length + 1);
-  const recordPackagePresent = new Uint8Array(records.length);
-  const recordUnresolved = new Uint32Array(records.length + 1);
-  const recordUnresolvedPresent = new Uint8Array(records.length);
-  const recordUnknown = new Uint32Array(records.length).fill(NONE);
-  const recordWitnesses = new Uint32Array(records.length + 1);
-  const recordTargets = new Uint32Array(records.length + 1);
-  const recordTargetPresent = new Uint8Array(records.length);
-  const witnessDirectory: number[] = [];
-  const targetPath: number[] = [];
-  const edgeTo: number[] = [];
-  const edgeKind: number[] = [];
-  const recordDeclareName: number[] = [];
-  const unresolvedValue: number[] = [];
-  const packageTo: number[] = [];
-  const packageKind: number[] = [];
-
-  for (const [index, [file, held]] of records.entries()) {
-    const record = held.record;
-    recordFile[index] = id(file);
-    recordWitnesses[index] = witnessDirectory.length;
-    for (const directory of held.witnesses) witnessDirectory.push(id(directory));
-    recordTargets[index] = targetPath.length;
-    recordTargetPresent[index] = held.targets === undefined ? 0 : 1;
-    for (const target of held.targets ?? []) targetPath.push(optionalId(target, id));
-    recordDigest[index] = optionalId(record.digest, id);
-    recordEdges[index] = edgeTo.length;
-    recordEdgePresent[index] = record.edges === undefined ? 0 : 1;
-    for (const edge of record.edges ?? []) {
-      edgeTo.push(id(edge.to));
-      edgeKind.push(id(edge.kind));
+/**
+ * `stored` as the JSON documents the addon reads it from (`Delta` in
+ * `native/src/generation.rs`): what it deletes and its configuration first,
+ * then its rows, at most {@link ROWS} to a document.
+ *
+ * Several and not one, because one is a string the size of the whole index,
+ * and V8 refuses a string past half a gigabyte: the records and parses of a
+ * hundred thousand files were 290 MB of it already. An absent target crosses
+ * as `null`, which the addon reads as absent.
+ */
+export function sourceIndexDocuments(stored: StoredSourceIndex): string[] {
+  const documents = [JSON.stringify({
+    ...(stored.config === undefined ? {} : { config: stored.config }),
+    deletedParses: [...stored.deletedParses ?? []],
+    deletedRecords: [...stored.deletedRecords ?? []],
+    deletedDirectories: [...stored.deletedDirectories ?? []],
+  })];
+  const rows = (name: string, entries: Iterable<readonly [string, unknown]>): void => {
+    let batch: (readonly [string, unknown])[] = [];
+    for (const entry of entries) {
+      batch.push(entry);
+      if (batch.length < ROWS) continue;
+      documents.push(JSON.stringify({ [name]: batch }));
+      batch = [];
     }
-    recordDeclares[index] = recordDeclareName.length;
-    recordDeclarePresent[index] = record.declares === undefined ? 0 : 1;
-    for (const name of record.declares ?? []) recordDeclareName.push(id(name));
-    recordPackages[index] = packageTo.length;
-    recordPackagePresent[index] = record.packages === undefined ? 0 : 1;
-    for (const edge of record.packages ?? []) {
-      packageTo.push(id(edge.to));
-      packageKind.push(id(edge.kind));
-    }
-    recordUnresolved[index] = unresolvedValue.length;
-    recordUnresolvedPresent[index] = record.unresolved === undefined ? 0 : 1;
-    for (const value of record.unresolved ?? []) unresolvedValue.push(id(value));
-    recordUnknown[index] = optionalId(record.unknown, id);
-  }
-  recordWitnesses[records.length] = witnessDirectory.length;
-  recordTargets[records.length] = targetPath.length;
-  recordEdges[records.length] = edgeTo.length;
-  recordDeclares[records.length] = recordDeclareName.length;
-  recordPackages[records.length] = packageTo.length;
-  recordUnresolved[records.length] = unresolvedValue.length;
-
-  return bytes(encodeSegment(FORMAT, VERSION, {
-    'strings.blob': stringBlob,
-    'strings.off': stringOff,
-    'index.config': Uint32Array.of(optionalId(stored.config, id)),
-    'directories.path': Uint32Array.from(directories, ([path]) => id(path)),
-    'directories.digest': Uint32Array.from(directories, ([, digest]) => id(digest)),
-    'directories.deleted': Uint32Array.from(
-      [...stored.deletedDirectories ?? []].sort(order), (path) => id(path)),
-    'parses.key': parseDigest,
-    'parses.key-way': parseWay,
-    'parses.deleted': Uint32Array.from(
-      [...stored.deletedParses ?? []].sort(order), (key) => id(partsOf(key)[0])),
-    'parses.deleted-way': Uint32Array.from(
-      [...stored.deletedParses ?? []].sort(order), (key) => id(partsOf(key)[1])),
-    'parses.requests': parseRequests,
-    'parses.exports': parseExports,
-    'parses.exports-present': parseExportPresent,
-    'parses.declares': parseDeclares,
-    'parses.declares-present': parseDeclarePresent,
-    'parses.unknown': parseUnknown,
-    'parses.harvested': parseHarvested,
-    'requests.value': Uint32Array.from(requestValue),
-    'requests.kind': Uint32Array.from(requestKind),
-    'requests.line': Uint32Array.from(requestLine),
-    'requests.bindings': Uint32Array.from(requestBindings),
-    'bindings.imported': Uint32Array.from(bindingImported),
-    'bindings.local': Uint32Array.from(bindingLocal),
-    'bindings.type': Uint8Array.from(bindingType),
-    'bindings.line': Uint32Array.from(bindingLine),
-    'exports.exported': Uint32Array.from(exportExported),
-    'exports.local': Uint32Array.from(exportLocal),
-    'exports.from': Uint32Array.from(exportFrom),
-    'exports.imported': Uint32Array.from(exportImported),
-    'exports.type': Uint8Array.from(exportType),
-    'exports.line': Uint32Array.from(exportLine),
-    ...encodeHarvest(parses, id),
-    ...encodeMocks(parses, id),
-    ...encodeMembers(parses, id),
-    'declares.name': Uint32Array.from(declareName),
-    'records.file': recordFile,
-    'records.deleted': Uint32Array.from(
-      [...stored.deletedRecords ?? []].sort(order), (file) => id(file)),
-    'records.digest': recordDigest,
-    'records.edges': recordEdges,
-    'records.edges-present': recordEdgePresent,
-    'records.declares': recordDeclares,
-    'records.declares-present': recordDeclarePresent,
-    'records.packages': recordPackages,
-    'records.packages-present': recordPackagePresent,
-    'records.unresolved': recordUnresolved,
-    'records.unresolved-present': recordUnresolvedPresent,
-    'records.unknown': recordUnknown,
-    'records.witnesses': recordWitnesses,
-    'records.targets': recordTargets,
-    'records.targets-present': recordTargetPresent,
-    'witnesses.directory': Uint32Array.from(witnessDirectory),
-    'targets.path': Uint32Array.from(targetPath),
-    'edges.to': Uint32Array.from(edgeTo),
-    'edges.kind': Uint32Array.from(edgeKind),
-    'record-declares.name': Uint32Array.from(recordDeclareName),
-    'unresolved.value': Uint32Array.from(unresolvedValue),
-    'packages.to': Uint32Array.from(packageTo),
-    'packages.kind': Uint32Array.from(packageKind),
-  } satisfies Record<string, Column>));
+    if (batch.length > 0) documents.push(JSON.stringify({ [name]: batch }));
+  };
+  rows('directories', stored.directories);
+  rows('records', stored.records);
+  rows('parses', stored.parses);
+  return documents;
 }
 
 /** Decode a complete generation. Any malformed reference rejects the whole file. */
@@ -478,10 +333,6 @@ function range(offsets: Uint32Array, row: number): number[] {
   return rangeOf(offsets, row, invalid);
 }
 
-function optionalId(value: string | undefined, id: (value: string) => number): number {
-  return value === undefined ? NONE : id(value);
-}
-
 /** A stored package name is one `packageOf` produces; anything else is a column read through the wrong dictionary. */
 function packageName(name: string): string {
   if (packageOf(name) !== name) throw invalid();
@@ -492,8 +343,9 @@ function flag(value: number | undefined): boolean {
   return flagOf(value, invalid);
 }
 
-function bytes(array: Uint8Array | Uint32Array): Buffer {
-  return Buffer.from(array.buffer, array.byteOffset, array.byteLength);
+/** A parse key from its content digest and the way it was read; the default way adds nothing. */
+function joinedKey(digest: string, way: string): ParseKey {
+  return way === '' ? digest : `${digest}\u0000${way}`;
 }
 
 function invalid(): Error { return new Error(`not a variance-authority ${WHAT}`); }

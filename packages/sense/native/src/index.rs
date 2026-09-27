@@ -1,35 +1,14 @@
-//! The parse half of the existing source-index generation format.
+//! The parse half of the existing source-index generation format: the layer a
+//! graph walk's own reads become, published beside the generation that holds
+//! the records.
 
-use std::collections::{HashMap, HashSet};
+// compass: variance-authority.reach.source-index
 
-use serde::Serialize;
-
+use crate::generation::{encode_generation, Deleted, Generation};
 use crate::order;
+use crate::parse_columns::{ParseColumns, ParseRow};
 use crate::read::Read;
-
-const NONE: u32 = u32::MAX;
-const ALIGNMENT: usize = 8;
-
-struct Column {
-    name: &'static str,
-    width: u8,
-    bytes: Vec<u8>,
-}
-
-#[derive(Serialize)]
-struct Section {
-    name: &'static str,
-    offset: usize,
-    length: usize,
-    width: u8,
-}
-
-#[derive(Serialize)]
-struct Header {
-    format: &'static str,
-    version: u8,
-    sections: Vec<Section>,
-}
+use crate::segment::{Collected, Strings};
 
 /// A complete generation containing parses and empty values for every other
 /// source-index layer. A following generation may carry records and tree shape;
@@ -55,253 +34,99 @@ pub fn parse_segment(
         .collect();
     rows.sort_unstable_by(|left, right| order::code_unit(&left.0, &right.0));
     rows.dedup_by(|left, right| left.0 == right.0);
-
-    let mut values = HashSet::new();
-    for (key, index) in &rows {
-        let (digest, way) = parts(key);
-        values.insert(digest.to_owned());
-        values.insert(way.to_owned());
-        let read = &reads[*index].0;
-        for request in &read.requests {
-            values.insert(request.value.clone());
-            values.insert(request.kind.as_str().to_owned());
-            for binding in &request.bindings {
-                values.insert(binding.imported.clone());
-                values.insert(binding.local.clone());
-            }
-        }
-        for export in &read.exports {
-            for value in [
-                export.exported.as_ref(),
-                export.local.as_ref(),
-                export.from.as_ref(),
-                export.imported.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                values.insert(value.clone());
-            }
-        }
-        for symbol in &read.symbols {
-            values.insert(symbol.name.clone());
-            values.insert(symbol.kind.to_owned());
-        }
-        values.extend(read.declares.iter().cloned());
-        values.extend(read.mocks.minus.iter().cloned());
-        values.extend(read.mocks.plus.iter().cloned());
-        values.extend(read.members.iter().map(|member| member.name.clone()));
-        if let Some(unknown) = &read.unknown {
-            values.insert(unknown.clone());
-        }
-    }
-    let mut strings: Vec<String> = values.into_iter().collect();
-    strings.sort_unstable_by(|left, right| order::code_unit(left, right));
-    let ids: HashMap<&str, u32> = strings
-        .iter()
-        .enumerate()
-        .map(|(index, value)| (value.as_str(), index as u32))
-        .collect();
-    let id = |value: &str| ids[value];
-
-    let mut string_blob = Vec::new();
-    let mut string_off = vec![0];
-    for value in &strings {
-        string_blob.extend_from_slice(value.as_bytes());
-        string_off.push(string_blob.len() as u32);
-    }
-
-    let mut parse_digest = Vec::with_capacity(rows.len());
-    let mut parse_way = Vec::with_capacity(rows.len());
-    let mut parse_requests = Vec::with_capacity(rows.len() + 1);
-    let mut parse_exports = Vec::with_capacity(rows.len() + 1);
-    let mut parse_exports_present = Vec::with_capacity(rows.len());
-    let mut parse_declares = Vec::with_capacity(rows.len() + 1);
-    let mut parse_declares_present = Vec::with_capacity(rows.len());
-    let mut parse_symbols = Vec::with_capacity(rows.len() + 1);
-    let mut parse_unknown = Vec::with_capacity(rows.len());
-    let mut parse_harvested = Vec::with_capacity(rows.len());
-    let mut parse_mocks_minus = Vec::with_capacity(rows.len() + 1);
-    let mut parse_mocks_plus = Vec::with_capacity(rows.len() + 1);
-    let mut parse_members = Vec::with_capacity(rows.len() + 1);
-    let mut member_request = Vec::new();
-    let mut member_name = Vec::new();
-    let mut member_line = Vec::new();
-    let mut mocks_minus = Vec::new();
-    let mut mocks_plus = Vec::new();
-    let mut request_value = Vec::new();
-    let mut request_kind = Vec::new();
-    let mut request_line = Vec::new();
-    let mut request_bindings = vec![0];
-    let mut binding_imported = Vec::new();
-    let mut binding_local = Vec::new();
-    let mut binding_type = Vec::new();
-    let mut binding_line = Vec::new();
-    let mut export_exported = Vec::new();
-    let mut export_local = Vec::new();
-    let mut export_from = Vec::new();
-    let mut export_imported = Vec::new();
-    let mut export_type = Vec::new();
-    let mut export_line = Vec::new();
-    let mut export_signature_start = Vec::new();
-    let mut export_signature_end = Vec::new();
-    let mut export_doc_start = Vec::new();
-    let mut export_doc_end = Vec::new();
-    let mut declare_name = Vec::new();
-    let mut symbol_name = Vec::new();
-    let mut symbol_kind = Vec::new();
-    let mut symbol_line = Vec::new();
-    let mut symbol_signature_start = Vec::new();
-    let mut symbol_signature_end = Vec::new();
-    let mut symbol_doc_start = Vec::new();
-    let mut symbol_doc_end = Vec::new();
-
-    for (key, index) in &rows {
-        let (digest, held_way) = parts(key);
-        let read = &reads[*index].0;
-        parse_digest.push(id(digest));
-        parse_way.push(id(held_way));
-        parse_requests.push(request_value.len() as u32);
-        for request in &read.requests {
-            request_value.push(id(&request.value));
-            request_kind.push(id(request.kind.as_str()));
-            request_line.push(request.line);
-            for binding in &request.bindings {
-                binding_imported.push(id(&binding.imported));
-                binding_local.push(id(&binding.local));
-                binding_type.push(u8::from(binding.type_only));
-                binding_line.push(binding.line);
-            }
-            request_bindings.push(binding_imported.len() as u32);
-        }
-        parse_exports.push(export_exported.len() as u32);
-        parse_exports_present.push(u8::from(!read.exports.is_empty()));
-        for export in &read.exports {
-            export_exported.push(optional(export.exported.as_deref(), &id));
-            export_local.push(optional(export.local.as_deref(), &id));
-            export_from.push(optional(export.from.as_deref(), &id));
-            export_imported.push(optional(export.imported.as_deref(), &id));
-            export_type.push(u8::from(export.type_only));
-            export_line.push(export.line);
-            export_signature_start.push(export.signature.map_or(NONE, |span| span.start));
-            export_signature_end.push(export.signature.map_or(NONE, |span| span.end));
-            export_doc_start.push(export.doc.map_or(NONE, |span| span.start));
-            export_doc_end.push(export.doc.map_or(NONE, |span| span.end));
-        }
-        parse_symbols.push(symbol_name.len() as u32);
-        for symbol in &read.symbols {
-            symbol_name.push(id(&symbol.name));
-            symbol_kind.push(id(symbol.kind));
-            symbol_line.push(symbol.line);
-            symbol_signature_start.push(symbol.signature.map_or(NONE, |span| span.start));
-            symbol_signature_end.push(symbol.signature.map_or(NONE, |span| span.end));
-            symbol_doc_start.push(symbol.doc.map_or(NONE, |span| span.start));
-            symbol_doc_end.push(symbol.doc.map_or(NONE, |span| span.end));
-        }
-        parse_declares.push(declare_name.len() as u32);
-        parse_declares_present.push(u8::from(!read.declares.is_empty()));
-        declare_name.extend(read.declares.iter().map(|name| id(name)));
-        parse_unknown.push(optional(read.unknown.as_deref(), &id));
-        parse_harvested.push(u8::from(read.harvested));
-        parse_mocks_minus.push(mocks_minus.len() as u32);
-        parse_mocks_plus.push(mocks_plus.len() as u32);
-        mocks_minus.extend(read.mocks.minus.iter().map(|value| id(value)));
-        mocks_plus.extend(read.mocks.plus.iter().map(|value| id(value)));
-        parse_members.push(member_name.len() as u32);
-        for member in &read.members {
-            member_request.push(member.request);
-            member_name.push(id(&member.name));
-            member_line.push(member.line);
-        }
-    }
-    parse_requests.push(request_value.len() as u32);
-    parse_exports.push(export_exported.len() as u32);
-    parse_declares.push(declare_name.len() as u32);
-    parse_symbols.push(symbol_name.len() as u32);
-    parse_mocks_minus.push(mocks_minus.len() as u32);
-    parse_mocks_plus.push(mocks_plus.len() as u32);
-    parse_members.push(member_name.len() as u32);
-
-    encode(vec![
-        u8s("strings.blob", string_blob),
-        u32s("strings.off", string_off),
-        u32s("index.config", vec![NONE]),
-        u32s("directories.path", vec![]),
-        u32s("directories.digest", vec![]),
-        u32s("directories.deleted", vec![]),
-        u32s("parses.key", parse_digest),
-        u32s("parses.key-way", parse_way),
-        u32s("parses.deleted", vec![]),
-        u32s("parses.deleted-way", vec![]),
-        u32s("parses.requests", parse_requests),
-        u32s("parses.exports", parse_exports),
-        u8s("parses.exports-present", parse_exports_present),
-        u32s("parses.declares", parse_declares),
-        u8s("parses.declares-present", parse_declares_present),
-        u32s("parses.unknown", parse_unknown),
-        u8s("parses.harvested", parse_harvested),
-        u32s("requests.value", request_value),
-        u32s("requests.kind", request_kind),
-        u32s("requests.line", request_line),
-        u32s("requests.bindings", request_bindings),
-        u32s("bindings.imported", binding_imported),
-        u32s("bindings.local", binding_local),
-        u8s("bindings.type", binding_type),
-        u32s("bindings.line", binding_line),
-        u32s("exports.exported", export_exported),
-        u32s("exports.local", export_local),
-        u32s("exports.from", export_from),
-        u32s("exports.imported", export_imported),
-        u8s("exports.type", export_type),
-        u32s("exports.line", export_line),
-        u32s("parses.symbols", parse_symbols),
-        u32s("symbols.name", symbol_name),
-        u32s("symbols.kind", symbol_kind),
-        u32s("symbols.line", symbol_line),
-        u32s("symbols.signature-start", symbol_signature_start),
-        u32s("symbols.signature-end", symbol_signature_end),
-        u32s("symbols.doc-start", symbol_doc_start),
-        u32s("symbols.doc-end", symbol_doc_end),
-        u32s("exports.signature-start", export_signature_start),
-        u32s("exports.signature-end", export_signature_end),
-        u32s("exports.doc-start", export_doc_start),
-        u32s("exports.doc-end", export_doc_end),
-        u32s("parses.mocks-minus", parse_mocks_minus),
-        u32s("parses.mocks-plus", parse_mocks_plus),
-        u32s("mocks.minus", mocks_minus),
-        u32s("mocks.plus", mocks_plus),
-        u32s("parses.members", parse_members),
-        u32s("members.request", member_request),
-        u32s("members.name", member_name),
-        u32s("members.line", member_line),
-        u32s("declares.name", declare_name),
-        u32s("records.file", vec![]),
-        u32s("records.deleted", vec![]),
-        u32s("records.digest", vec![]),
-        u32s("records.edges", vec![0]),
-        u8s("records.edges-present", vec![]),
-        u32s("records.declares", vec![0]),
-        u8s("records.declares-present", vec![]),
-        u32s("records.packages", vec![0]),
-        u8s("records.packages-present", vec![]),
-        u32s("records.unresolved", vec![0]),
-        u8s("records.unresolved-present", vec![]),
-        u32s("records.unknown", vec![]),
-        u32s("records.witnesses", vec![0]),
-        u32s("records.targets", vec![0]),
-        u8s("records.targets-present", vec![]),
-        u32s("witnesses.directory", vec![]),
-        u32s("targets.path", vec![]),
-        u32s("edges.to", vec![]),
-        u32s("edges.kind", vec![]),
-        u32s("record-declares.name", vec![]),
-        u32s("unresolved.value", vec![]),
-        u32s("packages.to", vec![]),
-        u32s("packages.kind", vec![]),
-    ])
+    let rows: Vec<(&str, &Read)> = rows.iter().map(|(key, index)| (key.as_str(), &reads[*index].0)).collect();
+    parses_only(&rows)
 }
 
-fn way(file: &str) -> String {
+/// The generation for parse rows alone, keyed and sorted by the caller.
+pub(crate) fn parses_only<P: ParseRow>(rows: &[(&str, &P)]) -> Vec<u8> {
+    encode_generation(&Generation { config: None, directories: &[], parses: rows, records: &[], deleted: Deleted::default() })
+}
+
+/// A walk's read, as a parse row: an empty list is how a `Read` says a list
+/// is absent, so presence is non-emptiness — what JavaScript's `harvested`
+/// path has always written for these keys.
+impl ParseRow for Read {
+    fn strings<'s>(&'s self, values: &mut Collected<'s>) {
+        for request in &self.requests {
+            values.insert(&request.value);
+            values.insert(request.kind.as_str());
+            for binding in &request.bindings {
+                values.insert(&binding.imported);
+                values.insert(&binding.local);
+            }
+        }
+        for export in &self.exports {
+            for value in [&export.exported, &export.local, &export.from, &export.imported].into_iter().flatten() {
+                values.insert(value);
+            }
+        }
+        for symbol in &self.symbols {
+            values.insert(&symbol.name);
+            values.insert(symbol.kind);
+        }
+        values.extend(self.declares.iter().map(String::as_str));
+        values.extend(self.mocks.minus.iter().map(String::as_str));
+        values.extend(self.mocks.plus.iter().map(String::as_str));
+        values.extend(self.members.iter().map(|member| member.name.as_str()));
+        values.extend(self.unknown.as_deref());
+    }
+
+    fn write(&self, strings: &Strings, into: &mut ParseColumns) {
+        let id = |value: &str| strings.id(value);
+        for request in &self.requests {
+            into.request(
+                id(&request.value),
+                id(request.kind.as_str()),
+                request.line,
+                request.bindings.iter().map(|binding| {
+                    (id(&binding.imported), id(&binding.local), binding.type_only, binding.line)
+                }),
+            );
+        }
+        let span = |span: Option<crate::harvest::TextSpan>| span.map(|span| (span.start, span.end));
+        for export in &self.exports {
+            into.export(
+                [&export.exported, &export.local, &export.from, &export.imported]
+                    .map(|value| strings.optional(value.as_deref())),
+                export.type_only,
+                export.line,
+                span(export.signature),
+                span(export.doc),
+            );
+        }
+        for symbol in &self.symbols {
+            into.symbol(id(&symbol.name), id(symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc));
+        }
+        for name in &self.declares {
+            into.declare(id(name));
+        }
+        into.mock(self.mocks.minus.iter().map(|value| id(value)), self.mocks.plus.iter().map(|value| id(value)));
+        for member in &self.members {
+            into.member(member.request, id(&member.name), member.line);
+        }
+    }
+
+    fn exports_present(&self) -> bool {
+        !self.exports.is_empty()
+    }
+
+    fn declares_present(&self) -> bool {
+        !self.declares.is_empty()
+    }
+
+    fn unknown(&self) -> Option<&str> {
+        self.unknown.as_deref()
+    }
+
+    fn harvested(&self) -> bool {
+        self.harvested
+    }
+}
+
+/// What the path says about reading it: `parseWay` and the second half of
+/// `keyFor` in `files.ts`.
+pub(crate) fn way(file: &str) -> String {
     let name = file.rsplit('/').next().unwrap_or(file);
     let suffix = name
         .char_indices()
@@ -312,71 +137,4 @@ fn way(file: &str) -> String {
         .iter()
         .any(|part| file.contains(part));
     format!("{suffix}\0{}", if declaring { "+" } else { "-" })
-}
-
-fn parts(key: &str) -> (&str, &str) {
-    key.split_once('\0').unwrap_or((key, ""))
-}
-
-fn optional(value: Option<&str>, id: &impl Fn(&str) -> u32) -> u32 {
-    value.map_or(NONE, id)
-}
-
-fn u8s(name: &'static str, bytes: Vec<u8>) -> Column {
-    Column {
-        name,
-        width: 1,
-        bytes,
-    }
-}
-
-fn u32s(name: &'static str, values: Vec<u32>) -> Column {
-    let mut bytes = Vec::with_capacity(values.len() * 4);
-    for value in values {
-        bytes.extend_from_slice(&value.to_le_bytes());
-    }
-    Column {
-        name,
-        width: 4,
-        bytes,
-    }
-}
-
-fn aligned(value: usize) -> usize {
-    (value + ALIGNMENT - 1) & !(ALIGNMENT - 1)
-}
-
-fn encode(columns: Vec<Column>) -> Vec<u8> {
-    let mut offset = 0;
-    let sections = columns
-        .iter()
-        .map(|column| {
-            let section = Section {
-                name: column.name,
-                offset,
-                length: column.bytes.len(),
-                width: column.width,
-            };
-            offset = aligned(offset + column.bytes.len());
-            section
-        })
-        .collect();
-    let header = serde_json::to_vec(&Header {
-        format: "variance-authority-source-index",
-        // `VERSION` in `source-index-format.ts`: a layer the reader refuses is
-        // a layer thrown away, which `native-read.test.ts` catches.
-        version: 12,
-        sections,
-    })
-    .unwrap_or_default();
-    let header_length = aligned(4 + header.len()) - 4;
-    let mut out = Vec::with_capacity(4 + header_length + offset);
-    out.extend_from_slice(&(header_length as u32).to_le_bytes());
-    out.extend_from_slice(&header);
-    out.resize(4 + header_length, 0);
-    for column in columns {
-        out.extend_from_slice(&column.bytes);
-        out.resize(aligned(out.len()), 0);
-    }
-    out
 }

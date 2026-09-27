@@ -52,6 +52,7 @@ import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
 import { native, nativeFrontier, nativeGraph, nativeRefusal, type NativeBuilt } from './native.js';
 import { adoptNativeParses } from './source-index.js';
+import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
 import type { IndexedRecord } from './source-index-format.js';
 import {
   READABLE,
@@ -202,6 +203,36 @@ export const LARGEST_FILE = 1024 * 1024;
  * one is diffable.
  */
 export async function scanRelations(options: ScanOptions): Promise<readonly FileRecord[]> {
+  const { built, graph } = await scanning(options);
+  if (graph !== undefined) {
+    for (const record of graphRecords(graph)) built.set(record.file, record);
+  }
+  return [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+}
+
+/**
+ * How many files {@link scanRelations} would return, for a caller that hands
+ * `cache` and `reuse` their records and needs only the count back.
+ *
+ * A cold closure the addon holds is counted where it is, so a build that
+ * publishes the index never turns the closure into objects just to count them.
+ */
+export async function scanCount(options: ScanOptions): Promise<number> {
+  const { built, graph } = await scanning(options);
+  if (graph === undefined) return built.size;
+  let both = 0;
+  for (const file of built.keys()) if (graph.has(file)) both += 1;
+  return built.size + graph.size - both;
+}
+
+interface Scanned {
+  /** Every record the scan built or reused in JavaScript. */
+  readonly built: Map<string, FileRecord>;
+  /** The cold closure the addon holds, whose records win where both name a file. */
+  readonly graph?: NativeIndexGraph;
+}
+
+async function scanning(options: ScanOptions): Promise<Scanned> {
   if (options.changed !== undefined && options.digests !== undefined) {
     throw new Error('`changed` supplies Git identity and cannot be combined with `digests`');
   }
@@ -267,6 +298,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   }
 
   let nativeGraphUsed = false;
+  let graph: NativeIndexGraph | undefined;
 
   const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
     built.set(file, fresh.record);
@@ -320,7 +352,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     const pendingSet = new Set<string>();
     for (; head < end; head += 1) {
       const file = queue[head]!;
-      if (built.has(file) || pendingSet.has(file)) continue;
+      if (built.has(file) || graph?.has(file) || pendingSet.has(file)) continue;
       const digest = frontierDigests?.[head - frontierStart];
       const way = parseWay(file);
       const remembered = digest === undefined ? undefined : reuse?.getIndexed(file, digest);
@@ -368,9 +400,26 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
         ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
         ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
       };
-      let answers: readonly NativeBuilt[];
+      // A closure nobody asked to see file by file is held where it was built:
+      // no callback wants its parses, and the record cache — when there is
+      // one — publishes it without asking for the records back.
+      const held = useGraph && packed !== undefined &&
+          options.parsed === undefined && options.indexed === undefined &&
+          (reuse === undefined || reuse.adopt !== undefined)
+        ? nativeIndexGraph(packed, { ...nativeOptions, seeds: pending })
+        : undefined;
+      let answers: readonly NativeBuilt[] = [];
       let answeredFiles: readonly string[] = pending;
-      if (useGraph) {
+      if (held !== undefined) {
+        graph = held;
+        nativeGraphUsed = true;
+        answeredFiles = [];
+        adoptNativeParses(cache, { get bytes() { return held.parseSegment(); }, keys: parseKeys(held) });
+        reuse?.adopt?.(held);
+        for (const file of held.following()) {
+          if (!built.has(file) && READABLE.has(extname(file))) queue.push(file);
+        }
+      } else if (useGraph) {
         const graph = nativeGraph(nativeOptions, options.parsed !== undefined || options.indexed !== undefined);
         answers = graph.built;
         if (graph.parseLayer !== undefined) adoptNativeParses(cache, graph.parseLayer);
@@ -393,9 +442,23 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     resolvers.modules.clearCache();
   }
 
-  const records = [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+  return graph === undefined ? { built } : { built, graph };
+}
 
-  return records;
+/**
+ * The closure's parse keys, as the parse cache asks them: held by the addon,
+ * less the few JavaScript harvested since and writes itself.
+ */
+function parseKeys(graph: NativeIndexGraph): { has(key: string): boolean; delete(key: string): boolean } {
+  const overridden = new Set<string>();
+  return {
+    has: (key) => !overridden.has(key) && graph.hasParse(key),
+    delete: (key) => {
+      const had = !overridden.has(key) && graph.hasParse(key);
+      overridden.add(key);
+      return had;
+    },
+  };
 }
 
 /** Whether a path is there to be opened, without opening it. */

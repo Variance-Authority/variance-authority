@@ -21,6 +21,7 @@ import { keyFor, parseWay } from './files.js';
 import { type ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
 import type { Aliases } from './witness.js';
+import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
   NativeJourneyGraph,
   NativeJourneySelection,
@@ -70,6 +71,8 @@ export interface NativeGitTree {
     conditionNames?: string[],
     includeParses?: boolean,
   ): NativeScanBatch;
+  /** A cold closure held on the native side ([`native-index-graph.ts`](./native-index-graph.ts)). */
+  indexGraph(options: NativeIndexGraphOptions): NativeIndexGraph;
   paths(): string[];
   digests(): string[];
   named(names: string[]): string[];
@@ -110,10 +113,37 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
+/** A segment an immutable-log manifest names: `LogSegment` in `native/src/log.rs`. */
+export interface NativeLogSegment {
+  readonly digest: string;
+  readonly length: number;
+}
+
 export interface NativeScanner {
   /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
   gitTree(root: string): NativeGitTree | null;
+  /**
+   * A source-index generation as bytes, from the JSON documents
+   * `sourceIndexDocuments` writes of it. The only encoder of the format.
+   */
+  encodeSourceIndex(documents: string[]): Buffer;
+  /**
+   * One source-index generation from a chain's segments, oldest first: each
+   * layer's deletes and then its puts, the last layer's configuration.
+   */
+  compactSourceIndex(layers: Uint8Array[]): Buffer;
+  /**
+   * Write `segments` after `kept`, then the manifest naming them, then remove
+   * whichever of `replaced` it no longer names: the only writer of an
+   * immutable log. What the file system refused, or `null` when it is written.
+   */
+  publishLog(
+    path: string,
+    kept: NativeLogSegment[],
+    segments: Uint8Array[],
+    replaced: NativeLogSegment[],
+  ): string | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
   seedFiles(root: string, dirs: string[]): string[];

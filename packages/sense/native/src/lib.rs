@@ -20,16 +20,20 @@ use std::sync::{Arc, OnceLock};
 
 mod acquire;
 mod batch;
+mod compact;
 mod conditions;
 mod depends;
 mod digest;
 mod emitted;
+mod generation;
 mod git;
+mod graph_index;
 #[cfg(feature = "grammars")]
 mod grammar;
 #[cfg(feature = "grammars")]
 mod languages;
 mod harvest;
+mod held;
 mod index;
 mod instrument;
 mod instrument_walk;
@@ -44,6 +48,7 @@ mod journey_read;
 mod journey_record;
 mod journey_select;
 mod journey_stitch;
+mod log;
 mod members;
 mod mocks;
 mod module_moved;
@@ -51,12 +56,18 @@ mod module_readers;
 mod module_shape;
 mod module_verdict;
 mod order;
+mod parse_columns;
 mod path;
 mod read;
+mod record;
 mod resolve;
 mod seed;
+mod segment;
 mod side_effects;
+mod specifier;
+mod stored;
 mod tree;
+mod witness;
 
 pub use seed::seed_files;
 
@@ -285,6 +296,13 @@ impl GitTree {
             &self.oids,
             self.listing(),
         )
+    }
+
+    /// Walk the module closure of `seeds` and keep it here as records and a
+    /// parse layer, for a cold build that publishes from this side.
+    #[napi(catch_unwind)]
+    pub fn index_graph(&self, options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
+        graph_index::index_graph(options, &self.at, &self.oids, self.listing())
     }
 
     /// Every path, sorted by code unit.

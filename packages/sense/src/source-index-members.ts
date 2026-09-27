@@ -1,5 +1,5 @@
-import { rangeOf, validateOffsets, type Column, type OpenSegment } from '@variance-authority/core/segment';
-import type { Member, Parsed, ParseKey } from './cache.js';
+import { rangeOf, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
+import type { Member } from './cache.js';
 
 /**
  * The member columns of a source-index generation: per parse, the names the
@@ -10,35 +10,6 @@ import type { Member, Parsed, ParseKey } from './cache.js';
  * `members` is absent: the module reader records the list only when it is not
  * empty, so the empty range and the absent field are the same fact.
  */
-
-type ParseRows = readonly (readonly [ParseKey, Parsed])[];
-
-export function encodeMembers(parses: ParseRows, id: (value: string) => number): Readonly<Record<string, Column>> {
-  const parseMembers: number[] = [];
-  const request: number[] = [];
-  const name: number[] = [];
-  const line: number[] = [];
-  for (const [, parsed] of parses) {
-    parseMembers.push(name.length);
-    for (const member of parsed.members ?? []) {
-      request.push(member.request);
-      name.push(id(member.name));
-      line.push(member.line);
-    }
-  }
-  parseMembers.push(name.length);
-
-  return {
-    'parses.members': Uint32Array.from(parseMembers),
-    'members.request': Uint32Array.from(request),
-    'members.name': Uint32Array.from(name),
-    'members.line': Uint32Array.from(line),
-  };
-}
-
-export function addMemberStrings(parsed: Parsed, values: Set<string>): void {
-  for (const member of parsed.members ?? []) values.add(member.name);
-}
 
 /**
  * Validate and open the member columns. The reader answers one parse row as the

@@ -203,15 +203,18 @@ Measured on public checkouts, as the bytes on disk after a full scan:
 
 | Repository | Files recorded | Index | Per file |
 | --- | ---: | ---: | ---: |
-| [Material UI](https://github.com/mui/material-ui), `packages` and `docs/src` | 25,117 | 7,987,244 B | 318 B |
+| [Kibana](https://github.com/elastic/kibana) at `df0daaddcc`, `src`, `x-pack` and `packages` | 106,219 | 81,007,024 B | 763 B |
+| [Material UI](https://github.com/mui/material-ui) at `8f19b1009b`, `packages` and `docs/src` | 25,117 | 10,985,350 B | 437 B |
 | [Docusaurus](https://github.com/facebook/docusaurus) | 2,670 | 1,097,060 B | 411 B |
 | This repository | 1,236 | 687,539 B | 556 B |
 
-Size the index against the bytes per file record, as a range of 318 to 556 B
+Size the index against the bytes per file record, as a range of 411 to 763 B
 rather than a constant. It varies with how many edges and names each file
-declares, not with how large the repository is, which is why Material UI has
-twenty times the files of this repository and is the cheapest of the three per
-file.
+declares, not with how large the repository is, and size alone does not order
+the four: Material UI has twenty times the files of this repository and costs
+less per file, while Kibana, the largest, costs the most per file. Kibana has
+4.2 times the files of Material UI at 1.74 times the cost per file, and its
+index is 7.4 times the size.
 
 A measured 200,000-file synthetic shape occupies 67.3 MB as shared binary
 sections against 598 MB as JSON; the difference is names interned once rather
@@ -219,12 +222,17 @@ than repeated per row. Every figure here covers the serialized index on disk,
 not the memory used to build it.
 
 What it buys in time, on the same Material UI checkout: a first scan with no
-index costs 586 ms and the next unchanged run costs 301 ms. Those two are wall
-clock on one Apple M4 Max — 64 GB, macOS 27.0 on arm64, Node v26.7.0 — with a
-warm filesystem cache, so they are the fast end of the range: size a CI container
-above them rather than against them. [What a source scan costs](performance.md) covers
-the rest of the shapes, the machine in full, and what is left underneath both
-numbers.
+index costs 586 ms and the next unchanged run costs 301 ms. On Kibana the same
+two runs cost 9,055 ms and 1,975 ms. Of that unchanged run, opening the 81 MB
+index is 1,162 ms and the scan is 826 ms, each the median of its own five
+timings, which is why the two do not add up to 1,975. On Kibana an unchanged run
+spends more time opening the index than scanning. These are wall clock on one
+Apple M4 Max — 64 GB, macOS 27.0 on arm64, Node v26.7.0 — with a warm filesystem
+cache, so they are the fast end of the range: size a CI container above them
+rather than against them. Kibana's are the medians of five runs of
+[`source-index.mjs`](../packages/sense/scripts/source-index.mjs). [What a source scan costs](performance.md) covers
+the rest of the shapes, the machine in full, and what is left underneath a first
+scan and an unchanged run.
 
 ## What a change costs you
 

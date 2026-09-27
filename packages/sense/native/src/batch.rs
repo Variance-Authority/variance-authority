@@ -165,6 +165,33 @@ pub(crate) fn scan_graph_with_tree(
     tree_oids: &[Oid],
     listing: Arc<Listing>,
 ) -> ScanBatch {
+    let include_parses = options.include_parses;
+    let Walked { files, identities, read, targets } = walk(options, at, tree_oids, listing);
+    let parse_segment = crate::index::parse_segment(&files, &identities, &read);
+    let columns = columns(read, include_parses);
+    scan_columns(files, parse_segment, columns, targets)
+}
+
+/// What a walk of the module closure read: one row per file, in the order the
+/// waves reached them, with the digest each row is named by and the target of
+/// each request.
+pub(crate) struct Walked {
+    pub files: Vec<String>,
+    /// Git's object name for a file the tree holds, the read digest otherwise.
+    pub identities: Vec<String>,
+    pub read: Vec<(Read, String, bool)>,
+    pub targets: Vec<Vec<String>>,
+}
+
+/// The walk itself, shared by the batch that crosses as columns and the graph
+/// that stays on this side (`graph_index.rs`), so the two cannot reach
+/// different closures.
+pub(crate) fn walk(
+    options: GraphOptions,
+    at: &HashMap<String, u32>,
+    tree_oids: &[Oid],
+    listing: Arc<Listing>,
+) -> Walked {
     let GraphOptions {
         root,
         seeds,
@@ -172,7 +199,7 @@ pub(crate) fn scan_graph_with_tree(
         readers,
         tsconfig,
         condition_names,
-        include_parses,
+        include_parses: _,
     } = options;
     let root_path = Path::new(&root);
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, Some(listing)));
@@ -229,10 +256,7 @@ pub(crate) fn scan_graph_with_tree(
         read.extend(held);
         targets.extend(resolved);
     }
-
-    let parse_segment = crate::index::parse_segment(&files, &identities, &read);
-    let columns = columns(read, include_parses);
-    scan_columns(files, parse_segment, columns, targets)
+    Walked { files, identities, read, targets }
 }
 
 fn resolve_all(

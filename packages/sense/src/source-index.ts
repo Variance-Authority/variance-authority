@@ -21,6 +21,7 @@ import {
   type SourceIndexState,
 } from './source-index-file.js';
 import { decodeSourceIndex } from './source-index-format.js';
+import type { NativeIndexGraph } from './native-index-graph.js';
 
 const nativeParses = new WeakMap<ParseCache, EncodedParseLayer>();
 
@@ -87,17 +88,23 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
   let decodedNative: ReadonlyMap<ParseKey, Parsed> | undefined;
   const records = new Map<string, IndexedRecord>();
   let adopted: TreeShape | undefined;
+  let graph: NativeIndexGraph | undefined;
   // A chain read up to a bad segment is repaired by the next save, whether or
   // not this scan learned anything: the manifest still names what could not be read.
   let dirty = file.state === 'damaged';
 
+  // The native layer is decoded the first time a key it holds is asked for, and
+  // not before: a cold build that asks for none of its parses never holds them.
+  const fromNative = (key: ParseKey): Parsed | undefined => {
+    const layer = nativeParses.get(cache);
+    if (layer === undefined || !layer.keys.has(key)) return undefined;
+    decodedNative ??= decodeSourceIndex(layer.bytes).parses;
+    return decodedNative.get(key);
+  };
+
   const cache: ParseCache = {
     get(key) {
-      const layer = nativeParses.get(cache);
-      if (decodedNative === undefined && layer !== undefined) {
-        decodedNative = decodeSourceIndex(layer.bytes).parses;
-      }
-      const parsed = parses.get(key) ?? decodedNative?.get(key) ?? stored.parses.get(key);
+      const parsed = parses.get(key) ?? fromNative(key) ?? stored.parses.get(key);
       if (parsed !== undefined) parses.set(key, parsed);
       return parsed;
     },
@@ -112,11 +119,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
       parses.set(key, parsed);
     },
     keep(key) {
-      const layer = nativeParses.get(cache);
-      if (decodedNative === undefined && layer !== undefined) {
-        decodedNative = decodeSourceIndex(layer.bytes).parses;
-      }
-      const parsed = decodedNative?.get(key) ?? stored.parses.get(key);
+      const parsed = fromNative(key) ?? stored.parses.get(key);
       if (parsed !== undefined) parses.set(key, parsed);
     },
   };
@@ -149,6 +152,13 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
         records.set(record.file, next);
       }
     },
+    adopt(closure) {
+      // Only a tree this cache adopted is published with its records, which is
+      // the same test `set` applies to one record.
+      if (adopted === undefined) return;
+      graph = closure;
+      dirty = true;
+    },
   };
 
   return {
@@ -166,7 +176,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
           : { config: adopted.config }),
         directories: adopted?.directories ?? stored.directories,
         records: adopted === undefined ? stored.records : records,
-      }, native);
+      }, native, graph);
     },
   };
 }

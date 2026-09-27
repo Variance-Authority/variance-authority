@@ -63,6 +63,7 @@
 import {
   BadLogPath,
   emptyImmutableLog,
+  LogNotWritten,
   openImmutableLog,
   readImmutableLog,
 } from './immutable-log.js';
@@ -160,15 +161,18 @@ export async function nameModules(
   const all = [...numbered(current), ...added].sort(([left], [right]) => order(left, right));
 
   const compacted = encodeSegment(all);
+  const log = await openImmutableLog(path).catch((error: unknown) => {
+    // A path that cannot name a file is the caller's defect; a chain that does
+    // not read is replaced.
+    if (error instanceof BadLogPath) throw error;
+    return emptyImmutableLog(path);
+  });
   try {
-    const log = await openImmutableLog(path).catch(() => emptyImmutableLog(path));
     await log.publish(encodeSegment(added), () => compacted);
   } catch (error) {
     // A table that could not be written numbers the same modules the same way
     // next time. Persistence is a saving, never a new way for a run to fail.
-    // A path that cannot name a file is not that: it is the caller's defect,
-    // and it is the one thing here that never wrote anything to begin with.
-    if (error instanceof BadLogPath) throw error;
+    if (!(error instanceof LogNotWritten)) throw error;
   }
   return tableOf([compacted]);
 }

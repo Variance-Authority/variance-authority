@@ -46,6 +46,18 @@ import { isRelative, requestOf } from './specifier.js';
 export interface Aliases {
   /** Every repo-relative path this request could name through a configuration. */
   candidatesFor(request: string): readonly string[];
+  /**
+   * What `candidatesFor` answers from, for a reader on the other side of the
+   * addon boundary (`native/src/witness.rs`), which asks the same question of
+   * the same table rather than reading the configurations a second time.
+   */
+  readonly table: AliasTable;
+}
+
+/** The placed `baseUrl` directories, in the order declared, and every mapping. */
+export interface AliasTable {
+  readonly bases: readonly string[];
+  readonly mappings: readonly Mapping[];
 }
 
 /** Configuration files whose `paths` decide where a bare specifier can land. */
@@ -61,7 +73,7 @@ interface Options {
   readonly from: ReadonlyMap<string, string>;
 }
 
-interface Mapping {
+export interface Mapping {
   /** The text before the pattern's `*`, or the whole pattern when it has none. */
   readonly prefix: string;
   /** The text after the `*`; absent when the pattern is exact. */
@@ -126,6 +138,7 @@ export async function aliasesIn(
   }
 
   return {
+    table: { bases: [...bases], mappings },
     candidatesFor(request) {
       const found: string[] = [];
       for (const base of bases) found.push(join(base, request));
