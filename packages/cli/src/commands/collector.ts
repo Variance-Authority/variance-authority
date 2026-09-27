@@ -251,8 +251,14 @@ export interface Collector {
    * Once, after the last subject and before the report. Whatever a collector
    * writes on the way out — the execution journal, for one — is on disk by the
    * time the report is assembled, so the report can carry it.
+   *
+   * `costs` is what the run timed for each subject it observed, first
+   * collection to decision, by subject id — the figure the next run balances
+   * its shards on, handed over so a collector that records execution records
+   * that same time rather than timing the subject again. A subject the run did
+   * not time is not in it.
    */
-  close(): Promise<void>;
+  close(costs?: ReadonlyMap<string, number>): Promise<void>;
 }
 
 /**
@@ -265,7 +271,7 @@ export interface Collector {
  */
 export function closingOnce(collector: Collector): Collector {
   let closing: Promise<void> | undefined;
-  return { ...collector, close: () => (closing ??= collector.close()) };
+  return { ...collector, close: (costs) => (closing ??= collector.close(costs)) };
 }
 
 /** What the collector module's default export is called with. */

@@ -18,6 +18,7 @@ import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
 import { assign, declinedBy, placedElsewhere } from './shard.js';
+import { costsOf } from './costs-entry.js';
 import { closeLanes, contextFor, openLanes, steal, timed, workersOf } from './lanes.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
 import { selectionFor } from './run-select.js';
@@ -359,7 +360,7 @@ async function observeAll(
   // Closed here rather than by the caller: a Storybook collector writes the
   // journal as it closes, and `journeys` below reads that journal. Closed after
   // the report, the report carried the run before this one, or nothing at all.
-  await deps.collector.close();
+  await deps.collector.close(costsOf({ observations }));
 
   const intent = options.intent ?? config.intent;
   const at = deps.now();

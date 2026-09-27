@@ -466,8 +466,8 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 **Durations.** `tests.duration` is the runner's own figure for the file, never a
 second clock: Vitest's file result, Jest's `perfStats.runtime`, Rstest's file
 duration, Playwright's `testInfo.duration` summed over the file's tests, or the
-`duration` you pass to `startRecording().finish()`. A file the
-runner reported nothing for stores the sentinel, and a reader answers it as
+`duration` you pass to `startRecording().finish()`. A file the runner reported
+nothing for stores the sentinel, and a reader answers it as
 absent, not as zero. When two projects record the same file, its duration is
 their sum, and it is absent if either is.
 
@@ -478,13 +478,17 @@ result, Rstest's test result, Playwright's `testInfo.duration`, or the
 Playwright's figure covers the test body, its `beforeEach` hooks and the
 fixtures set up for it, and not its `afterEach` hooks or fixture teardown, which
 run after Playwright has set it. A retried case is timed as the sum of its
-attempts, the same way a file recorded by two projects is. A case is joined to the runner's report by the
-id the runner gave it, or by its declaration path under the file where the
+attempts, the same way a file recorded by two projects is. A case is joined to
+the runner's report by the id the runner gave it, or by its declaration path under the file where the
 runner gives none. A path the file declares twice cannot say which of the two it
 is, so neither is timed. A case index written before cases carried durations
-opens with every case untimed. A Storybook case is recorded without one: the
-run times each story from its first collection to its decision, and
-`variance ask costs` answers from those times.
+opens with every case untimed.
+
+A Storybook run is its own runner, so its figure is the time the run spent on
+each story, from its first collection to its decision: the same time
+`variance ask costs` answers from and the next run balances its shards on. It is
+recorded on the story's row and on its case, once however many times the story
+was read, and a story the run did not time is recorded without one.
 
 `variance ask slowest-tests` lists the slowest recorded files and the slowest
 recorded cases, anywhere or under the paths you name, and `yarn test:since`

@@ -192,5 +192,10 @@ export interface Collector {
    */
   openWorker?(): Promise<Collector>;
 
-  close(): Promise<void>;
+  /**
+   * `costs` is what the run timed for each story, first collection to
+   * decision, by subject id; the execution record carries it as each story's
+   * duration.
+   */
+  close(costs?: ReadonlyMap<string, number>): Promise<void>;
 }

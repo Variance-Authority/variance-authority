@@ -301,8 +301,8 @@ export function storybookCollector(
 
       callSites,
 
-      async close(): Promise<void> {
-        await recorder?.close();
+      async close(costs?: ReadonlyMap<string, number>): Promise<void> {
+        await recorder?.close(costs);
         await declared.close();
         // Only the run's own world. An isolated one is opened and closed inside
         // `collectAlone`, and a worker's by the run before this is called.

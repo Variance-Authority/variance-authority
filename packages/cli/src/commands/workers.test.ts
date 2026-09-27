@@ -29,6 +29,8 @@ interface World {
   readonly seen: string[];
   peak: number;
   closed: boolean;
+  /** What the run handed `close`: its time for each subject. */
+  costs?: ReadonlyMap<string, number>;
 }
 
 /** A collector whose `openWorker` opens a world that records what it collected. */
@@ -51,8 +53,9 @@ function workingCollector(plan: Plan, options: { readonly lanes?: boolean } = {}
         inFlight -= 1;
         return { ok: true, document: documentFor(subject.subject.id) };
       },
-      async close() {
+      async close(costs) {
         world.closed = true;
+        if (costs !== undefined) world.costs = costs;
       },
       ...(options.lanes === false
         ? {}
@@ -117,6 +120,14 @@ describe('workers', () => {
     // The file a shard places rides with the cost, so the next run can price the group.
     expect(timed.report.observations.map((o) => o.declaredIn)).toEqual(['f0.stories.tsx', 'f1.stories.tsx']);
     expect(untimed.report.observations.every((o) => !('costMs' in o) && !('declaredIn' in o))).toBe(true);
+  });
+
+  it('hands the collector the time it recorded for each subject as it closes, so a recording carries the same figure', async () => {
+    let now = 0;
+    const { collector, worlds } = workingCollector(planOf(2, 1));
+    const { report } = await runWith(configOf(), collector, storeAnswering(null), { elapsed: () => (now += 5) });
+
+    expect(worlds[0]!.costs).toEqual(new Map(report.observations.map((o) => [o.subject, Math.round(o.costMs!)])));
   });
 });
 

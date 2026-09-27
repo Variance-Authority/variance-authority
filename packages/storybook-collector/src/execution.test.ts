@@ -93,6 +93,28 @@ describe('a Storybook run records what each story executed', () => {
     });
   });
 
+  it('records the time the run spent on each story, once, however many times it was read', async () => {
+    await inRoot(async ({ root, cacheRoot, coverageFile, index }) => {
+      const recorder = await createStoryRecorder(index, { root, cacheRoot, coverageFile });
+      // Read twice — the second time alone — and timed once, first collection to decision.
+      await recorder.note(pageReporting(journal(0)), 'story:price--premium', true);
+      await recorder.note(pageReporting(journal(0)), 'story:price--premium', true);
+      await recorder.note(pageReporting(journal(1)), 'story:price--plain', true);
+      await recorder.close(new Map([['story:price--premium', 340]]));
+
+      const cases = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`)).tests;
+      expect(Object.fromEntries(cases.map((test) => [test.name, test.duration]))).toEqual({
+        'Price/Premium': 340,
+        'Price/Plain': undefined,
+      });
+      const files = (await readTestCoverage(coverageFile)).tests;
+      expect(Object.fromEntries(files.map((test) => [test.file, test.duration]))).toEqual({
+        'story:price--premium': 340,
+        'story:price--plain': undefined,
+      });
+    });
+  });
+
   it('names a story file from the checkout, not from where Storybook ran', async () => {
     // Storybook writes `importPath` relative to its own directory, with a `./`
     // in front. In a workspace that directory is a package, and a story file

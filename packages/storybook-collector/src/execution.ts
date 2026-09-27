@@ -95,8 +95,16 @@ export interface StoryRecorder {
    * excluding itself from a later run.
    */
   readonly note: (page: EvaluatingPage, subjectId: string, complete: boolean) => Promise<void>;
-  /** Merge the run into the index, or say on stderr why it could not. */
-  readonly close: () => Promise<void>;
+  /**
+   * Merge the run into the index, or say on stderr why it could not.
+   *
+   * `costs` is the run's own time for each story, by subject id: first
+   * collection to decision, the figure `variance ask costs` answers and the
+   * next run shards on. It is recorded as the story's duration, on its row and
+   * on its case, rather than timed a second time here. A story the run did not
+   * time is recorded without one.
+   */
+  readonly close: (costs?: ReadonlyMap<string, number>) => Promise<void>;
 }
 
 export async function createStoryRecorder(
@@ -107,7 +115,8 @@ export async function createStoryRecorder(
   const root = repositoryRoot(ran);
   const storyFiles = await storyFilesFrom(index, ran, root);
   const observed: ObservedSubject[] = [];
-  const cases: ObservedCase[] = [];
+  // Each case with the subject it was noted for, so the run's time finds it.
+  const cases: { readonly subject: string; readonly observed: ObservedCase }[] = [];
   let seen = false;
 
   return {
@@ -136,16 +145,19 @@ export async function createStoryRecorder(
       // in, and contributes to the file-level record only.
       if (story !== undefined) {
         cases.push({
-          file: story.file,
-          name: `${story.title}/${story.name}${widened.slice(storyId.length)}`,
-          id: widened,
-          stopped: !complete,
-          journal,
+          subject: subjectId,
+          observed: {
+            file: story.file,
+            name: `${story.title}/${story.name}${widened.slice(storyId.length)}`,
+            id: widened,
+            stopped: !complete,
+            journal,
+          },
         });
       }
     },
 
-    close: async () => {
+    close: async (costs) => {
       if (!seen) {
         process.stderr.write(
           'variance-authority: `tests` is on and the Storybook preview has no execution ' +
@@ -171,7 +183,7 @@ export async function createStoryRecorder(
       try {
         record = await recordExecution({
           root,
-          subjects: observed,
+          subjects: zip(observed, timedOnce(observed.map((one) => one.owner), costs)),
           ...(options.label === undefined ? {} : { label: options.label }),
           ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
           // Against `root`, as the runner seams resolve them, never the checkout.
@@ -187,7 +199,9 @@ export async function createStoryRecorder(
             ? {}
             : { heads: options.heads }),
           ...(options.commit === undefined ? {} : { commit: options.commit }),
-          ...(cases.length === 0 ? {} : { cases }),
+          ...(cases.length === 0
+            ? {}
+            : { cases: zip(cases.map((one) => one.observed), timedOnce(cases.map((one) => one.subject), costs)) }),
           ...(options.executionFile === undefined
             ? {}
             : { executionFile: resolve(ran, options.executionFile) }),
@@ -207,6 +221,31 @@ export async function createStoryRecorder(
       }
     },
   };
+}
+
+/**
+ * The run's time for each noted subject, given to the first note of that
+ * subject only.
+ *
+ * A subject read again — once more in the same world, once alone — is noted
+ * each time, and the record sums what its entries carry; the run's time
+ * already covers every reading, from the first collection to the decision.
+ */
+function timedOnce(
+  subjects: readonly string[],
+  costs: ReadonlyMap<string, number> | undefined,
+): { readonly duration?: number }[] {
+  const given = new Set<string>();
+  return subjects.map((subject) => {
+    const duration = costs?.get(subject);
+    if (duration === undefined || given.has(subject)) return {};
+    given.add(subject);
+    return { duration };
+  });
+}
+
+function zip<T>(entries: readonly T[], timed: readonly { readonly duration?: number }[]): T[] {
+  return entries.map((entry, index) => ({ ...entry, ...timed[index] }));
 }
 
 /**
