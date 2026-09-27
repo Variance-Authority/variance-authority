@@ -19,6 +19,7 @@ use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
 use crate::index_chain::read_chain;
+use crate::GitTree;
 use crate::orient_map_pages::{layers, names, number, pages, Page, Row};
 use crate::orient_map_read::{read, Read};
 use crate::orient_map_signals::signals;
@@ -92,10 +93,24 @@ fn kept_bytes(path: &str) -> Result<Option<Vec<u8>>, String> {
     Ok(current.then_some(bytes))
 }
 
+/// The checkout as git listed it: the scan's listing when one is carried, or
+/// the map's own.
+struct Listed<'a> {
+    paths: &'a [String],
+    oids: &'a [crate::git::Oid],
+    unhashed: &'a [String],
+}
+
+impl<'a> From<&'a crate::git::Snapshot> for Listed<'a> {
+    fn from(snapshot: &'a crate::git::Snapshot) -> Self {
+        Listed { paths: &snapshot.paths, oids: &snapshot.oids, unhashed: &snapshot.unhashed }
+    }
+}
+
 /// What the map is folded from beside the index, as git listed it: every
 /// manifest that may name a package and every `.gitattributes`, by blob id.
 /// `None` when git gave no blob id for one of them.
-fn listing(snapshot: &crate::git::Snapshot) -> Option<String> {
+fn listing(snapshot: &Listed) -> Option<String> {
     let counts = |path: &str| {
         let name = path.rsplit('/').next().unwrap_or(path);
         (name == "package.json" && crate::package_owners::is_package(path)) || name == ".gitattributes"
@@ -104,7 +119,7 @@ fn listing(snapshot: &crate::git::Snapshot) -> Option<String> {
         return None;
     }
     let mut digest = Sha256::new();
-    for (path, oid) in snapshot.paths.iter().zip(&snapshot.oids).filter(|(path, _)| counts(path)) {
+    for (path, oid) in snapshot.paths.iter().zip(snapshot.oids).filter(|(path, _)| counts(path)) {
         digest.update(path.as_bytes());
         digest.update([0]);
         digest.update(oid);
@@ -127,6 +142,9 @@ pub struct OrientMapPrepared {
     /// Git listed the checkout but could not say which files are generated or
     /// vendored, so none were set aside.
     pub unmarked: bool,
+    /// No scan's listing was carried to the map, so git listed the checkout
+    /// again for it.
+    pub relisted: bool,
 }
 
 #[napi(object)]
@@ -148,29 +166,48 @@ impl From<Made> for OrientMapMade {
     }
 }
 
-/// Fold the index at `index` into the code map and write it beside the index.
-/// `undefined` when there is no index. When there is no package to fold, what
-/// is written beside the index is why, so a question is answered with the
-/// reason rather than with a map left from before. A kept map folded from this
-/// index and these manifests is kept as it is, so an index with nothing
-/// changed costs no fold.
+/// Fold the index at `index` into the code map and write it beside the index,
+/// with no scan's listing to carry: git lists the checkout for the map, and
+/// the result says so. `scanned` is a scan that ran and could not list with
+/// git, so none is asked for. `undefined` when there is no index.
 #[napi(catch_unwind)]
-pub fn prepare_orient_map(root: String, index: String) -> napi::Result<Option<OrientMapPrepared>> {
+pub fn prepare_orient_map(root: String, index: String, scanned: Option<bool>) -> napi::Result<Option<OrientMapPrepared>> {
+    if scanned == Some(true) {
+        return prepare(&root, &index, None, false);
+    }
+    let snapshot = crate::git::snapshot(&root);
+    prepare(&root, &index, snapshot.as_ref().map(Listed::from), snapshot.is_some())
+}
+
+#[napi]
+impl GitTree {
+    /// Fold the index at `index` into the code map, carrying this listing of
+    /// the checkout — the one the scan that published the index took — rather
+    /// than asking git again. `undefined` when there is no index.
+    #[napi(catch_unwind)]
+    pub fn prepare_orient_map(&self, root: String, index: String) -> napi::Result<Option<OrientMapPrepared>> {
+        let listed = Listed { paths: &self.paths, oids: &self.oids, unhashed: &self.unhashed };
+        prepare(&root, &index, Some(listed), false)
+    }
+}
+
+/// Fold the index at `index` into the code map and write it beside the index.
+/// When there is no package to fold, what is written beside the index is why,
+/// so a question is answered with the reason rather than with a map left from
+/// before. A kept map folded from this index and these manifests is kept as
+/// it is, so an index with nothing changed costs no fold.
+fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool) -> napi::Result<Option<OrientMapPrepared>> {
     // The reason alone: the caller says what was not prepared.
     let fail = napi::Error::from_reason;
-    let path = map_path(&index);
-    let (chain, snapshot) = std::thread::scope(|scope| {
-        let snapshot = scope.spawn(|| crate::git::snapshot(&root));
-        (read_chain(&index), snapshot.join().ok().flatten())
-    });
-    let Some(chain) = chain.map_err(fail)? else { return Ok(None) };
+    let path = map_path(index);
+    let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
     let digest = hex(&Sha256::digest(chain.published()));
     let walked = snapshot.is_none();
     let listed = snapshot.as_ref().and_then(listing);
     if listed.is_some() {
         let kept = kept_bytes(&path).map_err(fail)?.and_then(|bytes| serde_json::from_slice::<Kept>(&bytes).ok());
         if let Some(kept) = kept.filter(|kept| kept.index == digest && kept.listed == listed) {
-            return Ok(Some(OrientMapPrepared { map: kept.made.map(Into::into), unmade: kept.unmade, walked, unmarked: kept.unmarked }));
+            return Ok(Some(OrientMapPrepared { map: kept.made.map(Into::into), unmade: kept.unmade, walked, unmarked: kept.unmarked, relisted }));
         }
     }
     // Git owns the file list and the generated and vendored marks. Outside a
@@ -179,7 +216,7 @@ pub fn prepare_orient_map(root: String, index: String) -> napi::Result<Option<Or
     let (layers_read, made) = std::thread::scope(|scope| {
         let made = scope.spawn(|| {
             snapshot.as_ref().and_then(|_| {
-                crate::git::git(&root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
+                crate::git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
             })
         });
         let layers_read: Result<Vec<Layer>, String> = chain
@@ -198,7 +235,7 @@ pub fn prepare_orient_map(root: String, index: String) -> napi::Result<Option<Or
         .filter(|path| !path.is_empty())
         .map(|path| String::from_utf8_lossy(path).into_owned())
         .collect();
-    let read = read(&root, &layers_read, snapshot.as_ref().map(|snapshot| &snapshot.paths[..]), &made);
+    let read = read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), &made);
     let stored = match fold(&read) {
         Ok((made, pages)) => Stored { format: FORMAT, index: digest, listed, unmarked, made: Some(made), unmade: None, pages },
         Err(unmade) => Stored { format: FORMAT, index: digest, listed, unmarked, made: None, unmade: Some(unmade.to_owned()), pages: Vec::new() },
@@ -208,7 +245,7 @@ pub fn prepare_orient_map(root: String, index: String) -> napi::Result<Option<Or
     std::fs::write(&written, text)
         .and_then(|()| std::fs::rename(&written, &path))
         .map_err(|error| fail(format!("{path} was not written: {error}")))?;
-    Ok(Some(OrientMapPrepared { map: stored.made.map(Into::into), unmade: stored.unmade, walked, unmarked }))
+    Ok(Some(OrientMapPrepared { map: stored.made.map(Into::into), unmade: stored.unmade, walked, unmarked, relisted }))
 }
 
 /// The map's pages and what they hold, or why there is nothing to fold.

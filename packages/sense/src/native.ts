@@ -32,7 +32,7 @@ import type {
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
-import type { NativeCasesEntered, NativeOrientation, NativeOrientMaps } from './native-orient.js';
+import type { NativeCasesEntered, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import { witnessesOf } from './witness.js';
 
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
@@ -48,7 +48,7 @@ export type {
 } from './native-journey.js';
 
 /** Every tracked path under a root, with the digest of the bytes on disk. */
-export interface NativeGitTree {
+export interface NativeGitTree extends NativeOrientMapListing {
   readonly size: number;
   seeds(): string[];
   has(path: string): boolean;

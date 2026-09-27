@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sourceIndexPath } from '@variance-authority/sense';
+import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
@@ -69,6 +69,14 @@ describe('variance index', () => {
     writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 2;\n');
     expect(await indexOutput({ cwd: root }))
       .toBe(`source index updated: 2 files, 1 read again, at ${at}\ncode map: none, because no manifest names a package\n`);
+  });
+
+  it("carries the scan's listing to the code map, and a map prepared with no scan says git listed the checkout again", async () => {
+    const root = checkout();
+    const update = await updateSourceIndex(root);
+    expect(update.listing).toBeDefined();
+    expect(prepareCodeMap(root, update.path, update).prepared).toMatchObject({ relisted: false, walked: false });
+    expect(prepareCodeMap(root, update.path).prepared).toMatchObject({ relisted: true, walked: false });
   });
 
   it('reads from the working tree under `--no-git`, into the same index', async () => {

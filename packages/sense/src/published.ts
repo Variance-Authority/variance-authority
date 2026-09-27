@@ -25,6 +25,7 @@ import type { Digest } from '@variance-authority/core/format';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { seedPaths } from './files.js';
 import { seedImmutableLog } from './immutable-log.js';
+import type { NativeGitTree } from './native.js';
 import type { RecordCache } from './reuse.js';
 import { scanCount } from './scan.js';
 import { realPath } from './resolve.js';
@@ -125,6 +126,12 @@ export interface SourceUpdate {
    * worktree that had none of its own.
    */
   readonly from?: string;
+  /**
+   * The listing of the checkout git gave this update's scan, for a step after
+   * it — the code map — to carry rather than ask git again. Absent when git
+   * could not list the checkout.
+   */
+  readonly listing?: NativeGitTree;
 }
 
 /**
@@ -173,7 +180,7 @@ export async function updateSourceIndex(
   // Counted rather than collected: the update publishes the records through
   // `reuse` and reports how many, and a cold closure the addon holds is never
   // turned into objects for either.
-  const files = await scanCount({
+  const { files, listing } = await scanCount({
     root: where,
     dirs: ['.'],
     cache: source.cache,
@@ -189,6 +196,7 @@ export async function updateSourceIndex(
     files,
     reread: files - reused.size,
     ...(from === undefined ? {} : { from }),
+    ...(listing === undefined ? {} : { listing }),
   };
 }
 

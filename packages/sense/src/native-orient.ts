@@ -136,6 +136,8 @@ export interface NativeOrientMapPrepared {
   readonly walked: boolean;
   /** Git listed the checkout but could not say which files are generated or vendored, so none were set aside. */
   readonly unmarked: boolean;
+  /** No scan's listing was carried to the map, so git listed the checkout again for it. */
+  readonly relisted: boolean;
 }
 
 /** A package or an area on one row, and how many importing files the share counts. */
@@ -197,10 +199,21 @@ export interface NativeOrientMapAnswer {
   readonly unmade?: string | null;
 }
 
+/** The code-map call on a git listing the addon holds. */
+export interface NativeOrientMapListing {
+  /** Fold the source index at `index` into the code map, carrying this listing rather than asking git again; `null` when there is no index. */
+  prepareOrientMap?(root: string, index: string): NativeOrientMapPrepared | null;
+}
+
 /** The addon's code-map calls, kept apart from the scanner's other calls. */
 export interface NativeOrientMaps {
-  /** Fold the source index at `index` into the code map kept beside it; `null` when there is no index. */
-  prepareOrientMap?(root: string, index: string): NativeOrientMapPrepared | null;
+  /**
+   * Fold the source index at `index` into the code map kept beside it, with no
+   * scan's listing to carry: git lists the checkout for the map. `scanned` is a
+   * scan that ran and git could not list, so none is asked for. `null` when
+   * there is no index.
+   */
+  prepareOrientMap?(root: string, index: string, scanned?: boolean | null): NativeOrientMapPrepared | null;
   /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept, or one of a format this reader does not know. */
   orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
 }

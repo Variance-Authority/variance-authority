@@ -50,7 +50,7 @@ import type { Digest } from './digest.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
-import { native, nativeFrontier, nativeGraph, nativeRefusal, type NativeBuilt } from './native.js';
+import { native, nativeFrontier, nativeGraph, nativeRefusal, type NativeBuilt, type NativeGitTree } from './native.js';
 import { adoptNativeParses } from './source-index.js';
 import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
 import type { IndexedRecord } from './source-index-format.js';
@@ -211,19 +211,28 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   return [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
 }
 
+/** What {@link scanCount} counted, and the listing it took of the checkout. */
+export interface ScanCounted {
+  readonly files: number;
+  /** The listing git gave the scan; absent when git could not list the checkout, or the addon did not hold it. */
+  readonly listing?: NativeGitTree;
+}
+
 /**
  * How many files {@link scanRelations} would return, for a caller that hands
- * `cache` and `reuse` their records and needs only the count back.
+ * `cache` and `reuse` their records and needs only the count back, with the
+ * listing the scan took, for a step after it to carry.
  *
  * A cold closure the addon holds is counted where it is, so a build that
  * publishes the index never turns the closure into objects just to count them.
  */
-export async function scanCount(options: ScanOptions): Promise<number> {
-  const { built, graph } = await scanning(options);
-  if (graph === undefined) return built.size;
+export async function scanCount(options: ScanOptions): Promise<ScanCounted> {
+  const { built, graph, listing } = await scanning(options);
+  const counted = (files: number): ScanCounted => (listing === undefined ? { files } : { files, listing });
+  if (graph === undefined) return counted(built.size);
   let both = 0;
   for (const file of built.keys()) if (graph.has(file)) both += 1;
-  return built.size + graph.size - both;
+  return counted(built.size + graph.size - both);
 }
 
 interface Scanned {
@@ -231,6 +240,8 @@ interface Scanned {
   readonly built: Map<string, FileRecord>;
   /** The cold closure the addon holds, whose records win where both name a file. */
   readonly graph?: NativeIndexGraph;
+  /** The listing of the checkout the scan took, when the addon holds it. */
+  readonly listing?: NativeGitTree;
 }
 
 async function scanning(options: ScanOptions): Promise<Scanned> {
@@ -451,7 +462,8 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
     resolvers.modules.clearCache();
   }
 
-  return graph === undefined ? { built } : { built, graph };
+  const listing = tree?.native;
+  return { built, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
 }
 
 /**

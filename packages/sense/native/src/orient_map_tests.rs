@@ -171,8 +171,9 @@ fn inode(path: &str) -> u64 {
 #[test]
 fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside_them() {
     let (_root, root, index) = indexed("walked");
-    let prepared = prepare_orient_map(root, index.clone()).unwrap().expect("an index");
-    assert!(prepared.walked && !prepared.unmarked && prepared.unmade.is_none());
+    // A scan that could not list with git: the map asks git nothing either.
+    let prepared = prepare_orient_map(root, index.clone(), Some(true)).unwrap().expect("an index");
+    assert!(prepared.walked && !prepared.unmarked && !prepared.relisted && prepared.unmade.is_none());
     let map = prepared.map.expect("a folded map");
     assert_eq!((map.packages, map.areas, map.levels, map.layers, map.unread), (20, 4, 1, 6, 0));
     assert!(orient_map_page(index, None).unwrap().expect("a kept map").current);
@@ -181,17 +182,17 @@ fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside
 #[test]
 fn a_checkout_with_nothing_to_fold_says_why_and_keeps_no_map() {
     let (fixture, root, index) = indexed("unmade");
-    assert!(prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap().map.is_some());
+    assert!(prepare_orient_map(root.clone(), index.clone(), None).unwrap().unwrap().map.is_some());
     for (directory, _) in packages() {
         std::fs::write(fixture.0.join(directory).join("package.json"), "{}").unwrap();
     }
     std::fs::write(fixture.0.join("package.json"), r#"{"name": "@t/root"}"#).unwrap();
-    let prepared = prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap();
+    let prepared = prepare_orient_map(root.clone(), index.clone(), None).unwrap().unwrap();
     assert_eq!((prepared.map.is_none(), prepared.unmade.as_deref()), (true, Some("the root's is the only named manifest")));
     let answer = orient_map_page(index.clone(), None).unwrap().expect("the reason, kept beside the index");
     assert_eq!((answer.page.is_none(), answer.layers, answer.unmade.as_deref()), (true, None, Some("the root's is the only named manifest")));
     std::fs::write(fixture.0.join("package.json"), "{}").unwrap();
-    let prepared = prepare_orient_map(root, index).unwrap().unwrap();
+    let prepared = prepare_orient_map(root, index, None).unwrap().unwrap();
     assert_eq!(prepared.unmade.as_deref(), Some("no manifest names a package"));
 }
 
@@ -200,15 +201,21 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
     let (fixture, root, index) = indexed("kept");
     git(&root, &["init", "-q"]);
     git(&root, &["add", "-A"]);
-    let first = prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap();
-    assert!(!first.walked && first.map.is_some());
+    // The listing the scan took is carried; git is not asked again.
+    let scanned = crate::git_tree(root.clone()).expect("a checkout");
+    let first = scanned.prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap();
+    assert!(!first.walked && !first.relisted && first.map.is_some());
     let folded = inode(&map_path(&index));
-    let again = prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap();
+    let again = scanned.prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap();
     assert_eq!(inode(&map_path(&index)), folded, "nothing moved, so nothing was written");
     assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
+    // With no scan to carry, git lists the checkout for the map, and says so.
+    let alone = prepare_orient_map(root.clone(), index.clone(), None).unwrap().unwrap();
+    assert!(alone.relisted && !alone.walked);
+    assert_eq!(inode(&map_path(&index)), folded);
     // A manifest git holds a new blob for folds the map again.
     std::fs::write(fixture.0.join("packages/ui/ui1/package.json"), r#"{"name": "@t/ui-1", "private": true}"#).unwrap();
     git(&root, &["add", "-A"]);
-    prepare_orient_map(root, index.clone()).unwrap().unwrap();
+    crate::git_tree(root.clone()).unwrap().prepare_orient_map(root, index.clone()).unwrap().unwrap();
     assert_ne!(inode(&map_path(&index)), folded);
 }

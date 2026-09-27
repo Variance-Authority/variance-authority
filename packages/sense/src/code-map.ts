@@ -12,6 +12,7 @@
 
 import { native, nativeRefusal } from './native.js';
 import type { NativeOrientMapAnswer, NativeOrientMapPrepared } from './native-orient.js';
+import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 
 export type {
@@ -42,11 +43,21 @@ export interface PreparedCodeMap {
 
 /**
  * Fold the checkout's source index into its code map and keep it beside the
- * index. A checkout with no package to fold keeps no map, says why, and a map
- * left from before is removed rather than read as this index's.
+ * index. A checkout with no package to fold keeps no map and says why.
+ *
+ * `scanned` is the update that published the index: its listing of the
+ * checkout is carried, and when git could not give it one, git is not asked
+ * again. Without it, git lists the checkout for the map, and the result says so.
  */
-export function prepareCodeMap(root: string, index: string = sourceIndexPath(root)): PreparedCodeMap {
-  const prepared = entry('prepareOrientMap')(root, index);
+export function prepareCodeMap(
+  root: string,
+  index: string = sourceIndexPath(root),
+  scanned?: Pick<SourceUpdate, 'listing'>,
+): PreparedCodeMap {
+  const carried = scanned?.listing?.prepareOrientMap?.bind(scanned.listing);
+  const prepared = carried !== undefined
+    ? carried(root, index)
+    : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null);
   return prepared === null ? { index } : { index, prepared };
 }
 
