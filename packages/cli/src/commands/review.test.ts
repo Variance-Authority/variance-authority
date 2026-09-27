@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
+import { updateSourceIndex } from '@variance-authority/sense';
 import {
   commitRunsFile,
   encodeExecutionIndex,
@@ -93,6 +94,8 @@ describe('a review of what a change did, after the run that recorded it', () => 
       modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0]), block('round', 5, 7, extra.length === 0 ? [] : [2])] }],
     };
     await writeFile(`${coverageFile}.cases.bin`, encodeExecutionIndex(now));
+    // What the pipeline's `variance index` step publishes after the run; under CI, review refuses to build it itself.
+    await updateSourceIndex(root);
 
     // The base's case index, copied aside before the run the way a pipeline does it.
     const against = join(await mkdtemp(join(tmpdir(), 'variance-review-base-')), 'coverage.bin.cases.bin');

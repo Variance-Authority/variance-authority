@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { digestString } from '@variance-authority/core/format';
 import { publishLine } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
+import { updateSourceIndex } from '@variance-authority/sense';
 import {
   commitRunsFile,
   encodeExecutionIndex,
@@ -224,6 +225,8 @@ export async function ranHere(dir: string, at: string): Promise<void> {
   await writeFile(commitRunsFile(record), JSON.stringify({
     commit: at, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1, files: ['test/total.test.ts'],
   }));
+  // What the pipeline's `variance index` step publishes after the run; under CI, review refuses to build it itself.
+  await updateSourceIndex(dir);
 }
 
 function casesOf(tests: readonly (typeof DISCOUNTS)[]): ExecutionIndex {
