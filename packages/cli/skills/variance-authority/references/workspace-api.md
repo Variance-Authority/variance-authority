@@ -2,8 +2,8 @@
 
 Eight questions read a workspace's manifests and source. Seven answer what it
 publishes, and each of their answers names the UTC time of the workspace
-generation it used. The eighth, `orient`, starts from the words of a task,
-before you know any name.
+generation it used. The eighth, `orient`, starts from files you already have
+and says what the code around them is.
 They describe source, not a build or a generated site, and they need no run and
 no config.
 
@@ -333,32 +333,27 @@ A start point is required. Without one, the question is `rg <pattern>`, and the
 refusal says so. A closure of thousands of files is passed to `rg` in several
 calls, each under the operating system's command-line limit.
 
-### 7. `orient <words>`
+### 7. `orient --files <path>[,...]`
 
-Ask it first when the task gives you words and no name. It runs `git grep`
-once per word over the tracked files, ignoring case, and shows the files with
-the most of the words first, then the most matching lines. For each package
-those files are in, it prints what the package imports from other packages and
-what other packages import from it. A use is one file importing one name from
-another package. A package's share is of the uses on that side. A name's share
-is of all the use the package that exports it gets from outside, so it says what
-part of that package's use the name is. Then it prints how many recorded test
-cases ran each file, and for a test file the cases it declares. Last come the
-narrower questions, as commands. Run it from the checkout you are asking about.
+Ask it when you already have files, from a stack trace, a ticket, your editor,
+or `search`, `symbol` and `grep`, which find them. It finds nothing itself and
+reads no file's text. Each file is answered in the order you gave it: the
+package it is in, or that the source index does not hold it. For each of those
+packages it prints what the package imports from other packages and what other
+packages import from it. A use is one file importing one name from another
+package. A package's share is of the uses on that side. A name's share is of all
+the use the package that exports it gets from outside, so it says what part of
+that package's use the name is. Then it prints how many recorded test cases ran
+each file, and for a test file the cases it declares. Last come the narrower
+questions, as commands. Run it from the checkout you are asking about.
 
 ```
-$ variance ask orient --query "carry args" --limit 5
-811 tracked files contain one of the words `carry args`. The 5 files with the most of them, then the most matching lines:
+$ variance ask orient --files packages/cli/src/parse.ts,packages/cli/src/commands/carry.ts
+2 files asked about:
+  packages/cli/src/parse.ts           @variance-authority/cli
+  packages/cli/src/commands/carry.ts  @variance-authority/cli
 
-  packages/cli/src/bin.test.ts             2 words, 34 lines  @variance-authority/cli
-  packages/cli/src/commands/carry.test.ts  2 words, 34 lines  @variance-authority/cli
-  .github/actions/variance/action.yml      2 words, 29 lines  variance-authority
-  packages/cli/src/parse.ts                2 words, 28 lines  @variance-authority/cli
-  packages/cli/src/commands/carry.ts       2 words, 27 lines  @variance-authority/cli
-
-806 more files not shown.
-
-Packages, from the source index at …/source-index.bin (2120 files indexed).
+Packages, from the source index at …/source-index.bin (2151 files indexed).
 A use is one file importing one name from another package. A package's share is of the uses on that side; a name's share is of every use the package exporting it gets from outside.
 
 @variance-authority/cli  packages/cli
@@ -373,37 +368,23 @@ A use is one file importing one name from another package. A package's share is 
      50%  variance-authority  parseConfig 50%
      50%  site                default 50%
 
-variance-authority  (the root)
-  Takes from, 5 packages, 37 uses:
-     57%  @variance-authority/sense     LOCKFILES <1%, MANIFEST <1%, atDistance <1%, changedPackages <1%, 17 more names
-     22%  @variance-authority/core      relationsOfFiles <1%, EdgeKind <1%, affectedBy <1%, compareValues <1%, 3 more names
-     11%  @variance-authority/package   countNames 1%, readHelp 1%, readSurface 1%, undocumented 1%
-      8%  @variance-authority/tribunal  INITIAL 6%, MIGRATIONS 6%, SCHEMA_VERSION 6%
-      3%  @variance-authority/cli       parseConfig 50%
-  Used by, 1 package, 1 use:
-    100%  site  default 100%
-
 Recorded cases, suite unit, from …/suites/unit/coverage.bin.cases.bin:
-  packages/cli/src/bin.test.ts             a test file declaring 45 recorded cases:
-      opening a renderer > is not in the way of a renderer that opens
-      opening a renderer > turns any failure to open one into an operator error, so a missing browser exits 2
-      parseArgs > accepts `--flag value` and `--flag=value` as the same thing
-      42 more cases.
-  packages/cli/src/commands/carry.test.ts  not recorded: the recording has no row for this file.
-  .github/actions/variance/action.yml      not recorded: the recording has no row for this file.
-  packages/cli/src/parse.ts                44 cases ran it, and it also ran while its module evaluated*:
-      packages/cli/src/bin.test.ts > parseArgs > accepts `--flag value` and `--flag=value` as the same thing
-      packages/cli/src/bin.test.ts > parseArgs > answers `--version` before it decides whether the command exists
-      packages/cli/src/bin.test.ts > parseArgs > exits 0 on help for a subcommand, because help is what was asked for
-      41 more cases.
-  packages/cli/src/commands/carry.ts       ran only while its module evaluated.*
+  packages/cli/src/parse.ts           101 cases ran it, and it also ran while its module evaluated*:
+      packages/cli/src/accept-without-a-run.test.ts > accept with no run report on disk > names the path it looked for and the configuration key that decided it
+      packages/cli/src/accept-without-a-run.test.ts > accept with no run report on disk > refuses as an operator error rather than crashing
+      packages/cli/src/accept-without-a-run.test.ts > accept with no run report on disk > says a run must have happened, and names the dead end a cold reader hits
+      98 more cases.
+  packages/cli/src/commands/carry.ts  12 cases ran it, and it also ran while its module evaluated*:
+      packages/cli/src/commands/carry.test.ts > a recording > is not saved from a pull request, and the plan says so
+      packages/cli/src/commands/carry.test.ts > a recording > is not saved when no mainline is known, naming the answers that were missing
+      packages/cli/src/commands/carry.test.ts > a recording > restores from the base on its line, then the newest there, then another mainline
+      9 more cases.
   * The recording names no case for what runs while a module evaluates. The cases whose files import the module ran it, and `variance covering --file` names them.
 
 Narrower questions:
   variance ask uses --name parseConfig --package @variance-authority/cli
   variance ask symbol --name parseConfig --package @variance-authority/cli
   variance ask symbol --name RenderIdentity --package @variance-authority/core
-  variance ask search --query 'carry args' --from packages/cli/src/bin.test.ts
   variance covering --file packages/cli/src/parse.ts --suite unit
 ```
 

@@ -1,15 +1,15 @@
 /**
  * `docs_orient`'s answer, said from readings already made.
  *
- * Apart from the tool because everything here is a pure function of what the
- * grep, the source index and the recording answered, and a test that wants to
+ * Apart from the tool because everything here is a pure function of the files
+ * asked about and what the source index and the recording answered, and a test that wants to
  * hold the wording should not need a repository, an index and a recording to
  * get a paragraph. Nothing is counted here: every share and every number is
  * the addon's, and this only chooses the words and the order.
  *
  * The answer is for an agent at a terminal. It is four parts, each one a
- * narrower reading of the one above it — where the words are, which packages
- * those files belong to and what crosses their edges, which recorded cases ran
+ * narrower reading of the one above it — the files asked about, which packages
+ * they belong to and what crosses their edges, which recorded cases ran
  * those files, and the commands that ask about one name or one file — and a
  * part that could not be read is left out with one line saying why, so an
  * absent part is never mistaken for an empty one.
@@ -19,26 +19,12 @@
 
 import type { CasesEntered, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
 
-/** One file the words were found in. */
-export interface Landing {
-  readonly file: string;
-  /** How many of the asked words the file contains. */
-  readonly words: number;
-  /** Matching lines, over every word. */
-  readonly lines: number;
-}
-
 /** Everything an orientation answer is made of. */
 export interface OrientReading {
-  readonly query: string;
-  readonly words: readonly string[];
-  /** Tracked files containing at least one of the words. */
-  readonly matched: number;
-  /** The files shown, best first. */
-  readonly shown: readonly Landing[];
+  /** The files asked about, in the order asked. */
+  readonly files: readonly string[];
   readonly around: PackagesAround;
-  /** Absent when nothing was shown, so no recording was asked. */
-  readonly recorded?: readonly RecordedCases[];
+  readonly recorded: readonly RecordedCases[];
 }
 
 const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
@@ -57,28 +43,17 @@ function shell(value: string): string {
 /** A name as a reader would look for it: `*` is the whole module, not a name. */
 const nameOf = (name: string): string => (name === '*' ? 'the whole module' : name);
 
-function landing(reading: OrientReading): readonly string[] {
-  const { shown, matched, words, query } = reading;
-  if (shown.length === 0) {
-    return [`No tracked file contains ${words.length === 1 ? 'the word' : 'any of the words'} \`${query}\`.`];
-  }
+function named(reading: OrientReading): readonly string[] {
+  const { files } = reading;
   const owners = reading.around.orientation?.owners;
-  const wide = Math.max(...shown.map((file) => file.file.length));
-  const found = shown.map((file) => `${plural(file.words, 'word')}, ${plural(file.lines, 'line')}`);
-  const counted = Math.max(...found.map((text) => text.length));
-  const rows = shown.map((file, at) =>
-    owners === undefined
-      ? `  ${file.file.padEnd(wide)}  ${found[at]}`
-      : `  ${file.file.padEnd(wide)}  ${found[at]!.padEnd(counted)}  ${owners[at]?.package ?? 'no package'}`,
-  );
-  const more = matched - shown.length;
-  return [
-    `${plural(matched, 'tracked file')} contain${matched === 1 ? 's' : ''} ${words.length === 1 ? 'the word' : 'one of the words'} \`${query}\`. ` +
-      `The ${plural(shown.length, 'file')} with the most of ${words.length === 1 ? 'it' : 'them'}, then the most matching lines:`,
-    '',
-    ...rows,
-    ...(more > 0 ? ['', `${plural(more, 'more file')} not shown.`] : []),
-  ];
+  const wide = Math.max(...files.map((file) => file.length));
+  const rows = files.map((file, at) => {
+    const owner = owners?.[at];
+    if (owner === undefined) return `  ${file}`;
+    const where = owner.indexed ? owner.package ?? 'no package' : 'not in the source index';
+    return `  ${file.padEnd(wide)}  ${where}`;
+  });
+  return [`${plural(files.length, 'file')} asked about:`, ...rows];
 }
 
 function side(flows: OrientFlows, heading: string, indexed: number): readonly string[] {
@@ -166,7 +141,7 @@ function row(entered: CasesEntered, wide: number): readonly string[] {
 
 function cases(reading: OrientReading): readonly string[] {
   const lines: string[] = [];
-  for (const suite of reading.recorded ?? []) {
+  for (const suite of reading.recorded) {
     const named = suite.suite === undefined ? 'Recorded cases' : `Recorded cases, suite ${suite.suite}`;
     if ('unread' in suite) {
       lines.push('', `${named}: none read from ${suite.recording}, ${suite.unread}. A run with \`withTestSelection\` records them.`);
@@ -205,14 +180,8 @@ export function followUps(reading: OrientReading): readonly string[] {
     const command = `variance ask symbol --name ${shell(takes.name)} --package ${shell(takes.package)}`;
     if (!commands.includes(command)) commands.push(command);
   }
-  // A start point has to be a file the index holds, or `--from` has nothing to walk.
-  const owners = reading.around.orientation?.owners;
-  const start = reading.shown.find((_, at) => owners?.[at]?.indexed === true);
-  if (start !== undefined) {
-    commands.push(`variance ask search --query ${shell(reading.query)} --from ${shell(start.file)}`);
-  }
   const ran = reading.recorded
-    ?.flatMap((suite) => ('files' in suite ? suite.files.map((file) => ({ file, suite: suite.suite })) : []))
+    .flatMap((suite) => ('files' in suite ? suite.files.map((file) => ({ file, suite: suite.suite })) : []))
     .find((entry) => (entry.file.cases ?? 0) > 0 || entry.file.loaded === true);
   if (ran !== undefined) {
     commands.push(`variance covering --file ${shell(ran.file.file)}${ran.suite === undefined ? '' : ` --suite ${shell(ran.suite)}`}`);
@@ -224,8 +193,10 @@ export function followUps(reading: OrientReading): readonly string[] {
 export function formatOrientation(reading: OrientReading): string {
   const asks = followUps(reading);
   return [
-    ...landing(reading),
-    ...(reading.shown.length === 0 ? [] : ['', ...packages(reading), ...cases(reading)]),
+    ...named(reading),
+    '',
+    ...packages(reading),
+    ...cases(reading),
     ...(asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)]),
   ].join('\n');
 }

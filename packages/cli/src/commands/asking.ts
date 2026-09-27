@@ -130,6 +130,7 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   test: '<id>',
   state: '<state>',
   file: '<text>',
+  files: '<path>[,...]',
   name: '<name>',
   package: '<name>',
   subpath: '<subpath>',
@@ -234,7 +235,9 @@ export function inputFor(
     // Where the missing argument comes from depends on what the question is
     // about: an id is printed by a run, a name or a specifier by the code.
     const first = tool.name === 'docs_orient'
-      ? 'It takes words from the task, as `--query "<words>"`, and finds the files they are in.'
+      ? 'It reads the graph around files you already have. `search --query <name>` and ' +
+        '`symbol --name <name>` name the file a name is declared in; `grep --query <pattern> ' +
+        '--from <path>` names the files a pattern is in.'
       : tool.name.startsWith('docs_')
       ? 'Ask `packages` first; it prints the specifiers `entrypoint` takes, and `entrypoint` ' +
         'prints the names `symbol` and `uses` take. `search --query <word>` finds a name you ' +

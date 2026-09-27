@@ -64,6 +64,8 @@ export interface ParsedAsk {
   readonly test?: string;
   readonly state?: string;
   readonly file?: string;
+  /** `--files <path>[,...]`: the files `orient` reads the graph around, as paths from the root. */
+  readonly files?: readonly string[];
   /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`. */
   readonly name?: string;
   /** `--package <name>`: a workspace package, for `entrypoint` and to narrow `symbol` and `uses`. */
@@ -135,6 +137,10 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const test = flags.values.get('--test');
   const state = flags.values.get('--state');
   const file = flags.values.get('--file');
+  const files = (flags.values.get('--files') ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value !== '');
   const name = flags.values.get('--name');
   const pkg = flags.values.get('--package');
   const subpath = flags.values.get('--subpath');
@@ -164,6 +170,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(test !== undefined ? { test } : {}),
     ...(state !== undefined ? { state } : {}),
     ...(file !== undefined ? { file } : {}),
+    ...(files.length > 0 ? { files } : {}),
     ...(name !== undefined ? { name } : {}),
     ...(pkg !== undefined ? { package: pkg } : {}),
     ...(subpath !== undefined ? { subpath } : {}),

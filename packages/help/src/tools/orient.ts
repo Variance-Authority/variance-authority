@@ -1,19 +1,14 @@
 /**
- * `docs_orient` — where some words are, and what the code around them is.
+ * `docs_orient` — what the code around some files is.
  *
- * The first question somebody asks of a repository they do not know is not a
- * name, because they do not know the names yet. It is a few words from a
- * ticket. So this starts from the words and answers with the readings the
- * other questions would each need a name for: the files the words are in, the
- * packages those files belong to and the names that cross each package's edge
- * in both directions, the recorded cases that ran each file, and the commands
- * that ask about one of the names it printed.
- *
- * Text is git's. `git grep` over the tracked files answers where the words are,
- * with git's own view of what is tracked and what is binary, and the ranking on
- * top of it is deliberately crude — more of the words first, then more
- * matching lines — because it only has to choose which files the rest of the
- * answer reads about.
+ * It starts from files somebody already has: the ones a stack trace, a ticket
+ * or an editor names, or the ones `docs_search`, `docs_symbol` and `docs_grep`
+ * found. Finding them is those tools' job. The first two answer from the index
+ * `variance index` publishes and the third runs ripgrep over what one file
+ * reaches, so nothing here reads the text of a file. This answers the graph
+ * questions each of those files raises: the package it belongs to, the names
+ * that cross that package's edge in both directions, the recorded cases that
+ * ran it, and the commands that ask about one of the names it printed.
  *
  * The package graph and the recorded cases are the addon's, through
  * `@variance-authority/sense`: they read what an earlier `variance index` and
@@ -24,65 +19,24 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { spawnSync } from 'node:child_process';
 import type { Tool } from '@variance-authority/mcp/tools';
-import { stringArg } from '@variance-authority/mcp/tools';
 import { packagesAround, recordedCases } from '@variance-authority/sense';
-import { formatOrientation, type Landing } from './orient-format.js';
+import { formatOrientation } from './orient-format.js';
 
-/** Files shown when `limit` is not said. */
-const SHOWN = 8;
 /** Other packages shown per side, and names shown per package. */
 const LIMITS = { rows: 5, names: 4 } as const;
 /** Case titles shown per file. */
 const TITLES = 3;
 
-/** The words of a query, lower-cased once each, in the order written. */
-export function wordsOf(query: string): readonly string[] {
-  return [...new Set(query.toLowerCase().split(/\s+/u).filter((word) => word !== ''))];
-}
-
-/** Per tracked file, the lines containing `word`, ignoring case. */
-function grepWord(root: string, word: string): ReadonlyMap<string, number> {
-  const ran = spawnSync('git', ['grep', '--count', '-z', '-I', '--ignore-case', '--fixed-strings', '-e', word], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 1024 * 1024 * 1024,
-  });
-  if (ran.error !== undefined) throw new Error(`\`orient\` finds the words with \`git grep\`, which could not be run: ${ran.error.message}`);
-  // 1 is no match; anything else but 0 is git refusing, and it says why.
-  if (ran.status === 1) return new Map();
-  if (ran.status !== 0) throw new Error(`\`git grep\` refused: ${ran.stderr.trim()}`);
-  const counts = new Map<string, number>();
-  for (const line of ran.stdout.split('\n')) {
-    const at = line.indexOf('\0');
-    if (at > 0) counts.set(line.slice(0, at), Number(line.slice(at + 1)));
-  }
-  return counts;
-}
-
-const byCodeUnit = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0);
-
-/** Every file containing any of `words`, most words first, then most lines, then path. */
-export function landings(root: string, words: readonly string[]): readonly Landing[] {
-  const found = new Map<string, { words: number; lines: number }>();
-  // TODO: the words are searched one after another, because a tool's `run` is
-  // synchronous. On Kibana one word is about four seconds of reading files, and
-  // two searched side by side took seven seconds rather than nine.
-  for (const word of words) {
-    for (const [file, lines] of grepWord(root, word)) {
-      const seen = found.get(file) ?? { words: 0, lines: 0 };
-      found.set(file, { words: seen.words + 1, lines: seen.lines + lines });
-    }
-  }
-  return [...found]
-    .map(([file, seen]) => ({ file, ...seen }))
-    .sort((left, right) => right.words - left.words || right.lines - left.lines || byCodeUnit(left.file, right.file));
-}
-
-function limitArg(input: Readonly<Record<string, unknown>>): number {
-  const said = input['limit'];
-  return typeof said === 'number' && Number.isInteger(said) && said > 0 ? said : SHOWN;
+/** The files as they were said, each once, in the order said. */
+export function filesOf(input: Readonly<Record<string, unknown>>): readonly string[] {
+  const said = input['files'];
+  const listed = typeof said === 'string' ? [said] : Array.isArray(said) ? said : [];
+  const files = listed
+    .filter((file): file is string => typeof file === 'string')
+    .map((file) => file.trim().replace(/^\.\//u, ''))
+    .filter((file) => file !== '');
+  return [...new Set(files)];
 }
 
 /**
@@ -93,50 +47,46 @@ function limitArg(input: Readonly<Record<string, unknown>>): number {
 export const orient: Tool<unknown> = {
   name: 'docs_orient',
   description:
-    'For words from a task when no name is known yet. Finds the tracked files that contain the words, ' +
-    'then says which package each file is in, what that package imports from other packages and ' +
+    'For files you already have — from a stack trace, a ticket, or docs_search, docs_symbol and docs_grep, ' +
+    'which find them. Says which package each file is in, what that package imports from other packages and ' +
     'what other packages import from it, as each package\'s share of that side with the names it takes, ' +
     'each name weighed against all the outside use of the package that exports it, ' +
     'which recorded test cases ran each file or a test file declares, and the narrower questions to ask next. Reads the ' +
-    'source index `variance index` publishes and the latest recorded run; runs nothing itself.',
+    'source index `variance index` publishes and the latest recorded run; reads no file\'s text and runs nothing itself.',
   inputSchema: {
     type: 'object',
     properties: {
-      query: {
-        type: 'string',
-        description: 'Words from the task, space-separated. Each is matched as plain text, ignoring case.',
-      },
-      limit: {
-        type: 'integer',
-        description: `Files to show. ${SHOWN} when not said; the rest are counted.`,
+      files: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Paths from the root, as git lists them. Every one is answered, in the order given.',
       },
     },
-    required: ['query'],
+    required: ['files'],
     additionalProperties: false,
   },
 
   run: (_subject, input, invocation) => {
-    const query = stringArg(input, 'query');
+    const files = filesOf(input);
+    if (files.length === 0) {
+      throw new Error(
+        '`orient` reads the graph around files you already have, and none was given. ' +
+          '`search --query <name>` and `symbol --name <name>` name the file a name is declared in; ' +
+          '`grep --query <pattern> --from <path>` names the files a pattern is in.',
+      );
+    }
     // TODO: a call served by `variance-authority-help --root <dir>` reads the
     // working directory, not that root, unless the host read a tree; the
     // invocation has no field for the root on its own.
     const root = invocation?.tree?.root ?? process.cwd();
-    const words = wordsOf(query);
-    const found = landings(root, words);
-    const shown = found.slice(0, limitArg(input));
-    const files = shown.map((landing) => landing.file);
-    const around = packagesAround(root, files, LIMITS);
     return formatOrientation({
-      query,
-      words,
-      matched: found.length,
-      shown,
-      around,
+      files,
+      around: packagesAround(root, files, LIMITS),
       // TODO: a file that only ran while its module evaluated is counted with
       // no case, because the cases whose files import it are the file graph's
       // answer and this builds no graph; `variance covering --file` builds one
       // and names them, so the answer points there instead of counting them.
-      ...(shown.length === 0 ? {} : { recorded: recordedCases(root, files, TITLES) }),
+      recorded: recordedCases(root, files, TITLES),
     });
   },
 };
