@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/editors",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "The Variance Authority plugins for VS Code and JetBrains IDEs, built and ready to install: which test cases went through each line, in the gutter.",
   "keywords": [
     "variance-authority",

@@ -1,5 +1,9 @@
 # @variance-authority/raster
 
+## 0.10.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.9.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

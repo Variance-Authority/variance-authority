@@ -1,5 +1,15 @@
 # @variance-authority/tribunal
 
+## 0.10.0
+
+### Minor Changes
+
+- c9852fa: A tribunal serves the share under `/share/`, so an `http` share whose `endpoint` is `<deployment>/share` stores its lines there. The ingest token reads and writes it. The new optional share token (`shareToken`, `SHARE_TOKEN` on Cloudflare, `VARIANCE_TRIBUNAL_SHARE_TOKEN` for the Node executable) only reads it. Every other route answers it with 403, except `GET /version`, which answers every token. The review token is refused under `/share/`. A manifest is replaced only on the version it was read at, so two writers publishing to one line keep both sets of entries. A manifest write with neither `If-Match` nor `If-None-Match` answers 428. `createTribunalRoutes` exports `PUT`, and `authorize` may return `'share'` when `tokens.share` is set. `R2Like.put` takes R2's `onlyIf` and returns the written object's `httpEtag`. The API version is 3. The note `push` prints about an older deployment names every capability it lacks, and names the share only when `PushOptions.share` is an `http` share under the deployment's endpoint, so a push to a deployment at API 2 whose share is elsewhere prints no note.
+
+### Patch Changes
+
+- a3d7088: `createDirectoryBucket` compares every segment of a key with the name the volume stores, not only the file name. On a volume that treats two spellings as one name, such as the default APFS on macOS, a key that finds an existing file or directory only through a spelling it does not use is absent: `get` and `head` answer `null`, `delete` removes nothing, and `put` throws an error that names the segment and the stored spelling. So two share lines whose branches differ only by case, such as `branch/Feature` and `branch/feature`, are two lines on a case-sensitive volume, and on a folding volume the second one is refused instead of reading and replacing the first. A `put` checks before it makes the key's directory and again after, so of two keys that differ only by case and are written at the same moment, the one whose spelling the volume did not keep is refused, in one process or two. The worker answers a refused key with 422 and a message that names the key's own directory, never the store's path on disk. The check asks the volume about each segment of the key with two `lstat` calls, one for the segment and one for its case-inverted spelling, and adds a `realpath` only where both name one file.
+
 ## 0.9.0
 
 ### Patch Changes
