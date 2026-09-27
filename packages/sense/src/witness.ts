@@ -20,11 +20,14 @@
  * ## Bare specifiers
  *
  * `react` is answered from `node_modules`, which git does not track, so no
- * tracked path can change it. What can is a `tsconfig` that maps it: `@app/*`
- * pointing at `src/*` makes `@app/button` exactly as sensitive to `src` as
- * `./button` is to its own directory. So the patterns are read from the
- * `tsconfig` and `jsconfig` files the tree holds, and a request that matches one
- * gets the substituted paths as candidates.
+ * tracked path can change it. A workspace package is the exception: its link
+ * in `node_modules` leads back into the tree, and the resolver reads that
+ * package's tracked files, its source included when its output is read as the
+ * source it is built from. What changes a bare answer lexically is a
+ * `tsconfig` that maps it: `@app/*` pointing at `src/*` makes `@app/button`
+ * exactly as sensitive to `src` as `./button` is to its own directory. So the
+ * patterns are read from the `tsconfig` and `jsconfig` files the tree holds,
+ * and a request that matches one gets the substituted paths as candidates.
  *
  * When a configuration cannot be read — invalid JSON, or an `extends` naming a
  * package rather than a path — there is no honest bound on where a bare
@@ -266,6 +269,11 @@ export function witnessesOf(input: {
     if (isRelative(bare)) candidate(join(directory, bare));
     else for (const alias of aliases?.candidatesFor(bare) ?? []) candidate(alias);
   }
+  // FIXME: a bare request into a workspace package that resolved to nothing has
+  // no witness in that package, so a reused record misses the source file that
+  // would make it resolve — `@s/b/new`, written before `new.ts` was added to
+  // that package's `rootDir`. The resolver knows where it looked, through the package's link and
+  // `tsconfig` layout, and the batch does not carry it.
   for (const edge of edges) found.add(parent(edge));
 
   return [...found].sort();

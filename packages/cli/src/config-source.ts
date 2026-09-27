@@ -194,7 +194,7 @@ export function parseSource(value: unknown, options: ParseOptions): SourceConfig
  * would observe every subject in a package because one file in it moved. Taken
  * as a seed set, the file graph narrows it the same way it narrows a diff, and
  * what the tools contribute is the half the scan cannot see — a dependency that
- * only exists through built output.
+ * only exists through built output no `tsconfig` maps back to source.
  */
 function parseChanges(value: unknown, options: ParseOptions): ChangeConfig {
   const root = object(value, 'source.changes', ['tool', 'task'], options);

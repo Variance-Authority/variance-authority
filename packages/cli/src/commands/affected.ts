@@ -91,10 +91,11 @@ export interface AffectedInput {
    * Directories whose every file counts as changed, from a monorepo tool's
    * affected-project answer.
    *
-   * Coarser than a file list on purpose. `nx` and `turbo` see the one edge a
+   * Coarser than a file list on purpose. `nx` and `turbo` see an edge a
    * specifier scan cannot — one workspace package importing another's built
-   * output — and the price of that edge is project granularity. It is taken as
-   * *more changed input*, never as the selection itself.
+   * output that no `tsconfig` maps back to source — and the price of that edge
+   * is project granularity. It is taken as *more changed input*, never as the
+   * selection itself.
    */
   readonly changedDirs?: readonly string[];
 

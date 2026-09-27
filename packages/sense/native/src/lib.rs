@@ -16,12 +16,14 @@
 
 use napi_derive::napi;
 use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
 
 mod acquire;
 mod batch;
 mod conditions;
 mod depends;
 mod digest;
+mod emitted;
 mod git;
 #[cfg(feature = "grammars")]
 mod grammar;
@@ -120,8 +122,15 @@ pub fn swift_targets(_source: String) -> Option<String> {
 pub struct GitTree {
     paths: Vec<String>,
     oids: Vec<git::Oid>,
-    at: HashMap<String, u32>,
+    at: Arc<HashMap<String, u32>>,
     seeds: Vec<String>,
+    /// Whether git vouches that each path is a regular file, by index.
+    regular: Arc<Vec<bool>>,
+    /// Paths on disk git gave no digest for.
+    unhashed: Vec<String>,
+    /// The package manifests and `tsconfig*.json` files in each directory, made
+    /// the first time a scan asks where built output comes from.
+    listing: OnceLock<Arc<emitted::Listing>>,
 }
 
 /// Every tracked path under `root`, or nothing when this is not a checkout.
@@ -143,6 +152,16 @@ pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
     Some(tree_from_snapshot(snapshot, seeds))
 }
 
+impl GitTree {
+    fn listing(&self) -> Arc<emitted::Listing> {
+        let made = || {
+            let (at, regular) = (Arc::clone(&self.at), Arc::clone(&self.regular));
+            Arc::new(emitted::Listing::of(at, regular, &self.unhashed))
+        };
+        Arc::clone(self.listing.get_or_init(made))
+    }
+}
+
 fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
     let mut at = HashMap::with_capacity(snapshot.paths.len() * 2);
     for (index, path) in snapshot.paths.iter().enumerate() {
@@ -152,8 +171,11 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
     GitTree {
         paths: snapshot.paths,
         oids: snapshot.oids,
-        at,
+        at: Arc::new(at),
+        regular: Arc::new(snapshot.regular),
+        unhashed: snapshot.unhashed,
         seeds,
+        listing: OnceLock::new(),
     }
 }
 
@@ -228,7 +250,8 @@ impl GitTree {
                 condition_names,
             },
             Some(oids),
-            Some(&self.at),
+            Some(self.at.as_ref()),
+            Some(self.listing()),
         )
     }
 
@@ -260,6 +283,7 @@ impl GitTree {
             },
             &self.at,
             &self.oids,
+            self.listing(),
         )
     }
 

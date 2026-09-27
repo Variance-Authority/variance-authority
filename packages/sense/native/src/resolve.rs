@@ -1,12 +1,20 @@
 //! Repository-local module resolution, matching the JavaScript oracle.
+//!
+//! The resolver reads the disk through `Emitted`, so an import that lands in a
+//! workspace package's built output answers with the source it is built from.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
 use oxc_resolver::{
-    ResolveOptions, Resolver, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
+    ResolveOptions, ResolverGeneric, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
 };
+
+use crate::emitted::{Emitted, Origin};
+
+type Resolver = ResolverGeneric<Emitted>;
 
 const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 const STYLE_EXTENSIONS: &[&str] = &[".css", ".scss", ".sass", ".less"];
@@ -26,10 +34,18 @@ pub struct Resolvers {
     /// Condition set → its resolver, so configs that agree share one.
     conditioned: Mutex<HashMap<Vec<String>, Arc<Resolver>>>,
     canonical: Mutex<HashMap<PathBuf, PathBuf>>,
+    /// The file system every resolver here reads, shared so an answer is
+    /// mapped by the layouts that produced it.
+    emitted: Emitted,
 }
 
 impl Resolvers {
     pub fn new(tsconfig: Option<String>, condition_names: Option<Vec<String>>) -> Self {
+        Self::over(tsconfig, condition_names, Emitted::default())
+    }
+
+    /// Resolvers that read the disk through `emitted`.
+    pub fn over(tsconfig: Option<String>, condition_names: Option<Vec<String>>, emitted: Emitted) -> Self {
         let options = ResolveOptions {
             extensions: MODULE_EXTENSIONS
                 .iter()
@@ -68,7 +84,7 @@ impl Resolvers {
             ..ResolveOptions::default()
         };
 
-        let modules = Resolver::new(options.clone());
+        let modules = Resolver::new_with_file_system(emitted.clone(), options.clone());
         // `cloneWithOptions` normalizes against OXC defaults; it does not merge
         // with the factory's current settings. The oracle supplies only an empty
         // extension alias, so the exact resolver intentionally has no tsconfig.
@@ -83,6 +99,7 @@ impl Resolvers {
             governed: RwLock::new(HashMap::new()),
             conditioned: Mutex::new(conditioned),
             canonical: Mutex::new(HashMap::new()),
+            emitted,
         }
     }
 
@@ -141,7 +158,15 @@ impl Resolvers {
             let Ok(answer) = resolver.resolve_file(from, request) else {
                 continue;
             };
-            let resolved = answer.path();
+            let resolved = match self.emitted.origin(answer.path()) {
+                Origin::Source(source) if self.emitted.vouched(&source) => Cow::Owned(source),
+                // The resolver never saw the source, so a link there is read
+                // where it points, as an import of it would be.
+                Origin::Source(source) => Cow::Owned(self.canonical(&source)),
+                Origin::Nowhere => continue,
+                Origin::Disk | Origin::Directory => Cow::Borrowed(answer.path()),
+            };
+            let resolved = resolved.as_ref();
             if let Some(file) = to_repo_path(root, resolved) {
                 if known.is_some_and(|paths| paths.contains_key(&file)) {
                     if !case_folded(request, resolved) {
@@ -162,7 +187,8 @@ impl Resolvers {
     }
 
     /// What the resolver found for a request, manifest included: the answer
-    /// `resolve` reduces to a repository path.
+    /// `resolve` reduces to a repository path. Its path may name built output
+    /// that is not on disk, which `resolve` reads as its source.
     pub fn resolution(&self, from: &Path, request: &str) -> Option<oxc_resolver::Resolution> {
         let request = request_of(request)?;
         let modules = self.modules_for(from);

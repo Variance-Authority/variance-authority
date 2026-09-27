@@ -34,6 +34,9 @@ grammars = [
 [dependencies]
 napi = { version = "3", default-features = false, features = ["napi8"] }
 napi-derive = "3"
+# The sharded map and the hasher `oxc_resolver` caches paths with, so the
+# layouts `Emitted` keeps beside that cache cost what it costs.
+dashmap = "6"
 # The matcher `oxc_resolver` already builds, and the one rolldown reads a
 # `sideEffects` glob with.
 fast-glob = "1"
@@ -49,6 +52,7 @@ oxc_span = "0.144.0"
 oxc_syntax = { version = "0.144.0", features = ["to_js_string"] }
 rayon = "1"
 regex = "1"
+rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

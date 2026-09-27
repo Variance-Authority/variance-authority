@@ -182,9 +182,9 @@ function placed(directory: string, path: string): string {
 }
 
 /** The file an `extends` entry names: a path, or a package under a `node_modules` above. */
-function extendedFile(directory: string, specifier: string): string | undefined {
+export function extendedFile(directory: string, specifier: string): string | undefined {
   if (specifier.startsWith('/') || specifier.startsWith('.')) {
-    return configFile(normalize(join(directory, specifier)));
+    return configFile(resolve(directory, specifier));
   }
   if (specifier === '' || specifier.startsWith('#')) return undefined;
   for (let at = directory; ; at = dirname(at)) {

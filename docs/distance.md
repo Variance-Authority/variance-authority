@@ -236,10 +236,13 @@ test. It does not say that test can reveal this fault, that no nearer test can,
 or that a farther test may be skipped. Those are outcome and risk questions the
 snapshot does not record.
 
-**The graph must connect source files to built output.** In a workspace,
-cross-package imports can resolve to built files while the execution record
-names source files. Without that connection, tests can be selected but their
-distances remain `unmeasured`.
+**The graph and the execution record must name the same files.** The scan
+reads a workspace package's built output as its source when the package's
+`tsconfig` names both `outDir` and `rootDir` and emits code. A package built
+another way, or a graph you
+supply yourself, can still name built files where the execution record names
+source files. `knownAs` connects the two; without it, tests can be selected but
+their distances remain `unmeasured`.
 
 **A bearing does not establish blame.** It describes a path or a gap in the
 available evidence. Use it to choose what to inspect or how an existing

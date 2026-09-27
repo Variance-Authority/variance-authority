@@ -26,6 +26,7 @@ import { realpathSync } from 'node:fs';
 import { basename, isAbsolute, relative, sep } from 'node:path';
 import { ResolverFactory, type NapiResolveOptions } from 'oxc-resolver';
 import { customConditionsFor } from './conditions.js';
+import { emittedFrom, type Emitted } from './emitted.js';
 import { resolveJvm } from './jvm.js';
 import type { LanguageId } from './language.js';
 import { resolvePython } from './python.js';
@@ -91,6 +92,8 @@ export interface Resolvers {
   readonly canonical: Map<string, Landing>;
   /** The root the repository paths in `canonical` were worked out against. */
   against: string | undefined;
+  /** Built output → the source it is built from ([`emitted.ts`](./emitted.ts)). */
+  readonly emitted: Emitted;
   /** What the file currently being resolved has already asked. */
   readonly asking: Asking;
   /**
@@ -219,6 +222,7 @@ export function resolversFor(options: ResolveOptions): Resolvers {
     exact: modules.cloneWithOptions({ extensionAlias: {} }),
     canonical: new Map(),
     against: undefined,
+    emitted: emittedFrom(),
     asking: { file: undefined, answers: new Map() },
     tree: undefined,
   };
@@ -435,8 +439,19 @@ function landed(resolvers: Resolvers, root: string, path: string): Landing {
   const known = canonical.get(path);
   if (known !== undefined) return known;
 
-  const disk = realPath(path);
-  const landing: Landing = { disk, file: toRepoPath(root, disk) };
+  // FIXME: the npm binding takes no file system, so the rule reads back what it
+  // found on disk and disagrees with the native resolver, which reads `outDir`
+  // through `rootDir`, wherever the build and the source part: output never
+  // built, or a source added since the build, is not found; a stale
+  // `dist/utils.js` the resolver tries before `dist/utils/index.js` answers
+  // for a source that is now a directory; a config git ignores declares here;
+  // and an `outDir` that links out of the package is followed before the
+  // layout is read. Taint resolves through here, so a specifier a diff adds
+  // toward a sibling package can land where the scan does not.
+  const found = realPath(path);
+  const source = resolvers.emitted(found);
+  const disk = source === undefined || source === null ? found : realPath(source);
+  const landing: Landing = { disk, file: source === null ? undefined : toRepoPath(root, disk) };
   canonical.set(path, landing);
 
   return landing;

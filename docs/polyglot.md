@@ -164,6 +164,11 @@ The syntax says almost everything, and the work is in resolution instead:
   applies.
 - **Export conditions are read in order, source before built output**, so a
   package that publishes both is read as its source rather than its `dist`.
+- **Built output is read as the source it is emitted from.** When a workspace
+  package's `tsconfig` names both `outDir` and `rootDir` and emits code, a
+  resolution that lands under `outDir` is the file under `rootDir`, whether or
+  not the package was built, so a manifest that exports only `dist` still gives
+  an edge into `src`.
 - **Anything outside this repository resolves to nothing on purpose** — a
   builtin, a package in `node_modules`, a path above the root — because no diff
   of this repository can be that file.

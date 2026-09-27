@@ -1678,8 +1678,8 @@ line and ignores its value, so a wrong path costs completion and never a run.
   // Where components are declared, which is what `--since` narrows against.
   // `relations` reads what imports what, so a changed stylesheet reaches the
   // components that rest on it instead of running everything; `changes` borrows
-  // a monorepo tool's answer across the package boundary a specifier cannot
-  // cross.
+  // a monorepo tool's answer across a package boundary the scan cannot map
+  // back to source.
   "source": {
     "dirs": ["src"],
     "relations": true,
@@ -1732,8 +1732,9 @@ what it could not match — either nothing here watches that surface, or somethi
 here paints it without recording it, which a server component always does. Set it
 to `"whole"` for the second, and the run observes everything instead. `changes`
 asks `nx` or `turbo` what a diff affects and folds their answer in as **more changed
-input**, never as a second opinion: it is the one edge a specifier scan cannot
-see, since a workspace package imports its neighbour's built output. `turbo`
+input**, never as a second opinion: it is the edge a specifier scan cannot see
+when a workspace package imports its neighbour's built output and no `tsconfig`
+says which source that output is emitted from. `turbo`
 needs a `task`, because it filters a task graph rather than describing a
 workspace. If the tool cannot be run, the run refuses — an empty project list is
 a legitimate answer meaning *this diff crossed no package boundary*, and a

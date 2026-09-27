@@ -23,11 +23,15 @@
  *
  * In a workspace, `@scope/other` resolves through a symlink into that package's
  * **built output** unless it publishes a `source` condition, and built output is
- * not what anybody edits — an edge into `dist/` could never be reached by a diff,
- * so it is dropped rather than drawn. That leaves a real gap at every package
- * boundary, and it is the gap `nx` and `turbo` already fill: both compute
- * project-level affectedness across exactly that edge. Their answer joins this
- * one as additional seeds rather than replacing it.
+ * not what anybody edits. The package's `tsconfig` says what it is: a target
+ * under `outDir` is read as the file under `rootDir` it is emitted from, whether
+ * or not the package was built (`native/src/emitted.rs`, ADR-0080). Built
+ * output no `tsconfig` accounts for — a bundler with its own configuration — is
+ * not what a diff changes either: under an excluded directory such as `dist/`
+ * it is dropped rather than drawn, and anywhere else, such as `lib/`, the edge
+ * lands on the built file. That is the gap `nx` and `turbo` already fill: both
+ * compute project-level affectedness across it.
+ * Their answer joins this one as additional seeds rather than replacing it.
  *
  * ## What a second run costs
  *

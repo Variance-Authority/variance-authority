@@ -151,7 +151,8 @@ export async function selectionFor(
   // Both are optional and both only ever *add*: the graph turns "a changed file
   // declaring nothing" from a whole run into an exact answer, and the monorepo
   // tool contributes the dependencies the scan cannot see because they run
-  // through built output. Neither can rule anything out on its own.
+  // through built output no `tsconfig` maps back to source. Neither can rule
+  // anything out on its own.
   const relations =
     config.source.relations === true && deps.scanRelations !== undefined
       ? await deps.scanRelations(config.source.dirs)

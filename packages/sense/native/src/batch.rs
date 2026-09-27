@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Arc;
 
 use napi::bindgen_prelude::{Buffer, Uint32Array};
 use napi_derive::napi;
@@ -9,6 +10,7 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
 use crate::acquire::{read_all, read_git};
+use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::read::{Kind, Read};
 use crate::resolve::Resolvers;
@@ -111,6 +113,7 @@ pub fn scan_batch(
         },
         None,
         None,
+        None,
     )
 }
 
@@ -118,6 +121,7 @@ pub(crate) fn scan_batch_with_oids(
     options: ScanOptions,
     oids: Option<Vec<Option<Oid>>>,
     known: Option<&HashMap<String, u32>>,
+    listing: Option<Arc<Listing>>,
 ) -> ScanBatch {
     let ScanOptions {
         root,
@@ -129,7 +133,7 @@ pub(crate) fn scan_batch_with_oids(
         condition_names,
     } = options;
     let root_path = Path::new(&root);
-    let resolvers = Resolvers::new(tsconfig, condition_names);
+    let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, listing));
     let read = match oids {
         Some(oids) => read_git(
             root.clone(),
@@ -159,6 +163,7 @@ pub(crate) fn scan_graph_with_tree(
     options: GraphOptions,
     at: &HashMap<String, u32>,
     tree_oids: &[Oid],
+    listing: Arc<Listing>,
 ) -> ScanBatch {
     let GraphOptions {
         root,
@@ -170,7 +175,7 @@ pub(crate) fn scan_graph_with_tree(
         include_parses,
     } = options;
     let root_path = Path::new(&root);
-    let resolvers = Resolvers::new(tsconfig, condition_names);
+    let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, Some(listing)));
     let mut files = Vec::new();
     let mut read = Vec::new();
     let mut targets = Vec::new();

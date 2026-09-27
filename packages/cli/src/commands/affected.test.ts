@@ -317,7 +317,8 @@ describe('a project a monorepo tool called affected', () => {
     });
 
     // The edge a specifier scan cannot see: one workspace package importing
-    // another's built output. It arrives as more changed input, and the graph
+    // another's built output that no `tsconfig` maps back to source. It arrives
+    // as more changed input, and the graph
     // narrows outwards from it like it does from any other change.
     expect(answer.observe).toEqual(['story:button']);
   });

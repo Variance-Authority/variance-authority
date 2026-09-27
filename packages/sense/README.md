@@ -1102,11 +1102,15 @@ rather than into built output the checkout does not hold. When you pass
 `conditionNames`, your list is the whole set and no `tsconfig` adds to it.
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
-still joins the graph. Edges into a sibling package's built output, or another
-path outside `root`, are omitted. An import of an installed package is not
-omitted: it is recorded as an edge to a **package node** named the way the
-source imports it — `@mui/material`, never a version and never a resolution —
-so a dependency bump can be seeded by name. Which copy a resolver handed any
+still joins the graph. When a workspace package's `tsconfig` names both `outDir`
+and `rootDir` and emits code, a target under `outDir` maps to the file under
+`rootDir` it is emitted from, whether or not the package was built. A target no
+repository file stands for — unmapped built output under an excluded directory
+such as `dist/`, a path outside `root` — gives no file edge, and its specifier
+stays under `unresolved`. An import of a package is recorded either way, as an
+edge to a **package node** named the way the source imports it —
+`@mui/material`, never a version and never a resolution — so a dependency bump
+can be seeded by name. Which copy a resolver handed any
 one importer is not recorded, because answering that means reproducing the
 resolver, and a selector that guessed would skip on the guess.
 [Read the install](#read-which-packages-the-install-changed) to find out
