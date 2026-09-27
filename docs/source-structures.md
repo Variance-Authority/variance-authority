@@ -34,23 +34,20 @@ from [`source-index.mjs`](../packages/sense/scripts/source-index.mjs).
 | That tree is | Checkout | Total | Records rebuilt | Files opened |
 | --- | --- | --- | --- | --- |
 | new — no index at all | Material UI | 586 ms | 24,908 | 78 |
-| | Kibana | 9,135 ms | 106,215 | 265 |
+| | Kibana | 6,344 ms | 106,215 | 265 |
 | unchanged since the last run | Material UI | 301 ms | 1 | 0 |
-| | Kibana | 1,845 ms | 0 | 0 |
+| | Kibana | 2,117 ms | 0 | 0 |
 | four files edited | Material UI | 320 ms | 5 | 4 |
-| | Kibana | 2,220 ms | 4 | 4 |
+| | Kibana | 2,355 ms | 4 | 4 |
 | one file added | Material UI | 362 ms | 105 | 104 |
-| | Kibana | 8,916 ms | 106,216 | 133 |
+| | Kibana | 2,468 ms | 111 | 111 |
 
-The first row happens once per machine. The rest is what you pay per run. In
-Kibana, one added file costs nearly as much as the first row, because Kibana's
-`tsconfig` files extend a package: the
-[first trap](#a-tsconfig-that-extends-a-package) below.
+The first row happens once per machine. The rest is what you pay per run.
 
 Files opened does not count every file a scan reads. A scan with ten thousand
 or more records to rebuild reads, parses and resolves them in a single native
 call, and the column counts only the files read outside it, so Kibana's cold
-row and its one-added row show a few hundred files, not a hundred thousand.
+row shows a few hundred files, not a hundred thousand.
 
 The index lives in [your cache](cache.md), in a directory named for a digest of
 the checkout path:
@@ -70,7 +67,7 @@ and pays for the files that differ between the two, not the first row.
 | You change | What is rebuilt |
 | --- | --- |
 | the contents of a file | that one file's record, and its parse if those exact bytes have never appeared at another path in any branch |
-| a file added, moved or deleted | only the records whose imports could have been answered from the affected directory. For one added file that is 105 of Material UI's 24,908, and 111 of Kibana's 106,215 once the [first trap](#a-tsconfig-that-extends-a-package) below is removed |
+| a file added, moved or deleted | only the records whose imports could have been answered from the affected directory. For one added file that is 105 of Material UI's 24,908, and 111 of Kibana's 106,215 |
 | `package.json`, `jsconfig.json`, `deno.json`, `pnpm-workspace.yaml`, any lock file, or any `tsconfig*.json` | the whole index. One `paths` entry redirects every `@/` specifier in the repository, so no record survives |
 | `source.dirs` — the directories scanned | nothing. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work and neither invalidates the other |
 
@@ -82,10 +79,11 @@ How many records one added file rebuilds depends on the directory it lands in.
 Over the directories that some record's imports could be answered from, the
 count in Material UI is 7 at the median, 36 at the 90th percentile and 242 at
 the 99th, and 21,500 for the widest, `packages/mui-icons-material/lib/utils`. In
-Kibana with the first trap removed, it is 5, 29 and 261, and 37,126 — 35% of
-the index — for `src/platform/packages/shared`. A record that imports a package
-through a `paths` pattern could have been answered from the directory the
-pattern points into, and 444 of Kibana's `paths` patterns point into that one.
+Kibana it is 5, 29 and 261, and 37,126 — 35% of the index — for
+`src/platform/packages/shared`. A record that imports a package through a
+`paths` pattern could have been answered from the directory the pattern points
+into, and 222 of Kibana's `paths` patterns name a package that sits directly in
+that one.
 
 ## Three ways the index silently stops working
 
@@ -93,51 +91,46 @@ Each of these leaves the tool running and answering. What you see is a run that
 is slower than it should be, a selection wider than it should be, or tests that
 are not selected at all, and the config is the cause.
 
-### A `tsconfig` that `extends` a package
+### A `tsconfig` the scan cannot follow
 
 To bound what a new file could change, the scan reads the `paths` and `baseUrl`
 patterns out of every `tsconfig.json` and `jsconfig.json` in the tree — every
 one, because resolution discovers the nearest config per file, so the bound has
-to cover all of them. A config that is not valid JSON, or whose `extends`
-names a package rather than a relative path, cannot be followed: the file it
-names lives in `node_modules`, which the scan does not read.
+to cover all of them — and out of every base each of them `extends`. A relative
+`extends` is read where it points. A package `extends`, such as
+`"@company/tsconfig/base.json"`, is followed the way the resolver follows it:
+through the `node_modules` link your package manager made, then the package's
+`exports`, to the file it names — the package's `tsconfig.json` when the
+`extends` names only the package. In a workspace, that link leads back into your
+repository, and the base is read there.
 
-One such config anywhere in the tree removes the bound for the whole tree. With
-no bound, every tracked path is folded into the configuration digest, and then
-**any** file appearing or disappearing invalidates **every** record. The symptom
-is that a run is cold whenever a file was added, moved or deleted since the last
-one: `variance run` reuses no record, and the timing sits near the 586 ms row
-rather than the 362 ms one. A run that only edits files still reuses every
-record but the edited ones.
+Every base has to land on a `tsconfig*.json` or `jsconfig.json` that git tracks,
+because tracked files are what the index keys its records on. The scan cannot
+follow a config that is not valid JSON, or one whose `extends`:
 
-Kibana has this trap: 1,527 of its 1,534 `tsconfig` files extend
-`@kbn/tsconfig-base/tsconfig.json`. In [the table above](#scale), one file added
-to Kibana costs 98% of what a new index costs.
+- names a package that is not installed, so nothing resolves;
+- names a package installed from a registry, such as `@tsconfig/strictest`,
+  whose file sits in `node_modules`, which git does not track;
+- resolves to a file outside your checkout, or is an absolute path;
+- lands on a file with any other name, such as `base.json`.
 
-`extends: "@company/tsconfig/base.json"` is an ordinary thing to write in a
-monorepo. A relative path to the same file restores the bound. Which of the two
-costs you less depends on your tree: with the package form, every run that
-adds, moves or deletes a file is cold; with the relative path, every run pays
-for the bound.
+One such config anywhere in the tree, or anywhere in the chain of bases a config
+extends, removes the bound for the whole tree. With no bound, every tracked path
+is folded into the configuration digest, and then **any** file appearing or
+disappearing invalidates **every** record. The symptom is that a run is cold
+whenever a file was added, moved or deleted since the last one: `variance run`
+reuses no record, and the timing sits near the 586 ms row rather than the 362 ms
+one. A run that only edits files still reuses every record but the edited ones.
 
-With the bound in place, the scan works through every `paths` pattern once for
-each config that inherits it. Kibana's root `tsconfig.base.json` declares 3,004
-`paths` patterns, the 1,527 package configs inherit all of them, and working
-out the bound takes 3,141 ms, timed on its own. With those `extends` rewritten
-to relative paths, Kibana's runs cost:
+A base your repository tracks restores the bound: a workspace package, or a
+relative path to a `tsconfig*.json`. When the base comes from a registry, write
+the options you use from it into a tracked base instead.
 
-| Kibana run | `extends` a package | `extends` a relative path |
-| --- | --- | --- |
-| new — no index at all | 9,135 ms | 16,205 ms |
-| unchanged since the last run | 1,845 ms | 6,480 ms |
-| four files edited | 2,220 ms | 7,188 ms |
-| 500 files edited | 2,318 ms | 7,390 ms |
-| one file added | 8,916 ms | 6,837 ms |
-| one file deleted | 8,782 ms | 7,183 ms |
-| 100 files added, 100 deleted, 500 edited | 9,123 ms | 9,202 ms |
-
-On a tree shaped like Kibana, the relative path is faster only when at least
-seven runs in ten add, move or delete a file.
+Kibana keeps its base in a workspace package: 1,527 of its 1,534 `tsconfig`
+files extend `@kbn/tsconfig-base/tsconfig.json`, whose link leads back to
+`packages/kbn-tsconfig/base`, and through it they inherit the 3,004 `paths`
+patterns of the root `tsconfig.base.json`. One file added to Kibana rebuilds 111
+records, in [the table above](#scale).
 
 ### A workspace dependency that resolves through `dist`
 
@@ -252,9 +245,8 @@ nor writes it.
 The key is computed once per file in the repository on every run, including runs
 that open nothing, so its parts are joined rather than hashed. On the 41,171-path
 tree above, hashing 24,908 of them would cost 17 ms of a warm run that takes 344.
-On Kibana, hashing every key would cost 46.7 ms of a warm run that takes
-2,057 ms, and joining them costs 1.9 ms. That warm run is timed by a separate
-harness from the 1,845 ms in the table above, in its own process.
+On Kibana, hashing every key would cost 46.7 ms of the 2,117 ms warm run in the
+table above, and joining them costs 1.9 ms.
 
 **What is not in it.** Resolution. Specifiers go in; edges do not.
 

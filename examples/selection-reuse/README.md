@@ -68,20 +68,19 @@ below is that script on two public checkouts:
 `packages` and `docs/src`, and [Kibana](https://github.com/elastic/kibana) at
 `df0daaddcc`, a monorepo of 1,488 packages, scanning `src`, `x-pack` and
 `packages`. Both ran on the same Apple M4 Max as the demo, and each time is the
-median of runs made for this page — three on Material UI, five on Kibana. The
-pages under `docs/` time the same checkouts in runs of their own, and their
-figures differ from these by up to 17% on a cold scan and 8% on a warm run.
+median of three runs. The pages under `docs/` quote the same Kibana runs and
+time Material UI in runs of their own, which differ from these by up to 15% on a
+cold scan and 6% on a warm run.
 
 | Checkout | Tracked paths | Records | Index on disk | Cold | Warm, nothing changed | Speedup |
 | --- | --- | --- | --- | --- | --- | --- |
 | Material UI | 41,171 | 25,117 | 11.0 MB | 671 ms | 283 ms | 2.4× |
-| Kibana | 125,804 | 106,219 | 81.0 MB | 8,898 ms | 1,989 ms | 4.5× |
+| Kibana | 125,804 | 106,219 | 81.5 MB | 6,344 ms | 2,117 ms | 3.0× |
 
 The larger repository changes where a warm run spends its time. On Material UI
 the warm run splits about evenly between opening the index and scanning the
-working tree, 137 ms and 146 ms. On Kibana, opening the 81.0 MB index takes
-1,172 ms and the scan 803 ms, each the median of its own five timings, so the
-two do not add up to 1,989.
+working tree, 137 ms and 146 ms. On Kibana, opening the 81.5 MB index takes
+1,275 ms and the scan 841 ms, each the median of its own three timings.
 [What a source scan costs](../../docs/performance.md) prices each part of the
 scan on both checkouts.
 

@@ -466,7 +466,8 @@ Kibana it takes a cold scan from 7,945.7 ms to 7,723.9 and its system time from
 8,896.9 ms to 2,507.4: 72% less kernel time for 3% less wall clock. Those two
 Kibana scans come from a build of the addon forced onto one path for every
 wave, each the median of three. The shipped scan picks its path by wave size,
-and its cold scan is the 7,613.9 ms below, the median of five.
+and its cold scan is the 6,344 ms below, the median of three runs taken apart
+from those two: read the forced builds against each other, not against it.
 
 That is the end of the cold path, and it is worth putting next to where it
 started. One thread reading and parsing these files, doing nothing else, costs
@@ -481,7 +482,7 @@ scan getting off that route: it does not pay 321 ms of opens, because it barely
 opens anything. Six times the work for 23% more time is not a tight loop. It is
 a different road.
 
-On Kibana the cold scan costs **7,613.9 ms**, 39% above the 5,484 ms that one
+On Kibana the cold scan costs **6,344 ms**, 16% above the 5,484 ms that one
 thread takes to read and parse the same files. Reading and parsing are not what
 makes up that time: at six threads, reading, parsing and extracting every file
 costs 1,543.8 ms, in the ripgrep table below. In a profiled cold run, 5,582 ms
@@ -508,21 +509,18 @@ name said about reading it.
 
 | The tree is | Material UI total | Material UI records rebuilt | Material UI re-read | Kibana total | Kibana records rebuilt | Kibana re-read |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| new — no index at all | 586 ms | 24,908 | 78 | 7,613.9 ms | 106,215 | 265 |
-| unchanged since last run | 301 ms | 1 | 0 | 1,925.2 ms | 0 | 0 |
-| four files edited | 320 ms | 5 | 4 | 2,306 ms | 4 | 4 |
-| five hundred files edited | 385 ms | 501 | 500 | 2,409 ms | 500 | 500 |
-| one file added | 362 ms | 105 | 104 | 9,045 ms | 106,216 | 133 |
-| a hundred in, a hundred out, five hundred edited | 556 ms | 1,079 | 1,078 | 9,740 ms | 106,215 | 133 |
+| new — no index at all | 586 ms | 24,908 | 78 | 6,344 ms | 106,215 | 265 |
+| unchanged since last run | 301 ms | 1 | 0 | 2,117 ms | 0 | 0 |
+| four files edited | 320 ms | 5 | 4 | 2,355 ms | 4 | 4 |
+| five hundred files edited | 385 ms | 501 | 500 | 2,575 ms | 500 | 500 |
+| one file added | 362 ms | 105 | 104 | 2,468 ms | 111 | 111 |
+| a hundred in, a hundred out, five hundred edited | 556 ms | 1,079 | 1,078 | 3,187 ms | 717 | 717 |
 
 The re-read columns are warm-run measurements and the cold row is not
 comparable in them: the native batch reads and parses inside itself, so its
 24,908 rebuilds are invisible to a counter sitting on the scanner's own read
 path, and the 78 is whatever that path picked up afterwards, as Kibana's 265 is.
-On Material UI's warm rows they count everything. Kibana's two rows that rebuild
-every record are not comparable either: a scan with ten thousand or more files
-to rebuild sends them through the same native batch as a cold run, so their 133
-is also only what the scanner's own read path picked up.
+On the warm rows of both checkouts they count everything.
 
 **Every warm row reads from the worktree, not the pack.** A hundred and four
 files re-read is a wave of a hundred and four, which is below the 160 the
@@ -538,10 +536,10 @@ anything changed or not, and a third of it is git. The rest is the walk —
 every path in the repository visited and checked against its digest to decide
 not to do anything about it — plus the index decoded so that there is something
 to check it against. Both are proportional to the repository rather than to the
-diff. On Kibana the toll is nearly two seconds and more than half of it is
-decoding the index. Five hundred files edited there cost about 100 ms more than
-four did, 2,409 ms against 2,306, but each is one timing, and the unchanged
-run's five timings span 1,912.6 ms to 2,347.5. On Kibana those two rows do not
+diff. On Kibana the toll is over two seconds and more than half of it is
+decoding the index. Five hundred files edited there cost about 220 ms more than
+four did, 2,575 ms against 2,355, but the four-file row's three timings span
+2,277 ms to 2,584, wider than that difference. On Kibana those two rows do not
 price an edit.
 
 **A path appearing costs the directory it appeared in.** One file added rebuilds
@@ -550,25 +548,24 @@ resolution is configured, and on the membership of the directories its own
 specifiers could have been answered from — nothing else. A hundred added, a
 hundred removed and five hundred edited touch more directories and so rebuild
 1,079: the 500 the edit is worth, plus the neighbours of the two hundred paths
-that moved. The work tracks the diff rather than the repository. On Kibana one
-path appearing rebuilds every record and costs what a cold run costs, for the
-reason the `tsconfig` paragraph below gives.
+that moved. The work tracks the diff rather than the repository: on Kibana the
+same two rows rebuild 111 and 717 of 106,215 records.
 
 **That 105 is one directory's answer, and the distribution is the claim.** The
 cost of an appearance is the number of records watching the directory it
 appeared in, so the whole shape is reported rather than one row of it. Over the
 checkout below, 1,493 directories, 506 of them watched by anything, and a record
-watches 1.3 directories on average. Over Kibana, 29,589 directories, 21,774 of
-them watched, and a record watches 3.6. The table reads the other direction —
+watches 1.3 directories on average. Over Kibana, 29,589 directories, 21,968 of
+them watched, and a record watches 4.8. The table reads the other direction —
 how many records watch one directory, which is what an appearance costs — and
 that direction is skewed enough that its mean would tell you nothing:
 
 | Records watching one directory | Material UI | Kibana |
 | --- | ---: | ---: |
 | the median directory | 7 | 5 |
-| the 90th percentile | 36 | 27 |
-| the 99th percentile | 242 | 213 |
-| the worst directory in that checkout | 21,500 | 11,817 |
+| the 90th percentile | 36 | 29 |
+| the 99th percentile | 242 | 261 |
+| the worst directory in that checkout | 21,500 | 37,126 |
 
 The worst directory there is `packages/mui-icons-material/lib/utils`, home to
 the one module that 21,506 generated icons import. Every one of them genuinely
@@ -576,22 +573,22 @@ depends on what that directory contains, so every one of them is rebuilt when
 its membership changes — which is to say a regeneration of the icons costs what
 a cold run costs, and nothing else in that checkout does. Expect the same
 wherever a barrel sits under a generated directory. Kibana's worst directory is
-`src/platform/packages/shared/kbn-i18n`. On Kibana these counts are what records
-watch, not what an appearance costs, because there an appearance rebuilds every
-record, for the reason in the next paragraph. With that reason removed, the scan
-reads Kibana's `paths` patterns too, and a record also watches the directories
-they point into: the counts are then 5, 29 and 261, and 37,126 for the worst
-directory, `src/platform/packages/shared`, as [what a change
-rebuilds](source-structures.md#what-a-change-rebuilds) lists them.
+`src/platform/packages/shared`. Its root `tsconfig.base.json` maps 222 package
+names straight onto directories inside it, `@kbn/i18n` onto
+`src/platform/packages/shared/kbn-i18n` among them, and a `kbn-i18n.ts` added
+beside that directory would be what `@kbn/i18n` resolves to. So every record
+that imports one of those packages watches the directory, 35% of the index.
 
-One repository shape removes that bound: a `tsconfig` that cannot be read,
-because it is not valid JSON or because its `extends` names a package rather
-than a relative path. A bare specifier is bounded by the `paths` a configuration
-declares, so a configuration that cannot be read is no bound at all, and there
-every added path invalidates every record. The symptom is a warm run that costs
-what a cold one does. Kibana has that shape: 1,527 of its 1,534 tracked
-`tsconfig` files extend `@kbn/tsconfig-base/tsconfig.json`, which is why its
-one-file-added row above rebuilds every record.
+One repository shape removes the per-directory bound: a `tsconfig` the scan
+cannot follow, because it is not valid JSON or because its `extends` does not
+land on a `tsconfig*.json` or `jsconfig.json` your repository tracks — a base
+installed from a registry, say, rather than one of your workspace's own
+packages. A bare specifier is bounded by the `paths` a configuration declares, so
+a configuration that cannot be read is no bound at all, and there every added
+path invalidates every record. The symptom is a warm run that costs what a cold
+one does. [A `tsconfig` the scan cannot
+follow](source-structures.md#a-tsconfig-the-scan-cannot-follow) lists every such
+`extends`.
 
 ### Where the third of a second is
 
@@ -602,9 +599,9 @@ looks like, and about 92 ms of the scanner's own — every record in the index
 walked and each checked against its digest. Which of the two is
 larger is decided by the accelerators below.
 
-On Kibana a warm run's 1,925.2 ms is 1,117.8 decoding the index and 807.4 the
-scan, and again nothing publishing. Git answers the scan's `status` there in
-about 280 ms, which leaves about 530 ms of the scanner's own. The untracked
+On Kibana a warm run's 2,117 ms is 1,275 decoding the index and 841 the scan,
+and again nothing publishing. Git answers the scan's `status` there in about
+280 ms, which leaves about 560 ms of the scanner's own. The untracked
 cache, one of the two accelerators [below](#git-and-the-two-accelerators), is
 why: `core.untrackedCache` is not set on the clone, but the clone's index
 already has an untracked cache in it and git uses it. Told not to, with
@@ -616,7 +613,7 @@ immutable segments, and an unchanged run has no segment to append. A run that
 edited four files appends about **14,000 bytes** to a 10.5 MB index. The whole
 of it is re-encoded only when the chain has grown past eight segments, which is
 one publish in eight and costs about 150 ms more than an append. On Kibana four
-edited files append 10,528 bytes to an 81.0 MB index. In a chain of twelve
+edited files append 10,576 bytes to an 81.5 MB index. In a chain of twelve
 publishes timed there, the one re-encode took 1,662 ms and the appends about
 100 ms each, so the re-encode costs about 1,560 ms more than an append.
 
@@ -798,17 +795,18 @@ about what a module is. Kibana has a fifth, the files ripgrep reads.
   them. Kibana's **265** is the same count.
 
 Method, because the tables were not all taken the same way. The floor rows, the
-git rows and the cold scan are each the **median of five** timings, and on
-Kibana so is the unchanged run. The width sweep, the probes, the chunk sweep and
+git rows and Material UI's cold scan are each the **median of five** timings,
+and every Kibana row of the incremental table is the **median of three**. The
+width sweep, the probes, the chunk sweep and
 the ripgrep comparison are each the **best of three**, which is the run least
 disturbed by the rest of the machine. On Kibana the pack-table row and the
 one-stream `cat-file` figures are the best of five, `cat-file` start-up is the
 median of 21, and the pack-against-disk cold scans are the median of three.
-**Every other row of the incremental table is one timing of one run**: read that
-column for its shape and not for a difference of a few tens of milliseconds,
-because a single sample is worth about that much either way. On Kibana a single
-sample is worth more: the unchanged run's five timings span 1,912.6 ms to
-2,347.5.
+**Every other row of the incremental table is one timing of one run**: read
+Material UI's column for its shape and not for a difference of a few tens of
+milliseconds, because a single sample is worth about that much either way. On
+Kibana a median of three is worth more than that: the unchanged run's three
+timings span 2,103 ms to 2,144, and the four-file run's 2,277 ms to 2,584.
 
 The committed scripts are under `packages/sense/scripts`, and each runs against
 a clone of either checkout: `source-index.mjs` for the floor table, the
@@ -816,8 +814,8 @@ incremental table and Material UI's git rows, `read-width.mjs` for the width
 sweep, `scan-cost.mjs` for ripgrep. The rest come from harnesses that are not
 in the repository. On both repositories, that is the probes, the chunk sweep,
 the pack table, the `cat-file` start-up and the pack-against-disk scans. On
-Kibana it is also the cold and unchanged medians, the publish figures, the
-`status` figures and the profiled cold run. The TypeScript figure is the
+Kibana it is also the publish figures, the `status` figures and the profiled
+cold run. The TypeScript figure is the
 module reader Sense replaced with the addon, timed against it on the same files
 before it was removed.
 

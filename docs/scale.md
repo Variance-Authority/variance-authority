@@ -138,16 +138,16 @@ paths of which 24,519 are modules, the first scan is **586 ms** and produces a
 10.5 MB index. Measured on [Kibana](https://github.com/elastic/kibana) at
 `df0daaddcc`, an application monorepo of 125,804 tracked paths, the scan reads
 the 105,900 modules under `src`, `x-pack` and `packages`, 465.2 MB of source:
-the first scan is **8,615 ms** and produces an 81.0 MB index. Every run after
+the first scan is **6,344 ms** and produces an 81.5 MB index. Every run after
 the first reuses its index, so the figure that matters is what a run pays
 before it selects anything, after an edit:
 
 | since the last run, the tree is | a run on Material UI waits | a run on Kibana waits |
 |---|---|---|
-| new, no index at all | 586 ms | 8,615 ms |
-| unchanged | 301 ms | 1,942 ms |
-| four files edited | 320 ms | 2,231 ms |
-| five hundred files edited | 385 ms | 2,355 ms |
+| new, no index at all | 586 ms | 6,344 ms |
+| unchanged | 301 ms | 2,117 ms |
+| four files edited | 320 ms | 2,355 ms |
+| five hundred files edited | 385 ms | 2,575 ms |
 
 ```mermaid
 ---
@@ -159,9 +159,9 @@ xychart-beta horizontal
   accTitle: Milliseconds a run waits on Material UI and on Kibana, by what changed since the last run
   x-axis ["Material UI, unchanged", "Material UI, four files edited", "Material UI, five hundred files edited", "Material UI, no index at all", "Kibana, unchanged", "Kibana, four files edited", "Kibana, five hundred files edited", "Kibana, no index at all"]
   y-axis "milliseconds" 0 --> 9000
-  bar [301, 320, 385, 0, 1942, 2231, 2355, 0]
+  bar [301, 320, 385, 0, 2117, 2355, 2575, 0]
   bar [0, 0, 0, 0, 0, 0, 0, 0]
-  bar [0, 0, 0, 586, 0, 0, 0, 8615]
+  bar [0, 0, 0, 586, 0, 0, 0, 6344]
   bar [0, 0, 0, 0, 0, 0, 0, 0]
 ```
 
@@ -177,14 +177,14 @@ extrapolation from Material UI's scan, not as measurements: the scan reads,
 parses and resolves each module, and resolution is priced per specifier, so a
 repository averaging more imports per file costs more than that line predicts.
 
-**Kibana's cold scan is 0.081 ms per module**, 3.4 times Material UI's rate:
+**Kibana's cold scan is 0.060 ms per module**, 2.5 times Material UI's rate:
 the line above predicts 2,542 ms for its 105,900 modules, and the scan takes
-8,615 ms. Per byte of source the two are close — 23.5 ms per MB over Material
-UI's 24.9 MB, 18.5 ms per MB over Kibana's 465.2 MB — and a Kibana module
+6,344 ms. Per byte of source the two are closer — 23.5 ms per MB over Material
+UI's 24.9 MB, 13.6 ms per MB over Kibana's 465.2 MB — and a Kibana module
 averages 4.4 KB where a Material UI module averages 1.0 KB. Price a first scan
 by the megabytes of source you have, not by the number of files. Scaled up
-linearly at Kibana's rate per module, 200,000 modules is a 16.3-second first
-scan and 2,000,000 is a 163-second one; like Material UI's line above, both are
+linearly at Kibana's rate per module, 200,000 modules is a 12.0-second first
+scan and 2,000,000 is a 120-second one; like Material UI's line above, both are
 extrapolation, not measurements.
 
 The 300 ms a warm run pays underneath the diff is charged against the whole
@@ -200,15 +200,15 @@ instead of git stat-ing every path, and `core.untrackedCache`, which lets git
 skip directories whose modification time has not moved. [The scan
 page](performance.md#git-and-the-two-accelerators) measures both.
 
-**On Kibana the toll is 15.4 µs per tracked path** — 1,942 ms over 125,804 —
-which puts a 400,000-path checkout near six seconds. More than half of it is
-opening the scan's own index: 1,142 ms of the 1,942. Git's part depends on the
+**On Kibana the toll is 16.8 µs per tracked path** — 2,117 ms over 125,804 —
+which puts a 400,000-path checkout near seven seconds. More than half of it is
+opening the scan's own index: 1,275 ms of the 2,117. Git's part depends on the
 untracked cache, the second of the two settings above. The clone the Kibana
 column is timed on does not set `core.untrackedCache`, but its `.git/index`
 already stores an untracked cache, and git uses it: the scan's `status` there
 is 282 ms, 2.2 µs per path. With `-c core.untrackedCache=false` the same call is
 921 ms, 7.3 µs per path. With the cache removed from the index, an unchanged run
-is 2,630 ms.
+costs about 700 ms more.
 
 Size scales with files, and it stays linear. The comparison worth making is
 against the cache you would have written first: one JSON object per file, each
@@ -244,7 +244,7 @@ excludes, and they are what the byte rates below are charged per.
 Real trees give the rate to work from, and it is a range rather than one number:
 **318 B per file** over Material UI's 25,117 records, **411 B** over
 [Docusaurus](https://github.com/facebook/docusaurus)'s 2,670, and **556 B** over
-a 1,236-file TypeScript workspace, and **762.6 B** over Kibana's 106,219. The
+a 1,236-file TypeScript workspace, and **767.6 B** over Kibana's 106,219. The
 size of the repository does not predict the rate: Material UI costs less per
 file than a workspace a twentieth its size, and Kibana, about four times
 Material UI's size, costs more per file than any of the other three. A real
@@ -485,12 +485,12 @@ those figures extended linearly to a size no one has measured.
 |---|---|---|---|---|
 | a medium app, ~200k lines | ~2,000 | ~1,400 | ~0.7 MB | ~1 MB |
 | a large library — Material UI | 24,519 | 791 | 10.5 MB | 0.5 MB |
-| an application monorepo — Kibana | 105,900 | — | 81.0 MB | — |
+| an application monorepo — Kibana | 105,900 | — | 81.5 MB | — |
 | a large monorepo | 200,000 | 200,000 | 60–150 MB | 77 MB, a floor |
 | a very large monorepo | 2,000,000 | 2,000,000 | ~600 MB – 1.5 GB | ~770 MB, a floor |
 
 The index column is a range, not a point, because the rate is: across the four
-real projects above it runs 318 B to 762.6 B per file, and what sets it is edges
+real projects above it runs 318 B to 767.6 B per file, and what sets it is edges
 per file. Multiplied out to 200,000 files that is 60 MB to 150 MB, and to
 2,000,000 it is ten times that. The 67.3 MB the synthetic shape measured sits
 inside the range, near its floor.

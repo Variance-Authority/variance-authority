@@ -1,0 +1,5 @@
+---
+'@variance-authority/sense': patch
+---
+
+A `tsconfig` whose `extends` names one of your workspace's own packages, such as `"@company/tsconfig/base.json"`, no longer makes every run cold after a file is added, moved or deleted. The source index follows that `extends` the way the resolver does, through the package's `node_modules` link and its `exports`, back to the tracked `tsconfig` it names, and reads the `paths` and `baseUrl` there. One added file then rebuilds only the records whose imports could have been answered from the directory it landed in. Until now any package `extends` removed that bound for the whole tree, so one added file rebuilt every record. The bound still does not hold when an `extends` names a package that is not installed, a base installed from a registry, a file outside your checkout, an absolute path, or a file not named `tsconfig*.json` or `jsconfig.json`. In a repository whose `tsconfig` extends a workspace package, the first run after upgrading rebuilds every record once, because the configuration digest the records are keyed on changes.

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -205,6 +205,26 @@ describe('where a configuration says a bare request can land', () => {
     expect(aliases?.candidatesFor('@mui/Button')).toEqual(['packages/mui/src/Button']);
   });
 
+  it('places one inherited `paths` once for every `baseUrl` it is read under', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ "compilerOptions": { "paths": { "@x/*": ["x/*"] } } }',
+      'a/tsconfig.json': '{ "extends": "../tsconfig.json", "compilerOptions": { "baseUrl": "." } }',
+      'b/tsconfig.json': '{ "extends": "../tsconfig.json" }',
+      'c/tsconfig.json': '{ "extends": "../tsconfig.json" }',
+    });
+    const aliases = await aliasesIn(root, ['tsconfig.json', 'a/tsconfig.json', 'b/tsconfig.json', 'c/tsconfig.json']);
+
+    // `b` and `c` inherit the root's table under the root's own placement, so
+    // they add nothing. `a` reads the same patterns against its own `baseUrl`,
+    // which is a second table, and a record whose request matched must watch
+    // both.
+    expect(aliases?.table.mappings).toEqual([
+      { prefix: '@x/', suffix: '', targets: ['x/*'] },
+      { prefix: '@x/', suffix: '', targets: ['a/x/*'] },
+    ]);
+    expect(aliases?.candidatesFor('@x/y')).toEqual(['a/@x/y', 'x/y', 'a/x/y']);
+  });
+
   it('gives up on a configuration it cannot read', async () => {
     const root = await fixture({ 'tsconfig.json': '{ this is not JSON' });
 
@@ -213,13 +233,51 @@ describe('where a configuration says a bare request can land', () => {
     expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
   });
 
-  it('gives up on an `extends` that names a package', async () => {
+  it('follows an `extends` that names a workspace package back into the tree', async () => {
+    const root = await workspace();
+    const aliases = await aliasesIn(root, ['tsconfig.json', 'packages/tsconfig/tsconfig.base.json']);
+
+    // The package's `exports` send `./base` to a file its link leads back to,
+    // and the `paths` it declares are placed at that file, as the resolver
+    // places them: `../../src/*` from `packages/tsconfig` is `src/*`.
+    expect(aliases?.candidatesFor('@app/x')).toEqual(['src/x']);
+  });
+
+  it('gives up on a workspace base the tree does not track', async () => {
+    const root = await workspace();
+
+    // The same link and the same file, but not one git vouches for. The config
+    // digest names only tracked contents, so a base outside it could change
+    // its `paths` without moving anything a record is kept under.
+    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+  });
+
+  it('gives up on an `extends` that lands in a package installed from a registry', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ "extends": "@tsconfig/node20/tsconfig.json" }',
+      'node_modules/@tsconfig/node20/tsconfig.json': '{ "compilerOptions": { "strict": true } }',
+    });
+
+    // Resolved, and to a file git does not track: `node_modules` is the
+    // installer's, and nothing in the tree says what it holds.
+    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+  });
+
+  it('gives up on an `extends` that lands outside the checkout', async () => {
+    const outside = await fixture({ 'tsconfig.json': '{ "compilerOptions": { "paths": { "@x/*": ["x/*"] } } }' });
+    const root = await fixture({ 'tsconfig.json': '{ "extends": "@shared/tsconfig" }' });
+    await link(root, 'node_modules/@shared/tsconfig', outside);
+
+    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+  });
+
+  it('gives up on an `extends` that nothing resolves', async () => {
     const root = await fixture({
       'tsconfig.json': '{ "extends": "@tsconfig/node20/tsconfig.json" }',
     });
 
-    // The file lives in `node_modules`, which the tree does not hold, so what it
-    // declares cannot be read and must not be guessed at.
+    // Nothing is installed, so what the base declares cannot be read and must
+    // not be guessed at.
     expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
   });
 
@@ -249,4 +307,21 @@ async function fixture(files: Readonly<Record<string, string>>): Promise<string>
   }
 
   return root;
+}
+
+/** A root `tsconfig` extending a base that a workspace package exports, linked the way an install links it. */
+async function workspace(): Promise<string> {
+  const root = await fixture({
+    'tsconfig.json': '{ "extends": "@fixture/tsconfig/base" }',
+    'packages/tsconfig/package.json': '{ "name": "@fixture/tsconfig", "exports": { "./base": "./tsconfig.base.json" } }',
+    'packages/tsconfig/tsconfig.base.json': '{ "compilerOptions": { "paths": { "@app/*": ["../../src/*"] } } }',
+  });
+  await link(root, 'node_modules/@fixture/tsconfig', join(root, 'packages/tsconfig'));
+
+  return root;
+}
+
+async function link(root: string, path: string, target: string): Promise<void> {
+  await mkdir(dirname(join(root, path)), { recursive: true });
+  await symlink(target, join(root, path), 'dir');
 }
