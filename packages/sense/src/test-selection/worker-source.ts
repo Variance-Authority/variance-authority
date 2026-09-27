@@ -199,16 +199,39 @@ export function caseWriterSource(caseDirectory: string): string {
  * `runTask`, so nothing can wrap it from here. Its crossings land in the ambient
  * bucket and reach every case in the file.
  *
+ * The module also installs the realm's probe root, because it is the first
+ * module of the configuration's a worker evaluates. Vitest imports the runner,
+ * then the `snapshotSerializers` and `diff` files, and only then a test file's
+ * `setupFiles` — the same order on 2, 3 and 4. A serializer that imports product
+ * source runs its probes before the setup module exists, and with no root there
+ * the first of them is a `TypeError` that fails every file. Installed here,
+ * those probes write into a bucket the setup module's collector takes as its
+ * file's ambient one, so the file is recorded as having loaded what its worker
+ * evaluated for it, as it is for a setup file's imports; a case that prints
+ * through the serializer is credited with what it called.
+ *
  * @param runner How this module should spell `@vitest/runner`, and its `utils`
  * entry. The runner is a file in the project root, and `@vitest/runner` is a
  * dependency of Vitest rather than of the project — under a node_modules layout
  * that does not hoist, a bare specifier there resolves to nothing and every
  * test file fails to load. The caller resolves it; see `runnerImport` in
- * [`vitest.ts`](./vitest.ts).
+ * [`vitest.ts`](./vitest.ts). `recording` is the engine the setup module's
+ * collector will ask for, which a realm decides once: the same `continuations`
+ * and story answers the caller hands {@link setupSource}.
  */
 export function caseRunnerSource(
-  runner: { readonly module?: string; readonly utils?: string; readonly finished?: string } = {},
+  runner: {
+    readonly module?: string;
+    readonly utils?: string;
+    readonly finished?: string;
+    readonly recording?: { readonly continuations: boolean; readonly story: boolean };
+  } = {},
 ): string {
+  const recording = runner.recording === undefined
+    ? ''
+    : `createRequire(${JSON.stringify(HERE)})('./collectors.cjs').preload(globalThis, ${
+      runner.recording.continuations
+    }, ${runner.recording.story});\n`;
   return `
 // \`vitest/runners\` on every supported major. Vitest 4.1 deprecates the entry in
 // favour of the package root and prints a line saying so on each run, but does
@@ -220,7 +243,9 @@ import { getFn } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
 import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 
+${recording}
 // The runner's own tree, cut to what the fold reads a file's outcome from. The
 // reporter is handed the same tree, and a command-line \`--reporter\` replaces
 // the reporter: an editor that runs one test from the gutter passes its own.

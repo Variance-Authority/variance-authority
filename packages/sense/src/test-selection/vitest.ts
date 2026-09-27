@@ -190,22 +190,25 @@ export function withTestSelection(
   }
 
   const plugin = selectionPlugin(root, setupId, runnerId, run, include, mode, declared, settle);
+  // The realm's engine is decided once, by whichever of the two shims installs
+  // it first, so both are handed the same answers.
+  const continuations = options.continuations === true;
+  const story = askedForStories(coverageFile);
   return {
     ...config,
     plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
-      // First, so a setup file of the project's that loads an instrumented
-      // module finds the probe log's root its header resolves. On disk rather
-      // than virtual — see {@link writeSeamModule}.
+      // First, so what a setup file of the project's loads is logged into the
+      // file's own bucket: before the shim opens it, a probe in a realm that
+      // already ran a file writes into the idle one, and under a runner of the
+      // project's own finds no root at all.
+      // On disk rather than virtual — see {@link writeSeamModule}.
       setupFiles: [
         writeSeamModule(
           run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, {
-            continuations: options.continuations === true,
-            story: askedForStories(coverageFile),
-          }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story }),
         ),
         ...setupFiles,
       ],
@@ -217,13 +220,17 @@ export function withTestSelection(
       // no bracket and records the file as one ambient bucket, which is the
       // file-level answer it already had.
       // FIXME: a project with its own runner gets file-level answers without
-      // being told; the case runner could extend the configured class instead.
+      // being told, and a `snapshotSerializers` or `diff` file of its that
+      // imports product source throws at its first probe, because this seam's
+      // runner is what installs the probe root before Vitest loads them; the
+      // case runner could extend the configured class instead.
       ...(config.test?.runner === undefined
         ? {
           runner: writeSeamModule(run, runnerId, caseRunnerSource({
             module: runnerImport(configRoot, runnerId, '@vitest/runner'),
             utils: runnerImport(configRoot, runnerId, '@vitest/runner/utils'),
             finished: run.finishedDirectory,
+            recording: { continuations, story: story !== undefined },
           })),
         }
         : {}),
@@ -295,6 +302,12 @@ function selectionPlugin(
     // `afterEach`, carried on each test's `meta` as the file's is.
     config(config) {
       if (config.test?.browser?.enabled !== true) return;
+      // FIXME: a `snapshotSerializers` or `diff` file that imports product
+      // source throws at its first probe in a page. `@vitest/browser` 3.2.7 and
+      // 4.1.2 load them in `initiateRunner`, before `startTests` runs the first
+      // file's setup files, and the setup module written here is what installs
+      // the page's root. A module that installs it, imported ahead of them,
+      // would carry what they load to the file the way the case runner does.
       writeSeamModule(run, setupId, browserSetupSource(mode));
       if (config.test.runner === runnerId) delete config.test.runner;
       // An index with no case in it answers *which cases walk this line* with

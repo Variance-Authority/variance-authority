@@ -57,12 +57,16 @@ interface Collector {
   runaways(): readonly string[];
 }
 
-interface Holder {
-  __VA__?: unknown;
-}
-
 /** What a case frame calls the bucket no case owns; mirrors `AMBIENT` in `cases.ts`. */
 const AMBIENT = '';
+
+/** Where {@link preload} leaves the bucket it logs into, for the first collector to take. */
+const LOADING = Symbol.for('variance-authority.test-selection.loading');
+
+interface Holder {
+  __VA__?: unknown;
+  [LOADING]?: Bucket;
+}
 
 /** Where the runner half of the seam finds the scope; mirrors `CASE_SCOPE` in `cases.ts`. */
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
@@ -117,7 +121,8 @@ function foldInto(union: Presence, view: View): void {
  * Exported for a host that loads instrumented modules before its first
  * collector exists: `runner.ts` installs the engine when it registers its
  * module hooks, and every probe that fires before a file is observed writes
- * into the idle bucket rather than into a missing root.
+ * into the idle bucket rather than into a missing root. A host that loads them
+ * for the file it is about to run calls {@link preload} instead.
  *
  * Vitest without isolation evaluates this once per test file in one realm, and
  * every module the first file evaluated has already read the root and keeps it.
@@ -150,6 +155,41 @@ function attach(holder: Holder, continuations: boolean, story = false): Engine {
 }
 
 /**
+ * The realm's engine, installed ahead of the first collector and logging into
+ * a bucket that collector takes as the one its file loaded into.
+ *
+ * For a host that loads instrumented modules on behalf of the test file it is
+ * about to run. Vitest imports the case runner, then the `snapshotSerializers`
+ * and `diff` files, and only then the setup module a collector is made in.
+ * Under isolation, the default, a worker loads them for the one file it runs,
+ * so what they evaluate is part of loading that file as much as a setup file's
+ * imports are: a change to the top level of a module they import fails the
+ * file whether or not any case of it prints through the serializer. In the
+ * idle bucket nothing would read it, and no file would be credited with it.
+ *
+ * Only a realm this call starts gets the bucket: in one already recording, a
+ * collector may be writing now, and switching buckets under it would take
+ * what loads next away from its file.
+ */
+function preload(holder: Holder, continuations: boolean, story = false): Engine {
+  const fresh = probeLog.engineOf(holder.__VA__) === undefined;
+  const engine = attach(holder, continuations, story);
+  if (fresh) {
+    const bucket = engine.open(AMBIENT);
+    engine.use(bucket);
+    holder[LOADING] = bucket;
+  }
+  return engine;
+}
+
+/** The bucket {@link preload} opened, handed to the first collector that asks and to no other. */
+function taken(holder: Holder): Bucket | undefined {
+  const bucket = holder[LOADING];
+  delete holder[LOADING];
+  return bucket;
+}
+
+/**
  * The coordinate is `file\0declaration path\0ordinal`; a reader knows a case by
  * the middle one, and the ambient bucket by the only one it has.
  */
@@ -166,7 +206,7 @@ const twoAtOnce = (open: string, opening: string): string =>
 /** One bucket for the file. */
 function flat(holder: Holder): Collector {
   const engine = attach(holder, false);
-  const bucket = engine.open(AMBIENT);
+  const bucket = taken(holder) ?? engine.open(AMBIENT);
   engine.use(bucket);
   return {
     scoped: false,
@@ -239,6 +279,10 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     return bucket;
   };
 
+  // What loaded before this collector existed, when a host loaded it for this
+  // file, opens the file's ambient bucket, and `seal` reports it as loaded.
+  const loading = taken(holder);
+  if (loading !== undefined) buckets.set(AMBIENT, loading);
   let ambient = bucketFor(AMBIENT);
   // Set when a second case opens while one is still open and no async context
   // tells them apart. From then on every crossing is the file's, and the file
@@ -367,4 +411,4 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
   };
 }
 
-export = { attach, flat, scoped, presenceOf, foldInto };
+export = { attach, preload, flat, scoped, presenceOf, foldInto };
