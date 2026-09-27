@@ -74,7 +74,7 @@ yarn workspace @variance-authority/case-storybook storybook
 
 | path | what it holds |
 |---|---|
-| `src/case.stories.jsx` | the fourteen stories |
+| `src/*.stories.jsx` | the fourteen stories, in five files under one title |
 | `src/ds.jsx` | the design system they render — `Button`, `Stack`, `Card`, `Spinner`, `Clock`, `AsyncPanel`, `Panel`, `SheetLeak`, and the Suspense trees |
 | `collector/index.mjs` | the case's collector: which story defers readiness and by what marker, which story is about its own loading state, and where the components live |
 | `variance.config.json` | project, viewport, fonts, baselines, and `excludeTags: ["no-variance"]` |
@@ -89,8 +89,11 @@ yarn workspace @variance-authority/case-storybook storybook
 
 ## What is in the stories
 
-There are **fourteen** stories in `src/case.stories.jsx`, chosen so that the
-adapter meets the cases that actually decide whether it is any good. **Twelve**
+There are **fourteen** stories in five files under `src/`, chosen so that the
+adapter meets the cases that actually decide whether it is any good. The files
+share the title `Case/Surface`, so the story ids do not name them, and they are
+split so `variance run --shard` has more than one file to place: the stories of
+one file always go to the same shard. **Twelve**
 are subjects. The other two carry `tags: ['no-variance']`, which
 `variance.config.json` honours, so the run excludes them by name and reports
 `12 of 14 subject(s) observed`.
