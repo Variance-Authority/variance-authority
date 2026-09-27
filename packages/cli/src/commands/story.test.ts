@@ -110,6 +110,30 @@ describe('a story read as a route', () => {
     expect(JSON.parse(formatStory({ route: long }, 'json')).untaken).toBeUndefined();
   });
 
+  it('names an `if` by the line its `then` starts on at a step that draws only its implicit `else`', () => {
+    // `checkout` awaits before its `if`, so step 1 goes no further than the
+    // await and step 3 comes back to take the `then`; the `else` it never takes
+    // is the region an absent `else` is given, on the line the `if` ends.
+    const checkout = (arms: Arm[], entered: number) => ({ token: { ...place('src/checkout.ts', 'checkout', 10, 16).token, arms, entered } });
+    const route: Route = {
+      ...ROUTE,
+      before: [],
+      route: [checkout([], 1), place('src/save.ts', 'save', 1, 3), checkout([{ path: 'if#0/then', startLine: 13, endLine: 15, times: 1 }], 0)],
+      files: ['src/checkout.ts', 'src/save.ts'],
+      untaken: [{ place: { file: 'src/checkout.ts', name: 'checkout', kind: 'function', startLine: 10, endLine: 16 }, arms: [{ path: 'if#0/else', startLine: 15, endLine: 15 }] }],
+      interleaved: 0,
+    };
+    const text = formatStory({ route }, 'text').split('\n');
+    expect(text.slice(text.indexOf('  1  checkout  checkout.ts:10-16'))).toEqual([
+      '  1  checkout  checkout.ts:10-16',
+      '       if 13  else ✗',
+      '  2  save  save.ts:1-3',
+      '  3  checkout  checkout.ts:10-16',
+      '       if 13  then ×1  else ✗',
+      '',
+    ]);
+  });
+
   it('draws a long route at the finest level that fits, and names the level below and how to reach it', () => {
     const long: Route = { ...ROUTE, before: [], route: [...through('src/a.ts', 150), ...through('src/b.ts', 150, 150)], interleaved: 0 };
     expect(formatStory({ route: long }, 'text')).toBe(

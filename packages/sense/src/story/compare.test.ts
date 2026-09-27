@@ -62,6 +62,7 @@ describe('two sides of a case', () => {
       path: 'for#0/body/if#0/then',
       startLine: 19,
       endLine: 19,
+      constructLine: 19,
     }]);
     expect(comparison.places[1].items).toEqual([]);
   });
@@ -103,6 +104,27 @@ describe('two sides of a case', () => {
     );
 
     expect(comparison.reversed).toEqual([[{ said: 'eyes click on button "Save"' }, { place: expect.objectContaining({ name: 'price' }) }]]);
+  });
+
+  it('name an arm of an `if` by the line its `then` starts on, the `else` an absent one is given as well', () => {
+    // The walk gives an `if` with no `else` one anyway, on the line the `if` ends.
+    const regions: Region[] = [
+      { kind: 'function', name: 'checkout', path: 'entry', startLine: 10, endLine: 16 },
+      { kind: 'branch', name: 'checkout', path: 'if#0/then', startLine: 13, endLine: 15 },
+      { kind: 'branch', name: 'checkout', path: 'if#0/else', startLine: 15, endLine: 15 },
+    ];
+    const checkout = (visits: number[], stopped: boolean): Loaded => ({
+      story: { ...reading([], [], stopped).story, rows: [['src/checkout.ts', 3]], visits: Int32Array.from(visits) },
+      files: ['src/checkout.ts'],
+      regions: [regions],
+    });
+    const comparison = compareLoaded(ROOT, passed(checkout([0, 2], false), checkout([0, 2], false)), threw(checkout([0, 1], true), checkout([0, 1], true)));
+
+    const place = { file: 'src/checkout.ts', name: 'checkout', kind: 'function', startLine: 10, endLine: 16 };
+    expect(comparison.places.map((side) => side.items)).toEqual([
+      [{ place, path: 'if#0/else', startLine: 15, endLine: 15, constructLine: 13 }],
+      [{ place, path: 'if#0/then', startLine: 13, endLine: 15, constructLine: 13 }],
+    ]);
   });
 
   it('say so when a side has one reading, since one run cannot be told apart from a run that went another way', () => {

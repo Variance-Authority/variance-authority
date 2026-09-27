@@ -11,7 +11,7 @@ const COMPARISON: Comparison = {
   name: 'cart > removes the last item',
   sides: [{ name: 'passed', readings: 3, stopped: 0 }, { name: 'threw', readings: 2, stopped: 2 }],
   places: [
-    { side: 'passed', items: [{ place: REMOVE, path: 'for#0/body/if#0/then', startLine: 19, endLine: 19 }] },
+    { side: 'passed', items: [{ place: REMOVE, path: 'for#0/body/if#0/then', startLine: 19, endLine: 19, constructLine: 19 }] },
     { side: 'threw', items: [] },
   ],
   said: [{ side: 'passed', items: [] }, { side: 'threw', items: ['console.log stock 0'] }],
@@ -48,6 +48,20 @@ describe('readings of one case compared', () => {
       '  left out, because they differ between readings of one side as well: 1 place, 4 lines said, 37 pairs in changing order',
     ].join('\n')}\n`);
     expect(JSON.parse(formatComparison(COMPARISON, 'json'))).toEqual({ comparison: COMPARISON });
+  });
+
+  it('names both arms of an `if` by the line the `if` is named by, not by the line the `else` an absent one is given starts on', () => {
+    const checkout: Place = { file: 'src/checkout.ts', name: 'checkout', kind: 'function', startLine: 10, endLine: 16 };
+    const arms: Comparison = {
+      ...COMPARISON,
+      places: [
+        { side: 'passed', items: [{ place: checkout, path: 'if#0/else', startLine: 15, endLine: 15, constructLine: 13 }] },
+        { side: 'threw', items: [{ place: checkout, path: 'if#0/then', startLine: 13, endLine: 15, constructLine: 13 }] },
+      ],
+    };
+    const text = formatComparison(arms, 'text').split('\n');
+    expect(text).toContain('    went into  checkout  src/checkout.ts:10-16, the else of the if on 13');
+    expect(text).toContain('    went into  checkout  src/checkout.ts:10-16, the then of the if on 13');
   });
 
   it('says when nothing separates the sides, and when one reading on a side cannot tell a side from a run', () => {

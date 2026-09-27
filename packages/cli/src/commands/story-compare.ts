@@ -120,10 +120,12 @@ function sideWhen(name: string): string {
   return `under ${name}`;
 }
 
-function placeText({ place, path, startLine, endLine }: PlaceDifference): string {
+function placeText({ place, path, startLine, endLine, constructLine }: PlaceDifference): string {
   const where = declarationText(place);
   if (path === 'entry' || path === 'module') return where;
-  return `${where}, ${armWords(path)}${startLine === undefined ? '' : ` on ${lines(startLine, endLine)}`}`;
+  // An arm of an `if` is placed by the line the `if` is named by, as the route draws it.
+  const on = constructLine !== undefined ? `${constructLine}` : startLine === undefined ? undefined : lines(startLine, endLine);
+  return `${where}, ${armWords(path)}${on === undefined ? '' : ` on ${on}`}`;
 }
 
 function momentText(moment: Moment): string {

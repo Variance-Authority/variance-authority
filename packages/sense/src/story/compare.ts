@@ -46,6 +46,12 @@ export interface PlaceDifference {
   readonly path: string;
   readonly startLine?: number;
   readonly endLine?: number;
+  /**
+   * For an arm of an `if`, the line the `if` is named by: where its `then`
+   * starts. An `if` written with no `else` is given one on the line it ends,
+   * so the `else`'s own start names a different line from its `then`'s.
+   */
+  readonly constructLine?: number;
 }
 
 /** Something a comparison orders: a declaration's first arrival, a module loading, or a line said. */
@@ -206,10 +212,12 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
         ? { file, name: '', kind: 'module' }
         : declarations[row]!.get(own.name)!;
       if (!names.has(key)) {
+        const construct = own === undefined ? undefined : ifLine(own, regions[row]!);
         names.set(key, {
           place,
           path: own?.path ?? `region ${ordinal}`,
           ...(own?.startLine === undefined ? {} : { startLine: own.startLine, endLine: own.endLine }),
+          ...(construct === undefined ? {} : { constructLine: construct }),
         });
       }
       read.regions.add(key);
@@ -221,6 +229,15 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
   walk(story.before, story.beforeNotes);
   walk(story.visits, story.notes);
   return read;
+}
+
+/** Where the `then` of the `if` an arm belongs to starts, from the module's regions; nothing for any other region. */
+function ifLine(arm: Region, regions: readonly Region[]): number | undefined {
+  const parts = arm.path.split('/');
+  const [construct, label] = parts.slice(-2);
+  if (!construct?.startsWith('if#') || (label !== 'then' && label !== 'else')) return undefined;
+  const then = [...parts.slice(0, -1), 'then'].join('/');
+  return regions.find((region) => region.name === arm.name && region.path === then)?.startLine;
 }
 
 /** What every reading on one side has and no reading on the other, and how many things differ within a side. */

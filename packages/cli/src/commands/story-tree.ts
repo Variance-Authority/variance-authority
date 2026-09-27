@@ -40,6 +40,12 @@ interface Branch {
 interface Construct {
   readonly kind: string;
   readonly arms: Map<string, Branch>;
+  /**
+   * The line an `if` is named by: where its `then` starts, as the route knows it
+   * from any step that took the `then` or from the arms never taken. A step that
+   * draws only the `else` holds no `then` of its own to read it from.
+   */
+  line?: number;
   /** An `await`, or a path this reader does not know the shape of: the construct is its own region. */
   self?: Branch;
 }
@@ -75,6 +81,8 @@ function place(
     let leaf: Branch;
     if (CONSTRUCTS.has(kind) && index + 1 < segments.length) {
       const construct = constructIn(arm, segment, kind);
+      const named = kind === 'if' ? starts.get(`${segments.slice(0, index + 1).join('/')}/then`) : undefined;
+      if (named !== undefined) construct.line ??= named;
       const label = segments[index + 1]!;
       if (!construct.arms.has(label)) {
         const made = branch(label);
@@ -142,7 +150,7 @@ function drawConstruct(construct: Construct, prefix: string, lines: string[]): v
     if (body !== undefined) drawInside(body, `${prefix}  `, lines, ran(body));
     return;
   }
-  // An `if` is named by the line its `then` starts on; the arms of a `switch` or `try` each carry their own.
+  // An `if` is named by the line its `then` starts on, whichever of its arms are drawn; the arms of a `switch` or `try` each carry their own.
   const named = kind === 'if' ? at(lineOf(construct)) : '';
   const listed = visible.filter((arm) => arm.label !== 'try').map((arm) => `${armName(kind, arm)} ${mark(arm)}`);
   lines.push(`${prefix}${kind}${named}${listed.length === 0 ? '' : `  ${listed.join('  ')}`}`);
@@ -163,7 +171,7 @@ function armName(kind: string, arm: Branch): string {
 function lineOf(construct: Construct): number | undefined {
   if (construct.self !== undefined) return construct.self.startLine;
   const lines = [...construct.arms.values()].flatMap((arm) => [arm.startLine ?? firstLine(arm)]).filter((line) => line !== undefined);
-  const first = construct.arms.get('then')?.startLine ?? construct.arms.get('body')?.startLine;
+  const first = construct.line ?? construct.arms.get('then')?.startLine ?? construct.arms.get('body')?.startLine;
   return first ?? (lines.length === 0 ? undefined : Math.min(...lines));
 }
 
