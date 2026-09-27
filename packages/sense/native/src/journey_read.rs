@@ -37,7 +37,12 @@ pub(crate) struct Journey {
 impl Journey {
     pub fn open(file: &str) -> Result<Journey, String> {
         let bytes = fs::read(file).map_err(|error| format!("cannot read {file}: {error}"))?;
-        let decoded = journey_columns::decode(&bytes, journey_format::FORMAT)
+        Journey::of(file, &bytes)
+    }
+
+    /// The journey file `file` held as `bytes`, for a caller that has read them.
+    pub fn of(file: &str, bytes: &[u8]) -> Result<Journey, String> {
+        let decoded = journey_columns::decode(bytes, journey_format::FORMAT)
             .map_err(|error| format!("cannot read journey file {file}: {error}"))?;
         let journey = Journey {
             strings: strings(&decoded)?,

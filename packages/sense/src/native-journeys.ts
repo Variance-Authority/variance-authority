@@ -23,8 +23,19 @@ export interface NativeJourneysPrepared {
   readonly fellBack: number;
   /** Specifiers the runner's alias table answered. */
   readonly aliased: number;
-  /** Runner configs that did not load and aliases that did not compile, each with why. */
+  /** Runner configs that did not load and aliases that were not read, each with why. */
   readonly runnerUnread: readonly string[];
+  /** The commit the recording ran at, when it names one. */
+  readonly commit?: string | null;
+  /** Why the call graph was parsed from the working tree rather than from the recorded commit. */
+  readonly tree?: string | null;
+}
+
+/** The recording's commit as the caller read it, or why there is none. */
+export interface NativeJourneysCommit {
+  readonly commit?: string | null;
+  /** Why the recording names no commit. */
+  readonly unread?: string | null;
 }
 
 /** One question: a file, or a line in it. */
@@ -79,12 +90,15 @@ export interface NativeJourneysFlow {
   readonly exampleName: string;
 }
 
-/** The package flows through the asked file: the ordered packages each case crossed. */
+/** The package flows through the asked file's package: the packages each case's placed calls pass through, in order. */
 export interface NativeJourneysFlows {
   /** The asked file's package; absent when no named manifest sits above it. */
   readonly package?: string | null;
-  /** Cases whose flow passes through it. */
+  /** Cases that entered a function of the package, as the recording has it. */
   readonly through: number;
+  /** Cases the walk placed a call into the package for. */
+  readonly placed: number;
+  /** Distinct package flows among those. */
   readonly distinct: number;
   readonly top: readonly NativeJourneysFlow[];
 }
@@ -95,12 +109,16 @@ export interface NativeJourneysFile {
   readonly line?: number | null;
   /** The recording has functions in this file. */
   readonly recorded: boolean;
+  /** Cases that entered a function of this file, as the recording has it. */
+  readonly cases: number;
   /** The file differs from the recorded commit; absent when no line was asked, or git could not say. */
   readonly changed?: boolean | null;
   /** The asked line was written after the recording. */
   readonly writtenSince: boolean;
   /** The asked line's number at the recorded commit, when the file changed. */
   readonly atCommit?: number | null;
+  /** Why the asked line is read as the number it has today rather than carried back to the recorded commit. */
+  readonly unplaced?: string | null;
   /** Without a line: the file's most-entered blocks, and what crosses its edge. */
   readonly blocks: readonly NativeJourneysBlock[];
   readonly moreBlocks: number;
@@ -120,21 +138,38 @@ export interface NativeJourneysAnswer {
   readonly notPrepared?: string | null;
   readonly cases: number;
   readonly commit?: string | null;
+  /** Why the call graph was parsed from the working tree rather than from the recorded commit. */
+  readonly tree?: string | null;
   readonly files: readonly NativeJourneysFile[];
 }
 
-/** The addon's layer-2 journey calls. */
-export interface NativeJourneys {
-  /** The files the runner stamp of the journeys kept at `out` covers; `null` when none are kept or they were prepared without a runner table. */
-  journeysRunnerFiles?(out: string): string[] | null;
-  /** The journeys kept at `out`, when they were prepared from this recording, this index and a runner table under `runnerDigest`. */
-  journeysKept?(index: string, recording: string, out: string, runnerDigest?: string | null): NativeJourneysPrepared | null;
+/** The journey calls on a git listing the addon holds, carrying it rather than asking git again. */
+export interface NativeJourneysListing {
+  /** The Vite and Vitest configs this listing holds, not counting ones a fixture, template or example ships. */
+  runnerConfigs?(): string[];
   /** Walk every case of the recording and keep the journeys at `out`; `null` when there is no source index. */
   prepareJourneys?(
     root: string,
     index: string,
     recording: string,
-    commit: string | null,
+    at: NativeJourneysCommit,
+    out: string,
+    runner: string | null,
+  ): NativeJourneysPrepared | null;
+}
+
+/** The addon's layer-2 journey calls. */
+export interface NativeJourneys {
+  /** The Vite and Vitest configs git lists under `root`; `null` when git cannot list. */
+  runnerConfigs?(root: string): string[] | null;
+  /** The journeys kept at `out`, when this walk prepared them from this recording, this index and a runner table under `runnerDigest`. */
+  journeysKept?(index: string, recording: string, out: string, runnerDigest?: string | null): NativeJourneysPrepared | null;
+  /** Walk every case of the recording and keep the journeys at `out`, with git listing the checkout; `null` when there is no source index. */
+  prepareJourneys?(
+    root: string,
+    index: string,
+    recording: string,
+    at: NativeJourneysCommit,
     out: string,
     runner: string | null,
   ): NativeJourneysPrepared | null;

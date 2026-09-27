@@ -131,7 +131,9 @@ impl Runner {
                         match Regex::new(&format!("{inline}{source}")) {
                             Ok(pattern) => Find::Pattern(pattern),
                             Err(error) => {
-                                unread.push(format!("/{source}/{flags} in {}: {error}", config.directory));
+                                let error = error.to_string();
+                                let error = error.lines().last().unwrap_or_default().trim();
+                                unread.push(format!("the alias /{source}/{flags} in {} does not compile as a Rust pattern, and is not read ({error})", if config.directory.is_empty() { "." } else { &config.directory }));
                                 continue;
                             }
                         }

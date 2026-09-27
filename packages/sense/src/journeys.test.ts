@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { journeysAround, journeysPath, prepareJourneys } from './journeys.js';
 import { updateSourceIndex } from './published.js';
-import { runnerAliases, runnerConfigs, runnerDigest } from './runner-aliases.js';
+import { keptRunnerAliases, runnerAliases, runnerConfigs, runnerDigest, unlistedRunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
@@ -65,14 +65,12 @@ afterEach(() => {
 });
 
 describe('the journeys prepared beside the index', () => {
-  it('say none are prepared before anything is recorded, where the recording was looked for', async () => {
+  it('say none are prepared before anything is recorded, where the recording was looked for, and answer with no suite', async () => {
     await updateSourceIndex(root);
     const [only] = await prepareJourneys(root);
 
     expect(only).toEqual({ out: journeysPath(sourceIndexPath(root)), unprepared: `nothing is recorded at ${testCoverageFile(root)}.cases.bin` });
-    expect(journeysAround(root, [{ file: 'src/api.ts' }])).toEqual([
-      { answer: { notPrepared: 'there is no recording to walk', cases: 0, files: [] } },
-    ]);
+    expect(journeysAround(root, [{ file: 'src/api.ts' }])).toEqual([]);
   });
 
   it('walk the recorded case once, keep the file while nothing it was made from changes, and answer a file and a line', async () => {
@@ -88,13 +86,21 @@ describe('the journeys prepared beside the index', () => {
       functionsEntered: 2,
       placed: 2,
     });
+    // The recording names no commit, so the walk parsed the tree as it is, and says so.
+    const tree = first && 'prepared' in first ? first.prepared.tree : undefined;
+    expect(tree).toMatch(/commit/u);
     const [again] = await prepareJourneys(root);
     expect(again && 'prepared' in again && again.prepared.kept).toBe(true);
+    expect(again && 'prepared' in again && again.prepared.tree).toBe(tree);
 
     const [{ answer }] = journeysAround(root, [{ file: 'src/api.ts' }, { file: 'src/api.ts', line: 5 }]) as [{ answer: import('./journeys.js').JourneysAnswer }];
     expect(answer.notPrepared ?? undefined).toBeUndefined();
     expect(answer.cases).toBe(1);
+    expect(answer.tree).toBe(tree);
     const [file, line] = answer.files;
+    expect(file?.cases).toBe(1);
+    expect(file?.flows).toMatchObject({ package: '@t/api', through: 1 });
+    expect(line?.unplaced).toMatch(/commit/u);
     expect(file?.blocks.map((block) => block.name)).toEqual(['get', 'put']);
     expect(file?.callers).toEqual([expect.objectContaining({ at: 'get', cases: 1 })]);
     expect(line?.focus?.name).toBe('put');
@@ -111,7 +117,7 @@ describe("the runner's alias table", () => {
   const fixture = fileURLToPath(new URL('../test/fixtures/runner-aliases', import.meta.url));
 
   it('lists the tracked configs, reads their aliases with the Vite the checkout resolves, and stamps every file it read', async () => {
-    const configs = await runnerConfigs(fixture);
+    const configs = runnerConfigs(fixture);
     expect(configs).toEqual(['vitest.config.ts']);
 
     const table = await runnerAliases(fixture, configs ?? []);
@@ -130,5 +136,38 @@ describe("the runner's alias table", () => {
 
     expect(table.configs).toEqual([]);
     expect(table.unread).toEqual([expect.stringMatching(/^vitest\.config\.ts: no Vite to load it with \(/u)]);
+    expect(table.unloaded).toEqual(['vitest.config.ts']);
+    // What it needed is outside the stamp, so the table is not kept: it is read again.
+    const kept = join(root, 'runner-aliases.json');
+    writeFileSync(kept, JSON.stringify({ ...table, unread: ['held'] }));
+    expect(await keptRunnerAliases(root, ['vitest.config.ts'], kept)).toEqual(table);
+  });
+
+  it('keeps the table beside the index, and reads it again when a file it was read from changes', async () => {
+    const kept = join(root, 'runner-aliases.json');
+    const read = await keptRunnerAliases(fixture, ['vitest.config.ts'], kept);
+    expect(JSON.parse(readFileSync(kept, 'utf8'))).toEqual(read);
+
+    // A table kept under a stamp nothing on disk matches is not believed.
+    writeFileSync(kept, JSON.stringify({ ...read, digest: 'stale', configs: [] }));
+    expect(await keptRunnerAliases(fixture, ['vitest.config.ts'], kept)).toEqual(read);
+    // One kept under the right stamp is used as kept, and Vite is not asked.
+    const held = { ...read, unread: ['held'] };
+    writeFileSync(kept, JSON.stringify(held));
+    expect(await keptRunnerAliases(fixture, ['vitest.config.ts'], kept)).toEqual(held);
+  });
+
+  it('names every alias it cannot carry, and the table it could not list', async () => {
+    const dropped = fileURLToPath(new URL('../test/fixtures/runner-aliases-dropped', import.meta.url));
+    const table = await runnerAliases(dropped, ['vitest.config.ts']);
+
+    expect(table.configs).toEqual([{ directory: '', aliases: [{ find: '@test', replacement: './src/test.ts' }, { find: '@kept', replacement: './src/kept.ts' }] }]);
+    expect(table.unread).toEqual([
+      'vitest.config.ts: resolve.alias `@custom` has a customResolver, which is not read',
+      'vitest.config.ts: resolve.alias `@made` is replaced by a function, which is not read',
+    ]);
+    expect(unlistedRunnerAliases(root, 'git could not list the checkout').unread).toEqual([
+      'runner configs were not listed: git could not list the checkout',
+    ]);
   });
 });

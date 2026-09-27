@@ -65,6 +65,9 @@ pub(crate) struct Graph {
     pub fell_back: u32,
     /// Specifiers the runner's alias table answered.
     pub aliased: u32,
+    /// Why the files were parsed as the working tree holds them rather than as
+    /// the recorded commit did; absent when the commit's tree was read.
+    pub tree: Option<String>,
 }
 
 pub(crate) fn code(path: &str) -> bool {
@@ -76,34 +79,56 @@ fn bare(value: &str) -> bool {
     !value.starts_with('.') && !value.starts_with('/')
 }
 
-/// The text of every file that differs between `commit` and the working tree,
-/// as it was at `commit`: `None` for a file that did not exist there. One diff
-/// and one `cat-file --batch`; a file not in the map is the same on disk.
-pub(crate) fn text_at(root: &str, commit: &str) -> Option<HashMap<String, Option<String>>> {
-    let listed = crate::git::git(root, &["-c", "core.quotePath=false", "diff", "--name-only", "-z", "--relative", commit], None)?;
-    let changed: Vec<String> =
-        listed.split(|&byte| byte == 0).filter(|path| !path.is_empty()).map(|path| String::from_utf8_lossy(path).into_owned()).collect();
+/// The text of every source file that differs between `commit` and the
+/// working tree, as it was at `commit`: `None` for a file that did not exist
+/// there. One diff and one `cat-file --batch`; a file not in the map is the
+/// same on disk. Renames are not detected: a file moved since the commit is a
+/// path the commit did not have, and the path it had is read from there under
+/// its own name. When git cannot answer, the reason, which the prepared file
+/// carries, since the graph is then the working tree's.
+pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
+    let args = ["-c", "core.quotePath=false", "diff", "--name-only", "--no-renames", "-z", "--relative", commit];
+    let Some(listed) = crate::git::git(root, &args, None) else {
+        let known = crate::git::git(root, &["cat-file", "-e", &format!("{commit}^{{commit}}")], None).is_some();
+        return Err(if known {
+            format!("git could not list what changed since commit {}", short(commit))
+        } else {
+            format!("commit {} is not in this checkout's object store", short(commit))
+        });
+    };
+    let changed: Vec<String> = listed
+        .split(|&byte| byte == 0)
+        .filter(|path| !path.is_empty())
+        .map(|path| String::from_utf8_lossy(path).into_owned())
+        .filter(|path| code(path))
+        .collect();
     let mut texts = HashMap::new();
     if changed.is_empty() {
-        return Some(texts);
+        return Ok(texts);
     }
+    let unread = || format!("git could not read the files changed since commit {}", short(commit));
     let asked: String = changed.iter().map(|file| format!("{commit}:./{file}\n")).collect();
-    let out = crate::git::git(root, &["cat-file", "--batch"], Some(asked.into_bytes()))?;
+    let out = crate::git::git(root, &["cat-file", "--batch"], Some(asked.into_bytes())).ok_or_else(unread)?;
     let mut at = 0;
     for file in changed {
-        let end = at + out.get(at..)?.iter().position(|&byte| byte == b'\n')?;
+        let end = at + out.get(at..).and_then(|rest| rest.iter().position(|&byte| byte == b'\n')).ok_or_else(unread)?;
         let head = String::from_utf8_lossy(&out[at..end]).into_owned();
         at = end + 1;
         if head.ends_with(" missing") {
             texts.insert(file, None);
             continue;
         }
-        let size: usize = head.rsplit(' ').next()?.parse().ok()?;
-        let text = String::from_utf8_lossy(out.get(at..at + size)?).into_owned();
+        let size: usize = head.rsplit(' ').next().and_then(|size| size.parse().ok()).ok_or_else(unread)?;
+        let text = String::from_utf8_lossy(out.get(at..at + size).ok_or_else(unread)?).into_owned();
         texts.insert(file, Some(text));
         at += size + 1;
     }
-    Some(texts)
+    Ok(texts)
+}
+
+/// A commit as the output names one.
+pub(crate) fn short(commit: &str) -> &str {
+    commit.get(..12).unwrap_or(commit)
 }
 
 /// The index's answer per file and specifier: `Some(target)` for a file of
@@ -150,9 +175,10 @@ struct Read {
 impl Graph {
     /// The graph over everything `seeds` reach, read from the index's layers.
     /// `seeds` are interned first and in order, so their ids are their places.
-    pub(crate) fn build(root: &str, layers: &[Layer], commit: Option<&str>, seeds: &[String], runner: Option<&Runner>) -> Graph {
+    /// `commit` is the commit the recording ran at, or why there is none.
+    pub(crate) fn build(root: &str, layers: &[Layer], commit: Result<&str, &str>, seeds: &[String], runner: Option<&Runner>) -> Graph {
         let (then, index) = rayon::join(
-            || commit.and_then(|commit| text_at(root, commit)),
+            || commit.map_err(str::to_owned).and_then(|commit| text_at(root, commit)),
             || {
                 let folded = fold(layers);
                 let mut crossings: Vec<Crossing> = folded
@@ -176,7 +202,9 @@ impl Graph {
             calls_from: Vec::new(),
             fell_back: 0,
             aliased: 0,
+            tree: None,
         };
+        let then = then.map_err(|why| graph.tree = Some(why)).ok();
         let mut frontier: Vec<u32> = seeds.iter().map(|seed| graph.intern(seed)).collect();
         frontier.dedup();
         while !frontier.is_empty() {
@@ -369,68 +397,5 @@ impl Graph {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn graph(files: &[(&str, &str)]) -> Graph {
-        let mut graph = Graph {
-            files: Vec::new(),
-            ids: HashMap::new(),
-            parsed: Vec::new(),
-            specs: Vec::new(),
-            targets: Vec::new(),
-            calls_from: Vec::new(),
-            fell_back: 0,
-            aliased: 0,
-        };
-        for (file, text) in files {
-            let id = graph.intern(file);
-            graph.parsed[id as usize] = parse(file, text);
-        }
-        for id in 0..files.len() {
-            let parsed = graph.parsed[id].as_ref().unwrap();
-            let mut specs: Vec<String> = parsed.imports.values().map(|import| import.spec.clone()).collect();
-            specs.extend(parsed.star.iter().cloned());
-            specs.extend(parsed.exports.values().filter_map(|export| match export {
-                Export::From { spec, .. } => Some(spec.clone()),
-                Export::Local(_) => None,
-            }));
-            let map = specs
-                .into_iter()
-                .map(|spec| {
-                    let to = graph.ids.get(&format!("{}.ts", spec.trim_start_matches("./"))).copied();
-                    (spec, to)
-                })
-                .collect();
-            graph.specs[id] = map;
-        }
-        graph
-    }
-
-    #[test]
-    fn an_import_is_followed_through_a_barrel_to_its_declaration() {
-        let graph = graph(&[
-            ("a.ts", "import { run } from './barrel';\nimport * as ns from './barrel';\nimport { value } from './c';\nrun();\nns.run();\nvalue();\nother.run();\nmissing();\n"),
-            ("barrel.ts", "export * from './b';\n"),
-            ("b.ts", "export function run() {}\n"),
-            ("c.ts", "export const value = make();\n"),
-        ]);
-        let parsed = graph.parsed(0).unwrap();
-        let targets: Vec<Target> = parsed.calls.iter().map(|call| graph.target_of(0, call.from, &call.callee, call.callback)).collect();
-        assert!(matches!(targets[0], Target::Fn { file: 2, func: 0, how: How::Import }));
-        assert!(matches!(targets[1], Target::Fn { file: 2, func: 0, how: How::Namespace }));
-        assert!(matches!(&targets[2], Target::NotFunction { file: 3, local } if local == "value"));
-        assert!(matches!(targets[3], Target::Member));
-        assert!(matches!(targets[4], Target::Free));
-    }
-
-    #[test]
-    fn a_local_name_resolves_to_the_declaration_whose_scope_holds_the_call() {
-        let graph = graph(&[("a.ts", "function f() {}\nfunction g() {\n  function f() {}\n  f();\n}\nf();\n")]);
-        let parsed = graph.parsed(0).unwrap();
-        let inner = parsed.calls.iter().find(|call| call.from == Some(1)).unwrap();
-        let outer = parsed.calls.iter().find(|call| call.from.is_none()).unwrap();
-        assert!(matches!(graph.target_of(0, inner.from, &inner.callee, None), Target::Fn { func: 2, .. }));
-        assert!(matches!(graph.target_of(0, outer.from, &outer.callee, None), Target::Fn { func: 0, .. }));
-    }
-}
+#[path = "journeys_graph_tests.rs"]
+mod tests;

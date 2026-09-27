@@ -17,128 +17,14 @@ use napi_derive::napi;
 
 use crate::journey_columns::{decode, Decoded};
 use crate::journey_stitch::strings;
-use crate::journeys::{digest_of, Meta, Stat, FORMAT, NO_PACKAGE, TEST};
+use crate::journeys::{same, Meta, FORMAT, NO_PACKAGE, TEST, WALK};
+use crate::journeys_answer::*;
 use crate::journeys_steps::{Known, Tag};
 
 const CALLERS: usize = 6;
 const GOES: usize = 8;
 const BLOCKS: usize = 8;
 const FLOWS: usize = 5;
-
-#[napi(object)]
-pub struct JourneysAsk {
-    /// Repository-relative.
-    pub file: String,
-    pub line: Option<u32>,
-}
-
-#[napi(object)]
-pub struct JourneysBlock {
-    pub name: String,
-    pub kind: String,
-    pub line: u32,
-    pub end: u32,
-    pub cases: u32,
-}
-
-#[napi(object)]
-pub struct JourneysCall {
-    /// The function at the far end; absent for the test itself.
-    pub name: Option<String>,
-    pub file: Option<String>,
-    pub line: Option<u32>,
-    /// The asked file's own function the call lands on or leaves from, when
-    /// the question was the whole file.
-    pub at: Option<String>,
-    /// Cases that placed this call.
-    pub cases: u32,
-    /// How the call is known: `observed`, `static`, a way it was inferred, or
-    /// `test`.
-    pub known: String,
-}
-
-#[napi(object)]
-pub struct JourneysRegion {
-    pub name: String,
-    pub kind: String,
-    pub line: u32,
-    pub end: u32,
-    pub cases: u32,
-    /// It ran while its module loaded.
-    pub loaded: bool,
-    /// Cases that placed a caller for it, summed over its callers.
-    pub placed_in: u32,
-    pub callers: Vec<JourneysCall>,
-    pub more_callers: u32,
-    pub goes: Vec<JourneysCall>,
-    pub more_goes: u32,
-    /// Functions written directly inside it that cases entered.
-    pub inner: Vec<JourneysBlock>,
-    pub more_inner: u32,
-}
-
-#[napi(object)]
-pub struct JourneysFlow {
-    pub cases: u32,
-    /// Package names in the order the flow reached them; `null` for files no
-    /// named manifest sits above.
-    pub packages: Vec<Option<String>>,
-    pub example_file: String,
-    pub example_name: String,
-}
-
-#[napi(object)]
-pub struct JourneysFlows {
-    pub package: Option<String>,
-    /// Cases whose flow passes through the package.
-    pub through: u32,
-    pub distinct: u32,
-    pub top: Vec<JourneysFlow>,
-}
-
-#[napi(object)]
-pub struct JourneysFile {
-    pub file: String,
-    pub line: Option<u32>,
-    /// The recording has functions in this file.
-    pub recorded: bool,
-    /// The file differs from the recorded commit; absent when no line was
-    /// asked, or git could not say.
-    pub changed: Option<bool>,
-    /// The asked line was written after the recording.
-    pub written_since: bool,
-    /// The asked line's number at the recorded commit, when the file changed.
-    pub at_commit: Option<u32>,
-    pub blocks: Vec<JourneysBlock>,
-    pub more_blocks: u32,
-    pub callers: Vec<JourneysCall>,
-    pub more_callers: u32,
-    pub goes: Vec<JourneysCall>,
-    pub more_goes: u32,
-    pub focus: Option<JourneysRegion>,
-    /// The innermost block holding the line, when it is not the focus.
-    pub holding: Option<JourneysBlock>,
-    pub flows: JourneysFlows,
-}
-
-#[napi(object)]
-pub struct JourneysAnswer {
-    /// Why the prepared file cannot answer; every other field is empty then.
-    pub not_prepared: Option<String>,
-    pub cases: u32,
-    pub commit: Option<String>,
-    pub files: Vec<JourneysFile>,
-}
-
-fn refused(reason: &str) -> JourneysAnswer {
-    JourneysAnswer { not_prepared: Some(reason.to_owned()), cases: 0, commit: None, files: Vec::new() }
-}
-
-/// The file at `path` is the one stamped, by stat when it did not move and by
-/// digest when it did.
-fn same(path: &str, stat: Option<&Stat>, digest: &str) -> bool {
-    stat.is_some_and(|stat| Stat::of(path).as_ref() == Some(stat)) || digest_of(path).as_deref() == Some(digest)
-}
 
 struct Prepared {
     strings: Vec<String>,
@@ -162,6 +48,10 @@ struct Prepared {
     test_name: Vec<u32>,
     package_name: Vec<u32>,
     package_directory: Vec<u32>,
+    /// Per package, then for no package: cases that entered it.
+    package_cases: Vec<u32>,
+    /// Cases that entered each recorded file, by the file's string.
+    file_cases: HashMap<u32, u32>,
 }
 
 impl Prepared {
@@ -188,6 +78,8 @@ impl Prepared {
             test_name: decoded.words("tests.name")?,
             package_name: decoded.words("packages.name")?,
             package_directory: decoded.words("packages.directory")?,
+            package_cases: decoded.words("packages.cases")?,
+            file_cases: decoded.words("files.file")?.into_iter().zip(decoded.words("files.cases")?).collect(),
         })
     }
 
@@ -270,9 +162,11 @@ impl Prepared {
                 }
             })
             .collect();
+        let entered = if package == NO_PACKAGE { self.package_name.len() } else { package as usize };
         JourneysFlows {
             package: self.package(package),
-            through: through.iter().map(|&flow| self.flow_cases[flow]).sum(),
+            through: self.package_cases.get(entered).copied().unwrap_or(0),
+            placed: through.iter().map(|&flow| self.flow_cases[flow]).sum(),
             distinct: through.len() as u32,
             top,
         }
@@ -358,7 +252,7 @@ pub(crate) fn line_then(diff: &str, line: u32) -> Option<u32> {
 pub fn journeys_for(root: String, index: String, recording: String, out: String, asks: Vec<JourneysAsk>) -> JourneysAnswer {
     let Ok(bytes) = std::fs::read(&out) else { return refused("none were prepared beside this index") };
     let Ok(decoded) = decode(&bytes, FORMAT) else { return refused("they were prepared by another version") };
-    let Some(meta) = decoded.bytes("meta.json").ok().and_then(|json| serde_json::from_slice::<Meta>(&json).ok()) else {
+    let Some(meta) = decoded.bytes("meta.json").ok().and_then(|json| serde_json::from_slice::<Meta>(&json).ok()).filter(|meta| meta.walk == WALK) else {
         return refused("they were prepared by another version");
     };
     if !same(&recording, meta.recording_stat.as_ref(), &meta.recording) {
@@ -372,18 +266,28 @@ pub fn journeys_for(root: String, index: String, recording: String, out: String,
         Err(error) => return refused(&format!("they did not read ({error})")),
     };
     let files = asks.into_iter().map(|ask| answer(&root, &meta, &prepared, ask)).collect();
-    JourneysAnswer { not_prepared: None, cases: meta.cases, commit: meta.commit.clone(), files }
+    JourneysAnswer { not_prepared: None, cases: meta.cases, commit: meta.commit.clone(), tree: meta.tree.clone(), files }
 }
 
 fn answer(root: &str, meta: &Meta, prepared: &Prepared, ask: JourneysAsk) -> JourneysFile {
     // Only a line needs git: it is a coordinate in the recorded tree. A whole
     // file is answered by name, and git is not asked what moved in it.
-    let diff = meta
-        .commit
-        .as_deref()
-        .filter(|_| ask.line.is_some())
-        .and_then(|commit| crate::git::git(root, &["diff", "-U0", "--no-color", "--no-ext-diff", commit, "--", &ask.file], None))
-        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
+    let mut unplaced = None;
+    let diff = match (ask.line, meta.commit.as_deref()) {
+        (None, _) => None,
+        (Some(_), None) => {
+            unplaced = Some("the recording names no commit".to_owned());
+            None
+        }
+        (Some(_), Some(commit)) => {
+            let args = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-textconv", commit, "--", &ask.file];
+            let diff = crate::git::git(root, &args, None).map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
+            if diff.is_none() {
+                unplaced = Some(format!("git could not diff it against commit {}", crate::journeys_graph::short(commit)));
+            }
+            diff
+        }
+    };
     let changed = diff.as_ref().map(|diff| !diff.is_empty());
     let (written_since, line) = match (ask.line, diff.as_deref().filter(|diff| !diff.is_empty())) {
         (Some(line), Some(diff)) => line_then(diff, line).map_or((true, None), |then| (false, Some(then))),
@@ -396,6 +300,8 @@ fn answer(root: &str, meta: &Meta, prepared: &Prepared, ask: JourneysAsk) -> Jou
         .unwrap_or_default();
     let mut file = JourneysFile {
         recorded: !regions.is_empty(),
+        cases: file_id.and_then(|id| prepared.file_cases.get(&id)).copied().unwrap_or(0),
+        unplaced,
         changed,
         written_since,
         at_commit,

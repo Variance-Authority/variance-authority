@@ -2449,6 +2449,7 @@
         "grainOf": "function",
         "journeysAround": "function",
         "journeysPath": "function",
+        "keptRunnerAliases": "function",
         "languageOf": "function",
         "memoryParseCache": "function",
         "memoryRecordCache": "function",
@@ -2476,6 +2477,7 @@
         "taintRecords": "function",
         "taintTable": "function",
         "treeShapeOf": "function",
+        "unlistedRunnerAliases": "function",
         "updateSourceIndex": "function"
       },
       "./read": {
