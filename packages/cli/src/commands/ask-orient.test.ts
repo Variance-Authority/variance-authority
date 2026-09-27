@@ -9,8 +9,8 @@ import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 /**
- * `variance ask orient`, through the command a person types: the words are
- * found by git, the packages are read from the index `variance index`
+ * `variance ask orient`, through the command a person types: the files are
+ * named by the caller, the packages are read from the index `variance index`
  * published, and the recording this checkout never made is said to be absent.
  */
 
@@ -66,32 +66,30 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 }
 
 describe('variance ask orient', () => {
-  it('refuses a call without words, and says what it takes', async () => {
+  it('refuses a call without files, and names the questions that find them', async () => {
     checkout();
 
     const refused = await run(['ask', 'orient']);
 
     expect(refused.code).toBe(EXIT_OPERATOR);
     expect(refused.out).toBe('');
-    expect(refused.err).toContain('`variance ask orient` needs --query. It takes words from the task, as `--query "<words>"`');
+    expect(refused.err).toContain('`variance ask orient` needs --files. It reads the graph around files you already have.');
   });
 
   it('answers with the files, the names crossing each package, the absent recording, and what to ask next', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const answered = await run(['ask', 'orient', '--query', 'price total']);
+    const answered = await run(['ask', 'orient', '--files', 'packages/checkout/src/total.ts,./packages/cart/src/price.ts,src/gone.ts']);
 
     expect(answered).toEqual({
       code: EXIT_CLEAN,
       err: '',
       out: [
-        '4 tracked files contain one of the words `price total`. The 4 files with the most of them, then the most matching lines:',
-        '',
-        '  packages/checkout/src/total.ts  2 words, 5 lines  @t/checkout',
-        '  packages/cart/src/price.ts      1 word, 2 lines   @t/cart',
-        '  packages/checkout/src/label.ts  1 word, 2 lines   @t/checkout',
-        '  packages/cart/src/index.ts      1 word, 1 line    @t/cart',
+        '3 files asked about:',
+        '  packages/checkout/src/total.ts  @t/checkout',
+        '  packages/cart/src/price.ts      @t/cart',
+        '  src/gone.ts                     not in the source index',
         '',
         `Packages, from the source index at ${sourceIndexPath(root)} (4 files indexed).`,
         "A use is one file importing one name from another package. A package's share is of the uses on that side; " +
@@ -112,7 +110,6 @@ describe('variance ask orient', () => {
         'Narrower questions:',
         '  variance ask uses --name priceOf --package @t/cart',
         '  variance ask symbol --name priceOf --package @t/cart',
-        "  variance ask search --query 'price total' --from packages/checkout/src/total.ts",
         '',
       ].join('\n'),
     });

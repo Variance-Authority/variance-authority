@@ -116,7 +116,7 @@ tree is the answer. Both are exact and need no Variance index.
 | --- | --- | --- |
 | An exact string in the working tree | `rg -n <text> .` | Current files containing that text |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
-| Words from a task, and no name yet | `variance ask orient --query <words>` | Tracked files containing the words, each file's package with the names it imports from other packages and the names they import from it, and the recorded tests that ran each file |
+| Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[,...]` | Each file's package, with the names it imports from other packages and the names they import from it, and the recorded tests that ran each file |
 | Words for an exported source name | `variance ask search --query <words>` | Matching exported names |
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
 | An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation and consumers |

@@ -1,8 +1,8 @@
 //! What a handful of packages take from each other, read from the committed
 //! source index without handing a record to JavaScript.
 //!
-//! The question comes from `variance ask orient`: an agent has a few files its
-//! words landed in and wants to know what the packages owning them are made of.
+//! The question comes from `variance ask orient`: an agent has a few files in
+//! hand and wants to know what the packages owning them are made of.
 //! The index already holds the answer — every record keeps one resolved target
 //! per request of its parse, in the parse's order, and the parse keeps what each
 //! request binds — so the join `uses.ts` makes per importer is made here for

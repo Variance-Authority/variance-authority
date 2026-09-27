@@ -112,6 +112,7 @@ export interface AskRequest {
   readonly test?: string;
   readonly state?: string;
   readonly file?: string;
+  readonly files?: readonly string[];
   /** `--name <name>`, `--package <name>`, `--subpath <subpath>`: what the source questions take. */
   readonly name?: string;
   readonly package?: string;
@@ -156,7 +157,7 @@ export interface AskRequest {
 /** The flags every question is spelled with, whichever subject answers it. */
 type Flagged = Pick<
   AskRequest,
-  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'file'
+  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'file' | 'files'
   | 'name' | 'package' | 'subpath' | 'query'
   | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
   | 'from' | 'to' | 'limit'
@@ -393,6 +394,7 @@ function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     test: request.test,
     state: request.state,
     file: request.file,
+    files: request.files,
     name: request.name,
     package: request.package,
     subpath: request.subpath,

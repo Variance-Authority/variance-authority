@@ -32,10 +32,11 @@ import { uses } from './tools/uses.js';
  * answer, and a pattern is what is left when nothing is named.
  *
  * `docs_orient` is the widest, and comes after both for the same reason: it
- * starts from words and answers with everything around the files they are in —
- * packages, the names crossing their edges, the recorded cases that ran them —
- * which is the most to read when a name would have done. Its answer ends in the
- * narrower questions above, spelled with the names it printed.
+ * starts from files the tools above found and answers with everything around
+ * them — packages, the names crossing their edges, the recorded cases that ran
+ * them — which is the most to read when a name would have done. It finds
+ * nothing itself. Its answer ends in the narrower questions above, spelled with
+ * the names it printed.
  *
  * `docs_gaps` is the one that is not for using the library. It is for the person
  * maintaining it, and it lives here rather than in a lint rule because the
@@ -70,7 +71,7 @@ export const HELP: Served<Help> = {
 };
 
 export { entrypoint, gaps, grep, orient, packages, search, symbol, uses };
-export { formatOrientation, type Landing, type OrientReading } from './tools/orient-format.js';
+export { formatOrientation, type OrientReading } from './tools/orient-format.js';
 export { answerSearch, searchIndexOf } from './tools/search.js';
 export type {
   ExportedMatch,

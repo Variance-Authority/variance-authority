@@ -3,7 +3,7 @@ import type { CasesEntered, OrientFlows, OrientPackage, Orientation } from '@var
 import { followUps, formatOrientation, percent, type OrientReading } from './orient-format.js';
 
 /**
- * The words of `variance ask orient`, held without a repository: every number
+ * What `variance ask orient` says, held without a repository: every number
  * below is one the addon would have handed over, so what is pinned is the order,
  * the alignment, and the line each absent reading is replaced by.
  */
@@ -55,15 +55,7 @@ const ORIENTATION: Orientation = {
 };
 
 const READING: OrientReading = {
-  query: 'price total',
-  words: ['price', 'total'],
-  matched: 5,
-  shown: [
-    { file: 'packages/checkout/src/total.ts', words: 2, lines: 12 },
-    { file: 'packages/cart/src/price.ts', words: 1, lines: 3 },
-    { file: 'README.md', words: 1, lines: 1 },
-    { file: 'test/total.test.ts', words: 1, lines: 1 },
-  ],
+  files: ['packages/checkout/src/total.ts', 'packages/cart/src/price.ts', 'README.md', 'test/total.test.ts'],
   around: { index: '/cache/source-index.bin', orientation: ORIENTATION },
   recorded: [
     {
@@ -90,14 +82,11 @@ describe('an orientation, said', () => {
   it('reads as the files, the packages around them, the cases that ran them, and the questions to ask next', () => {
     expect(formatOrientation(READING)).toBe(
       [
-        '5 tracked files contain one of the words `price total`. The 4 files with the most of them, then the most matching lines:',
-        '',
-        '  packages/checkout/src/total.ts  2 words, 12 lines  @t/checkout',
-        '  packages/cart/src/price.ts      1 word, 3 lines    @t/cart',
-        '  README.md                       1 word, 1 line     no package',
-        '  test/total.test.ts              1 word, 1 line     no package',
-        '',
-        '1 more file not shown.',
+        '4 files asked about:',
+        '  packages/checkout/src/total.ts  @t/checkout',
+        '  packages/cart/src/price.ts      @t/cart',
+        '  README.md                       not in the source index',
+        '  test/total.test.ts              not in the source index',
         '',
         'Packages, from the source index at /cache/source-index.bin (40 files indexed; 2 changed or removed since).',
         "A use is one file importing one name from another package. A package's share is of the uses on that side; " +
@@ -133,7 +122,6 @@ describe('an orientation, said', () => {
         'Narrower questions:',
         '  variance ask uses --name priceOf --package @t/cart',
         '  variance ask symbol --name priceOf --package @t/cart',
-        "  variance ask search --query 'price total' --from packages/checkout/src/total.ts",
         '  variance covering --file packages/checkout/src/total.ts --suite unit',
       ].join('\n'),
     );
@@ -143,15 +131,20 @@ describe('an orientation, said', () => {
     const text = formatOrientation({ ...READING, around: { index: '/cache/source-index.bin' } });
 
     expect(text).toContain('Packages: no source index is published at /cache/source-index.bin. `variance index` publishes one.');
-    expect(text).toContain('  packages/cart/src/price.ts      1 word, 3 lines\n');
-    // No start point is known to be indexed, so no question with `--from` is offered.
-    expect(text).not.toContain('--from');
+    // Every file asked about is still said, with nothing claimed about its package.
+    expect(text).toContain('4 files asked about:\n  packages/checkout/src/total.ts\n  packages/cart/src/price.ts\n  README.md\n');
+    expect(text).not.toContain('not in the source index');
   });
 
-  it('says so in one line when no file contains the words, and asks nothing further', () => {
-    const text = formatOrientation({ ...READING, matched: 0, shown: [], around: { index: '/cache/source-index.bin' }, recorded: [] });
+  it('says a file with no package as that, and one the index does not hold as that, never dropping either', () => {
+    const owners = [{ indexed: true }, { indexed: false }];
+    const text = formatOrientation({
+      files: ['scripts/build.ts', 'src/new.ts'],
+      around: { index: '', orientation: { ...ORIENTATION, owners, packages: [] } },
+      recorded: [],
+    });
 
-    expect(text).toBe('No tracked file contains any of the words `price total`.');
+    expect(text).toContain('2 files asked about:\n  scripts/build.ts  no package\n  src/new.ts        not in the source index\n');
   });
 
   it('says no case ran a file only when no region of it ran, and points at the loaders of one that only loaded', () => {
@@ -178,9 +171,7 @@ describe('an orientation, said', () => {
   it('asks about a name only when one is there to ask about', () => {
     const quiet = { ...ORIENTATION, packages: [{ ...ORIENTATION.packages[0]!, takes: NONE }] };
 
-    expect(followUps({ ...READING, around: { index: '', orientation: quiet }, recorded: [] })).toEqual([
-      "variance ask search --query 'price total' --from packages/checkout/src/total.ts",
-    ]);
+    expect(followUps({ ...READING, around: { index: '', orientation: quiet }, recorded: [] })).toEqual([]);
   });
 
   it('says a share too small to round as less than one percent, never as none', () => {
