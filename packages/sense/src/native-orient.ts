@@ -110,18 +110,32 @@ export interface NativeCasesEntered {
   readonly declaredNames: readonly string[];
 }
 
-/** What folding the package graph into the code map made of the checkout. */
-export interface NativeOrientMapPrepared {
+/** The code map as folded, or as kept when nothing it is folded from moved. */
+export interface NativeOrientMapMade {
   readonly packages: number;
   readonly areas: number;
   /** How many areas deep the deepest package sits. */
   readonly levels: number;
   /** Dependency layers: 0 takes nothing, and each layer takes only from those below it. */
   readonly layers: number;
-  /** Counted files the index holds no parse for: their imports are not on the map. */
+  /**
+   * Counted files whose requests could not be read against their parse. Their
+   * edges are on the map; the names they take are not, and a request the index
+   * left unresolved is not answered by its bare specifier.
+   */
   readonly unread: number;
-  /** Git could not list the checkout, so its files were listed off the disk. */
+}
+
+/** What preparing the code map made of the checkout. */
+export interface NativeOrientMapPrepared {
+  /** Absent when no map was folded, and `unmade` says why. */
+  readonly map?: NativeOrientMapMade | null;
+  /** Why no map was folded, as a clause: `the root's is the only named manifest`, `no manifest names a package`, or `the source index holds no file records`. */
+  readonly unmade?: string | null;
+  /** Git could not list the checkout: the files are the ones the index holds, and the manifests the ones found beside them. */
   readonly walked: boolean;
+  /** Git listed the checkout but could not say which files are generated or vendored, so none were set aside. */
+  readonly unmarked: boolean;
 }
 
 /** A package or an area on one row, and how many importing files the share counts. */
@@ -163,7 +177,7 @@ export interface NativeOrientMapPage {
   /** Packages on this page that none of its areas took. */
   readonly alone: number;
   readonly rows: readonly NativeOrientMapRow[];
-  /** An area with no areas inside it lists its packages. */
+  /** The packages no area inside this one took, listed after the rows: all of them in an area with no areas inside it. */
   readonly list: readonly string[];
 }
 
@@ -175,15 +189,18 @@ export interface NativeOrientMapPage {
 export interface NativeOrientMapAnswer {
   /** Whether the map was folded from the source index as it stands now. */
   readonly current: boolean;
-  readonly layers: number;
+  /** Absent when there was nothing to fold, and `unmade` says why. */
+  readonly layers?: number | null;
   /** Absent when the map has no area by the id asked. */
   readonly page?: NativeOrientMapPage | null;
+  /** Why no map was folded from this index, as a clause `NativeOrientMapPrepared.unmade` names. */
+  readonly unmade?: string | null;
 }
 
 /** The addon's code-map calls, kept apart from the scanner's other calls. */
 export interface NativeOrientMaps {
-  /** Fold the source index at `index` into the code map kept beside it; `null`, and no map kept, when no manifest names a package. */
+  /** Fold the source index at `index` into the code map kept beside it; `null` when there is no index. */
   prepareOrientMap?(root: string, index: string): NativeOrientMapPrepared | null;
-  /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept. */
+  /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept, or one of a format this reader does not know. */
   orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
 }

@@ -101,6 +101,7 @@ export {
   codeMapPage,
   prepareCodeMap,
   type CodeMapAnswer,
+  type CodeMapMade,
   type CodeMapPage,
   type CodeMapPrepared,
   type CodeMapRead,

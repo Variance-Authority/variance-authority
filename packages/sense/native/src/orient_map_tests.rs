@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use super::{fold, orient_map_page, map_path};
+use super::{fold, map_path, orient_map_page, prepare_orient_map};
 use crate::compact::Layer;
 use crate::generation::Delta;
 use crate::graph_index::merged;
@@ -44,6 +44,7 @@ fn fixture(name: &str) -> (Fixture, Vec<String>) {
     write("package.json", r#"{"private": true}"#);
     for (directory, name) in packages() {
         write(&format!("{directory}/package.json"), &format!(r#"{{"name": "{name}"}}"#));
+        write(&format!("{directory}/src/index.ts"), "export const make = 1;\n");
         paths.push(format!("{directory}/package.json"));
         paths.push(format!("{directory}/src/index.ts"));
     }
@@ -90,8 +91,10 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     publish(&index);
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
-    let read = read(&root.0.to_string_lossy(), &layers, &paths, &HashSet::new());
-    let (stored, _) = fold(&read, super::manifest_digest(&index).unwrap()).expect("named packages to fold");
+    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), &HashSet::new());
+    let (made, pages) = fold(&read).ok().expect("named packages to fold");
+    let digest = super::manifest_digest(&index).unwrap();
+    let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, unmarked: false, made: Some(made), unmade: None, pages };
     (root, index, stored)
 }
 
@@ -101,7 +104,7 @@ fn four_families_fold_into_four_areas_and_the_road_between_them() {
     let top = &stored.pages[0];
     assert_eq!((top.id.as_str(), top.packages, top.files, top.alone), ("", 20, 20, 0));
     // Each member takes every member before it, and the server core takes the interface core.
-    assert_eq!((stored.layers, top.low, top.high), (6, 0, 5));
+    assert_eq!((stored.made.unwrap().layers, top.low, top.high), (6, 0, 5));
     let rows: Vec<(&str, &str, u32)> = top.rows.iter().map(|row| (row.id.as_str(), row.name.as_str(), row.packages)).collect();
     assert_eq!(
         rows,
@@ -138,7 +141,74 @@ fn a_page_reads_back_and_says_when_the_index_has_moved() {
     assert_eq!(top.page.expect("the top page").rows.len(), 4);
     assert!(orient_map_page(index.clone(), Some("1".to_owned())).unwrap().unwrap().page.is_some());
     assert!(orient_map_page(index.clone(), Some("9.9".to_owned())).unwrap().unwrap().page.is_none());
+    // A map of another format is no map, whatever the rest of it holds.
+    std::fs::write(map_path(&index), br#"{"format": 1, "pages": {}}"#).unwrap();
+    assert!(orient_map_page(index.clone(), None).unwrap().is_none());
+    std::fs::write(map_path(&index), serde_json::to_vec(&stored).unwrap()).unwrap();
     // Republishing writes a new manifest; the map kept beside it is now older than it.
     std::fs::write(&index, b"moved").unwrap();
     assert!(!orient_map_page(index, None).unwrap().unwrap().current);
+}
+
+/// A fixture with its source index published beside it.
+fn indexed(name: &str) -> (Fixture, String, String) {
+    let (root, _) = fixture(name);
+    let index = root.0.join("source-index.bin").to_string_lossy().into_owned();
+    publish(&index);
+    let at = root.0.to_string_lossy().into_owned();
+    (root, at, index)
+}
+
+fn git(root: &str, arguments: &[&str]) {
+    let status = std::process::Command::new("git").arg("-C").arg(root).args(arguments).status().unwrap();
+    assert!(status.success(), "git {arguments:?}");
+}
+
+fn inode(path: &str) -> u64 {
+    std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(path).unwrap())
+}
+
+#[test]
+fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside_them() {
+    let (_root, root, index) = indexed("walked");
+    let prepared = prepare_orient_map(root, index.clone()).unwrap().expect("an index");
+    assert!(prepared.walked && !prepared.unmarked && prepared.unmade.is_none());
+    let map = prepared.map.expect("a folded map");
+    assert_eq!((map.packages, map.areas, map.levels, map.layers, map.unread), (20, 4, 1, 6, 0));
+    assert!(orient_map_page(index, None).unwrap().expect("a kept map").current);
+}
+
+#[test]
+fn a_checkout_with_nothing_to_fold_says_why_and_keeps_no_map() {
+    let (fixture, root, index) = indexed("unmade");
+    assert!(prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap().map.is_some());
+    for (directory, _) in packages() {
+        std::fs::write(fixture.0.join(directory).join("package.json"), "{}").unwrap();
+    }
+    std::fs::write(fixture.0.join("package.json"), r#"{"name": "@t/root"}"#).unwrap();
+    let prepared = prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap();
+    assert_eq!((prepared.map.is_none(), prepared.unmade.as_deref()), (true, Some("the root's is the only named manifest")));
+    let answer = orient_map_page(index.clone(), None).unwrap().expect("the reason, kept beside the index");
+    assert_eq!((answer.page.is_none(), answer.layers, answer.unmade.as_deref()), (true, None, Some("the root's is the only named manifest")));
+    std::fs::write(fixture.0.join("package.json"), "{}").unwrap();
+    let prepared = prepare_orient_map(root, index).unwrap().unwrap();
+    assert_eq!(prepared.unmade.as_deref(), Some("no manifest names a package"));
+}
+
+#[test]
+fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
+    let (fixture, root, index) = indexed("kept");
+    git(&root, &["init", "-q"]);
+    git(&root, &["add", "-A"]);
+    let first = prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap();
+    assert!(!first.walked && first.map.is_some());
+    let folded = inode(&map_path(&index));
+    let again = prepare_orient_map(root.clone(), index.clone()).unwrap().unwrap();
+    assert_eq!(inode(&map_path(&index)), folded, "nothing moved, so nothing was written");
+    assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
+    // A manifest git holds a new blob for folds the map again.
+    std::fs::write(fixture.0.join("packages/ui/ui1/package.json"), r#"{"name": "@t/ui-1", "private": true}"#).unwrap();
+    git(&root, &["add", "-A"]);
+    prepare_orient_map(root, index.clone()).unwrap().unwrap();
+    assert_ne!(inode(&map_path(&index)), folded);
 }

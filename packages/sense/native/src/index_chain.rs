@@ -41,6 +41,17 @@ pub(crate) struct Chain {
     pub segments: Vec<Vec<u8>>,
     /// Segments the manifest names past the first one that could not be used.
     pub dropped: u32,
+    /// The manifest as read, when the file is one; a legacy file is its own
+    /// single segment.
+    manifest: Option<Vec<u8>>,
+}
+
+impl Chain {
+    /// The bytes published at the chain's path, read once with the segments
+    /// they name, so a digest of them describes exactly this chain.
+    pub(crate) fn published(&self) -> &[u8] {
+        self.manifest.as_deref().or_else(|| self.segments.first().map(Vec::as_slice)).unwrap_or(&[])
+    }
 }
 
 /// The chain at `path`, or `None` when nothing was ever published there.
@@ -51,7 +62,7 @@ pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
         Err(error) => return Err(format!("{path}: {error}")),
     };
     if !bytes.starts_with(MAGIC) {
-        return Ok(Some(Chain { segments: vec![bytes], dropped: 0 }));
+        return Ok(Some(Chain { segments: vec![bytes], dropped: 0, manifest: None }));
     }
     let references = manifest(&bytes).ok_or_else(|| format!("{path}: invalid immutable log manifest"))?;
     let directory = format!("{path}.segments");
@@ -68,7 +79,7 @@ pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
     let count = read.iter().position(Option::is_none).unwrap_or(read.len());
     let dropped = (references.len() - count) as u32;
     let segments = read.into_iter().take(count).map(Option::unwrap).collect();
-    Ok(Some(Chain { segments, dropped }))
+    Ok(Some(Chain { segments, dropped, manifest: Some(bytes) }))
 }
 
 /// `decodeManifest` and `manifestIsValid`: the header's length is the rest of

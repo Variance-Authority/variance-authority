@@ -138,11 +138,15 @@ variance ask orient
 variance ask orient --area 2
 ```
 
-The first page puts every package the manifests name into a few areas. A
-package joins the packages that sit in the same directory, share words in their
-names, and import each other. An area bigger than a third of its parent is split
-again, so an area page lists smaller areas until an area is a short list of
-packages. Each row gives:
+The first page puts every package the manifests name into a few areas, apart
+from a manifest under a directory the [source index](source-index.md) skips, such as
+`node_modules` or `dist`. A package joins the packages that sit in the same
+directory, share words in their names, and import each other. An area of more
+than twelve packages is split again, into at most twelve areas of at least
+three packages, none starting larger than a third of it. A package no area
+takes joins the area holding a third or more of its connections, or is listed
+after the rows, so every package is on some page. An area page lists smaller
+areas until an area is a short list of packages. Each row gives:
 
 - how many packages and source files the area has;
 - its dependency layers, where layer 0 imports no other package and each layer
@@ -155,7 +159,8 @@ packages. Each row gives:
 [source index](source-index.md) and keeps
 it beside the index, so asking for a page reads one file. When the index
 changes and the map was built from an earlier one, the page says so. With no
-map, the answer names `variance index` instead of printing an empty map.
+map, the answer names `variance index`, or says why `variance index` built
+none, instead of printing an empty map.
 
 ## Ask the record, or produce a new one
 

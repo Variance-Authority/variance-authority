@@ -16,6 +16,7 @@ import { sourceIndexPath } from './source-index.js';
 
 export type {
   NativeOrientMapAnswer as CodeMapAnswer,
+  NativeOrientMapMade as CodeMapMade,
   NativeOrientMapPage as CodeMapPage,
   NativeOrientMapPrepared as CodeMapPrepared,
   NativeOrientMapRow as CodeMapRow,
@@ -33,20 +34,20 @@ function entry<Name extends 'prepareOrientMap' | 'orientMapPage'>(name: Name) {
   return call.bind(scanner) as NonNullable<typeof call>;
 }
 
-/** The code map folded from the index at `index`; absent when no manifest names a package. */
+/** The code map prepared from the index at `index`; absent when there is no index. */
 export interface PreparedCodeMap {
   readonly index: string;
-  readonly map?: NativeOrientMapPrepared;
+  readonly prepared?: NativeOrientMapPrepared;
 }
 
 /**
  * Fold the checkout's source index into its code map and keep it beside the
- * index. A checkout where no manifest names a package keeps no map, and one
+ * index. A checkout with no package to fold keeps no map, says why, and a map
  * left from before is removed rather than read as this index's.
  */
 export function prepareCodeMap(root: string, index: string = sourceIndexPath(root)): PreparedCodeMap {
-  const map = entry('prepareOrientMap')(root, index);
-  return map === null ? { index } : { index, map };
+  const prepared = entry('prepareOrientMap')(root, index);
+  return prepared === null ? { index } : { index, prepared };
 }
 
 /** One page of the code map, and the index it was folded from. */

@@ -109,15 +109,16 @@ export const orient: Tool<unknown> = {
 /** One page of the code map, or why there is none to print. */
 function mapPage(root: string, area: string | undefined): string {
   const { index, answer } = codeMapPage(root, area);
+  const files = 'With files in hand, `files` reads the graph around them.';
   if (answer === undefined) {
-    return (
-      `No code map is kept beside the source index at ${index}. \`variance index\` folds one ` +
-      'when a manifest in the checkout names a package. With files in hand, `files` reads the graph around them.'
-    );
+    return `No code map is kept beside the source index at ${index}; \`variance index\` folds one. ${files}`;
   }
-  const page = answer.page;
+  const { layers, page } = answer;
+  if (layers === undefined || layers === null) {
+    return `The source index at ${index} was folded into no code map, because ${answer.unmade ?? 'there is no package to fold'}. ${files}`;
+  }
   if (page === undefined || page === null) {
     throw new Error(`the code map has no area \`${area ?? ''}\`; the top page, asked with no \`area\`, lists the areas`);
   }
-  return formatCodeMapPage({ ...answer, page }, basename(root));
+  return formatCodeMapPage({ current: answer.current, layers, page }, basename(root));
 }

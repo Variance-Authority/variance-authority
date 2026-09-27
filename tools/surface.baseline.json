@@ -2376,6 +2376,7 @@
       ".": {
         "CasesEntered": "interface",
         "CodeMapAnswer": "interface",
+        "CodeMapMade": "interface",
         "CodeMapPage": "interface",
         "CodeMapPrepared": "interface",
         "CodeMapRead": "interface",

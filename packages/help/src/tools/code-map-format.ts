@@ -9,8 +9,8 @@
  * One line heads the page — what it covers, the dependency layers it spans and
  * how many areas it splits into — and one line follows per area: its size, the
  * layers its packages sit in, the packages most of what comes into it lands on,
- * and the areas most of what it imports lands in. An area with no areas inside
- * it lists its packages instead.
+ * and the areas most of what it imports lands in. The packages no area took
+ * are listed after the rows; an area with no areas inside it lists them all.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -54,10 +54,16 @@ function row(area: CodeMapRow): string {
 }
 
 /** The page as `variance ask orient` prints it; `repository` names the top page. */
-export function formatCodeMapPage(answer: CodeMapAnswer & { readonly page: CodeMapPage }, repository: string): string {
+export function formatCodeMapPage(
+  answer: Pick<CodeMapAnswer, 'current'> & { readonly layers: number; readonly page: CodeMapPage },
+  repository: string,
+): string {
   const { page } = answer;
   const lines = [heading(page, repository, answer.layers), ...page.rows.map(row)];
-  if (page.rows.length === 0) lines.push(`  packages: ${page.list.map(unscoped).join(', ')}`);
+  // Packages no area took follow the rows, so every package is on some page.
+  if (page.list.length > 0) {
+    lines.push(`  ${page.rows.length === 0 ? 'packages' : 'in no area above'}: ${page.list.map(unscoped).join(', ')}`);
+  }
   if (!answer.current) {
     lines.push('', 'This map was folded from an earlier source index; `variance index` folds it again.');
   }

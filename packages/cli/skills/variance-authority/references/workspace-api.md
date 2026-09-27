@@ -339,10 +339,13 @@ calls, each under the operating system's command-line limit.
 
 Ask it with no files when you hold nothing yet. It prints the code map that
 `variance index` builds beside the source index. The top page puts every package
-the manifests name into a few areas. A package joins the packages that sit in
-the same directory, share words in their names, and import each other. An area
-larger than a third of its parent is split again, and `--area <id>` prints that
-area's page, down to a leaf that lists its packages. Each row gives the
+the manifests name into a few areas, apart from a manifest under a directory the
+source index skips, such as `node_modules` or `dist`. A package joins the
+packages that sit in the same directory, share words in their names, and import
+each other. An area of more than twelve packages is split again, into at most
+twelve areas of at least three packages, none starting larger than a third of
+it. A package no area takes is listed after the rows, and `--area <id>` prints
+that area's page, down to a leaf that lists its packages. Each row gives the
 package and source-file counts, the dependency layers it spans (layer 0 imports
 no other package), its front (the packages the rest of the repository imports
 most from it, with their share), and the areas it imports from, with their

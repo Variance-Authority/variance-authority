@@ -19,7 +19,7 @@ use regex::Regex;
 
 use crate::compact::Layer;
 use crate::package_graph::{fold, join_parses, Crossing};
-use crate::package_owners::{owners_where, parent, NO_OWNER};
+use crate::package_owners::{owners, parent, NO_OWNER};
 
 /// One package: a manifest with a name. A second manifest declaring a name
 /// already taken keeps its place, not its name: `name (directory)`.
@@ -44,12 +44,14 @@ pub(crate) struct Read {
     pub tested: Vec<u32>,
     /// The names each package is taken for most, at most four, commonest first.
     pub head: Vec<Vec<String>>,
-    /// Counted files whose parse could not be joined: they add no edge.
+    /// Counted files whose requests could not be read against their parse:
+    /// their edges are on the map, from the targets the index resolved, but
+    /// not the names they take, and a request the index left unresolved is
+    /// not answered by the bare specifier it was written as.
     pub unread: u32,
+    /// Files the folded chain holds a record for.
+    pub records: u32,
 }
-
-/// Manifests under these directories are fixtures and copies, not packages.
-const NOT_PACKAGES: &str = r"(^|/)(node_modules|__fixtures__|fixtures|lib|build|dist|test-cases)/";
 
 /// What a path says of a file: a test, its fixtures, or the harness's config.
 const TEST_BY_PATH: &str = r"(?i)\.(test|spec|stories|story)\.[cm]?[jt]sx?$|(^|/)(__tests?__|__mocks__|__fixtures?__|__jest__|__stories__|\.?storybook|fixtures|test|tests|test_helpers?|e2e|test-cases|[^/]*\.test)/|(^|/)[^/]*\.config\.[cm]?[jt]s$|(^|/)(vitest|jest|karma|playwright)[._-][^/]*$|(^|/)(setup[._-]?tests?|tests?[._-]?setup)\.[cm]?[jt]sx?$";
@@ -70,6 +72,8 @@ struct File<'a> {
     path: &'a str,
     owner: u32,
     requests: Vec<Request<'a>>,
+    /// Whether the requests were read against the file's parse.
+    parsed: bool,
 }
 
 fn code(path: &str) -> bool {
@@ -88,10 +92,21 @@ fn package_of(value: &str) -> &str {
 }
 
 /// Every file's requests, packages and uses, read from the folded chain.
-pub(crate) fn read(root: &str, layers: &[Layer], paths: &[String], made: &HashSet<String>) -> Read {
-    let not_packages = Regex::new(NOT_PACKAGES).expect("the pattern is fixed");
+/// `listed` is what git tracks; without it the files are the ones the index
+/// holds, and the manifests the ones beside them.
+pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made: &HashSet<String>) -> Read {
     let by_path = Regex::new(TEST_BY_PATH).expect("the pattern is fixed");
-    let owners = owners_where(root, paths, |manifest| !not_packages.is_match(manifest));
+    let folded = fold(layers);
+    let records = folded.len() as u32;
+    let beside_them;
+    let paths = match listed {
+        Some(paths) => paths,
+        None => {
+            beside_them = beside(root, folded.keys().copied());
+            &beside_them[..]
+        }
+    };
+    let owners = owners(root, paths);
 
     // The shallowest manifest keeps a name two declare.
     let mut order: Vec<u32> = (0..owners.packages.len() as u32).collect();
@@ -142,7 +157,6 @@ pub(crate) fn read(root: &str, layers: &[Layer], paths: &[String], made: &HashSe
     };
 
     // A counted file is tracked, not output, and owned.
-    let folded = fold(layers);
     let mut crossings: Vec<Crossing> = folded
         .into_iter()
         .filter(|(path, _)| !made.contains(*path))
@@ -154,7 +168,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], paths: &[String], made: &HashSe
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
     join_parses(layers, &mut crossings);
     let files: Vec<File> = crossings.par_iter().map(|crossing| requests(layers, crossing)).collect();
-    let unread = crossings.iter().filter(|crossing| crossing.parse.is_none()).count() as u32;
+    let unread = files.iter().filter(|file| !file.parsed).count() as u32;
     let counted: HashMap<&str, usize> = files.iter().enumerate().map(|(at, file)| (file.path, at)).collect();
 
     let test = tests(&files, &counted, &by_path);
@@ -207,7 +221,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], paths: &[String], made: &HashSe
     }
     let mut edges: Vec<(u32, u32, u32)> = edges.into_iter().map(|((a, b), files)| (a, b, files)).collect();
     edges.sort_unstable();
-    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread }
+    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records }
 }
 
 /// A package's head: the names taken more than an equal share would give
@@ -278,9 +292,9 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
     } else {
         Vec::new()
     };
-    let file = |requests| File { path: crossing.file, owner: crossing.owner, requests };
+    let file = |requests, parsed| File { path: crossing.file, owner: crossing.owner, requests, parsed };
     let unparsed = |targets: Vec<Option<&'a str>>| {
-        file(targets.into_iter().map(|to| Request { to, kind: "", value: None, names: Vec::new() }).collect())
+        file(targets.into_iter().map(|to| Request { to, kind: "", value: None, names: Vec::new() }).collect(), false)
     };
     let Some((parse_layer, parse_row)) = crossing.parse else { return unparsed(targets) };
     let (text, parses) = (&layers[parse_layer].stored, &layers[parse_layer].parses);
@@ -312,7 +326,33 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
             Request { to, kind, value: Some(text.text(parses.request_value.at(request))), names }
         })
         .collect();
-    file(requests)
+    file(requests, true)
+}
+
+/// The files the index holds, and every `package.json` in a directory above
+/// one of them, in code-unit order: what git would have listed of them.
+fn beside<'a>(root: &str, indexed: impl Iterator<Item = &'a str>) -> Vec<String> {
+    let mut paths: Vec<String> = Vec::new();
+    let mut directories: HashSet<&str> = HashSet::new();
+    for path in indexed {
+        paths.push(path.to_owned());
+        let mut directory = parent(path);
+        while directories.insert(directory) {
+            if directory.is_empty() {
+                break;
+            }
+            directory = parent(directory);
+        }
+    }
+    let manifests: Vec<String> = directories
+        .par_iter()
+        .map(|directory| if directory.is_empty() { "package.json".to_owned() } else { format!("{directory}/package.json") })
+        .filter(|manifest| std::path::Path::new(root).join(manifest).is_file())
+        .collect();
+    paths.extend(manifests);
+    paths.sort_unstable_by(|left, right| crate::order::code_unit(left, right));
+    paths.dedup();
+    paths
 }
 
 #[cfg(test)]

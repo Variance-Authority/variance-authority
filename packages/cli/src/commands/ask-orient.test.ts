@@ -113,10 +113,22 @@ describe('variance ask orient', () => {
       code: EXIT_CLEAN,
       err: '',
       out:
-        `No code map is kept beside the source index at ${sourceIndexPath(root)}. ` +
-        '`variance index` folds one when a manifest in the checkout names a package. ' +
+        `No code map is kept beside the source index at ${sourceIndexPath(root)}; \`variance index\` folds one. ` +
         'With files in hand, `files` reads the graph around them.\n',
     });
+  });
+
+  it('says why `variance index` folded no map, there and when the map is asked for', async () => {
+    const root = checkout();
+    writeFileSync(join(root, 'packages/cart/package.json'), '{}');
+    writeFileSync(join(root, 'packages/checkout/package.json'), '{}');
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: '@t/shop', private: true }));
+
+    expect((await run(['index'])).out.split('\n')[1]).toBe("code map: none, because the root's is the only named manifest");
+    expect((await run(['ask', 'orient'])).out).toBe(
+      `The source index at ${sourceIndexPath(root)} was folded into no code map, because the root's is the only named manifest. ` +
+        'With files in hand, `files` reads the graph around them.\n',
+    );
   });
 
   it('without files, prints the code map `variance index` built, and one area of it with --area', async () => {
@@ -149,17 +161,22 @@ describe('variance ask orient', () => {
     });
   });
 
-  it('lists the files off the disk where git cannot, and says so', async () => {
+  it('says why a checkout git cannot list is folded into no map', async () => {
     families(false);
 
     const indexed = await run(['index', '--no-git']);
 
     expect(indexed.code).toBe(EXIT_CLEAN);
-    expect(indexed.out.split('\n')[1]).toMatch(
-      /^code map: 20 packages in .*; git could not list the checkout, so its files were listed off the disk$/,
+    expect(indexed.out.split('\n')[1]).toBe(
+      'code map: none, because the source index holds no file records; ' +
+        'git could not list the checkout, so its files are the ones the index holds and its manifests the ones found beside them',
     );
-    expect((await run(['ask', 'orient'])).out).toMatch(/^# va-orient-map-\w+: 20 packages in /);
   });
+
+  it.todo(
+    'a checkout git cannot list is folded into a code map from the files its index holds and the manifests beside them — ' +
+      'needs `variance index` to keep a file record for each file it parses outside git, which it keeps only as parses',
+  );
 
   it('refuses an area the map does not have, and an area asked together with files', async () => {
     families();

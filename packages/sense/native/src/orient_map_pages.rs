@@ -52,7 +52,8 @@ pub(crate) struct Page {
     pub high: u32,
     pub alone: u32,
     pub rows: Vec<Row>,
-    /// The packages of an area with no areas inside it.
+    /// The packages no area inside this one took: all of them in an area with
+    /// no areas inside it.
     pub list: Vec<String>,
 }
 
@@ -292,14 +293,16 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
     };
     areas
         .iter()
-        .map(|focus| {
+        .enumerate()
+        .map(|(here, focus)| {
             // The other end of a connection as this page sees it: one of the
-            // focus's areas, else the top-level area holding it.
+            // focus's areas, the focus itself for a package no area of it
+            // took, else the top-level area holding it.
             let view: HashSet<usize> = focus.kids.iter().chain(&areas[0].kids).copied().collect();
             let area_at = |package: usize| {
                 let mut at = deepest[package];
                 while let Some(x) = at {
-                    if view.contains(&x) {
+                    if x == here || view.contains(&x) {
                         return Some(x);
                     }
                     at = parent[x];
@@ -327,7 +330,10 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
                 }
                 if let (Some(&i), Some(sb)) = (sa.and_then(|x| kid.get(&x)), sb) {
                     outgoing[i] += count;
-                    *roads[i].entry(sb).or_default() += count;
+                    // The page's own area holds the row; it is not a road.
+                    if sb != here {
+                        *roads[i].entry(sb).or_default() += count;
+                    }
                 }
             }
             let rows = focus
@@ -370,11 +376,9 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
                 })
                 .collect();
             let (low, high, _) = span(focus.node);
-            let list = if focus.kids.is_empty() {
-                focus.node.alone.iter().map(|&p| read.packages[package(p)].name.clone()).collect()
-            } else {
-                Vec::new()
-            };
+            // Packages no area of the page took are listed after its rows, so
+            // every package is on some page.
+            let list = focus.node.alone.iter().map(|&p| read.packages[package(p)].name.clone()).collect();
             Page {
                 id: focus.id.clone(),
                 name: focus.name.clone(),

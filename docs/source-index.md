@@ -35,7 +35,11 @@ It scans the whole checkout, reuses the record of every file whose bytes are
 unchanged, and appends what changed as a new layer. It prints two lines. The
 first says how many files the index holds, and how many it read again. The
 second describes the code map it builds from the index and writes beside it, as
-`source-index.bin.map`, for `variance ask orient` to read:
+`source-index.bin.map`, for `variance ask orient` to read. When the index and
+the manifests are unchanged, the map it keeps stands and nothing is folded
+again. When there is nothing to fold, the line says why, as
+`code map: none, because no manifest names a package`, and the index is still
+published:
 
 ```text
 source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin

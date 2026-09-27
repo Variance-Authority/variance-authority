@@ -65,18 +65,14 @@ pub(crate) fn parent(path: &str) -> &str {
 }
 
 /// Every path in `paths` given its package, reading each tracked
-/// `package.json` under `root` once.
+/// `package.json` under `root` once. A manifest under a directory the index
+/// scan declines even where git lists it (`crate::path::excluded_when_listed`)
+/// is a copy or an output, not a package, and names nothing.
 pub(crate) fn owners<'a>(root: &str, paths: &'a [String]) -> Owners<'a> {
-    owners_where(root, paths, |_| true)
-}
-
-/// [`owners`], counting only the manifests `keep` accepts: the rest name
-/// nothing, and their directories defer to the parent's answer.
-pub(crate) fn owners_where<'a>(root: &str, paths: &'a [String], keep: impl Fn(&str) -> bool + Sync) -> Owners<'a> {
     let manifests: Vec<&str> = paths
         .iter()
         .map(String::as_str)
-        .filter(|path| path.rsplit('/').next() == Some("package.json") && keep(path))
+        .filter(|path| path.rsplit('/').next() == Some("package.json") && is_package(path))
         .collect();
     // A manifest that cannot be read or does not parse names nothing, which is
     // what `ownership` makes of it too: the directory defers to its parent.
@@ -105,6 +101,12 @@ pub(crate) fn owners_where<'a>(root: &str, paths: &'a [String], keep: impl Fn(&s
         files.insert(path.as_str(), (owner, at as u32));
     }
     Owners { packages: named, files }
+}
+
+/// Whether a `package.json` at `path` may name a package: no directory above
+/// it is one the index scan declines.
+pub(crate) fn is_package(path: &str) -> bool {
+    !parent(path).split('/').any(crate::path::excluded_when_listed)
 }
 
 /// A directory's package: its own manifest's, or its parent's answer.

@@ -27,14 +27,28 @@ export interface IndexRequest {
 
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const update = await updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {});
-  return `${describe(update)}\n${mapped(prepareCodeMap(request.cwd, update.path))}\n`;
+  return `${describe(update)}\n${codeMap(request.cwd, update.path)}\n`;
 }
 
-function mapped({ map }: PreparedCodeMap): string {
-  if (map === undefined) return 'code map: none, because no manifest in the checkout names a package';
-  const unread = map.unread === 0 ? '' : `; ${map.unread} files have no parse in the index, so their imports are not on it`;
-  const walked = map.walked ? '; git could not list the checkout, so its files were listed off the disk' : '';
-  return `code map: ${map.packages} packages in ${map.areas} areas, ${map.levels} deep, over ${map.layers} dependency layers${unread}${walked}`;
+/** The map is prepared after the index is published, so a map that fails leaves the index standing and says why. */
+function codeMap(cwd: string, index: string): string {
+  try {
+    return mapped(prepareCodeMap(cwd, index));
+  } catch (error) {
+    return `code map: not prepared: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+function mapped({ prepared }: PreparedCodeMap): string {
+  if (prepared === undefined) return 'code map: not prepared: there is no source index';
+  const notes = [
+    prepared.walked ? 'git could not list the checkout, so its files are the ones the index holds and its manifests the ones found beside them' : '',
+    prepared.unmarked ? 'git could not say which files are generated or vendored, so none were set aside' : '',
+  ].filter((note) => note !== '');
+  const map = prepared.map;
+  if (map === undefined || map === null) return [`code map: none, because ${prepared.unmade ?? 'there is no package to fold'}`, ...notes].join('; ');
+  const unread = map.unread === 0 ? [] : [`${map.unread} files could not be read against their parse, so the names they take are not on it`];
+  return [`code map: ${map.packages} packages in ${map.areas} areas, ${map.levels} deep, over ${map.layers} dependency layers`, ...unread, ...notes].join('; ');
 }
 
 function describe(update: SourceUpdate): string {

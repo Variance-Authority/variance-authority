@@ -1222,7 +1222,11 @@ changed, and appends them as a new layer, so one run costs the size of your diff
 and not the size of your repository. The readers answer from what it last
 published, so run it after the checkout changes and before them. The second
 line describes the code map it writes beside the index, which
-`variance ask orient` prints a page at a time.
+`variance ask orient` prints a page at a time. An unchanged index and unchanged
+manifests keep the map that is there. A checkout with no packages to put on it
+prints `code map: none, because …` with the reason, and a map that could not be
+written prints `code map: not prepared: …`; in both cases the index is
+published.
 
 In CI, run it as its own step after you restore the cache. A reader that finds
 nothing published there exits `2` and names the missing step, because an index
