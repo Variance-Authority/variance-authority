@@ -90,13 +90,13 @@ export interface NativeJourneysFlow {
   readonly exampleName: string;
 }
 
-/** The package flows through the asked file's package: the packages each case's placed calls pass through, in order. */
+/** The package flows through the asked file's package: each case's test file's package, then the packages its placed calls reach, in order. */
 export interface NativeJourneysFlows {
   /** The asked file's package; absent when no named manifest sits above it. */
   readonly package?: string | null;
   /** Cases that entered a function of the package, as the recording has it. */
   readonly through: number;
-  /** Cases the walk placed a call into the package for. */
+  /** Cases whose package flow passes through the package, the package their test file sits in counted. */
   readonly placed: number;
   /** Distinct package flows among those. */
   readonly distinct: number;

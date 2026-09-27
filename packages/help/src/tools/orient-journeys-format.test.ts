@@ -100,8 +100,8 @@ describe('the journeys around some files, said', () => {
         '      3 more callers.',
         '    Calls into other files:',
         '      12  priceOf → taxOf  packages/tax/src/rate.ts:1  inferred, by name',
-        '    Package flows: 7 of 20 cases (35%) entered @t/cart, as recorded; the walk placed calls into it for 6, along 2 package flows, ' +
-          'the order its calls pass through packages; the 2 most taken, with an example case:',
+        '    Package flows: 7 of 20 cases (35%) entered @t/cart, as recorded; 6 pass through it, a test file\'s own package counted, ' +
+          'along 2 package flows; the 2 most taken, with an example case:',
         '      5  @t/checkout → @t/cart  (test/total.test.ts > adds tax)',
         '      2  @t/cart → no package  (test/price.test.ts > rounds)',
         '  packages/cart/src/price.ts:6  in priceOf (lines 3–9), which 12 cases ran; the line is in a branch (lines 6–7) that 3 cases ran. ' +

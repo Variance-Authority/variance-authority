@@ -86,11 +86,11 @@ function flows(flows: JourneysFlows, cases: number, indent: string): readonly st
   if (flows.through === 0) return [`${indent}No recorded case entered ${party}.`];
   const share = cases === 0 ? '' : ` (${percent(flows.through, cases)})`;
   const entered = `${indent}Package flows: ${flows.through} of ${plural(cases, 'case')}${share} entered ${party}, as recorded`;
-  if (flows.placed === 0 || flows.top.length === 0) return [`${entered}; the walk placed no call into it.`];
+  if (flows.placed === 0 || flows.top.length === 0) return [`${entered}; no package flow passes through it.`];
   const wide = Math.max(...flows.top.map((flow) => String(flow.cases).length));
   return [
-    `${entered}; the walk placed calls into it for ${flows.placed}, along ${plural(flows.distinct, 'package flow')}, ` +
-      `the order its calls pass through packages; the ${flows.top.length === 1 ? 'one' : `${flows.top.length} most`} taken, with an example case:`,
+    `${entered}; ${flows.placed} pass through it, a test file's own package counted, along ${plural(flows.distinct, 'package flow')}; ` +
+      `the ${flows.top.length === 1 ? 'one' : `${flows.top.length} most`} taken, with an example case:`,
     ...flows.top.map((flow) => {
       const path = flow.packages.map((one) => one ?? 'no package').join(' → ');
       return `${indent}  ${String(flow.cases).padStart(wide)}  ${path}  (${flow.exampleFile} > ${flow.exampleName})`;

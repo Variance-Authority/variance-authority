@@ -72,7 +72,8 @@ pub struct JourneysFlows {
     pub package: Option<String>,
     /// Cases that entered a function of the package, as the recording has it.
     pub through: u32,
-    /// Of all cases, the ones the walk placed a call into the package for.
+    /// Of all cases, the ones whose package flow passes through the package,
+    /// the package their test file sits in counted.
     pub placed: u32,
     /// Distinct package orders among those.
     pub distinct: u32,
