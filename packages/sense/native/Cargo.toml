@@ -60,6 +60,15 @@ tree-sitter-rust = { version = "0.24", optional = true }
 tree-sitter-swift = { version = "0.7", optional = true }
 zstd = "0.13"
 
+# oxc_resolver deep-copies a tsconfig's `paths` into every config that extends
+# it and normalises the copy once per config, so a monorepo whose base declares
+# thousands of aliases over a thousand package configs held gigabytes of the
+# same map during a cold scan. The vendored copy shares the map and its built
+# form; resolution answers are the upstream ones.
+# TODO: drop the patch once upstream shares an inherited `paths` map.
+[patch.crates-io]
+oxc_resolver = { path = "vendor/oxc_resolver" }
+
 [build-dependencies]
 napi-build = "2"
 
