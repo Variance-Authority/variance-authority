@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -58,6 +58,46 @@ function checkout(): string {
   return root;
 }
 
+/**
+ * Four families of five packages, each member importing the members before it,
+ * and the first shop package importing the first tool: enough packages for the
+ * map to split the checkout into areas.
+ */
+function families(tracked = true): string {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-orient-map-')));
+  const write = (path: string, text: string): void => {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), text);
+  };
+  write('.gitignore', 'node_modules\n');
+  write('package.json', JSON.stringify({ private: true, workspaces: ['packages/*/*'] }));
+  for (const family of ['admin', 'data', 'shop', 'tools']) {
+    for (let member = 0; member < 5; member += 1) {
+      const name = `${family}-${member}`;
+      const takes = Array.from({ length: member }, (_, earlier) => `${family}-${earlier}`);
+      if (name === 'shop-0') takes.push('tools-0');
+      const dependencies = Object.fromEntries(takes.map((taken) => [`@t/${taken}`, '*']));
+      write(`packages/${family}/${name}/package.json`, JSON.stringify({ name: `@t/${name}`, exports: { '.': './src/index.ts' }, dependencies }));
+      const imports = takes.map((taken) => `import { ${taken.replace('-', '')} } from '@t/${taken}';\n`).join('');
+      const used = takes.map((taken) => taken.replace('-', '')).join(', ');
+      write(`packages/${family}/${name}/src/index.ts`, `${imports}export const ${name.replace('-', '')} = [${used}];\n`);
+      mkdirSync(join(root, 'node_modules/@t'), { recursive: true });
+      symlinkSync(`../../packages/${family}/${name}`, join(root, `node_modules/@t/${name}`));
+    }
+  }
+  process.chdir(root);
+  if (!tracked) return root;
+  const git = (args: readonly string[]): void => {
+    execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+  };
+  git(['init', '--quiet', '--initial-branch', 'main']);
+  git(['config', 'user.email', 'fixture@example.test']);
+  git(['config', 'user.name', 'Fixture']);
+  git(['add', '-A']);
+  git(['commit', '--quiet', '-m', 'the checkout']);
+  return root;
+}
+
 async function run(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
   let out = '';
   let err = '';
@@ -66,14 +106,72 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 }
 
 describe('variance ask orient', () => {
-  it('refuses a call without files, and names the questions that find them', async () => {
-    checkout();
+  it('without files and before `variance index`, says no code map is kept and names the command that builds one', async () => {
+    const root = checkout();
 
-    const refused = await run(['ask', 'orient']);
+    expect(await run(['ask', 'orient'])).toEqual({
+      code: EXIT_CLEAN,
+      err: '',
+      out:
+        `No code map is kept beside the source index at ${sourceIndexPath(root)}. ` +
+        '`variance index` folds one when a manifest in the checkout names a package. ' +
+        'With files in hand, `files` reads the graph around them.\n',
+    });
+  });
 
-    expect(refused.code).toBe(EXIT_OPERATOR);
-    expect(refused.out).toBe('');
-    expect(refused.err).toContain('`variance ask orient` needs --files. It reads the graph around files you already have.');
+  it('without files, prints the code map `variance index` built, and one area of it with --area', async () => {
+    const root = families();
+
+    const indexed = await run(['index']);
+    expect(indexed.code).toBe(EXIT_CLEAN);
+    expect(indexed.out.split('\n')[1]).toBe('code map: 20 packages in 4 areas, 1 deep, over 6 dependency layers');
+
+    expect(await run(['ask', 'orient'])).toEqual({
+      code: EXIT_CLEAN,
+      err: '',
+      out: [
+        `# ${basename(root)}: 20 packages in 6 dependency layers (0 takes nothing), 20 source files, 4 areas`,
+        '1 packages/admin/ admin · 5 pkg, 5 files · layers 0–4 (median 2)',
+        '2 packages/data/ data · 5 pkg, 5 files · layers 0–4 (median 2)',
+        '3 packages/shop/ shop · 5 pkg, 5 files · layers 1–5 (median 3) · uses 4 100%',
+        '4 packages/tools/ tools · 5 pkg, 5 files · layers 0–4 (median 2) · front: tools-0 100%',
+        '',
+      ].join('\n'),
+    });
+    expect(await run(['ask', 'orient', '--area', '3'])).toEqual({
+      code: EXIT_CLEAN,
+      err: '',
+      out: [
+        '# 3 packages/shop/ shop: 5 packages in dependency layers 1–5 of 6, 5 source files, 0 areas',
+        '  packages: shop-0, shop-1, shop-2, shop-3, shop-4',
+        '',
+      ].join('\n'),
+    });
+  });
+
+  it('lists the files off the disk where git cannot, and says so', async () => {
+    families(false);
+
+    const indexed = await run(['index', '--no-git']);
+
+    expect(indexed.code).toBe(EXIT_CLEAN);
+    expect(indexed.out.split('\n')[1]).toMatch(
+      /^code map: 20 packages in .*; git could not list the checkout, so its files were listed off the disk$/,
+    );
+    expect((await run(['ask', 'orient'])).out).toMatch(/^# va-orient-map-\w+: 20 packages in /);
+  });
+
+  it('refuses an area the map does not have, and an area asked together with files', async () => {
+    families();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const unknown = await run(['ask', 'orient', '--area', '9']);
+    expect(unknown.code).toBe(EXIT_OPERATOR);
+    expect(unknown.err).toContain('the code map has no area `9`; the top page, asked with no `area`, lists the areas');
+
+    const both = await run(['ask', 'orient', '--area', '1', '--files', 'packages/shop/shop-0/src/index.ts']);
+    expect(both.code).toBe(EXIT_OPERATOR);
+    expect(both.out).toBe('');
   });
 
   it('answers with the files, the names crossing each package, the absent recording, and what to ask next', async () => {

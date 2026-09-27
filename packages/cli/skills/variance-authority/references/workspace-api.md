@@ -2,8 +2,9 @@
 
 Nine questions read a workspace's manifests, source and test recording. Seven
 answer what it publishes, and each of their answers names the UTC time of the
-workspace generation it used. `orient` starts from files you already have and
-says what the code around them is. `slowest-tests` reads the latest recorded
+workspace generation it used. `orient` with no files prints the code map, the
+repository's packages in areas; with files you already have, it says what the
+code around them is. `slowest-tests` reads the latest recorded
 test run and lists the files and cases it spent longest in.
 They describe source, not a build or a generated site, and they need no run and
 no config.
@@ -334,9 +335,37 @@ A start point is required. Without one, the question is `rg <pattern>`, and the
 refusal says so. A closure of thousands of files is passed to `rg` in several
 calls, each under the operating system's command-line limit.
 
-### 7. `orient --files <path>[,...]`
+### 7. `orient [--area <id>]` and `orient --files <path>[,...]`
 
-Ask it when you already have files, from a stack trace, a ticket, your editor,
+Ask it with no files when you hold nothing yet. It prints the code map that
+`variance index` builds beside the source index. The top page puts every package
+the manifests name into a few areas. A package joins the packages that sit in
+the same directory, share words in their names, and import each other. An area
+larger than a third of its parent is split again, and `--area <id>` prints that
+area's page, down to a leaf that lists its packages. Each row gives the
+package and source-file counts, the dependency layers it spans (layer 0 imports
+no other package), its front (the packages the rest of the repository imports
+most from it, with their share), and the areas it imports from, with their
+share of its imports.
+
+```
+$ variance ask orient
+# variance-authority: 59 packages in 8 dependency layers (0 takes nothing), 1.1k source files, 8 areas
+1 example · 16 pkg, 153 files · layers 1–3 (median 3) · front: playwright 33%, eyes 24% (+3) · uses 2 100%
+2 around core, sense · 11 pkg, 528 files · layers 0–6 (median 2) · front: core 73% (+4) · uses 5 68%, 6 11%
+…
+$ variance ask orient --area 1
+# 1 example: 16 packages in dependency layers 1–3 of 8, 153 source files, 3 areas
+1.1 example case · 6 pkg, 78 files · layers 2–3 (median 3) · front: playwright 100% · uses 2 71%, 1.2 18%
+…
+```
+
+With no map beside the index, the answer says so and names `variance index`.
+When the index has changed since the map was built, the page says that too.
+`--area` and `--files` are not asked together.
+
+
+Ask it with `--files` when you already have files, from a stack trace, a ticket, your editor,
 or `search`, `symbol` and `grep`, which find them. It finds nothing itself and
 reads no file's text. Each file is answered in the order you gave it: the
 package it is in, or that the source index does not hold it. For each of those

@@ -102,6 +102,8 @@ export interface AskRequest {
   readonly state?: string;
   readonly file?: string;
   readonly files?: readonly string[];
+  /** `--area <id>`: the page of the code map `orient` prints. */
+  readonly area?: string;
   /** `--name <name>`, `--package <name>`, `--subpath <subpath>`: what the source questions take. */
   readonly name?: string;
   readonly package?: string;
@@ -148,7 +150,7 @@ export interface AskRequest {
 /** The flags every question is spelled with, whichever subject answers it. */
 type Flagged = Pick<
   AskRequest,
-  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'file' | 'files'
+  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'file' | 'files' | 'area'
   | 'name' | 'package' | 'subpath' | 'query'
   | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
   | 'from' | 'to' | 'limit'
@@ -392,6 +394,7 @@ function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     state: request.state,
     file: request.file,
     files: request.files,
+    area: request.area,
     name: request.name,
     package: request.package,
     subpath: request.subpath,

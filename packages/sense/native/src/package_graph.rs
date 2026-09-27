@@ -104,7 +104,7 @@ pub fn orient_packages(root: String, index: String, files: Vec<String>, rows: u3
 }
 
 /// A folded record: its layer and row.
-type At = (usize, usize);
+pub(crate) type At = (usize, usize);
 
 /// One folded record as the answer sees it.
 struct Record<'a> {
@@ -119,12 +119,12 @@ struct Record<'a> {
 
 /// One record the answer reads: it crosses into or out of an asked package, or
 /// into a package an asked one takes from.
-struct Crossing<'a> {
-    file: &'a str,
-    owner: u32,
-    others: Vec<u32>,
-    at: At,
-    parse: Option<At>,
+pub(crate) struct Crossing<'a> {
+    pub file: &'a str,
+    pub owner: u32,
+    pub others: Vec<u32>,
+    pub at: At,
+    pub parse: Option<At>,
 }
 
 /// The packages an answer is about: the asked ones, and with them every
@@ -190,17 +190,7 @@ pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[S
         }
     }
 
-    // The fold is `compacted`'s: oldest layer first, its deletes, then its puts.
-    let mut folded: HashMap<&str, At> = HashMap::new();
-    for (at, layer) in layers.iter().enumerate() {
-        let (stored, records) = (&layer.stored, &layer.records);
-        for row in 0..records.deleted.len() {
-            folded.remove(stored.text(records.deleted.at(row)));
-        }
-        for row in 0..records.file.len() {
-            folded.insert(stored.text(records.file.at(row)), (at, row));
-        }
-    }
+    let folded = fold(&layers);
     let indexed: Vec<bool> = files.iter().map(|file| folded.contains_key(file.as_str())).collect();
     let folded: Vec<(&str, At)> = folded.into_iter().collect();
 
@@ -301,6 +291,22 @@ pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[S
     })
 }
 
+/// Every file's newest record. The fold is `compacted`'s: oldest layer first,
+/// its deletes, then its puts.
+pub(crate) fn fold<'a>(layers: &'a [Layer<'a>]) -> HashMap<&'a str, At> {
+    let mut folded: HashMap<&str, At> = HashMap::new();
+    for (at, layer) in layers.iter().enumerate() {
+        let (stored, records) = (&layer.stored, &layer.records);
+        for row in 0..records.deleted.len() {
+            folded.remove(stored.text(records.deleted.at(row)));
+        }
+        for row in 0..records.file.len() {
+            folded.insert(stored.text(records.file.at(row)), (at, row));
+        }
+    }
+    folded
+}
+
 /// Whether the record is stale, and which other packages its targets land in.
 fn record<'a>(layers: &'a [Layer<'a>], owners: &Owners, listed: &Listed, file: &'a str, at: At) -> Record<'a> {
     let (layer, row) = at;
@@ -327,7 +333,7 @@ fn record<'a>(layers: &'a [Layer<'a>], owners: &Owners, listed: &Listed, file: &
 }
 
 /// `git:<hex>` names exactly this object.
-fn names_object(digest: &str, oid: &Oid) -> bool {
+pub(crate) fn names_object(digest: &str, oid: &Oid) -> bool {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let Some(hex) = digest.strip_prefix("git:") else { return false };
     hex.len() == 40
@@ -341,7 +347,7 @@ fn names_object(digest: &str, oid: &Oid) -> bool {
 /// record's digest and its file's way (`keyFor` in `files.ts`), and the newest
 /// layer that puts or deletes the key decides. Only the wanted keys are looked
 /// at, so a question about three packages reads three packages' parses.
-fn join_parses(layers: &[Layer], crossings: &mut [Crossing]) {
+pub(crate) fn join_parses(layers: &[Layer], crossings: &mut [Crossing]) {
     let ways: Vec<String> = crossings.iter().map(|crossing| crate::index::way(crossing.file)).collect();
     let mut wanted: HashMap<&str, Vec<usize>> = HashMap::new();
     for (at, crossing) in crossings.iter().enumerate() {

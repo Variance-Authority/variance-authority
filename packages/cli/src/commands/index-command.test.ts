@@ -60,23 +60,23 @@ describe('variance index', () => {
 
     expect(await run(['index'])).toEqual({
       code: EXIT_CLEAN,
-      out: `source index built: 2 files, at ${at}\n`,
+      out: `source index built: 2 files, at ${at}\ncode map: none, because no manifest in the checkout names a package\n`,
       err: '',
     });
     expect(await indexOutput({ cwd: root }))
-      .toBe(`source index updated: 2 files, 0 read again, at ${at}\n`);
+      .toBe(`source index updated: 2 files, 0 read again, at ${at}\ncode map: none, because no manifest in the checkout names a package\n`);
 
     writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 2;\n');
     expect(await indexOutput({ cwd: root }))
-      .toBe(`source index updated: 2 files, 1 read again, at ${at}\n`);
+      .toBe(`source index updated: 2 files, 1 read again, at ${at}\ncode map: none, because no manifest in the checkout names a package\n`);
   });
 
   it('reads from the working tree under `--no-git`, into the same index', async () => {
     const root = checkout();
     const at = sourceIndexPath(root);
 
-    expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\n`);
-    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\n`);
+    expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\ncode map: none, because no manifest in the checkout names a package\n`);
+    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\ncode map: none, because no manifest in the checkout names a package\n`);
   });
 
   it("names the primary checkout's index a worktree's first update built on", async () => {
@@ -87,7 +87,7 @@ describe('variance index', () => {
     writeFileSync(join(worktree, 'src/unit.ts'), 'export const unit = 2;\n');
 
     expect(await indexOutput({ cwd: worktree })).toBe(
-      `source index built on ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree)}\n`,
+      `source index built on ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree)}\ncode map: none, because no manifest in the checkout names a package\n`,
     );
   });
 

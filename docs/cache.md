@@ -83,6 +83,7 @@ back to the default, because you would not know where the recording went.
     suites/<name>/               the same files for each suite you declare
     names.bin                    the ids those records use for file paths
     source-index.bin             the source index, and its segments beside it
+    source-index.bin.map         the code map `variance ask orient` reads
     <label>/                     one record store per runner or plugin
     checkout.json                the checkout this directory belongs to
     .run-<pid>-*/                a run in progress, removed when it ends

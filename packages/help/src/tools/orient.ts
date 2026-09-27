@@ -15,12 +15,19 @@
  * an earlier recorded run published, and nothing here scans or runs anything.
  * A reading that was never published is said to be absent, with the command
  * that publishes it.
+ *
+ * Asked with no files, it prints the code map instead: the package graph folded
+ * into nested areas, one page at a time, which `variance index` prepares beside
+ * the source index. The top page is where a reader with nothing in hand starts,
+ * and `area` opens one of the areas it lists.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import type { Tool } from '@variance-authority/mcp/tools';
-import { packagesAround, recordedCases } from '@variance-authority/sense';
+import { basename } from 'node:path';
+import { codeMapPage, packagesAround, recordedCases } from '@variance-authority/sense';
+import { formatCodeMapPage } from './code-map-format.js';
 import { formatOrientation } from './orient-format.js';
 
 /** Other packages shown per side, and names shown per package. */
@@ -48,6 +55,9 @@ export function filesOf(input: Readonly<Record<string, unknown>>): readonly stri
 export const orient: Tool<unknown> = {
   name: 'docs_orient',
   description:
+    'With no files, prints the code map: the packages folded into a dozen or so areas per page, each with its size, ' +
+    'its dependency layers, the packages most imports into it land on and the areas it imports from most; `area` ' +
+    'opens one of those areas by its id. ' +
     'For files you already have — from a stack trace, a ticket, or docs_search, docs_symbol and docs_grep, ' +
     'which find them. Says which package each file is in, what that package imports from other packages and ' +
     'what other packages import from it, as each package\'s share of that side with the names it takes, ' +
@@ -62,23 +72,27 @@ export const orient: Tool<unknown> = {
         items: { type: 'string' },
         description: 'Paths from the root, as git lists them. Every one is answered, in the order given.',
       },
+      area: {
+        type: 'string',
+        description: 'The id of an area on the code map, as a page lists it (`4.1`). Without files or area, the top page.',
+      },
     },
-    required: ['files'],
     additionalProperties: false,
   },
 
   run: (_subject, input, invocation) => {
     const files = filesOf(input);
-    if (files.length === 0) {
-      throw new Error(
-        '`orient` reads the graph around files you already have, and none was given. ' +
-          '`search --query <name>` and `symbol --name <name>` name the file a name is declared in; ' +
-          '`grep --query <pattern> --from <path>` names the files a pattern is in.',
-      );
-    }
+    const area = typeof input['area'] === 'string' ? input['area'].trim() : undefined;
     const root = invocation?.root;
     if (root === undefined) {
       throw new Error('`orient` reads what a checkout published, and this host named no checkout to read');
+    }
+    if (files.length === 0) return mapPage(root, area === '' ? undefined : area);
+    if (area !== undefined) {
+      throw new Error(
+        '`orient` reads either the graph around some files or one page of the code map, and was given both; ' +
+          'ask with `files` alone, or with `area` alone.',
+      );
     }
     return formatOrientation({
       files,
@@ -91,3 +105,19 @@ export const orient: Tool<unknown> = {
     });
   },
 };
+
+/** One page of the code map, or why there is none to print. */
+function mapPage(root: string, area: string | undefined): string {
+  const { index, answer } = codeMapPage(root, area);
+  if (answer === undefined) {
+    return (
+      `No code map is kept beside the source index at ${index}. \`variance index\` folds one ` +
+      'when a manifest in the checkout names a package. With files in hand, `files` reads the graph around them.'
+    );
+  }
+  const page = answer.page;
+  if (page === undefined || page === null) {
+    throw new Error(`the code map has no area \`${area ?? ''}\`; the top page, asked with no \`area\`, lists the areas`);
+  }
+  return formatCodeMapPage({ ...answer, page }, basename(root));
+}

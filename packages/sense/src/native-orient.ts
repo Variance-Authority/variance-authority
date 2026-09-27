@@ -109,3 +109,81 @@ export interface NativeCasesEntered {
   /** The first of their names, in code-unit order. */
   readonly declaredNames: readonly string[];
 }
+
+/** What folding the package graph into the code map made of the checkout. */
+export interface NativeOrientMapPrepared {
+  readonly packages: number;
+  readonly areas: number;
+  /** How many areas deep the deepest package sits. */
+  readonly levels: number;
+  /** Dependency layers: 0 takes nothing, and each layer takes only from those below it. */
+  readonly layers: number;
+  /** Counted files the index holds no parse for: their imports are not on the map. */
+  readonly unread: number;
+  /** Git could not list the checkout, so its files were listed off the disk. */
+  readonly walked: boolean;
+}
+
+/** A package or an area on one row, and how many importing files the share counts. */
+export interface NativeOrientMapShare {
+  readonly name: string;
+  readonly files: number;
+}
+
+/** One area on a page of the code map. */
+export interface NativeOrientMapRow {
+  /** `1`, `4.1`: its place among its siblings, largest first, under its parent's. */
+  readonly id: string;
+  readonly name: string;
+  readonly packages: number;
+  /** Source files, not the tests' side. */
+  readonly files: number;
+  readonly low: number;
+  readonly high: number;
+  readonly median: number;
+  /** Files outside the area importing into it, and the packages the first of them land on. */
+  readonly incoming: number;
+  readonly front: readonly NativeOrientMapShare[];
+  /** Packages past the front. */
+  readonly more: number;
+  /** Files of the area importing out of it, and the two areas most of them land in. */
+  readonly outgoing: number;
+  readonly uses: readonly NativeOrientMapShare[];
+}
+
+/** One page of the code map: the top of the checkout, or one area. */
+export interface NativeOrientMapPage {
+  /** Empty for the top page. */
+  readonly id: string;
+  readonly name: string;
+  readonly packages: number;
+  readonly files: number;
+  readonly low: number;
+  readonly high: number;
+  /** Packages on this page that none of its areas took. */
+  readonly alone: number;
+  readonly rows: readonly NativeOrientMapRow[];
+  /** An area with no areas inside it lists its packages. */
+  readonly list: readonly string[];
+}
+
+/**
+ * One page of the code map, as the addon read it back: the page asked for, the
+ * dependency layers of the whole map, and whether the map was folded from the
+ * source index as it stands now.
+ */
+export interface NativeOrientMapAnswer {
+  /** Whether the map was folded from the source index as it stands now. */
+  readonly current: boolean;
+  readonly layers: number;
+  /** Absent when the map has no area by the id asked. */
+  readonly page?: NativeOrientMapPage | null;
+}
+
+/** The addon's code-map calls, kept apart from the scanner's other calls. */
+export interface NativeOrientMaps {
+  /** Fold the source index at `index` into the code map kept beside it; `null`, and no map kept, when no manifest names a package. */
+  prepareOrientMap?(root: string, index: string): NativeOrientMapPrepared | null;
+  /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept. */
+  orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
+}

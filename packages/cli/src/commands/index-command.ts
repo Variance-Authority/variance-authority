@@ -8,12 +8,16 @@
  * on, a worktree with none builds on the primary checkout's, and anything else
  * missing costs a cold scan.
  *
- * One line on stdout, because the step's output is read by the person looking
- * at a pipeline log: where the index is, how many files it holds, and how many
- * this run had to read again.
+ * It then folds the index into the code map `variance ask orient` prints, and
+ * keeps it beside the index: the fold reads every record, so it is paid here
+ * once rather than by every question.
+ *
+ * Two lines on stdout, because the step's output is read by the person looking
+ * at a pipeline log: where the index is, how many files it holds and how many
+ * this run had to read again; then what the code map holds, or why there is none.
  */
 
-import { updateSourceIndex, type SourceUpdate } from '@variance-authority/sense';
+import { prepareCodeMap, updateSourceIndex, type PreparedCodeMap, type SourceUpdate } from '@variance-authority/sense';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -23,7 +27,14 @@ export interface IndexRequest {
 
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const update = await updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {});
-  return `${describe(update)}\n`;
+  return `${describe(update)}\n${mapped(prepareCodeMap(request.cwd, update.path))}\n`;
+}
+
+function mapped({ map }: PreparedCodeMap): string {
+  if (map === undefined) return 'code map: none, because no manifest in the checkout names a package';
+  const unread = map.unread === 0 ? '' : `; ${map.unread} files have no parse in the index, so their imports are not on it`;
+  const walked = map.walked ? '; git could not list the checkout, so its files were listed off the disk' : '';
+  return `code map: ${map.packages} packages in ${map.areas} areas, ${map.levels} deep, over ${map.layers} dependency layers${unread}${walked}`;
 }
 
 function describe(update: SourceUpdate): string {

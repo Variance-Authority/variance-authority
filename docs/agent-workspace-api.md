@@ -24,6 +24,7 @@ for another string.
 | An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | This server; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
+| Nothing in hand, and the repository unknown | `docs_orient` with no `files`; it prints the code map, the repository's packages in areas, and `area` opens one area. |
 | Files in hand, and the code around them unknown | `docs_orient`; it names each file's package, the names the package imports from other packages and the names they import from it, and the recorded tests that ran each file. It finds no file itself. |
 
 ## Search finds the name; the graph finds the area

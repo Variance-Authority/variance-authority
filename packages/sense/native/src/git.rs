@@ -373,7 +373,7 @@ const HEX: [char; 16] = [
 ///
 /// Identity is never inherited into the child beyond what the environment
 /// already holds: these are read-only queries and write no objects.
-fn git(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Option<Vec<u8>> {
+pub(crate) fn git(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Option<Vec<u8>> {
     let mut command = Command::new("git");
     command
         .args(args)

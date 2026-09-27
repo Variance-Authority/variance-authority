@@ -97,6 +97,17 @@ export {
   type TimedTestCase,
   type TimedTestFile,
 } from './recorded-durations.js';
+export {
+  codeMapPage,
+  prepareCodeMap,
+  type CodeMapAnswer,
+  type CodeMapPage,
+  type CodeMapPrepared,
+  type CodeMapRead,
+  type CodeMapRow,
+  type CodeMapShare,
+  type PreparedCodeMap,
+} from './code-map.js';
 
 export { gitDigests } from './tree.js';
 

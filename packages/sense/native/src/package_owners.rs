@@ -25,10 +25,14 @@ use serde::Deserialize;
 /// The owner of a file no named manifest sits above.
 pub(crate) const NO_OWNER: u32 = u32::MAX;
 
-/// One named manifest: its directory, `''` at the root, and its name.
+/// One named manifest: its directory, `''` at the root, its name, and the
+/// names it declares it takes: `dependencies`, `peerDependencies` and
+/// `optionalDependencies` in `depends`, `devDependencies` in `develops`.
 pub(crate) struct Package {
     pub directory: String,
     pub name: String,
+    pub depends: Vec<String>,
+    pub develops: Vec<String>,
 }
 
 pub(crate) struct Owners<'a> {
@@ -41,20 +45,38 @@ pub(crate) struct Owners<'a> {
 #[derive(Deserialize)]
 struct Manifest {
     name: Option<serde_json::Value>,
+    dependencies: Option<serde_json::Value>,
+    #[serde(rename = "peerDependencies")]
+    peer_dependencies: Option<serde_json::Value>,
+    #[serde(rename = "optionalDependencies")]
+    optional_dependencies: Option<serde_json::Value>,
+    #[serde(rename = "devDependencies")]
+    dev_dependencies: Option<serde_json::Value>,
+}
+
+/// The keys of a dependency map; anything that is not a map declares nothing.
+fn declared(field: &Option<serde_json::Value>) -> impl Iterator<Item = String> + '_ {
+    field.as_ref().and_then(serde_json::Value::as_object).into_iter().flat_map(|map| map.keys().cloned())
 }
 
 /// The directory a repository-relative path sits in, `''` at the root.
-fn parent(path: &str) -> &str {
+pub(crate) fn parent(path: &str) -> &str {
     path.rfind('/').map_or("", |at| &path[..at])
 }
 
 /// Every path in `paths` given its package, reading each tracked
 /// `package.json` under `root` once.
 pub(crate) fn owners<'a>(root: &str, paths: &'a [String]) -> Owners<'a> {
+    owners_where(root, paths, |_| true)
+}
+
+/// [`owners`], counting only the manifests `keep` accepts: the rest name
+/// nothing, and their directories defer to the parent's answer.
+pub(crate) fn owners_where<'a>(root: &str, paths: &'a [String], keep: impl Fn(&str) -> bool + Sync) -> Owners<'a> {
     let manifests: Vec<&str> = paths
         .iter()
         .map(String::as_str)
-        .filter(|path| path.rsplit('/').next() == Some("package.json"))
+        .filter(|path| path.rsplit('/').next() == Some("package.json") && keep(path))
         .collect();
     // A manifest that cannot be read or does not parse names nothing, which is
     // what `ownership` makes of it too: the directory defers to its parent.
@@ -64,7 +86,12 @@ pub(crate) fn owners<'a>(root: &str, paths: &'a [String]) -> Owners<'a> {
             let bytes = std::fs::read(std::path::Path::new(root).join(manifest)).ok()?;
             let parsed: Manifest = serde_json::from_slice(&bytes).ok()?;
             let serde_json::Value::String(name) = parsed.name? else { return None };
-            Some(Package { directory: parent(manifest).to_owned(), name })
+            let depends = [&parsed.dependencies, &parsed.peer_dependencies, &parsed.optional_dependencies]
+                .into_iter()
+                .flat_map(declared)
+                .collect();
+            let develops = declared(&parsed.dev_dependencies).collect();
+            Some(Package { directory: parent(manifest).to_owned(), name, depends, develops })
         })
         .collect();
     named.sort_unstable_by(|left, right| crate::order::code_unit(&left.directory, &right.directory));

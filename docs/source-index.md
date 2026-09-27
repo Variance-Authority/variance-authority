@@ -32,11 +32,14 @@ variance index
 ```
 
 It scans the whole checkout, reuses the record of every file whose bytes are
-unchanged, and appends what changed as a new layer. It prints one line — how
-many files the index holds, and how many it read again:
+unchanged, and appends what changed as a new layer. It prints two lines. The
+first says how many files the index holds, and how many it read again. The
+second describes the code map it builds from the index and writes beside it, as
+`source-index.bin.map`, for `variance ask orient` to read:
 
 ```text
 source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin
+code map: 59 packages in 11 areas, 2 deep, over 8 dependency layers
 ```
 
 These commands read what `variance index` published, and do not scan:

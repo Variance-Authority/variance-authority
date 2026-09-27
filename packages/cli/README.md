@@ -150,7 +150,7 @@ variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
@@ -1214,12 +1214,15 @@ variance select --format vitest
 
 ```
 source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin
+code map: 59 packages in 11 areas, 2 deep, over 8 dependency layers
 ```
 
 It scans the whole checkout, rebuilds only the records of files whose bytes
 changed, and appends them as a new layer, so one run costs the size of your diff
 and not the size of your repository. The readers answer from what it last
-published, so run it after the checkout changes and before them.
+published, so run it after the checkout changes and before them. The second
+line describes the code map it writes beside the index, which
+`variance ask orient` prints a page at a time.
 
 In CI, run it as its own step after you restore the cache. A reader that finds
 nothing published there exits `2` and names the missing step, because an index

@@ -114,6 +114,7 @@ tree is the answer. Both are exact and need no Variance index.
 
 | What you have | Ask | What you get |
 | --- | --- | --- |
+| Nothing yet, in a repository you do not know | `variance ask orient` | The code map: the repository's packages in areas, each with its size, its dependency layers and the packages the rest of the repository imports most from it; `--area <id>` opens one area |
 | An exact string in the working tree | `rg -n <text> .` | Current files containing that text |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
 | Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[,...]` | Each file's package, with the names it imports from other packages and the names they import from it, and the recorded tests that ran each file |
@@ -127,6 +128,34 @@ tree is the answer. Both are exact and need no Variance index.
 orientation how-to and contract. [Find the subject you mean](locate.md) is the
 subject orientation how-to. [How search finds a subject](lexicon.md) explains
 the observed vocabulary behind that answer.
+
+## Start from the map
+
+When you hold no file and no word yet, ask for the map:
+
+```bash
+variance ask orient
+variance ask orient --area 2
+```
+
+The first page puts every package the manifests name into a few areas. A
+package joins the packages that sit in the same directory, share words in their
+names, and import each other. An area bigger than a third of its parent is split
+again, so an area page lists smaller areas until an area is a short list of
+packages. Each row gives:
+
+- how many packages and source files the area has;
+- its dependency layers, where layer 0 imports no other package and each layer
+  above imports only from the layers below it;
+- its front, the packages in it that the rest of the repository imports most,
+  with their share of those imports;
+- the other areas it imports from, with their share of its imports.
+
+`variance index` builds the map when it publishes the
+[source index](source-index.md) and keeps
+it beside the index, so asking for a page reads one file. When the index
+changes and the map was built from an earlier one, the page says so. With no
+map, the answer names `variance index` instead of printing an empty map.
 
 ## Ask the record, or produce a new one
 

@@ -32,7 +32,7 @@ import type {
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
-import type { NativeCasesEntered, NativeOrientation } from './native-orient.js';
+import type { NativeCasesEntered, NativeOrientation, NativeOrientMaps } from './native-orient.js';
 import { witnessesOf } from './witness.js';
 
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
@@ -120,7 +120,7 @@ export interface NativeLogSegment {
   readonly length: number;
 }
 
-export interface NativeScanner {
+export interface NativeScanner extends NativeOrientMaps {
   /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
   gitTree(root: string): NativeGitTree | null;
