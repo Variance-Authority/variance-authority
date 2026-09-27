@@ -112,8 +112,17 @@ export async function steal(
  * The outcome with its `costMs`: first collection to decision, on the injected
  * clock. No clock, or no start, is no cost — never a zero, which would price
  * the subject as free and stack the next run's long files on one shard.
+ *
+ * The declaring file rides with the cost, because the file is what a shard
+ * places; a cost without it can price a subject and not the group it sits in.
  */
-export function timed(outcome: Outcome, started: number | undefined, elapsed: (() => number) | undefined): Outcome {
+export function timed(
+  outcome: Outcome,
+  started: number | undefined,
+  elapsed: (() => number) | undefined,
+  declaredIn?: string,
+): Outcome {
   if (outcome.kind !== 'observed' || started === undefined || elapsed === undefined) return outcome;
-  return { ...outcome, record: { ...outcome.record, costMs: elapsed() - started } };
+  const record = { ...outcome.record, costMs: elapsed() - started };
+  return { ...outcome, record: declaredIn === undefined ? record : { ...record, declaredIn } };
 }

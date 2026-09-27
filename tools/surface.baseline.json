@@ -1231,6 +1231,8 @@
         "tokensOf": "function"
       },
       "./tools": {
+        "COSTS_TOOLS": "const",
+        "CostsSubject": "interface",
         "EYES_TOOLS": "const",
         "EntryPoints": "interface",
         "FileRecord": "interface",
@@ -1242,6 +1244,7 @@
         "START_POINT_SCHEMA": "const",
         "Served": "interface",
         "StateDifference": "type",
+        "SubjectCost": "interface",
         "TOOLS": "const",
         "Tool": "interface",
         "ToolInvocation": "interface",

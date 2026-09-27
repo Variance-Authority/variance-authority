@@ -1,12 +1,13 @@
 import { serve as serveTools } from '@variance-authority/mcp';
 import { REPORTS } from '@variance-authority/mcp/protocol';
-import type { Served, Tool, Tree } from '@variance-authority/mcp/tools';
+import { COSTS_TOOLS, type CostsSubject, type Served, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
 import { readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
 import { HELP, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
+import { costsSubject } from './ask-costs.js';
 import { reportSource } from './report-source.js';
 
 /**
@@ -51,6 +52,10 @@ interface Bench {
   readonly report: RunReport;
   /** Absent until one of the eight is asked; nothing else reads it. */
   readonly help?: Help;
+  /** The mainline's subject costs, read when `variance_costs` is asked and at no other time. */
+  readonly costs?: CostsSubject;
+  /** Why they could not be read, in the sentence `variance ask costs` prints. */
+  readonly costsRefused?: string;
   /** The line and commit the report was read from, when it came from the share. */
   readonly says?: string;
   /** `<kind> <name> at <commit>`: the line the report was read from, when it came from the share. */
@@ -72,13 +77,13 @@ const SOURCE_QUESTIONS: ReadonlySet<string> = new Set(HELP_TOOLS.map((tool) => t
 function over<Inner>(
   tools: readonly Tool<Inner>[],
   half: (bench: Bench) => Inner | undefined,
-  absent: string,
+  absent: string | ((bench: Bench) => string),
 ): readonly Tool<Bench>[] {
   return tools.map((tool) => ({
     ...tool,
     run: (bench: Bench, input: Readonly<Record<string, unknown>>, invocation?): string => {
       const inner = half(bench);
-      if (inner === undefined) throw new Error(absent);
+      if (inner === undefined) throw new Error(typeof absent === 'string' ? absent : absent(bench));
       const previous = invocation?.previous === undefined ? undefined : half(invocation.previous);
       return tool.run(inner, input, {
         ...(previous === undefined ? {} : { previous }),
@@ -108,6 +113,8 @@ const BENCH: Served<Bench> = {
           : `report: this checkout's own run, compared with the report the previous answer read from ${before}.\n\n${answer}`;
       },
     })),
+    // The mainline's times, as `variance ask costs` reads them with no report named.
+    ...over(COSTS_TOOLS, (bench) => bench.costs, (bench) => bench.costsRefused ?? 'no subject costs were read'),
     ...over(
       HELP.tools,
       (bench) => bench.help,
@@ -119,7 +126,8 @@ const BENCH: Served<Bench> = {
     'The same connection answers eight questions about the source — what this repository ' +
     'publishes, where a name is declared, who imports it, which lines match a pattern ' +
     'in the files a path imports, and which files and packages the words of a task are in — read from the checkout, ' +
-    'with no run required.',
+    'with no run required. `variance_costs` says which files and subjects the suite spends its time on, ' +
+    'from the times the mainline\'s last build published.',
 };
 
 export interface ServeOptions {
@@ -209,9 +217,18 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
           if (help === undefined) process.stderr.write(`variance: ${failure instanceof Error ? failure.message : String(failure)}\n`);
         }
       }
+      // Read per request, like the report: the mainline moves while an agent asks.
+      // A mainline with none is refused by the tool, never thrown at the transport.
+      const costs = asked === COSTS_TOOLS[0].name
+        ? await costsSubject(config, [], { cwd: root }).then(
+          (read) => ({ costs: read }),
+          (refused: unknown) => ({ costsRefused: refused instanceof Error ? refused.message : String(refused) }),
+        )
+        : {};
       return {
         report,
         ...(help === undefined ? {} : { help }),
+        ...costs,
         ...(says === undefined ? {} : { says }),
         ...(from === undefined ? {} : { from }),
       };

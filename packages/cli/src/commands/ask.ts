@@ -6,29 +6,19 @@ import type { VantageReading } from '@variance-authority/vantage/attach';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import {
-  inputFor,
-  questionFor,
-  questionOf,
-  takes,
-  wrap,
-  type Asked,
-  type Question,
-} from './asking.js';
-import { HELP_TOOLS, grep, orient, search, type Help } from '@variance-authority/help/tools';
+import { inputFor, questionFor, questionOf, type Question } from './asking.js';
+import { grep, orient, search, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
-import {
-  TOOLS,
-  VANTAGE_TOOLS,
-  readTree,
-  type Tool,
-  type Tree,
-} from '@variance-authority/mcp/tools';
+import { readTree, type CostsSubject, type Tree } from '@variance-authority/mcp/tools';
+import { questions } from './ask-questions.js';
 import { grepSource, orientSource, readChanged, readSource, readTaint, searchSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
+
+export { questions };
+export { costsSubject } from './ask-costs.js';
 
 /**
  * `variance ask` — every answer `variance serve` gives an agent, with no agent
@@ -150,6 +140,8 @@ export interface AskRequest {
   readonly here?: Here;
   /** How a watcher is read. Injected so the live path is testable without a socket. */
   readonly look?: (at: string) => Promise<VantageReading>;
+  /** What each subject cost: the mainline's times, or the named reports'. Absent, `costs` is refused. */
+  readonly costs?: () => Promise<CostsSubject>;
   /** How the checkout is read. Injected so the source path is testable without a repository. */
   readonly source?: (root: string, options?: SourceReadOptions) => Promise<Sourced>;
 }
@@ -193,6 +185,11 @@ export async function ask(request: AskRequest): Promise<string> {
 
   const question = questionFor(request.question);
   if (question.source !== undefined) return askSource({ ...request, question: request.question });
+  if (question.costs !== undefined) {
+    const input = inputFor(question.costs, flagged(request));
+    if (request.costs === undefined) throw new OperatorError('`costs` needs a config: the times are kept under its project');
+    return `${question.costs.run(await request.costs(), input)}\n`;
+  }
   if (request.changedFile !== undefined || request.taintFile !== undefined) {
     const flag = request.changedFile !== undefined ? '--changed-file' : '--taint-file';
     throw new OperatorError(`\`${flag}\` supplies source identity and can only be used with a source question`);
@@ -410,55 +407,6 @@ function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     to: request.to,
     limit: request.limit,
   };
-}
-
-/**
- * The questions, each with what it takes and what it answers.
- *
- * The tool descriptions, unedited. They are the same paragraphs an MCP client
- * puts in front of a model at `tools/list`, and a shorter gloss written here for
- * a human would be a second opinion about when to reach for each one.
- *
- * Split by subject rather than listed flat, because the three parts are not
- * alternatives a reader chooses between on taste: one needs a file that already
- * exists, one needs a process that has to have been started first, and one
- * needs only a checkout, and a reader who does not know which part they are in
- * asks the right question of the wrong thing.
- *
- * Each half is printed straight off the set it mirrors rather than off
- * {@link QUESTIONS}, so a section is in the order that set chose — `self` leads
- * the live half because a reader who has just found a watcher should ask what it
- * is holding before asking anything of it.
- */
-export function questions(): string {
-  return [
-    'Ask about a visual run, a running suite, or the code.',
-    '',
-    'ABOUT THE LAST RUN',
-    '',
-    ...TOOLS.flatMap(entry),
-    'ABOUT A SUITE THAT IS STILL RUNNING',
-    '',
-    ...VANTAGE_TOOLS.flatMap(entry),
-    'ABOUT THE WORKSPACE SOURCE',
-    '',
-    ...(HELP_TOOLS as readonly Tool<Help>[]).flatMap(entry),
-    'The report is the configured one unless report paths are named.',
-    'With no configured report on disk, it is read from the share: your branch\'s line, then the mainline\'s.',
-    '`--config` and sharded reports work as they do on `variance report`.',
-    `Live questions need \`--at <address>\`, which defaults to \`${VANTAGE_VARIABLE}\`;`,
-    '`variance watch` starts a watcher and prints both.',
-    'Source questions read the checkout under the working directory and need no config.',
-    '',
-  ].join('\n');
-}
-
-function entry(tool: Asked): readonly string[] {
-  return [
-    `${questionOf(tool)}${takes(tool)}`,
-    ...wrap(tool.description, 76).map((line) => `    ${line}`),
-    '',
-  ];
 }
 
 /**

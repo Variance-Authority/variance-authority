@@ -83,6 +83,7 @@ describe('the server `variance serve` starts', () => {
     expect(names).toContain('variance_summary');
     expect(names).toContain('docs_search');
     expect(names).toContain('docs_packages');
+    expect(names).toContain('variance_costs');
   });
 
   it('answers a source question from the checkout it was started in', async () => {
@@ -124,6 +125,26 @@ describe('`variance serve` in a checkout with no report', () => {
     }
   });
 
+  it('answers where the time goes from the mainline, and a mainline with none is refused without closing the connection', async () => {
+    const timed = await checkoutWithShare(true);
+    const bare = await checkoutWithShare();
+    const server = session(bare.checkout);
+    try {
+      const answer = await ask<Answer>('tools/call', { name: 'variance_costs' }, timed.checkout);
+      expect(answer.content[0]!.text).toContain('1.2 s  src/home.stories.tsx  1 subject');
+
+      const refused = await server.request<Answer & { readonly isError?: boolean }>('tools/call', { name: 'variance_costs' });
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0]!.text).toMatch(/no subject costs on the mainline/);
+      const after = await server.request<Answer>('tools/call', { name: 'variance_summary' });
+      expect(after.content[0]!.text).toMatch(/^report: read from mainline main, /);
+    } finally {
+      server.close();
+      await rm(timed.checkout, { recursive: true, force: true });
+      await rm(bare.checkout, { recursive: true, force: true });
+    }
+  });
+
   it('refuses to start when the share cannot be reached, and says which lines it asked and why', async () => {
     const checkout = await mkdtemp(join(tmpdir(), 'variance-serve-unreachable-'));
     const closed = createServer();
@@ -147,7 +168,7 @@ interface Answer {
 }
 
 /** A repository on `main` with one commit, and CI's run for it published to a directory share its config names. */
-async function checkoutWithShare(): Promise<{ readonly checkout: string; readonly commit: string }> {
+async function checkoutWithShare(timed = false): Promise<{ readonly checkout: string; readonly commit: string }> {
   const checkout = await mkdtemp(join(tmpdir(), 'variance-serve-share-'));
   await git(checkout, 'init', '--quiet', '-b', 'main');
   await git(checkout, '-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '--quiet', '--allow-empty', '-m', 'one');
@@ -156,10 +177,12 @@ async function checkoutWithShare(): Promise<{ readonly checkout: string; readonl
   await writeConfig(checkout, share);
   // CI's run, written somewhere this checkout's configured report is not.
   const ci = join(checkout, 'ci', 'run.json');
-  await writeRunReport(ci, { ...REPORT, run: { id: 'ci', commit }, composition: { subjects: ['page/home'], components: [] } } as unknown as RunReport);
+  const observations = timed ? [{ subject: 'page/home', verdict: 'unchanged', costMs: 1234, declaredIn: 'src/home.stories.tsx' }] : REPORT.observations;
+  await writeRunReport(ci, { ...REPORT, observations, run: { id: 'ci', commit }, composition: { subjects: ['page/home'], components: [] } } as unknown as RunReport);
   const config = { project: 'mounted', report: join(checkout, 'report.json'), share, reportCarry: 'share' } as unknown as Config;
   const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'push', GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main' };
-  expect(await publishRun(config, ci, { env, cwd: checkout })).toMatchObject({ published: { written: ['suite-index-v1', 'report-v1'] } });
+  const written = ['suite-index-v1', 'report-v1', ...(timed ? ['subject-costs-v1'] : [])];
+  expect(await publishRun(config, ci, { env, cwd: checkout })).toMatchObject({ published: { written } });
   return { checkout, commit };
 }
 

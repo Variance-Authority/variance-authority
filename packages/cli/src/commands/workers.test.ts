@@ -114,7 +114,9 @@ describe('workers', () => {
     const untimed = await runWith(configOf(), workingCollector(planOf(2, 1)).collector, storeAnswering(null));
 
     expect(timed.report.observations.every((o) => typeof o.costMs === 'number' && o.costMs > 0)).toBe(true);
-    expect(untimed.report.observations.every((o) => !('costMs' in o))).toBe(true);
+    // The file a shard places rides with the cost, so the next run can price the group.
+    expect(timed.report.observations.map((o) => o.declaredIn)).toEqual(['f0.stories.tsx', 'f1.stories.tsx']);
+    expect(untimed.report.observations.every((o) => !('costMs' in o) && !('declaredIn' in o))).toBe(true);
   });
 });
 

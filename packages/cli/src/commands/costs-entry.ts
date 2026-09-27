@@ -27,6 +27,18 @@ interface CostsFile {
   readonly commit: string;
   /** Subject id to whole milliseconds, keys in code-unit order. */
   readonly costs: Readonly<Record<string, number>>;
+  /**
+   * Subject id to the file declaring it, for the subjects whose collector names
+   * one. Optional within version 1: a reader that predates it reads the costs
+   * and ignores the rest, and a file without it prices subjects and no file.
+   */
+  readonly files?: Readonly<Record<string, string>>;
+}
+
+/** Costs as read back, with the declaring files when the writer knew them. */
+export interface CostsRead {
+  readonly costs: Costs;
+  readonly files?: ReadonlyMap<string, string>;
 }
 
 export function costsPath(config: Pick<Config, 'project' | 'cacheRoot'>, commit: string): string {
@@ -42,17 +54,32 @@ export function costsOf(report: Pick<CliRunReport, 'observations'>): Costs {
   return costs;
 }
 
-export function encodeCosts(commit: string, costs: Costs): Uint8Array {
-  const ids = [...costs.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+/** The file declaring each timed subject, where the report carried one. */
+export function filesOf(report: Pick<CliRunReport, 'observations'>): ReadonlyMap<string, string> {
+  const files = new Map<string, string>();
+  for (const observation of report.observations) {
+    if (observation.costMs !== undefined && observation.declaredIn !== undefined) {
+      files.set(observation.subject, observation.declaredIn);
+    }
+  }
+  return files;
+}
+
+const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+export function encodeCosts(commit: string, costs: Costs, files: ReadonlyMap<string, string> = new Map()): Uint8Array {
+  const ids = [...costs.keys()].sort(byCodeUnit);
+  const declared = ids.filter((id) => files.has(id));
   const file: CostsFile = {
     version: 1,
     commit,
     costs: Object.fromEntries(ids.map((id) => [id, costs.get(id)!])),
+    ...(declared.length === 0 ? {} : { files: Object.fromEntries(declared.map((id) => [id, files.get(id)!])) }),
   };
   return new TextEncoder().encode(`${JSON.stringify(file, null, 2)}\n`);
 }
 
-export function decodeCosts(bytes: Uint8Array): Costs | null {
+export function decodeCosts(bytes: Uint8Array): CostsRead | null {
   try {
     const file = JSON.parse(new TextDecoder().decode(bytes)) as Partial<CostsFile>;
     if (file.version !== 1 || typeof file.costs !== 'object' || file.costs === null) return null;
@@ -60,7 +87,12 @@ export function decodeCosts(bytes: Uint8Array): Costs | null {
     for (const [id, ms] of Object.entries(file.costs)) {
       if (typeof ms === 'number' && Number.isFinite(ms) && ms >= 0) costs.set(id, ms);
     }
-    return costs;
+    if (typeof file.files !== 'object' || file.files === null) return { costs };
+    const files = new Map<string, string>();
+    for (const [id, path] of Object.entries(file.files)) {
+      if (typeof path === 'string' && costs.has(id)) files.set(id, path);
+    }
+    return files.size === 0 ? { costs } : { costs, files };
   } catch {
     return null;
   }
@@ -85,7 +117,7 @@ export async function keepCosts(
   if (isSlice(report)) return { none: 'this report is one shard; publish the shards together' };
   const costs = costsOf(report);
   if (costs.size === 0) return { none: 'this report timed no subject' };
-  const bytes = encodeCosts(commit, costs);
+  const bytes = encodeCosts(commit, costs, filesOf(report));
   await keepCostBytes(config, commit, bytes);
   return { commit, bytes, subjects: costs.size };
 }
@@ -106,7 +138,7 @@ export async function keepCostBytes(
 }
 
 /** The costs this machine keeps under `commit`, or nothing. */
-export async function keptCosts(config: Pick<Config, 'project' | 'cacheRoot'>, commit: string): Promise<Costs | null> {
+export async function keptCosts(config: Pick<Config, 'project' | 'cacheRoot'>, commit: string): Promise<CostsRead | null> {
   try {
     return decodeCosts(await readFile(costsPath(config, commit)));
   } catch {

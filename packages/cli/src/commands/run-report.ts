@@ -172,6 +172,15 @@ export interface CliObservationRecord extends ObservationRecord {
    * Absent when the run could not time it, never zero.
    */
   readonly costMs?: number;
+
+  /**
+   * The file that declares this subject, carried from the plan beside `costMs`
+   * because a shard places the file and not the subject: the next run balances
+   * on this pair, and `ask costs` sums by it.
+   *
+   * Absent for a collector that names no file.
+   */
+  readonly declaredIn?: string;
 }
 
 /**

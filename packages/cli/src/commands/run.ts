@@ -318,7 +318,7 @@ async function observeAll(
 
     try {
       const outcome = await observeOne(planned, collected, contextFor(context, lane), lane.collecting);
-      slots[index] = timed(outcome, started, deps.elapsed);
+      slots[index] = timed(outcome, started, deps.elapsed, planned.declaredIn);
     } catch (error) {
       if (error instanceof RasterStoreError) {
         // Spec 0004: a store failure is not a verdict. Reporting an unreachable

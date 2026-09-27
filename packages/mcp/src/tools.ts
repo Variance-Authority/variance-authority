@@ -14,6 +14,7 @@ import { findings } from './tools/findings.js';
 import { locate } from './tools/locate.js';
 import { summarize } from './tools/summary.js';
 import { attention } from './tools/attention.js';
+import { costs } from './tools/costs.js';
 import { distillTool, observability } from './tools/observability.js';
 import { presentations, type PresentationEvidence } from './tools/presentations.js';
 import { scenarios, type ScenarioEvidence } from './tools/scenarios.js';
@@ -216,6 +217,14 @@ export const EYES_TOOLS = [attention, diff as Tool<EyesArchive>] as const;
 export function eyesToolByName(name: string): Tool<EyesArchive> | undefined {
   return EYES_TOOLS.find((tool) => tool.name === name);
 }
+
+/**
+ * What each subject cost the run that timed it. Its own subject, because the
+ * costs worth reading are the mainline's — published beside the suite index by
+ * the last build — and no report a reader has open holds them.
+ */
+export const COSTS_TOOLS = [costs] as const;
+export type { CostsSubject, SubjectCost } from './tools/costs.js';
 
 /** Retained scenario executions, including witnessed Arrange state and Act outcomes. */
 export const SCENARIO_TOOLS = [scenarios, diff as Tool<ScenarioEvidence>] as const;

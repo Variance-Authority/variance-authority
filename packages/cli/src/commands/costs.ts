@@ -21,10 +21,14 @@ export { costsOf, costsPath } from './costs-entry.js';
  */
 
 export interface MainlineCosts {
+  /** The mainline the costs were read from. */
+  readonly mainline: string;
   readonly commit: string;
   /** Commits the costs are behind `HEAD`'s merge base with the mainline; negative when ahead. */
   readonly distance?: number;
   readonly costs: Costs;
+  /** Subject id to its declaring file, when the run that timed it knew one. */
+  readonly files?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -38,16 +42,16 @@ export async function mainlineCosts(
   const found = await mainlineEntry(config, SUBJECT_COSTS_ENTRY, options);
   if ('miss' in found) return null;
   const { at, held } = found;
-  const where = { commit: at.commit, ...(at.distance === undefined ? {} : { distance: at.distance }) };
+  const where = { mainline: at.mainline, commit: at.commit, ...(at.distance === undefined ? {} : { distance: at.distance }) };
   const local = await keptCosts(config, at.commit);
-  if (local !== null) return { ...where, costs: local };
+  if (local !== null) return { ...where, ...local };
 
   const bytes = await held.bytes();
   if (!(bytes instanceof Uint8Array)) return null;
-  const costs = decodeCosts(bytes);
-  if (costs === null) return null;
+  const read = decodeCosts(bytes);
+  if (read === null) return null;
   await keepCostBytes(config, at.commit, bytes);
-  return { ...where, costs };
+  return { ...where, ...read };
 }
 
 /**

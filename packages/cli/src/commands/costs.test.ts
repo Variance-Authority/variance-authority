@@ -8,6 +8,8 @@ import type { Config } from '../config.js';
 import type { Env } from '../share-lines.js';
 import { costsEntryOf } from './costs-entry.js';
 import { costsOf, mainlineCosts, publishedCostsLine } from './costs.js';
+import { COSTS_TOOLS } from '@variance-authority/mcp/tools';
+import { costsSubject } from './ask-costs.js';
 import { shardOwnedBecause, type CliRunReport } from './run-report.js';
 import { publishRun } from './share.js';
 
@@ -48,7 +50,7 @@ function reportOf(commit: string | undefined, over: Partial<CliRunReport> = {}):
     retention: 'durable',
     ...(commit === undefined ? {} : { run: { id: 'build-1', commit } }),
     observations: [
-      { subject: 'story:b', verdict: 'unchanged', because: 'nothing moved', regions: [], costMs: 120.4 },
+      { subject: 'story:b', verdict: 'unchanged', because: 'nothing moved', regions: [], costMs: 120.4, declaredIn: 'src/b.stories.tsx' },
       { subject: 'story:a', verdict: 'unchanged', because: 'nothing moved', regions: [], costMs: 80.6 },
       { subject: 'story:c', verdict: 'unchanged', because: 'nothing moved', regions: [] },
     ],
@@ -103,6 +105,26 @@ describe('subject costs', () => {
     expect(found?.commit).toBe(head);
     expect(found?.distance).toBe(0);
     expect(Object.fromEntries(found?.costs ?? [])).toEqual({ 'story:a': 81, 'story:b': 120 });
+    expect(Object.fromEntries(found?.files ?? [])).toEqual({ 'story:b': 'src/b.stories.tsx' });
+  });
+
+  it('answer `ask costs` from the mainline, with the file each subject is declared in', async () => {
+    const { dir, head } = await repository();
+    const config = configOf({ root: join(home, 'share') });
+    await publishRun(config, await reportAt(head), { env: PUSH, cwd: dir });
+
+    const answer = COSTS_TOOLS[0].run(await costsSubject(config, [], { env: LOCAL, cwd: dir }), { limit: 1 });
+    expect(answer.split('\n')).toEqual([
+      `Mainline main at ${head.slice(0, 12)}, at the merge base with this checkout: 2 subjects timed, 201 ms in all.`,
+      '',
+      'Slowest files (1 subject names no file):',
+      '  120 ms  src/b.stories.tsx  1 subject',
+      '',
+      'Slowest subjects:',
+      '  120 ms  story:b  src/b.stories.tsx',
+      '  and 1 more subject; `--limit` lists more',
+    ]);
+    await expect(costsSubject(configOf(), [], { env: LOCAL, cwd: dir })).rejects.toThrow(/no subject costs on the mainline/);
   });
 
   it('come from the share on a machine that holds none, and are kept for the next command', async () => {

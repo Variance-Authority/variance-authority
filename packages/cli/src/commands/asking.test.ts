@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HELP_TOOLS, search, symbol } from '@variance-authority/help/tools';
-import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName } from '@variance-authority/mcp/tools';
+import { COSTS_TOOLS, TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName } from '@variance-authority/mcp/tools';
 import { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './asking.js';
 
 /**
@@ -21,8 +21,8 @@ describe('the question a tool answers', () => {
     expect(questionOf(search)).toBe('search');
   });
 
-  it('exists for every tool in all three sets, and for nothing else', () => {
-    const named = new Set([...TOOLS, ...VANTAGE_TOOLS, ...HELP_TOOLS].map(questionOf));
+  it('exists for every tool in all four sets, and for nothing else', () => {
+    const named = new Set([...TOOLS, ...VANTAGE_TOOLS, ...HELP_TOOLS, ...COSTS_TOOLS].map(questionOf));
 
     expect(new Set(QUESTIONS.map((question) => questionOf(question.tool)))).toEqual(named);
   });
@@ -38,6 +38,10 @@ describe('the question a tool answers', () => {
     // read it from, no watcher to reach, so neither arm can be handed it.
     expect(questionFor('search').source).toBe(search);
     expect(questionFor('search').report).toBeUndefined();
+    // Costs are read from the times a run kept, the mainline's by default, and
+    // not from the report a reader has open.
+    expect(questionFor('costs').costs).toBe(COSTS_TOOLS[0]);
+    expect(questionFor('costs').report).toBeUndefined();
     expect(questionFor('search').live).toBeUndefined();
     expect(questionFor('locate').source).toBeUndefined();
   });

@@ -31,7 +31,7 @@ import {
 } from './commands/run.js';
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
 import { prunedLines, pruneNow, pruneWhenDueLines } from './commands/prune-cache.js';
-import { ask } from './commands/ask.js';
+import { ask, costsSubject } from './commands/ask.js';
 import { questionFor } from './commands/asking.js';
 import { said } from './here.js';
 import { formatReport } from './commands/report.js';
@@ -235,7 +235,7 @@ export async function dispatch(
           ...parsed,
           ...(at === undefined ? {} : { at }),
           report: config.report,
-          read: () => reportsFor(parsed.reports, config),
+          read: () => reportsFor(parsed.reports, config), costs: () => costsSubject(config, parsed.reports),
         }),
       );
       // A reading is not a verdict. `report` and `adjudicate` are where a run is

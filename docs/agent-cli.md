@@ -1,11 +1,13 @@
 # Ask a run from the command line
 
-The CLI gives an agent a shell entrance to four subjects. Each command calls the
+The CLI gives an agent a shell entrance to five subjects. Each command calls the
 same analyzer its MCP counterpart calls, but needs no client configuration.
 
 - `variance ask` reads a completed visual report.
 - `variance ask --at` reads a suite still executing from its watcher.
 - `variance ask search` and its siblings read the source tree.
+- `variance ask costs` reads how long each subject took, from the times the
+  mainline's last build published.
 - `variance distill` reads portable [Eyes](eyes.md) and
   [Sense](../packages/sense) evidence for one test.
 
@@ -124,6 +126,31 @@ nothing down and the run lives in memory that ends with the watcher.
 The suite reports to the watcher only if it extends `varianceFixtures`. That
 instrumentation, the ordering rule, and what the answers may be read to mean are
 one boundary whichever transport asks: [inspect a live run](agent-live-run.md).
+
+## Find where the suite's time goes
+
+```bash
+variance ask costs
+variance ask costs --limit 20
+variance ask costs .variance/report.json
+```
+
+Every run times each subject from its first collection to its verdict, and the
+next run places its shards on those times. `costs` reads the same numbers back:
+the files that took longest in total, each with its subject count, and then the
+slowest subjects, each with the file that declares it. Ask it before you narrow
+a local loop, split a file of stories, or wonder why one shard finishes last.
+
+With no report named, it reads the times the mainline's last build published
+with `variance share --publish`. Those cover the whole suite, whereas the run on
+your machine is usually the slice a change selected. The first line names the
+commit the times belong to and how far your checkout is from it. When the
+mainline has published none, the answer says so and does not fall back to your
+last local run. Name a report to read that run's own times instead.
+
+A subject the run could not time is left out of the list, never counted as zero.
+A subject whose collector names no file is listed with the subjects and counted
+under the file table's heading.
 
 ## Ask the code, when the name is not in the run
 

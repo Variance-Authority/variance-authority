@@ -1,5 +1,5 @@
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
-import { TOOLS, VANTAGE_TOOLS, type Tool } from '@variance-authority/mcp/tools';
+import { COSTS_TOOLS, TOOLS, VANTAGE_TOOLS, type CostsSubject, type Tool } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 import { didYouMean } from '../nearest.js';
 
@@ -73,6 +73,8 @@ export interface Question {
   readonly live?: LiveTool;
   /** Asked of the workspace source, or absent when it is not a question about the code. */
   readonly source?: Tool<Help>;
+  /** Asked of the times a run recorded, or absent when it is not a question about cost. */
+  readonly costs?: Tool<CostsSubject>;
 }
 
 /** Every question, each knowing which subjects it answers about. */
@@ -87,6 +89,7 @@ function questionsOf(): readonly Question[] {
     found.set(tool.name, { tool, ...(already === undefined ? {} : { report: already }), live: tool });
   }
   for (const tool of HELP_TOOLS) found.set(tool.name, { tool, source: tool });
+  for (const tool of COSTS_TOOLS) found.set(tool.name, { tool, costs: tool });
 
   return [...found.values()];
 }
