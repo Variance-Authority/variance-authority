@@ -115,7 +115,7 @@ if (asking(verb) && verb !== undefined) {
     // `search` opens the file published for it rather than the whole value.
     const answer = tool === search
       ? (format === 'json' ? askSearchJson : askSearch)(await readSearchForAnswer(root, reading), ownArgs, () => tree)
-      : ask(await readWorkspaceForAnswer(root, reading), verb, ownArgs, () => tree);
+      : ask(await readWorkspaceForAnswer(root, reading), verb, ownArgs, () => tree, root);
 
     process.stdout.write(`${answer}\n`);
   } catch (failure) {

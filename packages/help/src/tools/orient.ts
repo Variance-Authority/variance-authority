@@ -41,8 +41,9 @@ export function filesOf(input: Readonly<Record<string, unknown>>): readonly stri
 
 /**
  * Typed over nothing, like `docs_grep`: it reads no workspace value. The
- * checkout is the working directory, or the root of a tree the host already
- * read.
+ * checkout is the one the host names on the call, as `invocation.root`; with
+ * none named it refuses, because the process's working directory is where the
+ * host was launched and not necessarily the checkout it serves.
  */
 export const orient: Tool<unknown> = {
   name: 'docs_orient',
@@ -75,10 +76,10 @@ export const orient: Tool<unknown> = {
           '`grep --query <pattern> --from <path>` names the files a pattern is in.',
       );
     }
-    // TODO: a call served by `variance-authority-help --root <dir>` reads the
-    // working directory, not that root, unless the host read a tree; the
-    // invocation has no field for the root on its own.
-    const root = invocation?.tree?.root ?? process.cwd();
+    const root = invocation?.root;
+    if (root === undefined) {
+      throw new Error('`orient` reads what a checkout published, and this host named no checkout to read');
+    }
     return formatOrientation({
       files,
       around: packagesAround(root, files, LIMITS),

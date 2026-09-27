@@ -88,6 +88,7 @@ function over<Inner>(
       return tool.run(inner, input, {
         ...(previous === undefined ? {} : { previous }),
         ...(invocation?.tree === undefined ? {} : { tree: invocation.tree }),
+        ...(invocation?.root === undefined ? {} : { root: invocation.root }),
       });
     },
   }));
@@ -169,6 +170,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
     output: process.stdout,
     served: BENCH,
     tree: () => tree,
+    root,
     // Only the report, and the line it came from. `previous` serves the one
     // tool that compares this request with the last one, and it compares
     // reports; cloning a whole workspace reading on every successful call would

@@ -58,6 +58,16 @@ export interface ToolInvocation<Subject> {
    * answered from something that is not a tree.
    */
   readonly tree?: Tree;
+  /**
+   * The checkout the host answers about, as the host was told it.
+   *
+   * Carried rather than guessed: a tool that opens what a checkout published —
+   * its recording, its index — would otherwise read the process's working
+   * directory, which is the host's launch site and not necessarily the root it
+   * was started with. Absent means the host named none, and a tool that needs
+   * one refuses rather than reading wherever the process happens to stand.
+   */
+  readonly root?: string;
 }
 
 /**

@@ -93,17 +93,22 @@ export function inputFrom(tool: Tool<Help>, args: readonly string[]): Record<str
  * function rather than a tree because the verbs that name no path are most of
  * them, and folding a graph for `symbol` would charge every question for the
  * one feature it did not use.
+ *
+ * `root` is the checkout the question is about, handed to the tool as the host
+ * was told it, so a tool that opens what the checkout published reads that
+ * checkout and not the working directory.
  */
 export function ask(
   help: Help,
   verb: string,
   args: readonly string[],
   walk?: () => Tree | undefined,
+  root?: string,
 ): string {
   const tool = toolNamed(verb);
   const input = inputFrom(tool, args);
   const tree = tool.wants?.(input) === true ? walk?.() : undefined;
-  const answer = tool.run(help, input, tree === undefined ? undefined : { tree });
+  const answer = tool.run(help, input, { ...(tree === undefined ? {} : { tree }), ...(root === undefined ? {} : { root }) });
   const at = workspaceGeneration(help);
   return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
 }

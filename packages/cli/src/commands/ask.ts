@@ -243,8 +243,8 @@ export async function askSource(request: SourceRequest): Promise<string> {
     request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
     : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
     : tool.name === grep.name ? await grepSource(process.cwd(), input)
-    : tool.name === orient.name ? orientSource(input)
-    : tool.name === slowestTests.name ? slowestSource(input)
+    : tool.name === orient.name ? orientSource(process.cwd(), input)
+    : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
     : await wholeSource(readSource, tool, input, reading);
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it

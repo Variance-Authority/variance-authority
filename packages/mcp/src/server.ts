@@ -70,6 +70,9 @@ export interface ServerOptions<Subject = RunReport> {
    * resolved against something that is not a tree.
    */
   readonly tree?: () => Tree | undefined | Promise<Tree | undefined>;
+
+  /** The checkout this server answers about, handed to every call as `invocation.root`. */
+  readonly root?: string;
 }
 
 export function serve<Subject>(options: ServerOptions<Subject>): () => void {
@@ -100,6 +103,7 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
       const response = handle(request, () => subject, options.served, {
         ...(previous === undefined ? {} : { previous }),
         ...(tree === undefined ? {} : { tree }),
+        ...(options.root === undefined ? {} : { root: options.root }),
       });
       if (request.method === 'tools/call' && succeeded(response)) {
         previous = options.remember === undefined ? structuredClone(subject) : options.remember(subject);
@@ -197,6 +201,7 @@ export async function serveReportFile(
     output: streams.output ?? process.stdout,
     served: REPORTS,
     ...(tree === undefined ? {} : { tree }),
+    ...(streams.root === undefined ? {} : { root: streams.root }),
     subject: async () => {
       try {
         cached = await readRunReport(path);

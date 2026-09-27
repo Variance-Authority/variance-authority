@@ -70,6 +70,7 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     output: output ?? process.stdout,
     served: HELP,
     tree: () => tree,
+    root,
     subject: async () => {
       try {
         const at = cached === undefined ? undefined : workspaceGeneration(cached);

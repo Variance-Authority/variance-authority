@@ -38,10 +38,11 @@ export async function wholeSource(
   input: Readonly<Record<string, unknown>>,
   reading: SourceReadOptions,
 ): Promise<Answering> {
-  const sourced = await read(process.cwd(), reading);
+  const root = process.cwd();
+  const sourced = await read(root, reading);
   const tree = reading.tree === true ? sourced.tree?.() : undefined;
   return {
-    answer: () => tool.run(sourced.help, input, tree === undefined ? undefined : { tree }),
+    answer: () => tool.run(sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }),
     data: () => searchNames(searchIndexOf(sourced.help), searchQuestion(input), tree),
     at: workspaceGeneration(sourced.help),
   };
@@ -76,17 +77,17 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
   // Unread is not fatal: `grep` refuses a start point it has no tree for, in
   // the sentence that says so, and a call with no start point needs none.
   const tree = grep.wants?.(input) === true ? await readTree({ root, index: sourceIndexPath(root) }).catch(() => undefined) : undefined;
-  return { answer: () => grep.run(undefined, input, tree === undefined ? undefined : { tree }), at: undefined };
+  return { answer: () => grep.run(undefined, input, { ...(tree === undefined ? {} : { tree }), root }), at: undefined };
 }
 
 /**
  * `orient` reads no workspace value and draws no tree: `git grep` says where
  * the words are, and the addon opens the published index and recording itself,
- * both from the working directory. So nothing is read before it is asked, and
- * there is no generation to date the answer with.
+ * both from `root`. So nothing is read before it is asked, and there is no
+ * generation to date the answer with.
  */
-export function orientSource(input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => orient.run(undefined, input), at: undefined };
+export function orientSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
+  return { answer: () => orient.run(undefined, input, { root }), at: undefined };
 }
 
 /**
@@ -94,8 +95,8 @@ export function orientSource(input: Readonly<Record<string, unknown>>): Answerin
  * recording a run published and nothing else, so there is no workspace value
  * to read first and no generation to date the answer with.
  */
-export function slowestSource(input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => slowestTests.run(undefined, input), at: undefined };
+export function slowestSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
+  return { answer: () => slowestTests.run(undefined, input, { root }), at: undefined };
 }
 
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
