@@ -160,7 +160,11 @@ export interface NativeScanner {
     digests?: boolean,
     readers?: number,
   ): NativeReadBatch;
-  /** Read, parse, extract and resolve one frontier without an AST crossing N-API. */
+  /**
+   * Read, parse, extract and resolve one frontier without an AST crossing N-API.
+   * `listed` names the files under a tracked `build/` when the tree is not the
+   * addon's own ([`repo-path.ts`](./repo-path.ts)).
+   */
   scanBatch(
     root: string,
     files: string[],
@@ -169,6 +173,7 @@ export interface NativeScanner {
     readers?: number,
     tsconfig?: string,
     conditionNames?: string[],
+    listed?: string[],
   ): NativeScanBatch;
   /** The kind names, indexed by the codes a batch's `kinds` carries. */
   kinds(): EdgeKind[];
@@ -197,8 +202,11 @@ export interface NativeScanner {
    * `imported`, the exports of a module it imports. `null` when it does not parse.
    */
   moduleReaders?(file: string, text: string, names: string[], imported: boolean): NativeModuleReaders | null;
-  /** Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`. */
-  resolveSources?(root: string, file: string, sources: string[]): string[];
+  /**
+   * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
+   * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)).
+   */
+  resolveSources?(root: string, file: string, sources: string[], listed?: string[]): string[];
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */
   declaredEffects?(root: string, files: string[]): string[];
   /** Read, fold, and encode one run's case journals without crossing rows into V8. */
@@ -274,6 +282,8 @@ export interface NativeModuleReaders {
 export interface NativeFrontierOptions extends ResolveOptions {
   readonly addon: NativeScanner;
   readonly tree?: NativeGitTree;
+  /** Without `tree`, the files the listing holds under a tracked `build/`. */
+  readonly listed?: readonly string[];
   readonly root: string;
   readonly files: readonly string[];
   readonly largestFile: number;
@@ -299,17 +309,30 @@ export interface NativeBuilt {
  */
 export function nativeFrontier(options: NativeFrontierOptions): readonly NativeBuilt[] {
   const digestContents = options.digests.some((digest) => digest === undefined);
-  const scan = options.tree?.scanBatch.bind(options.tree) ?? options.addon.scanBatch.bind(options.addon);
+  const conditionNames = options.conditionNames === undefined ? undefined : [...options.conditionNames];
   const started = performance.now();
-  const batch = scan(
-    options.root,
-    [...options.files],
-    options.largestFile,
-    digestContents,
-    undefined,
-    options.tsconfig,
-    options.conditionNames === undefined ? undefined : [...options.conditionNames],
-  );
+  // A tree the addon built resolves with its own listing; only the free batch
+  // is told which `build/` files are listed.
+  const batch = options.tree === undefined
+    ? options.addon.scanBatch(
+      options.root,
+      [...options.files],
+      options.largestFile,
+      digestContents,
+      undefined,
+      options.tsconfig,
+      conditionNames,
+      options.listed === undefined ? undefined : [...options.listed],
+    )
+    : options.tree.scanBatch(
+      options.root,
+      [...options.files],
+      options.largestFile,
+      digestContents,
+      undefined,
+      options.tsconfig,
+      conditionNames,
+    );
   if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
     process.stderr.write(`sense native scan: ${(performance.now() - started).toFixed(1)} ms\n`);
   }

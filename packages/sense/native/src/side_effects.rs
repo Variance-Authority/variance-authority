@@ -33,8 +33,14 @@ use crate::resolve::Resolvers;
 /// absolute path of a file outside the checkout, or an empty string when
 /// nothing resolves. The sources a diff added or removed are the ones the
 /// graph cannot name, because it holds edges and not the words that wrote them.
+///
+/// `listed` is the listing's word on the paths the disk alone declines: the
+/// files the caller's graph holds under a tracked `build/`. A scan records a
+/// file there only where Git lists it, so the graph carries that word, and a
+/// landing there answers with the repository path the graph names it by.
 #[napi(catch_unwind)]
-pub fn resolve_sources(root: String, file: String, sources: Vec<String>) -> Vec<String> {
+pub fn resolve_sources(root: String, file: String, sources: Vec<String>, listed: Option<Vec<String>>) -> Vec<String> {
+    let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
     let resolvers = Resolvers::new(None, None);
     // The resolver answers with the path a symlink leads to, and a repository
     // path is cut from the root that path lies under.
@@ -44,7 +50,7 @@ pub fn resolve_sources(root: String, file: String, sources: Vec<String>) -> Vec<
         .iter()
         .map(|source| {
             resolvers
-                .resolve(&root, &from, source, None)
+                .resolve(&root, &from, source, listed.as_ref())
                 .or_else(|| resolvers.resolution(&from, source).map(|found| found.path().to_string_lossy().into_owned()))
                 .unwrap_or_default()
         })

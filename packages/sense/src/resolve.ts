@@ -23,7 +23,7 @@
  */
 
 import { realpathSync } from 'node:fs';
-import { basename, isAbsolute, relative, sep } from 'node:path';
+import { basename } from 'node:path';
 import { ResolverFactory, type NapiResolveOptions } from 'oxc-resolver';
 import { customConditionsFor } from './conditions.js';
 import { emittedFrom, type Emitted } from './emitted.js';
@@ -31,6 +31,7 @@ import { resolveJvm } from './jvm.js';
 import type { LanguageId } from './language.js';
 import { resolvePython } from './python.js';
 import { MODULE_EXTENSIONS } from './read.js';
+import { toRepoPath } from './repo-path.js';
 import { STYLE_EXTENSIONS, styleRequests } from './style.js';
 import { resolveRust } from './rust.js';
 import { resolveSwift } from './swift.js';
@@ -53,19 +54,6 @@ export interface ResolveOptions {
 
 /** Source before built output: a package that publishes both is worth more as source. */
 export const DEFAULT_CONDITIONS = ['source', 'import', 'require', 'default'] as const;
-
-/** Directories a scan never descends into, and never records a file inside. */
-export const EXCLUDE_DIRS = [
-  'node_modules',
-  'dist',
-  'tsDist',
-  'build',
-  'coverage',
-  'storybook-static',
-  '.git',
-  '.next',
-  '.turbo',
-];
 
 /**
  * The three resolvers a scan needs, plus the memo they share.
@@ -109,7 +97,9 @@ export interface Resolvers {
    * package spread across nineteen roots.
    *
    * Absent until a caller names a tree, and a request in one of those languages
-   * asked before then resolves to nothing rather than to a guess.
+   * asked before then resolves to nothing rather than to a guess. It is also
+   * the evidence a landing under `build/` needs, so without one that resolves
+   * to nothing in every language ({@link toRepoPath}).
    */
   tree: TreeWorld | undefined;
 }
@@ -325,7 +315,7 @@ function resolved(input: {
 
   if (OVER_THE_TREE.has(language)) {
     const world = resolvers.tree;
-    const file = toRepoPath(root, from);
+    const file = toRepoPath(root, from, world);
     if (world === undefined || file === undefined) return [];
     switch (language) {
       case 'python': return resolvePython({ from: file, request, world });
@@ -451,7 +441,7 @@ function landed(resolvers: Resolvers, root: string, path: string): Landing {
   const found = realPath(path);
   const source = resolvers.emitted(found);
   const disk = source === undefined || source === null ? found : realPath(source);
-  const landing: Landing = { disk, file: source === null ? undefined : toRepoPath(root, disk) };
+  const landing: Landing = { disk, file: source === null ? undefined : toRepoPath(root, disk, resolvers.tree) };
   canonical.set(path, landing);
 
   return landing;
@@ -470,14 +460,4 @@ export function realPath(path: string): string {
   } catch {
     return path;
   }
-}
-
-/** A path inside the repository, relative and slash-separated, or nothing. */
-export function toRepoPath(root: string, absolute: string): string | undefined {
-  const path = relative(root, absolute);
-  if (path === '' || path.startsWith('..') || isAbsolute(path)) return undefined;
-
-  const normalized = sep === '/' ? path : path.split(sep).join('/');
-
-  return normalized.split('/').some((part) => EXCLUDE_DIRS.includes(part)) ? undefined : normalized;
 }

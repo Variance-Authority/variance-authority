@@ -20,7 +20,7 @@ import { basename, extname, isAbsolute, join } from 'node:path';
 import type { Digest } from './digest.js';
 import type { ParseKey } from './cache.js';
 import { languageOf, READABLE, type LanguageId } from './language.js';
-import { EXCLUDE_DIRS, toRepoPath } from './resolve.js';
+import { excludedWhenListed, toRepoPath } from './repo-path.js';
 
 /** The extensions a scan opens: every language some reader claims. */
 export { READABLE } from './language.js';
@@ -49,10 +49,9 @@ function below(file: string, prefix: string): boolean {
       : '';
   if (relative === '') return false;
   const directories = relative.split('/').slice(0, -1);
-  // A tracked directory named `build` is source by Git's own evidence. The
-  // addon's filesystem walk still excludes generated build output; only a
-  // Git-visible path reaches this predicate.
-  return !directories.some((part) => part !== 'build' && EXCLUDE_DIRS.includes(part));
+  // Only a Git-visible path reaches this predicate, so the listed policy
+  // applies; the addon's filesystem walk still declines a `build/`.
+  return !directories.some(excludedWhenListed);
 }
 
 /** Files whose declarations are not components, matching the component index. */

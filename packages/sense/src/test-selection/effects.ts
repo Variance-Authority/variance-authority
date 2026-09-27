@@ -1,5 +1,14 @@
-import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
+import {
+  EDGE_KINDS,
+  RUNTIME_EDGES,
+  idOf,
+  nodeAt,
+  nodesOfKind,
+  type NodeId,
+  type Relations,
+} from '@variance-authority/core/relate';
 import { native } from '../addon.js';
+import { onlyListed } from '../repo-path.js';
 
 /**
  * Of a changed file and what the imports it started or stopped binding load,
@@ -24,11 +33,32 @@ export function declaredEffects(
 ): readonly string[] {
   const scanner = native();
   if (root === undefined || scanner?.declaredEffects === undefined || scanner.resolveSources === undefined) return [];
-  const targets = imported.length === 0 ? [] : scanner.resolveSources(root, file, [...imported]).filter(Boolean);
+  const targets = imported.length === 0
+    ? []
+    : scanner.resolveSources(root, file, [...imported], listedIn(relations)).filter(Boolean);
   const loaded = new Set(targets.flatMap((target) => loadedFrom(relations, [target])));
   for (const already of loadedFrom(relations, unchangedImports(relations, file, targets))) loaded.delete(already);
   loaded.delete(file);
   return scanner.declaredEffects(root, [file, ...[...loaded].sort()]);
+}
+
+const LISTED = new WeakMap<Relations, string[]>();
+
+/**
+ * The files the graph holds under a tracked `build/`, which a landing there
+ * needs the listing's word for ([`repo-path.ts`](../repo-path.ts)). A scan
+ * records a file under `build/` only where Git lists it, so the graph carries
+ * that word, and passing it lands an added import on the name the graph walks
+ * from. Once per graph, because every changed file asks about the same one.
+ */
+function listedIn(relations: Relations | undefined): string[] | undefined {
+  if (relations === undefined) return undefined;
+  let listed = LISTED.get(relations);
+  if (listed === undefined) {
+    listed = nodesOfKind(relations, 'file').map((id) => relations.names[id]!).filter(onlyListed);
+    LISTED.set(relations, listed);
+  }
+  return listed;
 }
 
 /** What `file` imports at runtime, as the graph holds it, less the targets the change moved. */

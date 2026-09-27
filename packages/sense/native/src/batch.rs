@@ -90,8 +90,14 @@ pub fn read_batch(
 }
 
 /// Read, parse, extract and resolve a frontier on one native side.
+///
+/// `listed` is what a listing the addon does not hold says about the paths
+/// the disk alone declines: the files Git lists under a `build/`. A scan over
+/// a tree the addon built passes nothing here, because that tree resolves
+/// with the whole listing.
 #[napi(catch_unwind)]
 #[allow(dead_code, reason = "called through the generated N-API export")]
+#[allow(clippy::too_many_arguments, reason = "stable positional N-API contract")]
 pub fn scan_batch(
     root: String,
     files: Vec<String>,
@@ -100,7 +106,9 @@ pub fn scan_batch(
     readers: Option<u32>,
     tsconfig: Option<String>,
     condition_names: Option<Vec<String>>,
+    listed: Option<Vec<String>>,
 ) -> ScanBatch {
+    let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
     scan_batch_with_oids(
         ScanOptions {
             root,
@@ -112,7 +120,7 @@ pub fn scan_batch(
             condition_names,
         },
         None,
-        None,
+        listed.as_ref(),
         None,
     )
 }

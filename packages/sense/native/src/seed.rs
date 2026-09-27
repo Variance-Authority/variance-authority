@@ -63,10 +63,9 @@ fn below(path: &str, prefix: &str) -> bool {
     };
     let mut components = relative.split('/').peekable();
     while let Some(component) = components.next() {
-        // A tracked `build/` can itself be source (large monorepos use it for
-        // build tooling). Filesystem discovery still declines generated build
-        // output; Git identity is the evidence that this path is intentional.
-        if components.peek().is_some() && component != "build" && crate::path::excluded(component) {
+        // Every path seeded here is one Git lists, so a tracked `build/` is
+        // source; the disk walk below still declines it.
+        if components.peek().is_some() && crate::path::excluded_when_listed(component) {
             return false;
         }
     }

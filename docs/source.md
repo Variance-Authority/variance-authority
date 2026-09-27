@@ -193,8 +193,13 @@ names a path no case-sensitive checkout contains.
 `source.dirs` identifies where the scan starts. It does not fence the graph. A
 file under `src/` that imports `../design/button.css` brings that stylesheet into
 the result, and the stylesheet's own requests continue the walk. Directories the
-scan never descends into are fixed: `node_modules`, `dist`, `tsDist`, `build`,
-`coverage`, `storybook-static`, `.git`, `.next`, and `.turbo`.
+scan declines are fixed: `node_modules`, `dist`, `tsDist`, `build`, `coverage`,
+`storybook-static`, `.git`, `.next`, and `.turbo`. Git can overrule the name
+`build` and no other: a file Git lists under a `build/` directory is source, so
+the scan reads it and your imports of it become edges. A `build/` your
+`.gitignore` covers stays declined, and the rest stay declined whatever Git
+tracks. A scan with `digests: false` does not ask Git, so it declines every
+`build/`.
 
 Traversal stops at the repository edge. Builtins, installed dependencies, and
 paths above `root` cannot be named by a diff in this repository, so they do not
@@ -245,16 +250,17 @@ in your repository.
 
 The excluded directories apply to resolved targets as well as to traversal, so
 built output the scan cannot map to a source produces no edge when it sits under
-one of them, such as `dist/` or `build/`. That covers a package whose bundler
-writes the code while its `tsconfig` sets `noEmit` or `emitDeclarationOnly`, a
-`tsconfig` with no `rootDir`, and a file under `outDir` that TypeScript does not
-emit, such as a stylesheet a build step copies. The importing record keeps the
-specifier under `unresolved` and has no `unknown` reason, because a bare
-specifier normally names a dependency rather than repository source. An edit to
-that package's own `src/Button.tsx` then reaches nothing in the consuming
-package. Output the scan cannot map under a directory it does not exclude, such
-as `lib/`, is a target like any other file: the edge lands on the build, and the
-walk continues through it rather than through the source.
+one of them, such as `dist/`, or a `build/` Git does not track. That covers a
+package whose bundler writes the code while its `tsconfig` sets `noEmit` or
+`emitDeclarationOnly`, a `tsconfig` with no `rootDir`, and a file under `outDir`
+that TypeScript does not emit, such as a stylesheet a build step copies. The
+importing record keeps the specifier under `unresolved` and has no `unknown`
+reason, because a bare specifier normally names a dependency rather than
+repository source. An edit to that package's own `src/Button.tsx` then reaches
+nothing in the consuming package. Output the scan cannot map under a directory
+it does not exclude, such as `lib/`, or under a `build/` Git tracks, is a target
+like any other file: the edge lands on the build, and the walk continues through
+it rather than through the source.
 
 Four arrangements give that edge back, and one is enough.
 

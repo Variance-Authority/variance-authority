@@ -64,6 +64,7 @@ import {
 } from './files.js';
 import { worldIn, worldOn } from './world.js';
 import { recordFor } from './record.js';
+import { onlyListed } from './repo-path.js';
 import {
   realPath,
   resolversFor,
@@ -260,7 +261,8 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
   // Every language but JavaScript resolves by asking about the tree rather
   // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
   // scan already holds the answer for every path it knows.
-  resolvers.tree = tree === undefined ? worldOn(root) : worldIn(tree.paths(), root);
+  const world = tree === undefined ? worldOn(root) : worldIn(tree.paths(), root);
+  resolvers.tree = world;
 
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
   // checked against the bytes on disk, so there is nothing to reuse it against.
@@ -272,6 +274,12 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
   // on whether its wave was large enough to open the object store, and an index
   // keeps whichever it read first until the file changes.
   const packed = options.packs === false ? undefined : tree?.native;
+  // A native batch over a tree the addon does not hold resolves without Git's
+  // listing, so it is handed the part the disk cannot vouch for: the files
+  // under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)). Asked for
+  // when a batch runs, which on a scan that reuses everything is never.
+  let listed: string[] | undefined;
+  const listedPaths = (): string[] => (listed ??= world.below('').filter(onlyListed));
   if (shape !== undefined) reuse?.under(shape.shape);
 
   // The queue is repository-relative throughout. An edge already carries the
@@ -390,6 +398,7 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
       const nativeOptions = {
         addon,
         ...(packed === undefined ? {} : { tree: packed }),
+        ...(packed === undefined && tree !== undefined ? { listed: listedPaths() } : {}),
         root,
         files: pending,
         largestFile: options.largestFile ?? LARGEST_FILE,

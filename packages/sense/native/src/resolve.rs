@@ -167,7 +167,7 @@ impl Resolvers {
                 Origin::Disk | Origin::Directory => Cow::Borrowed(answer.path()),
             };
             let resolved = resolved.as_ref();
-            if let Some(file) = to_repo_path(root, resolved) {
+            if let Some(file) = to_repo_path(root, resolved, known) {
                 if known.is_some_and(|paths| paths.contains_key(&file)) {
                     if !case_folded(request, resolved) {
                         return Some(file);
@@ -179,7 +179,7 @@ impl Resolvers {
             if case_folded(request, &canonical) {
                 continue;
             }
-            if let Some(file) = to_repo_path(root, &canonical) {
+            if let Some(file) = to_repo_path(root, &canonical, known) {
                 return Some(file);
             }
         }
@@ -250,23 +250,31 @@ fn stem(name: &str) -> &str {
     }
 }
 
-fn to_repo_path(root: &Path, absolute: &Path) -> Option<String> {
+/// Where `absolute` sits in the repository, or nothing when it is outside the
+/// checkout or under a directory the scan declines. A `build/` is declined
+/// unless `known`, Git's listing, holds the file: the evidence the seeder
+/// reads, so an import lands on every file a scan would read and on nothing
+/// the disk alone put there.
+fn to_repo_path(root: &Path, absolute: &Path, known: Option<&HashMap<String, u32>>) -> Option<String> {
     let relative = absolute.strip_prefix(root).ok()?;
     if relative.as_os_str().is_empty() {
         return None;
     }
     let mut parts = Vec::new();
+    let mut only_listed = false;
     for component in relative.components() {
         let Component::Normal(part) = component else {
             return None;
         };
         let part = part.to_str()?;
-        if crate::path::excluded(part) {
+        if crate::path::excluded_when_listed(part) {
             return None;
         }
+        only_listed |= crate::path::excluded(part);
         parts.push(part);
     }
-    Some(parts.join("/"))
+    let file = parts.join("/");
+    (!only_listed || known.is_some_and(|paths| paths.contains_key(&file))).then_some(file)
 }
 
 #[cfg(test)]
@@ -277,6 +285,35 @@ mod tests {
     fn strips_build_suffixes() {
         assert_eq!(request_of(" ./button.ts?raw#x "), Some("./button.ts"));
         assert_eq!(request_of("node:fs"), None);
+    }
+
+    #[test]
+    fn a_build_directory_is_source_where_git_lists_it() {
+        let root = std::env::temp_dir().join(format!("sense-listed-build-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for (path, text) in [
+            ("src/commands/b.ts", "import './build/a';\n"),
+            ("src/commands/build/a.ts", "export {};\n"),
+            ("src/commands/dist/c.ts", "export {};\n"),
+        ] {
+            std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+            std::fs::write(root.join(path), text).unwrap();
+        }
+        let root = std::fs::canonicalize(root).unwrap();
+        let from = root.join("src/commands/b.ts");
+        let listed = HashMap::from([
+            ("src/commands/b.ts".to_owned(), 0),
+            ("src/commands/build/a.ts".to_owned(), 1),
+            ("src/commands/dist/c.ts".to_owned(), 2),
+        ]);
+        let unlisted = HashMap::from([("src/commands/b.ts".to_owned(), 0)]);
+        let resolvers = Resolvers::new(None, None);
+        let ask = |request, known| resolvers.resolve(&root, &from, request, known);
+        assert_eq!(ask("./build/a", Some(&listed)), Some("src/commands/build/a.ts".to_owned()));
+        assert_eq!(ask("./build/a", Some(&unlisted)), None);
+        assert_eq!(ask("./build/a", None), None);
+        assert_eq!(ask("./dist/c", Some(&listed)), None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
