@@ -5,6 +5,14 @@ can inspect: a source name, a file, an import neighbourhood, or a captured UI
 subject. It comes before diagnosis and editing. Its answer is where to read
 next, not a claim that the code is correct.
 
+You are in a library and asked to find the first spell Harry Potter used at
+home. You know who, you know where, and you remember the story. You do not know
+where to look, and the library is big. Searching every book for the word
+"spell" finds all of them; a book's own index helps only once you hold the right
+book. What you need first is the shelf, then the book, then the chapter. An
+unfamiliar codebase is that library, and orientation is how you get to the
+chapter.
+
 Variance has two orientation routes:
 
 - **Source orientation** starts from the current checkout. It finds exported
