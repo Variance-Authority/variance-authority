@@ -187,6 +187,7 @@ function flat(holder: Holder): Collector {
 function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Collector {
   const engine = attach(holder, continuations, story !== undefined);
   const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
+  if (tap !== undefined) storyTap.listen(tap, holder);
   const buckets = new Map<string, Bucket>();
   const late = new Set<string>();
   // A bucket is written the moment its case settles and then dropped, so a

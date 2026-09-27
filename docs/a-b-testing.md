@@ -53,6 +53,13 @@ page is darker than its light parent, and reporting that as a failure reports
 the subject for existing. A variation changes no verdict, no exit code and
 nothing `variance accept` does.
 
+The same two kinds of pair apply to a unit test's
+[stories](test-stories.md), the order in which one test ran the code. Its runs
+that passed against its runs that threw are one test read again, where only the
+run differs. Two setups you recorded under two labels, such as a flag off and
+on, are compared on purpose, and the label names what differs.
+[Choose the sides](test-stories.md#choose-the-sides) lists both.
+
 ## The same evidence means different things in each kind of pair
 
 Take one component read twice. It was given the same props, the same context and

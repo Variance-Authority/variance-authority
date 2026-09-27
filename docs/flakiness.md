@@ -441,6 +441,17 @@ and a region already covered by then is recorded as **loaded** by that file:
 that and nothing finer, for a suite that wants the signal at the price of one
 probe per function.
 
+**For one unit test that fails on some runs, compare its runs.** Record the
+test's [story](test-stories.md) on each run: the functions and branches it ran,
+in order. The order of async code is different on every run, so two stories
+of one test always differ, and a different order is not the flake. `variance
+story --compare outcome` lists only what is true of every run that passed and
+of no run that threw — a branch, a line the code printed, or two steps in the
+opposite order — and counts the rest.
+[Comparing readings](test-stories.md#compare-readings-of-one-test) explains it,
+and a test that passes alone and fails in its file is compared the same way,
+with the two setups as labels.
+
 **A run identifies the affected component, not the writer of an order leak.** A
 probe sees stylesheets, custom properties, attributes and stray body nodes; the
 couplings that bite live in module scope — a singleton store, a cached client, a

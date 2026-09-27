@@ -211,6 +211,40 @@ describe('a story read as a route', () => {
     );
   });
 
+  it('prints what was said beside the step it was said at, and what was said before the first step', () => {
+    const said: Route = {
+      ...ROUTE,
+      before: [],
+      route: [{
+        token: {
+          ...place('src/cart.ts', 'Cart/removeItem', 12, 30).token,
+          said: ['console.log removing A1', ...Array.from({ length: 6 }, (_, row) => `eyes commit Row${row}`)],
+        },
+      }],
+      opening: { route: ['eyes arrange'] },
+      files: ['src/cart.ts'],
+      interleaved: 0,
+    };
+    const text = formatStory({ route: said, reading: { of: 3, label: 'slow', written: Date.UTC(2026, 8, 27, 12) } }, 'text').split('\n');
+    expect(text.slice(0, 5)).toEqual([
+      'story  src/cart.test.ts > cart > removes the last item',
+      '  goes through 1 file in 1 step',
+      '  the newest of 3 readings, labelled slow, written 2026-09-27T12:00:00.000Z; set them against each other with --compare',
+      '  said as the test began, before its first step:',
+      '    » eyes arrange',
+    ]);
+    expect(text.slice(-8)).toEqual([
+      '  1  Cart/removeItem  cart.ts:12-30',
+      '       » console.log removing A1',
+      '       » eyes commit Row0',
+      '       » eyes commit Row1',
+      '       » eyes commit Row2',
+      '       » eyes commit Row3',
+      '       » and 2 more lines',
+      '',
+    ]);
+  });
+
   it('gives the reading, its level and the numbered steps as json', () => {
     const { before: _before, route: _route, untaken: _untaken, ...head } = ROUTE;
     expect(JSON.parse(formatStory({ route: ROUTE, zoom: { around: 5 } }, 'json'))).toEqual({

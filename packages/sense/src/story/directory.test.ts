@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -11,7 +11,7 @@ import { askedForStories, recordOfStories, storyDirectories, storyDirectory } fr
  * its neighbours by the names the build gives them.
  */
 const { listStories, readRoute } = (await import('../../dist/story/read.js')) as typeof import('./read.js');
-const { encodeStory, storyWriter } = (await import('../../dist/story/format.cjs')).default as typeof import('./format.cjs');
+const { encodeStory, labelOf, readingOf, READINGS, storyWriter } = (await import('../../dist/story/format.cjs')).default as typeof import('./format.cjs');
 
 async function repository(config: object): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-story-'));
@@ -25,7 +25,7 @@ function story(root: string): { key: string; bytes: Buffer } {
   const key = `${root}/src/cart.test.ts\u0000removes the last item\u00001`;
   const bytes = encodeStory(
     {
-      tape: Int32Array.from([0, 1]), taped: 2, visits: 2, at: [0], keys: [key],
+      tape: Int32Array.from([0, 1]), taped: 2, visits: 2, at: [0], keys: [key], notes: [], unnoted: 0,
       rows: { ids: ['src/cart.ts'], counts: [2], bases: [0] },
     },
     key,
@@ -66,5 +66,28 @@ describe('where stories go', () => {
     expect(recordOfStories(dirname(listed!.path))).toBe(unit);
     // No record beside it yet, so the module is on the route as its file.
     expect(readRoute(root, listed!.path)).toMatchObject({ files: ['src/cart.ts'], unresolved: ['src/cart.ts'] });
+  });
+
+  it('keeps a case\'s last readings, each under the label its run gave, newest first', async () => {
+    const root = await repository({});
+    const directory = storyDirectory(testCoverageFile(root));
+    const { key, bytes } = story(root);
+    const write = storyWriter(directory, labelOf('slow run!'));
+    for (let run = 0; run < READINGS + 2; run += 1) write(key, bytes);
+    storyWriter(directory, labelOf('1'))(key, bytes);
+
+    expect(await readdir(directory)).toHaveLength(READINGS);
+    const listed = listStories(root);
+    expect(listed).toHaveLength(READINGS);
+    expect(listed[0]).not.toHaveProperty('label');
+    expect(listed.slice(1).every((entry) => entry.label === 'slow-run')).toBe(true);
+    expect(listed.every((entry, at) => at === 0 || entry.written! <= listed[at - 1]!.written!)).toBe(true);
+  });
+
+  it('reads a reading\'s name back, and a story written before readings as one with no time', () => {
+    expect(readingOf(`${'a'.repeat(32)}.1790000000000-41-2.slow.story`)).toEqual({ stem: 'a'.repeat(32), written: 1790000000000, label: 'slow' });
+    expect(readingOf(`${'a'.repeat(32)}.story`)).toEqual({ stem: 'a'.repeat(32) });
+    expect(readingOf('notes.txt')).toBeUndefined();
+    expect([labelOf(undefined), labelOf('1'), labelOf('--'), labelOf('flag on')]).toEqual([undefined, undefined, undefined, 'flag-on']);
   });
 });

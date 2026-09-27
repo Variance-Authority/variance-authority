@@ -3,6 +3,7 @@
 **Status:** accepted
 **Date:** 2026-09-26 (arms, counts, the picked level, the arms never taken and the arms drawn as a tree added the same day)
 **Narrows:** ADR-0056 (a journey is the places visited)
+**Amended by:** [ADR-0079](0079-readings-are-compared-by-what-every-reading-of-a-side-does.md) — a case keeps its last readings, and they are compared
 **Relates to:** ADR-0002 (absent is not empty), ADR-0069 (every answer has an
 owner), [spec 0071](../../specs/0071-a-test-is-read-alone.md)
 

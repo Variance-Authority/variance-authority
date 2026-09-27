@@ -21,9 +21,16 @@ question open:
   failed on a value made elsewhere, or a test passes when it should not. Find
   the step where the route left the path you expected, or the `✗` on the
   branch the test is named for.
+- **A test fails on some runs and passes on others.** Record it until it has
+  both passed and thrown, twice each if you can, then ask
+  `story --name <text> --compare outcome`. Do not diff two routes yourself:
+  async code runs in a different order on every run, so most of what differs is
+  not the cause. The comparison lists only what every run on one side did and
+  no run on the other did.
 - **A test passes alone and fails with its file**, or fails alone and passes
-  with it. Record it alone with `-t`, then with its whole file, read the story after each run (the second replaces the
-  first), and compare from the first step where they differ.
+  with it. Record it alone with `-t` under `VARIANCE_AUTHORITY_STORY=alone`,
+  then with its whole file under `VARIANCE_AUTHORITY_STORY=file`, twice each,
+  and ask `story --name <text> --compare alone,file`.
 
 Never record:
 
@@ -37,7 +44,10 @@ Never record:
   says the recording filled up, choose another test.
 - **To find which tests run a line.** That is `covering`, from the record every
   run already keeps.
-- **For a value.** A story shows none; use a debugger at the line it names.
+- **For a value the code does not print.** A story shows only what the code
+  said: `console` lines, Eyes queries and events, `vae` announcements. Add a
+  `console.log` of the value and record again, or use a debugger at the line it
+  names.
 - **When a stack trace already names the line.** Open that line.
 
 ```bash
@@ -45,9 +55,12 @@ VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
 ```
 
-Every test the run runs writes its story, and a later run of the same test
-replaces it. Recording needs the suite set up with
-`@variance-authority/sense`. When `story` answers `no story in this checkout`
+Every test the run runs writes its story, and a test keeps its last 16, one
+per run: its readings. `story` reads the newest and says how many are kept.
+Set the variable to a label in place of `1` to name a run's readings, such as
+`VARIANCE_AUTHORITY_STORY=flag-on`; `--label <label>` reads the newest under
+one label, and a reading with no label is `1`. Recording needs the suite set
+up with `@variance-authority/sense`. When `story` answers `no story in this checkout`
 after such a run, check that the test ran and was not skipped. If it did, the
 project does not record stories: answer from the source, say the route was not
 read from a story, and do not record more tests to find one.
@@ -64,8 +77,8 @@ variance story --file src/cart.test.ts --name "removes" --format json
 ```
 
 `--file` and `--name` match text the test file path and the test name contain.
-When they match several stories, the answer lists them with their visit counts
-and prints no route; narrow the text and ask again.
+When they match several tests, the answer lists them with their visit counts
+and readings and prints no route; narrow the text and ask again.
 
 The answer fits a page. It is drawn at the finest level that fits in 5,000
 characters — every step, then steps with other workspace packages passed
@@ -136,6 +149,47 @@ variance story --name "removes the last item" --whole         # every step, howe
   `beforeEach`, the previous test's `afterEach`.
 - At the declarations level, `steps 36, 39×6` lists each step the function was
   at; `39×6` is step 39, repeated six times, as calls or returns.
+- `» text` under a step is a line the code said at that step: a `console` line
+  as `console.log …`, an Eyes entry as `eyes …` with a query's arguments and
+  what it found, a `vae` announcement as `vae …`. Lines said before the first
+  step are in the header.
+
+## Compare readings
+
+```bash
+variance story --name "removes the last item" --compare outcome   # passed against threw
+variance story --name "removes the last item" --compare last      # newest against the one before
+variance story --name "removes the last item" --compare 1,flag-on # two labels
+```
+
+```text
+compare  src/cart.test.ts > cart > removes the last item
+  passed (3 readings) against threw (2 readings, every one threw)
+
+  only when it passed, on every reading:
+    went into  removeItem  src/cart.ts:12-30, the then of the if on 19
+
+  only when it threw, on every reading:
+    said       » console.log stock 0
+
+  in the opposite order when it passed and when it threw, on every reading:
+    » eyes click on button "Save" in SaveBar
+      before price  src/cart.ts:32-36 when it passed, after it when it threw
+
+  left out, because they differ between readings of one side as well: 1 place, 4 lines said, 37 pairs in changing order
+```
+
+- A listed difference is true of every reading on one side and of no reading
+  on the other. That is the lead: open the place it names.
+- The last line counts what differs between readings of one side too. It is
+  not the cause; do not read it as one, and do not report the order changing
+  between runs as a flake.
+- *one reading on a side* means the comparison cannot tell the side from the
+  run. `last` always says it. Record the test again under each side before you
+  conclude.
+- *nothing separates the sides* means the difference is in a value no line
+  prints, or in code that is not instrumented. Add a `console.log` of the value
+  you suspect, record both sides again, and compare again.
 
 The step before another is where the test came from, not always its caller.
 The recording keeps which code ran, not calls and returns, so no step names a
@@ -153,6 +207,6 @@ not show, it says in the header:
   tracks tests through async context, that work is left out.
 - *the test threw or rejected* — the route ends where it stopped.
 
-A story covers the test's own process. A test run in a browser page (Vitest
-browser mode) writes none, and code the test calls in another process, such as
-a server, is not on it.
+A story covers the test's own process, under Vitest, Jest and Rstest. A test
+run in a browser page (Vitest browser mode) or by Playwright writes none, and
+code the test calls in another process, such as a server, is not on it.

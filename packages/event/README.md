@@ -153,15 +153,32 @@ export async function pay(authorize: () => Promise<void>): Promise<void> {
 
 ## What it costs where nobody is listening
 
-One property read, a `typeof` check and a return. `vae` looks for a **sink** — the
-function a listener installs on `globalThis` under `EVENT_SINK` (`__VAE__`) — and
-finds nothing in production. That is why these calls belong in product source
+Two property reads, two `typeof` checks and a return. `vae` looks for a **sink** —
+the function a listener installs on `globalThis` under `EVENT_SINK` (`__VAE__`) —
+and for a story recorder, and finds neither in production. That is why these calls belong in product source
 rather than in a wrapper a test build swaps in: an announcement that only exists
 under test tells you about the test harness.
 
 Nothing a listener does affects the code that announced. A sink that throws is
 swallowed at the call, and the failure that produces is a wait that times out in
 the driver, printing what it did hear.
+
+## Read it in a test's story
+
+When a unit test runs with `VARIANCE_AUTHORITY_STORY` set, every announcement
+its case makes is written into the case's
+[story](https://variance-authority.dev/docs/test-stories) as a note, at the step the
+code made it:
+
+```
+ 12  checkout.ts:41  decideUpsell
+      » vae once checkout upsell-modal decided
+```
+
+Nothing has to listen for this to happen, and nothing is waited on. When you
+compare the runs of a test that fails on some of them, the announcement is
+ordered with the steps around it, so the comparison shows whether the decision
+came before or after the code it raced on every run that failed.
 
 ## Listen without Playwright, from `@variance-authority/event/collect`
 

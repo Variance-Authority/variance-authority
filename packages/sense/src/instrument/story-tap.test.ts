@@ -179,4 +179,58 @@ describe('a story tap', () => {
   });
 });
 
+describe('what a case says on the way', () => {
+  it('sits on the tape after the visits before it, in the case it was said in', () => {
+    const engine = probeLog.createEngine(false);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const { run } = load(tap.root);
+    tap.reset();
+
+    tap.note('before anything ran');
+    run(1);
+    tap.note('x'.repeat(300));
+
+    const { notes, taped } = tap.read();
+    expect(notes.map(([at, key]) => [at, key])).toEqual([[0, 'case'], [taped, 'case']]);
+    expect(notes[0]![2]).toBe('before anything ran');
+    expect(notes[1]![2]).toHaveLength(240);
+    expect(notes[1]![2].endsWith('…')).toBe(true);
+  });
+
+  it('is counted, not kept, past the limit, and starts again with the tape', () => {
+    const engine = probeLog.createEngine(false);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    for (let said = 0; said < storyTap.NOTE_LIMIT + 3; said += 1) tap.note(`line ${said}`);
+    expect(tap.read()).toMatchObject({ unnoted: 3 });
+    expect(tap.read().notes).toHaveLength(storyTap.NOTE_LIMIT);
+
+    tap.reset();
+    expect(tap.read()).toMatchObject({ notes: [], unnoted: 0 });
+  });
+
+  it('arrives from the console, which still prints it, and from the channel other packages call', () => {
+    const engine = probeLog.createEngine(false);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const printed: unknown[][] = [];
+    const scope: { console: Pick<Console, 'log' | 'info' | 'warn' | 'error' | 'debug'> } = {
+      console: { ...console, log: (...values: unknown[]) => printed.push(values) },
+    };
+
+    storyTap.listen(tap, scope);
+    storyTap.listen(tap, scope);
+    scope.console.log('stock %d', 0, { sku: 'A1' });
+    (scope as unknown as Record<symbol, (text: string) => void>)[Symbol.for('variance-authority.story.note')]!('vae once checkout upsell decided');
+
+    expect(printed).toEqual([['stock %d', 0, { sku: 'A1' }]]);
+    // Listening twice wraps the console once, so a line is said once.
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual([
+      "console.log stock 0 { sku: 'A1' }",
+      'vae once checkout upsell decided',
+    ]);
+  });
+});
+
 it.todo('a case run in a page writes its story as a case run in Node does — needs a drain per case in a page, which the `config` hook of the Vitest seam does not install');

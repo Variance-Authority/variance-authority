@@ -75,7 +75,8 @@ The thresholds are constants beside `RENDER_CACHE_*`, not configuration:
 - **1 hour** for a dead run: a cache restored from another machine carries pids
   that mean nothing here. It costs an hour of a crashed run's scratch.
 - **14 days** for stories and reports, matching renders. A story is read by
-  someone looking at one case now; nothing selects on it or compares it.
+  someone looking at one case now, and compared only with that case's other
+  readings (ADR-0079); nothing selects on it.
 - **30 days** for anything nobody can answer for. A legacy layer with no
   marker, a commit this clone has never fetched and a git that fails all land
   here. It costs a month of the leaked layers, which the marker ends for new

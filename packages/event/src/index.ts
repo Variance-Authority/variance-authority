@@ -46,12 +46,21 @@
  * and this exists to say **when**, never **what**. The what is asserted the
  * ordinary way, one line later, once the when is settled.
  *
+ * ## Said into a story as well
+ *
+ * A story recorder in the same realm — a test run with
+ * `VARIANCE_AUTHORITY_STORY` set — listens on a symbol of its own, and every
+ * announcement is put on the case's tape as `vae once checkout upsell-modal
+ * decided` at the place the code made it. A route then shows the decision
+ * between the steps that led to it, and two runs compared show which side of it
+ * each ordering fell on.
+ *
  * ## What it costs where nobody is listening
  *
- * One property read and a return. {@link vae} looks for a sink on `globalThis`
- * and finds nothing in production, so the call that ships is an `if` — which is
- * the whole reason these live in product source rather than in a wrapper a test
- * build swaps in. An announcement that is only present under test announces the
+ * Two property reads and a return. {@link vae} looks for a sink and a story
+ * recorder on `globalThis` and finds neither in production, so the call that
+ * ships is an `if` — which is the whole reason these live in product source
+ * rather than in a wrapper a test build swaps in. An announcement that is only present under test announces the
  * test harness, not the decision.
  *
  * Nothing a listener does can reach the code it listens to: a sink that throws is
@@ -83,9 +92,12 @@ export interface AnnouncedEvent {
 
 type Sink = (phase: EventPhase, location: string, subject: string, action: string) => void;
 
+/** Where a story recorder in this realm listens; mirrors `NOTE` in sense's `story-tap.cts`. */
+const STORY_NOTE = Symbol.for('variance-authority.story.note');
+
 // Named separately from `EVENT_SINK` because a type cannot be keyed by a value;
 // `announces its own sink name` in the tests is what keeps the two the same.
-const scope = globalThis as typeof globalThis & { __VAE__?: Sink };
+const scope = globalThis as typeof globalThis & { __VAE__?: Sink; [STORY_NOTE]?: (text: string) => void };
 
 function announce(
   phase: EventPhase,
@@ -94,6 +106,15 @@ function announce(
   action: string,
 ): void {
   const sink = scope.__VAE__;
+  const story = scope[STORY_NOTE];
+  if (typeof sink !== 'function' && typeof story !== 'function') return;
+  if (typeof story === 'function') {
+    try {
+      story(`vae ${phase} ${location} ${subject} ${action}`);
+    } catch {
+      // A recorder's bug is swallowed for the reason a sink's is, below.
+    }
+  }
   if (typeof sink !== 'function') return;
   try {
     sink(phase, location, subject, action);

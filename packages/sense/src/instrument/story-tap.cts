@@ -40,6 +40,22 @@
  * in the middle of somebody else's work, and the tape shows that as it
  * happened rather than nesting it under whoever was entered last.
  *
+ * ## What the code said on the way
+ *
+ * A visit says where the case was, never with what. {@link Tap.note} puts a line
+ * of text on the tape at the place it was said — a console line, an
+ * announcement, a test's own Arrange/Act/Assert marker — so the reader of a
+ * route sees the value next to the step that printed it. A note is not a
+ * visit: it moves no bucket and the engine never sees it.
+ *
+ * {@link listen} is how notes arrive. It installs one function under
+ * `Symbol.for('variance-authority.story.note')` on the realm's global, which
+ * `@variance-authority/event` and `@variance-authority/eyes` call when it is
+ * there, and it wraps the realm's `console` so that every line the case prints
+ * is also a note. The console still prints: the wrapper says the line to the
+ * tape and hands it on unchanged. Both happen only in a realm that is recording
+ * a story, which somebody asked for by name.
+ *
  * ## Written to be sent as text
  *
  * {@link createTap} closes over everything it uses, like `createEngine`, so a
@@ -47,6 +63,7 @@
  * stories too.
  */
 
+import util = require('node:util');
 import probeLog = require('./probe-log.cjs');
 import type { ModuleId } from './index.js';
 
@@ -59,6 +76,10 @@ interface Tape {
   readonly visits: number;
   readonly at: readonly number[];
   readonly keys: readonly string[];
+  /** Each note: how many visits were taped before it, the bucket it was said in, and the text. */
+  readonly notes: readonly (readonly [at: number, key: string, text: string])[];
+  /** Notes past {@link NOTE_LIMIT}, counted and not kept. */
+  readonly unnoted: number;
   readonly rows: { readonly ids: readonly ModuleId[]; readonly counts: readonly number[]; readonly bases: readonly number[] };
 }
 
@@ -73,12 +94,18 @@ interface Tap {
    * `taped` is a tape that stopped, never one that was empty.
    */
   read(): Tape;
+  /** Put `text` on the tape where the realm is now, in the case running now. */
+  note(text: string): void;
   /** Start the tape again, keeping what the realm registered. */
   reset(): void;
 }
 
 /** How many visits one tape holds before it stops taping. */
 const TAPE_LIMIT = 1 << 24;
+
+/** How many notes one tape keeps, and how many characters of each. */
+const NOTE_LIMIT = 4096;
+const NOTE_LENGTH = 240;
 
 /**
  * A root in front of `engine` that tapes every visit.
@@ -107,6 +134,8 @@ function createTap(engine: Engine, limit: number): Tap {
   let at: number[] = [];
   let keys: string[] = [];
   let seen = -1;
+  let notes: [number, string, string][] = [];
+  let unnoted = 0;
 
   const record = (entry: number): void => {
     const activation = inner.a;
@@ -169,9 +198,22 @@ function createTap(engine: Engine, limit: number): Tap {
     root,
     engine,
     read() {
-      return { tape, taped, visits, at, keys, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
+      return { tape, taped, visits, at, keys, notes, unnoted, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
+    },
+    note(text: string): void {
+      if (notes.length >= NOTE_LIMIT) {
+        unnoted += 1;
+        return;
+      }
+      const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
+      // Where an async scope decides the bucket, ask it, as a probe would
+      // before it writes: a note said in a case's continuation is the case's.
+      inner.s?.();
+      notes.push([taped, engine.current().key, line]);
     },
     reset(): void {
+      notes = [];
+      unnoted = 0;
       taped = 0;
       visits = 0;
       at = [];
@@ -184,10 +226,48 @@ function createTap(engine: Engine, limit: number): Tap {
   return api;
 }
 
+/** Where the realm's story listens for notes; `@variance-authority/event` and `eyes` mirror it. */
+const NOTE = Symbol.for('variance-authority.story.note');
+
+/** The console methods a case prints with; each line is a note, and still printed. */
+const PRINTS = ['log', 'info', 'warn', 'error', 'debug'] as const;
+
+type Channel = (text: string) => void;
+
+/**
+ * Have `scope`'s announcements, attention and console lines put on `tap`.
+ *
+ * The channel is replaced on every call, so a realm that makes a second
+ * collector notes onto the tap it uses now. The console is wrapped once: the
+ * wrapper looks the channel up when a line is printed, never when it is made.
+ */
+function listen(tap: Tap, scope: object): void {
+  const global = scope as { [NOTE]?: Channel; console?: Console };
+  global[NOTE] = (text: string): void => tap.note(String(text));
+  const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
+  if (printer === undefined || printer[NOTE] === true) return;
+  Object.defineProperty(printer, NOTE, { value: true });
+  for (const method of PRINTS) {
+    const original = printer[method] as ((...values: unknown[]) => void) | undefined;
+    if (typeof original !== 'function') continue;
+    printer[method] = function (this: unknown, ...values: unknown[]): void {
+      const channel = global[NOTE];
+      if (typeof channel === 'function') {
+        try {
+          channel(`console.${method} ${util.format(...values)}`);
+        } catch {
+          // A value whose inspection throws is still printed below.
+        }
+      }
+      original.apply(this, values);
+    };
+  }
+}
+
 /** The tap behind a realm's root, when the root is one. */
 function tapOf(root: unknown): Tap | undefined {
   if (typeof root !== 'object' || root === null) return undefined;
   return (root as { [key: symbol]: Tap | undefined })[Symbol.for('variance-authority.story.tap')];
 }
 
-export = { createTap, tapOf, TAPE_LIMIT };
+export = { createTap, tapOf, listen, TAPE_LIMIT, NOTE_LIMIT };

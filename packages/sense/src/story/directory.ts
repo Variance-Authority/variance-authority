@@ -2,8 +2,9 @@
  * Where stories go, and whether a run asked for them.
  *
  * One variable on the command line, read by every seam when it configures the
- * run: `VARIANCE_AUTHORITY_STORY=1` tapes every case the run runs, and
- * narrowing is the runner's job — `-t`, a file argument, whatever the runner
+ * run: `VARIANCE_AUTHORITY_STORY=1` tapes every case the run runs, and any other
+ * value does the same and labels what it writes, so `=slow` and `=fast` are two
+ * sides a comparison can name. Narrowing is the runner's job — `-t`, a file argument, whatever the runner
  * already has. A story is written for somebody reading one case, so a run
  * without the variable pays nothing for it.
  *
@@ -13,15 +14,15 @@
  * a repository that declares suites keeps one per suite, and a story taped by
  * the unit suite is read through the unit suite's record. The record is in this
  * checkout's own cache layer, so a worktree writes its own stories and never
- * reads the primary checkout's: a story is the last run of a case here, and one
- * from another checkout is a run of other code.
+ * reads the primary checkout's: a story is one of the last runs of a case
+ * here, and one from another checkout is a run of other code.
  */
 
 import { resolve } from 'node:path';
 import { declaredSuites } from '../test-selection/suites.js';
 import { testCoverageFile } from '../test-selection/record-location.js';
 
-/** Set to `1` to write a story for every case the run runs. */
+/** Set to `1`, or to a label, to write a story for every case the run runs. */
 export const STORY_VARIABLE = 'VARIANCE_AUTHORITY_STORY';
 
 const SUFFIX = '.stories';

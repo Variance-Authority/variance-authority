@@ -30,6 +30,9 @@ function story(visits: number[], before: number[] = []) {
     visits: Int32Array.from(visits),
     untaped: 0,
     interleaved: 0,
+    notes: [] as [number, string][],
+    beforeNotes: [] as [number, string][],
+    unnoted: 0,
   };
 }
 
@@ -103,6 +106,14 @@ describe('a route', () => {
     expect(drawRoute(ROOT, story([1, 2]), files, [CART, undefined]).untaken).toEqual([
       { place: removeItem, arms: [{ path: 'for#0/body/if#0/then', startLine: 19, endLine: 19 }] },
     ]);
+  });
+
+  it('puts what was said on the stop the case was at, and what came before any stop apart', () => {
+    const said = { ...story([1, 4, 1, 4], [4]), beforeNotes: [[0, 'eyes arrange']] as [number, string][], notes: [[0, 'eyes act'], [1, 'price 1'], [3, 'price 2'], [4, 'done']] as [number, string][] };
+    const route = drawRoute(ROOT, said, ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
+    expect(route.opening).toEqual({ before: ['eyes arrange'], route: ['eyes act'] });
+    // Two passes of removeItem, price fold into one, and the pass's lines are added in order.
+    expect(route.route).toMatchObject([{ times: 2, repeat: [{ token: { place: { name: 'removeItem' }, said: ['price 1', 'price 2'] } }, { token: { place: { name: 'price' }, said: ['done'] } }] }]);
   });
 
   it('counts an arm taken before the case as taken, and names nothing in a file the recording holds no regions for', () => {

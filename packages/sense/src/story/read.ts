@@ -68,11 +68,13 @@ export interface Arm {
 /**
  * One stop on a route: a declaration, or modules evaluated one inside another.
  * `entered` counts the declaration's own region, so a stop the case came back
- * to from a callee without calling it again has entered it no times.
+ * to from a callee without calling it again has entered it no times. `said` is
+ * what the code said while the case was at the stop — a console line, an
+ * announcement, what Eyes saw — in order; a folded stop says every pass's.
  */
 export type Stop =
-  | { readonly place: Place; readonly entered: number; readonly arms: readonly Arm[] }
-  | { readonly loaded: readonly string[] };
+  | { readonly place: Place; readonly entered: number; readonly arms: readonly Arm[]; readonly said?: readonly string[] }
+  | { readonly loaded: readonly string[]; readonly said?: readonly string[] };
 
 /** The arms of one declaration on the route that the case never went into. */
 export interface Untaken {
@@ -88,6 +90,10 @@ export interface Route {
   /** Where the code went between the last case and this one: hooks the runner ran outside the case. */
   readonly before: readonly Step<Stop>[];
   readonly route: readonly Step<Stop>[];
+  /** What was said before the first step of each part, which no stop was there to hold. */
+  readonly opening?: { readonly before?: readonly string[]; readonly route?: readonly string[] };
+  /** Lines the recording did not keep; a route missing some of what was said says so. */
+  readonly unnoted?: number;
   /** Every file the case went through, loaded or called, code-unit sorted. */
   readonly files: readonly string[];
   /** Files on the route the snapshot holds no matching regions for, so they are drawn as the file alone. */
@@ -101,38 +107,67 @@ export interface Route {
   readonly stopped?: boolean;
 }
 
-/** A story on disk, as a listing names it. */
+/** One reading on disk, as a listing names it. */
 export interface StoryEntry {
   readonly path: string;
   readonly file: string;
   readonly name: string;
   readonly visits: number;
+  /** When the reading was written, in milliseconds since the epoch; absent on one written before readings were kept. */
+  readonly written?: number;
+  /** What the run called it: the value of `VARIANCE_AUTHORITY_STORY` when it was not `1`. */
+  readonly label?: string;
+  /** Whether the case threw or rejected in this reading; absent where the collector could not see it settle. */
+  readonly stopped?: boolean;
 }
 
-/** Every story in this checkout, by test file and then case name. */
+/** Every reading in this checkout, by test file, then case name, then newest first. */
 export function listStories(root: string): StoryEntry[] {
   const entries: StoryEntry[] = [];
   for (const directory of storyDirectories(root)) {
     if (!existsSync(directory)) continue;
     for (const name of readdirSync(directory)) {
-      if (!name.endsWith('.story')) continue;
+      const reading = stories.readingOf(name);
+      if (reading === undefined) continue;
       const path = join(directory, name);
       const story = stories.storyHeader(path);
-      entries.push({ path, file: inCheckout(root, story.file), name: story.name, visits: story.visits });
+      entries.push({
+        path,
+        file: inCheckout(root, story.file),
+        name: story.name,
+        visits: story.visits,
+        ...(reading.written === undefined ? {} : { written: reading.written }),
+        ...(reading.label === undefined ? {} : { label: reading.label }),
+        ...(story.stopped === undefined ? {} : { stopped: story.stopped }),
+      });
     }
   }
-  return entries.sort((left, right) => compare(left.file, right.file) || compare(left.name, right.name));
+  return entries.sort((left, right) =>
+    compare(left.file, right.file)
+    || compare(left.name, right.name)
+    || (right.written ?? 0) - (left.written ?? 0)
+    || compare(left.path, right.path));
 }
 
-/** The route in the story at `path`, named through the record it was taped beside. */
-export function readRoute(root: string, path: string): Route {
-  const story = stories.decodeStory(readFileSync(path));
+/** Every region a module holds by ordinal, for each row of `story`, where the snapshot beside it holds them. */
+export function regionsOfStory(
+  root: string,
+  path: string,
+  story: ReturnType<typeof stories.decodeStory>,
+): { readonly files: readonly string[]; readonly regions: readonly (readonly Region[] | undefined)[] } {
   const names = existsSync(moduleNamesFile(root)) ? readModuleNames(moduleNamesFile(root)) : undefined;
   const files = story.rows.map(([id]) => (typeof id === 'string' ? id : names?.pathOf(id) ?? `module ${id}`));
   const snapshot = recordOfStories(dirname(path));
   const regions = existsSync(snapshot)
     ? askCoverageFile(snapshot, (view) => story.rows.map(([, count], row) => regionsOf(view, files[row]!, count)))
     : story.rows.map(() => undefined);
+  return { files, regions };
+}
+
+/** The route in the story at `path`, named through the record it was taped beside. */
+export function readRoute(root: string, path: string): Route {
+  const story = stories.decodeStory(readFileSync(path));
+  const { files, regions } = regionsOfStory(root, path, story);
   return drawRoute(root, story, files, regions);
 }
 
@@ -167,13 +202,25 @@ export function drawRoute(
   // Each declaration stopped at, by key, with the row its regions are in.
   const placed = new Map<string, { place: Place; row: number }>();
 
-  const stopsOf = (visits: Int32Array): Stop[] => {
+  const stopsOf = (visits: Int32Array, notes: readonly (readonly [number, string])[], opening: string[]): Stop[] => {
     const stops: Stop[] = [];
     let last = '';
     // The stop being added to, and its arms by path; a stop once left is never reopened.
     let open: { place: Place; entered: number; arms: Arm[] } | undefined;
     let paths = new Map<string, { times: number }>();
+    let note = 0;
+    // What was said after `visited` visits goes on the stop the last of them is on.
+    const hear = (visited: number): void => {
+      for (; note < notes.length && notes[note]![0] <= visited; note += 1) {
+        const at = stops.at(-1) as { said?: string[] } | undefined;
+        if (at === undefined) opening.push(notes[note]![1]);
+        else (at.said ??= []).push(notes[note]![1]);
+      }
+    };
+    let visited = 0;
     for (const entry of visits) {
+      hear(visited);
+      visited += 1;
       const index = entry & 0x7fffffff;
       taken.add(index);
       let row = bases.length - 1;
@@ -222,11 +269,13 @@ export function drawRoute(
         }
       }
     }
+    hear(Infinity);
     return stops;
   };
   const keyOf = (stop: Stop): string => ('loaded' in stop ? `\0${stop.loaded.join('\0')}` : `${stop.place.file}\0${stop.place.name}`);
-  const before = foldSteps(stopsOf(story.before), keyOf, added);
-  const route = foldSteps(stopsOf(story.visits), keyOf, added);
+  const opening = { before: [] as string[], route: [] as string[] };
+  const before = foldSteps(stopsOf(story.before, story.beforeNotes, opening.before), keyOf, added);
+  const route = foldSteps(stopsOf(story.visits, story.notes, opening.route), keyOf, added);
 
   const untaken: Untaken[] = [];
   for (const { place, row } of placed.values()) {
@@ -252,6 +301,13 @@ export function drawRoute(
     files: [...seen].sort(compare),
     unresolved: [...unresolved].sort(compare),
     untaken,
+    ...(opening.before.length + opening.route.length === 0 ? {} : {
+      opening: {
+        ...(opening.before.length === 0 ? {} : { before: opening.before }),
+        ...(opening.route.length === 0 ? {} : { route: opening.route }),
+      },
+    }),
+    ...(story.unnoted === 0 ? {} : { unnoted: story.unnoted }),
     untaped: story.untaped,
     interleaved: story.interleaved,
     ...(story.stopped === undefined ? {} : { stopped: story.stopped }),
@@ -260,13 +316,15 @@ export function drawRoute(
 
 /** Two passes of one stop, as the one stop that stands for both. */
 function added(kept: Stop, folded: Stop): Stop {
-  if ('loaded' in kept || 'loaded' in folded) return kept;
+  const said = [...(kept.said ?? []), ...(folded.said ?? [])];
+  const saying = said.length === 0 ? {} : { said };
+  if ('loaded' in kept || 'loaded' in folded) return { ...kept, ...saying };
   const arms = new Map(kept.arms.map((arm) => [arm.path, arm]));
   for (const arm of folded.arms) {
     const known = arms.get(arm.path);
     arms.set(arm.path, known === undefined ? arm : { ...known, times: known.times + arm.times });
   }
-  return { place: kept.place, entered: kept.entered + folded.entered, arms: [...arms.values()] };
+  return { place: kept.place, entered: kept.entered + folded.entered, arms: [...arms.values()], ...saying };
 }
 
 /**
@@ -302,7 +360,7 @@ function regionsOf(view: TestCoverageView, file: string, count: number): Region[
  * `entry`, or the `module` region for the top level. A name whose own region
  * the module does not hold is drawn by the first region it has.
  */
-function declarationsOf(file: string, regions: readonly Region[]): Map<string, Place> {
+export function declarationsOf(file: string, regions: readonly Region[]): Map<string, Place> {
   const out = new Map<string, Place>();
   const drawn = new Set<string>();
   for (const region of regions) {
@@ -319,7 +377,7 @@ function declarationsOf(file: string, regions: readonly Region[]): Map<string, P
   return out;
 }
 
-function inCheckout(root: string, file: string): string {
+export function inCheckout(root: string, file: string): string {
   return isAbsolute(file) ? relative(root, file) : file;
 }
 

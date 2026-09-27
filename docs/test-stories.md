@@ -35,8 +35,11 @@ idea inside your editor while a test runs, with the value each line saw. Here
 your own runner writes the story into [the cache](cache.md): Vitest, Jest or
 Rstest, with [Sense](../packages/sense/README.md) installed, the package that
 records coverage for test selection. You read it with one command, in a
-terminal or from an agent. A test story shows no values. For a value, set a breakpoint
-at the line the story names.
+terminal or from an agent. A test story shows the values the code printed and
+no others: each `console` line, each announcement made with
+[`vae`](../packages/event/README.md), and each query and event
+[Eyes](eyes.md) saw is written beside the step where it happened. For any other
+value, set a breakpoint at the line the story names.
 
 ## When to read one
 
@@ -61,12 +64,29 @@ story when that reading leaves your question open:
   value. Find the step where the route left the path you expected. A test that
   passes when it should not is often a test whose branch is marked `✗`, or
   whose route goes into a mock and not into the code it names.
+- **A test fails on some runs and passes on others.** Record it until it has
+  done both, then compare the runs that passed with the runs that threw:
+
+  ```bash
+  variance story --name "removes the last item" --compare outcome
+  ```
+
+  The order of async code changes from run to run, so most of what differs
+  between two runs is not the cause. [Compare
+  readings](#compare-readings-of-one-test) shows only what differs every time.
 - **A test passes alone and fails with its file, or fails alone and passes
-  with its file.** Record it both ways, alone with the test-name filter and then
-  with its whole file, and read the story after each run, because the second run
-  replaces the first. `before the test` shows what the runner ran just before
-  it, such as another test's `afterEach`. The first step where the two routes
-  differ is where to look.
+  with its file.** Record it both ways under two labels, alone with the
+  test-name filter and then with its whole file, twice each, and compare the
+  labels:
+
+  ```bash
+  VARIANCE_AUTHORITY_STORY=alone yarn vitest run src/cart.test.ts -t "removes the last item"
+  VARIANCE_AUTHORITY_STORY=file yarn vitest run src/cart.test.ts
+  variance story --name "removes the last item" --compare alone,file
+  ```
+
+  `before the test` shows what the runner ran just before it, such as another
+  test's `afterEach`.
 - **You give one test to an agent to fix or extend.** The agent reads the story
   first and opens only the lines it names, instead of reading files to find
   out where the test goes. The `variance-authority` skill that ships with
@@ -88,8 +108,9 @@ are large, and nobody reads them.
   test that runs a loop many thousands of times runs many times slower while it
   is recorded, and a story holds no times. `for 18 ×400`, a loop at line 18
   whose body ran 400 times, is a count. Use a profiler for time.
-- **Not a question about a value.** A story shows no values. Set a breakpoint
-  at the line it names.
+- **Not a question about a value the code does not print.** A story shows the
+  lines the code printed or announced, and no other value. Set a breakpoint at
+  the line it names, or print the value and record the test again.
 - **Not when a stack trace already names the line.** Open that line.
 
 ## Record one
@@ -104,8 +125,17 @@ VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts
 ```
 
-Each test the run runs writes its story, and a later run of the same test
-replaces it. A story is removed 14 days after it was written, with
+Each test the run runs writes its story. A test keeps the stories of its last
+16 runs, and each one is a **reading** of that test. `variance story` shows the
+newest, and its header says how many are kept.
+
+To tell runs apart later, set the variable to a label in place of `1`:
+`VARIANCE_AUTHORITY_STORY=flag-on`. A label is letters, digits, `_` and `-`, up
+to 40 characters, and any other character is written as `-`. Read the newest
+reading under one label with `--label flag-on`. A run with the variable set to
+`1` has no label, and `--label` and `--compare` call it `1`.
+
+A story is removed 14 days after it was written, with
 [the rest of the cache](cache.md#what-is-removed-and-when). Sense writes stories from the same instrumented build that records
 journeys, and nothing else changes: the coverage a run records with the
 variable is the same, byte for byte, as the coverage it records without it, and
@@ -276,7 +306,38 @@ are shown like your own.
 `--format json` gives the same answer as data: the story with its `level`, the
 size of the next level down in characters as `finer`, and, at the step levels,
 the branches the test never took as `untaken`. When the text matches several
-tests, you get the list of them instead, and you narrow the text.
+tests, you get the list of them instead, each with the number of readings kept
+and their labels, and you narrow the text.
+
+### What the test said
+
+A step says where the test was, not with which values. The code can say the
+values, and a story writes each line it says under the step where it said it,
+after `»`:
+
+```text
+  3  Cart/removeItem  cart.ts:12-30
+       if 14  then ✗  else ×1
+       » console.log removing A1, stock 0
+       » eyes getByRole("button", {"name":"Save"}) → button "Save" in SaveBar
+```
+
+Three sources write these lines, and you install nothing more for any of them:
+
+- **`console`.** Each line the test or the code prints with `console.log`,
+  `info`, `warn`, `error` or `debug`, as `console.log` and the text. The
+  console still prints it.
+- **[Eyes](eyes.md)**, when your tests use it. Each query with its arguments and
+  what it found, each event and the element it fired on, each React commit with
+  the components that rendered, and each Arrange, Act and Assert phase you mark.
+- **[`vae`](../packages/event/README.md).** Each announcement the product code
+  makes, as `vae once checkout upsell-modal decided`.
+
+So a function can say its own arguments. When a route leaves you asking which
+value a call got, add a `console.log` that prints it, record the test again,
+and read the line at its step. Lines said before the first step are listed in
+the header. A step shows its first 5 lines and counts the rest, and a story
+keeps the first 4,096 lines of a test, each cut at 240 characters.
 
 ## What the route leaves out
 
@@ -301,10 +362,100 @@ A story covers the test's own process. A test that runs in a browser page
 (Vitest browser mode) writes no story, and neither does code the test calls in
 another process, such as a server.
 
+## Compare readings of one test
+
+Two stories of one test differ even when both runs passed. Code after an
+`await` runs when its promise settles, and two promises started together settle
+in either order, so an async test runs in a slightly different order on every
+run. A changed order is not a flake. It is also why [test
+selection](coverage-test-selection.md) records a set and not an order. But
+sometimes the order is the cause: on every run that fails, the response
+arrives before the click, and on every run that passes, it arrives after.
+**`--compare` shows the differences that are true of every reading on one side
+and of no reading on the other, and counts the rest without listing them.**
+
+```bash
+variance story --name "removes the last item" --compare outcome
+```
+
+```text
+compare  src/cart.test.ts > cart > removes the last item
+  passed (3 readings) against threw (2 readings, every one threw)
+
+  only when it passed, on every reading:
+    went into  removeItem  src/cart.ts:12-30, the then of the if on 19
+
+  only when it threw, on every reading:
+    said       » console.log stock 0
+
+  in the opposite order when it passed and when it threw, on every reading:
+    » eyes click on button "Save" in SaveBar
+      before price  src/cart.ts:32-36 when it passed, after it when it threw
+
+  left out, because they differ between readings of one side as well: 1 place, 4 lines said, 37 pairs in changing order
+```
+
+Read it as three findings and one count:
+
+- **Where the test went.** A function, a loop body or one branch of an `if`
+  that every reading on one side ran and no reading on the other ran. Here the
+  runs that passed took the `then` at line 19, and the runs that threw never
+  did.
+- **What the test said.** A line from [What the test said](#what-the-test-said)
+  that every reading on one side has, with the same text, and no reading on the
+  other has. A line with a time or an id in it has different text on every run,
+  so it is counted, not listed.
+- **In what order.** Two functions, or a function and a line said, that every
+  reading on both sides gets to, in one order on every reading of one side and
+  in the other order on every reading of the other. Order is compared at the
+  first time the test gets to each function, the same unit a route shows as a
+  step. Here the click happened before `price` ran on every run that passed,
+  and after it on every run that threw. When several pairs are listed, the first
+  is where the two orders part.
+- **The count on the last line** is everything that differs between readings
+  of one side too. It cannot be what separates the sides. In this test, 37 pairs
+  of functions changed order between runs, and only one pair changed order the
+  same way every time.
+
+When no difference is true of every reading on one side, the comparison says
+`nothing separates the sides`. That is an answer too: the runs went to the
+same places, said the same lines, and kept the same order wherever the order
+was steady, so the difference is in a value no line prints, or in code the
+recording does not instrument, such as a dependency. Add a `console.log` for
+the value you suspect, and record again.
+
+### Choose the sides
+
+The two kinds of pair in [A/B testing](a-b-testing.md#every-pair-states-what-differs)
+apply here as well. A side is either the same test read again, where only the
+run differs, or a setup you chose, where you name what differs:
+
+| `--compare` | One side | The other side | What differs |
+|---|---|---|---|
+| `outcome` | the readings that passed | the readings that threw | nothing you chose: the run |
+| `last` | the newest reading | the reading before it | the run, and anything you edited between the two |
+| `<a>,<b>` | the readings labelled `a` | the readings labelled `b` | what you set up differently for each label |
+
+Use `outcome` for a test that fails on some runs. Use labels for a test that
+passes alone and fails in its file, a feature flag on and off, or two versions
+of a dependency: record each setup under its own label, and the label is where
+you name what you changed. A reading with no label is `1`, so `--compare 1,flag-on`
+compares plain runs with flagged ones.
+
+### One reading on a side is not enough
+
+With one reading on each side, every difference between the two runs is
+listed, and the comparison cannot tell a difference the side makes from one
+the run happened to make. It says so under its first line. `--compare last` is
+always one reading against one. Run each side two or three times, and the order
+that changes on every run drops into the count. A test keeps its last 16
+readings, so the runs you made earlier still count.
+
 ## What a test story is not
 
-Nothing selects on a test story or compares it. Selection and comparison read
-journeys, which are sets, so the order in which async code happens to run does
-not change them. A test story is the order one process ran one test, one time.
-It is not a call stack: when a test awaits twice, the code after each `await`
-appears where it ran, not under the call that started it.
+Nothing selects on a test story. Selection reads journeys, which are sets, so
+the order in which async code happens to run does not change them. A test story
+is the order one process ran one test, one time, and a comparison lists only
+the order that is the same on every reading of a side. A story is not a call
+stack: when a test awaits twice, the code after each `await` appears where it
+ran, not under the call that started it.

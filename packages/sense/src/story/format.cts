@@ -5,8 +5,9 @@
  * part of the recording is built from. A story is the tape
  * [`story-tap.cts`](../instrument/story-tap.cts) keeps beside it when somebody
  * runs with `VARIANCE_AUTHORITY_STORY=1`, cut to one case. Nothing selects on
- * it, compares it or folds it into a record: it is written for the person or
- * agent reading one case, and it is read back only by `variance story`.
+ * it or folds it into a record: it is written for the person or agent reading
+ * one case, and it is read back only by `variance story`, which draws one
+ * reading or compares two sets of them.
  *
  * ## Layout
  *
@@ -22,6 +23,22 @@
  * row table — the realm's indices are the order modules happened to register
  * in, which means nothing outside the run — with the evaluating bit kept as the
  * sign bit, as the probe wrote it.
+ *
+ * ## Readings
+ *
+ * Every run of a case writes a reading of its own, named
+ * `<case>.<written>-<pid>-<n>[.<label>].story`: the case's digest, when it was
+ * written, and the label the run gave `VARIANCE_AUTHORITY_STORY` when it gave one
+ * other than `1`. A case keeps its last {@link READINGS}. One reading says
+ * where the case went; two sets of them say which differences come back every
+ * time and which move between runs, and a difference in the order of async work
+ * is only an answer when it is the first kind.
+ *
+ * ## Notes
+ *
+ * What the code said while the case ran — a console line, an announcement, an
+ * Arrange/Act/Assert marker — rides in the header as `[position, text]`, the
+ * position counted over the visits before the case and then the case's own.
  *
  * ## What comes before a case
  *
@@ -72,12 +89,51 @@ interface Story {
   readonly interleaved: number;
   /** Whether the case's body threw or rejected; absent where the collector could not see it settle. */
   readonly stopped?: boolean;
+  /** What was said during the case: how many of its visits came before each line, and the line. */
+  readonly notes: readonly (readonly [at: number, text: string])[];
+  /** What was said before the case began, the same way over `before`. */
+  readonly beforeNotes: readonly (readonly [at: number, text: string])[];
+  /** Lines the tape did not keep. */
+  readonly unnoted: number;
 }
 
-/** Where a case's story is written: one name per file and case, so a later run replaces it. */
-function storyName(file: string, name: string): string {
-  return `${crypto.createHash('sha256').update(`${file}\u0000${name}`).digest('hex').slice(0, 32)}.story`;
+/** How many readings of one case a directory keeps; writing another removes the oldest. */
+const READINGS = 16;
+
+/** The one case a story is of, as the start of every reading's file name. */
+function caseStem(file: string, name: string): string {
+  return crypto.createHash('sha256').update(`${file}\u0000${name}`).digest('hex').slice(0, 32);
 }
+
+/** What a reading's file name says: its case, when it was written, and the label it was given. */
+interface ReadingName {
+  readonly stem: string;
+  /** Milliseconds since the epoch; absent on a story written before readings were kept. */
+  readonly written?: number;
+  readonly label?: string;
+}
+
+/** A reading's file name read back, or `undefined` for a name no writer gives. */
+function readingOf(fileName: string): ReadingName | undefined {
+  const parts = fileName.split('.');
+  if (parts.at(-1) !== 'story' || !/^[0-9a-f]{32}$/u.test(parts[0]!)) return undefined;
+  if (parts.length === 2) return { stem: parts[0]! };
+  const written = Number(parts[1]!.split('-')[0]);
+  if (!Number.isFinite(written) || parts.length > 4) return undefined;
+  return { stem: parts[0]!, written, ...(parts.length === 4 ? { label: parts[2]! } : {}) };
+}
+
+/**
+ * The label a run asked for, from `VARIANCE_AUTHORITY_STORY`: any value but `1`,
+ * spelled so it survives a file name. `1`, or a value with no letter or digit
+ * in it, gives no label.
+ */
+function labelOf(asked: string | undefined): string | undefined {
+  if (asked === undefined || asked === '1') return undefined;
+  const label = asked.replace(/[^A-Za-z0-9_-]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, 40);
+  return label === '' ? undefined : label;
+}
+
 
 /**
  * The story of the case keyed `key` on `tape`.
@@ -130,13 +186,44 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean): Buffer {
       entries.push((base + index - bases[low]!) | (entry & EVALUATING));
     }
   };
-  for (let segment = first; segment < (own[0] ?? first); segment += 1) take(at[segment]!, ends(segment));
+  // Where each taken segment starts on the tape and in `entries`, so a note
+  // said at a tape position lands at the visit it came after.
+  const placed: [tape: number, end: number, entry: number, before: boolean][] = [];
+  for (let segment = first; segment < (own[0] ?? first); segment += 1) {
+    placed.push([at[segment]!, ends(segment), entries.length, true]);
+    take(at[segment]!, ends(segment));
+  }
   const before = entries.length;
-  for (const segment of own) take(at[segment]!, ends(segment));
+  for (const segment of own) {
+    placed.push([at[segment]!, ends(segment), entries.length, false]);
+    take(at[segment]!, ends(segment));
+  }
+
+  const notes: [number, string][] = [];
+  const beforeNotes: [number, string][] = [];
+  const opens = own.length === 0 ? Infinity : at[own[0]!]!;
+  const from = own.length === 0 ? Infinity : at[first]!;
+  for (const [position, noteKey, text] of tape.notes) {
+    const said = noteKey === key;
+    // What was said outside any case just before this one is its hooks'.
+    if (!said && !(noteKey === '' && position >= from && position <= opens)) continue;
+    let entry: number | undefined;
+    for (const [start, end, offset, early] of placed) {
+      if (position < start || early === said) continue;
+      entry = offset + Math.min(position, end) - start;
+    }
+    if (said) notes.push([(entry ?? before) - before, text]);
+    else beforeNotes.push([entry ?? 0, text]);
+  }
 
   const { file, name } = journals.unpackCase(key);
   const header = Buffer.from(
-    JSON.stringify({ file, name, rows, before, untaped: tape.visits - tape.taped, interleaved, stopped }),
+    JSON.stringify({
+      file, name, rows, before, untaped: tape.visits - tape.taped, interleaved, stopped,
+      ...(notes.length === 0 ? {} : { notes }),
+      ...(beforeNotes.length === 0 ? {} : { beforeNotes }),
+      ...(tape.unnoted === 0 ? {} : { unnoted: tape.unnoted }),
+    }),
     'utf8',
   );
   const padded = (header.length + 3) & ~3;
@@ -160,11 +247,18 @@ function decodeStory(bytes: Uint8Array): Story {
   if (body > buffer.length || (buffer.length - body) % 4 !== 0) throw damaged();
   const header = JSON.parse(buffer.toString('utf8', MAGIC.length + 4, MAGIC.length + 4 + length)) as Omit<
     Story,
-    'before' | 'visits'
-  > & { before: number };
+    'before' | 'visits' | 'notes' | 'beforeNotes' | 'unnoted'
+  > & { before: number } & Partial<Pick<Story, 'notes' | 'beforeNotes' | 'unnoted'>>;
   const all = new Int32Array((buffer.length - body) / 4);
   for (let at = 0; at < all.length; at += 1) all[at] = buffer.readInt32LE(body + at * 4);
-  return { ...header, before: all.subarray(0, header.before), visits: all.subarray(header.before) };
+  return {
+    ...header,
+    notes: header.notes ?? [],
+    beforeNotes: header.beforeNotes ?? [],
+    unnoted: header.unnoted ?? 0,
+    before: all.subarray(0, header.before),
+    visits: all.subarray(header.before),
+  };
 }
 
 /**
@@ -172,7 +266,12 @@ function decodeStory(bytes: Uint8Array): Story {
  * header and its size without reading the visits. Listing a directory of
  * stories must not cost the sum of them: one hot loop writes tens of megabytes.
  */
-function storyHeader(file: string): { readonly file: string; readonly name: string; readonly visits: number } {
+function storyHeader(file: string): {
+  readonly file: string;
+  readonly name: string;
+  readonly visits: number;
+  readonly stopped?: boolean;
+} {
   const damaged = (): Error => new Error(`variance-authority: ${file} is not a story this build writes`);
   const descriptor = fs.openSync(file, 'r');
   try {
@@ -185,20 +284,45 @@ function storyHeader(file: string): { readonly file: string; readonly name: stri
     if (body > size || (size - body) % 4 !== 0) throw damaged();
     const text = Buffer.alloc(length);
     if (fs.readSync(descriptor, text, 0, length, lead.length) !== length) throw damaged();
-    const header = JSON.parse(text.toString('utf8')) as { file: string; name: string; before: number };
-    return { file: header.file, name: header.name, visits: (size - body) / 4 - header.before };
+    const header = JSON.parse(text.toString('utf8')) as { file: string; name: string; before: number; stopped?: boolean };
+    return {
+      file: header.file,
+      name: header.name,
+      visits: (size - body) / 4 - header.before,
+      ...(header.stopped === undefined ? {} : { stopped: header.stopped }),
+    };
   } finally {
     fs.closeSync(descriptor);
   }
 }
 
-/** What a collector hands a story to: one file per case in `directory`, the last write kept. */
-function storyWriter(directory: string): (key: string, bytes: Uint8Array) => void {
+/**
+ * What a collector hands a story to: a reading per run of a case in
+ * `directory`, the last {@link READINGS} kept.
+ *
+ * @param label What the run called its readings, as `VARIANCE_AUTHORITY_STORY`
+ * says it in the realm the case runs in.
+ */
+function storyWriter(
+  directory: string,
+  label: string | undefined = labelOf(process.env.VARIANCE_AUTHORITY_STORY),
+): (key: string, bytes: Uint8Array) => void {
+  let written = 0;
   return (key, bytes) => {
     const { file, name } = journals.unpackCase(key);
+    const stem = caseStem(file, name);
     fs.mkdirSync(directory, { recursive: true });
-    fs.writeFileSync(path.join(directory, storyName(file, name)), bytes);
+    written += 1;
+    const reading = `${stem}.${Date.now()}-${process.pid}-${written}${label === undefined ? '' : `.${label}`}.story`;
+    fs.writeFileSync(path.join(directory, reading), bytes);
+    const kept: { name: string; written: number }[] = [];
+    for (const each of fs.readdirSync(directory)) {
+      const read = readingOf(each);
+      if (read?.stem === stem) kept.push({ name: each, written: read.written ?? 0 });
+    }
+    kept.sort((left, right) => right.written - left.written || (left.name < right.name ? 1 : -1));
+    for (const { name: old } of kept.slice(READINGS)) fs.rmSync(path.join(directory, old), { force: true });
   };
 }
 
-export = { storyName, storyWriter, encodeStory, decodeStory, storyHeader, EVALUATING };
+export = { caseStem, readingOf, labelOf, storyWriter, encodeStory, decodeStory, storyHeader, EVALUATING, READINGS };
