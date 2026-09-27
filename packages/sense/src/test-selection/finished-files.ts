@@ -29,9 +29,13 @@ import type { CoveragePrecondition, CoverageTest } from './index.js';
 import type { ExecutedModule } from './probes.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
 import type { RunnerContext, RunnerProject } from './governing-config.js';
+import { taskCases, type FinishedCase } from './case-durations.js';
 
 export interface RunnerTask {
   readonly filepath?: string;
+  /** The task's own name, and the runner's id for it, which the case runner carries. */
+  readonly name?: string;
+  readonly id?: string;
   /** How the runner meant to treat the task: `run`, or `skip` and `todo` for one it never starts. */
   readonly mode?: string;
   /** `duration` is the milliseconds the runner measured for the task, when it did. */
@@ -43,16 +47,18 @@ export interface RunnerTask {
 }
 
 /**
- * Vitest 3 and 4's reported test module, structurally.
- *
- * Named here rather than imported: the seam is built against one Vitest and run
- * against whichever the project installed, so a type from the runner's own
- * package would pin the build to a version the project need not have.
+ * Vitest 3 and 4's reported test module, structurally: a type from the runner's
+ * own package would pin the build to a version the project need not have.
  */
 export interface ReportedModule {
   readonly moduleId: string;
   readonly children: {
-    allTests: () => Iterable<{ result: () => { readonly state: string } }>;
+    allTests: () => Iterable<{
+      result: () => { readonly state: string };
+      readonly id?: string;
+      readonly fullName?: string;
+      diagnostic?: () => { readonly duration?: number } | undefined;
+    }>;
     /** Vitest 3 and 4 only; a suite holds the errors its own hooks threw. */
     allSuites?: () => Iterable<{ errors?: () => { readonly length: number } }>;
   };
@@ -74,17 +80,14 @@ export interface ReportedModule {
  * A run that transformed no product module writes a snapshot saying every test
  * reaches nothing, and `narrowByExecution` reads that as an answer: every later
  * selection narrows to the empty set, the CI job runs no tests, and it passes.
- * Nothing else in this seam fails — the suite ran, the reporter ran, the file
- * was written — so the first sign of it is a green pipeline that stopped
- * testing.
+ * Nothing else in this seam fails, so the first sign of it is a green pipeline
+ * that stopped testing.
  *
  * Said rather than thrown, because zero is legitimate: a run filtered down to
- * one test file that imports no source has nothing to instrument and no reason
- * to fail. The two misconfigurations it usually is are named in the message,
- * because a reader looking at "0 modules" has no way to guess which.
- *
- * Zero test files is a different state and is left alone — a run that collected
- * nothing has already said so in the runner's own output.
+ * one test file that imports no source has nothing to instrument. The two
+ * misconfigurations it usually is are named in the message, because a reader
+ * looking at "0 modules" has no way to guess which. Zero test files is left
+ * alone: a run that collected nothing has already said so.
  */
 export function noteAnEmptyRecord(
   testFiles: number,
@@ -116,13 +119,11 @@ export interface FinishedFile {
   readonly configs?: readonly string[];
   /** Milliseconds the runner reported for the file; absent when it reported none. */
   readonly duration?: number;
+  /** Every case the runner reported in it; absent when it reported none. */
+  readonly cases?: readonly FinishedCase[];
 }
 
-/**
- * The runner's duration for a file, as a field to spread, or nothing when what
- * it handed over is not one. Nothing here times a file: a runner that did not
- * say leaves the file untimed.
- */
+/** The runner's duration for a file, as a field to spread; nothing here times a file. */
 export function reportedDuration(value: unknown): Pick<FinishedFile, 'duration'> {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? { duration: value } : {};
 }
@@ -478,6 +479,7 @@ export async function readFinished(directory: string): Promise<readonly Finished
     filepath: file.filepath,
     complete: taskComplete(file, file.runnerSkipped !== false),
     ...reportedDuration(file.result?.duration),
+    ...taskCases(file),
   }));
 }
 

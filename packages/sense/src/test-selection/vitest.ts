@@ -21,6 +21,7 @@ import {
 } from './finished-files.js';
 import { browserSetupSource, caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
+import { reportedCases, taskCases } from './case-durations.js';
 import {
   declareConfig,
   noteRunner,
@@ -446,6 +447,7 @@ function selectionReporter(
           filepath: file.filepath,
           complete: taskComplete(file, runnerSkipped(runner)),
           ...reportedDuration(file.result?.duration),
+          ...taskCases(file),
           ...carriedJournal(file.filepath, file.meta),
           ...configsOf(byName.get(file.projectName ?? '')),
         }]),
@@ -455,6 +457,7 @@ function selectionReporter(
         filepath: module.moduleId,
         complete: reportedComplete(module, runnerSkipped(runner, reason)),
         ...reportedDuration(module.diagnostic?.()?.duration),
+        ...reportedCases(module),
         ...carriedJournal(module.moduleId, module.meta?.()),
         ...configsOf(projectConfig(module.project)),
       })),

@@ -150,7 +150,7 @@ stays available without taking space from the first answer.
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
 | `orient` / `docs_orient` | files you already have, as paths from the root | the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, and the narrower questions to ask next |
-| `slowest-tests` / `docs_slowest_tests` | optionally how many files to list | the test files the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files have none |
+| `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files and cases have none |
 | `gaps` / `docs_gaps` | nothing | names other packages import that say nothing about themselves |
 
 `packages` takes no argument and returns the import specifiers every other

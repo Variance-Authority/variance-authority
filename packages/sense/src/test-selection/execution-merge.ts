@@ -193,8 +193,15 @@ function collectTests(indexes: readonly ExecutionIndex[]): readonly ExecutionTes
         throw new Error(`cannot assemble journey artifacts: test id ${JSON.stringify(test.id)} names two tests`);
       }
       const stopped = settledAcross(before?.stopped, test.stopped);
-      const { stopped: _stopped, ...coordinate } = test;
-      tests.set(test.id, { ...coordinate, ...stopped });
+      // Each artifact timed its own run of the case, so the case cost the sum;
+      // an artifact that did not time it leaves the sum unknown, not short.
+      const duration = before === undefined
+        ? test.duration
+        : before.duration === undefined || test.duration === undefined
+        ? undefined
+        : before.duration + test.duration;
+      const { stopped: _stopped, duration: _duration, ...coordinate } = test;
+      tests.set(test.id, { ...coordinate, ...stopped, ...(duration === undefined ? {} : { duration }) });
     }
   }
   return [...tests.values()].sort((left, right) =>

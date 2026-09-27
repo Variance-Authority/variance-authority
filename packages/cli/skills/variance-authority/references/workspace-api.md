@@ -4,7 +4,7 @@ Nine questions read a workspace's manifests, source and test recording. Seven
 answer what it publishes, and each of their answers names the UTC time of the
 workspace generation it used. `orient` starts from files you already have and
 says what the code around them is. `slowest-tests` reads the latest recorded
-test run and lists the files it spent longest in.
+test run and lists the files and cases it spent longest in.
 They describe source, not a build or a generated site, and they need no run and
 no config.
 
@@ -403,21 +403,46 @@ than the count says. `variance covering --file` names them, from the test files
 that import it. A test file is answered with the cases it declares. The
 `--from` question starts at the first shown file the index has a record for.
 
-### 8. `slowest-tests [--limit <n>]`
+### 8. `slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--limit <n>]`
 
-The test files the latest recorded run spent longest in, slowest first, with the
-duration the test runner reported for each file. Nothing here times a test: a
-file whose runner reported no duration, or one a recording older than durations
+The test files, then the test cases, the latest recorded run spent longest in,
+slowest first, with the duration the test runner reported for each. A case row
+names its file and its declaration path. Nothing here times a test: a file or
+case whose runner reported no duration, or one a recording older than durations
 holds, is counted apart and never ranked as instant. It reads the recording
 `yarn test` writes for `test:since`, suite by suite, and says where it looked
 when there is none.
 
+*Slowest* is usually a question about somewhere. `--from` keeps the tests
+declared under those paths. `--to` keeps the tests the recording says entered
+code in those files or directories: the same reading `variance covering` makes,
+never an import walk. The two combine, and every count is within the scope. The
+first line names the scope. When the scope matched nothing, the answer says
+which half matched nothing. A `--to` path the recording has no row for is named
+as unrecorded, which says nothing about whether a test enters it. A path in
+neither the recording nor the checkout is refused, with the nearest recorded
+path suggested.
+
 ```
 $ variance ask slowest-tests --limit 2
 Slowest recorded test files, suite unit, as their runner reported them, from <cache>/test-selection/<key>/suites/unit/coverage.bin:
-  658 ms  packages/sense/src/test-selection/durations.integration.test.ts
-  353 ms  packages/sense/src/test-selection/format.test.ts
-2 of 4 timed file(s) shown; 600 recorded file(s) have no duration.
+  79.7 s  packages/route-collector/src/stabilization.chromium.test.ts
+  33.9 s  packages/playwright/src/renderer.test.ts
+2 of 607 timed file(s) shown; 10 recorded file(s) have no duration.
+
+Slowest recorded test cases, suite unit, as their runner reported them, from <cache>/test-selection/<key>/suites/unit/coverage.bin.cases.bin:
+  52.7 s  packages/route-collector/src/stabilization.chromium.test.ts  an animation in flight, observed twice > costs what it is worth, per subject, and says so
+  30.2 s  packages/playwright/src/renderer.test.ts  createPlaywrightRenderer — concurrency > returns a page to the pool when a render throws, rather than deadlocking
+2 of 5690 timed case(s) shown.
+
+$ variance ask slowest-tests --limit 1 --to packages/sense/src/recorded-scope.ts
+Slowest recorded test files, suite unit, that entered packages/sense/src/recorded-scope.ts, as their runner reported them, from <cache>/test-selection/<key>/suites/unit/coverage.bin:
+  9.8 s  packages/cli/src/commands/share.test.ts
+1 of 40 timed file(s) shown.
+
+Slowest recorded test cases, suite unit, that entered packages/sense/src/recorded-scope.ts, as their runner reported them, from <cache>/test-selection/<key>/suites/unit/coverage.bin.cases.bin:
+  767 ms  packages/sense/src/test-selection/durations.integration.test.ts  the duration a recording keeps > is scoped by the readers `variance covering` asks, and the two records agree on who entered a module
+1 of 11 timed case(s) shown.
 ```
 
 ### 9. `gaps`

@@ -1,5 +1,14 @@
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
-import { blob, column, sections, validSections, type Header, type Section } from './format-layout.js';
+import {
+  blob,
+  column,
+  durationWord,
+  NO_DURATION,
+  sections,
+  validSections,
+  type Header,
+  type Section,
+} from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import type { CrossingSetsPool, SetId } from './crossing-sets.js';
 import { intern } from '@variance-authority/core/segment';
@@ -11,6 +20,10 @@ import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } f
  * Version 3 records load time as one flag per region ({@link
  * ExecutionBlock.loaded}); version 2 recorded the set of cases that loaded each
  * region, and is still read, as the flag its set implies.
+ *
+ * `tests.stopped` and `tests.duration` joined version 3 without a new number:
+ * each is one optional column a reader looks for by name, and a file without
+ * it — the addon's journeys among them — reads as cases that said nothing.
  */
 export const SET_EXECUTION_FORMAT = 3;
 
@@ -90,6 +103,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     'tests.file': column(Uint32Array.from(index.tests, (test) => id(test.file))),
     'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
     'tests.stopped': column(stoppedColumn(index.tests)),
+    'tests.duration': column(durationColumn(index.tests)),
     'modules.file': column(moduleFile),
     'modules.blocks': column(moduleBlocks),
     'blocks.kind': column(blockKind),
@@ -193,19 +207,33 @@ function stringsOf(opened: OpenedSections): string[] {
   return strings;
 }
 
-function openedSets(opened: OpenedSections): OpenedSetExecutionIndex {
+/**
+ * The cases an execution index names, read off its test columns alone. Both
+ * spellings lay the cases out the same way, so this answers for either without
+ * opening a region or a crossing: `rows` are the versions of the row spelling,
+ * which owns them.
+ */
+export function executionTestsOf(bytes: Uint8Array, rows: readonly number[]): readonly ExecutionTest[] {
+  const opened = sectionsOf(bytes);
   const version = opened.header.version;
-  const words = (name: string): Uint32Array => columnWords(opened, name);
-  const flags = (name: string): Uint8Array => columnBytes(opened, name);
-  const strings = stringsOf(opened);
-  const string = (id: number): string => strings[id] ?? fail();
+  if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT && !rows.includes(version)) {
+    throw new Error(`unsupported execution index version: ${version}`);
+  }
+  return testsOf(opened, stringsOf(opened));
+}
 
+function testsOf(opened: OpenedSections, strings: readonly string[]): ExecutionTest[] {
+  const words = (name: string): Uint32Array => columnWords(opened, name);
+  const string = (id: number): string => strings[id] ?? fail();
   const testId = words('tests.id');
   const testFile = words('tests.file');
   const testName = words('tests.name');
   // Written since a case carries how it settled; a file without it says nothing.
-  const testStopped = opened.found.has('tests.stopped') ? flags('tests.stopped') : undefined;
+  const testStopped = opened.found.has('tests.stopped') ? columnBytes(opened, 'tests.stopped') : undefined;
+  // Written since a case carries its runner's duration; a file without it timed none.
+  const testDuration = opened.found.has('tests.duration') ? words('tests.duration') : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
+  if (testDuration !== undefined && testDuration.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
   for (let at = 0; at < testId.length; at += 1) {
     tests.push({
@@ -213,8 +241,19 @@ function openedSets(opened: OpenedSections): OpenedSetExecutionIndex {
       file: string(testFile[at]!),
       name: string(testName[at]!),
       ...stoppedFrom(testStopped, at),
+      ...durationFrom(testDuration, at),
     });
   }
+  return tests;
+}
+
+function openedSets(opened: OpenedSections): OpenedSetExecutionIndex {
+  const version = opened.header.version;
+  const words = (name: string): Uint32Array => columnWords(opened, name);
+  const flags = (name: string): Uint8Array => columnBytes(opened, name);
+  const strings = stringsOf(opened);
+  const string = (id: number): string => strings[id] ?? fail();
+  const tests = testsOf(opened, strings);
 
   const moduleFile = words('modules.file');
   const moduleBlocks = words('modules.blocks');
@@ -374,6 +413,19 @@ export function stoppedFrom(column: Uint8Array | undefined, at: number): { reado
   if (held === FINISHED) return { stopped: false };
   if (held === STOPPED) return { stopped: true };
   throw invalid();
+}
+
+/**
+ * Each case's duration as its runner reported it, one word per test in whole
+ * milliseconds, {@link NO_DURATION} for a case no runner timed.
+ */
+export function durationColumn(tests: readonly ExecutionTest[]): Uint32Array {
+  return Uint32Array.from(tests, (test) => durationWord(test.duration));
+}
+
+export function durationFrom(column: Uint32Array | undefined, at: number): { readonly duration?: number } {
+  const held = column?.[at];
+  return held === undefined || held === NO_DURATION ? {} : { duration: held };
 }
 
 function fail(): never {

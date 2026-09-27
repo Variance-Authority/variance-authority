@@ -86,4 +86,11 @@ describe('the journey set spelling', () => {
 
     expect(() => decodeExecutionIndex(bytes)).toThrow('unsupported execution index version: 9');
   });
+
+  it('keeps each case\'s duration as its runner reported it, and a case with none without one', () => {
+    const timed = [{ ...tests[0]!, duration: 480 }, tests[1]!];
+    const bytes = encodeSetExecutionIndex({ tests: timed, modules: [], sets: new CrossingSets(2).pool() });
+
+    expect(decodeExecutionIndex(bytes).tests).toEqual(timed);
+  });
 });

@@ -4,7 +4,7 @@ import type { ProfileId } from '@variance-authority/core/format';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
 import { COMMANDS, DEFAULT_CONFIG, flagsFor, isCommand, synopsisFor } from './usage.js';
-import { didYouMean, nearest } from './nearest.js';
+import { didYouMean, nearest } from '@variance-authority/mcp/tools';
 import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseStory, type ParsedStory } from './story-args.js';

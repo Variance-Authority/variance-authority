@@ -8,7 +8,14 @@ import type {
   ExecutionModule,
   ExecutionTest,
 } from './reverse.js';
-import { decodeSetExecutionIndex, stoppedColumn, stoppedFrom } from './execution-set-format.js';
+import {
+  decodeSetExecutionIndex,
+  durationColumn,
+  durationFrom,
+  executionTestsOf,
+  stoppedColumn,
+  stoppedFrom,
+} from './execution-set-format.js';
 
 /**
  * The execution index as columns, because the JSON spelling of it is the
@@ -54,11 +61,14 @@ import { decodeSetExecutionIndex, stoppedColumn, stoppedFrom } from './execution
  *
  * The rows and the set spelling number from one sequence: rows were 1, sets
  * took 2 and 3, and rows are 4 since a region carries its load-time flag
- * ({@link ExecutionBlock.loaded}). Version 1 is still read, as a file that
- * flagged nothing — which it did not, since it credited load time per crossing.
+ * ({@link ExecutionBlock.loaded}), and 5 since a case carries the duration its
+ * runner reported ({@link ExecutionTest.duration}). Version 4 is still read, as
+ * cases nobody timed, and version 1 as a file that also flagged nothing —
+ * which it did not, since it credited load time per crossing.
  */
-export const EXECUTION_FORMAT = 4;
+export const EXECUTION_FORMAT = 5;
 
+const UNTIMED_ROWS = 4;
 const UNFLAGGED_ROWS = 1;
 
 /**
@@ -146,10 +156,8 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       'tests.id': column(Uint32Array.from(index.tests, (test) => id(test.id))),
       'tests.file': column(Uint32Array.from(index.tests, (test) => id(test.file))),
       'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
-      // TODO: a case's duration is not written; only the whole file's is, in the
-      // snapshot's `tests.duration`, so a question about the slowest case has no
-      // column to read.
       'tests.stopped': column(stoppedColumn(index.tests)),
+      'tests.duration': column(durationColumn(index.tests)),
       'modules.file': column(moduleFile),
       'modules.blocks': column(moduleBlocks),
       'blocks.kind': column(blockKind),
@@ -176,6 +184,14 @@ export function isEncodedExecutionIndex(bytes: Uint8Array): boolean {
 }
 
 /**
+ * The cases a column-encoded index names, in either spelling, with how each
+ * settled and what its runner reported it took — without decoding a region.
+ */
+export function decodeExecutionTests(bytes: Uint8Array): readonly ExecutionTest[] {
+  return executionTestsOf(bytes, [EXECUTION_FORMAT, UNTIMED_ROWS, UNFLAGGED_ROWS]);
+}
+
+/**
  * Read a column-encoded index back, whole.
  *
  * Returns the index {@link encodeExecutionIndex} was handed, field for field,
@@ -194,7 +210,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       .replace(/\0+$/u, ''),
   ) as Header;
   // The set spelling owns every other version, and refuses one it did not write.
-  if (header.version !== EXECUTION_FORMAT && header.version !== UNFLAGGED_ROWS) {
+  if (header.version !== EXECUTION_FORMAT && header.version !== UNTIMED_ROWS && header.version !== UNFLAGGED_ROWS) {
     return decodeSetExecutionIndex(bytes);
   }
   const base = 4 + headerLength;
@@ -254,7 +270,10 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const testName = words('tests.name');
   // Written since a case carries how it settled; a file without it says nothing.
   const testStopped = found.has('tests.stopped') ? flags('tests.stopped') : undefined;
+  // Version 5 on; a file before it timed no case.
+  const testDuration = found.has('tests.duration') ? words('tests.duration') : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
+  if (testDuration !== undefined && testDuration.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
   for (let at = 0; at < testId.length; at += 1) {
     tests.push({
@@ -262,6 +281,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       file: string(testFile[at]!),
       name: string(testName[at]!),
       ...stoppedFrom(testStopped, at),
+      ...durationFrom(testDuration, at),
     });
   }
 

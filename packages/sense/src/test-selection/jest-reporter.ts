@@ -24,6 +24,7 @@ import { nameModules } from '../module-names.js';
 import { askedForStories } from '../story/directory.js';
 import journalFormat from './journal-format.cjs';
 import { writeCaseIndex } from './case-fold.js';
+import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord, reportedDuration } from './finished-files.js';
@@ -68,7 +69,12 @@ export interface JestRunResults {
     readonly testFilePath: string;
     readonly skipped: boolean;
     readonly testExecError?: unknown;
-    readonly testResults: ReadonlyArray<{ readonly status: string }>;
+    /** Each case as Jest reported it: `fullName` is the `currentTestName` the case scope records it by. */
+    readonly testResults: ReadonlyArray<{
+      readonly status: string;
+      readonly fullName?: string;
+      readonly duration?: number | null;
+    }>;
     /** `runtime` is the milliseconds Jest measured for the file. */
     readonly perfStats?: { readonly runtime?: number };
   }>;
@@ -235,6 +241,10 @@ class JestCoverageReporter {
       await writeCaseIndex(executionFile, caseDirectory, root, modules, {
         tests,
         ...(commit === undefined ? {} : { commit }),
+        durations: caseDurations(results.testResults.map((result) => ({
+          filepath: result.testFilePath,
+          cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration)),
+        })), root),
       });
       await rm(caseDirectory, { recursive: true, force: true });
     }

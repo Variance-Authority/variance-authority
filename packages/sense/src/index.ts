@@ -87,7 +87,16 @@ export {
   type PackagesAround,
   type RecordedCases,
 } from './orient.js';
-export { recordedDurations, type RecordedDurations, type TimedTestFile } from './recorded-durations.js';
+export {
+  recordedDurations,
+  recordedPaths,
+  type DurationScope,
+  type RecordedCaseDurations,
+  type ScopeCounts,
+  type RecordedDurations,
+  type TimedTestCase,
+  type TimedTestFile,
+} from './recorded-durations.js';
 
 export { gitDigests } from './tree.js';
 

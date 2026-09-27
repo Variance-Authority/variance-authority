@@ -23,7 +23,7 @@ A missing domain is unavailable, never an empty measurement.
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
 | current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance ask search --query <word> --from <path>` | `docs_search` on the workspace API server |
 | current workspace source | Which packages are these files in, what crosses their edges, and which tests ran them? | `variance ask orient --files <path>[,...]` | `docs_orient` on the workspace API server |
-| a recorded test run | Which test files did the runner spend longest in? | `variance ask slowest-tests [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
+| a recorded test run | Which test files and test cases did the runner spend longest in, under these tests or in the tests that entered this code? | `variance ask slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
 
 For [source orientation](orientation.md), ask three questions in this order:
 

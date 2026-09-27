@@ -1,7 +1,13 @@
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
-import { COSTS_TOOLS, TOOLS, VANTAGE_TOOLS, type CostsSubject, type Tool } from '@variance-authority/mcp/tools';
+import {
+  COSTS_TOOLS,
+  TOOLS,
+  VANTAGE_TOOLS,
+  didYouMean,
+  type CostsSubject,
+  type Tool,
+} from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
-import { didYouMean } from '../nearest.js';
 
 /**
  * The catalogue behind `variance ask`: which questions exist, what each takes,
@@ -161,7 +167,7 @@ export function argumentsOf(tool: Asked): readonly Argument[] {
     return {
       flag: `--${property.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`)}`,
       property,
-      placeholder: PLACEHOLDER[property] ?? fallback(kind),
+      placeholder: listed(PLACEHOLDER[property], kind) ?? fallback(kind),
       required: wanted.includes(property),
       kind,
     };
@@ -176,6 +182,12 @@ function kindOf(schema: unknown): Argument['kind'] {
   if (type === 'array') return 'list';
   if (type === 'integer' || type === 'number') return 'number';
   return 'text';
+}
+
+/** A list takes several, and says so the way `<path>[,...]` does, whatever one of them is called. */
+function listed(placeholder: string | undefined, kind: Argument['kind']): string | undefined {
+  if (placeholder === undefined || kind !== 'list' || placeholder.endsWith('[,...]')) return placeholder;
+  return `${placeholder}[,...]`;
 }
 
 function fallback(kind: Argument['kind']): string {
@@ -228,7 +240,10 @@ export function inputFor(
           `${didYouMean(`--${property}`, flags)}`,
       );
     }
-    input[property] = value;
+    // A list a tool declares is typed once, comma-separated, like `--files`.
+    input[property] = argument.kind === 'list' && typeof value === 'string'
+      ? value.split(',').map((entry) => entry.trim()).filter((entry) => entry !== '')
+      : value;
   }
 
   const missing = accepted.filter(
