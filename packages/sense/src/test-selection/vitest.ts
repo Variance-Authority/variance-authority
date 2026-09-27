@@ -26,7 +26,7 @@ import {
   type ResolvedViteConfig,
   type RunnerContext,
 } from './governing-config.js';
-import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
@@ -354,7 +354,8 @@ function selectionPlugin(
 }
 
 /**
- * Fold a run no reporter folded, from the trees its workers wrote.
+ * Fold a run no reporter folded, from the trees its workers wrote, and take
+ * the shims off: a watching run kept them for its reruns, and this is its last.
  *
  * A run whose runner is the project's own left journals and no tree, and a
  * journal alone cannot say whether its file passed: it is said, and nothing is
@@ -364,6 +365,17 @@ async function closeRun(
   run: SelectionRun,
   settle: (files: readonly FinishedFile[]) => Promise<void>,
   shims: readonly string[],
+): Promise<void> {
+  try {
+    await foldUnfolded(run, settle);
+  } finally {
+    for (const shim of shims) rmSync(shim, { force: true });
+  }
+}
+
+async function foldUnfolded(
+  run: SelectionRun,
+  settle: (files: readonly FinishedFile[]) => Promise<void>,
 ): Promise<void> {
   if (run.settled) return;
   const files = await readFinished(run.finishedDirectory);
@@ -377,7 +389,6 @@ async function closeRun(
   );
   rmSync(run.runDirectory, { recursive: true, force: true });
   rmSync(run.caseDirectory, { recursive: true, force: true });
-  for (const shim of shims) rmSync(shim, { force: true });
 }
 
 function selectionReporter(
@@ -397,10 +408,16 @@ function selectionReporter(
   // name, which `onInit` has already mapped to the project.
   let byName = new Map<string, string>();
   const configsOf = (config: string | undefined) => (config === undefined ? {} : { configs: [config] });
+  // A rerun starts as `onWatcherRerun` in every major and as `onTestRunStart`
+  // from Vitest 3, both after the last run's end was awaited: the fold reopens
+  // there, and the rerun's end folds the files the rerun ran.
   return {
     onInit: (context: RunnerContext) => {
       byName = noteRunner(run, context);
+      run.watching = context.config?.watch === true;
     },
+    onWatcherRerun: () => reopenRun(run),
+    onTestRunStart: () => reopenRun(run),
     onFinished: (files: readonly RunnerTask[]) => settle(
       files.flatMap((file) => file.filepath === undefined
         ? []

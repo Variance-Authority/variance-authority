@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -136,6 +136,43 @@ describe('what a wrapped Rstest configuration becomes', () => {
     expect(preconditions.get('dom/a.test.ts')).toEqual(['dom/a.test.ts', 'dom/setup.ts']);
   });
 });
+
+describe('a watching Rstest', () => {
+  it('folds every cycle, only the files that cycle ran, and takes its shim off at exit', async () => {
+    const directory = await root();
+    const coverageFile = resolve(directory, 'coverage.bin');
+    for (const file of ['a.test.ts', 'b.test.ts', 'c.test.ts']) await writeFile(resolve(directory, file), `// ${file}\n`, 'utf8');
+    const config = withTestSelection({ root: directory }, { coverageFile });
+    const reporter = (config.reporters as ReadonlyArray<Watching>)[1]!;
+    const shims = async () => (await readdir(resolve(directory, '.variance-authority'))).filter((name) => name.startsWith('test-selection-setup-'));
+    const result = (file: string) => ({ testPath: resolve(directory, file), status: 'pass', results: [{ status: 'pass' }] });
+    const recorded = async () => decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file);
+
+    await reporter.onTestRunStart();
+    await reporter.onTestRunEnd({ results: [result('a.test.ts')], rerunTestPaths: [resolve(directory, 'a.test.ts')] });
+    expect(await recorded()).toEqual(['a.test.ts']);
+    expect(await shims()).toHaveLength(1);
+
+    // The session reports every file it holds, `c` among them, and this
+    // cycle ran only `b`.
+    await reporter.onTestRunStart();
+    await reporter.onTestRunEnd({
+      results: ['a.test.ts', 'b.test.ts', 'c.test.ts'].map(result),
+      rerunTestPaths: [resolve(directory, 'b.test.ts')],
+    });
+    expect(await recorded()).toEqual(['a.test.ts', 'b.test.ts']);
+    expect(await shims()).toHaveLength(1);
+
+    await reporter.onExit();
+    expect(await shims()).toEqual([]);
+  });
+});
+
+interface Watching {
+  onTestRunStart(): unknown;
+  onTestRunEnd(payload: object): Promise<void>;
+  onExit(): unknown;
+}
 
 describe('what a finished Rstest file is worth', () => {
   // A `beforeAll` that throws leaves the file failed and every test in it

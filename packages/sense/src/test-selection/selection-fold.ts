@@ -56,10 +56,11 @@ export interface FoldDestination {
   /**
    * Modules this seam generated for this run.
    *
-   * Nothing reads them once the journals are folded, and leaving them would
+   * Nothing reads them once the last run is folded, and leaving them would
    * grow a directory in the user's project by a file or two a run — including
    * after a run that refuses, which is why they come off in a `finally` rather
-   * than at the happy end.
+   * than at the happy end. A watching runner's last run is the one before it
+   * closes, so its seam takes them off at the close instead.
    */
   readonly shims: readonly string[];
   /**
@@ -81,7 +82,8 @@ export interface FoldDestination {
  *
  * Idempotent: a runner that announces the end twice — two hooks of two major
  * versions both answered, a reporter installed on the root config and on a
- * project — folds once.
+ * project — folds once. A watching runner folds every rerun, because its seam
+ * calls `reopenRun` when one starts.
  */
 export function foldRun(
   run: SelectionRun,
@@ -169,15 +171,13 @@ export function foldRun(
   };
 
   return async (files: readonly FinishedFile[]): Promise<void> => {
-    // FIXME: under watch mode the first run settles and every rerun returns
-    // here, so a rerun's files are never folded and its `.run-*` directory
-    // stays until the process exits and a later prune finds its pid gone.
     if (run.settled) return;
     run.settled = true;
     try {
       await record(files);
     } finally {
-      for (const shim of destination.shims) await rm(shim, { force: true });
+      // A watching runner loads them again for every rerun; its close takes them off.
+      if (!run.watching) for (const shim of destination.shims) await rm(shim, { force: true });
     }
     // After the lock is released, and at most once a day: see `prune.ts`.
     const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));

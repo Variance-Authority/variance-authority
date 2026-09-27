@@ -57,8 +57,19 @@ export interface SelectionRun {
   readonly shims: Set<string>;
   /** Whether this run records per-case crossings: every run does, unless its files run in a page. */
   cases: boolean;
-  /** The snapshot is written once, by whichever hook the runner calls. */
+  /**
+   * Whether the run in progress has been folded.
+   *
+   * A runner may announce one end through two hooks, and it folds once. A
+   * runner that watches starts another run in the same process, and
+   * {@link reopenRun} clears this at that start.
+   */
   settled: boolean;
+  /**
+   * Whether the runner runs again in this process. The shims stay on disk
+   * until it closes, because every rerun's workers load them.
+   */
+  watching: boolean;
 }
 
 const RUNS = Symbol.for('variance-authority.test-selection.runs');
@@ -100,7 +111,19 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     shims: new Set<string>(),
     cases: true,
     settled: false,
+    watching: false,
   };
+}
+
+/**
+ * Open the run for the next end the runner announces: the start of a rerun.
+ *
+ * The directories are the ones the workers were handed when the shims were
+ * written. The last fold removed them, and each worker recreates the one it
+ * writes to, so a rerun's journals are its own.
+ */
+export function reopenRun(run: SelectionRun): void {
+  run.settled = false;
 }
 
 /** The run a half that was handed only the snapshot's path is taking part in. */

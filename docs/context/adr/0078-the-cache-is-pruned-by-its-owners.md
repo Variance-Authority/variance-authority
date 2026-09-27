@@ -103,9 +103,3 @@ The thresholds are constants beside `RENDER_CACHE_*`, not configuration:
   investigation, never a suite. The one cost that grew with count was
   `listStories` decoding every body to count its visits; it now reads the
   header.
-
-## Open
-
-- Under watch mode a settled run returns early on every rerun, so a rerun's
-  files are not folded and its `.run-*` stays until the process exits. The
-  `FIXME` is at the `settled` check in `selection-fold.ts`.

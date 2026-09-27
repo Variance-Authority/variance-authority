@@ -84,6 +84,8 @@ export interface RunnerProject {
 /** The runner itself, as far as a reporter's `onInit` reads it. */
 export interface RunnerContext extends RunnerProject {
   readonly projects?: readonly RunnerProject[];
+  /** The resolved configuration, command line merged in: `watch` says whether it runs again. */
+  readonly config?: { readonly watch?: boolean };
 }
 
 /** The config file Vite loaded for a project, as a key. */

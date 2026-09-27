@@ -20,14 +20,14 @@
  * ```
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { defaultInclude } from './instrumented-modules.js';
 import { carriedJournal, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
-import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
@@ -107,6 +107,24 @@ export interface RstestFileResult {
   readonly meta?: object;
   /** The name of the project that ran it. */
   readonly project?: string;
+}
+
+/** What `onTestRunEnd` is handed: `rerunTestPaths` is there only when Rstest watches. */
+interface RstestRunEnd {
+  readonly results: readonly RstestFileResult[];
+  readonly rerunTestPaths?: readonly string[];
+}
+
+/**
+ * The files the cycle that just ended ran. A watching Rstest hands every file
+ * of the session in `results`, and the ones this cycle ran in `rerunTestPaths`:
+ * a file that did not run this cycle wrote no journal to fold.
+ */
+function cycleResults(run: SelectionRun, payload: RstestRunEnd): readonly RstestFileResult[] {
+  if (payload.rerunTestPaths === undefined) return payload.results;
+  run.watching = true;
+  const ran = new Set(payload.rerunTestPaths);
+  return payload.results.filter((file) => ran.has(file.testPath));
 }
 
 /** The subset of an Rstest configuration this seam reads and rewrites. */
@@ -199,14 +217,18 @@ export function withTestSelection(
     : resolve(configRoot, options.executionFile);
   const settle = foldRun(run, { coverageFile, executionFile, shims: [setupId] });
   const reporter = {
-    onTestRunEnd: (payload: { readonly results: readonly RstestFileResult[] }) => settle(
-      payload.results.map((file) => ({
+    // A watching Rstest starts every cycle here, after the last cycle's end.
+    onTestRunStart: () => reopenRun(run),
+    onTestRunEnd: (payload: RstestRunEnd) => settle(
+      cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
       })),
     ),
+    // A watching run kept its shim for the cycles after the first.
+    onExit: () => rmSync(setupId, { force: true }),
   };
   const reporters = config.reporters === undefined ? ['default'] : array(config.reporters);
 
