@@ -233,7 +233,9 @@ export function inputFor(
   if (missing.length > 0) {
     // Where the missing argument comes from depends on what the question is
     // about: an id is printed by a run, a name or a specifier by the code.
-    const first = tool.name.startsWith('docs_')
+    const first = tool.name === 'docs_orient'
+      ? 'It takes words from the task, as `--query "<words>"`, and finds the files they are in.'
+      : tool.name.startsWith('docs_')
       ? 'Ask `packages` first; it prints the specifiers `entrypoint` takes, and `entrypoint` ' +
         'prints the names `symbol` and `uses` take. `search --query <word>` finds a name you ' +
         'can only describe.'

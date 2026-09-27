@@ -1,7 +1,9 @@
 # What a workspace publishes, and where a name is used
 
-Seven questions read a workspace's manifests and source and answer what it
-publishes. Every answer names the UTC time of the workspace generation it used.
+Eight questions read a workspace's manifests and source. Seven answer what it
+publishes, and each of their answers names the UTC time of the workspace
+generation it used. The eighth, `orient`, starts from the words of a task,
+before you know any name.
 They describe source, not a build or a generated site, and they need no run and
 no config.
 
@@ -32,7 +34,7 @@ it:
 | --- | --- | --- |
 | `@variance-authority/help` | the npm package | a manifest, a package runner |
 | `variance-authority-help` | the binary that package installs | a shell, an MCP `command` |
-| `docs_packages` … `docs_gaps` | the seven MCP tool names | an MCP client's tool list |
+| `docs_packages` … `docs_gaps` | the eight MCP tool names | an MCP client's tool list |
 | `workspace-api` | the server key you chose | your own MCP config; rename it freely |
 
 The `docs_` prefix is the MCP namespace. Drop it and you have the verb:
@@ -65,7 +67,7 @@ variance-authority-help [root] [--just-answer]            # serve over MCP on st
 variance-authority-help write [root] [--out <dir>] [--base <url>]
 ```
 
-**Any first word that is not one of the seven verbs and not `write` is read as a
+**Any first word that is not one of the eight verbs and not `write` is read as a
 root directory, and the binary starts an MCP stdio server on it.** There is no
 "unknown verb" error at this level: `variance-authority-help serve` tries to
 serve a directory named `serve`. That rule is also why the MCP config in
@@ -105,7 +107,7 @@ name's contract, and `uses` for its exact import sites and worked examples.
 This is a module graph, not a call graph. Never turn an import site into a claim
 that one function calls another; open the file or ask a language server.
 
-## The seven verbs, in the order to ask them
+## The eight verbs, in the order to ask them
 
 Every block below is real output from the repository that develops this tool,
 shortened only.
@@ -331,7 +333,95 @@ A start point is required. Without one, the question is `rg <pattern>`, and the
 refusal says so. A closure of thousands of files is passed to `rg` in several
 calls, each under the operating system's command-line limit.
 
-### 7. `gaps`
+### 7. `orient <words>`
+
+Ask it first when the task gives you words and no name. It runs `git grep`
+once per word over the tracked files, ignoring case, and shows the files with
+the most of the words first, then the most matching lines. For each package
+those files are in, it prints what the package imports from other packages and
+what other packages import from it. A use is one file importing one name from
+another package. A package's share is of the uses on that side. A name's share
+is of all the use the package that exports it gets from outside, so it says what
+part of that package's use the name is. Then it prints how many recorded test
+cases ran each file, and for a test file the cases it declares. Last come the
+narrower questions, as commands. Run it from the checkout you are asking about.
+
+```
+$ variance ask orient --query "carry args" --limit 5
+811 tracked files contain one of the words `carry args`. The 5 files with the most of them, then the most matching lines:
+
+  packages/cli/src/bin.test.ts             2 words, 34 lines  @variance-authority/cli
+  packages/cli/src/commands/carry.test.ts  2 words, 34 lines  @variance-authority/cli
+  .github/actions/variance/action.yml      2 words, 29 lines  variance-authority
+  packages/cli/src/parse.ts                2 words, 28 lines  @variance-authority/cli
+  packages/cli/src/commands/carry.ts       2 words, 27 lines  @variance-authority/cli
+
+806 more files not shown.
+
+Packages, from the source index at …/source-index.bin (2120 files indexed).
+A use is one file importing one name from another package. A package's share is of the uses on that side; a name's share is of every use the package exporting it gets from outside.
+
+@variance-authority/cli  packages/cli
+  Takes from, 17 packages, 728 uses:
+     30%  @variance-authority/core     RenderIdentity 1%, SourceIndex 1%, SemanticSnapshot 1%, Relations 1%, 79 more names
+     29%  @variance-authority/sense    testCoverageFile 4%, the whole module 3%, ExecutionIndex 3%, ExecutionNarrowing 2%, 91 more names
+     15%  @variance-authority/report   ObservationRecord 3%, RunReport 3%, FindingRecord 1%, Change 1%, 70 more names
+      7%  @variance-authority/raster   RasterStore 5%, Renderer 5%, BaselineKey 4%, Found 3%, 9 more names
+      5%  @variance-authority/history  HistoryStore 5%, Instability 2%, RunRecord 2%, Observation 2%, 14 more names
+     15%  12 more packages
+  Used by, 2 packages, 2 uses:
+     50%  variance-authority  parseConfig 50%
+     50%  site                default 50%
+
+variance-authority  (the root)
+  Takes from, 5 packages, 37 uses:
+     57%  @variance-authority/sense     LOCKFILES <1%, MANIFEST <1%, atDistance <1%, changedPackages <1%, 17 more names
+     22%  @variance-authority/core      relationsOfFiles <1%, EdgeKind <1%, affectedBy <1%, compareValues <1%, 3 more names
+     11%  @variance-authority/package   countNames 1%, readHelp 1%, readSurface 1%, undocumented 1%
+      8%  @variance-authority/tribunal  INITIAL 6%, MIGRATIONS 6%, SCHEMA_VERSION 6%
+      3%  @variance-authority/cli       parseConfig 50%
+  Used by, 1 package, 1 use:
+    100%  site  default 100%
+
+Recorded cases, suite unit, from …/suites/unit/coverage.bin.cases.bin:
+  packages/cli/src/bin.test.ts             a test file declaring 45 recorded cases:
+      opening a renderer > is not in the way of a renderer that opens
+      opening a renderer > turns any failure to open one into an operator error, so a missing browser exits 2
+      parseArgs > accepts `--flag value` and `--flag=value` as the same thing
+      42 more cases.
+  packages/cli/src/commands/carry.test.ts  not recorded: the recording has no row for this file.
+  .github/actions/variance/action.yml      not recorded: the recording has no row for this file.
+  packages/cli/src/parse.ts                44 cases ran it, and it also ran while its module evaluated*:
+      packages/cli/src/bin.test.ts > parseArgs > accepts `--flag value` and `--flag=value` as the same thing
+      packages/cli/src/bin.test.ts > parseArgs > answers `--version` before it decides whether the command exists
+      packages/cli/src/bin.test.ts > parseArgs > exits 0 on help for a subcommand, because help is what was asked for
+      41 more cases.
+  packages/cli/src/commands/carry.ts       ran only while its module evaluated.*
+  * The recording names no case for what runs while a module evaluates. The cases whose files import the module ran it, and `variance covering --file` names them.
+
+Narrower questions:
+  variance ask uses --name parseConfig --package @variance-authority/cli
+  variance ask symbol --name parseConfig --package @variance-authority/cli
+  variance ask symbol --name RenderIdentity --package @variance-authority/core
+  variance ask search --query 'carry args' --from packages/cli/src/bin.test.ts
+  variance covering --file packages/cli/src/parse.ts --suite unit
+```
+
+The packages come from the source index `variance index` publishes, and the
+cases from the latest recording of each suite. When either one was never
+published, its part is one line that names where it looked. A side with no uses
+says why: no package uses it, none of the package's files is in the index, or
+the imported names of its files were not read.
+
+A file with no row in the recording is *not recorded*, which says nothing about
+whether a test runs it. *No case ran it* is only said of a file the recording
+has a row for and no region of which ran. Code that runs while its module
+evaluates is recorded under no case, so a file marked `*` ran under more cases
+than the count says. `variance covering --file` names them, from the test files
+that import it. A test file is answered with the cases it declares. The
+`--from` question starts at the first shown file the index has a record for.
+
+### 8. `gaps`
 
 Names other packages import with nothing written above the declaration. A work
 queue, not an answer about one name.

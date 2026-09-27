@@ -59,7 +59,7 @@ when its condition holds, not before.
 | Where does this one test, or the few I am looking into, go, and in what order? | [story](references/story.md) | |
 | Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md) |
 | What can this test be reduced to? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
-| What does this workspace publish? Where is a name declared, and who imports it? | [workspace API](references/workspace-api.md) | |
+| What does this workspace publish? Where is a name declared, and who imports it? Where are the words of a task, and which packages are they in? | [workspace API](references/workspace-api.md) | |
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |
 
 ## Rules every answer shares

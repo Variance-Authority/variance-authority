@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { answerSearch, grep, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { answerSearch, grep, orient, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -77,6 +77,16 @@ export async function grepSource(root: string, input: Readonly<Record<string, un
   // the sentence that says so, and a call with no start point needs none.
   const tree = grep.wants?.(input) === true ? await readTree({ root, index: sourceIndexPath(root) }).catch(() => undefined) : undefined;
   return { answer: () => grep.run(undefined, input, tree === undefined ? undefined : { tree }), at: undefined };
+}
+
+/**
+ * `orient` reads no workspace value and draws no tree: `git grep` says where
+ * the words are, and the addon opens the published index and recording itself,
+ * both from the working directory. So nothing is read before it is asked, and
+ * there is no generation to date the answer with.
+ */
+export function orientSource(input: Readonly<Record<string, unknown>>): Answering {
+  return { answer: () => orient.run(undefined, input), at: undefined };
 }
 
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
