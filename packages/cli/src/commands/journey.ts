@@ -104,12 +104,9 @@ export function unenteredSubjects(input: JourneyInput): Journeyed {
 
   const skipped = known
     .filter((subject) => !entered.has(subject))
-    .map((subject) => ({
-      subject,
-      because:
-        'the last run recorded every region it covered while it was painted, and this diff ' +
-        'changed none of them',
-    }));
+    // The last run recorded every region the subject covered while it was
+    // painted, so a region missing from that record is one it did not run.
+    .map((subject) => ({ subject, because: 'covered no changed region when last painted' }));
 
   return {
     skipped,

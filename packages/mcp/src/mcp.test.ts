@@ -67,7 +67,7 @@ const REPORT: RunReport = {
       subject: 'page/todos--empty',
       verdict: 'incomparable',
       because:
-        'a baseline for `page/todos--empty` exists but was rendered by playwright-chromium ' +
+        'a baseline exists but was rendered by playwright-chromium ' +
         '(chromium@131.0.0, linux/x64, 1x), and this run is playwright-chromium ' +
         '(chromium@131.0.0, darwin/arm64, 1x); pixels are machine-bound',
       changedPixels: 0,

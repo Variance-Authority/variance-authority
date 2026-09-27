@@ -1,5 +1,7 @@
+import { digestFileName } from '@variance-authority/core/format';
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 import type { CachedIdentity, Diagnosis, FontFinding, Partition, RenderCacheFinding } from './doctor.js';
+import { formatCache } from './doctor-cache.js';
 import { formatSkills } from './doctor-skills.js';
 
 /**
@@ -72,13 +74,9 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     '',
     `fonts: ${fontHeadline(diagnosis.fonts)}`,
     `  ${diagnosis.fonts.because}`,
-    ...(diagnosis.fonts.probed
-      ? [
-          '  known limit: a family that is metric-compatible with a generic — Arimo, ' +
-            'Liberation Sans, the substitutes a container ships so layout does not move —',
-          '  is reported missing by this probe. It reports a doubt rather than swallowing ' +
-            'one, and does not change the exit code.',
-        ]
+    // Only under a finding: the limit explains a missing family, and nothing else.
+    ...(diagnosis.fonts.probed && diagnosis.fonts.missing.length > 0
+      ? ['  exit code unaffected; a metric-compatible substitute (Arimo, Liberation Sans) also reads as missing']
       : []),
     '',
     `baselines: ${diagnosis.baselines.kind}${
@@ -91,6 +89,8 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     `  ${diagnosis.renders.root}`,
     `  ${diagnosis.renders.because}`,
     ...cacheLines(diagnosis.renders),
+    '',
+    ...formatCache(diagnosis.cache),
     '',
     `history: ${diagnosis.history.configured ? 'configured' : 'none'}`,
     `  ${diagnosis.history.because}`,
@@ -111,12 +111,28 @@ function partitionLines(partitions: readonly Partition[]): readonly string[] {
   if (partitions.length === 0) return [];
   return [
     '  stored by identity:',
-    ...partitions.map(
-      (entry) =>
-        `    ${entry.mine ? '→' : ' '} ${entry.identity.slice(0, 16)}… ` +
+    ...partitions.flatMap((entry) => [
+      `    ${entry.mine ? '→' : ' '} ${entry.identity.slice(0, 16)}… ` +
         `${entry.baselines} baseline(s)${entry.mine ? '  (this machine)' : ''}`,
-    ),
+      ...(entry.colonSpelled === undefined ? [] : [colonLine(entry.identity, entry.colonSpelled)]),
+    ]),
   ];
+}
+
+/**
+ * The partition still spelled with a colon, and the move that retires it.
+ *
+ * Said rather than fixed: those baselines compare, and the store moves each one
+ * when it is next accepted, so nothing here is wrong on this machine. What the
+ * name breaks is a checkout on Windows and an artifact upload, and a subject
+ * whose pixels never change is never accepted again — so the move is handed to
+ * the operator as a move, into a directory that cannot already hold the file.
+ */
+function colonLine(identity: string, count: number): string {
+  return (
+    `        ${count} of them in a \`${identity.slice(0, 16)}…\` directory, which Windows ` +
+    `cannot check out; move its files into \`${digestFileName(identity).slice(0, 16)}…\` beside it`
+  );
 }
 
 /**

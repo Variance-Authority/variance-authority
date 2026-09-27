@@ -4,7 +4,7 @@ import { env } from 'cloudflare:workers';
 /**
  * The service, built once per isolate.
  *
- * `createTribunal` validates the two tokens and builds the routing table; an
+ * `createTribunal` validates the tokens and builds the routing table; an
  * isolate serves many requests and there is nothing per-request about either.
  */
 let built: Tribunal | undefined;
@@ -19,6 +19,7 @@ export function tribunal(): Tribunal {
     project: env.PROJECT,
     ingestToken: env.INGEST_TOKEN,
     reviewToken: env.REVIEW_TOKEN,
+    ...(env.SHARE_TOKEN === undefined ? {} : { shareToken: env.SHARE_TOKEN }),
     // `Number(undefined)` is NaN and `Number('')` is 0, and zero days would sweep
     // every build the first time anybody asked. Both fall back to the default.
     ...(Number.isFinite(retentionDays) && retentionDays > 0 ? { retentionDays } : {}),
@@ -32,5 +33,8 @@ export const TOKENS = {
   },
   get review(): string {
     return env.REVIEW_TOKEN;
+  },
+  get share(): string | undefined {
+    return env.SHARE_TOKEN;
   },
 };

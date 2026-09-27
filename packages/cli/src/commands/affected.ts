@@ -91,10 +91,11 @@ export interface AffectedInput {
    * Directories whose every file counts as changed, from a monorepo tool's
    * affected-project answer.
    *
-   * Coarser than a file list on purpose. `nx` and `turbo` see the one edge a
+   * Coarser than a file list on purpose. `nx` and `turbo` see an edge a
    * specifier scan cannot — one workspace package importing another's built
-   * output — and the price of that edge is project granularity. It is taken as
-   * *more changed input*, never as the selection itself.
+   * output that no `tsconfig` maps back to source — and the price of that edge
+   * is project granularity. It is taken as *more changed input*, never as the
+   * selection itself.
    */
   readonly changedDirs?: readonly string[];
 
@@ -235,7 +236,7 @@ export function affectedSubjects(input: AffectedInput): Affected {
     skipped: [],
     whole,
     ...(rests === undefined ? {} : { rests }),
-    because: `every subject was observed: ${whole}`,
+    because: `observing all: ${whole}`,
   });
 
   // Before anything else, because it is the one uncertainty that makes the rest
@@ -289,12 +290,9 @@ export function affectedSubjects(input: AffectedInput): Affected {
       continue;
     }
 
-    skipped.push({
-      subject,
-      because:
-        `its baseline records ${many(components.length, 'component')} and this diff touched none of ` +
-        `them${touched.size === 0 ? '' : ` (${sample([...touched])})`}`,
-    });
+    // Which components the diff touched is the same for every skipped subject,
+    // so the run's own sentence names them once, below.
+    skipped.push({ subject, because: `none of its ${many(components.length, 'component')} touched` });
   }
 
   return {
@@ -302,8 +300,8 @@ export function affectedSubjects(input: AffectedInput): Affected {
     skipped,
     ...(unseen === undefined ? {} : { unwatched: unseen }),
     because:
-      `${observe.length} of ${many(planned.length, 'subject')} observed: ${how}, and the rest of the ` +
-      'suite records none of them',
+      `${observe.length} of ${many(planned.length, 'subject')} observed: ${how}` +
+      (touched.size === 0 ? '' : ` (${sample([...touched])})`),
   };
 }
 

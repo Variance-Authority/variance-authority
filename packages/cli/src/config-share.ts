@@ -1,13 +1,13 @@
 import {
+  declaredSecret,
   fail,
-  integer,
   kindOf,
   nonEmpty,
   object,
   optionalText,
   quote,
   resolveFrom,
-  secret,
+  strings,
   url,
   type ParseOptions,
 } from './config-values.js';
@@ -33,32 +33,26 @@ import {
  * gets a slow run rather than a wrong one
  * ([`sharing.md`](../../../docs/sharing.md)).
  *
- * Two kinds, because the transports collapse into two. `directory` is a path,
- * which is what `actions/cache`, `aws s3 sync`, an NFS mount and a laptop all
- * are; `http` is a base URL and optional credentials, which is what a bucket, a
- * signed URL and a tribunal deployment all are.
+ * Three kinds, one layout: the latest record of each mainline and each branch,
+ * and every image once by digest. `directory` is a path, which is what
+ * `aws s3 sync`, an NFS mount and a laptop all are; `http` is a base URL and
+ * optional credentials, which is what a bucket and a tribunal deployment are;
+ * `git` is refs under `refs/variance/` in the repository that already hosts the
+ * code.
  */
-export type ShareConfig = DirectoryShare | HttpShare;
+export type ShareConfig = DirectoryShare | HttpShare | GitShare;
 
 interface SharedFields {
   /**
-   * The ref whose lineage a lookup walks, newest first. Defaults to `origin/main`.
+   * The branches whose latest record is kept, in order of priority.
    *
-   * A ref rather than a commit because the operator is naming a *line*, and a
-   * ref rather than a branch name because a runner's checkout may have no local
-   * branch at all. What is actually asked for is the commits, so a ref that
-   * moves between two runs costs nothing: the lookup names the commit it found.
+   * Unset, git answers: the branch `refs/remotes/<remote>/HEAD` names, then the
+   * CI event's default branch. Never `main` by assumption.
    */
-  readonly mainline?: string;
+  readonly mainlines?: readonly string[];
 
-  /**
-   * How many commits back a lookup will ask for. Defaults to 50.
-   *
-   * A bound rather than a policy. A branch that has been open for six months is
-   * a branch whose mainline evaluation is wrong in every interesting way, and
-   * three hundred round trips to discover that is worse than deriving it.
-   */
-  readonly depth?: number;
+  /** The remote that hosts the mainlines. Defaults to `origin`. */
+  readonly remote?: string;
 }
 
 export interface DirectoryShare extends SharedFields {
@@ -69,34 +63,58 @@ export interface DirectoryShare extends SharedFields {
 export interface HttpShare extends SharedFields {
   readonly kind: 'http';
   readonly endpoint: string;
-  readonly token?: string;
+  /**
+   * The bearer token, read from the environment when the share is used rather
+   * than when the file is parsed — see {@link declaredSecret}. It throws a
+   * `ConfigError` naming the variable when that variable is unset or empty, and
+   * every caller turns that into a share miss: a share never fails a run, so a
+   * missing share secret must not refuse the whole config.
+   */
+  readonly token?: () => string;
   /** The verb a write uses. `PUT` for a bucket, `POST` for a deployment that routes on it. */
   readonly method?: 'PUT' | 'POST';
 }
+
+export interface GitShare extends SharedFields {
+  readonly kind: 'git';
+  /** Where the refs sit. Defaults to `refs/variance`. */
+  readonly namespace?: string;
+}
+
+const COMMON = ['kind', 'mainlines', 'remote'];
+
 export function parseShare(value: unknown, options: ParseOptions): ShareConfig {
-  const kind = kindOf(value, 'share', ['directory', 'http'], options);
+  const kind = kindOf(value, 'share', ['directory', 'http', 'git'], options);
   const common = (source: Record<string, unknown>): SharedFields => {
-    const mainline = optionalText(source, 'mainline', options, 'share.mainline');
-    const depth =
-      source['depth'] === undefined ? undefined : integer(source, 'depth', 'share.depth', options);
+    const mainlines =
+      source['mainlines'] === undefined ? undefined : strings(source['mainlines'], 'share.mainlines', options);
+    if (mainlines?.length === 0) {
+      fail('share.mainlines', 'must name at least one branch; leave it out to let git answer', options);
+    }
+    const remote = optionalText(source, 'remote', options, 'share.remote');
     return {
-      ...(mainline !== undefined ? { mainline } : {}),
-      ...(depth !== undefined ? { depth } : {}),
+      ...(mainlines !== undefined ? { mainlines } : {}),
+      ...(remote !== undefined ? { remote } : {}),
     };
   };
 
+  if (kind === 'git') {
+    const source = object(value, 'share', [...COMMON, 'namespace'], options);
+    const namespace = optionalText(source, 'namespace', options, 'share.namespace');
+    if (namespace !== undefined && !/^refs\/[^\s]+$/.test(namespace)) {
+      fail('share.namespace', `must be a ref prefix under refs/, not ${quote(namespace)}`, options);
+    }
+    return { kind: 'git', ...(namespace !== undefined ? { namespace } : {}), ...common(source) };
+  }
+
   if (kind === 'http') {
-    const source = object(
-      value,
-      'share',
-      ['kind', 'endpoint', 'token', 'method', 'mainline', 'depth'],
-      options,
-    );
-    // Through `secret` for the same reason the baseline store's is: the value
-    // belongs to somebody's deployment and therefore to the environment, while
-    // the decision to send it belongs in the file.
+    const source = object(value, 'share', [...COMMON, 'endpoint', 'token', 'method'], options);
+    // A declaration for the same reason the baseline store's token is one: the
+    // value belongs to somebody's deployment and therefore to the environment,
+    // while the decision to send it belongs in the file. Resolved late, because
+    // a job with no such secret — a pull request from a fork — still runs.
     const token =
-      source['token'] === undefined ? undefined : secret(source, 'token', options, 'share.token');
+      source['token'] === undefined ? undefined : declaredSecret(source, 'token', options, 'share.token');
     const method = source['method'];
     if (method !== undefined && method !== 'PUT' && method !== 'POST') {
       fail('share.method', `must be "PUT" or "POST", not ${quote(method)}`, options);
@@ -111,7 +129,7 @@ export function parseShare(value: unknown, options: ParseOptions): ShareConfig {
     };
   }
 
-  const source = object(value, 'share', ['kind', 'root', 'mainline', 'depth'], options);
+  const source = object(value, 'share', [...COMMON, 'root'], options);
   return {
     kind: 'directory',
     root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'share.root')),

@@ -283,6 +283,22 @@ export interface ComponentHash {
    * kept in place so the list stays parallel to the instances it counts.
    */
   readonly boxes?: readonly (Rect | null)[];
+
+  /**
+   * Every distinct value the component's own nodes declared, per property, in
+   * code-unit order; a custom property appears under its `--name` with the
+   * values it resolved to. Never hashed.
+   *
+   * `boxes` answers *by how much*; this answers *which declaration*. `style`
+   * moved says a `Button` is not styled as it was, and a reviewer holding only
+   * that opens the file and diffs by eye. With both revisions' values the run
+   * says `padding-left 8px → 14px`, which is the line somebody edited.
+   *
+   * Absent for a baseline written before this existed. That means *nobody
+   * recorded it*, and the comparison says nothing about properties rather than
+   * reporting every one of them as new.
+   */
+  readonly values?: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface StyleProvenanceEntry {

@@ -58,6 +58,15 @@ export function reportHtml(report: CliRunReport): string {
   const docket = docketOf(report);
   const reviewable = report.observations.filter((entry) => needsReview(entry.verdict));
   const clustering = clusterChanges(report.observations);
+  const wide = {
+    changes: clusters(clustering.changes, clustering.ungrouped),
+    presentation: presentationImpact(report.observations),
+    composition: composition(report),
+    across: accumulated(report),
+    settled: settled(report.observations),
+    unobserved: notObserved(report),
+    coverage: coverage(report, docket),
+  };
 
   return [
     '<!doctype html>',
@@ -70,14 +79,15 @@ export function reportHtml(report: CliRunReport): string {
     '<main>',
     rail(report, docket, reviewable),
     '<div class="pane">',
-    clusters(clustering.changes, clustering.ungrouped),
+    narrowNote(wide, reviewable),
+    wide.changes,
     subjects(reviewable),
-    presentationImpact(report.observations),
-    composition(report),
-    accumulated(report),
-    settled(report.observations),
-    notObserved(report),
-    coverage(report, docket),
+    wide.presentation,
+    wide.composition,
+    wide.across,
+    wide.settled,
+    wide.unobserved,
+    wide.coverage,
     '</div>',
     '</main>',
     `<script>${SCRIPT}</script>`,
@@ -85,6 +95,45 @@ export function reportHtml(report: CliRunReport): string {
   ]
     .filter((part) => part !== '')
     .join('\n');
+}
+
+/**
+ * What a narrow screen leaves out, said where the reader starts.
+ *
+ * A phone gets each subject's verdict, its reason and its images, which is what
+ * a reviewer away from a desk can judge. The rest is analysis laid out for a
+ * wide screen — tables whose columns are the point, a composition graph, commands
+ * that only run in a checkout — and squeezed into 390px it is a page nobody can
+ * read, so the stylesheet hides it. Hiding it silently would read as a report
+ * that has nothing more to say, so this names every part the page holds and the
+ * phone does not show. It is built from the same rendered parts the pane
+ * carries, so it cannot name a section the page does not have.
+ */
+function narrowNote(
+  wide: Readonly<Record<'changes' | 'presentation' | 'composition' | 'across' | 'settled' | 'unobserved' | 'coverage', string>>,
+  reviewable: readonly CliObservationRecord[],
+): string {
+  const held = [
+    [wide.changes, 'changes grouped by shape'],
+    [reviewable.some((entry) => entry.regions.length > 0) ? 'regions' : '', 'region tables'],
+    [reviewable.length > 0 ? 'commands' : '', 'commands for a checkout'],
+    [wide.presentation, 'presentation impact'],
+    [wide.composition, 'composition'],
+    [wide.across, 'history across runs'],
+    [wide.settled, 'settled subjects'],
+    [wide.unobserved, 'what was not observed'],
+    [wide.coverage, 'coverage'],
+  ]
+    .filter(([part]) => part !== '')
+    .map(([, name]) => name as string);
+  if (held.length === 0) return '';
+
+  const list =
+    held.length === 1 ? (held[0] as string) : `${held.slice(0, -1).join(', ')} and ${held.at(-1) as string}`;
+  return (
+    '<p class="narrow-note">This screen shows each subject with its reason and images. ' +
+    `A wider screen also shows ${text(list)}.</p>`
+  );
 }
 
 /** Both green verdicts are excluded, for the reason `Docket.reviewable` gives. */

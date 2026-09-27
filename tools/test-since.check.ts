@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { inSnapshotCoordinates } from './since-diff.mjs';
-import { explain, readingLines } from './since-report.mjs';
+import { explain, findingLines, readingLines, runningLines } from './since-report.mjs';
 import { selectedFiles } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
@@ -147,6 +147,42 @@ describe('why a file runs is printed in one line', () => {
     expect(
       explain({ test: 't', via: [{ kind: 'importer', trail: ['src/rules.ts', 'src/decide.ts'] }] }),
     ).toBe('src/rules.ts → src/decide.ts');
+    expect(
+      explain({ test: 't', via: [{ kind: 'region', file: 'src/a.ts', name: '', path: 'module', startLine: 1, endLine: 8 }] }),
+    ).toBe('src/a.ts:1-8');
+  });
+
+  it('prints a reason several files share once, over them', () => {
+    const why = (file: string): string => (file === 'c.test.ts' ? 'precondition package.json' : 'src/a.ts:1-8');
+    expect(runningLines(['a.test.ts', 'b.test.ts', 'c.test.ts'], () => '  1', why)).toEqual([
+      '  src/a.ts:1-8:',
+      '    1  a.test.ts',
+      '    1  b.test.ts',
+      '    1  c.test.ts  precondition package.json',
+    ]);
+  });
+});
+
+describe('a reason is printed once, however many files share it', () => {
+  it('folds reasons that differ only in their counts into a range', () => {
+    const unmeasured = (test: string, stranded: number) => ({
+      test,
+      bearing: 'unmeasured',
+      because: `it ran ${stranded} other module(s) the graph cannot connect it to`,
+    });
+    expect(
+      findingLines([
+        unmeasured('a.test.ts', 22),
+        unmeasured('b.test.ts', 49),
+        unmeasured('c.test.ts', 30),
+        { test: 'd.test.ts', bearing: 'unmeasured', because: 'the graph does not hold d.test.ts' },
+      ]),
+    ).toEqual([
+      'No distance was measurable for some of these, because:',
+      '  it ran 22–49 other module(s) the graph cannot connect it to (3 files)',
+      '  the graph does not hold d.test.ts',
+      '',
+    ]);
   });
 });
 
@@ -170,10 +206,10 @@ describe('a reader and a reading are printed where the reader looks', () => {
       ]),
     ).toEqual([
       '',
-      '  read src/limits.ts: values — LIMIT changed; their readers and the changed regions are charged',
-      '  unseen test/fill.test.js: loaded src/limits.ts through an import the file graph does not list; named, not selected',
-      '  read src/wrap.ts: load — the `sideEffects` field of its package declares src/wrap.ts',
-      '  read src/a.ts: unread — the diff does not apply to the recorded text, so its changed lines are charged',
+      '  read src/limits.ts: values (LIMIT) — the readers of the changed values and the changed regions are charged',
+      '  unseen test/fill.test.js: loaded src/limits.ts by an import the file graph does not list; named, not selected',
+      '  read src/wrap.ts: load (`sideEffects` declares src/wrap.ts) — every test that loaded it is charged',
+      '  read src/a.ts: unread (the diff does not apply to the recorded text) — its changed lines are charged',
     ]);
     expect(readingLines([])).toEqual([]);
   });

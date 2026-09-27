@@ -99,6 +99,17 @@ export interface TestSelectionProbeOptions {
    * would each wipe the other every run.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Install the journey head before anything this build instrumented runs.
+   *
+   * For a service bundle, such as a Worker, whose modules are all evaluated
+   * before any of its own code could call `collectJourneys()` first. The
+   * collector imports `@variance-authority/sense/journey` and installs the
+   * head under this build's `label`, told where to write by
+   * `VARIANCE_AUTHORITY_PARTS`; the service's own `collectJourneys()` returns
+   * that head to wrap its requests.
+   */
+  readonly journeys?: boolean;
 }
 
 /**
@@ -193,7 +204,15 @@ export function testSelectionProbes(
     name: 'variance-authority:test-selection-probes',
     enforce: 'post',
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
-    load: (id) => (id === RESOLVED_COLLECTOR ? executionCollectorSource(options.mode) : null),
+    load: (id) => {
+      if (id !== RESOLVED_COLLECTOR) return null;
+      const collector = executionCollectorSource(options.mode);
+      if (options.journeys !== true) return collector;
+      // Imports evaluate first, so the head owns `__VA__` before this module's
+      // page engine looks, and the page engine defers to it.
+      const head = JSON.stringify({ head: options.label ?? 'build' });
+      return `import { collectJourneys } from "@variance-authority/sense/journey";\ncollectJourneys(${head});\n${collector}`;
+    },
 
     transform(code, specifier) {
       const source = cleanId(specifier);

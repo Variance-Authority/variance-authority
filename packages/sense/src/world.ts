@@ -37,7 +37,7 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
-import { EXCLUDE_DIRS } from './resolve.js';
+import { EXCLUDE_DIRS } from './repo-path.js';
 
 /** What every language-specific resolver is allowed to ask about the tree. */
 export interface TreeWorld {

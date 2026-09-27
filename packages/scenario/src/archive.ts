@@ -1,5 +1,6 @@
 import {
   canonicalize,
+  digestFileName,
   digestValue,
   type CanonicalValue,
   type Digest,
@@ -117,7 +118,7 @@ export function createScenarioArchive(options: ScenarioArchiveOptions): Scenario
       await mkdir(objects, { recursive: true });
       await mkdir(manifests, { recursive: true });
       for (const digest of digests) {
-        await writeObject(join(objects, `${fileDigest(digest)}.json`), run.snapshots.get(digest)!);
+        await writeObject(join(objects, `${digestFileName(digest)}.json`), run.snapshots.get(digest)!);
       }
 
       const manifest: ScenarioArchiveManifest = {
@@ -150,7 +151,7 @@ export function createScenarioArchive(options: ScenarioArchiveOptions): Scenario
       const snapshots = new Map<Digest, SemanticSnapshot>();
       for (const digest of manifest.snapshots) {
         const snapshot = await readOptional<SemanticSnapshot>(
-          join(objects, `${fileDigest(digest)}.json`),
+          join(objects, `${digestFileName(digest)}.json`),
         );
         if (snapshot === undefined) {
           return {
@@ -238,12 +239,9 @@ function requireDeclaration(value: string, what: string): void {
 }
 
 function manifestPath(root: string, address: ScenarioArchiveAddress): string {
-  return join(root, `${fileDigest(digestValue(asCanonical(address)))}.json`);
+  return join(root, `${digestFileName(digestValue(asCanonical(address)))}.json`);
 }
 
-function fileDigest(digest: Digest): string {
-  return digest.replace(':', '-');
-}
 
 function asCanonical(value: unknown): CanonicalValue {
   return value as CanonicalValue;

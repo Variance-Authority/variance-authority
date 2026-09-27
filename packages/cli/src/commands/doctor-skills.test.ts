@@ -60,8 +60,8 @@ describe('agentSkills', () => {
     await writeFile(join(dir, 'variance-second', 'SKILL.md'), 'last month\n');
 
     const text = formatSkills(agentSkills(project, shipped, home)).join('\n');
-    expect(text).toContain('variance-authority: ' + join(dir, 'variance-authority') + ' — a copy, matching this version');
-    expect(text).toContain('variance-second: ' + join(dir, 'variance-second') + ' — a copy that differs');
+    expect(text).toContain('variance-authority: ' + join(dir, 'variance-authority') + ' — copy, current');
+    expect(text).toContain('variance-second: ' + join(dir, 'variance-second') + ' — copy, stale');
   });
 
   it('calls a copy stale when a reference beside its SKILL.md fell behind', async () => {

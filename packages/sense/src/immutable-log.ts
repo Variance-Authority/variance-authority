@@ -6,18 +6,21 @@
  * prefix of a chain was itself a chain somebody could have read, so a segment
  * that cannot be used costs the segments from it onward and never the ones
  * before it — the reader keeps the prefix and says how much it dropped.
+ *
+ * The writer is the addon's (`native/src/log.rs`), and it is the only one:
+ * this file decides what the next manifest names, and the addon writes it.
  */
 
 import { readFileSync } from 'node:fs';
-import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { native, nativeRefusal } from './addon.js';
 import { digestBytes, type Digest } from './digest.js';
 
 const MAGIC = Buffer.from('VAIDXLSM');
 const VERSION = 1;
 const HEADER_BYTES = MAGIC.length + 4;
 const MAX_SEGMENTS = 8;
-let temporary = 0;
 
 interface SegmentReference {
   readonly digest: Digest;
@@ -54,8 +57,14 @@ export interface ImmutableLog {
    * publish in eight. Only this function knows which publish that is.
    */
   publish(delta: Uint8Array, compacted: () => Uint8Array): Promise<void>;
-  /** Publish several ordered layers under one atomic manifest commit. */
-  publishAll(deltas: readonly Uint8Array[], compacted: () => Uint8Array): Promise<void>;
+  /**
+   * Publish several ordered layers under one atomic manifest commit.
+   *
+   * A compaction answers with the layers that replace the whole chain, in
+   * order — for the source index, one generation folded from the chain and
+   * `deltas` together.
+   */
+  publishAll(deltas: readonly Uint8Array[], compacted: () => readonly Uint8Array[]): Promise<void>;
 }
 
 /**
@@ -146,17 +155,25 @@ export function readImmutableLog(path: string): readonly Buffer[] {
 export async function seedImmutableLog(path: string, from: string): Promise<boolean> {
   named(path);
   named(from);
+  let target: ImmutableLog;
+  let source: ImmutableLog;
   try {
-    const target = await openImmutableLog(path);
+    target = await openImmutableLog(path);
     if (target.committed) return false;
-    const source = await openImmutableLog(from);
+    source = await openImmutableLog(from);
     if (!source.committed || source.legacy || source.segments.length === 0) return false;
+  } catch {
+    // A chain that does not read is not copied.
+    return false;
+  }
+  try {
     await target.publishAll(source.segments, () => {
       throw new Error('a copied chain is never longer than the chain it copies');
     });
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error instanceof LogNotWritten) return false;
+    throw error;
   }
 }
 
@@ -176,37 +193,16 @@ function logAt(
 ): ImmutableLog {
   const publishAll = async (
     deltas: readonly Uint8Array[],
-    compacted: () => Uint8Array,
+    compacted: () => readonly Uint8Array[],
   ): Promise<void> => {
     const compact = legacy || references.length + deltas.length > MAX_SEGMENTS;
-    const contents = (compact ? [compacted()] : deltas).map((value) => Buffer.from(value));
-    const additions = contents.map((content) => ({
-      digest: digestBytes(content),
-      length: content.length,
-    }));
-    const next = compact ? additions : [...references, ...additions];
-    const directory = segmentDirectory(path);
-    const scratch = `${path}.${process.pid}.${temporary++}.tmp`;
-    const segmentScratches = additions.map((reference) =>
-      join(directory, `${fileName(reference.digest)}.${process.pid}.${temporary++}.tmp`));
-    try {
-      await mkdir(directory, { recursive: true });
-      await Promise.all(contents.map(async (content, index) => {
-        const reference = additions[index]!;
-        const segmentScratch = segmentScratches[index]!;
-        await writeFile(segmentScratch, content);
-        await rename(segmentScratch, join(directory, fileName(reference.digest)));
-      }));
-      await writeFile(scratch, encodeManifest(next));
-      await rename(scratch, path);
-      if (compact) await discard(references, next, directory);
-    } catch (error) {
-      await Promise.all([
-        unlink(scratch).catch(() => {}),
-        ...segmentScratches.map((file) => unlink(file).catch(() => {})),
-      ]);
-      throw error;
+    const contents = (compact ? compacted() : deltas).map(asBuffer);
+    const addon = native();
+    if (addon === undefined) {
+      throw new Error(`${path}: the immutable log is written by the native addon, which did not load: ${nativeRefusal()}`);
     }
+    const refused = addon.publishLog(path, compact ? [] : [...references], contents, compact ? [...references] : []);
+    if (refused !== null) throw new LogNotWritten(refused);
   };
   return {
     segments,
@@ -224,22 +220,9 @@ function logAt(
           committed,
           dropped + segments.length - count,
         ),
-    publish: (delta, compacted) => publishAll([delta], compacted),
+    publish: (delta, compacted) => publishAll([delta], () => [compacted()]),
     publishAll,
   };
-}
-
-function encodeManifest(segments: readonly SegmentReference[]): Buffer {
-  const manifest: Manifest = {
-    format: 'variance-authority-immutable-log',
-    version: VERSION,
-    segments,
-  };
-  const json = Buffer.from(JSON.stringify(manifest), 'utf8');
-  const header = Buffer.alloc(HEADER_BYTES);
-  MAGIC.copy(header);
-  header.writeUInt32LE(json.length, MAGIC.length);
-  return Buffer.concat([header, json]);
 }
 
 function decodeManifest(bytes: Buffer): readonly SegmentReference[] {
@@ -265,18 +248,20 @@ function manifestIsValid(value: unknown): value is Manifest {
     Number.isSafeInteger(segment.length) && segment.length >= 0);
 }
 
-async function discard(
-  previous: readonly SegmentReference[],
-  next: readonly SegmentReference[],
-  directory: string,
-): Promise<void> {
-  const retained = new Set(next.map((segment) => fileName(segment.digest)));
-  const obsolete = new Set(previous.map((segment) => fileName(segment.digest)));
-  let present: readonly string[];
-  try { present = await readdir(directory); } catch { return; }
-  await Promise.all(present
-    .filter((file) => obsolete.has(file) && !retained.has(file))
-    .map((file) => unlink(join(directory, file)).catch(() => {})));
+/** A segment as the addon takes it: the same bytes, never a copy. */
+function asBuffer(bytes: Uint8Array): Buffer {
+  return Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+}
+
+/**
+ * A publish the file system refused: a full disk, a directory that is not
+ * writable, a manifest name that is taken by something else. The log is as it
+ * was, and a cache that could not be written is one the next run rebuilds —
+ * so this is the one failure a caller may treat as "not written". Anything
+ * else a publish throws is a defect.
+ */
+export class LogNotWritten extends Error {
+  override readonly name = 'LogNotWritten';
 }
 
 /**
@@ -294,14 +279,14 @@ export class BadLogPath extends TypeError {
 /**
  * The path is a string, checked rather than declared.
  *
- * The type is erased before this runs, and every path this file derives is
- * derived by interpolation — `${path}.segments`, `${path}.<pid>.tmp`. An object
- * arriving here does not fail: it becomes the literal name `[object Object]`,
- * `mkdir` and the segment writes succeed against it, and only the manifest
- * `rename` refuses, which leaves a directory of orphaned segments beside the
- * caller's working directory and a scan that reported nothing. So a path that
- * cannot name a file is a caller's defect and says so here, where the name is
- * still recognisable, rather than as bytes under a name nobody meant.
+ * The type is erased before this runs, and a path that cannot name a file
+ * does not fail where it lands. An object reaches `readFile` as a `TypeError`,
+ * which a reader of corrupt caches cannot tell from a miss. An empty string
+ * reads as a missing chain, and the writer then makes `.segments` in the
+ * caller's working directory before the manifest's rename refuses — orphaned
+ * segments and a scan that reported nothing. So it is a caller's defect and
+ * says so here, where the name is still recognisable, rather than as bytes
+ * under a name nobody meant.
  */
 function named(path: string): void {
   if (typeof path !== 'string' || path === '') {

@@ -161,9 +161,9 @@ describe('where the repository already writes a name', () => {
 
   it('separates the files written to show it in use from the ones that depend on it', () => {
     const text = call('docs_uses', { name: 'behind' });
-    expect(text).toContain('Stories — written to show it in use:');
+    expect(text).toContain('Stories:');
     expect(text).toContain('packages/beta/src/again.stories.jsx:1');
-    expect(text).toContain('Tests — written to pin what it does:');
+    expect(text).toContain('Tests:');
     expect(text).toContain('packages/beta/src/again.test.js:1');
   });
 
@@ -177,9 +177,9 @@ describe('where the repository already writes a name', () => {
   });
 
   it('orders by path when no file is named, and says so rather than implying a ranking', () => {
-    expect(call('docs_uses', { name: 'behind' })).toContain('pass `from`');
+    expect(call('docs_uses', { name: 'behind' })).toContain('Path order; `from` sorts nearest first.');
     expect(call('docs_uses', { name: 'behind', from: 'packages/beta/src/inner/other.ts' })).toContain(
-      'Nearest first',
+      'Nearest to packages/beta/src/inner/other.ts first.',
     );
   });
 

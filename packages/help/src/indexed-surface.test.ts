@@ -22,6 +22,33 @@ function parsed(file: string, text: string): Parsed {
   return { requests: read.requests, exports: read.exports, symbols: read.symbols, harvested: true };
 }
 
+/** Each name `entry` publishes, as `<kind> <file>:<line>` for every kind it reads as. */
+async function publishedBy(
+  entry: string,
+  files: Record<string, { readonly text: string; readonly targets: readonly string[] }>,
+): Promise<Record<string, string[]>> {
+  const sources = new Map<string, IndexedSource>();
+  for (const [file, { text, targets }] of Object.entries(files)) {
+    await writeFile(join(root, file), text);
+    sources.set(file, { parsed: parsed(file, text), targets });
+  }
+  const offering: Offering = {
+    name: entry,
+    manifest: 'package.json',
+    declared: {},
+    entrypoints: [{ subpath: '.', source: entry }],
+  };
+  const names = await indexedNames(root, [offering], sources, async () => new Map());
+  return Object.fromEntries(
+    [...names(entry)].map(([name, kinds]) => [
+      name,
+      [...kinds.values()].map((declared) => `${declared.kind} ${declared.at}:${declared.line}`),
+    ]),
+  );
+}
+
+const logger = { text: 'export default function logger(message: string): void {}\n', targets: [] };
+
 describe('published names from indexed declaration facts', () => {
   it('follows a default export of an imported name through a barrel', async () => {
     const files = {
@@ -64,5 +91,26 @@ describe('published names from indexed declaration facts', () => {
       at: 'literal.ts',
       line: 1,
     });
+  });
+
+  it('follows `export default name` to its import by the name Sense read, whatever is written around it', async () => {
+    const commented = "import OriginalLogger from './logger';\nexport default /* the shared one */ OriginalLogger;\n";
+
+    expect(await publishedBy('commented.ts', {
+      'commented.ts': { text: commented, targets: ['logger.ts'] },
+      'logger.ts': logger,
+    })).toEqual({ default: ['function logger.ts:1'] });
+  });
+
+  it('reads a const initialised from an import as the const, the way declaration emit publishes it', async () => {
+    // `tsc --declaration` writes this pair as `export default OriginalLogger`
+    // and `export declare const logger: typeof OriginalLogger`: the default is
+    // the import, and `logger` is a declaration of its own in this file.
+    const pair = "import OriginalLogger from './logger';\nexport default OriginalLogger;\nexport const logger = OriginalLogger;\n";
+
+    expect(await publishedBy('pair.ts', {
+      'pair.ts': { text: pair, targets: ['logger.ts'] },
+      'logger.ts': logger,
+    })).toEqual({ default: ['function logger.ts:1'], logger: ['const pair.ts:3'] });
   });
 });

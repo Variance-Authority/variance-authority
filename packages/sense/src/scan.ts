@@ -23,11 +23,15 @@
  *
  * In a workspace, `@scope/other` resolves through a symlink into that package's
  * **built output** unless it publishes a `source` condition, and built output is
- * not what anybody edits — an edge into `dist/` could never be reached by a diff,
- * so it is dropped rather than drawn. That leaves a real gap at every package
- * boundary, and it is the gap `nx` and `turbo` already fill: both compute
- * project-level affectedness across exactly that edge. Their answer joins this
- * one as additional seeds rather than replacing it.
+ * not what anybody edits. The package's `tsconfig` says what it is: a target
+ * under `outDir` is read as the file under `rootDir` it is emitted from, whether
+ * or not the package was built (`native/src/emitted.rs`, ADR-0080). Built
+ * output no `tsconfig` accounts for — a bundler with its own configuration — is
+ * not what a diff changes either: under an excluded directory such as `dist/`
+ * it is dropped rather than drawn, and anywhere else, such as `lib/`, the edge
+ * lands on the built file. That is the gap `nx` and `turbo` already fill: both
+ * compute project-level affectedness across it.
+ * Their answer joins this one as additional seeds rather than replacing it.
  *
  * ## What a second run costs
  *
@@ -46,21 +50,21 @@ import type { Digest } from './digest.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
-import { native, nativeFrontier, nativeGraph, type NativeBuilt } from './native.js';
+import { native, nativeFrontier, nativeGraph, nativeRefusal, type NativeBuilt } from './native.js';
 import { adoptNativeParses } from './source-index.js';
+import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
 import type { IndexedRecord } from './source-index-format.js';
 import {
   READABLE,
   keyFor,
   languageFor,
   parseWay,
-  seedFiles,
   seedPaths,
   type ParseWay,
 } from './files.js';
-import { loadGrammars } from './grammar.js';
 import { worldIn, worldOn } from './world.js';
 import { recordFor } from './record.js';
+import { onlyListed } from './repo-path.js';
 import {
   realPath,
   resolversFor,
@@ -200,6 +204,36 @@ export const LARGEST_FILE = 1024 * 1024;
  * one is diffable.
  */
 export async function scanRelations(options: ScanOptions): Promise<readonly FileRecord[]> {
+  const { built, graph } = await scanning(options);
+  if (graph !== undefined) {
+    for (const record of graphRecords(graph)) built.set(record.file, record);
+  }
+  return [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+}
+
+/**
+ * How many files {@link scanRelations} would return, for a caller that hands
+ * `cache` and `reuse` their records and needs only the count back.
+ *
+ * A cold closure the addon holds is counted where it is, so a build that
+ * publishes the index never turns the closure into objects just to count them.
+ */
+export async function scanCount(options: ScanOptions): Promise<number> {
+  const { built, graph } = await scanning(options);
+  if (graph === undefined) return built.size;
+  let both = 0;
+  for (const file of built.keys()) if (graph.has(file)) both += 1;
+  return built.size + graph.size - both;
+}
+
+interface Scanned {
+  /** Every record the scan built or reused in JavaScript. */
+  readonly built: Map<string, FileRecord>;
+  /** The cold closure the addon holds, whose records win where both name a file. */
+  readonly graph?: NativeIndexGraph;
+}
+
+async function scanning(options: ScanOptions): Promise<Scanned> {
   if (options.changed !== undefined && options.digests !== undefined) {
     throw new Error('`changed` supplies Git identity and cannot be combined with `digests`');
   }
@@ -211,6 +245,9 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   const root = realPath(resolve(options.root));
   const resolvers = resolversFor(options);
   const addon = native();
+  if (addon === undefined) {
+    throw new Error(`sense: scanning ${root} needs the native addon, which did not load: ${nativeRefusal()}`);
+  }
 
   const built = new Map<string, FileRecord>();
   const cache = options.cache ?? memoryParseCache();
@@ -221,15 +258,11 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
         ? await gitTreeOf(root, options.dirs, options.changed)
         : treeOf(options.digests);
 
-  // Once, before anything is opened. Every grammar initialises asynchronously
-  // and parses synchronously, and a reader is called from behind a digest-keyed
-  // cache that cannot await — so the awaiting happens here or nowhere.
-  await loadGrammars();
-
   // Every language but JavaScript resolves by asking about the tree rather
   // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
   // scan already holds the answer for every path it knows.
-  resolvers.tree = tree === undefined ? worldOn(root) : worldIn(tree.paths(), root);
+  const world = tree === undefined ? worldOn(root) : worldIn(tree.paths(), root);
+  resolvers.tree = world;
 
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
   // checked against the bytes on disk, so there is nothing to reuse it against.
@@ -241,6 +274,12 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   // on whether its wave was large enough to open the object store, and an index
   // keeps whichever it read first until the file changes.
   const packed = options.packs === false ? undefined : tree?.native;
+  // A native batch over a tree the addon does not hold resolves without Git's
+  // listing, so it is handed the part the disk cannot vouch for: the files
+  // under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)). Asked for
+  // when a batch runs, which on a scan that reuses everything is never.
+  let listed: string[] | undefined;
+  const listedPaths = (): string[] => (listed ??= world.below('').filter(onlyListed));
   if (shape !== undefined) reuse?.under(shape.shape);
 
   // The queue is repository-relative throughout. An edge already carries the
@@ -250,8 +289,6 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     ? [...tree.seeds]
     : tree !== undefined
     ? [...seedPaths(root, options.dirs, tree.paths())]
-    : addon === undefined
-    ? [...seedFiles(root, options.dirs)]
     : addon.seedFiles(root, [...options.dirs]);
 
   // Appended rather than merged into the directory seeds: these are exact
@@ -269,6 +306,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   }
 
   let nativeGraphUsed = false;
+  let graph: NativeIndexGraph | undefined;
 
   const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
     built.set(file, fresh.record);
@@ -322,7 +360,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     const pendingSet = new Set<string>();
     for (; head < end; head += 1) {
       const file = queue[head]!;
-      if (built.has(file) || pendingSet.has(file)) continue;
+      if (built.has(file) || graph?.has(file) || pendingSet.has(file)) continue;
       const digest = frontierDigests?.[head - frontierStart];
       const way = parseWay(file);
       const remembered = digest === undefined ? undefined : reuse?.getIndexed(file, digest);
@@ -332,9 +370,9 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
       }
       // The native side reads modules and nothing else, so what it is handed is
       // named positively rather than as everything that is not a stylesheet: a
-      // language it has never heard of must go down the JavaScript path, not be
-      // passed to it because it failed to be CSS.
-      if (addon !== undefined && languageFor(way) === 'module') {
+      // language it has never heard of must go to `recordFor`, not be passed to
+      // it because it failed to be CSS.
+      if (languageFor(way) === 'module') {
         pending.push(file);
         pendingDigests.push(digest);
         pendingSet.add(file);
@@ -355,63 +393,56 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
       accept(file, way, fresh);
     }
 
-    if (pending.length > 0 && addon !== undefined) {
-      let answers: readonly NativeBuilt[] | undefined;
+    if (pending.length > 0) {
+      const useGraph = !nativeGraphUsed && packed !== undefined && pending.length >= 10_000;
+      const nativeOptions = {
+        addon,
+        ...(packed === undefined ? {} : { tree: packed }),
+        ...(packed === undefined && tree !== undefined ? { listed: listedPaths() } : {}),
+        root,
+        files: pending,
+        largestFile: options.largestFile ?? LARGEST_FILE,
+        digests: pendingDigests,
+        aliases: shape?.aliases,
+        directories: shape?.shape.directories ?? new Map(),
+        remembering: reuse !== undefined,
+        ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
+        ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
+      };
+      // A closure nobody asked to see file by file is held where it was built:
+      // no callback wants its parses, and the record cache — when there is
+      // one — publishes it without asking for the records back.
+      const held = useGraph && packed !== undefined &&
+          options.parsed === undefined && options.indexed === undefined &&
+          (reuse === undefined || reuse.adopt !== undefined)
+        ? nativeIndexGraph(packed, { ...nativeOptions, seeds: pending })
+        : undefined;
+      let answers: readonly NativeBuilt[] = [];
       let answeredFiles: readonly string[] = pending;
-      try {
-        const useGraph = !nativeGraphUsed && packed !== undefined && pending.length >= 10_000;
-        const nativeOptions = {
-          addon,
-          ...(packed === undefined ? {} : { tree: packed }),
-          root,
-          files: pending,
-          largestFile: options.largestFile ?? LARGEST_FILE,
-          digests: pendingDigests,
-          aliases: shape?.aliases,
-          directories: shape?.shape.directories ?? new Map(),
-          remembering: reuse !== undefined,
-          ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
-          ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
-        };
-        if (useGraph) {
-          const graph = nativeGraph(nativeOptions, options.parsed !== undefined || options.indexed !== undefined);
-          answers = graph.built;
-          if (graph.parseLayer !== undefined) adoptNativeParses(cache, graph.parseLayer);
-          nativeGraphUsed = true;
-          answeredFiles = answers.map((answer) => answer.record.file);
-        } else {
-          answers = nativeFrontier(nativeOptions);
+      if (held !== undefined) {
+        graph = held;
+        nativeGraphUsed = true;
+        answeredFiles = [];
+        adoptNativeParses(cache, { get bytes() { return held.parseSegment(); }, keys: parseKeys(held) });
+        reuse?.adopt?.(held);
+        for (const file of held.following()) {
+          if (!built.has(file) && READABLE.has(extname(file))) queue.push(file);
         }
-      } catch {
-        // An acceleration is allowed to disappear and never to change the graph.
-        // The oracle remains the recovery path for an unavailable or mismatched addon.
-      }
-      if (answers !== undefined) {
-        const accepting = performance.now();
-        for (const [index, file] of answeredFiles.entries()) {
-          accept(file, parseWay(file), answers[index]!);
-        }
-        if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
-          process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
-        }
+      } else if (useGraph) {
+        const graph = nativeGraph(nativeOptions, options.parsed !== undefined || options.indexed !== undefined);
+        answers = graph.built;
+        if (graph.parseLayer !== undefined) adoptNativeParses(cache, graph.parseLayer);
+        nativeGraphUsed = true;
+        answeredFiles = answers.map((answer) => answer.record.file);
       } else {
-        for (const [index, file] of pending.entries()) {
-          const digest = pendingDigests[index];
-          const way = parseWay(file);
-          const fresh = await recordFor({
-            absolute: join(root, file),
-            file,
-            root,
-            resolvers,
-            cache,
-            aliases: shape?.aliases,
-            directories: shape?.shape.directories ?? new Map(),
-            largestFile: options.largestFile ?? LARGEST_FILE,
-            remembering: reuse !== undefined,
-            ...(digest === undefined ? {} : { digest }),
-          });
-          accept(file, way, fresh);
-        }
+        answers = nativeFrontier(nativeOptions);
+      }
+      const accepting = performance.now();
+      for (const [index, file] of answeredFiles.entries()) {
+        accept(file, parseWay(file), answers[index]!);
+      }
+      if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
+        process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
       }
     }
 
@@ -420,9 +451,23 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     resolvers.modules.clearCache();
   }
 
-  const records = [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+  return graph === undefined ? { built } : { built, graph };
+}
 
-  return records;
+/**
+ * The closure's parse keys, as the parse cache asks them: held by the addon,
+ * less the few JavaScript harvested since and writes itself.
+ */
+function parseKeys(graph: NativeIndexGraph): { has(key: string): boolean; delete(key: string): boolean } {
+  const overridden = new Set<string>();
+  return {
+    has: (key) => !overridden.has(key) && graph.hasParse(key),
+    delete: (key) => {
+      const had = !overridden.has(key) && graph.hasParse(key);
+      overridden.add(key);
+      return had;
+    },
+  };
 }
 
 /** Whether a path is there to be opened, without opening it. */

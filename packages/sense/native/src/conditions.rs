@@ -56,7 +56,7 @@ fn declared(path: &Path, seen: &mut HashSet<PathBuf>) -> Option<Vec<String>> {
         .find_map(|base| declared(&base, seen))
 }
 
-fn read(path: &Path) -> Option<Value> {
+pub(crate) fn read(path: &Path) -> Option<Value> {
     let mut bytes = std::fs::read(path).ok()?;
     if bytes.starts_with(b"\xEF\xBB\xBF") {
         bytes.drain(..3);
@@ -70,7 +70,12 @@ fn read(path: &Path) -> Option<Value> {
 
 /// The file an `extends` entry names: a path, or a package under a
 /// `node_modules` above the config. A `#` import is not followed.
-fn extended(directory: &Path, specifier: &str) -> Option<PathBuf> {
+pub(crate) fn extended(directory: &Path, specifier: &str) -> Option<PathBuf> {
+    // FIXME: a package `extends` is read as the path `node_modules/<specifier>`
+    // and never through the package's `exports`, which `oxc_resolver` follows
+    // for the alias table in `witness.ts`. A base published only behind
+    // `exports` is missed here and found there, so the two tables can read one
+    // `tsconfig` under different bases.
     if specifier.starts_with('/') || specifier.starts_with('.') {
         return config_file(&normalize(&directory.join(specifier)));
     }
@@ -98,7 +103,7 @@ fn config_file(path: &Path) -> Option<PathBuf> {
     chosen.is_file().then_some(chosen)
 }
 
-fn normalize(path: &Path) -> PathBuf {
+pub(crate) fn normalize(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in path.components() {
         match component {

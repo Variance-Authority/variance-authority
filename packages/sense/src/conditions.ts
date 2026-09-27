@@ -182,9 +182,15 @@ function placed(directory: string, path: string): string {
 }
 
 /** The file an `extends` entry names: a path, or a package under a `node_modules` above. */
-function extendedFile(directory: string, specifier: string): string | undefined {
+export function extendedFile(directory: string, specifier: string): string | undefined {
+  // FIXME: a package `extends` is read as the path `node_modules/<specifier>` and
+  // never through the package's `exports`, which `witness.ts` follows by asking
+  // oxc-resolver the same question. A base published only behind `exports` is
+  // found by the alias table and missed by the conditions and emit tables, so the
+  // two can read one `tsconfig` under different bases. `extended` in
+  // `native/src/conditions.rs` is the same walk.
   if (specifier.startsWith('/') || specifier.startsWith('.')) {
-    return configFile(normalize(join(directory, specifier)));
+    return configFile(resolve(directory, specifier));
   }
   if (specifier === '' || specifier.startsWith('#')) return undefined;
   for (let at = directory; ; at = dirname(at)) {

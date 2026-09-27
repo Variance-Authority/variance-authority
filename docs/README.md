@@ -27,14 +27,14 @@ depend on.
 </a>
 <a class="doc-link-card doc-link-card--compact" href="selecting.md">
 <span>Selection</span>
-<strong>Run the tests this edit can reach</strong>
+<strong>Run the tests this edit affects</strong>
 <p>Combine source relationships with recorded execution to select affected test files and explain every selection.</p>
 <em>Focus the next run →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="test-level-coverage.md">
 <span>Coverage</span>
 <strong>Know which test covers this line</strong>
-<p>Keep the relation a coverage percentage is folded from: for each named test case, the regions of your source it walked.</p>
+<p>Keep the relation a coverage percentage is folded from: for each named test case, the regions of your source it ran.</p>
 <em>Record test-level coverage →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="distill.md">
@@ -97,7 +97,8 @@ Each path needs different evidence:
   explicit acceptance before you decide how much of the suite belongs in the
   workflow.
 - Source discovery needs only a readable TypeScript checkout.
-- Test selection and reduction need an [execution record](execution-record.md).
+- Test selection and reduction need an [execution record](execution-record.md), which a
+  Node runner or a [JVM test suite](jvm.md) writes.
 - Live investigation needs a watcher running before the suite starts.
 
 Each guide states the evidence it can read and leaves an unavailable reading
@@ -111,7 +112,9 @@ keeps the beginning, middle, and end of a change available. [The reasoning
 loop](reasoning.md) shows how to choose the smallest reading that can answer a
 question, and [the evidence field](evidence-field.md) maps the readings a run
 can leave behind. [On testing](on-testing.md) connects those readings to test
-cost, scope, selection and lifetime.
+cost, scope, selection and lifetime. [Why Variance Authority does so many
+things](adjacent-possible.md) explains why one project answers all of these
+questions.
 
 For exact package contracts, use the [package reference](../packages). For the
 system boundaries and ownership model, use [architecture](architecture.md).

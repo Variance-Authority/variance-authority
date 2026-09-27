@@ -158,8 +158,8 @@ live('the durable workflow, end to end', () => {
 
     // `new` is not a regression and is not a pass. Exit 1 is the honest code:
     // something is waiting for a person, and a green build here would record
-    // twelve baselines nobody looked at.
-    expect(out).toContain('12 new');
+    // fourteen baselines nobody looked at.
+    expect(out).toContain('14 new');
     expect(status).toBe(1);
 
     // The whole reason the report carries a second list. A summary that says
@@ -167,9 +167,10 @@ live('the durable workflow, end to end', () => {
     // than no summary.
     //
     // The list is not empty here, and that is the branch worth running end to
-    // end: two of the fourteen stories are held out by tag, so the header says
-    // twelve of fourteen, the second list separates a subject nobody could
-    // render from a subject nobody asked for, and it names the tag that did it.
+    // end: two of the sixteen stories are held out by tag and one by its own
+    // parameters, and one story is read at two widths, so the header says
+    // fourteen of seventeen, the second list separates a subject nobody could
+    // render from a subject nobody asked for, and it names what held each out.
     // The empty branch is asserted over a hand-built report in
     // `packages/cli/src/commands/report.test.ts`; this one had no exercise
     // anywhere until a real run had something real to leave out.
@@ -179,21 +180,45 @@ live('the durable workflow, end to end', () => {
     // is a subject about the driver — it exists so `src/finish.chromium.test.js`
     // has a story that is still in `afterEach` when the next one is asked for.
     // Neither is a component anybody would want a baseline of.
-    expect(out).toContain('12 of 14 subject(s) observed');
-    expect(out).toContain('0 the run could not see, 2 excluded by configuration');
+    expect(out).toContain('14 of 17 subject(s) observed');
+    expect(out).toContain('0 the run could not see, 3 excluded by configuration');
     expect(out).toContain('[excluded] story:case-surface--leaks-a-sheet: excluded by tag `no-variance`');
     expect(out).toContain('[excluded] story:case-surface--finishes-late: excluded by tag `no-variance`');
+    expect(out).toContain(
+      '[excluded] story:case-surface--receipt-not-read: excluded by its own parameters (`variance.exclude`)',
+    );
 
     // Exactly once. It was printed twice by two formatters over one artifact,
     // and every test asserting it used `toContain`, which the first copy
     // satisfies.
-    expect(out.split('not observed: 2 subject(s)').length - 1).toBe(1);
+    expect(out.split('not observed: 3 subject(s)').length - 1).toBe(1);
+  }, 240_000);
+
+  it('reads a story at the widths its own parameters declare', () => {
+    // The index carries no parameters, so this is the collector asking the
+    // running preview. Two subjects is the plan agreeing with the story; two
+    // widths of paint is the page having been resized for each. `Card — receipt
+    // at two widths` is laid out padded, so its box is the width less
+    // Storybook's 1rem either side.
+    const report = JSON.parse(readFileSync(join(workspace, 'run.json'), 'utf8'));
+    const painted = (width) => {
+      const subject = `story:case-surface--receipt-at-two-widths@${width}`;
+      const observation = report.observations.find((entry) => entry.subject === subject);
+      expect(observation?.verdict, subject).toBe('new');
+      return JSON.parse(readFileSync(join(workspace, observation.images.record), 'utf8')).width;
+    };
+
+    expect(report.observations.map((entry) => entry.subject)).not.toContain(
+      'story:case-surface--receipt-at-two-widths',
+    );
+    expect(painted(375)).toBe(375 - 32);
+    expect(painted(800)).toBe(800 - 32);
   }, 240_000);
 
   it('promotes the images the run already produced, without rendering again', () => {
     const { status, out } = variance('accept', '--all');
 
-    expect(out).toContain('accepted 12 subject(s)');
+    expect(out).toContain('accepted 14 subject(s)');
     expect(status).toBe(0);
   }, 240_000);
 
@@ -205,7 +230,7 @@ live('the durable workflow, end to end', () => {
     // not exist.
     const { status, out } = variance('run');
 
-    expect(out).toContain('12 unchanged');
+    expect(out).toContain('14 unchanged');
     expect(out).not.toContain('incomparable');
     expect(out).toContain('nothing to review');
     expect(status).toBe(0);
@@ -229,7 +254,7 @@ live('the durable workflow, end to end', () => {
     // A continuously changing story can yield either of the two valid
     // non-repeatability readings: two completed collections that disagree, or
     // one completed collection followed by a collection that never settles.
-    expect(observation?.unstable?.because).toMatch(/read differently|cannot be taken twice/);
+    expect(observation?.unstable?.because).toMatch(/differ|cannot be taken twice/);
 
     const refused = variance('accept', subject);
     // `accept` has no safe action to take, so refusal is an operator outcome
@@ -243,12 +268,12 @@ live('the durable workflow, end to end', () => {
   it('reports exactly the stories that render the edited component', () => {
     // A source edit, judged against the baselines the trunk build recorded. The
     // interesting number is not that something changed — it is *which* subjects
-    // did. `Button` appears in five of the twelve subjects, and the run has to
-    // find five, not twelve and not one.
+    // did. `Button` appears in five of the fourteen subjects, and the run has to
+    // find five, not fourteen and not one.
     const { status, out } = varianceWith(changedConfigPath, 'run');
 
     expect(status).toBe(1);
-    expect(out).toContain('7 unchanged, 5 changed');
+    expect(out).toContain('9 unchanged, 5 changed');
 
     // Anchored on the id rather than on what follows it. The summary now names
     // the causing component after the subject, so a pattern that leaned on the
@@ -262,9 +287,9 @@ live('the durable workflow, end to end', () => {
       'story:case-surface--composed',
     ]);
 
-    // Every one of those renders `Button`; the seven that hold — Spinner, Clock,
-    // AsyncPanel, the disclosure a play function opens and the three Suspense
-    // stories — do not. Stated as the inverse too, because "5 changed" is
+    // Every one of those renders `Button`; the nine that hold — Spinner, Clock,
+    // AsyncPanel, the disclosure a play function opens, the three Suspense
+    // stories and the receipt at both its widths — do not. Stated as the inverse too, because "5 changed" is
     // also what a tool that changed its mind about three unrelated subjects
     // would print.
     //
@@ -323,7 +348,13 @@ live('the durable workflow, end to end', () => {
     expect(out).toMatch(/src\/ds\.jsx:\d+/);
     expect(out).toContain('cause ');
     expect(out).toContain('Button');
-    expect(out).not.toContain('collateral');
+    // No region blames the wrapper. `Tokens` is still named as collateral among
+    // the components, because its box grew with `Button`'s — which is true, and
+    // is not the region's claim.
+    expect(out).not.toMatch(/collateral +\d+px/);
+    expect(out).toMatch(/cause +Button — geometry, token/);
+    // And the declaration the `wide-button` build changed, with both values.
+    expect(out).toMatch(/padding-left \S+ → \S+/);
 
     // And the line is the element's, not the component's.
     //

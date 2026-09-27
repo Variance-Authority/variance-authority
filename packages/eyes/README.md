@@ -249,6 +249,29 @@ Where you want a subscription with no notion of a test — reading
 `watch(screen)` is that, and `attention.close()` restores every method once no
 watcher remains.
 
+### Read it in a test's story
+
+When the test runs with `VARIANCE_AUTHORITY_STORY` set, each entry Eyes records
+is also written into the test's
+[story](https://variance-authority.dev/docs/test-stories) as one line, under the
+step where it happened:
+
+```text
+  3  SaveBar/onSave  save-bar.tsx:12-30
+       » eyes act
+       » eyes getByRole("button", {"name":"Save"}) → button "Save" in SaveBar
+       » eyes click (synthetic) on button "Save" in SaveBar
+       » eyes commit SaveBar, Toast
+```
+
+So the story shows which arguments a query was called with and what it found,
+beside the code that ran, and you do not work them out from the route. When you
+compare the runs of a test that fails on some of them, a query whose result is
+different on every failing run, or an event that fires before a function on
+every failing run and after it on every passing one, is listed by itself. This
+works under Vitest, Jest and Rstest in the realm the test runs in; a Playwright
+test's story is not recorded.
+
 ## Record a Playwright run
 
 **1. Install.**

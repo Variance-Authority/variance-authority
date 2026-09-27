@@ -1,5 +1,6 @@
 import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
 import { invalid } from './format-validation.js';
+import { FORMAT } from './format-layout.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
 import type { Bytes } from './columns.js';
 
@@ -117,4 +118,31 @@ function descriptor(fd: number): Bytes {
       return bytes;
     },
   };
+}
+
+/**
+ * Whether a file is a snapshot, told from its header alone.
+ *
+ * A snapshot and an execution index open the same way, on the length of a JSON
+ * header, and differ in the version it names. A recorder in another runtime —
+ * the JVM agent's `coverage.va` — writes a snapshot, and a caller handed a path
+ * has to know which of the two readers to give it before either one throws.
+ */
+export function isTestCoverageFile(file: string): boolean {
+  const fd = openSync(file, 'r');
+  try {
+    const length = fstatSync(fd).size;
+    if (length < 4) return false;
+    const at = descriptor(fd);
+    const headerLength = Buffer.from(at.read(0, 4)).readUInt32LE(0);
+    if (headerLength > length - 4) return false;
+    const header = JSON.parse(Buffer.from(at.read(4, 4 + headerLength)).toString('utf8').replace(/\0+$/, '')) as {
+      readonly version?: unknown;
+    };
+    return header.version === FORMAT;
+  } catch {
+    return false;
+  } finally {
+    closeSync(fd);
+  }
 }

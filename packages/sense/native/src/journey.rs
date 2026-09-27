@@ -1,13 +1,16 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::path::Path;
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use crate::journey_format::{self, EncodedModule, SetPool};
+use crate::journey_columns;
+use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
 use crate::journey_journal::{self, CaseRun, ModuleId, Visitor};
 use crate::journey_output;
 use crate::journey_record::{self, Module};
+use crate::journey_stitch;
 use crate::order;
 
 const DEFAULT_BUDGET: usize = 512 * 1_048_576;
@@ -21,6 +24,13 @@ pub struct JourneyFold {
     pub passes: u32,
     /// Files two builds numbered differently, read at the regions both hold.
     pub renumbered: Vec<String>,
+    /// Modules a case ran that no record holds: a change there selects nothing.
+    pub unrecorded: Vec<String>,
+    /// Part files that ran code under no journey a case handed out.
+    pub unclaimed: Vec<String>,
+    /// Heads that wrote parts in the run before and none in this one; absent
+    /// when there was no run before to compare with.
+    pub silent: Option<Vec<String>>,
 }
 
 #[napi(object)]
@@ -31,6 +41,13 @@ pub struct JourneyFoldResult {
     pub passes: u32,
     /// Files two builds numbered differently, read at the regions both hold.
     pub renumbered: Vec<String>,
+    /// Modules a case ran that no record holds: a change there selects nothing.
+    pub unrecorded: Vec<String>,
+    /// Part files that ran code under no journey a case handed out.
+    pub unclaimed: Vec<String>,
+    /// Heads that wrote parts in the run before and none in this one; absent
+    /// when there was no run before to compare with.
+    pub silent: Option<Vec<String>>,
 }
 
 /// Read, fold, and encode one run's case journals without crossing per-row objects into V8.
@@ -48,6 +65,9 @@ pub fn fold_journey(
         &stores,
         &instrumentation,
         budget_megabytes,
+        &[],
+        &[],
+        None,
     )
     .map_err(napi::Error::from_reason)?;
     Ok(JourneyFold {
@@ -57,12 +77,16 @@ pub fn fold_journey(
         crossings: answered.folded.crossings as f64,
         passes: answered.folded.passes,
         renumbered: answered.folded.renumbered,
+        unrecorded: answered.gaps.unrecorded,
+        unclaimed: answered.gaps.unclaimed,
+        silent: answered.gaps.silent,
     })
 }
 
 struct FoldAnswer {
     folded: Folded,
     tests: u32,
+    gaps: Gaps,
 }
 
 fn answer(
@@ -71,21 +95,82 @@ fn answer(
     stores: &[String],
     instrumentation: &str,
     budget_megabytes: Option<u32>,
+    parts: &[String],
+    part_stores: &[String],
+    previous: Option<&str>,
 ) -> Result<FoldAnswer, String> {
-    let run = journey_journal::inspect(Path::new(case_directory), Path::new(root))?;
-    let found = journey_record::read_records(stores, &run.wanted, instrumentation)?;
+    let run = journey_journal::inspect(Path::new(case_directory), Path::new(root), parts)?;
+    let mut found = journey_record::read_records(stores, &run.wanted, instrumentation)?;
+    if !run.part_wanted.is_empty() {
+        for (id, module) in journey_record::read_part_records(part_stores, &run.part_wanted)? {
+            found.entry(id).or_insert(module);
+        }
+    }
+    let silent = previous.and_then(previous_heads).map(|before| {
+        before.into_iter().filter(|head| run.heads.binary_search_by(|now| order::code_unit(now, head)).is_err()).collect()
+    });
+    let gaps = Gaps {
+        unrecorded: unrecorded(&run, &found)?,
+        unclaimed: run.unclaimed.clone(),
+        heads: run.heads.clone(),
+        silent,
+    };
     let folded = fold(
         &run,
         found,
         budget_megabytes.map_or(DEFAULT_BUDGET, |value| value as usize * 1_048_576),
+        &gaps,
     )?;
     Ok(FoldAnswer {
         folded,
         tests: run.tests.len() as u32,
+        gaps,
     })
 }
 
+/// The heads the artifact already at `output` saw write parts. None when
+/// nothing is there, or what is there does not carry them: with no run before
+/// to compare with, no head can be said to have gone quiet.
+fn previous_heads(output: &str) -> Option<Vec<String>> {
+    let bytes = fs::read(output).ok()?;
+    let decoded = journey_columns::decode(&bytes, journey_format::FORMAT).ok()?;
+    let strings = journey_stitch::strings(&decoded).ok()?;
+    Some(journey_format::read_gaps(&decoded, &strings).ok()??.heads)
+}
+
+/// The modules a case ran that no record holds, by name: what ran there is
+/// in no region, so a change to them selects nothing. The journals are
+/// replayed again only when such a module exists.
+fn unrecorded(run: &CaseRun, found: &HashMap<ModuleId, Module>) -> Result<Vec<String>, String> {
+    let missing: HashSet<ModuleId> = run
+        .wanted
+        .iter()
+        .chain(&run.part_wanted)
+        .filter(|id| !found.contains_key(*id))
+        .cloned()
+        .collect();
+    if missing.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut visitor = UnrecordedVisitor { charge: Charge::new(run), missing: &missing, named: HashSet::new() };
+    replay_run(run, &mut visitor)?;
+    let mut named: Vec<String> = visitor
+        .named
+        .into_iter()
+        .map(|id| match id {
+            ModuleId::Name(name) => name,
+            // A numbered module is named by its record, and there is none.
+            ModuleId::Number(number) => format!("#{number}"),
+        })
+        .collect();
+    named.sort_unstable_by(|left, right| order::code_unit(left, right));
+    Ok(named)
+}
+
 /// Fold one run and write its compressed artifact without transferring it through V8.
+///
+/// `parts` are directories of frames written beyond a fence, joined to the
+/// cases by journey id; `part_stores` hold the inventories those frames name.
 #[napi(catch_unwind)]
 pub fn fold_journey_to(
     case_directory: String,
@@ -94,6 +179,8 @@ pub fn fold_journey_to(
     instrumentation: String,
     output: String,
     budget_megabytes: Option<u32>,
+    parts: Option<Vec<String>>,
+    part_stores: Option<Vec<String>>,
 ) -> napi::Result<JourneyFoldResult> {
     let answered = answer(
         &case_directory,
@@ -101,6 +188,9 @@ pub fn fold_journey_to(
         &stores,
         &instrumentation,
         budget_megabytes,
+        parts.as_deref().unwrap_or_default(),
+        part_stores.as_deref().unwrap_or_default(),
+        Some(&output),
     )
     .map_err(napi::Error::from_reason)?;
     journey_output::replace(&output, &answered.folded.bytes).map_err(napi::Error::from_reason)?;
@@ -110,6 +200,9 @@ pub fn fold_journey_to(
         crossings: answered.folded.crossings as f64,
         passes: answered.folded.passes,
         renumbered: answered.folded.renumbered,
+        unrecorded: answered.gaps.unrecorded,
+        unclaimed: answered.gaps.unclaimed,
+        silent: answered.gaps.silent,
     })
 }
 
@@ -125,6 +218,7 @@ fn fold(
     run: &CaseRun,
     found: HashMap<ModuleId, Module>,
     budget: usize,
+    gaps: &Gaps,
 ) -> Result<Folded, String> {
     let mut modules: Vec<Module> = found.into_values().collect();
     modules.sort_by(|left, right| {
@@ -155,7 +249,7 @@ fn fold(
     called_sets.fill(empty);
     if block_count == 0 || run.tests.is_empty() {
         return Ok(Folded {
-            bytes: journey_format::encode(&run.tests, &[], &sets)?,
+            bytes: journey_format::encode(&run.tests, &[], &sets, Some(gaps))?,
             modules: 0,
             crossings: 0,
             passes: 0,
@@ -185,7 +279,7 @@ fn fold(
         let local_blocks = module_blocks[last] - first_block;
         let mut called = vec![0_u32; local_blocks * words];
         let mut visitor = FoldVisitor {
-            run,
+            charge: Charge::new(run),
             row_of: &row_of,
             modules: &modules,
             module_blocks: &module_blocks,
@@ -195,15 +289,9 @@ fn fold(
             words,
             called: &mut called,
             loaded: &mut loaded_flags[first_block..first_block + local_blocks],
-            case_frame: 0,
-            test_first: 0,
-            test_last: 0,
             module_row: 0,
         };
-        journey_journal::replay(&run.paths, &mut visitor)?;
-        if visitor.case_frame != run.frame_tests.len() {
-            return Err("case journal replay changed while it was being folded".to_owned());
-        }
+        replay_run(run, &mut visitor)?;
         passes += 1;
 
         for local in 0..local_blocks {
@@ -232,7 +320,7 @@ fn fold(
         .collect();
     let module_count = encoded.len() as u32;
     Ok(Folded {
-        bytes: journey_format::encode(&run.tests, &encoded, &sets)?,
+        bytes: journey_format::encode(&run.tests, &encoded, &sets, Some(gaps))?,
         modules: module_count,
         crossings,
         passes,
@@ -240,8 +328,115 @@ fn fold(
     })
 }
 
-struct FoldVisitor<'a> {
+/// Where the frame being replayed is charged: one case, a case file's range,
+/// or the cases a part frame's journey belongs to. The fold and the count of
+/// unrecorded modules resolve frames through this one reading, so the two
+/// cannot disagree on who ran what.
+struct Charge<'a> {
     run: &'a CaseRun,
+    case_frame: usize,
+    test_first: u32,
+    test_last: u32,
+    /// The cases a part frame is charged to; cases themselves use the range.
+    targets: &'a [u32],
+    /// The part file being replayed, once the case frames are done.
+    part: Option<usize>,
+}
+
+impl<'a> Charge<'a> {
+    fn new(run: &'a CaseRun) -> Self {
+        Charge { run, case_frame: 0, test_first: 0, test_last: 0, targets: &[], part: None }
+    }
+
+    /// Whether the frame is charged to no case.
+    fn nobody(&self) -> bool {
+        self.test_first == self.test_last && self.targets.is_empty()
+    }
+
+    fn test(&mut self, packed: &str) -> Result<(), String> {
+        let run = self.run;
+        if let Some(part) = self.part {
+            let journey = journey_journal::journey_of(packed);
+            self.test_first = 0;
+            self.test_last = 0;
+            // A journey no case handed out is work the writer did for nobody in
+            // particular: a trace its tracer started at import, or a request
+            // from outside the run. That is every case it served, the same as
+            // work under no journey at all.
+            self.targets = if journey.is_empty() {
+                &run.part_tests[part]
+            } else {
+                run.journey_tests.get(journey).map_or(&run.part_tests[part], Vec::as_slice)
+            };
+            return Ok(());
+        }
+        let (file, name, id, _) = journey_journal::unpack_case(packed);
+        if name.is_empty() && id.is_empty() {
+            let normalized = journey_journal::project_path(&run.root, file);
+            let range = run.tests_by_file.get(&normalized).copied().unwrap_or((0, 0));
+            self.test_first = range.0;
+            self.test_last = range.1;
+        } else {
+            let test = run
+                .frame_tests
+                .get(self.case_frame)
+                .copied()
+                .ok_or_else(|| "case journal replay changed while it was being folded".to_owned())?;
+            self.case_frame += 1;
+            self.test_first = test;
+            self.test_last = test + 1;
+        }
+        Ok(())
+    }
+}
+
+trait Charged<'a>: Visitor {
+    fn charge(&mut self) -> &mut Charge<'a>;
+}
+
+/// Replay every case journal, then every part, charging each frame.
+fn replay_run<'a>(run: &CaseRun, visitor: &mut impl Charged<'a>) -> Result<(), String> {
+    journey_journal::replay(&run.paths, visitor)?;
+    if visitor.charge().case_frame != run.frame_tests.len() {
+        return Err("case journal replay changed while it was being folded".to_owned());
+    }
+    for (at, path) in run.parts.iter().enumerate() {
+        visitor.charge().part = Some(at);
+        journey_journal::replay_part(path, visitor)?;
+    }
+    Ok(())
+}
+
+/// The modules no record holds that a frame charged to a case named.
+struct UnrecordedVisitor<'a> {
+    charge: Charge<'a>,
+    missing: &'a HashSet<ModuleId>,
+    named: HashSet<ModuleId>,
+}
+
+impl<'a> Charged<'a> for UnrecordedVisitor<'a> {
+    fn charge(&mut self) -> &mut Charge<'a> {
+        &mut self.charge
+    }
+}
+
+impl Visitor for UnrecordedVisitor<'_> {
+    fn test(&mut self, packed: &str) -> Result<(), String> {
+        self.charge.test(packed)
+    }
+
+    fn wants(&mut self, id: &ModuleId) -> bool {
+        if self.missing.contains(id) && !self.charge.nobody() {
+            self.named.insert(id.clone());
+        }
+        false
+    }
+
+    fn module(&mut self, _: &ModuleId, _: &[u32], _: &[u32], _: &[u32]) {}
+}
+
+struct FoldVisitor<'a> {
+    charge: Charge<'a>,
     row_of: &'a HashMap<ModuleId, usize>,
     modules: &'a [Module],
     module_blocks: &'a [usize],
@@ -253,39 +448,25 @@ struct FoldVisitor<'a> {
     /// One flag per region in this pass, and no test: what ran while a module
     /// evaluated is answered through the import graph, not credited here.
     loaded: &'a mut [bool],
-    case_frame: usize,
-    test_first: u32,
-    test_last: u32,
     module_row: usize,
+}
+
+impl<'a> Charged<'a> for FoldVisitor<'a> {
+    fn charge(&mut self) -> &mut Charge<'a> {
+        &mut self.charge
+    }
 }
 
 impl Visitor for FoldVisitor<'_> {
     fn test(&mut self, packed: &str) -> Result<(), String> {
-        let (file, name, id, _) = journey_journal::unpack_case(packed);
-        if name.is_empty() && id.is_empty() {
-            let normalized = journey_journal::project_path(&self.run.root, file);
-            let range = self.run.tests_by_file.get(&normalized).copied().unwrap_or((0, 0));
-            self.test_first = range.0;
-            self.test_last = range.1;
-        } else {
-            let test = self
-                .run
-                .frame_tests
-                .get(self.case_frame)
-                .copied()
-                .ok_or_else(|| "case journal replay changed while it was being folded".to_owned())?;
-            self.case_frame += 1;
-            self.test_first = test;
-            self.test_last = test + 1;
-        }
-        Ok(())
+        self.charge.test(packed)
     }
 
     fn wants(&mut self, id: &ModuleId) -> bool {
         let Some(row) = self.row_of.get(id).copied() else {
             return false;
         };
-        if row < self.first || row >= self.last || self.test_first == self.test_last {
+        if row < self.first || row >= self.last || self.charge.nobody() {
             return false;
         }
         self.module_row = row;
@@ -322,12 +503,11 @@ impl Visitor for FoldVisitor<'_> {
                 continue;
             }
             for block in targets {
-                mark_range(
-                    self.called,
-                    (base + *block as usize) * self.words,
-                    self.test_first as usize,
-                    self.test_last as usize,
-                );
+                let at = (base + *block as usize) * self.words;
+                mark_range(self.called, at, self.charge.test_first as usize, self.charge.test_last as usize);
+                for test in self.charge.targets {
+                    self.called[at + (*test as usize >> 5)] |= 1 << (test & 31);
+                }
             }
         }
     }

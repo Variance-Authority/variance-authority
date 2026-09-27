@@ -55,3 +55,47 @@ describe('loadConfig and the cache', () => {
     expect((await loadConfig(file)).cacheRoot).toBe(resolve(at, 'shared-cache'));
   });
 });
+
+describe('loadConfig and the suites', () => {
+  const SUITES = { unit: { kind: 'unit' }, stories: { kind: 'visual' } };
+
+  it('carries the suites the repository root declares, sorted by name', async () => {
+    const at = await repository();
+    const file = resolve(at, 'variance.config.json');
+    await writeFile(file, JSON.stringify({ ...VALID, suites: SUITES }));
+
+    expect((await loadConfig(file)).suites).toEqual([
+      { name: 'stories', kind: 'visual' },
+      { name: 'unit', kind: 'unit' },
+    ]);
+  });
+
+  it('refuses `suites` in a file below the repository root, which no test runner reads', async () => {
+    const at = await repository();
+    const member = resolve(at, 'packages', 'app');
+    await mkdir(member, { recursive: true });
+    const file = resolve(member, 'variance.config.json');
+    await writeFile(file, JSON.stringify({ ...VALID, suites: SUITES }));
+
+    await expect(loadConfig(file)).rejects.toThrow(/`suites` is read from the variance\.config\.json at the repository root/);
+  });
+
+  it('gives a config below the root the suites its repository declares', async () => {
+    const at = await repository();
+    await writeFile(resolve(at, 'variance.config.json'), JSON.stringify({ suites: SUITES }));
+    const member = resolve(at, 'packages', 'app');
+    await mkdir(member, { recursive: true });
+    const file = resolve(member, 'variance.config.json');
+    await writeFile(file, JSON.stringify(VALID));
+
+    expect((await loadConfig(file)).suites?.map((suite) => suite.name)).toEqual(['stories', 'unit']);
+  });
+
+  it('refuses a kind outside the closed list, naming the field', async () => {
+    const at = await repository();
+    const file = resolve(at, 'variance.config.json');
+    await writeFile(file, JSON.stringify({ ...VALID, suites: { smoke: { kind: 'smoke' } } }));
+
+    await expect(loadConfig(file)).rejects.toThrow('`suites.smoke` must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?');
+  });
+});

@@ -4,16 +4,20 @@ import type { Parsed, ParseKey } from './cache.js';
 import {
   BadLogPath,
   emptyImmutableLog,
+  LogNotWritten,
   openImmutableLog,
   type ImmutableLog,
 } from './immutable-log.js';
 import { differenceLayer, orderedMap, type MapLayer } from './ordered-map.js';
 import {
+  compactSourceIndex,
   decodeSourceIndex,
   encodeSourceIndex,
+  sourceIndexDocuments,
   type IndexedRecord,
   type StoredSourceIndex,
 } from './source-index-format.js';
+import type { NativeIndexGraph } from './native-index-graph.js';
 
 export type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
 
@@ -33,13 +37,21 @@ export interface SourceIndexFile {
   /** The committed chain's segment digests that were read: the generation's identity. */
   readonly generation: readonly Digest[];
   /** Append what `next` changes about it; cache I/O never fails a scan. */
-  save(next: StoredSourceIndex, encodedParses?: EncodedParseLayer): Promise<void>;
+  save(
+    next: StoredSourceIndex,
+    encodedParses?: EncodedParseLayer,
+    graph?: NativeIndexGraph,
+  ): Promise<void>;
 }
 
-/** A parse layer already encoded by the native cold scanner. */
+/**
+ * A parse layer already encoded by the native cold scanner, and the keys it
+ * still answers for: a parse JavaScript harvested since is deleted from them,
+ * and written with the rest of JavaScript's parses.
+ */
 export interface EncodedParseLayer {
   readonly bytes: Uint8Array;
-  readonly keys: Set<ParseKey>;
+  readonly keys: { has(key: ParseKey): boolean; delete(key: ParseKey): unknown };
 }
 
 interface Opened {
@@ -69,8 +81,10 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
     stored: opened.stored,
     state: opened.state,
     generation: opened.log.digests,
-    async save(next, encodedParses) {
-      await append(await baseline(path, opened), next, encodedParses);
+    async save(next, encodedParses, graph) {
+      const current = await baseline(path, opened);
+      if (graph !== undefined && await published(path, current, next, encodedParses, graph)) return;
+      await append(current, next, encodedParses, graph);
     },
   };
 }
@@ -118,49 +132,99 @@ async function append(
   current: Opened,
   stored: StoredSourceIndex,
   encodedParses?: EncodedParseLayer,
+  graph?: NativeIndexGraph,
 ): Promise<void> {
   const parses = differenceLayer(current.stored.parses, stored.parses, unchanged);
   const records = differenceLayer(current.stored.records, stored.records, unchanged);
   const directories = differenceLayer(current.stored.directories, stored.directories);
-  const native = !current.log.committed && encodedParses !== undefined
-    ? encodedParses
-    : undefined;
+  const native = encodedParses;
   // A chain read up to a bad segment still names it, so the save that finds
-  // nothing to add still rewrites the manifest without it.
+  // nothing to add still rewrites the manifest without it. A native layer is
+  // never nothing: its parses are not in `stored`, so no difference sees them.
   if (
+    native === undefined &&
     current.log.committed &&
     current.log.dropped === 0 &&
     current.stored.config === stored.config &&
     empty(parses) && empty(records) && empty(directories)
   ) return;
 
+  // The native layer is published ahead of the delta, onto whatever chain is
+  // there. Its keys are not in `stored`, so the difference deletes every one the
+  // chain already held; the delta is the later layer and would hide them.
+  const ours = (key: ParseKey): boolean => native === undefined || !native.keys.has(key);
   const parseLayer = native === undefined
     ? parses
     : {
-        puts: new Map([...parses.puts].filter(([key]) => !native.keys.has(key))),
-        deletes: parses.deletes,
+        puts: new Map([...parses.puts].filter(([key]) => ours(key))),
+        deletes: new Set([...parses.deletes].filter(ours)),
       };
-  const delta = encodeSourceIndex(segment(stored.config, parseLayer, records, directories));
+  // A closure the addon holds is not in `stored` either, and its records are
+  // encoded into the delta on its side, winning where both name a file — as
+  // they did when the scan accepted each one. The difference deleted every one
+  // the chain already held, and the encoder drops those deletes.
+  const written = segment(stored.config, parseLayer, records, directories);
+  const delta = graph === undefined ? encodeSourceIndex(written) : graph.encode(sourceIndexDocuments(written));
+  // A compaction folds the chain it read and the layers this save adds, on the
+  // addon's side: the fold of those is `stored`, which is why the delta is
+  // what it is, so the whole index is never handed across again to be written.
+  const whole = (layers: readonly Uint8Array[]): Uint8Array =>
+    compactSourceIndex([...current.log.segments, ...layers]);
 
   // Persistence is a saving, never a new failure mode for the scan: a cache
   // that cannot be written costs the next run a full scan, which is what a run
   // without one pays anyway.
   //
-  // The guard is around the write and not around the arithmetic above it. A
-  // delta this file computed wrongly is a defect, and swallowed here it would
+  // Only the file system's refusal is that. A delta this file computed
+  // wrongly, or an encode that failed, is a defect, and swallowed here it would
   // be indistinguishable from a full disk — the cache would simply never warm,
-  // which is the hardest failure in this file to notice. The compaction
-  // callback is the one piece of encoding left inside, because the log decides
-  // whether to call it.
+  // which is the hardest failure in this file to notice.
   try {
     if (native === undefined) {
-      await current.log.publish(delta, () => encodeSourceIndex(stored));
+      await current.log.publish(delta, () => whole([delta]));
     } else {
-      await current.log.publishAll([native.bytes, delta], () => encodeSourceIndex(stored));
+      // Read once: the addon encodes the layer on each read of `bytes`.
+      const bytes = native.bytes;
+      await current.log.publishAll([bytes, delta], () => [whole([bytes, delta])]);
     }
-  } catch {
+  } catch (error) {
     // Not written. The next scan is cold and this run's graph is unchanged.
+    if (!(error instanceof LogNotWritten)) throw error;
   }
+}
+
+/**
+ * Publish a cold build from the addon that holds its closure, when the chain
+ * is empty: the parse layer, then one generation holding the closure's records
+ * and everything JavaScript read beside it. Whether this was the save's path;
+ * a refusal from the file system is the cache not written, as in `append`.
+ *
+ * Only the empty chain. A committed one decides for itself whether to compact,
+ * and that decision stays with [`immutable-log.ts`](./immutable-log.ts); a save
+ * onto one has `append` write the delta, and the closure encodes it.
+ */
+async function published(
+  path: string,
+  current: Opened,
+  next: StoredSourceIndex,
+  encodedParses: EncodedParseLayer | undefined,
+  graph: NativeIndexGraph,
+): Promise<boolean> {
+  if (current.log.committed || current.log.legacy || current.log.digests.length > 0) return false;
+  if (encodedParses === undefined) return false;
+  const parses = differenceLayer(current.stored.parses, next.parses, unchanged);
+  const records = differenceLayer(current.stored.records, next.records, unchanged);
+  const directories = differenceLayer(current.stored.directories, next.directories);
+  // Nothing precedes the generation, so there is nothing for it to delete. A
+  // deletion here is a baseline this function does not describe.
+  if (parses.deletes.size + records.deletes.size + directories.deletes.size > 0) return false;
+  graph.publish(path, sourceIndexDocuments({
+    ...(next.config === undefined ? {} : { config: next.config }),
+    directories: directories.puts,
+    records: records.puts,
+    parses: new Map([...parses.puts].filter(([key]) => !encodedParses.keys.has(key))),
+  }));
+  return true;
 }
 
 /**

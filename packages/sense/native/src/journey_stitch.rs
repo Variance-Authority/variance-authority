@@ -5,7 +5,7 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
 use crate::journey_columns;
-use crate::journey_format::{self, EncodedModule, SetPool};
+use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
 use crate::journey_journal::{self, ModuleId, Test};
 use crate::journey_output;
 use crate::journey_record::{self, Block, Module};
@@ -20,6 +20,13 @@ pub struct JourneyStitch {
     pub shards: u32,
     /// Files two shards numbered differently, read at the regions both hold.
     pub renumbered: Vec<String>,
+    /// Modules a case ran that no record holds, over every shard; absent when
+    /// a shard was finalized without carrying them.
+    pub unrecorded: Option<Vec<String>>,
+    /// Part files that ran code under no journey a case handed out, over every shard.
+    pub unclaimed: Option<Vec<String>>,
+    /// Heads that wrote parts in a run before and none in this one, over every shard.
+    pub silent: Option<Vec<String>>,
 }
 
 #[napi(object)]
@@ -30,6 +37,13 @@ pub struct JourneyStitchResult {
     pub shards: u32,
     /// Files two shards numbered differently, read at the regions both hold.
     pub renumbered: Vec<String>,
+    /// Modules a case ran that no record holds, over every shard; absent when
+    /// a shard was finalized without carrying them.
+    pub unrecorded: Option<Vec<String>>,
+    /// Part files that ran code under no journey a case handed out, over every shard.
+    pub unclaimed: Option<Vec<String>>,
+    /// Heads that wrote parts in a run before and none in this one, over every shard.
+    pub silent: Option<Vec<String>>,
 }
 
 struct Shard {
@@ -38,6 +52,7 @@ struct Shard {
     set_bytes: Vec<u8>,
     set_offsets: Vec<u32>,
     local_to_global: Vec<u32>,
+    gaps: Option<Gaps>,
 }
 
 struct ShardModule {
@@ -55,6 +70,7 @@ struct Stitched {
     crossings: u64,
     shards: u32,
     renumbered: Vec<String>,
+    gaps: Option<Gaps>,
 }
 
 fn stitch(files: &[String]) -> Result<Stitched, String> {
@@ -166,7 +182,8 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
             loaded: &loaded_by_module[at],
         })
         .collect();
-    let bytes = journey_format::encode(&tests, &encoded, &sets)?;
+    let gaps = union_gaps(&shards);
+    let bytes = journey_format::encode(&tests, &encoded, &sets, gaps.as_ref())?;
     Ok(Stitched {
         bytes,
         tests: tests.len() as u32,
@@ -174,6 +191,25 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         crossings,
         shards: files.len() as u32,
         renumbered,
+        gaps,
+    })
+}
+
+/// Every shard's gaps together, or none when one shard carries none: a shard
+/// that was not asked cannot be read as one that found nothing.
+fn union_gaps(shards: &[Shard]) -> Option<Gaps> {
+    let every: Vec<&Gaps> = shards.iter().map(|shard| shard.gaps.as_ref()).collect::<Option<_>>()?;
+    let joined = |pick: fn(&Gaps) -> Option<&Vec<String>>| -> Option<Vec<String>> {
+        let mut names: Vec<String> = every.iter().map(|gaps| pick(gaps)).collect::<Option<Vec<_>>>()?.into_iter().flatten().cloned().collect();
+        names.sort_unstable_by(|left, right| order::code_unit(left, right));
+        names.dedup();
+        Some(names)
+    };
+    Some(Gaps {
+        unrecorded: joined(|gaps| Some(&gaps.unrecorded))?,
+        unclaimed: joined(|gaps| Some(&gaps.unclaimed))?,
+        heads: joined(|gaps| Some(&gaps.heads))?,
+        silent: joined(|gaps| gaps.silent.as_ref()),
     })
 }
 
@@ -188,6 +224,9 @@ pub fn stitch_journeys(files: Vec<String>) -> napi::Result<JourneyStitch> {
         crossings: answered.crossings as f64,
         shards: answered.shards,
         renumbered: answered.renumbered,
+        unrecorded: answered.gaps.as_ref().map(|gaps| gaps.unrecorded.clone()),
+        unclaimed: answered.gaps.as_ref().map(|gaps| gaps.unclaimed.clone()),
+        silent: answered.gaps.and_then(|gaps| gaps.silent),
     })
 }
 
@@ -202,6 +241,9 @@ pub fn stitch_journeys_to(files: Vec<String>, output: String) -> napi::Result<Jo
         crossings: answered.crossings as f64,
         shards: answered.shards,
         renumbered: answered.renumbered,
+        unrecorded: answered.gaps.as_ref().map(|gaps| gaps.unrecorded.clone()),
+        unclaimed: answered.gaps.as_ref().map(|gaps| gaps.unclaimed.clone()),
+        silent: answered.gaps.and_then(|gaps| gaps.silent),
     })
 }
 
@@ -285,6 +327,7 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
         set_bytes: decoded.bytes("sets.blob")?,
         set_offsets: decoded.words("sets.off")?,
         local_to_global: Vec::new(),
+        gaps: journey_format::read_gaps(&decoded, &strings)?,
     })
 }
 

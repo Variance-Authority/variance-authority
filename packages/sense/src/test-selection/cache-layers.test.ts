@@ -158,7 +158,7 @@ describe('where a checkout keeps its cache', () => {
     const cacheRoot = resolve(at, 'cache');
 
     expect(repositoryLayers(member, cacheRoot)).toEqual(repositoryLayers(at, cacheRoot));
-    expect(testCoverageFile(member, cacheRoot)).toBe(testCoverageFile(at, cacheRoot));
+    expect(testCoverageFile(member, { cacheRoot })).toBe(testCoverageFile(at, { cacheRoot }));
     expect(recordStore(member, 'storybook', cacheRoot)).toBe(recordStore(at, 'storybook', cacheRoot));
     expect(cacheLayers(member, cacheRoot).top).not.toBe(cacheLayers(at, cacheRoot).top);
   });
@@ -242,37 +242,37 @@ describe('the snapshot a checkout starts from', () => {
     const at = await checkout();
     const cacheRoot = resolve(at, 'cache');
     const primary = resolve(at, 'primary');
-    await writeTestCoverage(testCoverageFile(primary, cacheRoot), snapshot);
+    await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
 
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
-    const file = testCoverageFile(path, cacheRoot);
+    const file = testCoverageFile(path, { cacheRoot });
     await seedTestCoverage(file, path, cacheRoot);
 
     expect((await readTestCoverage(file)).tests).toEqual(snapshot.tests);
-    expect(file).not.toBe(testCoverageFile(primary, cacheRoot));
+    expect(file).not.toBe(testCoverageFile(primary, { cacheRoot }));
   });
 
   test('a reader takes the repository snapshot without making a copy of it', async () => {
     const at = await checkout();
     const cacheRoot = resolve(at, 'cache');
     const primary = resolve(at, 'primary');
-    await writeTestCoverage(testCoverageFile(primary, cacheRoot), snapshot);
+    await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
 
-    expect(await readableTestCoverage(path, cacheRoot)).toBe(testCoverageFile(primary, cacheRoot));
-    await expect(stat(testCoverageFile(path, cacheRoot))).rejects.toThrow();
+    expect(await readableTestCoverage(path, { cacheRoot })).toBe(testCoverageFile(primary, { cacheRoot }));
+    await expect(stat(testCoverageFile(path, { cacheRoot }))).rejects.toThrow();
   });
 
   test('a base this build cannot read leaves the worktree with nothing, not an error', async () => {
     const at = await checkout();
     const cacheRoot = resolve(at, 'cache');
     const primary = resolve(at, 'primary');
-    const base = testCoverageFile(primary, cacheRoot);
+    const base = testCoverageFile(primary, { cacheRoot });
     await mkdir(dirname(base), { recursive: true });
     await writeFile(base, Buffer.from('not a snapshot this build knows'));
 
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
-    const file = testCoverageFile(path, cacheRoot);
+    const file = testCoverageFile(path, { cacheRoot });
     await expect(seedTestCoverage(file, path, cacheRoot)).resolves.toBeUndefined();
     await expect(stat(file)).rejects.toThrow();
   });
@@ -281,12 +281,12 @@ describe('the snapshot a checkout starts from', () => {
     const at = await checkout();
     const cacheRoot = resolve(at, 'cache');
     const primary = resolve(at, 'primary');
-    await writeTestCoverage(testCoverageFile(primary, cacheRoot), snapshot);
+    await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
     const mine = resolve(path, 'mine.bin');
 
     await seedTestCoverage(mine, path, cacheRoot);
     await expect(stat(mine)).rejects.toThrow();
-    await expect(stat(testCoverageFile(path, cacheRoot))).rejects.toThrow();
+    await expect(stat(testCoverageFile(path, { cacheRoot }))).rejects.toThrow();
   });
 });

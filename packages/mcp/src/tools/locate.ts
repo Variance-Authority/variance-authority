@@ -80,42 +80,34 @@ export { tokensOf, type LocateField } from './locate-index.js';
  * named `under` or it did not. What each holds is identical — the words naming
  * the anchor — which is why this is one function and not six paragraphs that
  * drift apart.
+ *
+ * The rules the six share — one relation per question, refused on a run with no
+ * layout — are stated once in the tool description and not here, because this
+ * text is sent six times in every `tools/list`. The anchor is found first and
+ * what stands in the relation to it is measured off the rectangles the run
+ * resolved; a run that resolved none is refused rather than answered from
+ * document order, which would look like an arrangement and is not one.
  */
 function relationArgument(relation: string, extra?: string): Readonly<Record<string, unknown>> {
   return {
     type: 'string',
-    description:
-      `Optional. Words naming what the thing sits ${relation} — \`Carrier\`, \`Pickup window\`. ` +
-      'Saying this asks where on a surface something sits rather than which surface it is: the ' +
-      'anchor is found first, then what stands in the relation to it, measured off the ' +
-      'rectangles the run resolved. At most one relation argument per question. A spatial ' +
-      'relation is refused on a run that resolved no layout rather than guessed from document ' +
-      `order.${extra === undefined ? '' : ` ${extra}`}`,
+    description: `Optional. Words naming the anchor the thing sits ${relation}.${extra === undefined ? '' : ` ${extra}`}`,
   };
 }
 
 export const locate: Tool = {
   name: 'variance_locate',
   description:
-    'Which subjects a description names. Matches the words of `query` against every name ' +
-    'the run recorded per subject — its id, the component it is the example of, accessible ' +
-    'names and visible text, the components it holds and who mounted them, the code regions ' +
-    'its journey covered, files, roles and design tokens — and ranks by how many words matched ' +
-    'and how rare each is, printing the field and value behind every hit so the order can be ' +
-    'checked. Ask this when you know what a subject looks like but not what it is called, ' +
-    'before `variance_describe` or `variance_composition {subject}`. A word no subject holds ' +
-    'is answered with the names the suite does use. Each hit carries the place behind it — the ' +
-    'landmark saying those words, the file and the line it is declared at — so the answer ends ' +
-    'where the work starts. To ask where on a surface something sits rather than which surface ' +
-    'it is, name what it sits by in one of `under`, `above`, `inside`, `beside`, `leftOf` or ' +
-    '`rightOf`, and the surface in `on`: `{query: "warning", under: "Carrier", on: "dispatch ' +
-    'drawer"}` is answered by the arrangement the same run recorded. The words in `query` are ' +
-    'only ever words — nothing in them is read as syntax. Matching is lexical and nothing expands ' +
-    'them for you: no synonyms, no stemming past a trailing plural, no model. The run recorded ' +
-    'several vocabularies per subject, so a word that misses is answered by asking again in a ' +
-    'different kind of name — what the screen says, what the component is likely called, the file ' +
-    'it is likely declared in — rather than a longer description of the same thing. That ' +
-    'translation is yours to make; this ranks whatever words you bring.',
+    'Which subjects a description names. Ranks subjects whose recorded names — id, component, ' +
+    'accessible names and text, the components it holds, covered code regions, files, roles, ' +
+    'design tokens — match the words of `query`, with the field behind each hit and the file ' +
+    'and line it is declared at. Use it before `variance_describe` or `variance_composition ' +
+    '{subject}`. Matching is lexical: no syntax, no synonyms, no stemming past a trailing plural. ' +
+    'If a word misses, the answer lists the names the suite does use; ask again in another kind ' +
+    'of name — on-screen text, component, file. To ask where on a surface something sits, name ' +
+    'the anchor in one of `under`, `above`, `inside`, `beside`, `leftOf`, `rightOf`, and the ' +
+    'surface in `on`: `{query: "warning", under: "Carrier", on: "dispatch drawer"}`. One ' +
+    'relation argument per question; a spatial relation is refused on a run that resolved no layout.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -123,40 +115,31 @@ export const locate: Tool = {
         type: 'string',
         description:
           'Words naming the thing wanted: a story id fragment, a component, a label, visible ' +
-          'text. Matched as words and nothing else — no word in it is read as syntax, so a ' +
-          'product that says `Under review` or `Inside sales` is searched for those words. ' +
-          'Bring the vocabulary yourself: a term the suite never uses is reported as matching ' +
-          'nothing, beside the names the run did record, and the move is another query in another ' +
-          'kind of name rather than the same idea reworded. ' +
-          'Where on a surface the thing sits is said in the arguments below, never in here.',
+          'text. Never read as syntax, so `Under review` is two words to search for.',
       },
       under: relationArgument('beneath'),
       above: relationArgument('above'),
-      inside: relationArgument('inside', 'Answered without layout, because containment needs no rectangles.'),
+      inside: relationArgument('inside', 'Needs no layout.'),
       beside: relationArgument('beside'),
       leftOf: relationArgument('left of'),
       rightOf: relationArgument('right of'),
       on: {
         type: 'string',
         description:
-          'Optional. Words naming the surface the question is asked on — `dispatch drawer` — ' +
-          'when the anchor alone could be on several. Its own argument because it is its own ' +
-          'fact: the surface says which screen, the anchor says which landmark on it, and the ' +
-          'relation is measured from the anchor. Needs one of the relation arguments; alone it ' +
-          'is refused rather than read as more words for `query`.',
+          'Optional. Words naming the surface — `dispatch drawer` — when the anchor could be on ' +
+          'several. Needs a relation argument; alone it is refused.',
       },
       from: {
         ...START_POINT_SCHEMA.from,
         description:
-          `${START_POINT_SCHEMA.from.description} Narrows the suite before ranking and ` +
-          "recounts rarity inside what remains, so the area's own vocabulary stops " +
-          'distinguishing anything.',
+          `${START_POINT_SCHEMA.from.description} Narrows the suite before ranking; rarity is ` +
+          'recounted inside what remains.',
       },
       to: {
         ...START_POINT_SCHEMA.to,
         description:
-          `${START_POINT_SCHEMA.to.description} This is the direction that finds the screen ` +
-          'behind a component: `to` the user select, `query` the settings page.',
+          `${START_POINT_SCHEMA.to.description} Finds the screen behind a component: \`to\` the ` +
+          'user select, `query` the settings page.',
       },
       limit: {
         type: 'integer',

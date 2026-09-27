@@ -104,3 +104,42 @@ Spec 0036, item 5 stops being a forwarder this project writes. It becomes a
 record of which heads received their journey as `baggage` and which did not, so
 a change behind a hop that was never carried widens exactly as a change behind an
 unwatched origin does.
+
+## Amendment — told, not parsed
+
+The decision above has the id ride as `baggage` members that a tracer forwards.
+Neither Sentry nor OpenTelemetry forwards a member it was never asked to set,
+so an application with tracing still had to write code to add the members, and
+a head still had to parse them out of a header. Tracing already carries an id
+per execution through every hop, with no member to add: the trace id.
+
+**Where the application runs Sentry or OpenTelemetry, the journey is the trace
+id, and both sides are told it by the application's own SDK instance.**
+
+1. **The case starts the trace.** A module exporting `sentry(Sentry)` or
+   `openTelemetry(api)`, named as `trace` to `withJourneyCoverage`, runs every
+   case inside a trace whose id is its journey (32 hex characters, which is why
+   a minted journey is a UUID with its dashes removed). The application's
+   instrumentation propagates it. The module is required once per worker by a
+   Jest environment that wraps the project's own, never from a setup file. An
+   SDK hooks `fetch` through process-wide diagnostics channels, and one
+   initialized per test file left the first file's hooks sending its trace
+   from every later file in the worker.
+2. **The head asks, it does not parse.** `collectJourneys({ trace })` resolves
+   a probe's journey as: the scope `enter` named, else `trace.current()`, else
+   unattributed. A named journey outranks the trace. A build that installed the
+   head before the application initialized its tracing is told the trace when
+   the application calls `collectJourneys({ trace })`.
+3. **A reporting head refuses a trace.** It has no way home for journeys it did
+   not enter, so it throws instead of recording ids nothing will claim.
+4. **An unclaimed journey is common.** A trace no case started (a `beforeAll`
+   call, a scheduler) folds to every case the part served, as the no-journey
+   frame does. It widens and never narrows.
+5. **Every case writes a frame under a tracer.** A case that crossed nothing is
+   in the index with no service crossings.
+
+Nothing in this project patches a client or adds a header: the SDK is handed
+in, and the propagation is the application's own. The cookie and `baggage`
+carriers stay for applications without tracing. A JVM head reads only the
+cookie and `baggage`; it gains an `enter(String journey)` fed by the service's
+own tracer (FIXME at `Journey.enter`).

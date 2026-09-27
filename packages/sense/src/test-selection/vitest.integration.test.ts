@@ -296,7 +296,7 @@ describe('the Vitest integration', () => {
     }))).toEqual([
       {
         file: ext('test/alpha.case.ts'),
-        complete: false,
+        complete: true,
         preconditions: [ext('test/alpha.case.ts'), ext('test/setup.ts'), ext('vitest.config.ts')],
       },
       {

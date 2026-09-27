@@ -57,7 +57,10 @@ variance ask changelog --shape v1:8f2c
 
 The report is the configured one unless report paths follow the question, in
 which case those are read and merged — the same selection `variance report`
-takes, for the same sharded runs.
+takes, for the same sharded runs. When the configured report is not on disk,
+`ask` answers from the report CI published for your branch or mainline, and
+the answer opens with the line and commit it read; the CLI's page says
+[which record that is](../packages/cli/README.md#a-checkout-with-no-run-of-its-own).
 
 ## An answer is not a verdict
 
@@ -81,7 +84,7 @@ variance ask diff
 `diff` compares the current report with the report the previous question was
 answered from. An MCP connection keeps that state in memory for as long as it
 lasts; a command line is a new process per question, so the report each answer
-was read from is recorded beside the configured report as `asked.json`. It is
+was read from is recorded beside that report as `asked.json`. It is
 replaced after every successful answer and never after a refusal, which is what
 lets a re-run be compared against what was actually read.
 
@@ -202,13 +205,18 @@ reading and the skill's counterfactual verification loop are described in
 reports, watchers and connections, choosing which tests to run, and what a
 workspace publishes, and opens a reference file for each only when the question
 needs it. Installing the package puts it on disk; your agent reads it only from
-its own skills directory, `.agents/skills` or `.claude/skills` in the project or
-your home directory. Link it there rather than copying it, so it follows every
-update:
+its own skills directory, in the project or your home directory. Claude Code
+reads `.claude/skills`; most other agents read `.agents/skills`. Link it into
+both rather than copying it, so it follows every update:
 
 ```bash
 mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
+mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
 ```
+
+An agent opens a skill only when its description matches the task, and it reads
+`AGENTS.md` every session. The lines that send it to `variance ask` before it
+searches the code are in [finding code through the workspace index](agent-workspace-api.md#point-an-agent-at-it).
 
 `variance doctor` lists which skills your agent can find, says whether each is a
 link or a copy that has fallen behind, and prints the link for any it cannot

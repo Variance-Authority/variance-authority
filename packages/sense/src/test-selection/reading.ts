@@ -40,12 +40,15 @@
  * answer for it (`readRowless`).
  *
  * A file that could not be read is charged as it always was, and the reading
- * says why.
+ * says why. A file in no module language — a Rust or Python file the graph
+ * holds — is `language`, not `parse`: nothing tried to parse it.
  */
 
+import { extname } from 'node:path';
 import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
 import type { NativeModuleReaders } from '../native.js';
+import { MODULE_EXTENSIONS } from '../read.js';
 import { blocksAround, gapInside, moduleRegion, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredEffects } from './effects.js';
@@ -84,8 +87,10 @@ export type FileReading =
        * `hunk`: a context or removed line is not the recorded text's.
        * `parse`: one of the two texts does not parse.
        * `addon`: no native scanner on this machine.
+       * `language`: not a JavaScript or TypeScript module, the only language
+       * the verdict reads.
        */
-      readonly unread: 'source' | 'hunk' | 'parse' | 'addon';
+      readonly unread: 'source' | 'hunk' | 'parse' | 'addon' | 'language';
     };
 
 /** What the reading needs from the query it runs inside. */
@@ -115,6 +120,7 @@ export function readChange(
   frame: Frame,
   rowsOf: ReadonlyMap<string, readonly number[]>,
 ): { readonly reading: FileReading; readonly charged: boolean } {
+  if (!MODULE_EXTENSIONS.includes(extname(file))) return { reading: { file, unread: 'language' }, charged: false };
   const scanner = native();
   if (scanner?.moduleVerdict === undefined || scanner.moduleReaders === undefined) {
     return { reading: { file, unread: 'addon' }, charged: false };
@@ -187,6 +193,7 @@ export function readRowless(
   const names = knownAs(file);
   const id = firstId(relations, [...names, file]);
   if (id === undefined || importedAsAsset(relations, id)) return undefined;
+  if (!MODULE_EXTENSIONS.includes(extname(file))) return { reading: { file, unread: 'language' }, charged: false };
   const scanner = native();
   if (scanner?.moduleVerdict === undefined || scanner.moduleReaders === undefined) {
     return { reading: { file, unread: 'addon' }, charged: false };

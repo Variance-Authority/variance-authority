@@ -25,9 +25,13 @@ import {
  * it, and columns open on the little-endian length of a header.
  */
 export async function readExecutionIndex(file: string): Promise<ExecutionIndex> {
-  const bytes = await readFile(file);
+  return executionIndexOf(await readFile(file));
+}
+
+/** {@link readExecutionIndex} for bytes already in hand, such as a record a share gave. */
+export function executionIndexOf(bytes: Uint8Array): ExecutionIndex {
   if (isEncodedExecutionIndex(bytes)) return decodeExecutionIndex(bytes);
-  return parseExecutionIndex(JSON.parse(bytes.toString('utf8')));
+  return parseExecutionIndex(JSON.parse(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('utf8')));
 }
 
 /**
@@ -56,10 +60,14 @@ export async function readExecutionFor(
  * holds the answer and re-recording a suite to ask one question about one line
  * is not a reasonable price for a format change.
  */
-export async function defaultExecutionFile(root: string): Promise<string> {
-  const columns = `${testCoverageFile(root)}.cases.bin`;
+export async function defaultExecutionFile(
+  root: string,
+  suite?: string,
+  record: string = testCoverageFile(root, { suite }),
+): Promise<string> {
+  const columns = `${record}.cases.bin`;
   if (await readable(columns)) return columns;
-  const json = `${testCoverageFile(root)}.cases.json`;
+  const json = `${record}.cases.json`;
   return (await readable(json)) ? json : columns;
 }
 
@@ -70,8 +78,12 @@ export async function defaultExecutionFile(root: string): Promise<string> {
  * defect somebody fixes, and this one is a project that never ran the recorder,
  * which a program asking on every edit has to be able to recognise.
  */
-export async function recordedExecutionFile(root: string): Promise<string> {
-  const file = await defaultExecutionFile(root);
+export async function recordedExecutionFile(
+  root: string,
+  suite?: string,
+  record: string = testCoverageFile(root, { suite }),
+): Promise<string> {
+  const file = await defaultExecutionFile(root, suite, record);
   if (await readable(file)) return file;
   throw new OperatorError(
     `nothing is recorded in \`${root}\`: no run left a per-case index at \`${file}\`. ` +

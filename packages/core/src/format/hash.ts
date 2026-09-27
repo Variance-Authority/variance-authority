@@ -100,5 +100,34 @@ const NAME_BUDGET = 140;
 export function fileNameFor(id: string): string {
   const encoded = encodeURIComponent(id);
   if (encoded.length <= NAME_BUDGET) return encoded;
-  return `${encoded.slice(0, NAME_BUDGET)}~${digestString(id).replace(':', '-')}`;
+  return `${encoded.slice(0, NAME_BUDGET)}~${digestFileName(digestString(id))}`;
+}
+
+/**
+ * A digest spelled so that a filesystem accepts it: `v1-<hex>` for `v1:<hex>`.
+ *
+ * The colon is the one character in a digest that is not portable. NTFS refuses
+ * it in a name, so a directory named by a raw digest is a repository that cannot
+ * be checked out on Windows, and `actions/upload-artifact` refuses the path for
+ * the same reason. Every name made from a digest goes through here, so the
+ * spelling has one owner and {@link digestOfFileName} can read it back.
+ */
+export function digestFileName(digest: Digest): string {
+  return digest.replace(':', '-');
+}
+
+const FILE_NAME = new RegExp(`^${PREFIX}[-:]([0-9a-f]{${HEX_LENGTH}})$`);
+
+/**
+ * The digest a name spells, or `undefined` because it spells none.
+ *
+ * Reads the raw `v1:<hex>` spelling as well as {@link digestFileName}'s. The
+ * file-backed store named its identity partitions with the raw digest before
+ * this spelling existed, and a baseline kept under that name is still a
+ * baseline: a reader that knew only the new spelling would call it `new` and
+ * record over it.
+ */
+export function digestOfFileName(name: string): Digest | undefined {
+  const hex = FILE_NAME.exec(name)?.[1];
+  return hex === undefined ? undefined : `${PREFIX}:${hex}`;
 }

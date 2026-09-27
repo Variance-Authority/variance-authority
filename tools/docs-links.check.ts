@@ -47,6 +47,16 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/dispatch/PickupWindow.tsx': "a reader's own component, quoted from a sample answer",
   'src/checkout/Stack.tsx': "a reader's own component, quoted from a sample answer",
   'src/app/cart.tsx': "a reader's own component, quoted from a sample answer",
+  'src/checkout/total.ts': "a reader's own module, quoted from a sample review",
+  'cart.test.ts': "a reader's own test file, quoted from a sample test story",
+  'cart.ts': "a reader's own module, quoted from a sample test story",
+  'price.ts': "a reader's own module, quoted from a sample test story",
+  'format.ts': "a reader's own module, quoted from a sample test story",
+  'checkout.tsx': "a reader's own component, quoted from a sample test story",
+  'pay.ts': "a reader's own module, quoted from a sample test story",
+  'src/cart.ts': "a reader's own module, quoted from a sample comparison of readings",
+  'checkout.ts': "a reader's own module, quoted from a sample test story",
+  'save-bar.tsx': "a reader's own component, quoted from a sample test story",
   'packages/query-core/src/query.ts': "TanStack Query's own module, named by the case study",
   'packages/zod/src/v4/locales/ru.ts': "Zod's own module, named by the case study",
   'packages/resolution/attw.test.ts':
@@ -342,7 +352,7 @@ describe('every file:line reference lands where it says', () => {
     const wrong: string[] = [];
 
     for (const match of text.matchAll(
-      /(?:([A-Z][A-Za-z0-9_]*)\s+)?`?([\w./-]+\.(?:[cm]?tsx?|[cm]?jsx?))`?:(\d+)/g,
+      /(?:(?<![\w$])([A-Z][A-Za-z0-9_]*)[ \t]+)?`?([\w./-]+\.(?:[cm]?tsx?|[cm]?jsx?))`?:(\d+)/g,
     )) {
       const [, named, path = '', digits = ''] = match;
       if (path in FOREIGN) continue;

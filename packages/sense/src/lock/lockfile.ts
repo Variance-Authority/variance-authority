@@ -15,9 +15,12 @@
  * to ([`docs/selecting.md`](../../../../docs/selecting.md)).
  *
  * Workspaces are left out of every reader, and that is what makes this usable at
- * all. A workspace package is *our* source: the file graph already holds it, edge
- * for edge, and admitting it here a second time as an opaque name would turn one
- * edited file in a monorepo into every package that depends on it.
+ * all. A workspace package is *our* source: the file graph holds it edge for edge
+ * wherever an import lands in source — directly, or through built output its
+ * `tsconfig` maps back (ADR-0080) — and admitting it here a second time as an
+ * opaque name would turn one edited file in a monorepo into every package that
+ * depends on it. A package built some other way is the gap `nx` and `turbo`
+ * seed, not one a lockfile can close.
  */
 
 /** A lockfile read down to names. */

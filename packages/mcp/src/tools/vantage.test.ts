@@ -187,7 +187,7 @@ describe('the handshake', () => {
 
     const instructions = (answer?.result as { instructions?: string } | undefined)?.instructions;
     expect(instructions).toContain('VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321');
-    expect(instructions).toContain('variance_run_signals');
+    expect(instructions).toContain('variance_self');
   });
 
   it('routes a retained report to its producer at the handshake', () => {

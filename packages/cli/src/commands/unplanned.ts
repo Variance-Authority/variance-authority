@@ -67,14 +67,17 @@ export async function unplanned(
  * and wrong here, because the whole complaint is that these subjects are not
  * named anywhere else in the run. Truncating the list would reproduce the
  * silence in a shorter form.
+ *
+ * Both readings are named because a record does not say which suite approved
+ * it. Neither is a verdict, and neither is a reason to delete an image before
+ * the operator knows which one holds.
  */
 export function unplannedNote(names: readonly string[]): string | undefined {
   if (names.length === 0) return undefined;
   return (
     `the baseline store holds ${many(names.length, 'approved subject')} this run did not plan: ` +
-    `${names.join(', ')}. Each one keeps its image and was compared against nothing. That is a ` +
-    'subject the collector stopped listing, or a second suite sharing this baseline root — not ' +
-    'a verdict either way, and not a reason to delete an image before you know which.'
+    `${names.join(', ')}. Either the collector stopped listing them or a second suite shares ` +
+    'this baseline root.'
   );
 }
 

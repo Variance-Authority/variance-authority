@@ -3,6 +3,7 @@ import type { CliRunReport } from './run.js';
 import type { CommentLimits, CommentOptions } from './comment.js';
 import type { CauseEntry, Collateral, Docket } from './docket.js';
 import { code, count } from './comment-text.js';
+import type { Pictures } from './comment-images.js';
 
 /**
  * The docket rendered: every block of the comment body, and every limit it
@@ -20,7 +21,21 @@ import { code, count } from './comment-text.js';
  * artifact a human actually looks at.
  */
 
-export function headingBlocks(report: CliRunReport, docket: Docket): readonly string[] {
+/**
+ * What a reviewer reads before deciding whether to open anything: the count, the
+ * leading cause, and where to go.
+ *
+ * Kept to lines a phone shows without scrolling, because that is where a
+ * pull-request notification is opened. Everything that qualifies the count —
+ * every cause, the collateral, what was skipped, what painted the images — is in
+ * the fold under it, and stays there rather than being dropped: a reviewer who
+ * wants the whole docket opens one element.
+ */
+export function leadBlocks(
+  docket: Docket,
+  options: CommentOptions,
+  pictures: Pictures,
+): readonly string[] {
   const needing = docket.reviewable + docket.failed.length;
 
   const heading =
@@ -32,14 +47,64 @@ export function headingBlocks(report: CliRunReport, docket: Docket): readonly st
         '## Visual variance — this run cannot claim a clean result'
       : `## Visual variance — ${needing} subject(s) need review`;
 
-  const meta = [
-    describeIdentity(report),
-    `${report.retention} retention`,
-    report.at,
-    ...(report.intent !== undefined ? [`intent: ${report.intent}`] : []),
-  ].join(' · ');
+  const [first] = docket.causes;
+  const picture =
+    first !== undefined && first.namedIn > 0 && first.subjects[0] !== undefined
+      ? pictures(first.subjects[0])
+      : undefined;
 
-  return [heading, meta];
+  return [
+    heading,
+    ...leadLine(docket),
+    ...(picture === undefined ? [] : [picture]),
+    ...footerBlocks(options),
+  ];
+}
+
+/**
+ * The first cause, in the voice the docket gives it, or the first reason nothing
+ * could be compared.
+ *
+ * An entry the semantic tier did not name is left out rather than printed here:
+ * "the largest region" is a size, and a size on the first line reads as a cause.
+ */
+function leadLine(docket: Docket): readonly string[] {
+  const [first] = docket.causes;
+  if (first !== undefined && first.namedIn > 0) {
+    const label = first.named ? code(first.label) : first.label;
+    const at = first.files[0] === undefined ? '' : ` at ${code(first.files[0])}`;
+    const more =
+      docket.causes.length > 1 ? `, and ${count(docket.causes.length - 1, 'more cause')}` : '';
+    return [`Cause: **${label}**${at}${more}`];
+  }
+  const [group] = docket.withoutCause;
+  if (group !== undefined) {
+    return [`**${group.verdict}** — ${count(group.subjects.length, 'subject')}: ${group.because}`];
+  }
+  return [];
+}
+
+/**
+ * Everything the lead summarised, inside one element a reviewer opens on purpose.
+ *
+ * `<details>` rather than a second comment or a shorter docket: the docket's rule
+ * is that nothing is capped silently, and folding keeps every line of it in the
+ * body while taking it out of the first screen.
+ */
+export function foldBlocks(inner: readonly string[]): readonly string[] {
+  return ['<details><summary>Causes, coverage and what painted the images</summary>', ...inner, '</details>'];
+}
+
+/** Which run this is and what painted it, which the reviewer needs only when a render is in doubt. */
+export function metaBlocks(report: CliRunReport): readonly string[] {
+  return [
+    [
+      describeIdentity(report),
+      `${report.retention} retention`,
+      report.at,
+      ...(report.intent !== undefined ? [`intent: ${report.intent}`] : []),
+    ].join(' · '),
+  ];
 }
 
 /**
@@ -87,8 +152,7 @@ export function bulkBlocks(report: CliRunReport, limits: CommentLimits): readonl
     shown.map(bulkItem).join('\n\n'),
     ...(bulk.length > shown.length
       ? [
-          `${bulk.length - shown.length} further shape(s) are also acceptable in bulk and are ` +
-            'not listed here; the run report is not truncated.',
+          `${count(bulk.length - shown.length, 'more shape')} acceptable in bulk in the run report.`,
         ]
       : []),
     ...(ungrouped.length > 0
@@ -101,7 +165,7 @@ export function bulkBlocks(report: CliRunReport, limits: CommentLimits): readonl
 }
 
 function bulkItem(change: Change): string {
-  const who = change.component ?? 'grouped by pixel shape; no component was resolved';
+  const who = change.component ?? 'no component';
   const partial =
     change.subjects.length === change.settles.length
       ? ''
@@ -115,37 +179,44 @@ function bulkItem(change: Change): string {
   );
 }
 
-export function causeBlocks(docket: Docket, limits: CommentLimits): readonly string[] {
+export function causeBlocks(
+  docket: Docket,
+  limits: CommentLimits,
+  pictures: Pictures,
+): readonly string[] {
   if (docket.causes.length === 0) return [];
 
   const shown = docket.causes.slice(0, limits.causes);
   const hidden = docket.causes.slice(limits.causes);
 
-  const items = shown.map((entry, index) => causeItem(entry, index + 1, limits));
+  const items = shown.map((entry, index) => causeItem(entry, index + 1, limits, pictures));
 
   const omitted =
     hidden.length === 0
       ? []
       : [
-          `${hidden.length} further cause(s) reaching ` +
+          `${hidden.length} more cause(s) reaching ` +
             `${hidden.reduce((sum, entry) => sum + entry.subjects.length, 0)} subject(s) ` +
-            `(${hidden.reduce((sum, entry) => sum + entry.pixels, 0)}px) are not listed here; ` +
-            'they are in the run report, which is not truncated.',
+            `(${hidden.reduce((sum, entry) => sum + entry.pixels, 0)}px) in the run report.`,
         ];
 
   return ['### Causes', items.join('\n\n'), ...omitted, ...collateralBlocks(docket.collateral)];
 }
 
-function causeItem(entry: CauseEntry, position: number, limits: CommentLimits): string {
+function causeItem(
+  entry: CauseEntry,
+  position: number,
+  limits: CommentLimits,
+  pictures: Pictures,
+): string {
   const reach =
     entry.namedIn === 0
       ? // Stated in a different voice, because it is a different claim. Area
         // ranks the displaced above the displacer, so this is "the biggest thing
         // that moved", and calling it the cause would be a confident attribution
         // nobody made.
-        `largest changed region in ${count(entry.subjects.length, 'subject')}, ` +
-        `${entry.pixels}px — no cause was named for ${entry.subjects.length === 1 ? 'it' : 'these'}, ` +
-        'so this is ranked by area, which ranks the displaced above the displacer'
+        `largest region in ${count(entry.subjects.length, 'subject')}, ` +
+        `${entry.pixels}px; no cause named, ranked by area`
       : entry.namedIn === entry.subjects.length
         ? `the cause in ${count(entry.subjects.length, 'subject')}, ${entry.pixels}px`
         : `the cause in ${entry.namedIn} of ${count(entry.subjects.length, 'subject')}, ` +
@@ -163,8 +234,17 @@ function causeItem(entry: CauseEntry, position: number, limits: CommentLimits): 
       ? `seen in ${named}`
       : `seen in ${named} and ${count(rest, 'other subject')} not listed`;
 
+  // The first entry's pictures are already above the fold, under the lead line.
+  const [example] = entry.subjects;
+  const picture = position === 1 || example === undefined ? undefined : pictures(example);
+
   const label = entry.named ? code(entry.label) : entry.label;
-  return [`${position}. **${label}** — ${reach}`, ...place, subjects]
+  return [
+    `${position}. **${label}** — ${reach}`,
+    ...place,
+    subjects,
+    ...(picture === undefined ? [] : [picture]),
+  ]
     .map((line, index) => (index === 0 ? line : `    ${line}`))
     .join('\n');
 }
@@ -191,6 +271,7 @@ function locationLine(
   return [`${prefix}${code(first)}${others}`];
 }
 
+/** Collateral is counted and not listed: displacement is not an edit, and a line each would bury the causes. */
 function collateralBlocks(collateral: Collateral): readonly string[] {
   const lines: string[] = [];
 
@@ -204,9 +285,7 @@ function collateralBlocks(collateral: Collateral): readonly string[] {
     lines.push(
       `Collateral: ${count(collateral.regions, 'further region')} ` +
         `(${collateral.pixels}px) ${within}` +
-        `across ${count(collateral.subjects, 'subject')} moved with the changes above. ` +
-        'Counted and not listed — displacement is not an edit, and a line each would ' +
-        'bury the causes.',
+        `across ${count(collateral.subjects, 'subject')} moved with the changes above.`,
     );
   }
 
@@ -250,11 +329,12 @@ export function withoutCauseBlocks(docket: Docket, limits: CommentLimits): reado
 /**
  * What the run did not look at, and what that does to the sentence above.
  *
- * `failed` entries are listed, because each has its own reason and a count of
- * them tells a reviewer nothing they can act on. `excluded` entries are counted
- * only: the operator already decided, in a file that was already reviewed, and
- * re-litigating that decision on every pull request is how an exclusion list ends
- * up deleted rather than read.
+ * `failed` entries are listed, and above the fold, because each has its own
+ * reason, a count of them tells a reviewer nothing they can act on, and the
+ * heading counts them among what needs review. `excluded` and unreached entries
+ * are counted in the fold by {@link skippedBlocks}: the operator already decided,
+ * in a file that was already reviewed, and re-litigating that decision on every
+ * pull request is how an exclusion list ends up deleted rather than read.
  */
 export function coverageBlocks(
   report: CliRunReport,
@@ -265,38 +345,33 @@ export function coverageBlocks(
     return [
       '### Coverage',
       'This report does not state which subjects it did not observe, so silence about a ' +
-        'subject here cannot be read as a pass. That alone is why this comment exists.',
+        'subject here cannot be read as a pass.',
     ];
   }
 
-  if (docket.failed.length === 0 && docket.excluded === 0) return [];
+  if (docket.failed.length === 0) return [];
 
   const shown = docket.failed.slice(0, limits.notObserved);
   const hidden = docket.failed.length - shown.length;
 
-  // Separate blocks rather than one joined string: a bare sentence on the line
-  // after a list item is absorbed into that item by every markdown renderer, and
-  // the excluded count would then read as a property of whichever subject
-  // happened to be last.
   return [
     '### Not observed',
-    ...(docket.failed.length === 0
-      ? []
-      : [
-          [
-            `${count(docket.failed.length, 'subject')} the run meant to observe and could not — ` +
-              'not a pass:',
-            ...shown.map((entry) => `- ${code(entry.subject)} — ${entry.because}`),
-            ...(hidden === 0
-              ? []
-              : [`- and ${count(hidden, 'other')} not listed; the run report has all of them.`]),
-          ].join('\n'),
-        ]),
+    [
+      `${count(docket.failed.length, 'subject')} the run meant to observe and could not — ` +
+        'not a pass:',
+      ...shown.map((entry) => `- ${code(entry.subject)} — ${entry.because}`),
+      ...(hidden === 0 ? [] : [`- ${hidden} more in the run report.`]),
+    ].join('\n'),
+  ];
+}
+
+/** What the run chose not to render, counted: neither is a gap in the answer. */
+export function skippedBlocks(docket: Docket): readonly string[] {
+  return [
     ...(docket.excluded === 0
       ? []
       : [
-          `${count(docket.excluded, 'subject')} excluded by configuration and not listed; ` +
-            'an exclusion is a decision that was already made.',
+          `${count(docket.excluded, 'subject')} excluded by configuration and not listed.`,
         ]),
     // Stated as work avoided rather than coverage lost, because that is what it
     // is: the run read the diff and every stored baseline and concluded these
@@ -321,54 +396,34 @@ export function coverageBlocks(
 export function warningBlocks(report: CliRunReport, docket: Docket): readonly string[] {
   const fonts = [...docket.missingFonts.entries()].map(
     ([font, subjects]) =>
-      `- the renderer lacked ${code(font)} in ${count(subjects, 'subject')}; those images ` +
+      `the renderer lacked ${code(font)} in ${count(subjects, 'subject')}; those images ` +
       "are of a substituted font and their metrics are not the product's",
   );
-  const stated = (report.warnings ?? []).map((warning) => `- ${warning}`);
+  const stated = report.warnings ?? [];
 
+  // An alert rather than a section, and above the fold: it decides whether the
+  // images under it can be trusted at all.
   const lines = [...fonts, ...stated];
-  return lines.length === 0 ? [] : ['### Warnings', lines.join('\n')];
-}
-
-export function footerBlocks(options: CommentOptions): readonly string[] {
-  return [
-    [
-      ...(options.runUrl === undefined
-        ? []
-        : [`Full report and images: ${options.runUrl}`]),
-      '`variance report --subject <id>` answers about any one subject from the same artifact, ' +
-        'without re-running — including the collateral this comment only counted.',
-    ].join('  \n'),
-  ];
+  if (lines.length === 0) return [];
+  const listed = lines.length === 1 ? lines : lines.map((line) => `- ${line}`);
+  return [['> [!WARNING]', ...listed.map((line) => `> ${line}`)].join('\n')];
 }
 
 /**
- * Cut the body to fit, and say by how much.
+ * Where to look, and what to do after looking.
  *
- * GitHub does not truncate an over-long comment, it rejects the request — so the
- * real choice is between a body that states what it dropped and no comment at
- * all. The marker is the first line, so head-truncation always leaves the poster
- * able to find and update this comment on the next run; a tail-truncating
- * implementation would strand it and start duplicating.
- *
- * The room reserved for the notice is computed against the largest number it
- * could ever state, so the notice can only get shorter than the space kept for
- * it. Slightly wasteful and provably safe, which is the correct trade for a
- * length check whose failure mode is a rejected API call nobody sees.
+ * The command line is the fallback for a comment with no report to link: it
+ * reads a report on disk, which a reviewer on a pull request does not have.
  */
-export function clamp(body: string, characters: number): string {
-  if (body.length <= characters) return body;
-
-  const notice = (dropped: number): string =>
-    `\n\n> ${dropped} character(s) of this docket are not shown: the body exceeded the ` +
-    `${characters}-character comment limit. Nothing was dropped from the run report itself.`;
-
-  const room = Math.max(0, characters - notice(body.length).length);
-  const cut = body.slice(0, room);
-  const lastBreak = cut.lastIndexOf('\n');
-  const head = lastBreak > 0 ? cut.slice(0, lastBreak) : cut;
-
-  return head + notice(body.length - head.length);
+export function footerBlocks(options: CommentOptions): readonly string[] {
+  return [
+    [
+      options.runUrl === undefined
+        ? 'Per subject: `variance report --subject <id>`'
+        : `[Full report and images](${options.runUrl})`,
+      ...(options.toAccept === undefined ? [] : [`To accept: ${options.toAccept}`]),
+    ].join('  \n'),
+  ];
 }
 
 function describeIdentity(report: CliRunReport): string {
@@ -411,8 +466,7 @@ export function driftBlocks(report: CliRunReport, limits: CommentLimits): readon
     items.join('\n'),
     ...(moved.length > shown.length
       ? [
-          `${count(moved.length - shown.length, 'further drifted token')} are not listed here; ` +
-            'the run report has all of them.',
+          `${count(moved.length - shown.length, 'more drifted token')} in the run report.`,
         ]
       : []),
   ];

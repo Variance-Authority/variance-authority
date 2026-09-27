@@ -88,7 +88,7 @@ describe('a change that does not survive a clean world', () => {
     // move. What the second pass adds is *why*, and the two need opposite work.
     expect(observation?.verdict).toBe('changed');
     expect(observation?.alone?.reproduced).toBe(false);
-    expect(observation?.alone?.because).toContain('gone when nothing else has run');
+    expect(observation?.alone?.because).toContain('matches its baseline when run alone');
     expect(collector.aloneCalls).toEqual(['fixture:a']);
   });
 
@@ -149,7 +149,7 @@ describe('a change that does not survive a clean world', () => {
     // Spent across the run rather than per subject: two re-collections, not three.
     expect(collector.aloneCalls).toEqual(['fixture:a', 'fixture:b']);
     expect(report.observations[2]?.alone?.reproduced).toBe(true);
-    expect(report.observations[2]?.alone?.because).toContain('budget of 2 subjects');
+    expect(report.observations[2]?.alone?.because).toContain('budget of 2 subjects spent');
   });
 
   it('turns the pass off at zero without claiming anything about the change', async () => {

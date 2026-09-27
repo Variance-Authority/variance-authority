@@ -257,12 +257,12 @@ function keyOf(region: RegionRecord): string {
  * So the fold decides what the label *is* and each rendering decides how to show
  * it. `named` is the distinction a renderer cannot recover from the string:
  * `Button` is a thing somebody can grep for and belongs in code voice, while
- * "a region no box contained" is a sentence and does not.
+ * "region outside every box" is a sentence and does not.
  */
 function labelOf(region: RegionRecord): { label: string; named: boolean } {
   if (region.unattributed === true) {
     return {
-      label: 'a region no box contained — usually a wrong scale or origin, not a component',
+      label: 'region outside every box (check scale or origin)',
       named: false,
     };
   }

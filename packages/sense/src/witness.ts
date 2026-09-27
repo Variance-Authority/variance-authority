@@ -20,22 +20,44 @@
  * ## Bare specifiers
  *
  * `react` is answered from `node_modules`, which git does not track, so no
- * tracked path can change it. What can is a `tsconfig` that maps it: `@app/*`
- * pointing at `src/*` makes `@app/button` exactly as sensitive to `src` as
- * `./button` is to its own directory. So the patterns are read from the
- * `tsconfig` and `jsconfig` files the tree holds, and a request that matches one
- * gets the substituted paths as candidates.
+ * tracked path can change it. A workspace package is the exception: its link
+ * in `node_modules` leads back into the tree, and the resolver reads that
+ * package's tracked files, its source included when its output is read as the
+ * source it is built from. What changes a bare answer lexically is a
+ * `tsconfig` that maps it: `@app/*` pointing at `src/*` makes `@app/button`
+ * exactly as sensitive to `src` as `./button` is to its own directory. So the
+ * patterns are read from the `tsconfig` and `jsconfig` files the tree holds,
+ * and a request that matches one gets the substituted paths as candidates.
  *
- * When a configuration cannot be read — invalid JSON, or an `extends` naming a
- * package rather than a path — there is no honest bound on where a bare
- * specifier could land. Aliases are then **unknown**, and the caller that asks
- * for them is expected to fall back to treating the whole path set as one
- * witness ([`reuse.ts`](./reuse.ts)).
+ * A configuration's `extends` chain is folded in first, because a `paths`
+ * inherited from a base is the base's answer. A base named by a path is read
+ * where the path points. A base named by a package — `@org/tsconfig/base`, the
+ * shape of a workspace that keeps its shared configuration in a package — is
+ * asked of `oxc-resolver` under the rule it follows `extends` by, so the file
+ * read here is the file the resolver itself inherits from: the package's
+ * `exports`, then its `tsconfig.json`, reached through the `node_modules` link
+ * the workspace manifests put there. The manifests and the lockfile that decide
+ * where that link leads are already in the config digest.
+ *
+ * The base counts only when it lands on a configuration the tree tracks, since
+ * git owns what exists and the config digest names only tracked contents. A
+ * workspace package's link leads back into the tree and lands on one. A base
+ * installed from a registry lands in `node_modules`, which git does not track,
+ * and a base outside the checkout is no path of this repository — either could
+ * change its `paths` without moving anything a record is kept under.
+ *
+ * So when a configuration cannot be read — invalid JSON, or an `extends` that
+ * does not resolve to a configuration the tree tracks — there is no honest
+ * bound on where a bare specifier could land. Aliases are then **unknown**, and
+ * the caller that asks for them is expected to fall back to treating the whole
+ * path set as one witness ([`reuse.ts`](./reuse.ts)).
  */
 
+import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, normalize } from 'node:path/posix';
-import { basename } from 'node:path';
+import { basename, relative, sep } from 'node:path';
+import { ResolverFactory, type NapiResolveOptions } from 'oxc-resolver';
 import { digestString, type Digest } from './digest.js';
 import { isRelative, requestOf } from './specifier.js';
 
@@ -43,6 +65,18 @@ import { isRelative, requestOf } from './specifier.js';
 export interface Aliases {
   /** Every repo-relative path this request could name through a configuration. */
   candidatesFor(request: string): readonly string[];
+  /**
+   * What `candidatesFor` answers from, for a reader on the other side of the
+   * addon boundary (`native/src/witness.rs`), which asks the same question of
+   * the same table rather than reading the configurations a second time.
+   */
+  readonly table: AliasTable;
+}
+
+/** The placed `baseUrl` directories, in the order declared, and every mapping. */
+export interface AliasTable {
+  readonly bases: readonly string[];
+  readonly mappings: readonly Mapping[];
 }
 
 /** Configuration files whose `paths` decide where a bare specifier can land. */
@@ -58,7 +92,7 @@ interface Options {
   readonly from: ReadonlyMap<string, string>;
 }
 
-interface Mapping {
+export interface Mapping {
   /** The text before the pattern's `*`, or the whole pattern when it has none. */
   readonly prefix: string;
   /** The text after the `*`; absent when the pattern is exact. */
@@ -87,11 +121,17 @@ export async function aliasesIn(
     parsed.set(path, value);
   }
 
+  const extended = extendedIn(root, parsed);
   const mappings: Mapping[] = [];
   const bases = new Set<string>();
   const already = new Set<string>();
+  // The `paths` one file declares, placed against one directory, is one table
+  // however many configurations inherit it. A workspace whose 1,500 package
+  // configurations extend a root of 3,000 patterns would otherwise place four
+  // and a half million patterns to keep three thousand, on every scan.
+  const placedFrom = new Set<string>();
   for (const path of configs) {
-    const options = compilerOptions(path, parsed);
+    const options = compilerOptions(path, parsed, extended);
     if (options === undefined) return undefined;
     const declared = options.values['paths'];
     const baseUrl = options.values['baseUrl'];
@@ -105,13 +145,16 @@ export async function aliasesIn(
     if (base === undefined) continue;
     if (typeof baseUrl === 'string') bases.add(base);
     if (declared === undefined || declared === null || typeof declared !== 'object') continue;
+    const placement = `${options.from.get('paths') ?? path}\u0000${base}`;
+    if (placedFrom.has(placement)) continue;
+    placedFrom.add(placement);
     for (const [pattern, targets] of Object.entries(declared as Record<string, unknown>)) {
       if (!Array.isArray(targets)) return undefined;
       const placed = targets
         .filter((target): target is string => typeof target === 'string')
         .map((target) => within(join(base, target)))
         .filter((target): target is string => target !== undefined);
-      // One root read through forty configs that extend it is one mapping.
+      // Two files declaring one pattern with the same targets are one mapping.
       const key = `${pattern}\u0000${placed.join('\u0000')}`;
       if (already.has(key)) continue;
       already.add(key);
@@ -123,6 +166,7 @@ export async function aliasesIn(
   }
 
   return {
+    table: { bases: [...bases], mappings },
     candidatesFor(request) {
       const found: string[] = [];
       for (const base of bases) found.push(join(base, request));
@@ -147,15 +191,82 @@ function match(mapping: Mapping, request: string): string | null | undefined {
 }
 
 /**
+ * The options `oxc-resolver` follows an `extends` by, which are not the ones it
+ * resolves a module by: a package's `exports` under `node` and `import`, `.json`
+ * as the one extension, and `tsconfig.json` as a package's index. Asking under
+ * any other set could answer a file the resolver never inherits from.
+ */
+const EXTENDS: NapiResolveOptions = {
+  conditionNames: ['node', 'import'],
+  extensions: ['.json'],
+  mainFiles: ['tsconfig'],
+};
+
+/** The configuration one `extends` entry names, as a key of the parsed set, or nothing. */
+type Extended = (config: string, specifier: string) => string | undefined;
+
+/**
+ * Every `extends` entry answered as a configuration this read holds.
+ *
+ * A relative path is placed against the configuration that wrote it. A package
+ * name, or a `#` import of the nearest manifest, goes to `oxc-resolver` from
+ * that configuration's directory, and its answer is a real path — the link
+ * `node_modules/@org/tsconfig` comes back as `packages/tsconfig` — so it is
+ * taken against the real root, which may itself sit behind a link (`/tmp` on
+ * macOS). One resolver serves every entry, so a manifest or a directory it has
+ * read for one configuration is not read again for the next.
+ *
+ * An absolute path names one machine's disk rather than the repository, and a
+ * root with no real path cannot place what the resolver answers; both leave the
+ * entry unanswered, as does any other path that starts with a dot.
+ */
+function extendedIn(root: string, parsed: ReadonlyMap<string, unknown>): Extended {
+  let resolver: ResolverFactory | undefined;
+  let real: string | null | undefined;
+  const answers = new Map<string, string | undefined>();
+  const realRoot = (): string | null => {
+    if (real === undefined) {
+      try {
+        real = realpathSync(root);
+      } catch {
+        real = null;
+      }
+    }
+    return real;
+  };
+
+  return (config, specifier) => {
+    const from = dirname(config);
+    if (specifier.startsWith('./') || specifier.startsWith('../')) {
+      const at = normalize(join(from, specifier));
+      return parsed.has(at) ? at : parsed.has(`${at}.json`) ? `${at}.json` : undefined;
+    }
+    if (specifier === '' || specifier.startsWith('.') || specifier.startsWith('/')) return undefined;
+
+    const key = `${from}\u0000${specifier}`;
+    if (answers.has(key)) return answers.get(key);
+    const anchor = realRoot();
+    resolver ??= new ResolverFactory(EXTENDS);
+    const found = anchor === null ? undefined : resolver.sync(join(root, from), specifier).path;
+    const tracked = found === undefined || anchor === null
+      ? undefined
+      : relative(anchor, found).split(sep).join('/');
+    const answer = tracked !== undefined && parsed.has(tracked) ? tracked : undefined;
+    answers.set(key, answer);
+    return answer;
+  };
+}
+
+/**
  * One configuration's options, with everything it extends already folded in.
  *
- * An `extends` naming a package is a file this function cannot open — it lives
- * in `node_modules`, which the tree does not hold — so the chain is abandoned
- * rather than guessed at.
+ * An `extends` entry that is not answered as a configuration the tree tracks
+ * abandons the chain rather than guessing at what the base declares.
  */
 function compilerOptions(
   path: string,
   parsed: ReadonlyMap<string, Record<string, unknown>>,
+  extended: Extended,
   seen: ReadonlySet<string> = new Set(),
 ): Options | undefined {
   if (seen.has(path)) return { values: {}, from: new Map() };
@@ -163,16 +274,14 @@ function compilerOptions(
   if (config === undefined) return undefined;
   const own = (config['compilerOptions'] ?? {}) as Record<string, unknown>;
 
-  const extended = config['extends'];
-  const from = extended === undefined ? [] : Array.isArray(extended) ? extended : [extended];
+  const named = config['extends'];
+  const from = named === undefined ? [] : Array.isArray(named) ? named : [named];
   let values: Record<string, unknown> = {};
   const declaredIn = new Map<string, string>();
   for (const one of from) {
-    if (typeof one !== 'string' || !(one.startsWith('./') || one.startsWith('../'))) return undefined;
-    const at = normalize(join(dirname(path), one));
-    const resolved = parsed.has(at) ? at : parsed.has(`${at}.json`) ? `${at}.json` : undefined;
+    const resolved = typeof one === 'string' ? extended(path, one) : undefined;
     if (resolved === undefined) return undefined;
-    const base = compilerOptions(resolved, parsed, new Set([...seen, path]));
+    const base = compilerOptions(resolved, parsed, extended, new Set([...seen, path]));
     if (base === undefined) return undefined;
     values = { ...values, ...base.values };
     for (const [key, where] of base.from) declaredIn.set(key, where);
@@ -266,6 +375,11 @@ export function witnessesOf(input: {
     if (isRelative(bare)) candidate(join(directory, bare));
     else for (const alias of aliases?.candidatesFor(bare) ?? []) candidate(alias);
   }
+  // FIXME: a bare request into a workspace package that resolved to nothing has
+  // no witness in that package, so a reused record misses the source file that
+  // would make it resolve — `@s/b/new`, written before `new.ts` was added to
+  // that package's `rootDir`. The resolver knows where it looked, through the package's link and
+  // `tsconfig` layout, and the batch does not carry it.
   for (const edge of edges) found.add(parent(edge));
 
   return [...found].sort();

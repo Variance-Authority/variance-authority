@@ -127,6 +127,20 @@ describe('narrowByExecution', () => {
       });
     });
 
+    it('says a file in no module language was not read for its language, not because it failed to parse', () => {
+      const rust: TestCoverage = {
+        ...dated,
+        modules: dated.modules.map((module) =>
+          module.file === 'src/decide.ts' ? { ...module, file: 'src/decide.rs' } : module,
+        ),
+      };
+      expect(
+        narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(rust)), diff.replaceAll('decide.ts', 'decide.rs'), {
+          sourceAt: () => decided,
+        }).readings,
+      ).toEqual([{ file: 'src/decide.rs', unread: 'language' }]);
+    });
+
     it('charges the module whole, and names it, when it does not', () => {
       // The widest honest answer. The numbers in the snapshot are coordinates in
       // a text nobody here has, so the only region the diff can be charged to is
@@ -173,11 +187,11 @@ describe('narrowByExecution', () => {
 
 describe('selectTestFiles', () => {
   it('keeps the snapshot in the cache it is given and keys it by root', () => {
-    expect(testCoverageFile('/work/one', '/cache')).toMatch(
+    expect(testCoverageFile('/work/one', { cacheRoot: '/cache' })).toMatch(
       /^\/cache\/test-selection\/[a-f0-9]+\/coverage\.bin$/,
     );
-    expect(testCoverageFile('/work/one', '/cache')).not.toBe(
-      testCoverageFile('/work/two', '/cache'),
+    expect(testCoverageFile('/work/one', { cacheRoot: '/cache' })).not.toBe(
+      testCoverageFile('/work/two', { cacheRoot: '/cache' }),
     );
   });
 

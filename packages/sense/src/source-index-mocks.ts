@@ -1,5 +1,4 @@
-import { rangeOf, validateOffsets, type Column, type OpenSegment } from '@variance-authority/core/segment';
-import type { Parsed, ParseKey } from './cache.js';
+import { rangeOf, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
 import type { ImportDiff } from './taint/index.js';
 
 /**
@@ -10,35 +9,6 @@ import type { ImportDiff } from './taint/index.js';
  * parse whose `mocks` is absent: the module reader records a diff only when the
  * file wrote one, so the empty range and the absent field are the same fact.
  */
-
-type ParseRows = readonly (readonly [ParseKey, Parsed])[];
-
-export function encodeMocks(parses: ParseRows, id: (value: string) => number): Readonly<Record<string, Column>> {
-  const parseMinus: number[] = [];
-  const parsePlus: number[] = [];
-  const minus: number[] = [];
-  const plus: number[] = [];
-  for (const [, parsed] of parses) {
-    parseMinus.push(minus.length);
-    parsePlus.push(plus.length);
-    for (const value of parsed.mocks?.minus ?? []) minus.push(id(value));
-    for (const value of parsed.mocks?.plus ?? []) plus.push(id(value));
-  }
-  parseMinus.push(minus.length);
-  parsePlus.push(plus.length);
-
-  return {
-    'parses.mocks-minus': Uint32Array.from(parseMinus),
-    'parses.mocks-plus': Uint32Array.from(parsePlus),
-    'mocks.minus': Uint32Array.from(minus),
-    'mocks.plus': Uint32Array.from(plus),
-  };
-}
-
-export function addMockStrings(parsed: Parsed, values: Set<string>): void {
-  for (const value of parsed.mocks?.minus ?? []) values.add(value);
-  for (const value of parsed.mocks?.plus ?? []) values.add(value);
-}
 
 /** Validate and open the mock columns; the reader answers one parse row. */
 export function openMocks(

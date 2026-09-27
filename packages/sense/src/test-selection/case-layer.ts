@@ -114,6 +114,28 @@ export function layerCaseIndex(
 }
 
 /**
+ * What the runs at one commit retired, as one before: `retired` laid over
+ * `kept`, which the earlier runs at that commit left.
+ *
+ * A suite run in several invocations retires each invocation's files in turn.
+ * Written alone, the second invocation's before would replace the first's, and
+ * a review of a pull request would compare only the last invocation's files
+ * with the base. A file this run ran again keeps what it retired this time,
+ * which is the run before it, as a re-run in the edit loop wants.
+ */
+export function layerBefore(
+  kept: Uint8Array | undefined,
+  retired: Uint8Array | undefined,
+  ran: ReadonlySet<string>,
+): Buffer | undefined {
+  if (kept === undefined) return retired === undefined ? undefined : Buffer.from(retired);
+  if (retired === undefined) return Buffer.from(kept);
+  // A deleted test file stays: its cases are what the base had, and that is
+  // what a comparison with the base reports as gone.
+  return layerCaseIndex(kept, retired, { ran, finished: ran, present: () => true }).merged;
+}
+
+/**
  * The held index cut to the cases of the files a run announced.
  *
  * Regions keep the shape they were recorded with, and no region says it ran

@@ -93,7 +93,7 @@ export function summarizeSensitivities(ledger: SensitivityLedger | undefined): r
     if (state === 'dead') {
       lines.push(
         `  [dead] ${entry.rule} — asserts on ${entry.level} across ${entry.scoped} subject(s) ` +
-          `and absorbed nothing (${entry.reason}); nothing here needed relaxing`,
+          `and absorbed nothing (${entry.reason})`,
       );
       continue;
     }

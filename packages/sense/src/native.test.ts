@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -15,9 +15,10 @@ import { gitDigests, gitTreeOf, treeOf, type Tree } from './tree.js';
  * The scanner in Rust is allowed to be a different program. It is not allowed to
  * be a different *answer*: a digest that disagrees is a file reported still, and
  * a directory digest that disagrees is a record kept that should have been
- * rebuilt. So the JavaScript implementation stays, and stays the oracle — these
- * tests run both over one repository and compare, rather than asserting what
- * either of them should have said.
+ * rebuilt. The JavaScript tree stays because it answers what the native one does
+ * not take — known changed paths, and digests a caller supplies — so these tests
+ * run both over one repository and compare, rather than asserting what either
+ * of them should have said.
  *
  * The corpus is the working tree disagreeing with `HEAD` in every way it can:
  * clean, edited, staged, untracked, deleted, renamed, nested, and non-ASCII.
@@ -127,6 +128,30 @@ describe('the native tree against the JavaScript one', () => {
     expect(tree.get('src/Button.tsx')).toBe(`git:${edited}`);
   });
 
+  it.runIf(native)('agrees beside paths git names that are not files', async () => {
+    const root = await repository();
+    // A submodule checked out past its recorded commit, which `status` names
+    // with no trailing slash, and links to a directory and to nothing. Any one
+    // of them in the `hash-object` batch fails it for every edited file.
+    const sub = join(root, 'vendor/sub');
+    await write(root, 'vendor/sub/readme.md', 'one\n');
+    await git(sub, ['init', '--quiet']);
+    await git(sub, ['add', '-A']);
+    await git(sub, ['commit', '--quiet', '-m', 'one']);
+    await git(root, ['-c', 'advice.addEmbeddedRepo=false', 'add', 'vendor/sub']);
+    await git(root, ['commit', '--quiet', '-m', 'submodule']);
+    await git(sub, ['commit', '--quiet', '--allow-empty', '-m', 'two']);
+    await symlink('src/panel', join(root, 'linked'));
+    await symlink('nowhere', join(root, 'dangling'));
+    await write(root, 'src/Button.tsx', 'export function Button() { return <b /> }\n');
+
+    const { oracle, answered } = await both(root);
+    const edited = await git(root, ['hash-object', 'src/Button.tsx']);
+
+    expect(answered).toEqual(oracle);
+    expect((await gitTreeOf(root))!.get('src/Button.tsx')).toBe(`git:${edited}`);
+  });
+
   it.runIf(native)('seeds from the Git-visible path set', async () => {
     const root = await repository();
     await write(root, '.git/info/exclude', 'src/generated/\n');
@@ -179,9 +204,7 @@ describe('the native tree against the JavaScript one', () => {
     expect(await gitDigests(root)).toBeUndefined();
   });
 
-  it('answers through the JavaScript tree when no scanner was built', async () => {
-    // The binary is optional by construction: a checkout without a Rust
-    // toolchain builds everything else and scans at the speed it always did.
+  it('answers through the JavaScript tree over digests a caller supplies', async () => {
     const root = await repository();
     const tree = treeOf((await gitDigests(root))!);
 

@@ -68,7 +68,7 @@ Running 1 test using 1 worker
 [1/1] src/spec/cart.spec.mjs:8:1 › observes without replacing Playwright primitives
   1) src/spec/cart.spec.mjs:8:1 › observes without replacing Playwright primitives
 
-    Error: cart/empty: new — no baseline for `cart/empty` under this renderer;
+    Error: cart/empty: new — no baseline under this renderer;
     nothing to compare against
 
         at assertUnchanged (packages/playwright-test/src/matcher.ts:48:11)

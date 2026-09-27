@@ -12,6 +12,7 @@ import {
   carriedJournal,
   readFinished,
   reportedComplete,
+  runnerSkipped,
   taskComplete,
   type FinishedFile,
   type ReportedModule,
@@ -26,9 +27,10 @@ import {
   type ResolvedViteConfig,
   type RunnerContext,
 } from './governing-config.js';
-import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
-import { testCoverageFile } from './index.js';
+import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
+import { askedForStories } from '../story/directory.js';
 
 export interface TestSelectionOptions {
   /**
@@ -39,6 +41,12 @@ export interface TestSelectionOptions {
   readonly root?: string;
   /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
+  /**
+   * The suite this run is, as the root `variance.config.json` declares it under
+   * `suites`. Required once any suite is declared, and refused beside
+   * `coverageFile`.
+   */
+  readonly suite?: string;
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
   /**
@@ -125,9 +133,7 @@ export function withTestSelection(
 ): UserConfig {
   const configRoot = resolve(options.root ?? config.root ?? process.cwd());
   const root = repositoryRoot(configRoot);
-  const coverageFile = options.coverageFile === undefined
-    ? testCoverageFile(root)
-    : resolve(configRoot, options.coverageFile);
+  const coverageFile = recordFileFor(root, configRoot, options);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
   // Named for the run rather than for the seam. These are files on disk now, so
@@ -185,20 +191,25 @@ export function withTestSelection(
   }
 
   const plugin = selectionPlugin(root, setupId, runnerId, run, include, mode, declared, settle);
+  // The realm's engine is decided once, by whichever of the two shims installs
+  // it first, so both are handed the same answers.
+  const continuations = options.continuations === true;
+  const story = askedForStories(coverageFile);
   return {
     ...config,
     plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
-      // First, so a setup file of the project's that loads an instrumented
-      // module finds the probe log's root its header resolves. On disk rather
-      // than virtual — see {@link writeSeamModule}.
+      // First, so what a setup file of the project's loads is logged into the
+      // file's own bucket: before the shim opens it, a probe in a realm that
+      // already ran a file writes into the idle one, and under a runner of the
+      // project's own finds no root at all.
+      // On disk rather than virtual — see {@link writeSeamModule}.
       setupFiles: [
         writeSeamModule(
+          run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, {
-            continuations: options.continuations === true,
-          }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story }),
         ),
         ...setupFiles,
       ],
@@ -210,13 +221,17 @@ export function withTestSelection(
       // no bracket and records the file as one ambient bucket, which is the
       // file-level answer it already had.
       // FIXME: a project with its own runner gets file-level answers without
-      // being told; the case runner could extend the configured class instead.
+      // being told, and a `snapshotSerializers` or `diff` file of its that
+      // imports product source throws at its first probe, because this seam's
+      // runner is what installs the probe root before Vitest loads them; the
+      // case runner could extend the configured class instead.
       ...(config.test?.runner === undefined
         ? {
-          runner: writeSeamModule(runnerId, caseRunnerSource({
+          runner: writeSeamModule(run, runnerId, caseRunnerSource({
             module: runnerImport(configRoot, runnerId, '@vitest/runner'),
             utils: runnerImport(configRoot, runnerId, '@vitest/runner/utils'),
             finished: run.finishedDirectory,
+            recording: { continuations, story: story !== undefined },
           })),
         }
         : {}),
@@ -288,7 +303,13 @@ function selectionPlugin(
     // `afterEach`, carried on each test's `meta` as the file's is.
     config(config) {
       if (config.test?.browser?.enabled !== true) return;
-      writeSeamModule(setupId, browserSetupSource(mode));
+      // FIXME: a `snapshotSerializers` or `diff` file that imports product
+      // source throws at its first probe in a page. `@vitest/browser` 3.2.7 and
+      // 4.1.2 load them in `initiateRunner`, before `startTests` runs the first
+      // file's setup files, and the setup module written here is what installs
+      // the page's root. A module that installs it, imported ahead of them,
+      // would carry what they load to the file the way the case runner does.
+      writeSeamModule(run, setupId, browserSetupSource(mode));
       if (config.test.runner === runnerId) delete config.test.runner;
       // An index with no case in it answers *which cases walk this line* with
       // none, so a run that recorded no case writes no index.
@@ -348,7 +369,9 @@ function selectionPlugin(
 }
 
 /**
- * Fold a run no reporter folded, from the trees its workers wrote.
+ * Fold a run no reporter folded, from the trees its workers wrote, and take
+ * the shims off, with the directory the run made for them once they leave it
+ * empty: a watching run kept them for its reruns, and this is its last.
  *
  * A run whose runner is the project's own left journals and no tree, and a
  * journal alone cannot say whether its file passed: it is said, and nothing is
@@ -358,6 +381,17 @@ async function closeRun(
   run: SelectionRun,
   settle: (files: readonly FinishedFile[]) => Promise<void>,
   shims: readonly string[],
+): Promise<void> {
+  try {
+    await foldUnfolded(run, settle);
+  } finally {
+    removeSeamModules(run, shims);
+  }
+}
+
+async function foldUnfolded(
+  run: SelectionRun,
+  settle: (files: readonly FinishedFile[]) => Promise<void>,
 ): Promise<void> {
   if (run.settled) return;
   const files = await readFinished(run.finishedDirectory);
@@ -371,7 +405,6 @@ async function closeRun(
   );
   rmSync(run.runDirectory, { recursive: true, force: true });
   rmSync(run.caseDirectory, { recursive: true, force: true });
-  for (const shim of shims) rmSync(shim, { force: true });
 }
 
 function selectionReporter(
@@ -390,25 +423,35 @@ function selectionReporter(
   // resolved it: Vitest 3 and 4 hand the project over, and Vitest 2 hands its
   // name, which `onInit` has already mapped to the project.
   let byName = new Map<string, string>();
+  // Held, not copied: a name filter and a cancel are both set on the runner
+  // after `onInit`, and each run's end asks it afresh.
+  let runner: RunnerContext | undefined;
   const configsOf = (config: string | undefined) => (config === undefined ? {} : { configs: [config] });
+  // A rerun starts as `onWatcherRerun` in every major and as `onTestRunStart`
+  // from Vitest 3, both after the last run's end was awaited: the fold reopens
+  // there, and the rerun's end folds the files the rerun ran.
   return {
     onInit: (context: RunnerContext) => {
+      runner = context;
       byName = noteRunner(run, context);
+      run.watching = context.config?.watch === true;
     },
+    onWatcherRerun: () => reopenRun(run),
+    onTestRunStart: () => reopenRun(run),
     onFinished: (files: readonly RunnerTask[]) => settle(
       files.flatMap((file) => file.filepath === undefined
         ? []
         : [{
           filepath: file.filepath,
-          complete: taskComplete(file),
+          complete: taskComplete(file, runnerSkipped(runner)),
           ...carriedJournal(file.filepath, file.meta),
           ...configsOf(byName.get(file.projectName ?? '')),
         }]),
     ),
-    onTestRunEnd: (reported: readonly ReportedModule[]) => settle(
+    onTestRunEnd: (reported: readonly ReportedModule[], _errors?: unknown, reason?: string) => settle(
       reported.map((module) => ({
         filepath: module.moduleId,
-        complete: reportedComplete(module),
+        complete: reportedComplete(module, runnerSkipped(runner, reason)),
         ...carriedJournal(module.moduleId, module.meta?.()),
         ...configsOf(projectConfig(module.project)),
       })),

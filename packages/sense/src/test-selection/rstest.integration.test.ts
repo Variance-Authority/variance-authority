@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,9 @@ import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 import { decodeExecutionIndex } from './execution-format.js';
 
+// The story format is a CommonJS sandbox module whose own requires resolve only
+// once built, so it is read from `dist/` as the seam itself loads it.
+const stories = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
@@ -19,7 +22,7 @@ const rstest = resolve(repository, 'node_modules/@rstest/core/bin/rstest.js');
 const temporary: string[] = [];
 
 /** The config is named absolutely: Rstest resolves a relative one against the nearest package. */
-const run = (config: string, directory: string): Promise<unknown> => execute(
+const run = (config: string, directory: string, env: NodeJS.ProcessEnv = {}): Promise<unknown> => execute(
   process.execPath,
   [rstest, 'run', '-c', resolve(fixture, config)],
   {
@@ -28,6 +31,7 @@ const run = (config: string, directory: string): Promise<unknown> => execute(
       ...process.env,
       VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'),
       XDG_CACHE_HOME: directory,
+      ...env,
     },
   },
 );
@@ -158,5 +162,22 @@ describe('the Rstest integration', () => {
     expect(block!.crossings.map((crossing) => index.tests[crossing.test]!.id)).toEqual([
       at('test/gamma.injected.ts > takes the gamma path with the registrars on the realm'),
     ]);
+  }, 120_000);
+  it('writes a story for each case it runs under `VARIANCE_AUTHORITY_STORY=1`, and the same recording as without it', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-story-'));
+    temporary.push(directory);
+    const plain = resolve(directory, 'plain');
+    const taped = resolve(directory, 'story');
+    await run('rstest.config.mjs', plain);
+    await run('rstest.config.mjs', taped, { VARIANCE_AUTHORITY_STORY: '1' });
+    const written = async (into: string): Promise<string[]> =>
+      (await readdir(into, { recursive: true })).filter((path) => path.endsWith('.story'));
+
+    expect(await written(plain)).toEqual([]);
+    const names = await Promise.all((await written(taped)).map(async (path) =>
+      stories.decodeStory(await readFile(resolve(taped, path))).name));
+    // The `it.skip` in alpha runs nothing, so it tapes nothing.
+    expect(names.sort()).toEqual(["ran after the project's own setup file", 'takes the alpha path', 'takes the beta path']);
+    expect(await readFile(resolve(taped, 'coverage.bin'))).toEqual(await readFile(resolve(plain, 'coverage.bin')));
   }, 120_000);
 });

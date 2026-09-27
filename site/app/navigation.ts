@@ -29,6 +29,7 @@ export const NAVIGATION = [
       { href: "/docs/reasoning", label: "Follow the reasoning loop" },
       { href: "/docs/evidence-field", label: "Use the evidence you have" },
       { href: "/docs/great-data", label: "What one run leaves you" },
+      { href: "/docs/adjacent-possible", label: "Why it does so many things" },
     ],
   },
   {
@@ -187,6 +188,11 @@ export const NAVIGATION = [
         cluster: "Understand an execution",
       },
       {
+        href: "/docs/across-dimensions",
+        label: "Follow a test into other services",
+        cluster: "Understand an execution",
+      },
+      {
         href: "/docs/scenarios",
         label: "Compare state transitions",
         cluster: "Understand an execution",
@@ -216,6 +222,11 @@ export const NAVIGATION = [
       {
         href: "/docs/attribution",
         label: "Trace a visible change to source",
+        cluster: "Explain variance",
+      },
+      {
+        href: "/docs/a-b-testing",
+        label: "Compare A with B",
         cluster: "Explain variance",
       },
       {
@@ -315,6 +326,7 @@ export const NAVIGATION = [
         href: "/agents/code-review",
         label: "Review a change against what the code did",
       },
+      { href: "/docs/test-stories", label: "Read the route one test takes" },
       {
         href: "/agents/cli",
         label: "Ask a run from the command line",

@@ -1,4 +1,5 @@
 import type { Commit, TapRefusal, resolveProvenance } from '@variance-authority/react';
+import { sayToStory } from './note.js';
 
 /** A DOM target copied while its identity and React Fiber are still live. */
 export interface TargetSnapshot {
@@ -167,6 +168,7 @@ export function createEyesLog(): EyesLog {
       const attention = { ...draft, sequence } as Attention;
       sequence += 1;
       seen.push(attention);
+      sayToStory(draft);
       return attention;
     },
     phase(phase) {

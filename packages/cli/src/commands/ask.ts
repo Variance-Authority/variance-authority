@@ -15,7 +15,7 @@ import {
   type Asked,
   type Question,
 } from './asking.js';
-import { HELP_TOOLS, search, type Help } from '@variance-authority/help/tools';
+import { HELP_TOOLS, grep, orient, search, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import {
@@ -25,7 +25,9 @@ import {
   type Tool,
   type Tree,
 } from '@variance-authority/mcp/tools';
-import { readChanged, readSource, readTaint, searchSource, wholeSource } from './ask-source.js';
+import { grepSource, orientSource, readChanged, readSource, readTaint, searchSource, wholeSource } from './ask-source.js';
+import { readingFor } from './report-source.js';
+import type { Here } from './share.js';
 import { readVantage } from './watch.js';
 
 /**
@@ -56,8 +58,8 @@ import { readVantage } from './watch.js';
  * `VARIANCE_AUTHORITY_VANTAGE` the suite was started with — the reader asks on
  * the string it already had to set.
  *
- * The checkout is the third. `search`, `symbol`, `uses`, `entrypoint`,
- * `packages` and `gaps` are the tools `@variance-authority/help` serves, and
+ * The checkout is the third. `search`, `grep`, `orient`, `symbol`, `uses`,
+ * `entrypoint`, `packages` and `gaps` are the tools `@variance-authority/help` serves, and
  * they read the source tree under the working directory: what each package
  * publishes, who imports a name, where a thing somebody can only describe is
  * declared. No run has to have happened and no config has to exist, which is
@@ -139,10 +141,12 @@ export interface AskRequest {
   readonly at?: string;
   /** `--format json`: the answer as data. Only `search` answers in it. */
   readonly format?: 'json';
-  /** The configured report. Names the directory the previous subject is kept in. */
+  /** The configured report. Names the directory the previous subject is kept in, or, when a line is read in its place, the kept copy does. */
   readonly report: string;
   /** The report to answer from — the configured one, or the shards the operator named. */
   readonly read: () => Promise<RunReport>;
+  /** Where the share is read from when the configured report is absent. Injected so a test need not move the process. */
+  readonly here?: Here;
   /** How a watcher is read. Injected so the live path is testable without a socket. */
   readonly look?: (at: string) => Promise<VantageReading>;
   /** How the checkout is read. Injected so the source path is testable without a repository. */
@@ -160,7 +164,7 @@ type Flagged = Pick<
 
 /**
  * What a question about the code takes: every flag `ask` accepts, and nothing
- * about a run. Every flag rather than the six these tools take, so a
+ * about a run. Every flag rather than the seven these tools take, so a
  * `--subject` typed at `search` is refused by name like it is everywhere else,
  * instead of being dropped on the way in and answered around.
  */
@@ -238,9 +242,12 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // `search` opens its own published file in place rather than the whole
   // value, which is most of what a large repository's question costs. The
   // answer is the tool's, over the same generation.
-  const answering = request.source === undefined && tool.name === search.name
-    ? await searchSource(process.cwd(), input, reading)
-    : await wholeSource(request.source ?? readSource, tool, input, reading);
+  const answering =
+    request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
+    : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
+    : tool.name === grep.name ? await grepSource(process.cwd(), input)
+    : tool.name === orient.name ? orientSource(input)
+    : await wholeSource(readSource, tool, input, reading);
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where
@@ -255,7 +262,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
       return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at }) }, undefined, 2)}\n`;
     }
     const answer = answering.answer();
-    return `${at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`}\n`;
+    return `${at === undefined ? answer : `${answer}\nSnapshot ${at}.`}\n`;
   } catch (refusal) {
     throw new OperatorError(refusal instanceof Error ? refusal.message : String(refusal), { cause: refusal });
   }
@@ -295,8 +302,10 @@ async function finished(
   const tool = question.report;
   if (tool === undefined) throw noWatcher(question);
 
-  const asked = join(dirname(request.report), ASKED);
-  const report = await request.read();
+  // Read first: a report fetched from the share keeps its subject beside the
+  // fetched copy, never beside `config.report`, where it would outlive nothing.
+  const { report, path, says } = await readingFor(request, input);
+  const asked = join(dirname(path), ASKED);
   const previous = await recorded(asked);
   // A path is a fact about a tree, and this is the one side of the product that
   // is already standing in one. Read only for the questions that say they need
@@ -311,7 +320,7 @@ async function finished(
   // After the answer and only after it, which is the MCP rule verbatim: a
   // refused call must not become the thing the next diff compares against.
   await record(asked, report);
-  return answer;
+  return says === undefined ? answer : `${says}\n\n${answer}`;
 }
 
 /**
@@ -421,9 +430,7 @@ function flagged(request: Flagged): Readonly<Record<string, unknown>> {
  */
 export function questions(): string {
   return [
-    'Ask a question about a visual run, or about the code. Each answer is the answer',
-    '`variance serve` or the workspace API server gives an MCP client for the same',
-    'question, from the same function, without the client.',
+    'Ask about a visual run, a running suite, or the code.',
     '',
     'ABOUT THE LAST RUN',
     '',
@@ -435,6 +442,7 @@ export function questions(): string {
     '',
     ...(HELP_TOOLS as readonly Tool<Help>[]).flatMap(entry),
     'The report is the configured one unless report paths are named.',
+    'With no configured report on disk, it is read from the share: your branch\'s line, then the mainline\'s.',
     '`--config` and sharded reports work as they do on `variance report`.',
     `Live questions need \`--at <address>\`, which defaults to \`${VANTAGE_VARIABLE}\`;`,
     '`variance watch` starts a watcher and prints both.',

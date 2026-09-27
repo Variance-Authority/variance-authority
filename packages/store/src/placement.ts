@@ -1,7 +1,7 @@
 // compass: variance-authority.retention
 
 import { join } from 'node:path';
-import { fileNameFor, type Digest } from '@variance-authority/core/format';
+import { digestFileName, digestOfFileName, fileNameFor, type Digest } from '@variance-authority/core/format';
 import { RasterStoreError, type BaselineKey } from '@variance-authority/raster';
 
 /**
@@ -39,17 +39,37 @@ import { RasterStoreError, type BaselineKey } from '@variance-authority/raster';
 export type BaselineLayout = 'flat' | 'beside';
 
 /**
- * What an identity directory is named, so a scan can tell one from a neighbour.
+ * The identity an identity directory is named for, or `undefined` for a neighbour.
  *
  * `flat` never needed this — everything under the root was a partition. `beside`
  * puts partitions among the subject's own siblings, where `Button/` and
  * `by-document/` are directories too, and a sibling scan that reported them as
  * machine identities would answer `incomparable` naming a component.
+ *
+ * Both spellings answer, so a scan sums a machine's partition however it is
+ * spelled: see {@link partitionsOf}.
  */
-export const IDENTITY_DIRECTORY = /^v1:[0-9a-f]{32}$/;
+export function identityOfPartition(name: string): Digest | undefined {
+  return digestOfFileName(name);
+}
 
-export function pathFor(holder: string, identity: Digest, key: BaselineKey, layout: BaselineLayout): string {
-  return join(holder, identity, fileNameFor(fileName(key, layout)));
+/**
+ * The directory names a partition for this identity may hold, the written one first.
+ *
+ * Only the first is ever written: `v1-<hex>`, from `digestFileName`, because the
+ * raw digest's colon is a name NTFS refuses and `actions/upload-artifact` will
+ * not carry. The second is the raw digest, which is what the store wrote before,
+ * and it is read so that a repository holding baselines under that name keeps
+ * comparing against them — a lookup that stopped at the new name would call
+ * every one of them `new` and record over it. `put` retires the old pair when
+ * it writes the new one, so a subject leaves the fallback on its next accept.
+ */
+export function partitionsOf(identity: Digest): readonly [written: string, legacy: string] {
+  return [digestFileName(identity), identity];
+}
+
+export function pathFor(holder: string, partition: string, key: BaselineKey, layout: BaselineLayout): string {
+  return join(holder, partition, fileNameFor(fileName(key, layout)));
 }
 
 /**

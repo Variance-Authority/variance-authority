@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/sense",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.",
   "keywords": [
     "variance-authority",
@@ -57,6 +57,10 @@
       "types": "./dist/test-selection/journey.d.ts",
       "default": "./dist/test-selection/journey.js"
     },
+    "./story": {
+      "types": "./dist/story/index.d.ts",
+      "default": "./dist/story/index.js"
+    },
     "./vitest": {
       "types": "./dist/test-selection/vitest.d.ts",
       "default": "./dist/test-selection/vitest.js"
@@ -86,7 +90,8 @@
       "default": "./dist/test-selection/runner.js"
     },
     "./jest-setup": "./dist/test-selection/jest-setup.cjs",
-    "./jest-globals": "./dist/test-selection/jest-globals.cjs"
+    "./jest-globals": "./dist/test-selection/jest-globals.cjs",
+    "./case-journey": "./dist/test-selection/case-journey.cjs"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -113,18 +118,13 @@
     "@variance-authority/wire": "workspace:^",
     "oxc-parser": "^0.144.0",
     "oxc-resolver": "^11.24.2",
-    "picomatch": "^4.0.7",
-    "web-tree-sitter": "^0.25.10"
+    "picomatch": "^4.0.7"
   },
   "optionalDependencies": {
     "@variance-authority/sense-darwin-arm64": "workspace:*",
     "@variance-authority/sense-linux-arm64-gnu": "workspace:*",
     "@variance-authority/sense-linux-x64-gnu": "workspace:*",
-    "@variance-authority/sense-win32-x64-msvc": "workspace:*",
-    "tree-sitter-java": "^0.23.5",
-    "tree-sitter-python": "^0.25.0",
-    "tree-sitter-rust": "^0.24.0",
-    "tree-sitter-wasms": "^0.1.13"
+    "@variance-authority/sense-win32-x64-msvc": "workspace:*"
   },
   "peerDependencies": {
     "vitest": "^2.1.9 || ^3.0.0 || ^4.0.0"
@@ -136,7 +136,14 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.5.1",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/context-async-hooks": "^2.11.0",
+    "@opentelemetry/instrumentation": "^0.222.0",
+    "@opentelemetry/instrumentation-http": "^0.222.0",
+    "@opentelemetry/instrumentation-undici": "^0.32.0",
+    "@opentelemetry/sdk-trace-node": "^2.11.0",
     "@rstest/core": "^0.12.0",
+    "@sentry/node": "^11.0.0",
     "@swc/core": "^1.16.2",
     "@swc/jest": "^0.2.39",
     "@types/picomatch": "^4.0.3",

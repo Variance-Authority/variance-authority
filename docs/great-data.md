@@ -1,13 +1,13 @@
 # Ask one run more than whether it passed
 
-Your build went green, or you approved the diff and closed the report. Nothing a
-[Variance Authority](README.md) run observed while getting there has gone
-anywhere, and most of what you can now ask it has nothing to do with pixels.
+Your build went green, or you approved the diff and closed the report. Everything a
+[Variance Authority](README.md) run observed while getting there is still
+there, and most of what you can now ask it has nothing to do with pixels.
 
 `toHaveScreenshot`, Percy, Chromatic and Argos end at the comparison. They
 answer a red build with a pixel count and two images, and once you have reviewed
-the diff the reading is spent. A Variance Authority run also writes down what it
-saw while it was there: which **subject** rendered — one named UI state you
+the diff there is nothing more to ask it. A Variance Authority run also writes down what it
+saw while it was there: which [**subject**](information.md#things-a-run-addresses) rendered — one named UI state you
 asked for and can ask for again — and which components drew which regions, at
 which `file:line`. Add a semantic snapshot, a [source index](source-index.md) or
 an execution journal to the run and the same record also gains the accessible
@@ -49,21 +49,20 @@ and showing that the diff touched none of them:
 
 ```text
 [not observed] story:checkout--summary
-not affected by the diff against origin/main: its baseline records 4 component(s)
-and this diff touched none of them (Button, Badge, Toggle)
+not affected by the diff against origin/main: none of its 4 components touched
 ```
 
 How much that saves is decided by where your diff sits, not by how large it is.
 Measured on [Material UI](https://github.com/mui/material-ui)'s recorded suite
 of 184 test files, a five-file diff confined to one subtree runs 31 of them; the
 same five files scattered across the repository run 155, because the tests
-really did cover all of that. Adjacent files share most of their audience, and a
+did cover all of that. Adjacent files share most of their audience, and a
 utility most of the library imports is a hub that correctly selects almost
 everything. [Addressing scale](scale.md) shows that arithmetic, and one
 recording of your own suite answers it for your repository rather than for this
 one.
 
-## What else the data powers
+## What else the record answers
 
 Each row is one capability, its evidence, and the question you would be asking
 when you use it.

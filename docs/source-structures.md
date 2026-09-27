@@ -20,19 +20,34 @@ and save cost.
 
 ## Scale
 
-Every figure on this page and on [what a source scan costs](performance.md) was measured
-on one checkout this project did not write: [Material UI](https://github.com/mui/material-ui)
-at `8f19b1009b` — 41,171 tracked paths, 24,519 of them modules, 24.9 MB of
-source. A cold scan of it rebuilds 24,908 records.
+Every figure on this page was measured on one of two checkouts this project did
+not write. [Material UI](https://github.com/mui/material-ui) at `8f19b1009b` is
+41,171 tracked paths, 24,519 of them modules, 24.9 MB of source, and
+[what a source scan costs](performance.md) is measured on it too. A cold scan of
+it rebuilds 24,908 records. [Kibana](https://github.com/elastic/kibana) at
+`df0daaddcc` is 125,804 tracked paths. The scan reads three of its directories,
+`src`, `x-pack` and `packages`, which hold 105,900 modules and 465.2 MB of
+source, and a cold scan of them rebuilds 106,215 records. Every Kibana timing on
+this page is the median of three runs on an M4 Max, and both Kibana tables come
+from [`source-index.mjs`](../packages/sense/scripts/source-index.mjs).
 
-| That tree is | Total | Records rebuilt | Files opened |
-| --- | --- | --- | --- |
-| new — no index at all | 586 ms | 24,908 | 78 |
-| unchanged since the last run | 301 ms | 1 | 0 |
-| four files edited | 320 ms | 5 | 4 |
-| one file added | 362 ms | 105 | 104 |
+| That tree is | Checkout | Total | Records rebuilt | Files opened |
+| --- | --- | --- | --- | --- |
+| new — no index at all | Material UI | 586 ms | 24,908 | 78 |
+| | Kibana | 6,344 ms | 106,215 | 265 |
+| unchanged since the last run | Material UI | 301 ms | 1 | 0 |
+| | Kibana | 2,117 ms | 0 | 0 |
+| four files edited | Material UI | 320 ms | 5 | 4 |
+| | Kibana | 2,355 ms | 4 | 4 |
+| one file added | Material UI | 362 ms | 105 | 104 |
+| | Kibana | 2,468 ms | 111 | 111 |
 
 The first row happens once per machine. The rest is what you pay per run.
+
+Files opened does not count every file a scan reads. A scan with ten thousand
+or more records to rebuild reads, parses and resolves them in a single native
+call, and the column counts only the files read outside it, so Kibana's cold
+row shows a few hundred files, not a hundred thousand.
 
 The index lives in [your cache](cache.md), in a directory named for a digest of
 the checkout path:
@@ -52,7 +67,7 @@ and pays for the files that differ between the two, not the first row.
 | You change | What is rebuilt |
 | --- | --- |
 | the contents of a file | that one file's record, and its parse if those exact bytes have never appeared at another path in any branch |
-| a file added, moved or deleted | only the records whose imports could have been answered from the affected directory — 105 of 24,908 for one added file above |
+| a file added, moved or deleted | only the records whose imports could have been answered from the affected directory. For one added file that is 105 of Material UI's 24,908, and 111 of Kibana's 106,215 |
 | `package.json`, `jsconfig.json`, `deno.json`, `pnpm-workspace.yaml`, any lock file, or any `tsconfig*.json` | the whole index. One `paths` entry redirects every `@/` specifier in the repository, so no record survives |
 | `source.dirs` — the directories scanned | nothing. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work and neither invalidates the other |
 
@@ -60,42 +75,78 @@ Two more, neither of them yours to change: upgrading to a release that changes
 what a record includes rebuilds the index once, and a type-only import is not a
 rebuild trigger for anything downstream — see [edge kinds](#can-you-choose-the-edge-kinds).
 
+How many records one added file rebuilds depends on the directory it lands in.
+Over the directories that some record's imports could be answered from, the
+count in Material UI is 7 at the median, 36 at the 90th percentile and 242 at
+the 99th, and 21,500 for the widest, `packages/mui-icons-material/lib/utils`. In
+Kibana it is 5, 29 and 261, and 37,126 — 35% of the index — for
+`src/platform/packages/shared`. A record that imports a package through a
+`paths` pattern could have been answered from the directory the pattern points
+into, and 222 of Kibana's `paths` patterns name a package that sits directly in
+that one.
+
 ## Three ways the index silently stops working
 
 Each of these leaves the tool running and answering. What you see is a run that
-is slower than it should be, or a selection wider than it should be, and the
-config is the cause.
+is slower than it should be, a selection wider than it should be, or tests that
+are not selected at all, and the config is the cause.
 
-### A `tsconfig` that `extends` a package
+### A `tsconfig` the scan cannot follow
 
 To bound what a new file could change, the scan reads the `paths` and `baseUrl`
 patterns out of every `tsconfig.json` and `jsconfig.json` in the tree — every
 one, because resolution discovers the nearest config per file, so the bound has
-to cover all of them. A config that is not valid JSON, or whose `extends`
-names a package rather than a relative path, cannot be followed: the file it
-names lives in `node_modules`, which the scan does not read.
+to cover all of them — and out of every base each of them `extends`. A relative
+`extends` is read where it points. A package `extends`, such as
+`"@company/tsconfig/base.json"`, is followed the way the resolver follows it:
+through the `node_modules` link your package manager made, then the package's
+`exports`, to the file it names — the package's `tsconfig.json` when the
+`extends` names only the package. In a workspace, that link leads back into your
+repository, and the base is read there.
 
-One such config anywhere in the tree removes the bound for the whole tree. With
-no bound, every tracked path is folded into the configuration digest, and then
-**any** file appearing or disappearing invalidates **every** record. The symptom
-is that every run is cold: `variance run` never reuses anything, and the timing
-sits near the 586 ms row rather than the 362 ms one.
+Every base has to land on a `tsconfig*.json` or `jsconfig.json` that git tracks,
+because tracked files are what the index keys its records on. The scan cannot
+follow a config that is not valid JSON, or one whose `extends`:
 
-`extends: "@company/tsconfig/base.json"` is an ordinary thing to write in a
-monorepo. Replace it with a relative path to the same file, or accept a cold
-index.
+- names a package that is not installed, so nothing resolves;
+- names a package installed from a registry, such as `@tsconfig/strictest`,
+  whose file sits in `node_modules`, which git does not track;
+- resolves to a file outside your checkout, or is an absolute path;
+- lands on a file with any other name, such as `base.json`.
+
+One such config anywhere in the tree, or anywhere in the chain of bases a config
+extends, removes the bound for the whole tree. With no bound, every tracked path
+is folded into the configuration digest, and then **any** file appearing or
+disappearing invalidates **every** record. The symptom is that a run is cold
+whenever a file was added, moved or deleted since the last one: `variance run`
+reuses no record, and the timing sits near the 586 ms row rather than the 362 ms
+one. A run that only edits files still reuses every record but the edited ones.
+
+A base your repository tracks restores the bound: a workspace package, or a
+relative path to a `tsconfig*.json`. When the base comes from a registry, write
+the options you use from it into a tracked base instead.
+
+Kibana keeps its base in a workspace package: 1,527 of its 1,534 `tsconfig`
+files extend `@kbn/tsconfig-base/tsconfig.json`, whose link leads back to
+`packages/kbn-tsconfig/base`, and through it they inherit the 3,004 `paths`
+patterns of the root `tsconfig.base.json`. One file added to Kibana rebuilds 111
+records, in [the table above](#scale).
 
 ### A workspace dependency that resolves through `dist`
 
 `@scope/other` normally resolves through the `node_modules` symlink into that
-package's `dist`. The scan never descends into `dist`, so the edge is dropped —
-and a change in one package then reaches nothing in another. The dependent
-package's tests are not selected, and nothing says so, because from the graph's
-side there was never an edge to miss.
+package's `dist`. When the package's `tsconfig` names both `outDir` and
+`rootDir` and emits code, the scan reads that target as the source file it is
+emitted from, whether or not `dist` exists. Otherwise the scan never descends
+into `dist`, so the edge is dropped — and a change in one package then reaches nothing in
+another. The dependent package's tests are not selected, and nothing says so,
+because from the graph's side there was never an edge to miss.
 
 The edge is ordinary when resolution lands in source instead. Any one of these
 is enough, per depended-on package:
 
+- a `tsconfig` that builds `src` into `dist`, names both `rootDir` and
+  `outDir`, and sets neither `noEmit` nor `emitDeclarationOnly`;
 - a `source` export condition in its `package.json` pointing at `src`;
 - a `main` naming a `.ts` file;
 - importing a subpath that names a file in the package's `src` directly.
@@ -154,15 +205,19 @@ checkout the status is asked with `--untracked-files=normal` and no pathspec,
 the one shape git's untracked cache answers, and any directory it reports whole
 is listed with `git ls-files --others --exclude-standard`. Below the top it is
 asked with `--untracked-files=all -- .`. Every path the status names is
-re-hashed in one `git hash-object --stdin-paths` call. Deleted and renamed-away paths are dropped. An ignored path, or one the
-hash failed on, gets no entry, and the scan hashes it itself on read.
+re-hashed in one `git hash-object --stdin-paths` call, except a path that is not
+a file on disk: a submodule, or a link to a directory or to nothing, has no bytes
+to hash and would fail the call for every file in it. Deleted and renamed-away
+paths are dropped. An ignored path, one that is not a file, or one in a call the
+hash failed on gets no entry, and the scan hashes any file among them itself on
+read.
 
 **Key.** The repository-relative path, forward-slashed.
 
 **Lookup.** One map read, O(1).
 
 **Cost to build.** Three subprocesses, or four when the status collapsed a new
-directory, the last hashing every dirty path in one batch: O(n) to parse the tree listing and O(d) to hash. Outside a git checkout
+directory, the last hashing every dirty file in one batch: O(n) to parse the tree listing and O(d) to hash. Outside a git checkout
 none of this is available, nothing is reused, and every file is read and hashed —
 so a run in an exported tarball or a non-git checkout pays the cold column every
 time.
@@ -188,8 +243,10 @@ branch, so an entry is never invalidated; it is dropped when a scan neither read
 nor writes it.
 
 The key is computed once per file in the repository on every run, including runs
-that open nothing. On the 41,171-path tree above, hashing 24,908 of them costs
-17 ms of a warm run that takes 344.
+that open nothing, so its parts are joined rather than hashed. On the 41,171-path
+tree above, hashing 24,908 of them would cost 17 ms of a warm run that takes 344.
+On Kibana, hashing every key would cost 46.7 ms of the 2,117 ms warm run in the
+table above, and joining them costs 1.9 ms.
 
 **What is not in it.** Resolution. Specifiers go in; edges do not.
 
@@ -227,7 +284,8 @@ Building it is O(n) for the filter and O(n log n) for the sort.
 
 **Directories.** The path set is bucketed into one entry-name set per directory
 and each sorted set digested, in O(n) over path segments. Comparing two such maps
-is the symmetric difference, O(k). On the 41,171-path tree, k is about 1,500.
+is the symmetric difference, O(k). On the 41,171-path tree, k is about 1,500. On
+Kibana's 125,804 paths, k, the number of directories, is 29,589.
 
 **Witnesses.** Each record lists the repository-relative directories that could
 have answered its specifiers: for `./x` from `D`, `D` and `D/x` when `D/x` is a

@@ -159,13 +159,16 @@ function instability(report: RunReport): readonly string[] {
   if (unstable.length === 0) return absorbedInstability(report);
 
   const bands = new Set(unstable.flatMap((o) => o.unstable?.bands ?? []));
+  // Said once when no subject has a record, which is every subject on a run
+  // with no history configured; per subject only when some do.
+  const unrecorded = unstable.every((o) => report.flakiness?.[o.subject] === undefined);
 
   return [
     '',
-    `UNSTABLE: ${unstable.length} subject(s) were read twice, seconds apart, with nothing`,
-    '  changed in between, and the two readings disagreed. Their verdicts were decided by',
-    '  whichever reading came first, so do not review their regions and do not accept them',
-    '  (`accept` refuses these). Fix what moves between two readings of the same page:',
+    `UNSTABLE: ${unstable.length} subject(s) read twice seconds apart, nothing changed between,`,
+    '  and the readings disagreed. Do not review or accept them (`accept` refuses).',
+    ...(unrecorded ? [`  ${NO_RECORD}.`] : []),
+    '  Fix what differs between the two readings:',
     ...unstable.flatMap((observation) => {
       const moved = observation.unstable;
       const named = (moved?.components ?? [])
@@ -175,16 +178,16 @@ function instability(report: RunReport): readonly string[] {
         .join(', ');
       const where = named === '' ? '' : ` — ${named}`;
       const inBands = moved === undefined || moved.bands.length === 0 ? '' : ` (${moved.bands.join(', ')})`;
-      return [`    ${observation.subject}${where}${inBands}`, ...recurrence(report, observation.subject)];
+      const history = unrecorded ? [] : recurrence(report, observation.subject);
+      return [`    ${observation.subject}${where}${inBands}`, ...history];
     }),
     ...remedies(bands),
     // The loop closes here. Everything above tells a reader what moved and how
     // often; this is the one line that says how to find out whether the edit
     // they are about to make worked — without re-running three hundred subjects
     // and without waiting for tomorrow's build to be the experiment.
-    '  Check a fix by reading the same subject twice again, and nothing else:',
+    '  Check a fix; it exits 1 while the readings disagree, even with every verdict green:',
     ...unstable.map((observation) => `    variance run --subjects '${observation.subject}' --flakes`),
-    '  It exits 1 while the two readings still disagree, even with every verdict green.',
     ...absorbedInstability(report),
   ];
 }
@@ -214,6 +217,9 @@ function drift(report: RunReport): readonly string[] {
   ];
 }
 
+/** A subject no history record answered for. Silence, never a first occurrence. */
+const NO_RECORD = 'No history record: recurrence unknown';
+
 /**
  * What the record says about a subject that just read differently.
  *
@@ -229,12 +235,7 @@ function drift(report: RunReport): readonly string[] {
 function recurrence(report: RunReport, subject: string): readonly string[] {
   const record = report.flakiness?.[subject];
 
-  if (record === undefined) {
-    return [
-      '      no history record answered for this subject, so nothing here says whether it has',
-      '      happened before. That is silence, not a first occurrence.',
-    ];
-  }
+  if (record === undefined) return [`      ${NO_RECORD.toLowerCase()}`];
 
   const shape =
     record.sweepsSince > 0 && record.occurrences > 1
@@ -284,10 +285,12 @@ function absorbedInstability(report: RunReport): readonly string[] {
  * subject is flaky" has a page to read; one handed `content` has four candidates
  * and can check all of them in a minute.
  *
- * Masking is listed last and hedged, deliberately. A clock genuinely is a clock
- * and an ignore is the right answer for it — but reaching for one first is how a
- * suite ends up green over a surface nobody watches, and the same mask that hides
- * this hides the regression that later lands in the same place.
+ * Masking is listed last, deliberately, and scoped to the element. A clock
+ * genuinely is a clock and an ignore is the right answer for it — but reaching
+ * for one first is how a suite ends up green over a surface nobody watches, and
+ * the same mask that hides this hides the regression that later lands in the
+ * same place. The mask names the element rather than the subject because an
+ * element-scoped ignore follows the component when layout moves.
  */
 function remedies(bands: ReadonlySet<string>): readonly string[] {
   const lines = [...BAND_REMEDY].filter(([band]) => bands.has(band)).map(([, hint]) => `    ${hint}`);
@@ -296,10 +299,7 @@ function remedies(bands: ReadonlySet<string>): readonly string[] {
   return [
     '  What each band that moved usually means:',
     ...lines,
-    '  If the movement is genuinely inherent to the subject — a real clock, a live feed —',
-    '  mask the *element* rather than accept the subject: the component named above is it,',
-    '  and an element-scoped ignore follows it when layout moves. Reach for that second, not',
-    '  first: a mask hides the next regression that lands in the same place.',
+    '  Inherent movement (a real clock, a live feed): mask the element named above, not the subject.',
   ];
 }
 

@@ -11,6 +11,7 @@ import {
   RETENTION_VARIABLE,
   REVIEW_TOKEN_VARIABLE,
   REVIEWER_VARIABLE,
+  SHARE_TOKEN_VARIABLE,
   STORAGE_VARIABLE,
   TRUST_NETWORK_VARIABLE,
   authorizeFor,
@@ -124,6 +125,16 @@ describe('who is allowed what', () => {
 
     expect(authorize(request(INGEST))).toBe('ingest');
     expect(authorize(request(REVIEW))).toBe('review');
+  });
+
+  it('gives the share token the share, and only when one was configured', () => {
+    const SHARE = 'share-token-0123456789';
+    const config = readConfig(env({ [SHARE_TOKEN_VARIABLE]: SHARE }));
+
+    expect(config.shareToken).toBe(SHARE);
+    expect(authorizeFor(config)(request(SHARE))).toBe('share');
+    expect(readConfig(env()).shareToken).toBeUndefined();
+    expect(authorizeFor(readConfig(env()))(request(SHARE))).toBeNull();
   });
 
   it('refuses a token it does not know, even on loopback', () => {

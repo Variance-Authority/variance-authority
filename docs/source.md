@@ -119,6 +119,17 @@ side, because there is no record there to continue from.
 stylesheet extension: `./config` finds `src/config.json` when nothing else
 answers, and records the same `asset` edge.
 
+A declaration file is tried last, and only when the request finds no other
+file, inside your repository or outside it. `./context` finds
+`src/context.d.ts` when no module, stylesheet or `.json` file of that name sits
+beside it, and so does `./context.js`, the way `nodenext` writes the request,
+when there is no `context.js`. A package of shared types is connected file to
+file this way. Beside a `.js` the `.js` stays the target. TypeScript checks your
+types against the declaration there, but the `.js` is what a runtime import
+loads, and a change to it has to reach the files that import it. A declaration
+under a build's `outDir` never answers this way, so a request into built output
+resolves the same whether you have built or not.
+
 ## Requests, bindings and published names
 
 A **request** is one import, re-export, literal `import()`, or literal
@@ -193,8 +204,13 @@ names a path no case-sensitive checkout contains.
 `source.dirs` identifies where the scan starts. It does not fence the graph. A
 file under `src/` that imports `../design/button.css` brings that stylesheet into
 the result, and the stylesheet's own requests continue the walk. Directories the
-scan never descends into are fixed: `node_modules`, `dist`, `build`, `coverage`,
-`.git`, `.next`, and `.turbo`.
+scan declines are fixed: `node_modules`, `dist`, `tsDist`, `build`, `coverage`,
+`storybook-static`, `.git`, `.next`, and `.turbo`. Git can overrule the name
+`build` and no other: a file Git lists under a `build/` directory is source, so
+the scan reads it and your imports of it become edges. A `build/` your
+`.gitignore` covers stays declined, and the rest stay declined whatever Git
+tracks. A scan with `digests: false` does not ask Git, so it declines every
+`build/`.
 
 Traversal stops at the repository edge. Builtins, installed dependencies, and
 paths above `root` cannot be named by a diff in this repository, so they do not
@@ -204,21 +220,63 @@ become file edges.
 
 A bare request for a package in the same repository resolves through the
 `node_modules` symlink onto that package's real directory, and the package's own
-manifest decides which file it lands on. The excluded directories apply to
-resolved targets as well as to traversal, so a manifest naming only built output
-produces no edge:
+manifest decides which file it lands on. When that file is built output, the
+package's `tsconfig` decides which source file it is. A target under `outDir` is
+read as the file under `rootDir` that TypeScript emits it from:
 
 ```json
 { "name": "@scope/ui", "exports": { ".": { "default": "./dist/index.js" } } }
 ```
 
-`import { Button } from '@scope/ui'` lands on that package's `dist/index.js`,
-which is outside the graph. The importing record keeps `@scope/ui` under `unresolved`
-and has no `unknown` reason, because a bare specifier normally names a
-dependency rather than repository source. An edit to the package's own
-`src/Button.tsx` then reaches nothing in the consuming package.
+```json
+{ "compilerOptions": { "rootDir": "./src", "outDir": "./dist" } }
+```
 
-Three arrangements give the edge back, and one is enough.
+`import { Button } from '@scope/ui'` records `imports → packages/ui/src/index.ts`,
+and the walk continues through that package's files like any other. The answer
+is the same whether `dist/` exists or not, so you do not build before a scan. A
+file a build left behind after its source was deleted is not a target, and its
+specifier stays under `unresolved`. A declaration file reads the same way:
+`dist/index.d.ts` is `src/index.ts`.
+
+The scan reads this from every `tsconfig*.json` in a package directory, with the
+values `tsc` would use: `extends` is followed, a relative path is relative to the
+config that writes it, and `${configDir}` is expanded. `tsconfig.json` is read
+first and the rest in name order. When several configs write into one
+`outDir`, each `rootDir` is tried in that order and the first that holds the
+source answers, so a `tsconfig.json` that sets `rootDir: "."` for the editor
+and a `tsconfig.build.json` that narrows it to `src` read together.
+
+The scan needs both `outDir` and `rootDir`. Without `rootDir`, TypeScript 5 and
+TypeScript 6 compute different source trees for the same `outDir`, so the scan
+does not choose one. A config that sets `noEmit` writes nothing, so it is
+skipped: a package that type-checks with `tsconfig.json` and builds with
+`tsconfig.build.json` is read through the second. A config that sets
+`emitDeclarationOnly` writes declarations and no code, so its `.d.ts` files map
+and the code beside them, which a bundler wrote, is read as it is. When the scan
+takes the tree's layout from Git, a config Git ignores is not read; a scan that
+reads the checkout directly, such as one with `digests: false`, reads it. A
+package under `node_modules` is never read this way, because its source is not
+in your repository.
+
+The excluded directories apply to resolved targets as well as to traversal, so
+built output the scan cannot map to a source produces no edge when it sits under
+one of them, such as `dist/`, or a `build/` Git does not track. That covers a
+package whose bundler writes the code while its `tsconfig` sets `noEmit` or
+`emitDeclarationOnly`, a `tsconfig` with no `rootDir`, and a file under `outDir`
+that TypeScript does not emit, such as a stylesheet a build step copies. The
+importing record keeps the specifier under `unresolved` and has no `unknown`
+reason, because a bare specifier normally names a dependency rather than
+repository source. An edit to that package's own `src/Button.tsx` then reaches
+nothing in the consuming package. Output the scan cannot map under a directory
+it does not exclude, such as `lib/`, or under a `build/` Git tracks, is a target
+like any other file: the edge lands on the build, and the walk continues through
+it rather than through the source.
+
+Four arrangements give that edge back, and one is enough.
+
+**A `tsconfig` that names both directories**, as above, in a config that emits
+code. It asks nothing of the package manifest.
 
 **A `source` export condition.** `source` leads the default `conditionNames`,
 ahead of `import`, `require` and `default`:
@@ -242,7 +300,7 @@ are read as `source`, `module`, `main`.
 { "compilerOptions": { "baseUrl": ".", "paths": { "@scope/*": ["packages/*/src"] } } }
 ```
 
-When none of the three is available—a vendored package, or a manifest you do not
+When none of the four is available—a vendored package, or a manifest you do not
 own—the relationship stays outside the scan, and a workspace tool supplies it at
 project granularity. `source.changes` in the CLI configuration asks `nx` or
 `turbo` which projects a diff affects and treats every file under each named
@@ -252,8 +310,8 @@ project as changed input:
 { "source": { "changes": { "tool": "turbo", "task": "build" } } }
 ```
 
-That widens by whole package rather than by file, and it is the only path that
-does not require a manifest or alias change.
+That widens by whole package rather than by file, and it is the only one that
+leaves the package and the aliases as they are.
 [`selecting.md`](selecting.md#what-nx-and-turbo-know-that-a-scan-cannot) owns how
 those seeds affect a run.
 
@@ -438,11 +496,13 @@ noticing, even though it changes which path a request resolves to, and a reused
 record then names the wrong target. Track the file, or pass `digests: false`,
 which reads and hashes the checkout directly and turns record reuse off.
 
-**Package edges are conditional.** A `source` export condition, a `source` main
-field or a path mapping keeps a workspace edge inside the repository; a manifest
-resolving only to built output does not, and the workspace tool's
-affected-project answer supplies that boundary at project granularity. See
-[Workspace packages](#workspace-packages).
+**Package edges are conditional.** Built output that the package's `tsconfig`
+maps to a source file, a `source` export condition, a `source` main field or a
+path mapping keeps a workspace edge inside the repository. Built output that
+none of them maps does not, and the workspace tool's affected-project answer
+supplies that boundary at project granularity. Under an excluded directory such
+unmapped output produces no edge, and under one that is not, such as `lib/`, the
+edge lands on the build. See [Workspace packages](#workspace-packages).
 
 **Large files become unknown.** The default one-megabyte cap prevents generated
 barrels and bundles from consuming a scan's memory budget. Raising

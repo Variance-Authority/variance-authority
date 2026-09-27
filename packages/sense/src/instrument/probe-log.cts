@@ -437,6 +437,8 @@ function createEngine(scoped: boolean) {
     open,
     /** Make `bucket` the one the probes write into. */
     use,
+    /** The bucket the probes write into now. */
+    current: (): Bucket => current,
     /** The scope's resolver, where the bucket follows an async scope. */
     scope(resolver: () => Bucket): void {
       resolveNow = resolver;

@@ -3,13 +3,15 @@ import type { Help } from '@variance-authority/package/help';
 import { workspaceGeneration } from './read.js';
 import { entrypoint } from './tools/entrypoint.js';
 import { gaps } from './tools/gaps.js';
+import { grep } from './tools/grep.js';
+import { orient } from './tools/orient.js';
 import { packages } from './tools/packages.js';
 import { search } from './tools/search.js';
 import { symbol } from './tools/symbol.js';
 import { uses } from './tools/uses.js';
 
 /**
- * The six questions, and the order they are meant to be asked in.
+ * The eight questions, and the order they are meant to be asked in.
  *
  * `docs_packages` needs nothing and answers with the arguments the next call
  * takes; `docs_entrypoint` and `docs_search` narrow to a name; `docs_symbol`
@@ -24,6 +26,17 @@ import { uses } from './tools/uses.js';
  * knows the API and wants the local convention should not have to buy the
  * signature again to get it.
  *
+ * `docs_grep` is the one that is not about names. Text belongs to ripgrep, and
+ * the only thing added is the fact ripgrep cannot hold: which files a start
+ * point reaches. It comes after `docs_search` because a name is the cheaper
+ * answer, and a pattern is what is left when nothing is named.
+ *
+ * `docs_orient` is the widest, and comes after both for the same reason: it
+ * starts from words and answers with everything around the files they are in —
+ * packages, the names crossing their edges, the recorded cases that ran them —
+ * which is the most to read when a name would have done. Its answer ends in the
+ * narrower questions above, spelled with the names it printed.
+ *
  * `docs_gaps` is the one that is not for using the library. It is for the person
  * maintaining it, and it lives here rather than in a lint rule because the
  * reading that ranks it is the same reading, and an agent that has just been
@@ -35,28 +48,29 @@ function dated(tool: Tool<Help>): Tool<Help> {
     run(subject, input, invocation) {
       const answer = tool.run(subject, input, invocation);
       const at = workspaceGeneration(subject);
-      return at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`;
+      return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
     },
   };
 }
 
 /** The source-orientation tools shared by shell dispatch and the server. */
 export const HELP_TOOLS: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, gaps];
+  [packages, entrypoint, symbol, uses, search, grep, orient, gaps];
 
 const DATED_HELP_TOOLS = HELP_TOOLS.map(dated);
 
 export const SERVER_NAME = 'variance-authority-help';
 export const SERVER_VERSION = '0.0.0';
 
-/** What a server answers with: these six tools, over one workspace's reading. */
+/** What a server answers with: these eight tools, over one workspace's reading. */
 export const HELP: Served<Help> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
   tools: DATED_HELP_TOOLS,
 };
 
-export { entrypoint, gaps, packages, search, symbol, uses };
+export { entrypoint, gaps, grep, orient, packages, search, symbol, uses };
+export { formatOrientation, type Landing, type OrientReading } from './tools/orient-format.js';
 export { answerSearch, searchIndexOf } from './tools/search.js';
 export type {
   ExportedMatch,

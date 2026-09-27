@@ -8,7 +8,8 @@
  * single-normalizer split exists to prevent.
  *
  * So conditions are evaluated here, against the declared environment, and the
- * same code runs under both engines.
+ * same code runs under both engines. The one exception is the pointing device,
+ * which the declared environment does not hold: see `ConditionEnvironment.device`.
  */
 
 export interface ConditionEnvironment {
@@ -28,6 +29,53 @@ export interface ConditionEnvironment {
    * and it is why the engine is part of the environment key.
    */
   readonly supports?: (condition: string) => boolean | null;
+
+  /**
+   * The engine's answer for a pointing-device feature, or absent when no engine
+   * answers.
+   *
+   * `pointer`, `any-pointer`, `hover` and `any-hover` describe the input device,
+   * and nothing in the declared viewport says what that is. The engine does:
+   * Playwright's `hasTouch` and `isMobile` set it, and a desktop page answers
+   * `fine` and `hover`. Resolving every one of them to *matching* flattened a
+   * touch page and a desktop page into the same key, and painted a desktop
+   * baseline with the touch rules applied.
+   */
+  readonly device?: (feature: string) => boolean | null;
+}
+
+const DEVICE_FEATURES = new Set(['pointer', 'any-pointer', 'hover', 'any-hover']);
+
+/**
+ * Ask the view's `matchMedia` about the pointing device, or return `null` when
+ * the view has no engine behind it.
+ *
+ * A stand-in is refused by asking two questions every engine answers the same
+ * way: `all` matches and `not all` does not. A JSDOM `matchMedia` is a stub
+ * that answers one constant for every query, so it fails one of the two.
+ */
+export function deviceProbe(view: Window | null): ((feature: string) => boolean | null) | null {
+  const matchMedia = view?.matchMedia?.bind(view);
+  if (matchMedia === undefined) return null;
+  try {
+    if (matchMedia('all').matches !== true || matchMedia('not all').matches !== false) return null;
+  } catch {
+    return null;
+  }
+
+  return (feature: string): boolean | null => {
+    try {
+      return matchMedia(`(${feature})`).matches;
+    } catch {
+      return null;
+    }
+  };
+}
+
+function askDevice(name: string, feature: string, environment: ConditionEnvironment): ConditionResult | null {
+  if (!DEVICE_FEATURES.has(name) || environment.device === undefined) return null;
+  const answer = environment.device(feature);
+  return answer === null ? null : { matches: answer, uncertain: false };
 }
 
 export interface ConditionResult {
@@ -132,7 +180,7 @@ function evaluateFeature(feature: string, environment: ConditionEnvironment): Co
 
   if (colon < 0) {
     // A boolean feature such as `(hover)` or `(color)`.
-    return { matches: true, uncertain: true };
+    return askDevice(feature.trim(), feature.trim(), environment) ?? { matches: true, uncertain: true };
   }
 
   const name = feature.slice(0, colon).trim();
@@ -165,7 +213,7 @@ function evaluateFeature(feature: string, environment: ConditionEnvironment): Co
     default: {
       const declared = environment.features?.[name];
       if (declared !== undefined) return { matches: declared === value, uncertain: false };
-      return { matches: true, uncertain: true };
+      return askDevice(name, `${name}: ${value}`, environment) ?? { matches: true, uncertain: true };
     }
   }
 }

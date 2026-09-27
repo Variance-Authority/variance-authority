@@ -49,14 +49,17 @@ const SCHEMA = join(ROOT, 'packages/cli/schema/variance.config.schema.json');
 /**
  * Closed objects in the schema that no `object(...)` call produces.
  *
- * One, and it is named rather than exempted by shape. `{ "env": "NAME" }` is
+ * Two, and each is named rather than exempted by shape. `{ "env": "NAME" }` is
  * read by `secret` and `declaredSecret` in `config-values.ts`, field by field,
  * because the alternative shape is a bare string and `object` answers one
- * question about one value. The schema still has to describe it, so the rule
- * that every schema object is claimed by a parser has exactly one exception and
- * that exception has a reason attached.
+ * question about one value. `{ "kind", "carry" }` under `suites` is read by
+ * `parseSuites` in `@variance-authority/sense`, because every test runner seam
+ * reads the declaration itself and the CLI carries that reading rather than
+ * writing its rules a second time. The schema still has to describe both, so
+ * the rule that every schema object is claimed by a parser has exactly these
+ * exceptions and each has a reason attached.
  */
-const HAND_READ: readonly (readonly string[])[] = [['env']];
+const HAND_READ: readonly (readonly string[])[] = [['env'], ['kind', 'carry']];
 
 type Node = Record<string, unknown> & { readonly type: string };
 

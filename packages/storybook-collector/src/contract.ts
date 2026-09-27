@@ -86,9 +86,12 @@ export interface PlannedSubject {
    * What the subject declares itself to be, from the artifact that produced it.
    *
    * Storybook's built index carries `tags` and does not carry a story's
-   * `parameters`, so a tag is the only per-story declaration that survives a
-   * build — and it is the right one anyway: what a subject *is* belongs in its
+   * `parameters`, so a tag is the one per-story declaration the index can plan
+   * from — and it is the right one anyway: what a subject *is* belongs in its
    * own name, next to it, rather than in a central file repeating every id.
+   * How a story is *read* — excluded, resized, read at several widths — comes
+   * from its parameters, which `withParameters` lays over this plan from the
+   * running preview.
    *
    * Selection lives here; definition lives in the config. A tag is a word a
    * story wears, and what that word *means* is the operator's to write down

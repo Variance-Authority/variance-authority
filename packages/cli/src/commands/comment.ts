@@ -4,14 +4,16 @@ import { docketOf } from './docket.js';
 import {
   bulkBlocks,
   causeBlocks,
-  clamp,
   coverageBlocks,
   driftBlocks,
-  footerBlocks,
-  headingBlocks,
+  foldBlocks,
+  leadBlocks,
+  metaBlocks,
+  skippedBlocks,
   warningBlocks,
   withoutCauseBlocks,
 } from './comment-blocks.js';
+import { picturesOf } from './comment-images.js';
 
 /**
  * The run report as a pull-request comment — the docket, put where acting on it
@@ -37,11 +39,16 @@ import {
  * moved with these changes" is a fact a reviewer can size, while their absence
  * without a number would be indistinguishable from their non-existence.
  *
- * Exactly one block precedes the causes, and it is the one no reviewer of this
- * pull request could have reached without it: a token's drift is a *sum* across
- * approvals, so it is invisible to the comparison the reviewer is looking at and
- * actionable only by the person about to approve the next step. See
- * {@link driftBlocks}.
+ * The first screen is the count, the leading cause, the report link and how to
+ * accept, and after them only what changes how that count reads: a warning that
+ * the images are of a substituted font, a token's drift, and the subjects the run
+ * could not observe. Drift is there because it is the one finding no reviewer of
+ * this pull request could have reached without it: a *sum* across approvals,
+ * invisible to the comparison they are looking at and actionable only by the
+ * person about to approve the next step. See {@link driftBlocks}. The docket
+ * itself — every cause, the bulk commands, what was skipped, what painted the
+ * images — sits whole under one `<details>`, because a phone is where the
+ * notification is opened and the docket is what a reviewer opens on purpose.
  *
  * **The comment exists exactly when the check is red, and one function decides
  * both.** {@link exitFor} owns the question. A second rule here — say, "comment
@@ -72,16 +79,17 @@ import {
  * ## Pure, and deliberately so
  *
  * Report in, string out. No network, no octokit, no clock, no filesystem — and no
- * runtime import beyond `../exit.js` and the two siblings this file was cut into,
+ * runtime import beyond `../exit.js` and the siblings this file was cut into,
  * none of which import anything either. That is not tidiness: it is what lets the
  * composite action render the body in a Node process that never loads a browser
  * driver, and what lets every claim above be a unit test over a hand-built report
  * instead of a job on a real pull request.
  *
- * ## The three files
+ * ## The four files
  *
  * `docket.ts` folds the report into review items and counts what it
  * refuses to list; `comment-blocks.ts` turns that docket into markdown;
+ * `comment-images.ts` spells the address of a picture the operator published;
  * `comment-text.ts` holds the two primitives both of them write through, so the
  * fold and the render can never escape a component name differently. This file
  * keeps the one decision the other two must not be allowed to make — whether a
@@ -145,6 +153,24 @@ export interface CommentOptions {
    * place nobody published to would be worse than omitting it.
    */
   readonly runUrl?: string;
+  /**
+   * How a reviewer accepts what the comment lists, in the operator's words.
+   *
+   * The comment is where the reviewer is when they decide, and accepting is the
+   * one step it cannot take for them. Where that step lives — a workflow to
+   * dispatch, a label, a command on a checkout — is this repository's policy, so
+   * the operator states it and nothing here guesses.
+   */
+  readonly toAccept?: string;
+  /**
+   * The URL the report's image paths resolve against, when the operator
+   * published the images somewhere a comment can show them.
+   *
+   * Absent, the comment carries no picture, because a comment cannot hold an
+   * image of its own and a link to a file nobody published is broken. Where
+   * they go — a branch, a bucket, a CDN — is the operator's, like the report link.
+   */
+  readonly imageRoot?: string;
   readonly limits?: Partial<CommentLimits>;
 }
 
@@ -164,18 +190,51 @@ export function renderComment(options: CommentOptions): string {
 
   const limits: CommentLimits = { ...DEFAULT_LIMITS, ...options.limits };
   const docket = docketOf(report);
+  const pictures = picturesOf(report, options.imageRoot);
 
   const blocks = [
     COMMENT_MARKER,
-    ...headingBlocks(report, docket),
-    ...driftBlocks(report, limits),
-    ...causeBlocks(docket, limits),
-    ...bulkBlocks(report, limits),
-    ...withoutCauseBlocks(docket, limits),
-    ...coverageBlocks(report, docket, limits),
+    ...leadBlocks(docket, options, pictures),
     ...warningBlocks(report, docket),
-    ...footerBlocks(options),
+    ...driftBlocks(report, limits),
+    ...coverageBlocks(report, docket, limits),
+    ...foldBlocks([
+      ...causeBlocks(docket, limits, pictures),
+      ...bulkBlocks(report, limits),
+      ...withoutCauseBlocks(docket, limits),
+      ...skippedBlocks(docket),
+      ...metaBlocks(report),
+    ]),
   ];
 
   return clamp(blocks.join('\n\n'), limits.characters);
+}
+
+/**
+ * Cut the body to fit, and say by how much.
+ *
+ * GitHub does not truncate an over-long comment, it rejects the request — so the
+ * real choice is between a body that states what it dropped and no comment at
+ * all. The marker is the first line, so head-truncation always leaves the poster
+ * able to find and update this comment on the next run; a tail-truncating
+ * implementation would strand it and start duplicating.
+ *
+ * The room reserved for the notice is computed against the largest number it
+ * could ever state, so the notice can only get shorter than the space kept for
+ * it. Slightly wasteful and provably safe, which is the correct trade for a
+ * length check whose failure mode is a rejected API call nobody sees.
+ */
+function clamp(body: string, characters: number): string {
+  if (body.length <= characters) return body;
+
+  const notice = (dropped: number): string =>
+    `\n\n> ${dropped} character(s) of this docket are not shown: the body exceeded the ` +
+    `${characters}-character comment limit. Nothing was dropped from the run report itself.`;
+
+  const room = Math.max(0, characters - notice(body.length).length);
+  const cut = body.slice(0, room);
+  const lastBreak = cut.lastIndexOf('\n');
+  const head = lastBreak > 0 ? cut.slice(0, lastBreak) : cut;
+
+  return head + notice(body.length - head.length);
 }

@@ -171,7 +171,7 @@ npx vitest run
 The first run has nothing to compare against, so the assertion fails with:
 
 ```
-save-button/disabled: new — no baseline for `save-button/disabled` under this renderer; nothing to compare against
+save-button/disabled: new — no baseline under this renderer; nothing to compare against
 ```
 
 Approve with the flag you already type for the snapshots in the same suite:

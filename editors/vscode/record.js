@@ -35,6 +35,9 @@ function commandFor(root, configured) {
  * or nothing recorded. `cancel` stops the process
  * when a newer edit has made the question stale.
  */
+// TODO: a repository that declares suites answers under `suites`, one answer per
+// suite with its `kind`, `frame` and ranges; the gutter reads only `ranges`, so
+// it paints nothing there until it groups the marks and the hover by suite.
 function ask({ root, file, text, line, command }) {
   const argv = ['covering', '--file', file, '--root', root, '--text', '-', '--format', 'json'];
   if (line !== undefined) argv.push('--line', String(line));

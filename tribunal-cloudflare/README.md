@@ -104,11 +104,12 @@ yarn wrangler d1 migrations apply variance-tribunal --remote \
 
 yarn wrangler secret put INGEST_TOKEN          # ≥16 characters
 yarn wrangler secret put REVIEW_TOKEN          # ≥16 characters, and not the other one
+yarn wrangler secret put SHARE_TOKEN           # optional: ≥16 characters, and neither of the others
 
 yarn deploy
 ```
 
-The two tokens are secrets, not `vars`: they are the deployment's capabilities,
+The tokens are secrets, not `vars`: they are the deployment's capabilities,
 and `wrangler.jsonc` is in git. `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are `vars`
 and are safe there — a team domain and an audience tag are public identifiers,
 and neither authorizes anything on its own. `RETENTION_DAYS`, if you set it,
@@ -126,7 +127,7 @@ Worker's would be a second database wearing the same name.
 
 `app/api/[[...path]]/route.ts` is this deployment's policy, and the package
 supplies no default for it, because a default is a published approve button. It
-is nine lines:
+is ten lines:
 
 ```ts
 authorize: async (request: Request) => {
@@ -134,6 +135,7 @@ authorize: async (request: Request) => {
   const bearer = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : null;
   if (bearer !== null && bearer === TOKENS.ingest) return 'ingest';
   if (bearer !== null && bearer === TOKENS.review) return 'review';
+  if (bearer !== null && TOKENS.share !== undefined && bearer === TOKENS.share) return 'share';
   return (await identify(request)) === null ? null : 'review';
 },
 ```
@@ -142,11 +144,12 @@ authorize: async (request: Request) => {
 | --- | --- | --- |
 | `Authorization: Bearer <INGEST_TOKEN>` | ingest | CI writes builds and cannot decide them |
 | `Authorization: Bearer <REVIEW_TOKEN>` | review | a machine acting for the operator — a script approving on `main` |
+| `Authorization: Bearer <SHARE_TOKEN>` | share | a machine that reads the share at `/api/share` and writes nothing |
 | A valid Access JWT | review | a person, with a name to put on the decision |
 | Anything else | 401 | |
 
 A caller cannot choose its own capability: `createTribunalRoutes`, the package
-function that turns that policy plus the service into `GET`/`POST`/`HEAD`
+function that turns that policy plus the service into `GET`/`POST`/`PUT`/`HEAD`
 handlers, replaces the authorization header with the token the answer implies, so
 a browser sending `Bearer <anything>` is still whatever the policy above says it
 is.

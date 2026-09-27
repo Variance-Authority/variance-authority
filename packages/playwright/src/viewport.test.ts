@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Viewport } from '@variance-authority/core/format';
-import { unresizable } from './viewport.js';
+import { unresizable, unwidened, widthsOf } from './viewport.js';
 
 /**
  * The refusal that stands between a run and a green wall.
@@ -46,5 +46,56 @@ describe('unresizable', () => {
 
     expect(refusal).toContain('deviceScaleFactor 3');
     expect(refusal).not.toContain('colour scheme and the run');
+  });
+});
+
+describe('widthsOf', () => {
+  const plan = {
+    subjects: [
+      { subject: { id: 'route/home' } },
+      { subject: { id: 'story:button--primary' }, viewport: { ...RUN, width: 320 } },
+    ],
+    warnings: ['kept'],
+  };
+
+  it('makes each declared width its own subject, narrowest first, and leaves a declared viewport alone', () => {
+    const widened = widthsOf(plan, [1280, 375, 1280], RUN);
+
+    expect(widened.subjects.map((planned) => [planned.subject.id, planned.viewport?.width])).toEqual([
+      ['route/home@375', 375],
+      ['route/home@1280', 1280],
+      ['story:button--primary', 320],
+    ]);
+    expect(widened.subjects[0]?.viewport).toEqual({ ...RUN, width: 375 });
+    expect(widened.warnings).toEqual(['kept']);
+  });
+
+  it('keeps every width of one subject under one declaration, so a shard holds them together', () => {
+    const widened = widthsOf(
+      { subjects: [{ subject: { id: 'route/home' } }, { subject: { id: 'story:card' }, declaredIn: 'src/card.stories.jsx' }] },
+      [375, 800],
+      RUN,
+    );
+
+    expect(widened.subjects.map((planned) => planned.declaredIn)).toEqual([
+      'route/home',
+      'route/home',
+      'src/card.stories.jsx',
+      'src/card.stories.jsx',
+    ]);
+  });
+
+  it('returns the plan itself when no width is declared, so removing `widths` gives the old ids back', () => {
+    expect(widthsOf(plan, undefined, RUN)).toBe(plan);
+    expect(widthsOf(plan, [], RUN)).toBe(plan);
+  });
+});
+
+describe('unwidened', () => {
+  it('strips only a suffix one of the declared widths could have added', () => {
+    expect(unwidened('route/home@375', [375, 1280])).toBe('route/home');
+    expect(unwidened('route/page@2x', [375, 1280])).toBe('route/page@2x');
+    expect(unwidened('route/home@768', [375, 1280])).toBe('route/home@768');
+    expect(unwidened('route/home@375', undefined)).toBe('route/home@375');
   });
 });

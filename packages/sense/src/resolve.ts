@@ -17,19 +17,23 @@
  * ## The case-folding problem
  *
  * macOS and Windows match filenames without regard to case, so a specifier can
- * resolve to a file it does not name. Two of the functions here exist only for
- * that, and both are invisible on the case-sensitive machine most CI runs on —
- * which is exactly why they are written down rather than discovered.
+ * resolve to a file it does not name. Two functions exist only for that,
+ * `landed` here and `caseFolded` in
+ * [`case-insensitive-match.ts`](./case-insensitive-match.ts), and both are
+ * invisible on the case-sensitive machine most CI runs on — which is exactly why
+ * they are written down rather than discovered.
  */
 
 import { realpathSync } from 'node:fs';
-import { basename, isAbsolute, relative, sep } from 'node:path';
 import { ResolverFactory, type NapiResolveOptions } from 'oxc-resolver';
+import { caseFolded, DECLARATION } from './case-insensitive-match.js';
 import { customConditionsFor } from './conditions.js';
+import { emittedFrom, type Emitted } from './emitted.js';
 import { resolveJvm } from './jvm.js';
 import type { LanguageId } from './language.js';
 import { resolvePython } from './python.js';
 import { MODULE_EXTENSIONS } from './read.js';
+import { toRepoPath } from './repo-path.js';
 import { STYLE_EXTENSIONS, styleRequests } from './style.js';
 import { resolveRust } from './rust.js';
 import { resolveSwift } from './swift.js';
@@ -53,25 +57,13 @@ export interface ResolveOptions {
 /** Source before built output: a package that publishes both is worth more as source. */
 export const DEFAULT_CONDITIONS = ['source', 'import', 'require', 'default'] as const;
 
-/** Directories a scan never descends into, and never records a file inside. */
-export const EXCLUDE_DIRS = [
-  'node_modules',
-  'dist',
-  'tsDist',
-  'build',
-  'coverage',
-  'storybook-static',
-  '.git',
-  '.next',
-  '.turbo',
-];
-
 /**
- * The three resolvers a scan needs, plus the memo they share.
+ * The resolvers a scan needs, plus the memo they share.
  *
- * Three because one set of options cannot answer all three questions: a
- * stylesheet request must not find a `.ts` file, and a request that only resolved
- * because `.js` was rewritten to `.ts` has to be re-asked without the rewrite.
+ * Several because one set of options cannot answer every question: a stylesheet
+ * request must not find a `.ts` file, a request that only resolved because `.js`
+ * was rewritten to `.ts` has to be re-asked without the rewrite, and a
+ * declaration answers only after all of them found nothing.
  */
 export interface Resolvers {
   /** Modules first, with the `.js` → `.ts` rewrite on, under the default conditions. */
@@ -87,10 +79,17 @@ export interface Resolvers {
   readonly styles: ResolverFactory;
   /** No extension rewriting, for the one request where the rewrite is the bug. */
   readonly exact: ResolverFactory;
+  /**
+   * `modulesFor`, finding declarations only: `.d.ts` is the one extension, and
+   * a nodenext `./context.js` is read as `./context.d.ts`.
+   */
+  readonly declarationsFor: (from: string) => ResolverFactory;
   /** Resolved path → where it landed, memoised for the scan. */
   readonly canonical: Map<string, Landing>;
   /** The root the repository paths in `canonical` were worked out against. */
   against: string | undefined;
+  /** Built output → the source it is built from ([`emitted.ts`](./emitted.ts)). */
+  readonly emitted: Emitted;
   /** What the file currently being resolved has already asked. */
   readonly asking: Asking;
   /**
@@ -106,7 +105,9 @@ export interface Resolvers {
    * package spread across nineteen roots.
    *
    * Absent until a caller names a tree, and a request in one of those languages
-   * asked before then resolves to nothing rather than to a guess.
+   * asked before then resolves to nothing rather than to a guess. It is also
+   * the evidence a landing under `build/` needs, so without one that resolves
+   * to nothing in every language ({@link toRepoPath}).
    */
   tree: TreeWorld | undefined;
 }
@@ -209,16 +210,23 @@ export function resolversFor(options: ResolveOptions): Resolvers {
     builtinModules: true,
   };
   const modules = new ResolverFactory(moduleOptions);
+  const declarationOptions: NapiResolveOptions = {
+    ...moduleOptions,
+    extensions: ['.d.ts'],
+    extensionAlias: { '.js': ['.d.ts'], '.mjs': ['.d.mts'], '.cjs': ['.d.cts'] },
+  };
+  const declarations = modules.cloneWithOptions(declarationOptions);
+  const custom = options.conditionNames === undefined ? customConditionsFor(tsconfig) : undefined;
 
   return {
     modules,
-    modulesFor: options.conditionNames === undefined
-      ? conditioned(modules, moduleOptions, customConditionsFor(tsconfig))
-      : () => modules,
+    modulesFor: custom ? conditioned(modules, moduleOptions, custom) : () => modules,
+    declarationsFor: custom ? conditioned(declarations, declarationOptions, custom) : () => declarations,
     styles: modules.cloneWithOptions({ extensions: [...STYLE_EXTENSIONS] }),
     exact: modules.cloneWithOptions({ extensionAlias: {} }),
     canonical: new Map(),
     against: undefined,
+    emitted: emittedFrom(),
     asking: { file: undefined, answers: new Map() },
     tree: undefined,
   };
@@ -321,7 +329,7 @@ function resolved(input: {
 
   if (OVER_THE_TREE.has(language)) {
     const world = resolvers.tree;
-    const file = toRepoPath(root, from);
+    const file = toRepoPath(root, from, world);
     if (world === undefined || file === undefined) return [];
     switch (language) {
       case 'python': return resolvePython({ from: file, request, world });
@@ -338,29 +346,45 @@ function resolved(input: {
     ? [resolvers.styles, modules]
     : [modules, resolvers.exact];
 
+  let elsewhere = false;
   for (const resolver of order) {
     for (const attempt of attempts) {
-      let result;
-      try {
-        // The importing **file**, not its directory. `tsconfig: 'auto'` means
-        // "find the config by walking up from here", and only the file-taking
-        // entry points do that walk — handed a directory, the resolver silently
-        // behaves as though no `tsconfig` were configured at all, which drops
-        // every `paths` alias in the repository and reports nothing.
-        result = resolver.resolveFileSync(from, attempt);
-      } catch {
-        continue;
-      }
-      if (result.path === undefined || result.builtin !== undefined) continue;
+      const path = found(resolver, from, attempt);
+      if (path === undefined) continue;
 
-      const { disk, file } = landed(resolvers, root, result.path);
+      const { disk, file } = landed(resolvers, root, path);
       if (caseFolded(attempt, disk)) continue;
 
       if (file !== undefined) return [file];
+      elsewhere = true;
     }
   }
 
-  return [];
+  // A declaration answers last, only where nothing else was found, as the
+  // native resolver has it (`native/src/resolve.rs`): not beside a module, a
+  // stylesheet or `.json`, and not for a request a package or a build answers.
+  // One inside a build's output never answers, so the answer is the same
+  // whether the build ran or not.
+  if (style || elsewhere) return [];
+  const path = found(resolvers.declarationsFor(from), from, request);
+  if (path === undefined || !DECLARATION.test(path) || resolvers.emitted(realPath(path)) !== undefined) return [];
+  const { disk, file } = landed(resolvers, root, path);
+  return file === undefined || caseFolded(request, disk) ? [] : [file];
+}
+
+/** The path a resolver found, or nothing for a failure or a builtin. */
+function found(resolver: ResolverFactory, from: string, request: string): string | undefined {
+  try {
+    // The importing **file**, not its directory. `tsconfig: 'auto'` means
+    // "find the config by walking up from here", and only the file-taking
+    // entry points do that walk — handed a directory, the resolver silently
+    // behaves as though no `tsconfig` were configured at all, which drops
+    // every `paths` alias in the repository and reports nothing.
+    const result = resolver.resolveFileSync(from, request);
+    return result.builtin === undefined ? result.path : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -377,31 +401,6 @@ const OVER_THE_TREE: ReadonlySet<LanguageId> = new Set<LanguageId>([
   'kotlin',
   'swift',
 ]);
-
-/**
- * Whether a resolution only succeeded because the filesystem ignores case.
- *
- * macOS and Windows match filenames without regard to case, so `./legacy.js` in a
- * directory holding `Legacy.tsx` resolves to `Legacy.tsx` — the file doing the
- * importing. The edge is a self-loop, the real `legacy.js` is left with no
- * dependents, and a change to it reaches nothing. Rejecting the fold sends the
- * request to a resolver that will not rewrite the extension, which finds the file
- * that was actually named.
- *
- * Only an *equal-but-for-case* stem counts. `./colors` finding `_colors.scss` and
- * `react` finding `index.js` are different names, resolved on purpose.
- */
-function caseFolded(request: string, resolved: string): boolean {
-  const asked = stemOf(basename(request));
-  const found = stemOf(basename(resolved));
-
-  return asked !== found && asked.toLowerCase() === found.toLowerCase();
-}
-
-function stemOf(name: string): string {
-  const dot = name.lastIndexOf('.');
-  return dot <= 0 ? name : name.slice(0, dot);
-}
 
 /**
  * A resolved path as the filesystem spells it, and where that is in the tree.
@@ -435,8 +434,19 @@ function landed(resolvers: Resolvers, root: string, path: string): Landing {
   const known = canonical.get(path);
   if (known !== undefined) return known;
 
-  const disk = realPath(path);
-  const landing: Landing = { disk, file: toRepoPath(root, disk) };
+  // FIXME: the npm binding takes no file system, so the rule reads back what it
+  // found on disk and disagrees with the native resolver, which reads `outDir`
+  // through `rootDir`, wherever the build and the source part: output never
+  // built, or a source added since the build, is not found; a stale
+  // `dist/utils.js` the resolver tries before `dist/utils/index.js` answers
+  // for a source that is now a directory; a config git ignores declares here;
+  // and an `outDir` that links out of the package is followed before the
+  // layout is read. Taint resolves through here, so a specifier a diff adds
+  // toward a sibling package can land where the scan does not.
+  const found = realPath(path);
+  const source = resolvers.emitted(found);
+  const disk = source === undefined || source === null ? found : realPath(source);
+  const landing: Landing = { disk, file: source === null ? undefined : toRepoPath(root, disk, resolvers.tree) };
   canonical.set(path, landing);
 
   return landing;
@@ -455,14 +465,4 @@ export function realPath(path: string): string {
   } catch {
     return path;
   }
-}
-
-/** A path inside the repository, relative and slash-separated, or nothing. */
-export function toRepoPath(root: string, absolute: string): string | undefined {
-  const path = relative(root, absolute);
-  if (path === '' || path.startsWith('..') || isAbsolute(path)) return undefined;
-
-  const normalized = sep === '/' ? path : path.split(sep).join('/');
-
-  return normalized.split('/').some((part) => EXCLUDE_DIRS.includes(part)) ? undefined : normalized;
 }

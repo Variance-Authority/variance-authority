@@ -46,6 +46,22 @@ describe('vae', () => {
     expect(heard).toHaveLength(1);
   });
 
+  it('says the announcement into a story being recorded, as well as to the sink, and one failing skips neither', () => {
+    const story = Symbol.for('variance-authority.story.note');
+    const said: string[] = [];
+    (scope as Record<symbol, unknown>)[story] = (text: string) => {
+      said.push(text);
+      throw new Error('the recorder is broken');
+    };
+    try {
+      const heard = listen();
+      vae('checkout', 'upsell-modal', 'decided');
+      expect([said, heard]).toEqual([['vae once checkout upsell-modal decided'], [['once', 'checkout', 'upsell-modal', 'decided']]]);
+    } finally {
+      delete (scope as Record<symbol, unknown>)[story];
+    }
+  });
+
   it('survives a listener that throws', () => {
     const sink = vi.fn(() => {
       throw new Error('the harness is broken');

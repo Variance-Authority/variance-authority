@@ -120,6 +120,10 @@ describe.runIf(nativeAvailable())('a module verdict', () => {
       const before = `/** @jsxImportSource preact */\n${body}`;
       expect(view(before, `/**\n * The view.\n * @jsxImportSource preact\n */\n${body}`)?.kind).toBe('none');
     });
+
+    it('reads JSX in a `.js` file, where the extension alone leaves it off', () => {
+      expect(native()!.moduleVerdict!('src/view.js', body, `// The view.\n${body}`)?.kind).toBe('none');
+    });
   });
 
   describe('the exports an importer sees move', () => {

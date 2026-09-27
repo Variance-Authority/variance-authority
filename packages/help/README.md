@@ -32,8 +32,9 @@ asset relations, not function calls. `uses` reports where a name is imported,
 not where code calls it at runtime.
 
 It answers from a dated generation published through a [source
-index](../../docs/source-index.md), and exposes six questions about exported
-names. It reads JavaScript and TypeScript, Python, Rust, Java, Kotlin and Swift;
+index](../../docs/source-index.md), and exposes eight questions: six about
+exported names, one that runs ripgrep over the files a path imports, and one
+that starts from the words of a task, before you know any name. It reads JavaScript and TypeScript, Python, Rust, Java, Kotlin and Swift;
 the two verbs that answer for a *published* specifier read a `package.json`, so
 in a repository with none they answer out of what the files themselves export.
 The repository itself does not have to be built and no API site is required.
@@ -77,15 +78,15 @@ npx variance-authority-help search viewport
 npx variance-authority-help search viewport --from packages/app/ --just-answer
 ```
 
-Six verbs, each taking the same arguments as the tool of the same name below:
-`packages`, `entrypoint`, `symbol`, `uses`, `search`, `gaps`. An entrypoint is
+Eight verbs, each taking the same arguments as the tool of the same name below:
+`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `orient`, `gaps`. An entrypoint is
 one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
 
-The same six are questions on `variance ask` wherever
+The same eight are questions on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
-is installed — `npx variance ask search --query viewport` — and the same six
+is installed — `npx variance ask search --query viewport` — and the same eight
 are tools on `variance serve`, beside the ones about a run. A workspace that
 runs the visual suite needs nothing from this package over either transport.
 This package is for the workspace that does not run one.
@@ -133,7 +134,7 @@ Nothing is written above this declaration.
 docs_uses names the 60 places this is imported, nearest to a file you name first.
 ```
 
-## The six questions
+## The eight questions
 
 Ranking is one number: how many packages in the repository import the name. A
 frequently imported name leads; a name nothing outside its own package imports
@@ -146,6 +147,8 @@ stays available without taking space from the first answer.
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading finds |
+| `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
+| `orient` / `docs_orient` | words from a task | the tracked files that contain them, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, and the narrower questions to ask next |
 | `gaps` / `docs_gaps` | nothing | names other packages import that say nothing about themselves |
 
 `packages` takes no argument and returns the import specifiers every other
@@ -273,9 +276,9 @@ npx variance-authority-help uses collect --from packages/cli/src/index.ts
 
 ```
 `collect` is imported in 24 places.
-Nearest first, by how much of the path each shares with packages/cli/src/index.ts.
+Nearest to packages/cli/src/index.ts first.
 
-Tests — written to pin what it does:
+Tests:
 
 examples/todomvc/src/changeset.test.tsx:13 — @variance-authority/example-todomvc
 examples/todomvc/src/closure.test.tsx:6 — @variance-authority/example-todomvc
@@ -329,9 +332,9 @@ npx variance-authority-help .
 }
 ```
 
-The six tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
-`docs_uses`, `docs_search` and `docs_gaps`, and they answer in the same words as
-the six verbs above. `variance serve` serves the same six under the same names,
+The eight tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
+`docs_uses`, `docs_search`, `docs_grep`, `docs_orient` and `docs_gaps`, and they answer in the
+same words as the eight verbs above. `variance serve` serves the same eight under the same names,
 so a workspace with the CLI declares one server and asks it about both the run
 and the source.
 

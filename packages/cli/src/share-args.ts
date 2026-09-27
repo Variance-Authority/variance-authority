@@ -5,8 +5,8 @@ import { OperatorError } from './exit.js';
 export interface ParsedShare {
   readonly command: 'share';
   readonly config: string;
-  /** The mainline ref whose lineage is looked up. The config's, or `origin/main`. */
-  readonly ref?: string;
+  /** The mainline to read. The pull request's base, else the listed one nearest `HEAD`. */
+  readonly mainline?: string;
   /** Publish the report's suite index and subject costs rather than fetch mainline's. */
   readonly publish: boolean;
   /**
@@ -24,19 +24,19 @@ export interface ParsedShare {
  * rule that wants its own file rather than a longer switch arm.
  */
 export function parseShareArgs(flags: Flags, config: string): ParsedShare {
-  const ref = flags.values.get('--ref');
+  const mainline = flags.values.get('--mainline');
   const publish = flags.present.has('--publish');
   if (flags.positionals.length > 0 && !publish) {
     // A report is only an input to the publishing direction. Accepting one
     // while fetching would read as "look this up as of that run", which is
-    // not what the lineage is walked from and never will be.
-    throw new OperatorError('`share <report>` is for `--publish`; a lookup takes `--ref`');
+    // not what the mainline is read from and never will be.
+    throw new OperatorError('`share <report>` is for `--publish`; a lookup takes `--mainline`');
   }
   return {
     command: 'share',
     config,
     publish,
-    ...(ref !== undefined ? { ref } : {}),
+    ...(mainline !== undefined ? { mainline } : {}),
     reports: flags.positionals,
   };
 }

@@ -143,24 +143,27 @@ ids are the safe default after initial setup.
 ## Commands
 
 ```bash
-variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
+variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git]
-variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
+variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]
-variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] [--root <path>] [--format text|markdown|json]
+variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
+variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
-variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
+variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] [--suite <name>] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
-variance doctor  [--config <path>]
-variance share   [--config <path>] [--ref <ref>] [--publish] [<report>...]
-variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
+variance doctor  [--config <path>] [--prune]
+variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...]
+variance carry   restore | save [--config <path>] [--format text|github]
+variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
 ```
 
 | command | what it does |
@@ -170,16 +173,19 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
 | `covering` | names the tests that covered one source file, line or function, nearest first |
+| `review` | says what a change did, after the suite ran it: the edits, the changed code no case covered, the cases added, and what changed outside any import |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |
 | `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
 | `changelog` | reads back why the baselines are what they are |
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
-| `doctor` | says what this machine can observe, before a run, not after one |
-| `share` | says what the share has for mainline, or publishes what this run derived and what each subject cost |
+| `doctor` | says what this machine can observe, before a run, not after one, and with `--prune` removes cache entries whose checkout, worktree, process or commit is gone |
+| `share` | says what the share holds for your mainline, or publishes this run, or every shard of one build, to its line |
+| `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
+| `story` | draws the route one case took through the code: the files and declarations it went through, with the steps it reached each, then the part of the route you ask for, each loop drawn once; with `--compare`, lists what every recorded run on one side did and no run on the other did |
 | `serve` | exposes the last run's report, and the source questions `ask` answers, to an MCP client over stdio |
 | `ask` | the same questions `serve` answers, without an MCP client |
 
@@ -244,9 +250,46 @@ cannot lose its exit code to a question.
 
 `ask diff` reports what changed since the previous question was answered. An MCP
 connection keeps that state in memory for as long as it lasts; a command line
-cannot, so the report each answer was read from is recorded beside the
-configured report as `asked.json`. Deleting it costs the next `ask diff` its
-comparison and nothing else.
+cannot, so the report each answer was read from is recorded beside that report
+as `asked.json`. Deleting it costs the next `ask diff` its comparison and
+nothing else.
+
+#### A checkout with no run of its own
+
+When the configured report is not on disk, `ask` and `serve` answer from the
+report CI published to the [share](../../docs/sharing.md): the line for your
+branch first, then your mainline's. A pull request from a fork reads the
+mainline only, because a branch line of the same name belongs to a branch of
+the base repository. CI publishes the report when its config sets
+`report.carry` to `share`. Each answer opens with the line it read, the commit
+that run was evaluated at, and where that commit is relative to your `HEAD`:
+
+```text
+report: read from branch feat/cart, evaluated at 51ab09e… for pull request head 9c4e1d2…, 2 commit(s) before HEAD; kept at <cache>/report/<digest>/.variance/report.json.
+```
+
+- **A branch record your `HEAD` does not contain is not yours.** After a
+  rebase, or before you pull, the answer says it is *another run of* the
+  branch, and it still answers.
+- **The configured `report` path is never written.** The record is kept in
+  [the cache](../../docs/cache.md) under its digest, at the same path relative
+  to the repository as your configured report, or as `run.json` when that
+  report is outside the repository. A second question about the same record
+  reads the kept copy. The next `variance run` writes your own report where it
+  always does, and `ask` and `serve` read that one from then on; the first
+  `variance_diff` after `serve` changes to it names the line and commit it
+  compares with. `report`, `adjudicate`, `comment` and `push` do not read the
+  share: they gate a run, and this checkout made none.
+- **`ask` fetches images by digest, for the subjects a question names.** `ask
+  describe --subject story:card` fetches that subject's images to the paths the
+  report names them by, relative to the kept report, so the paths the answer
+  prints open. A path that would land outside the record's digest directory is
+  not fetched, and the answer says so.
+- **A share with no record for you is a refusal that lists what it asked.**
+  Each line gets its own line in the message, with what it answered: nothing
+  published, a credential refused, a store that did not answer, a format this
+  version does not read. A mainline answer names the branch line asked before
+  it the same way, with what that line answered.
 
 ### Distill: find a smaller test boundary
 
@@ -337,6 +380,24 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 Each test file is named once, with its cases under it. Over a whole file, a
 range walked by the same cases as the one before says so in one line.
 
+When the root `variance.config.json` declares
+[suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
+`covering` asks every suite's record and answers under each suite's name and
+kind, because each suite proves something different:
+
+```text
+checkout (e2e): nothing is recorded in /repo: no run left a per-case index at …
+stories (visual): `src/checkout/total.ts` is not in the index at …
+unit (unit):
+  2 named tests covered line 48 of src/checkout/total.ts:
+  …
+```
+
+In JSON the answer is a `suites` list. Each entry is that suite's own answer
+with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
+or to `unloaded`, for a file the suite never loaded. `--suite <name>` asks one
+record alone, and answers in the shape a repository with one record does.
+
 `--format refs` is the same answer for an agent, which pays for every repeated
 name. Each case is numbered once, in a table at the end, and every range names
 its cases by number, with runs collapsed:
@@ -383,7 +444,7 @@ variance covering --file src/checkout/total.ts --line 48 --in-package
 2 named tests covered line 48 of src/checkout/total.ts:
   applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
   renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
-2 of 3 named tests that covered it are inside the narrowing.
+2 of 3 named tests kept.
 ```
 
 `--at-distance` counts **import hops** from the file to the test's own file,
@@ -468,7 +529,7 @@ cases it replaced, so each region those cases entered before and do not enter
 now is listed, and so is each region they entered for the first time:
 
 ```text
-Against the run before it: 1 lost, 0 hidden, 0 thinned, 0 gained.
+Against the run before it: 1 lost.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
 src/checkout/total.test.ts now enters 0 regions it did not, and no longer enters 1.
 ```
@@ -566,7 +627,7 @@ variance covering --since origin/main --against base/coverage.bin.cases.bin
 ```
 
 ```text
-Against base/coverage.bin.cases.bin at 3f9e21c07a44: 1 lost, 1 hidden, 0 thinned, 2 gained.
+Against base/coverage.bin.cases.bin at 3f9e21c07a44: 1 lost, 1 hidden, 2 gained.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
   hidden   src/checkout/tax.ts 12-30 function taxFor — was tax.test.ts > rounds; stopped: tax.test.ts > rounds
   ...
@@ -594,6 +655,127 @@ that commit is behind the merge base, the files the base branch changed in
 between are left out and named, because what moved in them is that branch's
 doing, not yours. `--against` answers in `text`, `refs` and `json`; `refs`
 names the moved regions' cases by the numbers of its case table.
+
+### Review: what a change did, for the person merging it
+
+`covering --since` lists every changed region. The person deciding whether to
+merge needs the counts first: which edits change nothing that runs, which new
+code no case covered, which code only a distant test covered, and what changed
+where no import shows it. `review` reads the recording the suite just wrote and
+answers that:
+
+```bash
+yarn test
+variance review --since origin/main
+```
+
+```text
+Changes since 3f9e21c07a44.
+
+2 changed regions in 1 file, 1 of them new.
+- 1 no case covered, 1 of them new.
+- 0 covered only by tests further than one import away.
+
+Edits:
+      1  top-level values
+      1  not a module
+
+Changed regions (new in brackets):
+      1 (0)  covered by a test that imports the file, or is the file
+      1 (1)  no case covered it
+
+Cases: 1 added, 0 removed, in 1 test file.
+- src/checkout/total.test.ts: + rounds
+
+Before any import: 1 changed file the tests declare as a precondition.
+- config.json: 1 of 1 test files
+
+Regions not covered by a test one import away:
+  src/checkout/total.ts:5-7 function round — no case covered it (new)
+```
+
+Each part comes from the party that owns the answer:
+
+- **Edits** reads each changed module from both of its texts: comments, types
+  and formatting change nothing that runs; otherwise the change is to function
+  bodies only, to top-level values, or to what the module loads. A changed
+  file that is not source, such as `config.json`, is counted as not a module.
+- **Changed regions** counts each changed function or branch by the tests that
+  covered it. When the only tests that ran a region are further than one import
+  from its file, a failure there points at code the test never names. A branch
+  inside an uncovered function is counted once, with the function;
+  `--format json` keeps every region.
+- **Cases** added and removed are read from the case index, per test file.
+- **Before any import** names changed files the test runner loads before any
+  test, such as its config, or declares in `preconditions`, and how many test
+  files depend on each. No import graph shows them.
+- Installed packages the lockfile changed, and workspace manifests whose entry
+  points changed, are listed last, because nothing in your own source shows
+  them either.
+
+The diff starts at the merge base with `<ref>`. Without `--since`, it starts at
+the last commit the suite ran at before this one. Every run writes that commit,
+with the test files it ran, to `coverage.runs.json` beside the recording, so
+after a `yarn test` on a branch, `variance review` alone answers for everything
+since the previous run. A retry or a second shard at the same commit keeps the
+same starting commit and adds its test files to the list.
+
+A run in a checkout that had no recording before it, such as a fresh clone,
+has no previous commit to start from. When the root config gives that suite to
+the [share](../../docs/sharing.md) with `"carry": "share"`, the review starts at
+the commit your mainline published its record at, compares cases with that
+record's, and says so in its first line:
+
+```text
+Changes since 51ab09e7c2d4, where mainline main published its record of "unit", 3 commit(s) behind the merge base with this checkout. 1 run at 9c4e1d2a07b8 recorded 4 test files.
+```
+
+A record published past your merge base with the mainline is at a commit your
+branch does not contain. The review starts at the merge base instead, names
+both commits, and does not compare cases with the record's, because they were
+recorded over commits your branch does not have:
+
+```text
+Changes since 2f07c1a9be3d, the merge base with 51ab09e7c2d4, where mainline main published its record of "unit", 2 commit(s) past the merge base with this checkout. 1 run at 9c4e1d2a07b8 recorded 4 test files.
+```
+
+The record a branch published to the share, on its `branch/<name>` line, is
+never the start: the review would measure the change against itself. `--since`
+still names the start. When the mainline's record cannot be read either, the
+review stops, and the message says what the share answered.
+
+The review also lists the regions whose cases changed. It compares them with
+the cases the runs at this commit replaced, which the suite keeps beside its
+case index with the commit they were recorded at. What the base's branch changed
+after that commit is left out and named, as in
+[What a change moved](#what-a-change-moved). `--against <record>` compares with
+a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
+printed. The markdown starts with a hidden marker line, so a pipeline finds its
+own pull request comment and edits it instead of posting another.
+
+In CI, restore the recording directory your base branch saved to the runner
+cache (the directory [the cache](../../docs/cache.md) describes), run the
+suite, and review after it:
+
+```yaml
+- run: yarn test
+- if: ${{ !cancelled() }}
+  run: |
+    npx variance index
+    npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
+```
+
+A suite split over several invocations at one commit keeps the base's cases for
+every file any of them ran. Once an invocation runs a file a second time, that
+file's replaced cases are this commit's own, and the review no longer names a
+commit for them.
+
+`variance index` comes first because the review asks the file graph which tests
+import each changed file, and under CI the graph is read from what `index`
+published, never built on demand. A region covered only by a test the published
+graph does not list, such as one added after `index` ran, is counted on its own
+line, because its distance was never measured; it is not counted as further
+than one import away.
 
 ### Watch: ask about a suite that has not finished
 
@@ -693,11 +875,15 @@ subject still goes up with its verdict, its regions and its `before`; what it
 loses is the button.
 
 Both ends say what they are. `push` asks the deployment for its API version
-before it reads a byte off disk, prints the pair on the line it reports, and
-names the mismatch when they differ — a CLI newer than its deployment uploads
-every image it has rather than naming the ones already there, and that
-looks like a slow network until something says otherwise. `variance --version`
-prints this tool alone.
+before it reads a byte off disk and prints the pair on the line it reports. When
+the deployment is older, it names each thing the deployment lacks that the push
+uses: before API 2, a push uploads every image it has rather than naming the
+ones already there, and that looks like a slow network until something says
+otherwise. When the deployment is newer, it says this CLI is the older half.
+When the project's `share` is an `http` share under the deployment's endpoint,
+`push` also names a deployment older than API 3, because such a deployment
+answers 404 under `/share/`.
+`variance --version` prints this tool alone.
 
 While it works, `push` writes its phase to stderr: one line rewritten in place
 on a terminal, one line per phase in a log, and a clock on both, so the wait
@@ -733,7 +919,6 @@ variance changelog --component Card --limit 50
 a1b2c3d4e5f6  2026-08-21T10:14:02+10:00  run 4242 @ 9f8e7d6c5b4a --shape
   tighten the card
   v1:2c4f9a1e0b7d3856a91c4e2f8b06d735 Card src/Card.tsx 11/14
-    (11 of 14 subject(s) this shape reached were promoted here)
 ```
 
 A change line leads with the fingerprint because that string is what
@@ -852,6 +1037,19 @@ Scripts and styles are inline, fonts use local system fallbacks, and images
 remain separate files.
 `--subject` is refused for HTML so the page retains the whole run's coverage
 accounting.
+
+When the page will be opened somewhere its images are not, add
+`--embed-images` and it carries every picture inside it:
+
+```bash
+variance report --format html --embed-images > variance-report.html
+```
+
+One file then opens anywhere, including a phone. On GitHub Actions, upload it
+with `actions/upload-artifact@v7` and `archive: false`, and the artifact link
+opens the page in the browser instead of downloading a zip. The file grows
+with the images: a subject with a baseline and a change carries three
+pictures.
 
 ### Detect instability with `run --flakes`
 
@@ -982,7 +1180,8 @@ answered by the shards that did: that row says one build could not read the
 module, and nothing about the tests another build watched run it.
 
 Where it lands is this checkout's own cache, the file every run on this
-machine layers over, unless `--into <path>` names somewhere else — a job that
+machine layers over — the record of the suite `--suite` names, when the root
+config declares suites — unless `--into <path>` names somewhere else — a job that
 folds and uploads names the artifact it uploads. Landing is a layer, not a
 replacement: what was already there is merged under the fold, so the result
 stands at the fold's commit, retires every observation the fold re-recorded
@@ -1051,6 +1250,28 @@ last time that suite ran: its seams record Vitest, Jest and Rstest, and
 [`@variance-authority/sense/runner`](../sense/README.md#record-a-runner-this-package-has-no-seam-for)
 records any other runner.
 
+When the root `variance.config.json` declares
+[suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
+each suite records on its own, and `select` reads one of them: the one
+`--suite <name>` names, or the only one declared. With more than one declared
+and no `--suite`, it stops and lists them. `variance run --since` and
+`variance journeys` read the same way.
+
+When your checkout has not recorded the suite, as in a fresh clone, `select`
+reads the record your mainline published, if the root config gives that suite
+to the [share](../../docs/sharing.md) with `"carry": "share"`. The record is
+kept in [the cache](../../docs/cache.md), never where the suite records, and
+stderr says which of the two `select` read:
+
+```text
+record of "unit": read from mainline main, published at 51ab09e…, 3 commit(s) behind the merge base with this checkout; kept at <cache>/share/read/unit/51ab09e…/coverage.bin.
+```
+
+Once the suite runs in your checkout, its own recording is read instead. The
+record a branch published to the share, on its `branch/<name>` line, is never
+read: only a mainline's is. When the mainline's record cannot be read either,
+stderr says what the share answered, and `select` skips nothing.
+
 It prints a **skip** list, never a run list, and that is the whole of its safety.
 A run list has to be complete to be correct, and this journal is never
 complete: it records the tests that finished whole, at one commit, in one
@@ -1079,8 +1300,8 @@ stderr names it beside the answer, as `json` does under `unread`:
 
 ```
 $ variance select
-212 of the 240 test files the journal recorded whole covered none of the changed
-lines, and are skipped; every test file it does not speak for still runs.
+skipping 212 of 240 test files recorded whole: none covered a changed line;
+every other test file runs.
 the journal records nothing about 1 changed file (fixtures/cart.json), so it
 keeps no test in the run; a file the suite reads without importing it is
 declared as a precondition.
@@ -1095,9 +1316,9 @@ it, or why it could not, and `json` lists the same readings under `readings`.
 `variance run --since` adds the same lines to the run's warnings:
 
 ```
-read src/limits.ts: values — LIMIT changed; their readers and the changed regions are charged
-unseen test/fill.test.ts: loaded src/limits.ts through an import the file graph does not list; named, not selected
-read src/cart.ts: unread — the diff does not apply to the recorded text, so its changed lines are charged
+read src/limits.ts: values (LIMIT) — the readers of the changed values and the changed regions are charged
+unseen test/fill.test.ts: loaded src/limits.ts by an import the file graph does not list; named, not selected
+read src/cart.ts: unread (the diff does not apply to the recorded text) — its changed lines are charged
 ```
 
 An `unseen` test loaded the file through an import the file graph is missing.
@@ -1226,7 +1447,7 @@ follows three rules:
   modules, so two jobs would each pay to load them.
 - **Recorded cost decides first.** Each observation in a report records
   `costMs`, the time from its collection to its verdict. The run reads the costs
-  mainline recorded at the newest commit this checkout descends from, and places
+  your mainline's line holds, `subject-costs-v1`, and places
   the longest files first, each on the shard with the least work so far. A
   subject with no recorded cost is priced at the median of the ones that have
   one.
@@ -1234,8 +1455,8 @@ follows three rules:
   with the highest `sha256` of the file and the shard number, so adding a file
   moves no other one.
 
-A shard publishes neither the suite index nor the costs, since each counts part
-of the suite. It writes its part of the index beside its report
+A shard keeps neither the suite index nor the costs, since each counts part of
+the suite. It writes its part of the index beside its report
 (`report.suite-part.json` next to `report.json`). Name every shard's report to
 `share --publish` in the job that merges them, and it composes the index one
 run over the whole suite would have written and publishes it, with the costs,
@@ -1248,8 +1469,9 @@ variance share --publish shard-1/report.json shard-2/report.json shard-3/report.
 It publishes nothing when a report has no part beside it or a shard is missing,
 and names which. An unsharded run publishes its own index and needs no merge.
 
-The lookup is the same one the [suite index](../../docs/sharing.md#looking-up)
-uses: a checkout with no history to walk places by checksum.
+The lookup is the same one the [suite index](../../docs/sharing.md#looking-up-mainlines-record)
+uses, and every shard of one build reads the same line, so they place alike. A
+checkout with no share, or a line that holds no costs, places by checksum.
 
 `--subjects <glob>` is the other way to split, when you want to choose the
 slices yourself.
@@ -1285,8 +1507,11 @@ suite is missing a component. With `--shard`, an exclusion names the shard that
 owns the subject and what placed it there, so two jobs that read different costs
 show it in their reports.
 
-`comment` renders the same report as a pull-request body: causes first,
-collateral counted rather than listed, and **nothing when the check is green** —
+`comment` renders the same report as a pull-request body. The first screen
+holds the count, the leading cause, the report link and how to accept, plus any
+warning that changes whether the images can be trusted. Every cause, the
+collateral count, what was skipped and what painted the images sit under one
+fold. It renders **nothing when the check is green** —
 an empty body, because a bot that comments on every clean pull request teaches
 the team to filter it out, and the filter does not distinguish the clean ones.
 It writes to `--body-file` when given one and to stdout otherwise, and it posts
@@ -1442,7 +1667,9 @@ owns its own collector, renderer, storage, or review surface:
   the whole change. `project` scopes optional history rows; omit it when no
   history store is supplied.
 - `renderComment` accepts `runUrl` when the published artifact has a reviewable
-  location and `limits` when a caller needs smaller docket bounds. Limits merge
+  location, `toAccept` for how a reviewer accepts in your repository,
+  `imageRoot` for where the report's images are published, and `limits` when a
+  caller needs smaller docket bounds. Limits merge
   over `DEFAULT_LIMITS`; the renderer still states what it omitted.
 - The executable's `config` path selects the source; `parseConfig` takes that
   value and `baseDir` through `ParseOptions`. Relative paths resolve against
@@ -1499,8 +1726,8 @@ line and ignores its value, so a wrong path costs completion and never a run.
   // Where components are declared, which is what `--since` narrows against.
   // `relations` reads what imports what, so a changed stylesheet reaches the
   // components that rest on it instead of running everything; `changes` borrows
-  // a monorepo tool's answer across the package boundary a specifier cannot
-  // cross.
+  // a monorepo tool's answer across a package boundary the scan cannot map
+  // back to source.
   "source": {
     "dirs": ["src"],
     "relations": true,
@@ -1553,8 +1780,9 @@ what it could not match — either nothing here watches that surface, or somethi
 here paints it without recording it, which a server component always does. Set it
 to `"whole"` for the second, and the run observes everything instead. `changes`
 asks `nx` or `turbo` what a diff affects and folds their answer in as **more changed
-input**, never as a second opinion: it is the one edge a specifier scan cannot
-see, since a workspace package imports its neighbour's built output. `turbo`
+input**, never as a second opinion: it is the edge a specifier scan cannot see
+when a workspace package imports its neighbour's built output and no `tsconfig`
+says which source that output is emitted from. `turbo`
 needs a `task`, because it filters a task graph rather than describing a
 workspace. If the tool cannot be run, the run refuses — an empty project list is
 a legitimate answer meaning *this diff crossed no package boundary*, and a
@@ -1589,6 +1817,7 @@ The remaining top-level keys:
 | `concurrency` | how many subjects may be in flight at once |
 | `workers` | how many browser worlds one run collects in. Each world collects one subject at a time; a world that finishes takes the next file from a shared queue, longest file first. A collector without `openWorker` collects in one world and the run warns |
 | `intent` | the default `--intent` label |
+| `suites` | each test suite the repository runs, and its kind: `unit`, `integration`, `e2e` or `visual`. Each suite records on its own. Read only from the file at the repository root, as the [execution record](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite) page describes |
 | `alone.limit` | how many changed subjects a run re-collects in isolation to confirm the change reproduces — the same budget `run --flakes` ignores, above |
 
 `history.token`, and `baselines.token` on a remote store, take either a literal
@@ -1617,6 +1846,72 @@ has the gate. On GitHub Actions that is one step:
 must look at, and `2` when the run did not happen as configured. Do not grep the
 output: the three integers are the contract, and a check whose colour depends on
 a sentence changes meaning the day the wording improves.
+
+### What the next job reads
+
+A job ends and its machine goes away, and three things it wrote are what the
+next job compares against: the baselines, each suite's recording, and the
+report. The config names where each one is written, and its `carry` names who
+moves it to the next machine:
+
+- `actions-cache`: the host's cache, from one job to a later one in the same
+  repository.
+- `share`: `variance share --publish`, to the line a checkout on another
+  machine reads back. [Sharing](../../docs/sharing.md) says where a line lives
+  and who may write it.
+
+A file with no `carry` stays on the machine that wrote it.
+
+```jsonc
+// variance.config.json, beside the project
+{
+  "project": "todomvc",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800 },
+  "retention": "durable",
+  "subjects": { "kind": "storybook", "index": "storybook-static/index.json", "collector": "variance/collector.mjs" },
+  "baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" },
+  "report": { "path": ".variance/run.json", "carry": "share" },
+  "share": { "kind": "git" }
+}
+```
+
+Suites are declared in the `variance.config.json` at the repository root,
+each with its own `carry`:
+`"suites": { "unit": { "kind": "unit", "carry": "actions-cache" } }`.
+
+`variance carry restore` and `variance carry save` print what `actions/cache`
+asks for: each file's paths, its key and, on a restore, the keys to fall back
+to. With `--format github` the lines are step outputs, so the workflow names
+no path the config already names:
+
+```yaml
+- id: carry
+  run: npx variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
+- if: steps.carry.outputs.baselines-key != ''
+  uses: actions/cache/restore@v4
+  with:
+    path: ${{ steps.carry.outputs.baselines-path }}
+    key: ${{ steps.carry.outputs.baselines-key }}
+    restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
+- run: npx variance run --config variance.config.json
+```
+
+A key is `variance-<file>:<branch>:<commit>`. The branch is the one a pull
+request targets, so a pull request restores what its target saved and never
+what it saved itself. A save appends the run id, because the Actions cache
+never overwrites a key, and a restore falls back to the newest key on the
+branch.
+
+Only a push to a mainline saves a recording. On any other run `carry save`
+prints no key for it and says why on stderr. The mainlines are the first of
+these that answers: the config's `share.mainlines`, the branch the remote's
+`HEAD` names, the repository's default branch in the event. When none answers,
+nothing is saved, and the message names the answers that were missing.
+
+`carry` also prints `report`, `images` and `review`, which are paths to upload
+and the directory to pass `variance review --out`. They have no key, because
+an upload is not looked up again.
 
 Posting the report back to the pull request is the one thing a command line
 cannot do for itself. Read the report path out of your config and post it with
@@ -1665,6 +1960,28 @@ The YAML is a platform example. Its `script` invokes the same `variance` binary
 used locally, while `after-script` owns the platform-specific API call that
 publishes the body. This package renders the body and marker but does not post
 anything.
+
+Two flags make the body something a reviewer can act on from a phone.
+`--run-url` links the report you published, and
+`variance report --format html --embed-images` makes that report one file a
+browser opens. `--to-accept` says how accepting works in your repository,
+because the comment cannot know whether that is a workflow to dispatch, a
+label, or `variance accept` on a checkout:
+
+```bash
+variance comment --body-file body.md \
+  --run-url "$REPORT_URL" \
+  --to-accept 'add the **variance: accept** label to this pull request'
+```
+
+`--image-root` puts pictures in the comment: the leading cause's before and
+after on the first screen, and each further cause's pair in the fold. Give it
+the address you published the report's directory under. The comment joins each
+image path the report records to it, with every segment percent-encoded, so the
+file `images/story%3Abutton.before.png` is asked for as
+`images/story%253Abutton.before.png`. On GitHub, a commit's `raw` address works,
+`https://github.com/<owner>/<repo>/raw/<sha>`, and the composite action's
+`image-ref` input publishes one.
 
 ## Integration troubleshooting
 

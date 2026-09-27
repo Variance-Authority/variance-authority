@@ -86,6 +86,8 @@ build that minted the service's probes and `VARIANCE_AUTHORITY_JOURNEYS` turns
 the head on; the wiring between the driver and a head is
 [`@variance-authority/wire`](../packages/wire/README.md)'s, and the join is set
 out in the [sense package](../packages/sense/README.md#follow-one-execution-into-a-service).
+[Testing across dimensions](across-dimensions.md) follows the same id from a
+Jest case, into a JVM service and through Cloudflare Workers.
 
 Every head a run declares must report at least once. A service that failed to
 start, was built without probes, or was never wired contributes nothing, and

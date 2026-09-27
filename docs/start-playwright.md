@@ -93,14 +93,14 @@ somewhere else. Each one is two files under a directory named for the renderer
 identity that painted it:
 
 ```
-.variance/baselines/v1:6c1f…/cart%2Fempty.png
-.variance/baselines/v1:6c1f…/cart%2Fempty.json
+.variance/baselines/v1-6c1f…/cart%2Fempty.png
+.variance/baselines/v1-6c1f…/cart%2Fempty.json
 ```
 
 The `.png` is the approved image. The `.json` records which renderer painted it
 and what it may be compared against.
 
-**Renderer identity** is what that `v1:…` directory is named for: the renderer
+**Renderer identity** is what that `v1-…` directory is named for: the renderer
 and its engine build, the OS and architecture, the device scale factor, the
 fonts the renderer actually had, and digests of the stabilization and raster
 settings it used. A reading is only compared against a baseline under the same

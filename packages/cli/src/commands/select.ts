@@ -98,9 +98,26 @@ export type SelectGround =
   | { readonly kind: 'no-diff'; readonly from: string }
   | { readonly kind: 'no-install'; readonly whole: string };
 
+/**
+ * Whose record was read, for a suite given to a share: this checkout's own, or
+ * the one its mainline published. Absent for any other suite, which has only
+ * the one record and nothing to tell apart.
+ */
+export interface SelectSource {
+  /** Absent when neither had one. */
+  readonly from?: 'checkout' | 'mainline';
+  /** The mainline asked, when one was. */
+  readonly mainline?: string;
+  /** How far the mainline's record is behind this checkout's merge base with it; negative when ahead. */
+  readonly distance?: number;
+  /** Which record was read, said as the first note, after the verdict. */
+  readonly says: string;
+}
+
 export interface SelectInput {
   /** Where the journal is, or would have been. Named in every outcome. */
   readonly at: string;
+  readonly source?: SelectSource;
   /** The commit the journal's line ranges are coordinates in, when it named one. */
   readonly commit?: string;
   /**
@@ -140,6 +157,7 @@ export interface TestSelection {
   /** Carried so the machine-readable form can name the journal it read. */
   readonly at: string;
   readonly commit?: string;
+  readonly source?: SelectSource;
   /** Counts rather than lists: `whole` is the whole suite, and nobody reads it. */
   readonly recorded?: { readonly whole: number; readonly entered: number };
   readonly unread: readonly string[];
@@ -164,28 +182,26 @@ export function skippableTests(input: SelectInput): TestSelection {
     skip: [] as readonly string[],
     at: input.at,
     ...(input.commit === undefined ? {} : { commit: input.commit }),
+    ...(input.source === undefined ? {} : { source: input.source }),
     unread: [] as readonly string[],
     stale: [] as readonly string[],
-    notes: [] as readonly string[],
+    // Which record answered is the first note, before any other note about it.
+    notes: input.source === undefined ? [] : [input.source.says],
   };
 
   if (input.ground.kind === 'no-journal') {
     return {
       ...base,
-      widened:
-        `no execution journal has been recorded for this checkout (${input.at}), so nothing ` +
-        'here knows which test covered which line',
-      because: 'there is nothing to narrow by, and every test file stays in the run',
+      widened: `no execution journal at ${input.at}`,
+      because: 'nothing to narrow by, so every test file runs',
     };
   }
 
   if (input.ground.kind === 'no-diff') {
     return {
       ...base,
-      widened:
-        `what has changed since ${input.ground.from} could not be read, and an empty diff and ` +
-        'an unobtainable one look exactly alike',
-      because: 'the diff could not be read, and one of its two readings is “skip everything”',
+      widened: `cannot read what changed since ${input.ground.from}`,
+      because: 'no diff, so every test file runs',
     };
   }
 
@@ -193,12 +209,12 @@ export function skippableTests(input: SelectInput): TestSelection {
     return {
       ...base,
       widened: input.ground.whole,
-      because: 'a package bump shows in no line a test covered, so every test file stays in the run',
+      because: 'a package bump shows in no covered line, so every test file runs',
     };
   }
 
   const { whole, entered, unread, stale, readings } = input.ground.narrowing;
-  const notes = [...unreadNotes(unread), ...recordingNotes(stale, input.commit, input.given === true)];
+  const notes = [...base.notes, ...unreadNotes(unread), ...recordingNotes(stale, input.commit, input.given === true)];
   const measured = {
     ...base,
     notes,
@@ -211,10 +227,8 @@ export function skippableTests(input: SelectInput): TestSelection {
   if (whole.length === 0) {
     return {
       ...measured,
-      widened:
-        'the journal holds no whole observation of any test file, so no absence from it is ' +
-        'evidence of anything',
-      because: 'the execution journal recorded nothing it can speak for',
+      widened: 'the journal holds no whole observation of any test file',
+      because: 'nothing recorded whole, so every test file runs',
     };
   }
 
@@ -225,9 +239,8 @@ export function skippableTests(input: SelectInput): TestSelection {
     ...measured,
     skip,
     because:
-      `${skip.length} of the ${many(whole.length, 'test file')} the journal recorded whole ` +
-      'covered none of the changed lines, and are skipped; every test file it does not speak ' +
-      'for still runs',
+      `skipping ${skip.length} of ${many(whole.length, 'test file')} recorded whole: none ` +
+      'covered a changed line; every other test file runs',
   };
 }
 
@@ -362,6 +375,9 @@ function jsonOf(selection: TestSelection): object {
       at: selection.at,
       ...(selection.commit === undefined ? {} : { commit: selection.commit }),
       ...(selection.recorded === undefined ? {} : { recorded: selection.recorded }),
+      ...(selection.source?.from === undefined ? {} : { from: selection.source.from }),
+      ...(selection.source?.mainline === undefined ? {} : { mainline: selection.source.mainline }),
+      ...(selection.source?.distance === undefined ? {} : { distance: selection.source.distance }),
     },
     unread: selection.unread,
     stale: selection.stale,
@@ -378,10 +394,12 @@ function jsonOf(selection: TestSelection): object {
  * rather than a report.
  */
 export function selectionNotes(selection: TestSelection): string {
+  // A widened answer is said once: `because` restates "every test file runs",
+  // which `skipping nothing` already says. `json` keeps both fields.
   const lines =
     selection.widened === undefined
       ? [`${selection.because}.`]
-      : [`skipping nothing: ${selection.widened}.`, `${selection.because}.`];
+      : [`skipping nothing: ${selection.widened}.`];
 
   for (const note of selection.notes) lines.push(`${note}.`);
   lines.push(...readingLines(selection.readings ?? []));

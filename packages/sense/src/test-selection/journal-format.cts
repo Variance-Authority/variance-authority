@@ -432,6 +432,25 @@ function unpackCase(packed: string): { file: string; name: string; id: string; s
 }
 
 /**
+ * A coordinate that handed out a journey id, as a fifth field.
+ *
+ * It follows the settling, which stays empty when the case has not settled, so
+ * a reader that knows four fields reads the case and its settling unchanged.
+ * The fold reads the fifth to join what ran beyond a fence under that id — a
+ * part frame is owned by `\0\0\0\0<journey>`, no case of its own — back to
+ * the case that sent it.
+ */
+function packJourney(packed: string, journey: string): string {
+  const fields = packed.split('\u0000').length;
+  return `${packed}${'\u0000'.repeat(Math.max(1, 5 - fields))}${journey}`;
+}
+
+/** The journey a frame owner carries; empty when it carries none. */
+function journeyOf(packed: string): string {
+  return packed.split('\u0000')[4] ?? '';
+}
+
+/**
  * Case frames as one file, each behind its own length.
  *
  * A frame must be read to its exact end or it is refused, so frames cannot be
@@ -468,5 +487,15 @@ function unpackFrames(raw: Uint8Array): readonly Uint8Array[] {
 }
 
 export = {
-  encodeJournal, encodeLog, decodeJournal, scanJournal, packCase, settledCase, unpackCase, packFrames, unpackFrames,
+  encodeJournal,
+  encodeLog,
+  decodeJournal,
+  scanJournal,
+  packCase,
+  settledCase,
+  unpackCase,
+  packJourney,
+  journeyOf,
+  packFrames,
+  unpackFrames,
 };

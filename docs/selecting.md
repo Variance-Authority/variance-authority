@@ -206,8 +206,7 @@ It is in the report, with the sentence that skipped it:
 
 ```
 [not observed] story:checkout--summary
-not affected by the diff against origin/main: its baseline records 4 component(s)
-and this diff touched none of them (Button, Badge, Toggle)
+not affected by the diff against origin/main: none of its 4 components touched
 ```
 
 That is the same `excluded` state a shard filter produces, and it behaves the
@@ -361,14 +360,16 @@ that already computes its own dependency graph can feed this from that instead.
 
 ## What `nx` and `turbo` know that a scan cannot
 
-A specifier scan stops at the package boundary. In a workspace,
-`@scope/design-system` resolves into that package's **built output**, and built
-output is not what anybody edits — so a diff inside one package reaches nothing
-in the package that consumes it, and every monorepo has exactly the component
-library that boundary hides.
+A specifier scan stops at a package boundary when the package's `tsconfig` does
+not name both `outDir` and `rootDir`, or emits no code. `@scope/design-system`
+then resolves into **built output** that nobody edits — code a bundler writes
+while the `tsconfig` emits none, or a `tsconfig` with no `rootDir` — and a diff
+inside one package reaches nothing in the package that consumes it. A package
+whose `tsconfig` names both and emits code is not this case: the scan reads its
+build as its source ([Workspace packages](source.md#workspace-packages)).
 
 Both tools compute that edge already, from the manifests, and every repository
-that has one has already configured it:
+that uses either has already configured it:
 
 ```json
 { "source": { "changes": { "tool": "turbo", "task": "build" } } }

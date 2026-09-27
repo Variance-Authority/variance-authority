@@ -15,6 +15,7 @@ asked about one.
 | Question | Route |
 | --- | --- |
 | Which component and source line own a changed region? | [Attribute the change](attribution.md) |
+| What differs between A and B — a revision, a moment, a variant, an experiment arm? | [Compare A with B](a-b-testing.md) |
 | Where did two readings of the same page start to differ? | [Find where they part](parting.md) |
 | Did the subject disagree with itself, and who can remove the cause? | [Classify a flake](flakiness.md) |
 | Could the page still have been moving when it was captured? | [Hold the page still](stabilization.md) |

@@ -9,11 +9,12 @@ import {
 } from '@variance-authority/core/attribute';
 import type { SuiteIndex } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
-import { costsLine } from './costs.js';
-import { reportsAt, UNCOVERED } from './merge.js';
+import { writeSuiteIndex } from '@variance-authority/report/file';
+import { UNCOVERED } from './merge.js';
 import { censusOf, examplesOf, lexiconReportFrom, type LexiconReading } from './compose.js';
+import { reportsFor } from './report-read.js';
 import { isSlice, suitePartPath, type CliRunReport } from './run-report.js';
-import { publishIndex, shareLines, suiteIndexPath } from './share.js';
+import { describePublish, publishKept, shareLines, suiteIndexPath, type Here } from './share.js';
 
 /**
  * One shard's share of the suite index, and the fold that makes the index whole.
@@ -175,7 +176,8 @@ function declaredOf(parts: readonly SuitePart[]): { readonly declaredIn?: Record
 }
 
 /**
- * `share --publish` over every shard's report: compose the index and publish it.
+ * `share --publish` over every shard's report: compose the index, keep it, and
+ * publish it with the merged report's costs.
  *
  * `merged` is the reports already merged, which has refused shards of
  * different builds. What is refused here is what only the parts can show: a
@@ -185,31 +187,33 @@ export async function publishComposed(
   config: Config,
   reports: readonly string[],
   merged: CliRunReport,
+  here: Here = {},
 ): Promise<readonly string[]> {
   const commit = merged.run?.commit;
-  if (commit === undefined) return ['suite index: nothing published; these reports name no commit'];
+  if (commit === undefined) return ['nothing published: these reports name no commit.'];
   if (isSlice(merged) || (merged.notObserved ?? []).some((entry) => entry.because.startsWith(UNCOVERED))) {
-    return ['suite index: nothing published; these reports do not cover the suite, so its census would be counted short'];
+    return ['nothing published: these reports do not cover the suite, so its census would be counted short.'];
   }
 
   const parts: SuitePart[] = [];
   for (const path of reports) {
     const part = await readSuitePart(path);
-    if (part === undefined) {
-      return [`suite index: nothing published; ${path} has no ${suitePartPath(path)} beside it`];
-    }
+    if (part === undefined) return [`nothing published: ${path} has no ${suitePartPath(path)} beside it.`];
     parts.push(part);
   }
 
   const index = composeSuiteIndex(parts, commit);
-  if (typeof index === 'string') return [`suite index: nothing published; ${index}`];
-  if (index === undefined) return ['suite index: nothing published; no shard composed a subject'];
+  if (typeof index === 'string') return [`nothing published: ${index}.`];
+  if (index === undefined) return ['nothing published: no shard composed a subject.'];
 
-  const published = await publishIndex(config, { ...index, commit });
-  return [
-    `suite index at ${commit}, composed from ${String(parts.length)} shard(s): ${suiteIndexPath(config, commit)}`,
-    ...(published.shared ? ['offered to the configured share'] : ['kept locally; no `share` is configured']),
-  ];
+  const path = suiteIndexPath(config, commit);
+  try {
+    await writeSuiteIndex(path, index);
+  } catch {
+    // A cache this machine could not write is a cache this machine does without.
+  }
+  const done = await publishKept(config, { commit, index }, { report: merged }, here);
+  return [`suite index at ${commit}, composed from ${String(parts.length)} shard(s): ${path}`, ...describePublish(config, done)];
 }
 
 /**
@@ -221,14 +225,13 @@ export async function publishComposed(
  */
 export async function shareOutput(
   config: Config,
-  options: { readonly publish: boolean; readonly ref?: string; readonly reports: readonly string[] },
+  options: { readonly publish: boolean; readonly mainline?: string; readonly reports: readonly string[] },
+  here: Here = {},
 ): Promise<readonly string[]> {
   const [only, ...more] = options.reports;
-  if (!options.publish) return shareLines(config, { publish: false, ...(options.ref === undefined ? {} : { ref: options.ref }) });
-
-  const merged = await reportsAt(options.reports, config.report);
-  const lines = more.length === 0
-    ? await shareLines(config, { publish: true, ...(only === undefined ? {} : { report: only }) })
-    : await publishComposed(config, options.reports, merged);
-  return [...lines, await costsLine(config, merged)];
+  if (!options.publish) {
+    return shareLines(config, { publish: false, ...(options.mainline === undefined ? {} : { mainline: options.mainline }) }, here);
+  }
+  if (more.length === 0) return shareLines(config, { publish: true, ...(only === undefined ? {} : { report: only }) }, here);
+  return publishComposed(config, options.reports, await reportsFor(options.reports, config), here);
 }

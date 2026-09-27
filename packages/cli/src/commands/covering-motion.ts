@@ -70,24 +70,38 @@ export async function motionFor(
   return motionOfLast(full, from, scope.tests, request.root, request.file);
 }
 
-/** The last run's cases against the layer it retired, narrowed to one module when one was asked. */
+/**
+ * The last run's cases against the layer it retired, narrowed to one module
+ * when one was asked. Under `since`, what the base's branch moved between the
+ * layer's commit and where the branches part is left out, as it is for a
+ * record `--against` names.
+ */
 export async function motionOfLast(
   full: ExecutionIndex,
   from: string,
   cases: readonly string[],
   root: string,
   file?: string,
+  since?: string,
 ): Promise<CoveringMotion> {
-  const before = caseLayerFiles(from).before;
-  const base = { from: before, kind: 'before' as const };
+  const layers = caseLayerFiles(from);
+  const at = (await lastRun(layers.last))?.before;
+  const parting = at === undefined || since === undefined ? undefined : await movedOnBase(at, since, root);
+  const base: MotionBase = {
+    from: layers.before,
+    kind: 'before',
+    ...(at === undefined ? {} : { at }),
+    ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }),
+  };
   let held: ExecutionIndex;
   try {
-    held = await readExecutionIndex(before);
+    held = await readExecutionIndex(layers.before);
   } catch {
     return { base };
   }
   const now = keepCases(full, new Set(cases));
-  const moved = caseMotion(held, now, await graphFor(now, root));
+  const exclude = new Set(parting?.files ?? []);
+  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude });
   return { base, moved: file === undefined ? moved : within(moved, file) };
 }
 
@@ -104,8 +118,8 @@ export async function motionAgainst(
   } catch (error) {
     throw new OperatorError(
       `\`--against ${against}\` could not be read (${error instanceof Error ? error.message : String(error)}). ` +
-        'In a pipeline the base is the recording the base branch made: restore it from the cache into a ' +
-        'directory of its own before this run writes, and name its case index here.',
+        'A pipeline that restores the base branch\'s recording before the suite runs needs no `--against`: ' +
+        'the run keeps the cases it replaced beside its index, and `review` reads them.',
     );
   }
   const now = await readExecutionIndex(from);
@@ -131,9 +145,8 @@ export function motionText(
 ): readonly string[] {
   if (motion === undefined) return [];
   const { base, moved } = motion;
-  const against = base.kind === 'before'
-    ? 'the run before it'
-    : `${base.from}${base.at === undefined ? '' : ` at ${base.at.slice(0, 12)}`}`;
+  const at = base.at === undefined ? '' : ` at ${base.at.slice(0, 12)}`;
+  const against = base.kind === 'before' ? `the run before it${at}` : `${base.from}${at}`;
   if (moved === undefined) return ['', `Nothing to compare: ${base.from} holds none of these cases.`];
   const lines = [''];
   if (base.kind === 'record' && base.at === undefined) {
@@ -150,9 +163,10 @@ export function motionText(
   const { counts } = moved;
   if (moved.regions.length === 0) lines.push(`Against ${against}, no region moved.`);
   else {
-    lines.push(
-      `Against ${against}: ${counts.lost} lost, ${counts.hidden} hidden, ${counts.thinned} thinned, ${counts.gained} gained.`,
-    );
+    const said = (['lost', 'hidden', 'thinned', 'gained'] as const)
+      .filter((motion) => counts[motion] > 0)
+      .map((motion) => `${counts[motion]} ${motion}`);
+    lines.push(`Against ${against}: ${said.join(', ')}.`);
     for (const region of moved.regions) {
       const why = region.motion === 'gained'
         ? `now ${named(region.now)}`
@@ -207,13 +221,19 @@ async function graphFor(now: ExecutionIndex, root: string) {
 
 /** The commit a base was recorded at: its last run's, or its snapshot's. */
 async function baseCommit(against: string): Promise<string | undefined> {
-  try {
-    const last = JSON.parse(await readFile(caseLayerFiles(against).last, 'utf8')) as LastCaseRun;
-    if (last.commit !== undefined) return last.commit;
-  } catch {
-    // No last run beside it: the snapshot it sits beside may still say.
-  }
+  // No last run beside it: the snapshot it sits beside may still say.
+  const commit = (await lastRun(caseLayerFiles(against).last))?.commit;
+  if (commit !== undefined) return commit;
   return against.endsWith('.cases.bin') ? recordedCommit(against.slice(0, -'.cases.bin'.length)) : undefined;
+}
+
+/** The run that wrote an index last, or `undefined` when none named itself there. */
+async function lastRun(file: string): Promise<LastCaseRun | undefined> {
+  try {
+    return JSON.parse(await readFile(file, 'utf8')) as LastCaseRun;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

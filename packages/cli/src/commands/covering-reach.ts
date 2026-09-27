@@ -34,15 +34,14 @@
  * not a rounding: `at-source.ts` says the same thing from the other end.
  */
 
-import { existsSync } from 'node:fs';
-import { dirname, join, resolve as resolvePath } from 'node:path';
 import {
   distanceToSource,
-  testCoverageFile,
   type CoveringTest,
   type SourcePoint,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import { packageOf } from '../package-home.js';
+import { snapshotFor } from './covering-frame.js';
 import { relationsFor } from './source-graph.js';
 import type { CoveringAt } from '../covering-args.js';
 
@@ -89,13 +88,9 @@ export async function nearbyWitnesses(request: CoveringAt): Promise<Narrowing> {
     const { from, to } = request.atDistance;
     const hops = await hopsToTests(request);
     const unplaced = [...hops.values()].filter((distance) => distance === undefined).length;
-    if (unplaced > 0) {
-      notes.push(
-        `${unplaced} test file${unplaced === 1 ? '' : 's'} could not be placed on the import ` +
-          'graph and are left out of the band rather than carried into it; an unmeasured ' +
-          'distance is not a short one',
-      );
-    }
+    // A file the graph cannot place is left out of the band, not carried into
+    // it: an unmeasured distance is not a short one.
+    if (unplaced > 0) notes.push(`${unplaced} test file${unplaced === 1 ? '' : 's'} not on the import graph; left out`);
     filters.push((test) => {
       const distance = hops.get(test.file);
       return distance !== undefined && distance >= from && distance <= to;
@@ -134,14 +129,21 @@ async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, num
     ...(request.function === undefined ? {} : { function: request.function }),
   };
 
+  const snapshot = snapshotFor(request);
+  if (snapshot === undefined) {
+    throw new OperatorError(
+      'import hops are read from a suite\'s coverage snapshot, and an index named by `--execution` is no ' +
+        'declared suite\'s; ask with `--suite <name>` instead.',
+    );
+  }
   const { audience, distances } = await distanceToSource(
-    testCoverageFile(request.root),
+    snapshot,
     point,
     { relations },
   );
   if (!audience.recorded) {
     throw new OperatorError(
-      `import hops are read from the coverage snapshot at \`${testCoverageFile(request.root)}\`, ` +
+      `import hops are read from the coverage snapshot at \`${snapshot}\`, ` +
         `which holds no instrumented row for \`${request.file}\`. The per-case index and the ` +
         'snapshot are written by the same run, so a file in one and not the other means the two ' +
         'are from different runs; record once and ask again.',
@@ -152,40 +154,6 @@ async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, num
   for (const distance of distances) hops.set(distance.test, distance.hops);
   return hops;
 }
-
-/**
- * The directory of the nearest manifest at or above a file, inside the root.
- *
- * The manifest is the package boundary — the same rule the scanner follows —
- * and the walk stops at the root so a workspace never resolves to whatever
- * `package.json` happens to sit above the checkout. Synchronous because it is a
- * handful of `stat` calls per distinct directory, and remembered because a file
- * of four hundred witnesses asks about the same directories over and over.
- * `undefined` means there is no manifest to scope to.
- */
-function packageOf(root: string, file: string): string | undefined {
-  const key = JSON.stringify([root, file]);
-  const cached = HOMES.get(key);
-  if (cached !== undefined) return cached === '' ? undefined : cached;
-
-  let at = dirname(resolvePath(root, file));
-  let home: string | undefined;
-  for (;;) {
-    if (existsSync(join(at, 'package.json'))) {
-      home = at;
-      break;
-    }
-    if (at === root) break;
-    const up = dirname(at);
-    if (up === at) break;
-    at = up;
-  }
-  HOMES.set(key, home ?? '');
-  return home;
-}
-
-/** One process asks about one root, so the walk is worth remembering. */
-const HOMES = new Map<string, string>();
 
 function relativeTo(root: string, directory: string): string {
   return directory.startsWith(`${root}/`) ? directory.slice(root.length + 1) : directory;

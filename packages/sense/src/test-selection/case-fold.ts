@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { layerCaseIndex } from './case-layer.js';
+import { layerBefore, layerCaseIndex } from './case-layer.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import type { ModuleId } from '../instrument/index.js';
 import { CrossingSets } from './crossing-sets.js';
@@ -147,6 +147,22 @@ const DEFAULT_BUDGET = 128 * 1_048_576;
  * 200-case run over a thousand ambient modules — the heap arriving at the end
  * of a worker-heavy run, when the machine has least of it. A `.json` file is
  * still written from the object index, because JSON is that index spelled out.
+ *
+ * A run that recorded no case and finished no test file writes nothing, and
+ * leaves an index that is already there as it was. Absent is not empty: such
+ * a run — projects that loaded none of this seam's modules, so no case wrote a
+ * frame and no file wrote a journal — did not learn that no case walks any
+ * line. Laid over the index anyway, it would name itself the last run with no
+ * case and put the cases of every file it was handed in the before layer, as
+ * though it had replaced them; written where none was, it would answer *which
+ * cases walk this line* with none.
+ *
+ * A file that finished did learn, even when none of its cases entered
+ * anything: its cases walk no line, and what an earlier run recorded for them
+ * is retired. The run already carries that answer — a test is `complete` only
+ * when its file wrote a journal and ran to the end — so it is read from
+ * `run.tests`, not worked out again from the case journals. The cases decide
+ * and the modules do not: the fold keeps a module only when a case entered it.
  */
 export async function writeCaseIndex(
   file: string,
@@ -155,25 +171,39 @@ export async function writeCaseIndex(
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   run: CaseRunTests,
 ): Promise<void> {
+  const finished = run.tests.some((test) => test.complete);
   if (file.endsWith('.json')) {
     // TODO: lay a JSON index over the one it replaces, as the columns are — a
     // `.json` name is still rewritten with the last run's cases alone.
-    await writeCoverageBytes(file, executionIndexBytes(file, executionIndexFrom(await readCaseJournals(directory, root), modules)));
+    const index = executionIndexFrom(await readCaseJournals(directory, root), modules);
+    if (index.tests.length > 0 || finished) await writeCoverageBytes(file, executionIndexBytes(file, index));
     return;
   }
-  const fresh = (await foldCaseRun(await inspectCaseRun(directory, root), modules)).bytes;
+  const inspected = await inspectCaseRun(directory, root);
+  if (inspected.tests.length === 0 && !finished) return;
+  const fresh = (await foldCaseRun(inspected, modules)).bytes;
   const layers = caseLayerFiles(file);
   const written = await withIndexLock(file, async () => {
-    const { merged, last, before } = layerCaseIndex(await readIfThere(file), fresh, {
-      ran: new Set(run.tests.map((test) => test.file)),
+    const ran = new Set(run.tests.map((test) => test.file));
+    const { merged, last, before: retired } = layerCaseIndex(await readIfThere(file), fresh, {
+      ran,
       finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
       present: (test) => existsSync(resolve(root, test)),
     });
+    const prior = await readLastRun(layers.last);
+    // One more run at the commit the last one was made at: an invocation of
+    // the same suite, not a new change, so what the runs before it retired
+    // stays under what this one retired.
+    const again = run.commit !== undefined && prior?.commit === run.commit;
+    const before = again ? layerBefore(await readIfThere(layers.before), retired, ran) : retired;
+    const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior?.commit;
     await writeCoverageBytes(file, merged);
+    const files = [...ran].sort(codeUnitOrder);
     const named: LastCaseRun = {
       ...(run.commit === undefined ? {} : { commit: run.commit }),
+      ...(before === undefined || at === undefined ? {} : { before: at }),
       at: new Date().toISOString(),
-      files: [...new Set(run.tests.map((test) => test.file))].sort(codeUnitOrder),
+      files: again ? [...new Set([...prior.files, ...files])].sort(codeUnitOrder) : files,
       cases: last,
     };
     await writeCoverageBytes(layers.last, Buffer.from(`${JSON.stringify(named, null, 2)}\n`));
@@ -198,8 +228,17 @@ export interface CaseRunTests {
  */
 export interface LastCaseRun {
   readonly commit?: string;
+  /**
+   * The commit the cases in the before layer were recorded at: the commit of
+   * the run that wrote the index before the first run at this one. Absent
+   * when that run named none, and when a run at this commit ran a file again,
+   * because that file's before is then this commit's own.
+   */
+  readonly before?: string;
   readonly at: string;
+  /** Every test file the runs at this commit announced, so a run can tell whether it ran one again. */
   readonly files: readonly string[];
+  /** The cases the last run recorded, by id. */
   readonly cases: readonly string[];
 }
 
@@ -210,6 +249,17 @@ export interface LastCaseRun {
 export function caseLayerFiles(file: string): { readonly last: string; readonly before: string } {
   const stem = file.endsWith('.bin') ? file.slice(0, -'.bin'.length) : file;
   return { last: `${stem}.last.json`, before: `${stem}.before.bin` };
+}
+
+/** The run that wrote the index last, or `undefined` when none named itself or its name cannot be read. */
+async function readLastRun(file: string): Promise<LastCaseRun | undefined> {
+  const bytes = await readIfThere(file);
+  if (bytes === undefined) return undefined;
+  try {
+    return JSON.parse(bytes.toString('utf8')) as LastCaseRun;
+  } catch {
+    return undefined;
+  }
 }
 
 async function readIfThere(file: string): Promise<Buffer | undefined> {

@@ -5,7 +5,7 @@ import { TOKENS, tribunal } from '../../tribunal';
 /**
  * Every service route, mounted once.
  *
- * The whole router — baselines, cache, history, review, sweep — is one `fetch`
+ * The whole router — baselines, cache, history, share, review, sweep — is one `fetch`
  * handler, so this file is the mount point and not a list of endpoints that
  * could fall behind the package's own.
  *
@@ -13,6 +13,8 @@ import { TOKENS, tribunal } from '../../tribunal';
  * because a default here is a published approve button:
  *
  * - the ingest token, as a bearer, is CI. It writes and cannot decide.
+ * - the share token, as a bearer, is a machine that reads the share and
+ *   nothing else. It is optional, and unset nothing is granted it.
  * - an Access identity is a person. They review.
  * - the review token, as a bearer, is a machine acting for the operator — the
  *   `variance` CLI approving from a script, or a second service. It reviews.
@@ -47,6 +49,7 @@ function handlers(): TribunalRoutes {
       const bearer = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : null;
       if (bearer !== null && bearer === TOKENS.ingest) return 'ingest';
       if (bearer !== null && bearer === TOKENS.review) return 'review';
+      if (bearer !== null && TOKENS.share !== undefined && bearer === TOKENS.share) return 'share';
       return (await identify(request)) === null ? null : 'review';
     },
     tokens: TOKENS,
@@ -73,4 +76,5 @@ async function serve(
 
 export const GET = (request: Request): Promise<Response> => serve('GET', request);
 export const POST = (request: Request): Promise<Response> => serve('POST', request);
+export const PUT = (request: Request): Promise<Response> => serve('PUT', request);
 export const HEAD = (request: Request): Promise<Response> => serve('HEAD', request);

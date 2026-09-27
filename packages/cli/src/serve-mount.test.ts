@@ -1,11 +1,16 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RunReport } from '@variance-authority/report';
 import { writeRunReport } from '@variance-authority/report/file';
+import type { Config } from './config.js';
+import { publishRun } from './commands/share.js';
 
 /**
  * One connection answers about the run and about the code.
@@ -81,46 +86,174 @@ describe('the server `variance serve` starts', () => {
   });
 
   it('answers a source question from the checkout it was started in', async () => {
-    const result = await ask<{ readonly content: readonly { readonly text: string }[] }>('tools/call', {
-      name: 'docs_packages',
-    });
+    const result = await ask<Answer>('tools/call', { name: 'docs_packages' });
     expect(result.content[0]!.text).toContain('mounted');
   });
 });
 
-async function ask<Result>(method: string, params?: Record<string, unknown>): Promise<Result> {
-  const child = spawn(process.execPath, [BIN, 'serve'], {
-    cwd: workspace,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, NO_COLOR: '1' },
+describe('`variance serve` in a checkout with no report', () => {
+  it('answers from the mainline record the share holds, and every answer names the commit it read', async () => {
+    const { checkout, commit } = await checkoutWithShare();
+    try {
+      const result = await ask<Answer>('tools/call', { name: 'variance_summary' }, checkout);
+      expect(result.content[0]!.text).toMatch(new RegExp(`^report: read from mainline main, evaluated at ${commit}, .*; kept at .+report\\.json\\.\n\n`));
+    } finally {
+      await rm(checkout, { recursive: true, force: true });
+    }
   });
+
+  it('answers from this checkout\'s own run once it is written, and the comparison across the two says what it compared', async () => {
+    const { checkout, commit } = await checkoutWithShare();
+    const server = session(checkout);
+    try {
+      const first = await server.request<Answer>('tools/call', { name: 'variance_summary' });
+      expect(first.content[0]!.text).toMatch(/^report: read from mainline main, /);
+
+      await writeRunReport(join(checkout, 'report.json'), { ...REPORT, observations: [{ subject: 'page/home', verdict: 'changed' }] } as unknown as RunReport);
+      const compared = await server.request<Answer>('tools/call', { name: 'variance_diff' });
+      expect(compared.content[0]!.text).toMatch(new RegExp(
+        `^report: this checkout's own run, compared with the report the previous answer read from mainline main at ${commit}\\.\n\nThe current state differs`,
+      ));
+      const own = await server.request<Answer>('tools/call', { name: 'variance_summary' });
+      expect(own.content[0]!.text).not.toMatch(/^report: /);
+      const again = await server.request<Answer>('tools/call', { name: 'variance_diff' });
+      expect(again.content[0]!.text).toMatch(/^The current state matches the previous invocation\./);
+    } finally {
+      server.close();
+      await rm(checkout, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to start when the share cannot be reached, and says which lines it asked and why', async () => {
+    const checkout = await mkdtemp(join(tmpdir(), 'variance-serve-unreachable-'));
+    const closed = createServer();
+    await new Promise<void>((listening) => closed.listen(0, '127.0.0.1', listening));
+    const endpoint = `http://127.0.0.1:${String((closed.address() as AddressInfo).port)}`;
+    await new Promise((done) => closed.close(done));
+    try {
+      await git(checkout, 'init', '--quiet', '-b', 'main');
+      await writeConfig(checkout, { kind: 'http', endpoint, mainlines: ['main'] });
+      await expect(ask('tools/list', undefined, checkout)).rejects.toThrow(
+        new RegExp(`mainline main: ${endpoint}/mainline/main/manifest\\.json: fetch failed: .*ECONNREFUSED`),
+      );
+    } finally {
+      await rm(checkout, { recursive: true, force: true });
+    }
+  });
+});
+
+interface Answer {
+  readonly content: readonly { readonly text: string }[];
+}
+
+/** A repository on `main` with one commit, and CI's run for it published to a directory share its config names. */
+async function checkoutWithShare(): Promise<{ readonly checkout: string; readonly commit: string }> {
+  const checkout = await mkdtemp(join(tmpdir(), 'variance-serve-share-'));
+  await git(checkout, 'init', '--quiet', '-b', 'main');
+  await git(checkout, '-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '--quiet', '--allow-empty', '-m', 'one');
+  const commit = await git(checkout, 'rev-parse', 'HEAD');
+  const share = { kind: 'directory', root: join(checkout, 'share'), mainlines: ['main'] } as const;
+  await writeConfig(checkout, share);
+  // CI's run, written somewhere this checkout's configured report is not.
+  const ci = join(checkout, 'ci', 'run.json');
+  await writeRunReport(ci, { ...REPORT, run: { id: 'ci', commit }, composition: { subjects: ['page/home'], components: [] } } as unknown as RunReport);
+  const config = { project: 'mounted', report: join(checkout, 'report.json'), share, reportCarry: 'share' } as unknown as Config;
+  const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'push', GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main' };
+  expect(await publishRun(config, ci, { env, cwd: checkout })).toMatchObject({ published: { written: ['suite-index-v1', 'report-v1'] } });
+  return { checkout, commit };
+}
+
+async function writeConfig(checkout: string, share: Readonly<Record<string, unknown>>): Promise<void> {
+  await writeFile(
+    join(checkout, 'variance.config.json'),
+    JSON.stringify({
+      project: 'mounted',
+      profile: 'chromium',
+      viewport: { width: 256, height: 96, deviceScaleFactor: 1, colorScheme: 'light' },
+      retention: 'ephemeral',
+      subjects: { kind: 'collector', collector: 'collector/index.mjs' },
+      fonts: ['Arial/600/normal/system'],
+      report: { path: 'report.json', carry: 'share' },
+      share,
+    }),
+  );
+}
+
+async function git(cwd: string, ...args: string[]): Promise<string> {
+  return (await promisify(execFile)('git', args, { cwd })).stdout.trim();
+}
+
+async function ask<Result>(method: string, params?: Record<string, unknown>, cwd = workspace): Promise<Result> {
+  const server = session(cwd);
   try {
-    const answer = new Promise<Result>((resolve, reject) => {
-      let buffer = '';
-      child.stdout.setEncoding('utf8');
-      child.stdout.on('data', (chunk: string) => {
-        buffer += chunk;
-        for (let end = buffer.indexOf('\n'); end !== -1; end = buffer.indexOf('\n')) {
-          const line = buffer.slice(0, end);
-          buffer = buffer.slice(end + 1);
-          if (line.trim() === '') continue;
-          const response = JSON.parse(line) as {
-            readonly id?: number;
-            readonly result?: Result;
-            readonly error?: { readonly message: string };
-          };
-          if (response.id !== 1) continue;
-          if (response.error !== undefined) reject(new Error(response.error.message));
-          else resolve(response.result!);
-          return;
-        }
-      });
-      child.on('error', reject);
-      child.on('exit', (code) => reject(new Error(`the server exited with ${String(code)} before answering`)));
-    });
-    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })}\n`);
-    return await answer;
+    return await server.request<Result>(method, params);
   } finally {
-    child.kill();
+    server.close();
   }
+}
+
+/**
+ * One `variance serve` process, asked one request at a time over the life of
+ * the connection, as an agent asks it.
+ */
+function session(cwd = workspace): {
+  request<Result>(method: string, params?: Record<string, unknown>): Promise<Result>;
+  close(): void;
+} {
+  // Nothing from the host's CI: which line a reader reads is decided by the
+  // checkout here, not by the pull request this suite happens to run for.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GITHUB_')));
+  const child = spawn(process.execPath, [BIN, 'serve'], {
+    cwd,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...env, NO_COLOR: '1', XDG_CACHE_HOME: join(cwd, 'cache') },
+  });
+  const waiting = new Map<number, { resolve(result: unknown): void; reject(error: Error): void }>();
+  let ended: Error | undefined;
+  let next = 0;
+  let buffer = '';
+  let said = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk: string) => {
+    said += chunk;
+  });
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk: string) => {
+    buffer += chunk;
+    for (let end = buffer.indexOf('\n'); end !== -1; end = buffer.indexOf('\n')) {
+      const line = buffer.slice(0, end);
+      buffer = buffer.slice(end + 1);
+      if (line.trim() === '') continue;
+      const response = JSON.parse(line) as { readonly id?: number; readonly result?: unknown; readonly error?: { readonly message: string } };
+      const pending = response.id === undefined ? undefined : waiting.get(response.id);
+      if (pending === undefined) continue;
+      waiting.delete(response.id!);
+      if (response.error !== undefined) pending.reject(new Error(response.error.message));
+      else pending.resolve(response.result);
+    }
+  });
+  const end = (error: Error): void => {
+    ended = error;
+    for (const pending of waiting.values()) pending.reject(error);
+    waiting.clear();
+  };
+  child.on('error', end);
+  // `close` rather than `exit`, so everything the server wrote to stderr has been read.
+  child.on('close', (code) => end(new Error(`the server exited with ${String(code)} before answering: ${said}`)));
+
+  return {
+    request<Result>(method: string, params?: Record<string, unknown>): Promise<Result> {
+      if (ended !== undefined) return Promise.reject(ended);
+      next += 1;
+      const id = next;
+      const answer = new Promise<Result>((resolve, reject) => {
+        waiting.set(id, { resolve: resolve as (result: unknown) => void, reject });
+      });
+      child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
+      return answer;
+    },
+    close(): void {
+      child.kill();
+    },
+  };
 }

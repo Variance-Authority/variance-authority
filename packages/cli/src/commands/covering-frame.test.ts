@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { declaredSuites, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
@@ -20,6 +20,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/cases-vitest');
 const source = 'packages/sense/test/fixtures/cases-vitest/src/decide.ts';
+// The repository's root declares its suites, so the fixture records as the
+// first of them and every question names it.
+const suite = declaredSuites(repository)?.[0]?.name;
+const named = suite === undefined ? [] : ['--suite', suite];
 let cache: string;
 let previous: string | undefined;
 
@@ -30,7 +34,7 @@ beforeAll(async () => {
   await promisify(execFile)(
     process.execPath,
     [resolve(repository, 'node_modules/vitest/vitest.mjs'), 'run', '--config', resolve(fixture, 'vitest.config.ts')],
-    { cwd: repository, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: testCoverageFile(repository) } },
+    { cwd: repository, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: testCoverageFile(repository, { suite }) } },
   );
   await updateSourceIndex(repository);
 }, 60_000);
@@ -54,7 +58,7 @@ async function edited(): Promise<string> {
 
 describe('a file answered in the text somebody holds', () => {
   it('stands in the recorded frame when the file is the text the suite ran over', async () => {
-    const answer = await covering(parse(['--file', source, '--root', repository]));
+    const answer = await covering(parse(['--file', source, '--root', repository, ...named]));
 
     expect(answer.frame).toBe('recorded');
     expect(answer.ranges?.slice(0, 2).map((range) => [range.startLine, range.endLine, range.state]))
@@ -62,7 +66,7 @@ describe('a file answered in the text somebody holds', () => {
   });
 
   it('carries every range to where it stands in an edited text', async () => {
-    const answer = await covering(parse(['--file', source, '--root', repository, '--text', await edited()]));
+    const answer = await covering(parse(['--file', source, '--root', repository, ...named, '--text', await edited()]));
 
     expect(answer.frame).toBe('mapped');
     expect(answer.ranges?.slice(0, 2).map((range) => [range.startLine, range.endLine, range.state]))
@@ -72,11 +76,11 @@ describe('a file answered in the text somebody holds', () => {
 
   it('asks a held line as the line it was, and refuses one the edit wrote', async () => {
     const held = await edited();
-    const answer = await covering(parse(['--file', source, '--root', repository, '--text', held, '--line', '7']));
+    const answer = await covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '7']));
 
     expect(answer.tests?.map((test) => test.name)).toEqual(['decide > takes the gamma branch']);
     expect(answer.target).toEqual({ line: 7 });
-    await expect(covering(parse(['--file', source, '--root', repository, '--text', held, '--line', '1'])))
+    await expect(covering(parse(['--file', source, '--root', repository, ...named, '--text', held, '--line', '1'])))
       .rejects.toThrow(/written since the recording/);
   });
 });

@@ -69,10 +69,22 @@ describe('selecting from a journey file', () => {
     expect(said.out).toBe('');
   });
 
+  it('refuses a journey file with no change given, since it names no commit to diff from', async () => {
+    await expect(selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', noGit: true }))
+      .rejects.toThrow(/a journey file names no commit/);
+  });
+
   it('refuses a list of paths, which carries no line to select by', async () => {
     writeFileSync(join(root, 'names.txt'), 'src/decide.ts\n');
     await expect(selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'names.txt', noGit: true }))
       .rejects.toThrow(/list of paths.*`variance reach`/su);
+  });
+
+  it('refuses a plain unified diff as one, since it names no blob to read the lines from', async () => {
+    writeFileSync(join(root, 'plain.patch'), '--- a/src/decide.ts\n+++ b/src/decide.ts\n@@ -1 +1 @@\n-a\n+b\n');
+    const refused = selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'plain.patch', noGit: true });
+    await expect(refused).rejects.toThrow(/plain unified diff.*Hand in `git diff`/su);
+    await expect(refused).rejects.not.toThrow(/list of paths/u);
   });
 
   it('names a path neither the journey nor the graph knows, and skips every test it does not reach', async () => {

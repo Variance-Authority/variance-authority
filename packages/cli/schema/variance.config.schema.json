@@ -48,10 +48,27 @@
     "history": { "$ref": "#/$defs/history" },
     "review": { "$ref": "#/$defs/review" },
     "report": {
-      "type": "string",
-      "minLength": 1,
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Where `run` writes the report, resolved against this file's directory."
+            },
+            "carry": {
+              "$ref": "#/$defs/carry",
+              "description": "Who carries the report, and the images it names, off the machine that wrote it."
+            }
+          }
+        }
+      ],
       "default": ".variance/report.json",
-      "description": "Where `run` writes, and where `report`, `accept` and `serve` read. Relative paths resolve against this file's directory."
+      "description": "Where `run` writes, and where `report`, `accept` and `serve` read. Relative paths resolve against this file's directory. The object form adds `carry`; the string form is a report that stays on the machine that wrote it."
     },
     "images": {
       "type": "string",
@@ -101,9 +118,34 @@
       "type": "string",
       "minLength": 1,
       "description": "The directory variance-authority caches in, relative to this file. Read only from the variance.config.json at the repository root, by the CLI and every test runner alike. Without it the cache is the default described at https://variance-authority.dev/docs/cache."
+    },
+    "suites": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "enum": ["unit", "integration", "e2e", "visual"],
+            "description": "What the suite is for. A Playwright suite may be e2e or visual, and a Vitest browser suite may be unit or visual: the runner does not decide."
+          },
+          "carry": {
+            "$ref": "#/$defs/carry",
+            "description": "Who carries the suite's recording off the machine that recorded it. Without it, the recording stays there."
+          }
+        }
+      },
+      "description": "Every test suite the repository runs, by name, with its kind. Each suite records separately, and names itself with the suite option of its test runner integration. Read only from the variance.config.json at the repository root."
     }
   },
   "$defs": {
+    "carry": {
+      "enum": ["actions-cache", "share"],
+      "description": "Who moves an artifact to the next machine. `actions-cache`: the CI host, from job to job, with the path and key `variance carry` prints. `share`: variance itself, through the `share` section, where a checkout can read it too."
+    },
     "secret": {
       "description": "A value the config declares and does not contain. Either the string itself, or `{ \"env\": \"NAME\" }` naming the environment variable that holds it — a declaration, so the config still determines the run completely while the secret stays out of version control.",
       "oneOf": [
@@ -251,6 +293,10 @@
           "type": "string",
           "minLength": 1,
           "description": "Directory the `.json` records go in, resolved against this file. A record changes whenever the document does, so records beside their images make a diff out of every edit — including the ones that moved no pixel. Pointed at an ignored directory or a CI cache, `root` holds images and nothing else. Both halves are still written and still read."
+        },
+        "carry": {
+          "const": "actions-cache",
+          "description": "Carry the directory from job to job through the Actions cache. `share` is refused: a share keeps only the latest record per mainline, and baselines are kept by subject and identity."
         }
       }
     },
@@ -307,7 +353,8 @@
       "description": "Where the run leaves what it derived, for the next machine to pick up. Absent means nothing is published and nothing is looked for, which is a complete configuration. Unlike every other section, setting it cannot change what is observed — a stale entry costs work and never an answer.",
       "oneOf": [
         { "$ref": "#/$defs/directoryShare" },
-        { "$ref": "#/$defs/httpShare" }
+        { "$ref": "#/$defs/httpShare" },
+        { "$ref": "#/$defs/gitShare" }
       ]
     },
     "directoryShare": {
@@ -322,8 +369,8 @@
           "minLength": 1,
           "description": "Directory the share is read from and written to, resolved against this file."
         },
-        "mainline": { "$ref": "#/$defs/shareMainline" },
-        "depth": { "$ref": "#/$defs/shareDepth" }
+        "mainlines": { "$ref": "#/$defs/shareMainlines" },
+        "remote": { "$ref": "#/$defs/shareRemote" }
       }
     },
     "httpShare": {
@@ -347,21 +394,38 @@
           "description": "The verb a write uses. `PUT` for a bucket, `POST` for a deployment that routes on it.",
           "enum": ["PUT", "POST"]
         },
-        "mainline": { "$ref": "#/$defs/shareMainline" },
-        "depth": { "$ref": "#/$defs/shareDepth" }
+        "mainlines": { "$ref": "#/$defs/shareMainlines" },
+        "remote": { "$ref": "#/$defs/shareRemote" }
       }
     },
-    "shareMainline": {
+    "gitShare": {
+      "type": "object",
+      "description": "Refs under `refs/variance/` in the repository that already hosts the code: one commit per mainline and per branch, holding that line's latest record and the images it names. A checkout that can fetch its branch can read them with the credentials it already has.",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "const": "git" },
+        "namespace": {
+          "type": "string",
+          "pattern": "^refs/\\S+$",
+          "default": "refs/variance",
+          "description": "The ref prefix the lines sit under, for a repository that already uses `refs/variance/`."
+        },
+        "mainlines": { "$ref": "#/$defs/shareMainlines" },
+        "remote": { "$ref": "#/$defs/shareRemote" }
+      }
+    },
+    "shareMainlines": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "The branches whose latest record is kept, in order of priority, such as [\"main\", \"release/2.0\"]. Unset, git answers: the branch `refs/remotes/<remote>/HEAD` names, then the CI event's default branch. Never `main` by assumption."
+    },
+    "shareRemote": {
       "type": "string",
       "minLength": 1,
-      "default": "origin/main",
-      "description": "The ref whose lineage a lookup walks, newest first. A ref rather than a branch name, because a runner's checkout may have no local branch at all; a ref that moves between runs costs nothing, since the lookup names the commit it found."
-    },
-    "shareDepth": {
-      "type": "integer",
-      "minimum": 1,
-      "default": 50,
-      "description": "How many commits back a lookup will ask for. A bound rather than a policy: a branch open for six months is one whose mainline evaluation is wrong in every interesting way, and three hundred round trips to discover that is worse than deriving it."
+      "default": "origin",
+      "description": "The remote that hosts the mainlines."
     },
 
     "renderer": {

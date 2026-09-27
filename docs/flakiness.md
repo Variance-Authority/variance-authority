@@ -101,7 +101,7 @@ readings are two documents, and a document includes its component hashes, so the
 answer is a component and a band:
 
 ```
-[unstable] story:checkout--summary — Clock read differently (content)
+[unstable] story:checkout--summary: … differ: Clock (content)
 ```
 
 `content` is data, `geometry` is layout that has not settled, `token` is a style
@@ -295,7 +295,7 @@ travels in the report, so the summary, the pull-request comment and an agent all
 read one sentence:
 
 ```
-UNSTABLE: 1 subject(s) were read twice, seconds apart …
+UNSTABLE: 1 subject(s) read twice seconds apart, nothing changed between, …
     story:checkout--summary — Clock (content)
       read differently in 6 run(s), 50% of the 12 sweep(s) that asked, and the most recent
       sweep still saw it
@@ -316,8 +316,8 @@ a suite that stopped running would look increasingly healthy the longer nobody
 looked at it.
 
 **Silence from the record is printed as silence.** A subject with no history
-entry prints *that is silence, not a first occurrence* — because the reader most
-wants the opposite to be true, and nothing in a single run supports it.
+entry prints *No history record: recurrence unknown* — because the reader most
+wants it to be a first occurrence, and nothing in a single run supports that.
 
 What it takes to have one: a `history` block in the config pointing at a service
 you run, and a run that can name itself — `--run` and `--commit`, or the pair the
@@ -440,6 +440,17 @@ and a region already covered by then is recorded as **loaded** by that file:
 [`mode: 'entries'`](../packages/sense/README.md#instrument-one-module) records
 that and nothing finer, for a suite that wants the signal at the price of one
 probe per function.
+
+**For one unit test that fails on some runs, compare its runs.** Record the
+test's [story](test-stories.md) on each run: the functions and branches it ran,
+in order. The order of async code is different on every run, so two stories
+of one test always differ, and a different order is not the flake. `variance
+story --compare outcome` lists only what is true of every run that passed and
+of no run that threw — a branch, a line the code printed, or two steps in the
+opposite order — and counts the rest.
+[Comparing readings](test-stories.md#compare-readings-of-one-test) explains it,
+and a test that passes alone and fails in its file is compared the same way,
+with the two setups as labels.
 
 **A run identifies the affected component, not the writer of an order leak.** A
 probe sees stylesheets, custom properties, attributes and stray body nodes; the

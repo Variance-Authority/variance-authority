@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core/attribute';
 import { createDeclarationReader, fetchModules } from '@variance-authority/playwright';
 import { createStoryRecorder } from './execution.js';
+import { harnessPage, readParameters } from '@variance-authority/storybook';
+import { withParameters } from './parameters.js';
 import type { StorybookCollectorOptions } from './options.js';
 import { readStory, type Reading } from './read.js';
 import { openWorld, type World, type WorldRecipe } from './world.js';
@@ -230,7 +232,7 @@ export function storybookCollector(
         if (plan === undefined) {
           throw operatorError(WRONG_KIND);
         }
-        return plan;
+        return withParameters(plan, await readParameters(harnessPage({ page: world.page })), config.viewport);
       },
 
       async collect(planned: PlannedSubject): Promise<Collected> {

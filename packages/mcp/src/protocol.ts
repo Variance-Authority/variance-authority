@@ -77,7 +77,8 @@ export const SOURCE_TESTS: Served<ExecutionIndex> = {
  *
  * Unlike retained served sets, this one answers about a run somebody still has
  * to start. An agent that is not told the variable at the handshake starts it
- * without one.
+ * without one. What each tool answers is in its own description in `tools/list`,
+ * so the instructions do not say it again.
  */
 export const VANTAGE: Served<VantageState> = {
   name: SERVER_NAME,
@@ -85,26 +86,8 @@ export const VANTAGE: Served<VantageState> = {
   tools: VANTAGE_TOOLS,
   instructions: (state) =>
     [
-      'This server watches a test run while it happens. It answers about a suite ' +
-        'in flight rather than about a report on disk, and none of it is limited ' +
-        'to visual tests.',
-      '',
-      'Ask `variance_run_signals` for where the run has got to and which test is ' +
-        'still going, and `variance_test_signals` for everything one test has ' +
-        'announced — in order, with the realm that said each, plus work that ' +
-        'started and never ended. Both answer while the test is still running, ' +
-        'which is what a runner cannot do from outside the worker.',
-      '',
-      'A test can also stop and wait for you. Where its author wrote `await ' +
-        'variance.observe()`, the test holds where it is until you say go on: ' +
-        'ask `variance_waiting` for which tests are stopped and where, look at ' +
-        'whatever you need to while the page is still, then `variance_continue`. ' +
-        'Nothing is stopped unless `variance_waiting` says so.',
-      '',
-      'Ask `variance_self` when an answer is emptier than expected. It says what ' +
-        'this watcher is holding and what a suite has to be started with, which ' +
-        'is what separates a run that reported somewhere else from one that has ' +
-        'not started.',
+      'This server watches a test run while it happens; it is not limited to visual tests. ' +
+        'Start with `variance_self`.',
       '',
       attaching(state),
     ].join('\n'),

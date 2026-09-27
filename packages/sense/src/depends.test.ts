@@ -3,38 +3,41 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
-import { directive } from './depends.js';
 import { readModule } from './read.js';
 import { scanRelations } from './scan.js';
 
 /**
  * `/// <depends path>`: the edge a module's author draws to a file it reads
- * without importing it. `native-read.test.ts` holds the two readers to the same
- * answer over the repository, fixtures included.
+ * without importing it, read by `native/src/depends.rs`.
  */
+
+/** The paths a module's `/// <depends>` directives name, as the reader reads them. */
+function named(line: string): readonly string[] {
+  return readModule('a.ts', `${line}\nexport const a = 1;`)
+    .requests.filter((request) => request.kind === 'depends')
+    .map((request) => request.value);
+}
 
 describe('a `/// <depends>` directive', () => {
   it('names a path relative to the file that declares it', () => {
-    expect(directive('/ <depends path="./schema.graphql" />')).toBe('./schema.graphql');
-    expect(directive("/<depends path='data/rows.json'/>")).toBe('./data/rows.json');
-    expect(directive('/ <depends  path = "../shared.json" />')).toBe('../shared.json');
+    expect(named('/// <depends path="./schema.graphql" />')).toEqual(['./schema.graphql']);
+    expect(named("///<depends path='data/rows.json'/>")).toEqual(['./data/rows.json']);
+    expect(named('/// <depends  path = "../shared.json" />')).toEqual(['../shared.json']);
   });
 
   it('is reported when it names nothing, never dropped', () => {
-    expect(directive('/ <depends />')).toBeNull();
-    expect(directive('/ <depends filepath="x.json" />')).toBeNull();
-    expect(directive('/ <depends path="" />')).toBeNull();
-
-    const read = readModule('a.ts', '/// <depends />\nexport const a = 1;');
-    expect(read.requests).toEqual([]);
-    expect(read.unknown).toBe('1 `/// <depends>` directive(s) that name no `path`');
+    for (const line of ['/// <depends />', '/// <depends filepath="x.json" />', '/// <depends path="" />']) {
+      const read = readModule('a.ts', `${line}\nexport const a = 1;`);
+      expect(read.requests).toEqual([]);
+      expect(read.unknown).toBe('1 `/// <depends>` directive(s) that name no `path`');
+    }
   });
 
   it('is a comment when it is anything else', () => {
-    expect(directive(' <depends path="x.json" />')).toBeUndefined();
-    expect(directive('/ <reference path="x.d.ts" />')).toBeUndefined();
-    expect(directive('/ <dependson path="x.json" />')).toBeUndefined();
-    expect(readModule('a.ts', '/* /// <depends path="x.json" /> */').requests).toEqual([]);
+    expect(named('// <depends path="x.json" />')).toEqual([]);
+    expect(named('/// <reference path="x.d.ts" />')).toEqual([]);
+    expect(named('/// <dependson path="x.json" />')).toEqual([]);
+    expect(named('/* /// <depends path="x.json" /> */')).toEqual([]);
   });
 });
 

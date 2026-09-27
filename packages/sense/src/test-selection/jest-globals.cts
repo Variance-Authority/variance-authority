@@ -41,6 +41,7 @@
  */
 
 import collectors = require('./collectors.cjs');
+import stories = require('../story/format.cjs');
 
 type Collector = ReturnType<typeof collectors.flat>;
 
@@ -57,6 +58,9 @@ const CASE_DIRECTORY = 'VARIANCE_AUTHORITY_TEST_SELECTION_CASES';
  */
 const CONTINUATIONS = 'VARIANCE_AUTHORITY_TEST_SELECTION_CONTINUATIONS';
 
+/** Set beside them to where stories go, when the run asked. Mirrors `STORY_DIRECTORY_VARIABLE`. */
+const STORY_DIRECTORY = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY';
+
 /** This realm's collector, so a second evaluation of this file finds the first. */
 const COLLECTOR = Symbol.for('variance-authority.test-selection.collector');
 
@@ -68,7 +72,11 @@ function install(): Collector {
   if (found !== undefined) return found;
   const collector = process.env[CASE_DIRECTORY] === undefined
     ? collectors.flat(holder)
-    : collectors.scoped(holder, process.env[CONTINUATIONS] !== undefined);
+    : collectors.scoped(
+      holder,
+      process.env[CONTINUATIONS] !== undefined,
+      process.env[STORY_DIRECTORY] === undefined ? undefined : stories.storyWriter(process.env[STORY_DIRECTORY]),
+    );
   holder[COLLECTOR] = collector;
   return collector;
 }

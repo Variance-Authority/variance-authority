@@ -74,7 +74,7 @@ yarn workspace @variance-authority/case-storybook storybook
 
 | path | what it holds |
 |---|---|
-| `src/*.stories.jsx` | the fourteen stories, in five files under one title |
+| `src/*.stories.jsx` | the sixteen stories, in five files under one title |
 | `src/ds.jsx` | the design system they render — `Button`, `Stack`, `Card`, `Spinner`, `Clock`, `AsyncPanel`, `Panel`, `SheetLeak`, and the Suspense trees |
 | `collector/index.mjs` | the case's collector: which story defers readiness and by what marker, which story is about its own loading state, and where the components live |
 | `variance.config.json` | project, viewport, fonts, baselines, and `excludeTags: ["no-variance"]` |
@@ -89,20 +89,21 @@ yarn workspace @variance-authority/case-storybook storybook
 
 ## What is in the stories
 
-There are **fourteen** stories in five files under `src/`, chosen so that the
+There are **sixteen** stories in five files under `src/`, chosen so that the
 adapter meets the cases that actually decide whether it is any good. The files
 share the title `Case/Surface`, so the story ids do not name them, and they are
 split so `variance run --shard` has more than one file to place: the stories of
-one file always go to the same shard. **Twelve**
-are subjects. The other two carry `tags: ['no-variance']`, which
-`variance.config.json` honours, so the run excludes them by name and reports
-`12 of 14 subject(s) observed`.
+one file always go to the same shard. **Thirteen** are read, and one of those is
+read at two widths, so the run has **fourteen** subjects. Two stories carry
+`tags: ['no-variance']`, which `variance.config.json` honours, and one excludes
+itself in its own `parameters.variance`. The run names all three and reports
+`14 of 17 subject(s) observed`.
 
-Twelve of the fourteen — everything except `AsyncPanel — settles late` and
+Fourteen of the sixteen — everything except `AsyncPanel — settles late` and
 `Clock — ticking` — are collected through **one page and one navigation**. Those
 two are exercised separately.
 
-### The twelve subjects
+### The fourteen subjects
 
 | story | what it is for |
 |---|---|
@@ -115,9 +116,13 @@ two are exercised separately.
 | `Suspense — arrives late` | a boundary no marker could cover: the component that would carry one has not rendered |
 | `Suspense — boundary inside a boundary` | a boundary that only exists once the first one resolves, so one clean reading is not enough |
 | `Suspense — never resolves` | a boundary that never resolves, which is a flake source and is refused unless declared in `collector/index.mjs` |
+| `Card — receipt at two widths` | declares `widths: [375, 800]` in its own parameters, which the index does not carry, so it becomes two subjects, `@375` and `@800`, only if the collector asks the running preview |
 
-The first five rows are the five a `Button` edit moves. The seven subjects below
-them — `Spinner` down to `Suspense — never resolves` — are the seven that hold.
+The first five rows are the five a `Button` edit moves. The nine subjects below
+them — `Spinner` down to both widths of the receipt — are the nine that hold.
+
+`Card — receipt not read` declares `exclude: true` in the same place. The report
+lists it as excluded by its own parameters rather than leaving it out.
 
 ### The two setup stories
 
@@ -258,12 +263,12 @@ Four steps, which is the workflow a team actually runs:
 
 | step | verdicts | exit |
 |---|---|---|
-| `variance run` on a fresh checkout | 12 new | **1** |
-| `variance accept --all` | 12 accepted | 0 |
-| `variance run` again | 12 unchanged, *nothing to review* | 0 |
-| `variance run` on the changed build | 7 unchanged, **5 changed** | **1** |
+| `variance run` on a fresh checkout | 14 new | **1** |
+| `variance accept --all` | 14 accepted | 0 |
+| `variance run` again | 14 unchanged, *nothing to review* | 0 |
+| `variance run` on the changed build | 9 unchanged, **5 changed** | **1** |
 
-The last row is the one worth reading. `Button` appears in five of the twelve
+The last row is the one worth reading. `Button` appears in five of the fourteen
 subjects, and the run finds exactly those five. The report resolves to source:
 
 ```

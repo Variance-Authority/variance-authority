@@ -1,15 +1,12 @@
 /**
  * The name somebody meant, when exactly one name is close enough.
  *
- * Every refusal in this CLI already prints the whole accepted set, which is what
- * a person needs: they read it, see the one they meant, and type it. The reader
- * here is usually not a person. An agent that mistyped `--quer` gets back
- * twenty-one flags and has to decide which of them was the intention — a second
- * turn spent on a typo it could have corrected from the same message.
- *
- * So the set stays, and one sentence goes in front of it. Naming a candidate is
- * cheap and reversible: nothing is run on the guess, and a wrong guess costs a
- * line of text next to the list that was already there.
+ * A refusal names what was typed and then the command's synopsis, which lists
+ * what it accepts. The reader is usually an agent, and an agent that mistyped
+ * `--quer` should correct it from the same message instead of spending a second
+ * turn on it. So one sentence goes in front of the synopsis. Naming a candidate
+ * is cheap and reversible: nothing is run on the guess, and a wrong guess costs
+ * one line.
  *
  * ## Why one, and why not always
  *

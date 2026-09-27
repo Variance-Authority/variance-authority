@@ -24,6 +24,7 @@ for another string.
 | An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | This server; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
+| Words from a task, before you know any name | `docs_orient`; it finds the tracked files with the words through `git grep`, then names each file's package, the names it imports from other packages, and the names they import from it. |
 
 ## Search finds the name; the graph finds the area
 
@@ -68,38 +69,71 @@ without scanning the repository again. Producing and answering are separate oper
 a CI step can publish once, then every agent in that step can ask the same dated
 facts without making freshness checks part of query latency.
 
-This path is measured on seven copies of [Material
-UI](https://github.com/mui/material-ui) side by side in one checkout: 288,197
-tracked paths. Every figure is the median of seven runs, each run a separate
+This path is measured on two public repositories. The first is seven copies of
+[Material UI](https://github.com/mui/material-ui) side by side in one checkout:
+288,197 tracked paths. The second is [Kibana](https://github.com/elastic/kibana)
+at `df0daaddcc`: 125,804 tracked paths in 1,488 packages, each declared in a
+`kibana.jsonc`. Every figure is the median of seven runs, each run a separate
 process looking for `button`, on an Apple M4 Max with 64 GB, macOS 27.0, Node
-v26.7.0, ripgrep 15.2.0 and a warm filesystem cache.
+v26.7.0, ripgrep 15.2.0 and a warm filesystem cache. The first chart is seven
+Material UIs and the second is Kibana, on the same scale:
 
 ```mermaid
 xychart-beta horizontal
-  accTitle: Milliseconds to answer button over 288,197 paths
+  accTitle: Milliseconds to answer button over seven Material UIs, 288,197 paths
   x-axis ["git grep", "rg", "produce the generation, once", "ask search --to", "ask search --from", "ask search"]
   y-axis "milliseconds" 0 --> 10000
   bar [9688, 7862, 6695, 263, 228, 101]
 ```
 
-| One process | Milliseconds |
-| --- | --- |
-| `git grep -niF button` | 9,688 |
-| `rg -niF button .` | 7,862 |
-| produce the generation into an empty index, once | 6,695 |
-| `variance ask search --query button --to …/ButtonBase.js` | 263 |
-| `variance ask search --query button --from …/Autocomplete.js` | 228 |
-| `variance ask search --query button` | 101 |
+```mermaid
+xychart-beta horizontal
+  accTitle: Milliseconds to answer button over Kibana, 125,804 paths
+  x-axis ["git grep", "rg", "produce the generation, once", "ask search --to", "ask search --from", "ask search"]
+  y-axis "milliseconds" 0 --> 10000
+  bar [4643, 4777, 8144, 250, 230, 122]
+```
+
+| One process | Seven Material UIs, ms | Kibana, ms |
+| --- | --- | --- |
+| `git grep -niF button` | 9,688 | 4,643 |
+| `rg -niF button .` | 7,862 | 4,777 |
+| produce the generation into an empty index, once | 6,695 | 8,144 |
+| `variance ask search --query button --to` a shared button | 263 | 250 |
+| `variance ask search --query button --from` an input with suggestions | 228 | 230 |
+| `variance ask search --query button` | 101 | 122 |
+
+Each start point is one file. `--to` names a shared button: `…/ButtonBase.js`
+in Material UI, and
+`src/platform/packages/shared/shared-ux/button_toolbar/src/buttons/toolbar_button/toolbar_button.tsx`
+in Kibana. `--from` names an input that offers suggestions as you type:
+`…/Autocomplete.js`, and Kibana's KQL query input,
+`src/platform/plugins/shared/kql/public/components/query_string_input/query_string_input.tsx`.
 
 The text searches pay their whole cost again for the next word, and they return
-every file that contains the string. The producer pays once, in less than the
-time of one text search, and every question after it reads the published
-generation. A question without a path costs about 100 ms at 2,500 paths, at
-41,000 and at 288,000: it opens a search file the producer publishes beside the
-generation and decodes only the rows it prints, so nearly all of that 100 ms is
-Node starting. `--from` and `--to` also load the import graph and walk it.
-`--from` is reachability at any depth, not a
-maximum hop count; the answer prints import distances where it has them.
+every file that contains the string: on Kibana, `git grep` prints 115,305 lines
+from 12,577 files. The producer pays once, and every question after it reads the
+published generation. On seven Material UIs, producing costs less than one text
+search. On Kibana, with less than half the paths, the text searches take
+4,643 ms and 4,777 ms, against 9,688 and 7,862, and producing takes 8,144 ms,
+against 6,695. That is less than two text searches, so from the second question
+on, producing once and asking costs less than searching the text for each one.
+The producer on Kibana peaks at 2,702 MiB of resident memory, against 2,402 MiB
+on seven Material UIs.
+
+A question without a path costs about 100 ms at 2,500 paths, at 41,000 and at
+288,000: it opens a search file the producer publishes beside the generation and
+decodes only the rows it prints, so nearly all of that 100 ms is Node starting.
+In the session that measured Kibana, `variance ask` with no question, which
+reads no index, takes 108 ms, so the search itself costs about 14 ms.
+
+`--from` and `--to` also load the import graph and walk it. The walks from
+Kibana's start points cover more files than those from Material UI's, and take
+about the same time: 36,108 files import Kibana's shared button, directly or
+through other files, against 25,271 for `…/ButtonBase.js`, and its KQL input
+imports 4,927 files the same way, against 788 for `…/Autocomplete.js`.
+`--from` is reachability at any depth, not a maximum hop count; the answer
+prints import distances where it has them.
 
 `git grep` and `rg` read the text in different ways: `git grep` can read packed
 objects, and `rg` opens each file in parallel.
@@ -149,7 +183,7 @@ is not a package name and the registry will report it missing. `--root` is the
 workspace to read; omit it when you are standing in that workspace.
 
 A workspace that already has `@variance-authority/cli` installed needs neither
-this package nor its binary, over either transport. The six questions are on
+this package nor its binary, over either transport. The eight questions are on
 `variance ask`, beside the questions about a run, and read the checkout under
 the working directory:
 
@@ -160,11 +194,11 @@ npx variance ask search --query viewport --from packages/app/ --just-answer
 ```
 
 The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
-`--query`, `--from` and `--to`; `--just-answer` selects the last published
+`--query`, `--from`, `--to` and `--limit`; `--just-answer` selects the last published
 generation. [Ask a run from the command
 line](agent-cli.md#ask-the-code-when-the-name-is-not-in-the-run) shows each one.
 
-The six are also tools on `variance serve`, under the same names as below, so
+The eight are also tools on `variance serve`, under the same names as below, so
 a workspace with the CLI declares one server for the run and the source
 together. The rest of this page is that contract, whichever of the two serves
 it.
@@ -203,6 +237,11 @@ what it claims to be. It returns the file and line of every import, with the
 stories and the tests — the files written to show the name in use — listed apart
 from the source that depends on it. Pass `from` with the file you are editing and
 the sites arrive ordered by how many leading path segments they share with it.
+
+A name your code reads off `import * as` or off `import()` is a site too, and the
+site names the line that loads the module. An `import()` loads it when that call
+runs, not when the file loads, so the file can run without the module ever
+loading.
 
 Open those files yourself. The server names the place and the line; it does not
 serve the text, so what you read is the file as it is now.
@@ -255,8 +294,9 @@ The server reads manifests and TypeScript source, not `dist`. It parses with
 runs behind it. A types target under an output directory is mapped back to that
 package's source. A consumer is a workspace package whose source imports the
 symbol; it is not a claim about runtime execution or external adoption. A site
-is an import of the name, not a call to it — where the name is used inside that
-file is a question for your editor's language server.
+is an import of the name, or a read of it off a module the file holds whole, not
+a call to it — where a named import is used inside that file is a question for
+your editor's language server.
 
 Missing documentation remains missing, and a search with no exact substring
 match says so before it offers anything near it. Those absences are source
@@ -284,15 +324,28 @@ that distance costs, is [`@variance-authority/sense`](distance.md).
 
 ## Point an agent at it
 
-The skill that drives these calls is `variance-authority`, which ships in
-`@variance-authority/cli` at
+Your agent reads `AGENTS.md` at the start of every session, and a skill only
+when its description matches the task. Put these lines in `AGENTS.md`, with
+`npx` changed to however your package manager runs a local binary:
+
+```markdown
+## Finding your way in the code
+
+Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
+name, `ask symbol --name <name>` says what it is and where it is declared, and
+`ask search --query <words>` finds a name by what it does. The
+`variance-authority` skill has the rest.
+```
+
+The skill is `variance-authority`. It ships in `@variance-authority/cli` at
 `node_modules/@variance-authority/cli/skills/variance-authority` and covers the
-rest of the CLI too. Your agent reads skills from `.agents/skills` or
-`.claude/skills`, in the project or your home directory. Link the skill there
-rather than copying it, so it follows every update:
+rest of the CLI too. Claude Code reads skills from `.claude/skills`; most other
+agents read `.agents/skills`. Link the skill into both rather than copying it,
+so it follows every update:
 
 ```bash
 mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
+mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
 ```
 
 `variance doctor` reports whether your agent can find it.

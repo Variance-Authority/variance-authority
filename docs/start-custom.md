@@ -350,7 +350,7 @@ rather than the directory, and git still descends:
 ```
 
 Inside that root, images are filed under the identity of the machine that
-painted them — `v1:297753c4…/receipt%2Fempty.png` — and a run only compares
+painted them — `v1-297753c4…/receipt%2Fempty.png` — and a run only compares
 against its own partition. So baselines approved on your laptop are not the ones
 CI compares against: a Linux runner finds none under its identity and reports
 every subject `new`. Paint in one place that both use, which in practice means

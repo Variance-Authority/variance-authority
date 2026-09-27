@@ -13,6 +13,7 @@ import {
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
+import { motionOfLast, motionText } from './covering-motion.js';
 import { indexOutput } from './index-command.js';
 
 const DISCOUNTS = { id: 'total.test.ts > discounts', file: 'total.test.ts', name: 'discounts', stopped: false };
@@ -58,7 +59,7 @@ describe('what the last run moved', () => {
 
     expect(answer.motion?.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'lost']]);
     const text = formatCovering(answer, 'text');
-    expect(text).toContain('Against the run before it: 1 lost, 0 hidden, 0 thinned, 0 gained.');
+    expect(text).toContain('Against the run before it: 1 lost.');
     expect(text).toContain('  lost     src/total.ts 30-34 function round — was total.test.ts > discounts');
     expect(text).toContain('total.test.ts now enters 0 regions it did not, and no longer enters 1.');
   });
@@ -166,13 +167,34 @@ describe('what a change moved against the base', () => {
     expect(formatCovering(answer, 'text')).toContain('Left out, changed on the base\'s branch between');
   });
 
-  it('refuses a base it cannot read, and says how a pipeline restores one', async () => {
+  it('reads the cases the run retired as the base, at the commit they were recorded at', async () => {
+    const { root, first } = await checkout();
+    await writeFile(join(root, 'src/other.ts'), 'export const other = 2;\n');
+    git(root, ['commit', '--quiet', '-am', 'main moves']);
+    git(root, ['checkout', '--quiet', '-b', 'change']);
+    const dir = await records();
+    const execution = join(dir, 'cases.bin');
+    const now = index([0], [1], []);
+    await writeFile(execution, encodeExecutionIndex(now));
+    await writeFile(caseLayerFiles(execution).before, encodeExecutionIndex(index([0], [1], [0])));
+    await writeFile(caseLayerFiles(execution).last, JSON.stringify({
+      commit: git(root, ['rev-parse', 'HEAD']), before: first, at: '2026-09-25T00:00:00.000Z', files: [], cases: [],
+    }));
+
+    const motion = await motionOfLast(now, execution, [DISCOUNTS.id, CHECKS_OUT.id], process.cwd(), undefined, 'main');
+
+    expect(motion.base).toMatchObject({ kind: 'before', at: first, leftOut: ['src/other.ts'] });
+    expect(motion.moved?.regions).toEqual([]);
+    expect(motionText(motion).join('\n')).toContain(`Against the run before it at ${first.slice(0, 12)}, no region moved.`);
+  });
+
+  it('refuses a base it cannot read, and says a pipeline needs none', async () => {
     const { root } = await checkout();
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { });\n');
     const { execution } = await recorded(index([0], []), index([0], []), 'HEAD');
 
     await expect(covering(parse(['--since', 'main', '--against', join(root, 'missing.bin'), '--execution', execution])))
-      .rejects.toThrow(/restore it from the cache/);
+      .rejects.toThrow(/needs no `--against`/);
   });
 
   it('refuses `--against` without a diff', () => {

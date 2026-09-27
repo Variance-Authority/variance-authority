@@ -35,9 +35,11 @@ import {
   collectorOf,
   configOf,
   documentFor,
+  painter,
   rasterFor,
   runWith,
   storeAnswering,
+  whiteBaselineOf,
 } from './run-fixture.js';
 
 /**
@@ -378,13 +380,29 @@ describe('run', () => {
     // Otherwise the limit is discovered from a report full of coordinates with no
     // names, and read as the tool failing rather than as the profile's declared
     // blindness (ADR-0002).
+    const dark = collectorOf(onlyA, (subject) => ({
+      ok: true,
+      document: documentFor(subject.subject.id, '<div data-va-path="0" data-paint="dark">x</div>'),
+    }));
+    const { report } = await runWith(
+      configOf({ profile: 'jsdom' }),
+      dark,
+      storeAnswering(whiteBaselineOf(documentFor('fixture:a'))),
+      { renderer: painter() },
+    );
+
+    expect(report.observations[0]?.changedPixels).toBeGreaterThan(0);
+    expect(report.warnings?.join('\n')).toContain('no layout engine');
+  });
+
+  it('says nothing about attribution when no region changed', async () => {
     const { report } = await runWith(
       configOf({ profile: 'jsdom' }),
       collectsBoth,
       storeAnswering(null),
     );
 
-    expect(report.warnings?.join('\n')).toContain('no layout engine');
+    expect(report.warnings?.join('\n')).not.toContain('no layout engine');
   });
 });
 

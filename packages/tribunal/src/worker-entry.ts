@@ -41,6 +41,8 @@ export interface TribunalEnv {
   readonly INGEST_TOKEN: string;
   /** Held by people. Reads the review surface and decides. 16 characters or more. */
   readonly REVIEW_TOKEN: string;
+  /** Handed to machines that only read the share. Optional; 16 characters or more when set. */
+  readonly SHARE_TOKEN?: string;
   /**
    * Scopes every row and object.
    *
@@ -68,6 +70,7 @@ function tribunalFor(env: TribunalEnv): Tribunal {
     project: env.PROJECT ?? 'default',
     ingestToken: env.INGEST_TOKEN ?? '',
     reviewToken: env.REVIEW_TOKEN ?? '',
+    ...(env.SHARE_TOKEN === undefined ? {} : { shareToken: env.SHARE_TOKEN }),
     // `Number(undefined)` is NaN and `Number('')` is 0, and a retention of zero
     // days would sweep every build the first time anyone asked. Both fall back.
     ...(Number.isFinite(retentionDays) && retentionDays > 0 ? { retentionDays } : {}),

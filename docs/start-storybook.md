@@ -99,6 +99,37 @@ selector, rather than photographing a spinner. React Suspense is handled without
 a marker: the collector waits for every boundary under the story root to settle,
 and reports a story still showing its fallback as not collected.
 
+### What a story says about itself
+
+A story states how it is read in `parameters.variance`, the same place it
+already states its layout and its backgrounds. Storybook merges parameters from
+`preview.ts` to the component's meta to the story, so a setting written once in
+`preview.ts` covers every story, and one story can override it:
+
+```js
+// Chart.stories.jsx
+export const Live = {
+  parameters: { variance: { exclude: true } },
+};
+
+export const Dense = {
+  parameters: { variance: { viewport: { colorScheme: 'dark' }, widths: [375, 1280] } },
+};
+```
+
+| key | what it decides |
+| --- | --- |
+| `exclude` | `true` leaves the story out of the run. The report lists it under not observed, with the reason. |
+| `viewport` | Any of `width`, `height`, `deviceScaleFactor` and `colorScheme`, laid over the run's `viewport`. The story keeps its subject id and its approved image. |
+| `widths` | The story is read once at each width, as `<story id>@<width>`, and each width has its own approved image. Put `widths` in `preview.ts` when every story in a design system should be seen at every breakpoint. A component library usually leaves it out, and each story is read once. |
+
+The collector reads these values from the built preview before the first story
+is read. A key it does not know, or a value it cannot use, such as a width
+written as `'1280px'`, leaves that story out of the run, and the report names
+the key. Reading the story at the run's size would hide the breakpoint you
+asked for. If the preview cannot list its stories at all, the run reads every
+story at the run's `viewport` and prints a warning saying no parameters applied.
+
 ## Write the run config
 
 ```jsonc
@@ -126,7 +157,7 @@ directory rather than the working directory.
 | --- | --- |
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured, because rows written under a project nobody chose cannot be re-attributed later. |
 | `profile` | What the run is *capable* of observing: `chromium` resolves computed style, layout and pixels; `jsdom` resolves structure, ARIA and declared style only, and paints nothing. A Storybook loop paints, so it is `chromium`. This is not the engine — that is `browser`, one of `chromium`, `firefox`, `webkit`, defaulting to `chromium`, and the `npx playwright install` above installs its binary. |
-| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). One viewport per config: the viewport is part of the identity an image is stored under, so a second width is a second config with its own approved images and its own run. |
+| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). This is the size every story is read at unless the story's own `parameters.variance` says otherwise. |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
 | `subjects.kind` | `storybook` reads a built story index. The alternatives are `list`, where you write the subject ids down yourself, and `collector`, where the collector module discovers them. |
 | `baselines.kind` | Where approved images live: `directory` is files you commit, `lfs` is the same files through the Git LFS filter, `remote` is a deployment and a token with nothing in the repository. No default — see [baseline placement](placement.md). |

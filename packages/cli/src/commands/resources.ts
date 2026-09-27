@@ -13,6 +13,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import { OperatorError } from '../exit.js';
+import { suiteRecord } from './suite-record.js';
 
 /**
  * The machine-shaped things a run needs before it can start: a decoder, a store,
@@ -108,10 +109,33 @@ export function suiteIndexRoot(config: Pick<Config, 'cacheRoot'>): string {
 }
 
 /**
+ * Where a share keeps its own git repositories: one per remote, holding the
+ * lines of a `git` share and the mainline history every kind asks descent of.
+ */
+export function shareRoot(config: Pick<Config, 'cacheRoot'>): string {
+  return join(cacheOf(config), 'share');
+}
+
+/**
+ * Where a report read from a share is kept: one directory per entry digest,
+ * holding the report at its path in the repository, or at `run.json` when the
+ * configured report is outside the repository, and the images a reader opened
+ * at the paths the report names them by. The entry's image table sits beside
+ * that directory as `<digest>.images.json`.
+ *
+ * In the cache and never at `config.report`, because the configured path is
+ * where this checkout's own run writes, and a record from CI put there would be
+ * read back as a run this checkout made.
+ */
+export function sharedReportRoot(config: Pick<Config, 'cacheRoot'>): string {
+  return join(cacheOf(config), 'report');
+}
+
+/**
  * The cache `loadConfig` resolved, or the one this directory's repository
  * names when the config was built in code and never read from a file.
  */
-function cacheOf(config: Pick<Config, 'cacheRoot'>): string {
+export function cacheOf(config: Pick<Config, 'cacheRoot'>): string {
   return config.cacheRoot ?? cacheRootFor(process.cwd());
 }
 
@@ -143,9 +167,11 @@ export async function journeyAgainst(
   diff: string,
   relations?: Relations,
   packages: readonly string[] = [],
+  /** A snapshot somewhere other than this repository's cache — one named by `--execution`. */
+  at?: string,
 ): Promise<ExecutionNarrowing | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const file = selection.testCoverageFile(root);
+  const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
 
   try {
@@ -188,7 +214,7 @@ export async function recordedJourneys(
   at?: string,
 ): Promise<JourneyReading> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const file = at ?? selection.testCoverageFile(root);
+  const file = at ?? (await suiteRecord(root));
 
   let coverage;
   try {

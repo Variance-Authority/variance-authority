@@ -68,11 +68,11 @@ describe('a local run spread across workers', () => {
     const coverage = decodeTestCoverage(await readFile(coverageFile));
 
     // Each file's own verdict about itself survives the crossing, which is the
-    // part a lost journal would take with it: alpha skips a test, so it is an
-    // upper bound and the snapshot does not speak wholly for it; the three that
-    // ran everything do.
+    // part a lost journal would take with it: a file whose journal did not cross
+    // reads as not whole. Alpha's skip is written in its own source, so the skip
+    // is an outcome and alpha is as whole as the three that ran everything.
     expect(coverage.tests.map((test) => [test.file, test.complete]).sort()).toEqual([
-      [at('test/alpha.case.ts'), false],
+      [at('test/alpha.case.ts'), true],
       [at('test/beta.case.ts'), true],
       [at('test/delta.case.ts'), true],
       [at('test/gamma.case.ts'), true],

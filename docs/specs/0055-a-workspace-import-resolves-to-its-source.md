@@ -3,7 +3,7 @@
 **Missing:** the owner between a workspace member's manifest and its source.
 When a member's `exports` or `main` names only built output, the scan asks the
 manifest and lands in `dist`, or on nothing when `dist` is not built.
-`toRepoPath` (`packages/sense/src/resolve.ts:414-421`) drops a `dist` landing.
+`toRepoPath` (`packages/sense/src/repo-path.ts:48-61`) drops a `dist` landing.
 The importing record lists the specifier under `unresolved`
 and gains a `packages` edge by name. No record has a file edge from the importer
 to the member's `src/`, so an edit there selects nothing through the scan's
@@ -113,7 +113,7 @@ All three must be true:
    nothing reads. When the first pass has no hit, it comes from a package-only
    lookup of `name/package.json` on a clone with `exportsFields: []` and
    `mainFields: []`.
-3. The first pass failed, landed in `EXCLUDE_DIRS` (`packages/sense/src/resolve.ts:52-62`), or
+3. The first pass failed, landed in `EXCLUDE_DIRS` (`packages/sense/src/repo-path.ts:17-27`), or
    landed under one of that member's emit directories. The last case covers
    `outDir: lib`, which is not excluded and today produces an edge to built
    output.
@@ -259,7 +259,7 @@ not tested yet; assertion 6 in section 10 tests it.
 
 - **Traversal and repository boundaries** (`:191-201`). Add `tsDist` and
   `storybook-static` to the list, which then matches `EXCLUDE_DIRS`
-  (`packages/sense/src/resolve.ts:52-62`).
+  (`packages/sense/src/repo-path.ts:17-27`).
 - **Workspace packages** (`:203-258`). Rewrite in present tense, second person.
   Open with the promise: a bare import that names a package in your repository
   resolves to its source file, built or not. Then the order: your `source`
@@ -362,7 +362,6 @@ where the item is a defect in code that ships, as `AGENTS.md` requires.
 | A non-relative tsconfig `extends` | `// TODO:` at the decline in `witness.ts` `compilerOptions` |
 | A package built by something other than `tsc` | decided by section 13 |
 | `exact` is built on oxc defaults: `packages/sense/src/resolve.ts:200` passes only `extensionAlias`, and `packages/sense/native/src/resolve.rs:65` passes `ResolveOptions::default()`, so both lose `conditionNames`, `mainFields` and `tsconfig` | `// FIXME:` at both lines |
-| `build` is exempt when seeding (`files.ts:69`, `seed.rs:69`) and excluded at resolve time | `// FIXME:` at `files.ts:69` |
 | The map fallback in `source-lines.ts` `originalFile` (`:168`) fails silently, and `decode` (`:244`) is a second VLQ decoder | `// FIXME:` at both lines |
 | The `BUILT` regex in `vitest.config.mts:61`, used at `:75` | `// TODO:` to name built modules through `originalOf` |
 | `packages/package/src/manifest.ts` `sourceOf` (`:232`), a second reader of the same fact | `// TODO:` to read it from `origins.ts` |

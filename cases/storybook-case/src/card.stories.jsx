@@ -41,3 +41,38 @@ export const CardRebranded = {
     </Tokens>
   ),
 };
+
+/**
+ * Read at two widths because the story says so, not because the run config does.
+ *
+ * The index carries no parameters, so the only way this story becomes two
+ * subjects is the collector asking the running preview what the story declared.
+ * Laid out padded rather than centred, so the card is as wide as the page and
+ * each width paints a different image. No `Button` inside, so the `wide-button`
+ * build leaves both widths unchanged and the changed-subject list stays about
+ * the edit.
+ */
+export const ReceiptAtTwoWidths = {
+  name: 'Card — receipt at two widths',
+  parameters: { layout: 'padded', variance: { widths: [375, 800] } },
+  render: () => (
+    <Tokens>
+      <Card title="Receipt">
+        <span>Paid in full</span>
+      </Card>
+    </Tokens>
+  ),
+};
+
+/** Asks not to be read, in its own parameters, and is reported as excluded rather than dropped. */
+export const ReceiptNotRead = {
+  name: 'Card — receipt not read',
+  parameters: { variance: { exclude: true } },
+  render: () => (
+    <Tokens>
+      <Card title="Receipt">
+        <span>Refunded</span>
+      </Card>
+    </Tokens>
+  ),
+};

@@ -3,8 +3,7 @@
 **Missing:** `/// <depends path="./queries/*.graphql" />`. Today a directive
 names one file. A glob resolves to nothing and is reported as a relative
 specifier that resolves to nothing, so it stays visible and draws no edge.
-**Built on:** `packages/sense/src/depends.ts` and
-`packages/sense/native/src/depends.rs` (the directive),
+**Built on:** `packages/sense/native/src/depends.rs` (the directive),
 `packages/sense/src/depends.test.ts` (the `it.todo` this discharges).
 
 ## Purpose

@@ -50,11 +50,9 @@ export function findingLines(reading) {
     (distance.through ?? []).map((hop) => ({ test: distance.test, hop })),
   );
   const unexplained = reading.filter((distance) => distance.bearing === 'unexplained');
-  const unmeasured = [
-    ...new Set(
-      reading.filter((distance) => distance.bearing === 'unmeasured').map((distance) => distance.because),
-    ),
-  ].sort();
+  const unmeasured = alike(
+    reading.filter((distance) => distance.bearing === 'unmeasured').map((distance) => distance.because),
+  );
   if (through.length === 0 && unexplained.length === 0 && unmeasured.length === 0) return [];
 
   const seen = new Set();
@@ -91,6 +89,36 @@ export function findingLines(reading) {
 }
 
 /**
+ * Reasons that differ only in their numbers, folded into one line each.
+ *
+ * Seven tests that each ran a different count of modules the graph cannot
+ * connect are one finding, so the counts become their range and the files are
+ * counted once. A reason no other file shares is printed as it came.
+ */
+function alike(reasons) {
+  const groups = new Map();
+  for (const reason of reasons) {
+    const shape = reason.replace(/\d+/g, '#');
+    groups.set(shape, [...(groups.get(shape) ?? []), reason]);
+  }
+  return [...groups]
+    .map(([shape, members]) => {
+      if (new Set(members).size === 1) return members[0];
+      const numbers = members.map((member) => member.match(/\d+/g).map(Number));
+      let slot = 0;
+      const text = shape.replace(/#/g, () => {
+        const values = numbers.map((each) => each[slot]);
+        slot += 1;
+        const low = Math.min(...values);
+        const high = Math.max(...values);
+        return low === high ? `${low}` : `${low}–${high}`;
+      });
+      return `${text} (${members.length} files)`;
+    })
+    .sort();
+}
+
+/**
  * What `test:since` offers, for a reader who did not open the tool.
  *
  * An agent reaching for a shorter run finds the flag here or does not find it at
@@ -119,10 +147,10 @@ export function helpLines() {
     '  yarn test:since --at-distance 2-4   before handing the change over',
     '  yarn test                           the gate, and the only green that counts',
     '',
-    'Every run prints the whole reading before the leg it took out of it, the',
-    'files a leg left for later, and two findings that need no red test: imports',
-    'that reached past a unit face, and tests the change covered by no route they',
-    'imported.',
+    'Every run prints the whole reading before the leg it took out of it, how',
+    'many files a leg left for later, and two findings that need no red test:',
+    'imports that reached past a unit face, and tests the change covered by no',
+    'route they imported.',
   ];
 }
 
@@ -133,22 +161,52 @@ export function describeRange(range) {
   return `${range.from}-${range.to} hops`;
 }
 
-/** One line for why a test file is in the run. */
+/**
+ * One line for why a test file is in the run.
+ *
+ * A region whose path is `module` is the whole file, which the line range
+ * already says, so the word is left off.
+ */
 export function explain(cause) {
   const reason = cause.via[0];
   const more = cause.via.length > 1 ? ` (+${cause.via.length - 1})` : '';
   switch (reason.kind) {
     case 'region':
-      return `${reason.file}:${reason.startLine}-${reason.endLine} ${reason.path}${more}`;
+      return `${region(reason.file, reason)}${more}`;
     case 'precondition':
       return `precondition ${reason.name}${more}`;
     case 'importer':
       return `${reason.trail.join(' → ')}${more}`;
     case 'reader':
-      return `reads ${reason.name} of ${reason.file} at ${reason.region === undefined ? reason.reader : `${reason.reader}:${reason.region.startLine}-${reason.region.endLine} ${reason.region.path}`}${more}`;
+      return `reads ${reason.name} of ${reason.file} at ${reason.region === undefined ? reason.reader : region(reason.reader, reason.region)}${more}`;
     default:
       return reason.kind;
   }
+}
+
+function region(file, { startLine, endLine, path }) {
+  return `${file}:${startLine}-${endLine}${path === 'module' ? '' : ` ${path}`}`;
+}
+
+/**
+ * The files a leg runs, each with its distance and the reason it is in the run.
+ *
+ * A reason several files share is printed once as a header over them, because
+ * one changed value read by ten tests is one fact, not ten. A reason only one
+ * file has stays on that file's line.
+ */
+export function runningLines(files, at, why) {
+  const byCause = new Map();
+  for (const file of files) {
+    const cause = why(file);
+    byCause.set(cause, [...(byCause.get(cause) ?? []), file]);
+  }
+  const width = Math.max(...files.map((file) => file.length), 0);
+  return [...byCause].flatMap(([cause, grouped]) =>
+    grouped.length === 1
+      ? [`  ${at(grouped[0])}  ${grouped[0].padEnd(width)}  ${cause}`]
+      : [`  ${cause}:`, ...grouped.map((file) => `  ${at(file)}  ${file}`)],
+  );
 }
 
 /**

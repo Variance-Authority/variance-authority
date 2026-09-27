@@ -6,13 +6,12 @@ use std::sync::OnceLock;
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
 use oxc_span::SourceType;
-use oxc_syntax::module_record::{
-    ExportExportName, ExportImportName, ExportLocalName, ImportImportName,
-};
+use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImportName};
 use regex::Regex;
 use serde::Serialize;
 
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
+use crate::members::{members_in, Member};
 use crate::mocks::{mocks_in, Mocks};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
@@ -90,6 +89,8 @@ pub struct Read {
     pub(crate) declares: Vec<String>,
     #[serde(skip_serializing_if = "Mocks::is_empty")]
     pub(crate) mocks: Mocks,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) members: Vec<Member>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
 }
@@ -121,9 +122,21 @@ struct ReexportGroup {
     line: u32,
 }
 
-/// The same `Parsed` value `read.ts` produces, from OXC's native module record.
+/// The dialect a source file is read in.
+///
+/// The extension alone leaves JSX off for `.js`, `.mjs` and `.cjs`, where most
+/// React components written in JavaScript live, and an element there is a parse
+/// error that leaves the file with no edges. Only those three are widened: `.ts`
+/// keeps its own dialect, because `<string>value` is a cast there.
+pub fn dialect(file: &str) -> Option<SourceType> {
+    let source_type = SourceType::from_path(file).ok()?;
+    let widened = [".js", ".mjs", ".cjs"].iter().any(|end| file.ends_with(end));
+    Some(if widened { source_type.with_jsx(true) } else { source_type })
+}
+
+/// One module's `Parsed` value, from OXC's native module record.
 pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: bool) -> Read {
-    let source_type = SourceType::from_path(file).unwrap_or_else(|_| SourceType::tsx());
+    let source_type = dialect(file).unwrap_or_else(SourceType::tsx);
     let parsed = Parser::new(allocator, source, source_type).parse();
     let record = &parsed.module_record;
     let lines = Lines::new(source);
@@ -207,7 +220,10 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
             .map(|name| name.name.to_string());
         let exported = export_name(&entry.export_name);
         let imported = source_name(&entry.import_name);
-        let local = local_name(&entry.local_name);
+        // The record's own bound name, which for `export default name` is
+        // `name`: `exported` already says `default`, and the identifier is what
+        // a reader follows through this file's imports to where it comes from.
+        let local = entry.local_name.name().map(|name| name.to_string());
 
         exports.push(Export {
             exported: exported.clone(),
@@ -258,15 +274,19 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
     }));
 
     let mut reasons = Vec::new();
+    let mut dynamic = Vec::new();
     for entry in &record.dynamic_imports {
         let text = &source[entry.module_request.start as usize..entry.module_request.end as usize];
         match quoted(text) {
-            Some(value) => requests.push(Request {
-                value,
-                kind: Kind::Dynamic,
-                bindings: Vec::new(),
-                line: lines.at(entry.span.start),
-            }),
+            Some(value) => {
+                dynamic.push((entry.span.start, requests.len() as u32));
+                requests.push(Request {
+                    value,
+                    kind: Kind::Dynamic,
+                    bindings: Vec::new(),
+                    line: lines.at(entry.span.start),
+                });
+            }
             None => reasons.push("an `import()` whose specifier is not a literal".to_owned()),
         }
     }
@@ -286,6 +306,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         reasons.push(format!("{count} parse error(s): {}", first.message));
     }
 
+    let members = members_in(&parsed.program, &lines, &requests, &dynamic);
     Read {
         requests,
         exports,
@@ -293,6 +314,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         harvested: symbols,
         declares: declarations(file, source),
         mocks: mocks_in(source, &parsed.program),
+        members,
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
     }
 }
@@ -322,14 +344,6 @@ fn source_name(name: &ExportImportName<'_>) -> Option<String> {
         ExportImportName::Name(name) => Some(name.name.to_string()),
         ExportImportName::All | ExportImportName::AllButDefault => Some("*".to_owned()),
         ExportImportName::Null => None,
-    }
-}
-
-fn local_name(name: &ExportLocalName<'_>) -> Option<String> {
-    match name {
-        ExportLocalName::Name(name) => Some(name.name.to_string()),
-        ExportLocalName::Default(_) => Some("default".to_owned()),
-        ExportLocalName::Null => None,
     }
 }
 

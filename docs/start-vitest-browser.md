@@ -293,7 +293,7 @@ A baseline is only compared against a reading made under the same **renderer
 identity**: the renderer and its engine build, the OS and architecture, the
 device scale factor, the fonts the renderer actually had, and digests of the
 stabilization and raster settings it used. Baselines are partitioned by it —
-that is the `v1:6c1f…` directory the `.png` lives under.
+that is the `v1-6c1f…` directory the `.png` lives under.
 
 This is why the tab's own screenshot is not used. A live screenshot has nothing
 behind it that can say which machine, which scale and which font stack produced

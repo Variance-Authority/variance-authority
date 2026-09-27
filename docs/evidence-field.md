@@ -13,7 +13,7 @@ again.
 rendered document, a stored baseline, or the history of previous runs. Each is
 kept with the question it answered and the conditions it was read under, so a
 later question can be put to it directly.
-A **subject** is one named UI state a run observes and can observe again — a
+A [**subject**](information.md#things-a-run-addresses) is one named UI state a run observes and can observe again — a
 story, a route, a fixture — under an id that survives a rename.
 
 ## Read a run back
@@ -102,9 +102,9 @@ Applitools.
 ## Decisions, memory, and consumers
 
 Observation does not decide by itself. Rules and approvals state what the
-evidence permits; [changelog](changelog.md) retains why an accepted baseline
+evidence permits; [changelog](changelog.md) records why an accepted baseline
 changed; [history](history.md) finds causes that recur; and [sharing](sharing.md)
-moves evidence between systems without handing over the authority to
+passes evidence from one system to another without handing over the authority to
 interpret it.
 
 The answer can arrive as a report, a test failure, the CLI, MCP, or a workspace
@@ -124,5 +124,5 @@ consumed.
 The [architecture](architecture.md), [source structures](source-structures.md),
 and [execution record](execution-record.md) own the system boundaries and
 retained formats. [Performance](performance.md), [native code](native-code.md),
-and the [package reference](https://variance-authority.dev/reference/packages) own costs and callable interfaces.
+and the [package reference](../packages) own costs and callable interfaces.
 Those are reference routes beneath the field, not more steps in the method.

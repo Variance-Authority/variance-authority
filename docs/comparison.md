@@ -348,7 +348,7 @@ Because a document keeps a hash per component per band, the answer is not
 band:
 
 ```text
-[unstable] story:checkout--summary — Clock read differently (content)
+[unstable] story:checkout--summary: … differ: Clock (content)
 ```
 
 `content` is data, `geometry` is layout that has not settled, `token` is a style

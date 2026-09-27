@@ -92,11 +92,14 @@ platform's entries in it. Both leave the JavaScript wrappers in place and the
   the run by name and says the addon would not load.
 - **Parsing does not degrade.** oxc has no fallback, so a command that builds
   the source index fails rather than building a smaller one.
-- **Scanning degrades.** The TypeScript scanner is the implementation of record
-  and the addon is an acceleration of it, checked against the same answers by
-  differential tests. A machine outside the four platforms — an Alpine image,
-  an Intel Mac — builds the same source index from the same checkout, and pays
-  what the TypeScript scan costs to build it.
+- **Scanning does not degrade.** The addon lists the files a scan opens and
+  parses every source file among them, so a scan on a machine without it fails before it
+  opens anything and names why the addon did not load. A machine outside the
+  four platforms — an Alpine image, an Intel Mac — scans once you build the
+  addon from the checkout with `cargo`. If that build cannot compile the
+  tree-sitter grammars, it still reads JavaScript, TypeScript and stylesheets,
+  and records every Python, Rust, Java, Kotlin and Swift file as unknown, with
+  that reason.
 - **Recording does not degrade.** The probes a test run records through are
   placed by the addon and by nothing else, so a run on a machine without it
   fails at its first module and names the package that did not load. A

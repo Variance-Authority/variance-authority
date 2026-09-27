@@ -164,6 +164,22 @@ only the files that differ between the two. Pass `coverageFile` in the options t
 it somewhere you name instead — a CI job that uploads the file as an artifact
 wants that.
 
+A repository that runs more than one test suite declares each of them, with its
+kind, under `suites` in the root `variance.config.json`:
+
+```json
+{ "suites": { "unit": { "kind": "unit" }, "stories": { "kind": "visual" } } }
+```
+
+The kind is one of `unit`, `integration`, `e2e` and `visual`. Each declared
+suite records on its own, at `<digest>/suites/<name>/coverage.bin`, and every
+seam takes a `suite` option that names the one it runs. A run under one suite
+never replaces what another suite recorded. Once any suite is declared, a seam
+that names none, or names one the file does not declare, stops before the run
+starts. `declaredSuites(root)` returns what the file declares, and
+`testCoverageFile(root, { suite })` the path of one suite's record. A
+repository that declares no suites keeps the one `coverage.bin` above.
+
 **Built** as a side effect of a wrapped run: every test file writes a journal,
 the reporter folds them when the run completes, and the result is landed over
 whatever was there before. There is no separate build step and no `test:since`
@@ -263,12 +279,13 @@ and each name selects the tests recorded under it.
 
 ### Options on the Vitest seam
 
-The optional second argument accepts `root`, `coverageFile`, `include`,
-`preconditions`, `mode`, `continuations`, and `executionFile`.
+The optional second argument accepts `root`, `suite`, `coverageFile`,
+`include`, `preconditions`, `mode`, `continuations`, and `executionFile`.
 
 | option | default | use it when |
 |---|---|---|
 | `root` | the configuration root, then the current directory | the configuration is evaluated outside the checkout it records. Recorded paths are relative to the checkout that contains `root`, never to `root` itself, so a package-level configuration and a repository-level one name a file the same way. Relative option paths resolve against `root` |
+| `suite` | none; required once the root config declares `suites` | the repository declares its suites, and this configuration runs one of them. It cannot be combined with `coverageFile` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path after Vitest transforms it |
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
@@ -372,6 +389,124 @@ file that imports the module ran. With `read`, a file whose change runs nothing
 charges nothing, and a file whose load-time behaviour did not change charges
 only the functions its lines fall in.
 
+### Follow a Jest case into a service it calls
+
+A case that calls a service over HTTP runs code in another process, and that
+code is invisible to the case's own record. Change a branch in the service and
+nothing selects the case that exercised it. The join has to happen somewhere,
+and while Jest is still running is the wrong place: shards finish at different
+times, and a service answers several cases at once.
+
+So the service writes what it ran to files, keyed by an id the case put on
+the request, and the finalize step joins them after the run. Nothing goes over
+the network during the run, and nothing waits for the service.
+
+The case hands the id over itself. Nothing touches your requests:
+
+```ts
+import { journeyCookie } from '@variance-authority/sense/case-journey';
+
+const response = await fetch(`${service}/quote?currency=eur`, {
+  headers: { cookie: journeyCookie() },
+});
+```
+
+`journeyCookie()` returns `variance-authority-journey=<id>`. The id is minted
+the first time the running case asks, and later asks in the same case get the
+same one. `caseJourney()` returns the bare id if you carry it some other way,
+such as trace baggage. Outside a case, both return nothing.
+
+If your application already runs Sentry or OpenTelemetry, the id is the trace
+id and your tracing carries it through every hop. Hand the SDK over from a
+module that initializes it and exports it, and leave the requests alone:
+
+```js
+// test/trace.cjs
+const Sentry = require('@sentry/node');
+const { sentry } = require('@variance-authority/sense/case-journey');
+
+Sentry.init({ dsn: process.env.SENTRY_DSN });
+module.exports = sentry(Sentry);
+```
+
+Name that module as `withJourneyCoverage`'s `trace`: `trace: './test/trace.cjs'`. With
+OpenTelemetry, register your provider and export
+`openTelemetry(require('@opentelemetry/api'))`. Jest requires the module once
+per worker, outside every test file's sandbox, and your `testEnvironment`
+still runs. A setup file runs again in each test file. An SDK hooks `fetch` for
+the whole process, so a second initialization leaves the first file's hooks
+sending its trace from the next file's cases.
+
+Each case then
+runs inside a trace whose id is its journey, and the service is told the same
+SDK: `collectJourneys({ head: 'pricing', parts, trace: sentry(Sentry) })`. It
+asks the trace wherever a request did not name a journey.
+
+The service wraps its requests with `collectJourneys`, as in
+[the next section](#follow-one-execution-into-a-service), and adds `parts`:
+
+```ts
+const journeys = collectJourneys({ head: 'pricing', parts: '/tmp/va-parts' });
+```
+
+`parts` defaults to `VARIANCE_AUTHORITY_PARTS`. With it set, each process
+appends frames to its own file in that directory: one frame per journey as its
+scope settles, plus one frame for what ran outside any journey (startup, a
+request with no cookie). If the process is killed mid-write, the fold reads past
+the torn last frame. Then tell the Jest seam where the parts are and which
+builds cut them:
+
+```js
+withJourneyCoverage(config, {
+  journeyFile: '.variance-authority/journeys.bin',
+  parts: ['/tmp/va-parts'],
+  heads: ['pricing'],
+});
+```
+
+`heads` are the `label`s the service's build gave `testSelectionProbes()`. The
+fold reads their inventories under whatever recipe cut them.
+
+A journey's frame is charged to the case that minted the id and to no other. The
+no-journey frame is charged to every case the same file served. A shared
+service's startup is every caller's, so a change to it selects every file that
+called it. A case that called the service without its cookie is not charged at
+all, because nothing names it. Under a tracer, a trace no case started (a
+`beforeAll` call, a background job) is charged the same way as the no-journey
+frame.
+
+A runtime with no host filesystem, such as a Cloudflare Worker, sends its parts
+to an address instead. Start a receiver on the host before the service, and
+point `parts` at it:
+
+```js
+import { receiveParts } from '@variance-authority/sense/journey';
+
+const receiver = await receiveParts('/tmp/va-parts', { port: 5198 });
+// VARIANCE_AUTHORITY_PARTS=http://127.0.0.1:5198 in the service's environment
+await receiver.close();
+```
+
+Each journey's frame is sent before the promise its scope returned settles, so
+a runtime that ends a request's work with its response still delivers it. A
+receiver that is gone loses that part, never the request.
+
+A bundle evaluates every module before any of its own code can install a head,
+so ask the build to install it first. With `journeys` set, as in
+`testSelectionProbes({ label: 'workers', journeys: true })`, the collector
+imports `@variance-authority/sense/journey` and installs the head under
+`label`. Each entry's own `collectJourneys()` then
+returns that head:
+
+```js
+const journeys = collectJourneys();
+
+export default {
+  fetch: (request, env, context) =>
+    journeys.enter(request.headers.get('cookie') ?? undefined, () => handle(request, env, context)),
+};
+```
+
 ## Cut a Jest run down to a diff
 
 Wrap the configuration once. Each `transform` entry is wrapped so your own
@@ -395,8 +530,8 @@ export default withTestSelection({
 });
 ```
 
-The second argument accepts `root`, `coverageFile`, `preconditions`, `mode`,
-`continuations`, and `executionFile`, with the meanings above. Jest
+The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
+`mode`, `continuations`, and `executionFile`, with the meanings above. Jest
 does not say which config file it loaded, so name it in `preconditions`. There
 is no `include`: product source is every
 JavaScript and TypeScript module the configuration's `testMatch` or `testRegex`
@@ -489,9 +624,9 @@ export default defineConfig(withTestSelection({
 }));
 ```
 
-The second argument accepts `root`, `coverageFile`, `include`, `preconditions`,
-`mode`, `continuations`, and `executionFile`, with the meanings above.
-Rstest does not say which config file it loaded, so name it in `preconditions`.
+The second argument accepts `root`, `suite`, `coverageFile`, `include`,
+`preconditions`, `mode`, `continuations`, and `executionFile`, with the meanings
+above. Rstest does not say which config file it loaded, so name it in `preconditions`.
 The loader runs
 at `enforce: 'post'`, after SWC, and reads the block extents back through the
 map the bundler already made, so the lines a record carries are the ones you
@@ -575,8 +710,8 @@ process.exitCode = failed ? 1 : 0;
 Each function has one place in your runner:
 
 - **`startRecording` goes in the process that starts the run.** It takes
-  `root`, `coverageFile`, `preconditions`, `mode`, `continuations` and
-  `executionFile`, with the meanings they have on the Vitest seam. Name your
+  `root`, `suite`, `coverageFile`, `preconditions`, `mode`, `continuations`
+  and `executionFile`, with the meanings they have on the Vitest seam. Name your
   runner's own files and configuration in `preconditions`: nothing loads them
   through a transform, so nothing else can tell a test's outcome depends on
   them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
@@ -673,7 +808,7 @@ To drive it yourself: evaluate `executionCollectorSource()` in the page if the
 build does not hoist it, call `drainExecution(page)` to close one **subject**'s
 window — one named UI state you asked for and can ask for again, such as
 `cart/empty` — and hand the journals to `recordExecution`. It takes the same
-`root`, `label`, and `cacheRoot`, plus `coverageFile` and `subjects`: one entry
+`root`, `label`, and `cacheRoot`, plus `suite`, `coverageFile` and `subjects`: one entry
 per window the driver closed, each an `owner`, the drained `journal`, optional
 `preconditions`, and `complete`, which is false for a subject that did not
 finish and keeps it from ever justifying a skip. `heads` names other builds the
@@ -967,11 +1102,15 @@ rather than into built output the checkout does not hold. When you pass
 `conditionNames`, your list is the whole set and no `tsconfig` adds to it.
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
-still joins the graph. Edges into a sibling package's built output, or another
-path outside `root`, are omitted. An import of an installed package is not
-omitted: it is recorded as an edge to a **package node** named the way the
-source imports it — `@mui/material`, never a version and never a resolution —
-so a dependency bump can be seeded by name. Which copy a resolver handed any
+still joins the graph. When a workspace package's `tsconfig` names both `outDir`
+and `rootDir` and emits code, a target under `outDir` maps to the file under
+`rootDir` it is emitted from, whether or not the package was built. A target no
+repository file stands for — unmapped built output under an excluded directory
+such as `dist/`, a path outside `root` — gives no file edge, and its specifier
+stays under `unresolved`. An import of a package is recorded either way, as an
+edge to a **package node** named the way the source imports it —
+`@mui/material`, never a version and never a resolution — so a dependency bump
+can be seeded by name. Which copy a resolver handed any
 one importer is not recorded, because answering that means reproducing the
 resolver, and a selector that guessed would skip on the guess.
 [Read the install](#read-which-packages-the-install-changed) to find out
@@ -1586,7 +1725,10 @@ snapshot's bytes do not depend on the index, so CI reads the same file to select
 test files. A run of some files replaces the cases of those files and keeps the
 rest, as the snapshot does. Beside the index, `cases.last.json` names the run
 that wrote it last, and `cases.before.bin` holds what the index had for that
-run's files before it. `caseMotion(base, now)` compares two indexes region by
+run's files before it. Runs at one commit add to `cases.before.bin` rather than
+replace it, so a suite split over several invocations keeps every file's
+replaced cases. `cases.last.json` names the commit those cases were recorded
+at under `before`, until a run at the same commit runs a file again. `caseMotion(base, now)` compares two indexes region by
 region and names each region whose cases moved: lost, hidden, thinned or
 gained. `relations` lets it name the stopped case behind a hidden region, and
 `exclude` leaves out modules whose motion belongs to another change. Pass
@@ -1671,7 +1813,7 @@ case has settled is that case still working, and the file prints the cases that
 did it when it finishes:
 
 ```text
-variance-authority: work outlived its case in test/checkout.test.tsx:
+variance-authority: async work still running after its case finished in test/checkout.test.tsx (recorded against the case that started it):
   checkout > submits
 ```
 
@@ -1777,6 +1919,7 @@ same under every host:
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^2.1.9` and product tests |
 | `@variance-authority/sense/jest` | the same around the transformer your project already uses | Jest 30 and product tests |
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
+| `@variance-authority/sense/case-journey` | the running case's journey id, to put on a request to a service | a case recorded by `withJourneyCoverage` |
 | `@variance-authority/sense/rstest` | the same as an Rspack loader and a reporter, for a suite Rstest bundles | Rstest `^0.12.0` and product tests |
 | `@variance-authority/sense/rstest-loader` | the loader `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |
 | `@variance-authority/sense/runner` | recording from a runner with no seam: opening and folding the run, instrumenting what it loads, and bracketing each test file and case | Node 22.15 or newer, and one test file at a time per process |

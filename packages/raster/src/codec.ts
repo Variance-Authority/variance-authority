@@ -88,6 +88,7 @@ function componentsFrom(value: unknown): readonly ComponentHash[] | undefined {
     }
 
     const boxes = boxesFrom(row['boxes'], row['instances']);
+    const values = valuesFrom(row['values']);
 
     parsed.push({
       component: row['component'],
@@ -98,6 +99,7 @@ function componentsFrom(value: unknown): readonly ComponentHash[] | undefined {
       style: row['style'],
       ...(typeof row['geometry'] === 'string' ? { geometry: row['geometry'] } : {}),
       ...(boxes === null ? {} : { boxes }),
+      ...(values === null ? {} : { values }),
     });
   }
   return parsed;
@@ -142,6 +144,25 @@ function boxesFrom(value: unknown, instances: number): readonly (Rect | null)[] 
       return null;
     }
     parsed.push({ x: row['x'], y: row['y'], width: row['width'], height: row['height'] });
+  }
+  return parsed;
+}
+
+/**
+ * The declared values per property, or nothing — dropped when they will not
+ * parse, for the reason {@link boxesFrom} gives: they name a property in a
+ * sentence, and a sidecar refused over them would fail a comparison that
+ * needs none of them.
+ */
+function valuesFrom(value: unknown): Readonly<Record<string, readonly string[]>> | null {
+  const row = recordFrom(value);
+  if (row === null) return null;
+
+  const parsed: Record<string, readonly string[]> = {};
+  for (const [property, values] of Object.entries(row)) {
+    const strings = stringsFrom(values);
+    if (strings === null) return null;
+    parsed[property] = strings;
   }
   return parsed;
 }

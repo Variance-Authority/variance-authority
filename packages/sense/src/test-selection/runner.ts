@@ -37,7 +37,7 @@ import { readModuleNames, type ModuleNames } from '../module-names.js';
 import collectors from './collectors.cjs';
 import { coverageBlock } from './coverage-rows.js';
 import journalFormat from './journal-format.cjs';
-import { testCoverageFile } from './index.js';
+import { recordFileFor } from './record-location.js';
 import {
   defaultInclude,
   openModuleNames,
@@ -64,6 +64,12 @@ export interface RecordingOptions {
   readonly root?: string;
   /** The snapshot this run layers onto; the checkout's cache path when absent. */
   readonly coverageFile?: string;
+  /**
+   * The suite this run is, as the root `variance.config.json` declares it under
+   * `suites`. Required once any suite is declared, and refused beside
+   * `coverageFile`.
+   */
+  readonly suite?: string;
   /**
    * Files every test's outcome depends on that no transform sees: a config the
    * runner reads, a fixture read with `fs`. A change to one selects every test.
@@ -115,7 +121,7 @@ interface Carried {
  */
 export function startRecording(options: RecordingOptions = {}): Recording {
   const root = repositoryRoot(resolve(options.root ?? '.'));
-  const coverageFile = resolve(options.coverageFile ?? testCoverageFile(root));
+  const coverageFile = recordFileFor(root, process.cwd(), options);
   const mode = options.mode ?? 'presence';
   const run = newRun(coverageFile, root, mode);
   for (const file of options.preconditions ?? []) run.preconditions.add(resolve(file));
@@ -346,7 +352,14 @@ interface Scoped {
 
 type Collector = ReturnType<typeof collectors.scoped>;
 
-/** What `jest-setup.cts` writes in its `afterAll`, from the same collector. */
+/**
+ * What `jest-setup.cts` writes in its `afterAll`, from the same collector.
+ *
+ * A runaway made a crossing after its case had settled. The record is right —
+ * the crossing went to the case that made it — but the case was not over when
+ * the runner said it was, which is what breaks a neighbour. The warning names
+ * the cases and leaves the argument here.
+ */
 function writeJournal(
   recording: Carried,
   testFile: string,
@@ -360,10 +373,8 @@ function writeJournal(
   const outlived = collector.runaways();
   if (outlived.length > 0) {
     console.warn(
-      `variance-authority: work outlived its case in ${testFile}:\n  ${outlived.join('\n  ')}\n` +
-        'Each of these made a crossing after it had settled. The record is right — the ' +
-        'crossing went to the case that made it — but the case is not over when the runner ' +
-        'says it is, which is what a flaky neighbour is made of.',
+      `variance-authority: async work still running after its case finished in ${testFile} ` +
+        `(recorded against the case that started it):\n  ${outlived.join('\n  ')}`,
     );
   }
   if (frames === undefined || frames.length === 0) return;

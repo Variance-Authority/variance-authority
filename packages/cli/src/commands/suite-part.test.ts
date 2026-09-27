@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import { mkdtemp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LEXICON_CAP, type SubjectComposition } from '@variance-authority/core/attribute';
 import { readSuiteIndex } from '@variance-authority/report/file';
@@ -102,7 +104,21 @@ describe('share --publish over every shard', () => {
   });
 
   const configOf = (root?: string): Config =>
-    ({ project: 'web', report: join(home, 'run.json'), ...(root === undefined ? {} : { share: { kind: 'directory', root } }) }) as Config;
+    ({
+      project: 'web',
+      report: join(home, 'run.json'),
+      ...(root === undefined ? {} : { share: { kind: 'directory', root, mainlines: ['main'] } }),
+    }) as Config;
+
+  /** A push to `main` in a checkout of its own, so the line is git's answer and not this worktree's. */
+  async function pushed(): Promise<{ readonly env: Record<string, string>; readonly cwd: string }> {
+    const cwd = await mkdtemp(join(home, 'repo-'));
+    const git = (...args: string[]) => promisify(execFile)('git', args, { cwd });
+    await git('init', '--quiet', '-b', 'main');
+    await git('-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '--quiet', '--allow-empty', '-m', 'one');
+    const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'push', GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main' };
+    return { env, cwd };
+  }
 
   /** Shard `k` of two: it observed its subject and left the other to its owner. */
   function shardReport(k: number): CliRunReport {
@@ -140,13 +156,13 @@ describe('share --publish over every shard', () => {
       expect.stringMatching(/is one shard of a build/),
     );
     expect(await publishedLine(configOf(root), shardReport(1), reports[0])).toMatch(
-      /not published from one shard; its part is .*run\.suite-part\.json/,
+      /not kept from one shard; its part is .*run\.suite-part\.json, for the merge/,
     );
     expect(await readdir(home)).not.toContain('share');
 
-    const lines = await shareOutput(configOf(root), { publish: true, reports });
+    const lines = await shareOutput(configOf(root), { publish: true, reports }, await pushed());
     expect(lines[0]).toMatch(/composed from 2 shard\(s\)/);
-    expect(await readdir(join(root, 'web', 'suite-index-v1'))).toEqual([`${COMMIT}.bin`]);
+    expect(lines[1]).toMatch(/^wrote suite-index-v1 to mainline main /);
     expect(await readSuiteIndex(suiteIndexPath(configOf(), COMMIT))).toEqual(
       decodeSuiteIndex(encodeSuiteIndex(whole(SUITE.slice(0, 2)))),
     );
@@ -155,6 +171,6 @@ describe('share --publish over every shard', () => {
   it('names the report whose part is missing, and publishes nothing', async () => {
     const reports = await writeShards(false);
     const lines = await shareOutput(configOf(), { publish: true, reports });
-    expect(lines[0]).toBe(`suite index: nothing published; ${reports[0]} has no ${join(home, 'shard-1', 'run.suite-part.json')} beside it`);
+    expect(lines[0]).toBe(`nothing published: ${reports[0]} has no ${join(home, 'shard-1', 'run.suite-part.json')} beside it.`);
   });
 });

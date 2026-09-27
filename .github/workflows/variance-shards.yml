@@ -29,33 +29,28 @@ name: variance shards
 # The suite index and the subject costs, once, for the whole build. No shard
 # publishes either: a shard composed part of the suite, and an index counted
 # from it would be believed as the whole. Each shard writes its part of the index
-# beside its report instead — `report.suite-part.json`, in the artifact it
-# already uploads — and `share --publish` over every shard's report composes the
+# beside its report instead — `run.suite-part.json` beside `run.json`, in the
+# artifact it already uploads — and `share --publish` over every shard's report composes the
 # index one unsharded run would have written, and the costs of the merged report.
 # A build that does not shard, like `variance.yml`, publishes from its own run.
 #
-# Both sit under `<cache>/suite`, keyed by commit, and the merge job saves the
-# directory. The next build's shards restore it and walk their lineage to it,
-# which is why they check out with full history: a shallow clone has no merge
-# base to walk from, and places by checksum.
+# The next build reads both from the mainline's share line, the way it reads the
+# index `variance.yml` publishes: the costs of the newest mainline commit this
+# checkout descends from. Every shard reads the same entry, so every shard
+# computes the same placement.
 
-# ## This is the gate here
+# ## On demand here
 #
-# It runs on every pull request and every push to `main`, over the twelve
-# subjects of `cases/storybook-case` in five story files, and it is the check
-# whose colour a change is held to. `variance.yml` observes the same subjects
-# with the same comment marker, so it runs on demand only: on the same event the
-# two would fight over one comment, each rewriting the other. A repository picks
-# one gate.
+# It observes the same fourteen subjects `variance.yml` does, and the two render
+# their dockets with the same marker — so run on the same event they would fight
+# over one comment, each rewriting the other. A repository picks one gate. This
+# one is kept on demand because the suite it would shard is five story files,
+# where a second shard costs an install and a Storybook build to save nothing.
 #
-# Two shards, not more: five files is not a suite that needs sharding, and a
-# third shard would buy an install and a Storybook build to save nothing. What
-# the fixture proves is the wiring — placement, the merge, the composed index —
-# on every change, rather than on the day somebody dispatches it.
+# Add `pull_request:` below and delete the gate workflow to swap them. Nothing
+# else in this file changes: the docket steps in the merge job already ask what
+# event they are on, and post only when there is a pull request to post to.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -124,8 +119,8 @@ jobs:
       options: --ipc=host
 
     steps:
-      # Full history, so the lineage walk has a merge base with `origin/main` to
-      # find subject costs at. A shallow clone places by checksum instead.
+      # Full history, so the mainline's costs are read at a distance this clone
+      # can count from its merge base.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -136,28 +131,6 @@ jobs:
       - shell: bash
         run: yarn build
 
-      # The cache in the checkout, not in `~`. `actions/cache` stores a path
-      # relative to the workspace, and `~` sits somewhere else relative to it
-      # inside a container than on a bare runner: an entry the merge job saves
-      # from `~/.cache` unpacks, in a container shard, at `/.cache`, where no run
-      # reads, and the shards place by checksum with nothing red to say so. What
-      # the cache holds is already portable — every path in it is relative to
-      # the repository root — so only where it sits has to agree. Set after the
-      # install, so nothing else that reads `XDG_CACHE_HOME` moves with it.
-      - name: keep the cache in the checkout
-        shell: bash
-        run: echo "XDG_CACHE_HOME=$GITHUB_WORKSPACE/.variance/cache" >> "$GITHUB_ENV"
-
-      # The suite index and subject costs mainline recorded. Every shard restores
-      # the same entry and reads the same costs, so every shard places the same.
-      - name: restore the mainline evaluation
-        uses: actions/cache/restore@v4
-        with:
-          path: .variance/cache/variance-authority/suite
-          key: variance-suite-${{ github.sha }}
-          restore-keys: |
-            variance-suite-
-
       # The subject has to exist before a shard can slice it. Every shard builds
       # its own copy: `storybook-static/` is ignored and a build artifact passed
       # between jobs would be one more thing that can be stale in one shard and
@@ -166,21 +139,9 @@ jobs:
         shell: bash
         run: yarn workspace @variance-authority/case-storybook build-storybook
 
-      # The same store every other workflow here reads, painted by `variance.yml`
-      # on each push to `main`. Restored per shard because a shard is a whole run
-      # of a slice: it compares, and it has nothing to compare against otherwise.
-      #
-      # The key names the image because the image is the renderer, and it has to
-      # name the same one as `container.image` above. Nothing checks that it does;
-      # a mismatch is reported `incomparable` rather than diffed (ADR-0011).
-      - name: restore the baselines main last painted
-        uses: actions/cache/restore@v4
-        with:
-          path: cases/storybook-case/.variance/baselines
-          key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
-          restore-keys: |
-            variance-baselines-playwright-v1.62.1-noble-
-
+      # The action restores the store every other workflow here reads, painted
+      # by `variance.yml`, from the key `variance carry` names: a shard is a
+      # whole run of a slice, and it has nothing to compare against otherwise.
       - id: variance
         uses: ./.github/actions/variance
         with:
@@ -214,11 +175,24 @@ jobs:
       # The report, kept whole. `--format html` is not rendered per shard: image
       # paths in it are relative to the report, and a page describing part of
       # the suite would look like a complete run with most of it missing.
+      #
+      # The shard's part of the suite index travels with it, beside the report,
+      # where `share --publish` in the merge job looks for it.
+      - if: always()
+        id: part
+        shell: bash
+        env:
+          REPORT: ${{ steps.variance.outputs.report }}
+        run: echo "path=${REPORT%.json}.suite-part.json" >> "$GITHUB_OUTPUT"
+
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: variance-shard-${{ matrix.shard.name }}
-          path: cases/storybook-case/.variance/
+          path: |
+            ${{ steps.variance.outputs.report }}
+            ${{ steps.part.outputs.path }}
+            ${{ steps.variance.outputs.images }}
           # Without this every shard uploads nothing and the merge below refuses
           # for the right reason with the wrong cause: `.variance` is a dotted
           # directory and this action skips hidden files by default.
@@ -244,10 +218,12 @@ jobs:
 
     # No container. `report`, `share` and `comment` open no browser, so this job
     # has no reason to pay for an image, and giving it one would invite somebody
-    # to run a subject here. The cache entry it saves unpacks in the shards'
-    # container all the same, because both keep it in the checkout.
+    # to run a subject here.
+    #
+    # `contents: write` is for the share line, which is a ref under
+    # `refs/variance/` that `share --publish` pushes.
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
 
     steps:
@@ -258,11 +234,6 @@ jobs:
 
       - shell: bash
         run: yarn build
-
-      # In the checkout, for the reason given at the same step in the shard job.
-      - name: keep the cache in the checkout
-        shell: bash
-        run: echo "XDG_CACHE_HOME=$GITHUB_WORKSPACE/.variance/cache" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@v4
         with:
@@ -283,11 +254,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The report's filename comes from the config, through the same locator
-          # the action uses, rather than being guessed or re-declared here. A
-          # config that moved `report` would otherwise make this find nothing and
-          # report it as a missing shard.
-          report_path="$(node .github/actions/variance/locate-artifacts.mjs cases/storybook-case/variance.config.json \
+          # The report's filename comes from the config, through `variance carry`
+          # as the action reads it, rather than being guessed or re-declared
+          # here. A config that moved `report` would otherwise make this find
+          # nothing and report it as a missing shard.
+          report_path="$(node packages/cli/dist/bin.js carry restore \
+            --config cases/storybook-case/variance.config.json --format github \
             | sed -n 's/^report=//p')"
           name="$(basename "$report_path")"
 
@@ -350,21 +322,10 @@ jobs:
           echo "exit-code=$code" >> "$GITHUB_OUTPUT"
           echo "variance report exited $code"
 
-      # Restored first so the entry saved below carries what mainline already
-      # had beside this commit: the next build restores whichever entry is
-      # newest, and walks its lineage through what that entry holds.
-      - name: restore the mainline evaluation
-        uses: actions/cache/restore@v4
-        with:
-          path: .variance/cache/variance-authority/suite
-          key: variance-suite-${{ github.sha }}
-          restore-keys: |
-            variance-suite-
-
       # The suite index composed from every shard's part, and what each subject
-      # cost, under this commit. Saved on a push so the next build reads one evaluation and
-      # its shards balance on it. Skipped when the merge refused: the shards were
-      # not one run, and their parts are not one suite's.
+      # cost, published to this run's line under its commit, so the next build
+      # reads one evaluation and its shards balance on it. Skipped when the merge
+      # refused: the shards were not one run, and their parts are not one suite's.
       - if: ${{ steps.report.outputs.exit-code != '2' }}
         name: publish the suite index and the subject costs
         shell: bash
@@ -380,17 +341,6 @@ jobs:
 
           node packages/cli/dist/bin.js share --publish \
             --config cases/storybook-case/variance.config.json "${reports[@]}"
-
-      # Mainline's only: a pull request's costs are timed on a change nobody has
-      # merged, and every build after it would balance on them. This is the one
-      # writer of the entry now that the unsharded workflow runs on demand, so
-      # the key is the commit and nothing else.
-      - if: ${{ github.event_name == 'push' && steps.report.outputs.exit-code != '2' }}
-        name: keep the mainline evaluation
-        uses: actions/cache/save@v4
-        with:
-          path: .variance/cache/variance-authority/suite
-          key: variance-suite-${{ github.sha }}
 
       - if: ${{ github.event_name == 'pull_request' && steps.report.outputs.exit-code != '2' }}
         id: render
@@ -442,7 +392,11 @@ jobs:
               echo "nothing needs review, across every shard."
               ;;
             1)
-              echo "::error::variance found changes that need review; the docket is in the pull request comment. A subject listed as failed with no diff is one that every shard left to another — the shards placed the suite differently, which is not a change in the product."
+              # A subject listed as failed with no diff is one every shard left to
+              # another: the shards placed the suite differently, which is not a
+              # change in the product. The docket
+              # lists it; packages/cli/README.md explains it.
+              echo "::error::variance found changes that need review; the docket is in the pull request comment."
               exit 1
               ;;
             2)

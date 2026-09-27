@@ -28,10 +28,12 @@ import {
 import type { CoveragePrecondition, CoverageTest } from './index.js';
 import type { ExecutedModule } from './probes.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
-import type { RunnerProject } from './governing-config.js';
+import type { RunnerContext, RunnerProject } from './governing-config.js';
 
 export interface RunnerTask {
   readonly filepath?: string;
+  /** How the runner meant to treat the task: `run`, or `skip` and `todo` for one it never starts. */
+  readonly mode?: string;
   readonly result?: { readonly state: string };
   readonly tasks?: readonly RunnerTask[];
   readonly meta?: object;
@@ -84,15 +86,13 @@ export interface ReportedModule {
 export function noteAnEmptyRecord(
   testFiles: number,
   instrumented: number,
-  unreached = 'The plugin did not reach the modules under test: check `include`, and — if this ' +
-    'configuration uses `projects` — that the plugin and the setup file are inside each project ' +
-    'rather than beside them, since a project does not inherit either.',
+  unreached = 'Check `include`, and with `projects`, that the plugin and the setup file are ' +
+    'inside each project rather than beside them: a project inherits neither.',
 ): void {
   if (instrumented > 0 || testFiles === 0) return;
   console.warn(
-    `variance-authority instrumented 0 modules across ${testFiles} test file(s). The snapshot ` +
-      'about to be written therefore says no test reaches any source, and every selection made ' +
-      `from it will narrow to nothing rather than to the tests a change needs. ${unreached}`,
+    `variance-authority instrumented 0 modules across ${testFiles} test file(s); ` +
+      `selection from this snapshot will select nothing. ${unreached}`,
   );
 }
 
@@ -186,7 +186,8 @@ export function carriedJournal(testFile: string, meta: object | undefined): Pick
  * `coverageTest` refuses the file for that reason instead.
  *
  * And a skip the *runner* wrote is not a skip at all, which is why the outcome
- * of one test is never the whole answer — see {@link stopped}.
+ * of one test is never the whole answer — see {@link stopped} and
+ * {@link runnerSkipped}.
  */
 const usableOutcome = (state: string): boolean =>
   state === 'pass' || state === 'passed' || state === 'skip' || state === 'skipped' || state === 'todo';
@@ -221,13 +222,73 @@ const stopped = (task: RunnerTask): boolean =>
   && task.tasks.length > 0
   && (task.result?.state === 'fail' || task.tasks.some(stopped));
 
-export function taskComplete(file: RunnerTask): boolean {
+/**
+ * A test's outcome as the runner itself reads one it never started.
+ *
+ * Vitest 2 returns from a test whose mode is not `run` before it writes any
+ * result: an `it.todo`, an `it.skip`, everything under a closed `describe.skip`
+ * gate. The tree it hands over holds that test's mode and no state, so the mode
+ * is the only outcome the runner has, and it is carried rather than read as a
+ * test that went missing. Vitest 3 and 4 answer the same absence the same way —
+ * their reported test is `skipped` when it has no result and its mode is `skip`
+ * or `todo` — which is what {@link reportedComplete} is handed. A test the run
+ * meant to run and left with no result still has no usable outcome: its mode is
+ * `run`.
+ *
+ * The file's text is not the only thing that writes that mode. A name filter
+ * rewrites every test it leaves out to `skip` at collection, and a cancelled
+ * run rewrites every test it had not reached, in the worker's copy of the tree.
+ * Neither is the skip {@link usableOutcome} argues for, and the mode does not
+ * say which wrote it, so in a run where either may have happened — see
+ * {@link runnerSkipped} — a `skip` with no result is not an outcome. A `todo`
+ * still is: neither rewrite writes one.
+ */
+const outcome = (task: RunnerTask, runnerSkipped: boolean): string =>
+  task.result?.state
+    ?? (task.mode === 'todo' || (task.mode === 'skip' && !runnerSkipped) ? task.mode : 'missing');
+
+/**
+ * @param runnerSkipped Whether the runner may have skipped a test the file did
+ * not ask it to, as {@link runnerSkipped} reads the run.
+ */
+export function taskComplete(file: RunnerTask, runnerSkipped: boolean): boolean {
   const leaves = (task: RunnerTask): readonly RunnerTask[] =>
     task.tasks === undefined || task.tasks.length === 0 ? [task] : task.tasks.flatMap(leaves);
   const tests = leaves(file);
   return !stopped(file)
     && tests.length > 0
-    && tests.every((task) => usableOutcome(task.result?.state ?? 'missing'));
+    && tests.every((task) => usableOutcome(outcome(task, runnerSkipped)));
+}
+
+/**
+ * Whether the runner may have skipped tests on its own in this run, as the
+ * runner's own state says.
+ *
+ * A skip is counted because the file's text asked for it — see
+ * {@link usableOutcome}. Two things skip a test without the file asking. A name
+ * filter — `-t`, watch mode's `t`, an editor running one test from its gutter —
+ * leaves the rest of the file out. Recorded whole, that file's reach shrinks to
+ * what the chosen tests reached: a whole record replaces the crossings the file
+ * recorded before, so a later change to a region only the left-out tests enter
+ * no longer selects the file, and nothing runs it to put the crossing back. A
+ * cancelled run — `--bail`, an interrupted watch run — does the same to every
+ * test it had not reached.
+ *
+ * Read off the runner rather than off the tests, because a test does not say
+ * which wrote its skip. The filter is `configOverride`'s, which holds both the
+ * command line's pattern and the one watch mode sets; the configuration's is
+ * asked as well, for a runner that keeps no override. The cancel is
+ * `isCancelling` on Vitest 2, which stays set until the next run starts, and the
+ * reason Vitest 3 and 4 hand `onTestRunEnd`. A reporter that was handed no
+ * context cannot tell, and is answered as a run that may have skipped: refusing
+ * costs a file one exclusion, and guessing wrong costs it its reach for good.
+ */
+export function runnerSkipped(context: RunnerContext | undefined, reason?: string): boolean {
+  if (context === undefined) return true;
+  const pattern = context.configOverride?.testNamePattern ?? context.config?.testNamePattern;
+  return (pattern !== undefined && pattern !== null && pattern !== '')
+    || context.isCancelling === true
+    || reason === 'interrupted';
 }
 
 /**
@@ -244,7 +305,7 @@ export function statusesComplete(file: string, tests: readonly string[]): boolea
   return usableOutcome(file) && tests.length > 0 && tests.every(usableOutcome);
 }
 
-export function reportedComplete(module: ReportedModule): boolean {
+export function reportedComplete(module: ReportedModule, runnerSkipped: boolean): boolean {
   // The same reading, through the accessors Vitest 3 and 4 put on a reported
   // module: `ok()` is false when anything in it did not finish, and `errors()`
   // — on the module for a file-level hook, on a suite for a nested one — holds
@@ -256,8 +317,11 @@ export function reportedComplete(module: ReportedModule): boolean {
   for (const suite of module.children.allSuites?.() ?? []) {
     if ((suite.errors?.().length ?? 0) > 0) return false;
   }
+  // A reported test is `skipped` whoever skipped it, and a todo reads the same,
+  // so in a run the runner may have cut no skip is counted.
+  const usable = (state: string): boolean => (runnerSkipped ? state === 'passed' : usableOutcome(state));
   const tests = [...module.children.allTests()];
-  return tests.length > 0 && tests.every((test) => usableOutcome(test.result().state));
+  return tests.length > 0 && tests.every((test) => usable(test.result().state));
 }
 
 /**
@@ -355,6 +419,17 @@ export async function coverageTest(
 }
 
 /**
+ * A file as a worker's case runner writes it: its tree, and whether that
+ * worker's runner had a name filter or had been cancelled. The worker's answer
+ * rather than the reporter's, because the worker's copy of the tree is the one
+ * a cancel rewrites.
+ */
+interface WrittenFile extends RunnerTask {
+  readonly filepath: string;
+  readonly runnerSkipped?: boolean;
+}
+
+/**
  * The files a worker's case runner said it finished, read as the reporter
  * reads the same tree.
  *
@@ -370,8 +445,12 @@ export async function readFinished(directory: string): Promise<readonly Finished
     throw error;
   }
   const trees = await Promise.all(names.map(async (name) =>
-    JSON.parse(await readFile(resolve(directory, name), 'utf8')) as readonly (RunnerTask & { filepath: string })[]));
-  return trees.flat().map((file) => ({ filepath: file.filepath, complete: taskComplete(file) }));
+    JSON.parse(await readFile(resolve(directory, name), 'utf8')) as readonly WrittenFile[]));
+  // A tree that does not say is read as one the runner may have cut.
+  return trees.flat().map((file) => ({
+    filepath: file.filepath,
+    complete: taskComplete(file, file.runnerSkipped !== false),
+  }));
 }
 
 export async function readJournals(directory: string): Promise<readonly ReadJournal[]> {

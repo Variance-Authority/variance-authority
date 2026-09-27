@@ -53,11 +53,10 @@ const LOCAL_BUILD = '../dist/native/scan.node';
  * wants is not a narrower instruction set but a different number of workers,
  * and that is chosen at runtime where it can see the machine it is on.
  *
- * A failed load is kept rather than swallowed. Scanning does not need it —
- * the TypeScript scanner answers instead — but a command that has no fallback
- * does, and "requires the addon" without the `dlopen` message sends somebody
- * to their package manager when the loader already knew the answer was a
- * glibc symbol.
+ * A failed load is kept rather than swallowed, because every command that
+ * scans needs the addon and has nothing to answer with instead: "requires the
+ * addon" without the `dlopen` message sends somebody to their package manager
+ * when the loader already knew the answer was a glibc symbol.
  */
 export function native(): NativeScanner | undefined {
   if (loaded !== undefined) return loaded ?? undefined;

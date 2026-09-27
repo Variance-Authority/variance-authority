@@ -7,13 +7,15 @@
  * parse, which are the only two steps that can fail before a rule ever runs.
  */
 
+import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { cacheRootFor } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, declaredSuites, repositoryRoot } from '@variance-authority/sense/test-selection';
 import { ConfigError, messageOf } from './config-values.js';
 import { OperatorError } from './exit.js';
 import { said } from './here.js';
 import { parseConfig, type Config } from './config.js';
+import { checkCarriers } from './config-placement.js';
 
 /**
  * Read and validate a config file.
@@ -34,12 +36,8 @@ export async function loadConfig(path: string): Promise<Config> {
     // A file that is not there is said once. The system's own message repeats the
     // path in full, which on an installed consumer is a second line about
     // somebody's home directory and nothing about what to do.
-    const because = missing(error) ? 'there is no file there' : messageOf(error);
-    throw new OperatorError(
-      `cannot read the config file ${source}: ${because}. ` +
-        'Nothing about a run is inferred, so there is no default to fall back to.',
-      { cause: error },
-    );
+    const because = missing(error) ? 'no such file' : messageOf(error);
+    throw new OperatorError(`cannot read the config file ${source}: ${because}`, { cause: error });
   }
 
   let value: unknown;
@@ -63,7 +61,21 @@ export async function loadConfig(path: string): Promise<Config> {
         'looks for it; this file is not that one, so set it there',
     );
   }
-  return { ...config, cacheRoot };
+  // The same rule for `suites`, compared by file rather than by value: two files
+  // declaring the same suites today are two places to change tomorrow.
+  if (config.suites !== undefined && realpathSync(baseDir) !== realpathSync(repositoryRoot(baseDir))) {
+    throw new ConfigError(
+      source,
+      'suites',
+      'is read from the variance.config.json at the repository root, where every test runner ' +
+        'looks for it; this file is not that one, so declare them there',
+    );
+  }
+  const suites = declaredSuites(baseDir);
+  // Again once the root's suites are in: a member file may hold the share, and
+  // the suites it would carry are only ever declared at the root.
+  if (suites !== undefined) checkCarriers({ share: config.share, reportCarry: undefined, suites }, { source, baseDir });
+  return { ...config, cacheRoot, ...(suites === undefined ? {} : { suites }) };
 }
 
 /** Whether a failed read is the file simply not being there. */

@@ -10,7 +10,7 @@ name: check
 # `tools/docs-*.check.ts` rules were enforcing themselves only against whoever
 # happened to type the command.
 #
-# `.github/workflows/variance-shards.yml` answers the other half: it observes
+# `.github/workflows/variance.yml` answers the other half: it observes
 # `cases/storybook-case` in a pinned container and gates on what moved. Both are
 # this repository's gates. A green check here is still not a green suite, and a
 # green variance run is about twelve stories in a fixture rather than about this
@@ -22,8 +22,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# `pull-requests: write` is for the review comment and nothing else. A pull
+# request from a fork gets a read-only token whatever this says; the comment step
+# warns and continues there, and the review is still in the job summary and the
+# run's artifacts.
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
   group: check-${{ github.ref }}
@@ -124,7 +129,12 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      # Every commit, because the review below diffs from a base it does not
+      # choose: the base tip on a pull request, and on `main` the commit the
+      # previous push left, which can be any number of commits back.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Node 24, for the reason written at the same step in `rules`.
       - uses: actions/setup-node@v4
@@ -139,17 +149,106 @@ jobs:
         shell: bash
         run: yarn build
 
+      # What this job restores, and where the change starts, asked of `variance
+      # carry` rather than spelled here. The root `variance.config.json`
+      # declares the `unit` suite and its carrier; the command answers the
+      # recording's directory, which is a digest of the checkout's path, and the
+      # keys. The key is cut for the branch the run belongs to, a pull request's
+      # being its base, so a pull request restores what that branch saved at the
+      # base commit, and failing that the newest it saved.
+      #
+      # The base: on a pull request the checkout is the merge of its head into
+      # the base, and the merge's first parent is the base tip, so the change is
+      # the pull request's own. On a push it is the commit the push replaced.
+      - name: what to carry
+        id: carry
+        shell: bash
+        run: node packages/cli/dist/bin.js carry restore --format github >> "$GITHUB_OUTPUT"
+
+      - name: restore the recording
+        if: ${{ steps.carry.outputs.suite-unit-key != '' }}
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.carry.outputs.suite-unit-path }}
+          key: ${{ steps.carry.outputs.suite-unit-key }}
+          restore-keys: ${{ steps.carry.outputs.suite-unit-restore-keys }}
+
       # `vitest run` is the unit suites and the corpus. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
-      # 2026-08-04 and now run in the `rules` job.
+      # 2026-08-04 and now run in the `rules` job. It records which case ran
+      # which region at this commit, which is what the review below reads.
       - name: test
+        id: test
         shell: bash
         run: yarn test
+
+      # What the change did, read from what the suite just recorded: the edits,
+      # the changed regions no case covered or only a distant test covered, the
+      # cases added and removed, and what changed before any import and beyond
+      # this repository's own code. It runs when the suite failed too: a red case
+      # still recorded what it ran, and the review is where a reviewer reads why.
+      #
+      # The suite kept the cases it replaced, and the commit they were recorded
+      # at, so what `main` moved after that commit is left out of the comparison
+      # whichever recording the restore found.
+      #
+      # The source index is published first. Under CI a reader refuses to build
+      # it on demand, and the review asks it which tests import each changed file.
+      - name: review the change
+        id: review
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
+        shell: bash
+        env:
+          BASE: ${{ steps.carry.outputs.base }}
+          REVIEW: ${{ steps.carry.outputs.review }}
+        run: |
+          node packages/cli/dist/bin.js index
+          node packages/cli/dist/bin.js review --since "$BASE" \
+            --out "$REVIEW" --format markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: keep the review
+        if: ${{ !cancelled() && steps.review.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-review
+          path: ${{ steps.carry.outputs.review }}
+
+      # One comment, rewritten on every push, found by the marker the review
+      # writes on its first line. The marker is read from the file rather than
+      # spelled here, so the command stays the one place it is defined.
+      - name: tell the reviewer
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.review.outcome == 'success' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REVIEW: ${{ steps.carry.outputs.review }}
+        run: |
+          body="$REVIEW/review.md"
+          node .github/actions/variance/post-comment.mjs --body-file "$body" --marker "$(head -n 1 "$body")"
+
+      # Only a push to a mainline saves, under the commit it recorded, which is
+      # the key a pull request based on that commit restores. `carry save` prints
+      # no key anywhere else and says why on stderr, so the branch is not
+      # spelled here. A red suite on a mainline still saves: the next change is
+      # reviewed against what the mainline ran, not against an older recording
+      # that no longer describes it.
+      - name: what to save
+        id: save
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
+        shell: bash
+        run: node packages/cli/dist/bin.js carry save --format github >> "$GITHUB_OUTPUT"
+
+      - name: save the recording
+        if: ${{ !cancelled() && steps.save.outputs.suite-unit-key != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.save.outputs.suite-unit-path }}
+          key: ${{ steps.save.outputs.suite-unit-key }}
 
       # ## What this job does not do, stated rather than discovered
       #
       # **No browser.** Nothing here runs `npx playwright install`, so the suites
-      # across 42 files that need a Chromium announce themselves as skipped, each
+      # across 43 files that need a Chromium announce themselves as skipped, each
       # carrying the command that would fix it. That sentence is not taken on
       # trust: `tools/skips.check.ts` asserts every gated file announces, and pins
       # the count in this comment to the number of gated files it finds.
@@ -168,7 +267,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo "::notice::Browser suites did not run: no Chromium is installed. Every measurement in this repository comes from one Mac and one Chromium, and re-measuring on Linux is docker/linux-verify.sh, which has never been executed."
+          echo "::notice::Browser suites skipped: no Chromium installed."
 
   # The one check a branch rule names, and the one line that combines the three
   # above. `needs` alone would skip this job when one of them failed, and a

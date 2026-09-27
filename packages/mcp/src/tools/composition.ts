@@ -50,18 +50,11 @@ const MAX_ECHOES_SHOWN = 10;
 export const composition: Tool = {
   name: 'variance_composition',
   description:
-    'The run’s subjects compared to each other at one commit rather than to their baselines: ' +
-    'which components the suite is built from, which renderings appear in more than one subject ' +
-    '(so two diffs are one thing to review), which components render two ways from one input, ' +
-    'and — for everything that moved — whether an edited file, a moved token or an edited caller ' +
-    'explains it. Movements nothing explains are named here: `flake` where the subject also ' +
-    'failed to read the same way twice, `suspect` where nobody has read it twice yet. Pass ' +
-    '`component` for one component’s census entry, the subjects it holds in, and the examples ' +
-    'that watch it; pass `subject` for what one subject is made of — its boundaries as a tree, ' +
-    'who mounted each, how many of each and in how many variants, and which of its renderings ' +
-    'other subjects share. Ask this when a change has no obvious author, when you need the ' +
-    'component behind a set of diffs, before calling anything flaky, or when `variance_locate` ' +
-    'named a subject and you need to see inside it.',
+    'Compare subjects with each other at this commit, not with baselines: shared renderings ' +
+    '(two diffs, one review), one component rendering two ways from one input, and what explains ' +
+    'each movement — an edited file, a changed token, an edited caller — or `flake` / `suspect` ' +
+    'when nothing does. `component` gives one census entry; `subject` gives its boundary tree. ' +
+    'Use it before calling anything flaky, or to see inside a subject `variance_locate` named.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -252,10 +245,9 @@ function divergenceSection(divergences: readonly DivergenceRecord[]): string {
   if (divergences.length === 0) return '';
 
   return [
-    `diverging at this commit (${divergences.length}) — one input, more than one rendering. Not ` +
-      'a regression: there is no baseline anywhere in this. Either something outside the props ' +
-      'decides part of the output — a token, a theme, an ancestor’s cascade — or the reading is ' +
-      'not repeatable.',
+    `diverging (${divergences.length}) — same props, different renderings; not a regression. ` +
+      'Either something outside the props decides part of the output (a token, a theme, an ' +
+      'ancestor’s cascade), or the reading is not repeatable.',
     '',
     ...divergences.map(
       (divergence) =>
@@ -303,9 +295,7 @@ function echoSection(composed: CompositionReport): string {
   const hidden = composed.echoes.length - shown.length;
 
   return [
-    `shared renderings (${total}) — the same component producing the same output in more than ` +
-      'one subject. Two diffs over one of these are one thing to review, and an example among ' +
-      'them is the narrow subject to review it in.',
+    `shared renderings (${total}) — one output in several subjects; review each once, in its example:`,
     '',
     ...shown.map(renderEcho),
     ...(hidden === 0
@@ -314,8 +304,7 @@ function echoSection(composed: CompositionReport): string {
     ...(dropped === 0
       ? []
       : [
-          `${dropped} more were never written to the report: the run caps this list, and what ` +
-            'the cap left out is counted here rather than passed off as coverage.',
+          `${dropped} more were never written to the report: the run caps this list.`,
         ]),
   ].join('\n');
 }

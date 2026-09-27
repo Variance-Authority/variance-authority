@@ -121,7 +121,13 @@ witnesses are named beside a stopped case is `walked`, never `alone`.
 When a source is not configured or not recorded, its facet is **left out**. It
 is never `[]` and never zero
 ([ADR-0002](../context/adr/0002-observation-profiles.md)). A line in no recorded
-region has no range. A file the record does not hold gets `recorded: false`. A
+region has no range. A file the record does not hold gets `recorded: false`.
+A repository that declares suites gets these facets once per suite, under
+`suites`, each with its `suite`, `kind` and its own `frame`, because each suite
+recorded over its own text and one stale record must not blank the others. A
+suite with no recording is `refused: "unrecorded"`, and a suite that never
+loaded the file is `refused: "unloaded"`, which is the answer rather than a
+gap: a visual suite that never loaded the payment module says so. A
 test is referred to by the record's own id everywhere, and its detail appears
 once, under `tests`.
 

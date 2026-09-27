@@ -96,3 +96,25 @@ describe('the component boxes a sidecar carries', () => {
     expect(sidecarFrom(sidecar([broken]))?.components).toBeUndefined();
   });
 });
+
+describe('the declared values a sidecar carries', () => {
+  it('reads back the values a run recorded', () => {
+    const values = { '--accent': ['#b5179e'], 'padding-left': ['14px', '8px'] };
+
+    expect(sidecarFrom(sidecar([{ ...BUTTON, values }]))?.components?.[0]?.values).toEqual(values);
+  });
+
+  it('drops values that will not parse rather than refusing the baseline', () => {
+    // They name a property in a sentence. The comparison needs none of them.
+    const read = sidecarFrom(sidecar([{ ...BUTTON, values: { 'padding-left': [8] } }]));
+
+    expect(read?.components?.[0]?.component).toBe('Button');
+    expect(read?.components?.[0] && 'values' in read.components[0]).toBe(false);
+  });
+
+  it('leaves a baseline written before values existed without them', () => {
+    const read = sidecarFrom(sidecar([BUTTON]));
+
+    expect(read?.components?.[0] && 'values' in read.components[0]).toBe(false);
+  });
+});

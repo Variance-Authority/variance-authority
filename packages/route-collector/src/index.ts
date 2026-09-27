@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core/attribute';
-import { createDeclarationReader, fetchModules } from '@variance-authority/playwright';
+import { createDeclarationReader, fetchModules, widthsOf } from '@variance-authority/playwright';
 import { operatorError } from './operator.js';
 import { readRoute, type RouteReading } from './read.js';
 import { scanSource } from './source.js';
@@ -20,7 +20,6 @@ export type { RouteCollectorOptions } from './options.js';
 import type { RouteCollectorOptions } from './options.js';
 import { declaredOnce, discover, routesFromFiles } from './sitemap.js';
 import { pagesIn, serveStatic, type StaticServer } from './serve.js';
-import { widthsOf } from './widths.js';
 
 /**
  * A collector for routes: the application serves the page, this reads a subtree.

@@ -122,10 +122,54 @@ pub struct EncodedModule<'a> {
     pub loaded: &'a [bool],
 }
 
+/// What a finalize could not charge to a case, carried in the artifact it
+/// writes so a reader in a later process sees the finalize's own answer.
+///
+/// An artifact written before these were carried has none of their columns,
+/// which reads as not measured rather than as nothing found.
+#[derive(Clone, Default)]
+pub struct Gaps {
+    /// Modules a case ran that no record holds.
+    pub unrecorded: Vec<String>,
+    /// Part files that ran code under no journey a case handed out.
+    pub unclaimed: Vec<String>,
+    /// Heads that wrote at least one part in this run.
+    pub heads: Vec<String>,
+    /// Heads that wrote parts in the run before and none in this one; absent
+    /// when there was no run before to compare with.
+    pub silent: Option<Vec<String>>,
+}
+
+const UNRECORDED: &str = "gaps.unrecorded";
+const UNCLAIMED: &str = "gaps.unclaimed";
+const HEADS: &str = "gaps.heads";
+const SILENT: &str = "gaps.silent";
+
+/// The gaps an artifact carries, or none when it was written without them.
+pub fn read_gaps(decoded: &journey_columns::Decoded, strings: &[String]) -> Result<Option<Gaps>, String> {
+    if !decoded.has(UNRECORDED) {
+        return Ok(None);
+    }
+    let named = |column: &str| -> Result<Vec<String>, String> {
+        decoded
+            .words(column)?
+            .into_iter()
+            .map(|id| strings.get(id as usize).cloned().ok_or_else(|| format!("{column} names no string")))
+            .collect()
+    };
+    Ok(Some(Gaps {
+        unrecorded: named(UNRECORDED)?,
+        unclaimed: named(UNCLAIMED)?,
+        heads: named(HEADS)?,
+        silent: if decoded.has(SILENT) { Some(named(SILENT)?) } else { None },
+    }))
+}
+
 pub fn encode(
     tests: &[Test],
     modules: &[EncodedModule<'_>],
     sets: &SetPool,
+    gaps: Option<&Gaps>,
 ) -> Result<Vec<u8>, String> {
     let mut strings = Vec::new();
     for test in tests {
@@ -136,6 +180,12 @@ pub fn encode(
         for block in &held.module.blocks {
             strings.extend([block.kind.clone(), block.name.clone(), block.path.clone()]);
         }
+    }
+    if let Some(gaps) = gaps {
+        strings.extend(gaps.unrecorded.iter().cloned());
+        strings.extend(gaps.unclaimed.iter().cloned());
+        strings.extend(gaps.heads.iter().cloned());
+        strings.extend(gaps.silent.iter().flatten().cloned());
     }
     strings.sort_unstable_by(|left, right| order::code_unit(left, right));
     strings.dedup();
@@ -178,7 +228,7 @@ pub fn encode(
     }
     module_blocks.push(block_kind.len() as u32);
 
-    journey_columns::encode(vec![
+    let mut columns = vec![
         Column::Blob("strings.blob", string_blob, string_off.clone()),
         Column::Words("strings.off", string_off),
         Column::Words("tests.id", tests.iter().map(|test| id(&test.id)).collect()),
@@ -197,5 +247,15 @@ pub fn encode(
         Column::Bytes("blocks.loaded", block_loaded),
         Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()),
         Column::Words("sets.off", sets.offsets().to_vec()),
-    ], FORMAT)
+    ];
+    if let Some(gaps) = gaps {
+        let ids = |names: &[String]| names.iter().map(|name| id(name)).collect::<Vec<u32>>();
+        columns.push(Column::Words(UNRECORDED, ids(&gaps.unrecorded)));
+        columns.push(Column::Words(UNCLAIMED, ids(&gaps.unclaimed)));
+        columns.push(Column::Words(HEADS, ids(&gaps.heads)));
+        if let Some(silent) = &gaps.silent {
+            columns.push(Column::Words(SILENT, ids(silent)));
+        }
+    }
+    journey_columns::encode(columns, FORMAT)
 }

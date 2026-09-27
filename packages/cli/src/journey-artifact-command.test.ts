@@ -31,6 +31,27 @@ describe('the public journey artifact commands', () => {
     expect(out.join('')).not.toContain('regions');
   });
 
+  it('names the heads that went quiet, the parts no case claimed and the modules no record holds', async () => {
+    finalize.mockResolvedValue({
+      tests: 3,
+      modules: 2,
+      crossings: 4,
+      renumbered: [],
+      unclaimed: ['billing-7f.vac'],
+      unrecorded: ['com.acme.Tax', 'com.acme.Rate'],
+      silent: ['notes'],
+    });
+    const out: string[] = [];
+    await main(['journeys', 'finalize', 'journeys.bin'], { out: (text) => out.push(text), err: () => {} });
+
+    expect(out.join('')).toContain("1 part ran code under no case's journey id");
+    expect(out.join('')).toContain('  billing-7f.vac\n');
+    expect(out.join('')).toContain('cases ran 2 modules no record holds');
+    expect(out.join('')).toContain('  com.acme.Tax\n  com.acme.Rate\n');
+    expect(out.join('')).toContain('1 head wrote parts in the run before and none in this one');
+    expect(out.join('')).toContain('  notes\n');
+  });
+
   it('stitches named shard artifacts without reading project configuration', async () => {
     stitch.mockResolvedValue({
       tests: 130,

@@ -29,7 +29,7 @@ describe('what the recorded journeys rule out', () => {
       'story:cart-card--item',
       'story:cart-card--verbose',
     ]);
-    expect(skipped[0]?.because).toContain('this diff changed none of them');
+    expect(skipped[0]?.because).toContain('covered no changed region when last painted');
   });
 
   it('observes a subject the journal has no whole record of', () => {

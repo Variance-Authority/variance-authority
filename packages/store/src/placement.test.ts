@@ -3,9 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { identityDigest } from '@variance-authority/core/format';
+import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
+
+/** The directory a store names for this identity's partition. */
+const partition = (identity: RenderIdentity): string => digestFileName(identityDigest(identity));
 
 /**
  * Where a file lands, which is the one thing about a store that reaches no
@@ -54,7 +57,7 @@ describe('the beside layout', () => {
     const store = createDurableStore(root, { layout: 'beside' });
     await store.put({ subject: 'src/ui/Button/primary' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
 
-    const files = await readdir(join(root, 'src', 'ui', 'Button', identityDigest(MAC)));
+    const files = await readdir(join(root, 'src', 'ui', 'Button', partition(MAC)));
 
     expect(files.sort()).toEqual(['primary.json', 'primary.png']);
   });
@@ -106,7 +109,7 @@ describe('the beside layout', () => {
     const store = createDurableStore(root, { layout: 'flat' });
     await store.put({ subject: 'src/ui/Button/primary' }, rasterOf(MAC));
 
-    const files = await readdir(join(root, identityDigest(MAC)));
+    const files = await readdir(join(root, partition(MAC)));
 
     expect(files.sort()).toEqual(['src%2Fui%2FButton%2Fprimary.json', 'src%2Fui%2FButton%2Fprimary.png']);
   });
@@ -128,7 +131,7 @@ describe('the beside layout, given a path', () => {
     const store = createDurableStore(root, { layout: 'beside' });
     await store.put(story, rasterOf(MAC, 'v1:doc', 'QUJD'));
 
-    const files = await readdir(join(root, 'src', 'ui', 'Button', identityDigest(MAC)));
+    const files = await readdir(join(root, 'src', 'ui', 'Button', partition(MAC)));
 
     expect(files.sort()).toEqual([
       'story%3Acomponents-button--primary.json',
@@ -153,7 +156,7 @@ describe('the beside layout, given a path', () => {
     await store.put({ subject: 'story:a--x', path: 'src/One' }, rasterOf(MAC));
     await store.put({ subject: 'story:b--x', path: 'src/Two' }, rasterOf(MAC));
 
-    expect(await readdir(join(root, 'src', 'One', identityDigest(MAC)))).toEqual([
+    expect(await readdir(join(root, 'src', 'One', partition(MAC)))).toEqual([
       'story%3Aa--x.json',
       'story%3Aa--x.png',
     ]);
@@ -198,7 +201,7 @@ describe('the beside layout, given a path', () => {
     const store = createDurableStore(root, { layout: 'flat' });
     await store.put(story, rasterOf(MAC));
 
-    const files = await readdir(join(root, identityDigest(MAC)));
+    const files = await readdir(join(root, partition(MAC)));
 
     expect(files.sort()).toEqual([
       'story%3Acomponents-button--primary.json',

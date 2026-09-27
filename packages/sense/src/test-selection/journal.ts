@@ -56,7 +56,9 @@ import {
 } from './observed.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
-import { layeredCoverage } from './format-layer.js';
+import { landRun } from './commit-runs.js';
+import { markCheckout } from './cache-layers.js';
+import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
@@ -67,19 +69,14 @@ import {
   recordStores,
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
+import { recordFileFor } from './record-location.js';
 import {
   seedTestCoverage,
-  testCoverageFile,
   writeCoverageBytes,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
 } from './index.js';
-import {
-  EXECUTION_GLOBAL,
-  type ExecutionCollector,
-  type ExecutionJournal,
-} from './probes.js';
 
 export {
   EXECUTION_GLOBAL,
@@ -112,33 +109,7 @@ export {
   stagingDirectory,
   type StagedExecution,
 } from './stage.js';
-
-
-/** The one thing a driver has to be able to do, so nothing here imports a driver. */
-export interface EvaluatingPage {
-  evaluate<Result, Argument>(
-    body: (argument: Argument) => Result,
-    argument: Argument,
-  ): Promise<Result>;
-}
-
-/**
- * Take everything the page entered since the last drain.
- *
- * `undefined` means the page has no collector — an application built without
- * {@link testSelectionProbes}, which is the ordinary case and not an error.
- * The distinction is kept here rather than defaulted to an empty journal,
- * because "recorded nothing" and "recorded that nothing ran" are the two facts a
- * later selection must never confuse.
- */
-export async function drainExecution(page: EvaluatingPage): Promise<ExecutionJournal | undefined> {
-  return page.evaluate((global: string) => {
-    const collector = (globalThis as unknown as Record<string, ExecutionCollector | undefined>)[
-      global
-    ];
-    return collector === undefined ? undefined : collector.drain();
-  }, EXECUTION_GLOBAL);
-}
+export { drainExecution, type EvaluatingPage } from './drain.js';
 
 
 export interface RecordExecutionOptions {
@@ -156,6 +127,12 @@ export interface RecordExecutionOptions {
   readonly label?: string;
   /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
+  /**
+   * The suite this run is, as the root `variance.config.json` declares it under
+   * `suites`. Required once any suite is declared, and refused beside
+   * `coverageFile`.
+   */
+  readonly suite?: string;
   /**
    * Other builds this same run drove, by the label each instrumented under.
    *
@@ -251,10 +228,7 @@ export async function recordExecution(
   // collector is what makes the invariant hold for collectors not yet written.
   const subjects = joinObservations([options.subjects]);
   const instrumentation = instrumentationId(options.mode);
-  const coverageFile =
-    options.coverageFile === undefined
-      ? testCoverageFile(root)
-      : resolve(root, options.coverageFile);
+  const coverageFile = recordFileFor(root, root, options);
   // One entry per label, each read across its layers: a worktree's own records
   // after the primary checkout's for the same build. Labels are the peers.
   const stores = [...new Set([options.label, ...(options.heads ?? [])])].map((label) =>
@@ -423,7 +397,7 @@ export async function recordExecution(
   // onto nothing. A no-op here and after the first run.
   await seedTestCoverage(coverageFile, root, options.cacheRoot);
   const merged = await withIndexLock(coverageFile, async (lock) => {
-    await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+    await landRun(coverageFile, current, root);
     // Every module this run could identify, numbered for the next one. A file
     // first met today was instrumented under its path; from here on it has a
     // number, and the transform that emits it needs to consult nothing. Under
@@ -433,6 +407,7 @@ export async function recordExecution(
       [...byId.values()].map((module) => module.file),
       lock,
     );
+    markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {
     return {

@@ -1,7 +1,7 @@
 import { identityDigest } from '@variance-authority/core/format';
 import type { LexiconField, LexiconReport, SubjectLexicon } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
-import { isShardFilter, readCliRunReport, type CliRunReport, type NotObserved } from './run-report.js';
+import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';
 import { ledgerOf, type IgnoreLedger } from './ignores.js';
 
 /**
@@ -373,20 +373,4 @@ function runOf(shards: readonly Shard[]): Pick<CliRunReport, 'run'> {
   if (first === undefined) return {};
   const same = rest.every((run) => run?.id === first.id && run?.commit === first.commit);
   return same ? { run: first } : {};
-}
-
-/**
- * The report the operator meant: the configured one, or the shards they named.
- *
- * Shared by `report`, `comment` and `share --publish` so a sharded suite gets
- * *one* of each. Having only the first take shard paths would leave the
- * pull-request body reading a single slice while the text output described the
- * suite — two answers about one run, from one binary, differing by which
- * subcommand asked.
- */
-export async function reportsAt(paths: readonly string[], configured: string): Promise<CliRunReport> {
-  const named = paths.length === 0 ? [configured] : paths;
-  return mergeReports(
-    await Promise.all(named.map(async (path) => ({ path, report: await readCliRunReport(path) }))),
-  );
 }

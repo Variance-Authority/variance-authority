@@ -21,6 +21,10 @@ import { said } from '../here.js';
  * a doubt printed rather than a fault, and never moves the exit code.
  */
 
+// FIXME: a skill in either directory counts as found, and Claude Code reads only
+// `.claude/skills`, so a link in `.agents/skills` alone reports found to an agent
+// that cannot see it. The finding needs one answer per host, and the doctor needs
+// to reach it without a `variance.config.json`, which today exits 2 first.
 /** Where an agent host reads skills, relative to the project and to the home directory. */
 export const SKILL_HOMES: readonly string[] = ['.agents/skills', '.claude/skills'];
 
@@ -114,7 +118,7 @@ export function formatSkills(finding: SkillsFinding): readonly string[] {
   const missing = finding.skills.filter((skill) => skill.found.length === 0);
   const lines = [
     `skills: ${finding.skills.length - missing.length} of ${finding.skills.length} where an agent reads them`,
-    `  shipped in ${said(shipped)}; an agent looks in ${SKILL_HOMES.join(' or ')}, here or in your home directory`,
+    `  shipped in ${said(shipped)}; agents read ${SKILL_HOMES.join(' or ')}, in the project or the home directory`,
   ];
   for (const skill of finding.skills) {
     if (skill.found.length === 0) {
@@ -131,7 +135,7 @@ export function formatSkills(finding: SkillsFinding): readonly string[] {
 }
 
 const WORDS: Record<FoundSkill['as'], string> = {
-  linked: 'linked, follows every update',
-  same: 'a copy, matching this version; it will not follow the next update',
-  stale: 'a copy that differs from this version; link the shipped one instead',
+  linked: 'linked',
+  same: 'copy, current; a link follows updates',
+  stale: 'copy, stale; link the shipped one',
 };

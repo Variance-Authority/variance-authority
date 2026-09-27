@@ -15,7 +15,7 @@ import { ariaOf } from './aria.js';
 import { resolveIgnores, type IgnoreSelector } from './ignore.js';
 import { conditionKey, indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
 import { inheritedSeed } from './inherit.js';
-import type { ConditionEnvironment } from './media.js';
+import { deviceProbe, type ConditionEnvironment } from './media.js';
 import { attributesOf, childNodesOf, elements, propertyNames } from './dom-list.js';
 import { detectProfile } from './profile.js';
 import { hostChosenFonts } from './typeface.js';
@@ -183,6 +183,7 @@ export function conditionsFor(
   features?: Readonly<Record<string, string>>,
 ): ConditionEnvironment {
   const supports = supportsProbe(document.defaultView);
+  const device = deviceProbe(document.defaultView);
 
   return {
     width: viewport.width,
@@ -191,6 +192,7 @@ export function conditionsFor(
     colorScheme: viewport.colorScheme,
     ...(features ? { features } : {}),
     ...(supports ? { supports } : {}),
+    ...(device ? { device } : {}),
   };
 }
 

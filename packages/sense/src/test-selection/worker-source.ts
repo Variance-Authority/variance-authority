@@ -67,6 +67,8 @@ export interface SetupShim {
    * what each costs.
    */
   readonly continuations?: boolean;
+  /** Where each case's story goes, when the run asked for stories. */
+  readonly story?: string | undefined;
 }
 
 export function setupSource(
@@ -82,6 +84,10 @@ import { createRequire } from 'node:module';
 const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
 const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
     shim.continuations === true
+  }, ${
+    shim.story === undefined
+      ? 'undefined'
+      : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
   });
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);
@@ -111,11 +117,8 @@ afterAll(async () => {
   const outlived = runaways();
   if (outlived.length > 0) {
     console.warn(
-      'variance-authority: work outlived its case in ' + testFile + ':\\n  ' +
-      outlived.join('\\n  ') +
-      '\\nEach of these made a crossing after it had settled. The record is right — ' +
-      'the crossing went to the case that made it — but the case is not over when ' +
-      'the runner says it is, which is what a flaky neighbour is made of.',
+      'variance-authority: async work still running after its case finished in ' + testFile +
+      ' (recorded against the case that started it):\\n  ' + outlived.join('\\n  '),
     );
   }
 ${caseWriterSource(caseDirectory)}});`;
@@ -196,16 +199,39 @@ export function caseWriterSource(caseDirectory: string): string {
  * `runTask`, so nothing can wrap it from here. Its crossings land in the ambient
  * bucket and reach every case in the file.
  *
+ * The module also installs the realm's probe root, because it is the first
+ * module of the configuration's a worker evaluates. Vitest imports the runner,
+ * then the `snapshotSerializers` and `diff` files, and only then a test file's
+ * `setupFiles` — the same order on 2, 3 and 4. A serializer that imports product
+ * source runs its probes before the setup module exists, and with no root there
+ * the first of them is a `TypeError` that fails every file. Installed here,
+ * those probes write into a bucket the setup module's collector takes as its
+ * file's ambient one, so the file is recorded as having loaded what its worker
+ * evaluated for it, as it is for a setup file's imports; a case that prints
+ * through the serializer is credited with what it called.
+ *
  * @param runner How this module should spell `@vitest/runner`, and its `utils`
  * entry. The runner is a file in the project root, and `@vitest/runner` is a
  * dependency of Vitest rather than of the project — under a node_modules layout
  * that does not hoist, a bare specifier there resolves to nothing and every
  * test file fails to load. The caller resolves it; see `runnerImport` in
- * [`vitest.ts`](./vitest.ts).
+ * [`vitest.ts`](./vitest.ts). `recording` is the engine the setup module's
+ * collector will ask for, which a realm decides once: the same `continuations`
+ * and story answers the caller hands {@link setupSource}.
  */
 export function caseRunnerSource(
-  runner: { readonly module?: string; readonly utils?: string; readonly finished?: string } = {},
+  runner: {
+    readonly module?: string;
+    readonly utils?: string;
+    readonly finished?: string;
+    readonly recording?: { readonly continuations: boolean; readonly story: boolean };
+  } = {},
 ): string {
+  const recording = runner.recording === undefined
+    ? ''
+    : `createRequire(${JSON.stringify(HERE)})('./collectors.cjs').preload(globalThis, ${
+      runner.recording.continuations
+    }, ${runner.recording.story});\n`;
   return `
 // \`vitest/runners\` on every supported major. Vitest 4.1 deprecates the entry in
 // favour of the package root and prints a line saying so on each run, but does
@@ -217,12 +243,20 @@ import { getFn } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
 import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 
+${recording}
 // The runner's own tree, cut to what the fold reads a file's outcome from. The
 // reporter is handed the same tree, and a command-line \`--reporter\` replaces
 // the reporter: an editor that runs one test from the gutter passes its own.
+// The mode is in the cut because a test the runner never started, a todo or a
+// skip, has no result on Vitest 2, and its mode is the only outcome it has.
+// Beside it, whether this runner wrote skips of its own: a name filter, in the
+// configuration the worker collected under, and a cancel, which rewrites the
+// tests it had not reached in this worker's copy of the tree and no other.
 const finished = ${JSON.stringify(runner.finished ?? null)};
 const tree = (task) => ({
+  ...(task.mode === undefined ? {} : { mode: task.mode }),
   ...(task.result === undefined ? {} : { result: { state: task.result.state } }),
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
@@ -232,9 +266,10 @@ export default class extends VitestTestRunner {
     await super.onAfterRunFiles?.(files);
     if (finished === null) return;
     await mkdir(finished, { recursive: true });
+    const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
-      JSON.stringify(files.map((file) => ({ filepath: file.filepath, ...tree(file) }))),
+      JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
     );
   }
 

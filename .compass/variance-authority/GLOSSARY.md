@@ -559,6 +559,26 @@ instability.
 
 `variance run --flakes`
 
+## **Prune**
+
+### Meaning
+
+Removing from a cache what its owner says is no longer used: a checkout the
+file system no longer has, a worktree git no longer lists, a run whose process
+is gone, a commit far behind or off the line of `HEAD`. When the owner cannot
+answer, the entry is kept until it has gone unwritten for a month. The
+test-selection recording is never pruned while its checkout exists. Not a
+**sweep**, which is a run.
+
+### Bounded context
+
+[**Identity and retention**](./DOMAIN.md#identity-and-retention)
+
+### Implementation aliases
+
+`planPrune`, `pruneWhenDue`, `planCachePrune`, `sweepRenderCache`;
+`variance doctor --prune`
+
 ## **Flake**
 
 ### Meaning
@@ -714,6 +734,26 @@ source, attributed to the test that entered it.
 ### Bounded context
 
 [**Reach**](./DOMAIN.md#reach)
+
+## **Story**
+
+### Meaning
+
+The order one test case visited the arrival regions of instrumented source, in
+one realm, read as a route through the declarations those regions belong to.
+Where a **journey** says which regions an execution entered, a story says in
+what order one case went through them. It claims order and nothing else: no
+nesting, no caller, no time.
+
+### Bounded context
+
+[**Reach**](./DOMAIN.md#reach)
+
+### Product appearance
+
+A map to read before opening files: *which parts of the system does this case
+go through, and in what order*, taken only when somebody asks for it and read a
+part at a time. Nothing that selects or compares reads it.
 
 ## **Announcement**
 

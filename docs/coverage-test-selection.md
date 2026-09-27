@@ -209,10 +209,9 @@ in.
 ### What the record keeps
 
 So in a well-tested codebase the graph and the run give answers that are far
-apart. [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/) calls
-the code one test executed, shown in one view, its **test story**. A
-[journey](journeys.md) is the same list of code one test ran, stored after the
-run. Selection reads journeys. A change to code in some test's journey selects
+apart. A [journey](journeys.md) is the set of code one test ran, stored after
+the run. It keeps no order: the order is a [test story](test-stories.md),
+written only when you ask for one. Selection reads journeys. A change to code in some test's journey selects
 that test. A change to code in no journey selects nothing, because no test ran
 it. In the record, a shared module is charged to the tests that ran the changed
 code. In the graph, it is charged to every test that imports it, and most of a
@@ -399,7 +398,7 @@ export function Header() {
 ```
 
 ```
-read limits.ts: values — MAX_ITEMS changed; their readers and the changed regions are charged
+read limits.ts: values (MAX_ITEMS) — the readers of the changed values and the changed regions are charged
 ```
 
 The addon looks for reads of the changed name in the oxc syntax tree, first in

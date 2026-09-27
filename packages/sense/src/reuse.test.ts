@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
-import { memoryRecordCache, openRecordCache, treeShapeOf, type TreeShape } from './reuse.js';
+import { memoryRecordCache, openRecordCache, treeShapeOf, type RecordCache, type TreeShape } from './reuse.js';
 import { scanRelations } from './scan.js';
 import { directoriesOf } from './witness.js';
 
@@ -359,6 +359,57 @@ describe('a scan that remembers the last one', () => {
     const clock = records.find((record) => record.file === 'src/Clock.tsx');
     expect(clock?.edges).toBeUndefined();
     expect(clock?.unknown).toContain('./time.js');
+  });
+
+  it('keeps every record when a path appears elsewhere, under a base a workspace package exports', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
+    made.push(root);
+    await write(root, '.gitignore', 'node_modules\n');
+    await write(root, 'package.json', '{ "name": "fixture", "type": "module", "workspaces": ["packages/*"] }');
+    await write(root, 'tsconfig.json', '{ "extends": "@fixture/tsconfig/base", "include": ["src"] }');
+    await write(
+      root,
+      'packages/tsconfig/package.json',
+      '{ "name": "@fixture/tsconfig", "exports": { "./base": "./tsconfig.base.json" } }',
+    );
+    await write(
+      root,
+      'packages/tsconfig/tsconfig.base.json',
+      '{ "compilerOptions": { "paths": { "@app/*": ["../../src/*"] } } }',
+    );
+    await write(root, 'src/Clock.tsx', "import { now } from '@app/time';\nexport const Clock = now;\n");
+    await write(root, 'src/time.ts', 'export const now = 1;\n');
+    await mkdir(join(root, 'node_modules/@fixture'), { recursive: true });
+    await symlink(join(root, 'packages/tsconfig'), join(root, 'node_modules/@fixture/tsconfig'), 'dir');
+    await git(root, ['init', '--quiet']);
+    await git(root, ['add', '-A']);
+    await git(root, ['commit', '--quiet', '-m', 'one']);
+
+    const memory = memoryRecordCache();
+    const rebuilt: string[] = [];
+    const reuse: RecordCache = {
+      ...memory,
+      set(record, witnesses, targets) {
+        rebuilt.push(record.file);
+        memory.set(record, witnesses, targets);
+      },
+    };
+    const before = await scanRelations({ root, dirs: ['src'], reuse });
+    expect(before.find((record) => record.file === 'src/Clock.tsx')?.edges).toEqual([
+      { to: 'src/time.ts', kind: 'imports' },
+    ]);
+
+    rebuilt.length = 0;
+    await write(root, 'docs/page.md', '# a page\n');
+    await git(root, ['add', 'docs/page.md']);
+    const after = await scanRelations({ root, dirs: ['src'], reuse });
+
+    // The root config's `paths` come from a package, and the package's link
+    // leads back to a file git tracks, so they bound where `@app/time` can land
+    // and a page under `docs/` is nowhere near it. Unfollowed, the same base
+    // left every record unbounded and this scan rebuilt all of them.
+    expect(rebuilt).toEqual([]);
+    expect(JSON.stringify(after)).toBe(JSON.stringify(await scanRelations({ root, dirs: ['src'] })));
   });
 
   it('reuses nothing when it was told not to trust digests', async () => {

@@ -282,6 +282,7 @@ export type {
   Exported,
   Recorded,
   Requested,
+  Through,
   Usage,
   UsageOptions,
   Use,

@@ -21,6 +21,13 @@ described under **Verifying**.
 `yarn test:since` needs one more thing: a recording. `yarn test` writes it, and
 until `yarn test` has run in this checkout there is nothing for it to read.
 
+## Finding your way in the code
+
+Ask before you grep: `yarn variance ask uses --name <name>` lists who imports a
+name, `ask symbol --name <name>` says what it is and where it is declared, and
+`ask search --query <words>` finds a name by what it does. The
+`variance-authority` skill has the rest.
+
 ## Where writing goes
 
 Each kind of writing has one home and one job. A file that does two jobs is
@@ -90,10 +97,6 @@ source, so it cannot disagree with the code:
 
 ```
 unrun: 57 gaps in 46 files
-
-  todo   a claim that would hold if something ran
-  TODO   a limb that is not written
-  FIXME  a defect in code that ships
 
 @variance-authority/case-storybook
   cases/storybook-case/src/cli.chromium.test.js:409  todo
@@ -173,6 +176,12 @@ the search with `grep -ril "<task terms>" .compass`.
 ## Standing rules
 
 - **Commit to `main`.** No branch, no PR, unless asked.
+- **A PR body follows
+  [`.github/pull_request_template.md`](.github/pull_request_template.md).**
+  `gh pr create --body-file` skips the template, so apply it yourself. Branch from
+  `origin/main`, because local `main` holds unpushed work. Before sending, have
+  a subagent with no other context read the body alone, say what the PR is,
+  and quote each sentence it could not follow. Fix those sentences.
 - **Absent is not empty** (ADR-0002). A thing the run could not determine is
   missing from the output, never zero, never `[]`.
 - **A package is named for what it is for** (ADR-0042), never for a library it
@@ -325,8 +334,8 @@ five hops or further out, and every test the reading could not place, to
 `yarn verify` — which is the gate, and runs them. When you do want a partition,
 it is `0-2` then `3-`: a leg whose range is open at the top carries the tests
 with no measurable distance, so those two legs together run every selected file
-exactly once. Either way, every run prints the files the leg it took left
-behind.
+exactly once. Either way, every run prints how many selected files the leg it
+took left behind, and the range that runs those further out.
 
 `--at-distance` narrows a reading; it cannot narrow a widening. When the reading
 could not be made the run is the whole suite and the flag is never consulted —

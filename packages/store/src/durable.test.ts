@@ -11,10 +11,14 @@ import type {
 import {
   accessibilitySnapshot,
   documentDigest,
+  digestFileName,
   identityDigest,
 } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
+
+/** The directory a store names for this identity's partition. */
+const partition = (identity: RenderIdentity): string => digestFileName(identityDigest(identity));
 
 /**
  * The durable mode: images that cross time, and therefore cross machines.
@@ -69,7 +73,7 @@ afterEach(async () => {
 
 /** The layout, spelled out, so a test can damage one half of a pair. */
 function pathOf(identity: RenderIdentity, subject: string): string {
-  return join(root, identityDigest(identity), subject);
+  return join(root, partition(identity), subject);
 }
 
 /**
@@ -267,7 +271,7 @@ describe('a baseline the store cannot read', () => {
     const store = createDurableStore(root);
 
     await store.renderCache.put(rasterOf(MAC, 'v1:doc'));
-    await unlink(join(root, identityDigest(MAC), 'by-document', 'v1:doc.json'));
+    await unlink(join(root, partition(MAC), 'by-document', 'v1-doc.json'));
     expect(await store.renderCache.get('v1:doc', MAC)).toBeNull();
 
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
@@ -353,7 +357,7 @@ describe('the render cache location', () => {
     await store.renderCache.put(rasterOf(MAC, 'v1:doc'));
 
     expect(await store.renderCache.get('v1:doc', MAC)).not.toBeNull();
-    expect(await readdir(join(root, identityDigest(MAC)))).toContain('by-document');
+    expect(await readdir(join(root, partition(MAC)))).toContain('by-document');
   });
 
   it('leaves the baseline root untouched when it is pointed elsewhere', async () => {
@@ -364,11 +368,11 @@ describe('the render cache location', () => {
       await store.renderCache.put(rasterOf(MAC, 'v1:doc'));
 
       expect(await store.renderCache.get('v1:doc', MAC)).not.toBeNull();
-      expect(await readdir(join(root, identityDigest(MAC)))).toEqual([
+      expect(await readdir(join(root, partition(MAC)))).toEqual([
         'todo--empty.json',
         'todo--empty.png',
       ]);
-      expect(await readdir(join(elsewhere, identityDigest(MAC)))).toEqual(['by-document']);
+      expect(await readdir(join(elsewhere, partition(MAC)))).toEqual(['by-document']);
     } finally {
       await rm(elsewhere, { recursive: true, force: true });
     }
@@ -392,7 +396,7 @@ describe('the record location', () => {
     const store = createDurableStore(root);
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
-    expect(await readdir(join(root, identityDigest(MAC)))).toEqual([
+    expect(await readdir(join(root, partition(MAC)))).toEqual([
       'todo--empty.json',
       'todo--empty.png',
     ]);
@@ -404,8 +408,8 @@ describe('the record location', () => {
       const store = createDurableStore(root, { recordRoot: records });
       await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
 
-      expect(await readdir(join(root, identityDigest(MAC)))).toEqual(['todo--empty.png']);
-      expect(await readdir(join(records, identityDigest(MAC)))).toEqual(['todo--empty.json']);
+      expect(await readdir(join(root, partition(MAC)))).toEqual(['todo--empty.png']);
+      expect(await readdir(join(records, partition(MAC)))).toEqual(['todo--empty.json']);
 
       // And the halves are still one baseline to every reader.
       const found = await store.find({ subject: 'todo--empty' }, MAC);
@@ -462,7 +466,7 @@ describe('the record location', () => {
     try {
       const store = createDurableStore(root, { recordRoot: records });
       await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
-      await unlink(join(records, identityDigest(MAC), 'todo--empty.json'));
+      await unlink(join(records, partition(MAC), 'todo--empty.json'));
 
       await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
         new RegExp(`half there.+${records}`, 's'),

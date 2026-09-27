@@ -202,7 +202,7 @@ describe('narrowing a run to what a diff could have changed', () => {
       expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
       expect(report.notObserved?.[0]?.subject).toBe('fixture:b');
       expect(report.notObserved?.[0]?.kind).toBe('unreached');
-      expect(report.notObserved?.[0]?.because).toContain('every region it covered');
+      expect(report.notObserved?.[0]?.because).toContain('covered no changed region');
     });
 
     it('keeps a subject the diff ruled out when the last run recorded it entering the changed lines', async () => {
@@ -225,7 +225,7 @@ describe('narrowing a run to what a diff could have changed', () => {
 
       expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
       expect(report.notObserved?.map((entry) => [entry.subject, entry.because])).toEqual([
-        ['fixture:b', expect.stringContaining('this diff touched none of them')],
+        ['fixture:b', expect.stringContaining('none of its')],
       ]);
       const warnings = report.warnings?.join('\n') ?? '';
       expect(warnings).toContain(
@@ -432,8 +432,8 @@ describe('narrowing a run to what a diff could have changed', () => {
       });
 
       expect(report.notObserved?.map((entry) => entry.because)).toEqual([
-        expect.stringContaining('this diff touched none of them'),
-        expect.stringContaining('this diff touched none of them'),
+        expect.stringContaining('none of its'),
+        expect.stringContaining('none of its'),
       ]);
       expect(report.warnings?.join('\n')).toContain('was not narrowed by execution');
     });

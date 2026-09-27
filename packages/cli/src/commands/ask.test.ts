@@ -275,11 +275,11 @@ describe('an answer', () => {
     await expect(ask(request)).rejects.toThrow('`variance ask describe` needs --subject');
   });
 
-  it('refuses an unknown question by listing the ones that exist', async () => {
+  it('refuses an unknown question by naming the nearest one and where the rest are listed', async () => {
     const path = join(await directory(), 'report.json');
 
     await expect(ask(asking(path, 'summarise'))).rejects.toThrow(
-      '`summarise` is not a question; there is summary,',
+      '`summarise` is not a question.\nDid you mean `summary`?\n`variance ask` lists them.',
     );
   });
 });

@@ -1,9 +1,10 @@
 # The cache
 
 The cache is one directory where variance-authority keeps what it can rebuild
-from your checkout: the test-selection recording, the
-[source index](source-index.md), the renders a run took and the suite indexes a
-[share](sharing.md) publishes. Your repository says where it is, in `cacheRoot`
+from your checkout or fetch again from a [share](sharing.md): the
+test-selection recording, the [source index](source-index.md), the renders a
+run took, the suite indexes a share publishes, what a git share fetched, and
+the suite records `select` and `review` read from your mainline. Your repository says where it is, in `cacheRoot`
 of the `variance.config.json` at its root. When it does not say, it is
 `~/.cache/variance-authority`. Every command, every test runner integration and
 every function that takes a `cacheRoot` option read that one answer, so a
@@ -75,12 +76,23 @@ back to the default, because you would not know where the recording went.
   test-selection/<repository>/
     coverage.bin                 which test ran which region of which module
     coverage.bin.cases.bin       the same, for each test case
+    coverage.bin.cases.*         the cases each run replaced, kept for `variance review`
+    coverage.bin.lock            held while a run writes the recording
+    coverage.runs.json           the runs at the current commit, and the commit before them
+    coverage.stories/            a test story for each test a run recorded, when you ask for them
+    suites/<name>/               the same files for each suite you declare
     names.bin                    the ids those records use for file paths
     source-index.bin             the source index, and its segments beside it
     <label>/                     one record store per runner or plugin
+    checkout.json                the checkout this directory belongs to
+    .run-<pid>-*/                a run in progress, removed when it ends
     .work/<worktree>/            a git worktree's own layer, the same files again
   renders/                       the images a run took, reused while they match
-  suite/<project>/<commit>.bin   suite indexes, when you share them
+  suite/<project>/<commit>.bin   every run's suite index, by the commit it names
+  share/<digest>.git             a git share's own repository, one per remote URL
+  share/read/<suite>/<commit>/   a suite's record as its mainline published it, read by review and select
+  report/<digest>/               a run report read from a share, and the images an answer fetched
+  report/<digest>.images.json    that run report's image table
 ```
 
 `<repository>` is the first 32 hexadecimal characters of the SHA-256 of the
@@ -91,8 +103,10 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 ```
 
 The [execution record](execution-record.md) page describes `coverage.bin`, the
-[source index](source-index.md) page describes `source-index.bin`, and the
-[sharing](sharing.md) page describes `suite/`.
+[source index](source-index.md) page describes `source-index.bin`, the
+[test stories](test-stories.md) page describes `coverage.stories/`, the
+[sharing](sharing.md) page describes `suite/`, `share/` and `report/`, and
+[when `select` and `review` read `share/read/`](sharing.md#a-suite-your-checkout-has-not-recorded).
 
 ## Worktrees
 
@@ -125,6 +139,12 @@ Without it, the path is `~/.cache/variance-authority`. The
 [source index](source-index.md#caching-it-in-ci) page explains why the commit is
 in the key.
 
+To review a pull request against its base, save the cache only from your main
+branch. The suite keeps the cases it replaces beside the case index, with the
+commit they were recorded at, and that is what `variance review` compares with.
+A pull request that saved its own cache would restore it on its next push, and
+its review would compare the change with itself.
+
 ## Start cold
 
 Delete the directory for your checkout and run `yarn test` again:
@@ -133,7 +153,45 @@ Delete the directory for your checkout and run `yarn test` again:
 rm -rf "<cache>/test-selection/<repository>"
 ```
 
-That is the whole reset. Nothing expires and nothing is checked for age, so a
-recording stays as it is until a run replaces it. To reset only the source index
-and keep the recording, delete `source-index.bin` and `source-index.bin.segments/`
-and run `variance index`.
+That is the whole reset. To reset only the source index and keep the
+recording, delete `source-index.bin` and `source-index.bin.segments/` and run
+`variance index`.
+
+## What is removed, and when
+
+A recording is removed only with its checkout. It is one file each run
+rewrites, so it stays the same size however long you keep it, and without it
+the next `test:since` runs the whole suite. Everything else in
+`test-selection/<repository>/` stays as long as that directory does.
+
+The rest is removed when git, the file system or the process table shows that
+nothing uses it any more, or when it is older than a fixed age:
+
+| What | Removed when | Checked against |
+|---|---|---|
+| `test-selection/<repository>/` | the checkout named in its `checkout.json` is no longer on disk | the file system |
+| `.work/<worktree>/` | `git worktree list` in the primary checkout no longer lists it | git |
+| `.run-<pid>-*/`, and the `.tmp` files a run writes beside a record | it was last written more than an hour ago, and the process that wrote it has exited: no process has that id, or the one that has it started later | the process table |
+| a test story | it was written more than 14 days ago | its modification time |
+| `suite/<project>/<commit>.bin`, `share/read/<suite>/<commit>/` | your checkout's `HEAD` is more than 200 commits past that commit, or does not contain it and it was written more than 14 days ago; the newest in each directory stays | git, and its modification time |
+| `report/<digest>/`, `report/<digest>.images.json` | it was written more than 14 days ago | its modification time |
+| `renders/` | nothing asked for it in 14 days, or the renders are over 512 MiB, oldest first | its modification time |
+
+Every test run writes `checkout.json` beside the recording. A directory without one,
+a commit your clone does not have, and anything git could not answer for stay
+until nothing in them has been written for 30 days. `share/<digest>.git` is
+not removed.
+
+`variance run` checks `renders/` at the end of every run, as
+[the render cache](placement.md#the-cache-prunes-itself) describes. Everything
+else is checked at the end of a test run or a `variance run`, at most once a
+day, and each part prints one line when it removed something:
+
+```
+cache: freed 17.8 MiB in <cache>/test-selection: 218 runs whose processes are gone, 7 worktrees git no longer lists
+cache: freed 4.1 MiB in <cache>: 12 commits more than 200 behind HEAD
+```
+
+`variance doctor` prints what the next check would remove, by rule, and what it
+keeps because git or the process table could not answer. `variance doctor
+--prune` removes it now.

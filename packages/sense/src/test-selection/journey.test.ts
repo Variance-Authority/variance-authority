@@ -1,13 +1,12 @@
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executionCollectorSource } from './probes.js';
+import { executionCollectorSource, testSelectionProbes } from './probes.js';
 import { joinObservations, recordExecution } from './journal.js';
 import {
   JOURNEY_COOKIE,
   JOURNEY_HEAD_VARIABLE,
   JOURNEY_VARIABLE,
   collectJourneys,
-  journeyOf,
   journeyReportFrom,
   mintJourney,
   stitchJourneys,
@@ -36,6 +35,8 @@ afterEach(forget);
 
 
 describe('a head reports what each journey entered', () => {
+  it.todo('writes the story of each journey it reports under `VARIANCE_AUTHORITY_STORY=1` — needs `collectJourneys` to install the story tap in front of its engine');
+
   it('keeps two journeys apart while they interleave inside one module', async () => {
     await inRoot(async (root) => {
       const driven = await driver();
@@ -364,37 +365,35 @@ describe('a process nobody asked to report', () => {
   });
 });
 
-describe('the wire', () => {
-  it('finds the journey among the cookies an application already sets', () => {
-    expect(journeyOf(`theme=dark; ${JOURNEY_COOKIE}=abc-123; session=xyz`)).toBe('abc-123');
-    expect(journeyOf(`${JOURNEY_COOKIE}=abc-123`)).toBe('abc-123');
-    expect(journeyOf('theme=dark')).toBeUndefined();
-    expect(journeyOf(`${JOURNEY_COOKIE}=`)).toBeUndefined();
-    expect(journeyOf(undefined)).toBeUndefined();
-    // A cookie whose name merely ends the same way is a different cookie.
-    expect(journeyOf(`x-${JOURNEY_COOKIE}=abc-123`)).toBeUndefined();
+describe('a realm holds one head', () => {
+  it('hands the installed head to a second call until it closes', async () => {
+    const first = collectJourneys({ head: 'build', enabled: true });
+    try {
+      const second = collectJourneys({ head: 'service', enabled: true });
+      expect(second).toBe(first);
+      expect(second.head).toBe('build');
+    } finally {
+      await first.close();
+    }
+    const after = collectJourneys({ head: 'service', enabled: true });
+    try {
+      expect(after).not.toBe(first);
+      expect(after.head).toBe('service');
+    } finally {
+      await after.close();
+    }
   });
 
-  it('mints an id that carries no subject name', () => {
-    expect(mintJourney()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-    expect(mintJourney()).not.toBe(mintJourney());
-  });
-
-  it('counts traffic the run did not drive rather than attributing it', async () => {
+  it('installs the head ahead of the page collector when the build asks', async () => {
     await inRoot(async (root) => {
-      const driven = await driver();
-      const collector = collectJourneys({ head: 'api', enabled: true });
-      const parts = await head(root);
-      await collector.enter(driven.carrying('a-journey-nobody-minted'), () => parts.currency('de'));
-      await collector.close();
-
-      const stitched = stitchJourneys({
-        reports: driven.reports,
-        heads: ['api'],
-        owners: new Map(),
-      });
-      expect(stitched.unclaimed).toBe(1);
-      expect(stitched.heads.get('api')).toEqual([]);
+      const collector = '\0variance-authority:execution-collector';
+      const source = testSelectionProbes({ root, label: 'workers', journeys: true }).load(collector);
+      expect(source).toBe(
+        'import { collectJourneys } from "@variance-authority/sense/journey";\n' +
+          'collectJourneys({"head":"workers"});\n' +
+          executionCollectorSource(),
+      );
+      expect(testSelectionProbes({ root, label: 'workers' }).load(collector)).toBe(executionCollectorSource());
     });
   });
 });

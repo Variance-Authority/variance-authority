@@ -26,8 +26,10 @@ import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { seedPaths } from './files.js';
 import { seedImmutableLog } from './immutable-log.js';
 import type { RecordCache } from './reuse.js';
-import { scanRelations } from './scan.js';
+import { scanCount } from './scan.js';
+import { realPath } from './resolve.js';
 import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
+import { markCheckout } from './test-selection/cache-layers.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
 import { usesOf } from './uses.js';
 
@@ -166,8 +168,12 @@ export async function updateSourceIndex(
       return found;
     },
     set: (record, witnesses, targets) => source.reuse.set(record, witnesses, targets),
+    ...(source.reuse.adopt === undefined ? {} : { adopt: source.reuse.adopt.bind(source.reuse) }),
   };
-  const records = await scanRelations({
+  // Counted rather than collected: the update publishes the records through
+  // `reuse` and reports how many, and a cold closure the addon holds is never
+  // turned into objects for either.
+  const files = await scanCount({
     root: where,
     dirs: ['.'],
     cache: source.cache,
@@ -175,11 +181,13 @@ export async function updateSourceIndex(
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   });
   await source.save();
+  // The checkout's own index names its checkout, so the cache can tell when it is gone.
+  if (options.index === undefined) markCheckout(realPath(where));
   return {
     path,
     was,
-    files: records.length,
-    reread: records.length - reused.size,
+    files,
+    reread: files - reused.size,
     ...(from === undefined ? {} : { from }),
   };
 }

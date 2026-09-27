@@ -26,7 +26,7 @@ export interface ResolvedViteConfig {
   readonly configFile: string | undefined;
   readonly configFileDependencies: readonly string[];
   readonly root?: string;
-  readonly test?: { readonly setupFiles?: unknown };
+  readonly test?: { readonly setupFiles?: unknown; readonly snapshotSerializers?: unknown; readonly diff?: unknown };
 }
 
 /** A configuration handed to Vitest inline has no file, and is keyed by none. */
@@ -50,7 +50,11 @@ export function configKey(configFile: string | undefined): string {
  * its own directory, and read against the wrong one it was a missing file,
  * declared nowhere. A setup entry may be a package — `dotenv/config` — rather
  * than a file of the project's, and a package is no precondition a diff can
- * carry.
+ * carry. The `snapshotSerializers` and the `diff` file are read the same way,
+ * because Vitest resolves them the same way and loads them before every test
+ * file as well: an edit to a serializer can change every snapshot printed
+ * through it, and one outside what is instrumented is otherwise charged to no
+ * test at all.
  */
 export function declareConfig(
   run: SelectionRun,
@@ -64,8 +68,10 @@ export function declareConfig(
     for (const file of [...(configFile === undefined ? [] : [configFile]), ...configFileDependencies, ...declared]) {
       own.add(resolve(file));
     }
-    const setupFiles = test?.setupFiles;
-    for (const file of Array.isArray(setupFiles) ? setupFiles : [setupFiles]) {
+    const loaded = [test?.setupFiles, test?.snapshotSerializers, test?.diff]
+      .flatMap((entry: unknown) => (Array.isArray(entry) ? entry : [entry]));
+    for (const file of loaded) {
+      // A `diff` given as options rather than a file is no file.
       if (typeof file !== 'string') continue;
       const path = resolve(root ?? process.cwd(), file);
       if (!shims.includes(path) && existsSync(path)) own.add(path);
@@ -84,6 +90,15 @@ export interface RunnerProject {
 /** The runner itself, as far as a reporter's `onInit` reads it. */
 export interface RunnerContext extends RunnerProject {
   readonly projects?: readonly RunnerProject[];
+  /**
+   * The resolved configuration, command line merged in: `watch` says whether it
+   * runs again, and `testNamePattern` is the `-t` it started with.
+   */
+  readonly config?: { readonly watch?: boolean; readonly testNamePattern?: unknown };
+  /** What the run changed since it started: watch mode's `t` sets the pattern here. */
+  readonly configOverride?: { readonly testNamePattern?: unknown };
+  /** Vitest 2: a cancel — `--bail`, an interrupted watch run — is under way or ended the run. */
+  readonly isCancelling?: boolean;
 }
 
 /** The config file Vite loaded for a project, as a key. */

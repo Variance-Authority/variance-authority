@@ -21,7 +21,7 @@ recording how that image was painted.
 
 - **Node 22 or newer.**
 - **ESM only.** Every `@variance-authority/*` package ships `"type": "module"` and no CommonJS build, so `require()` will not load it.
-- The `lfs` and `changelog` entrypoints run `git`, which has to be on `PATH`. The other two need nothing but a writable directory.
+- The `lfs` and `changelog` entrypoints, and `createGitLineCell` and `gitDescends` in `./share`, run `git`, which has to be on `PATH`. `./durable` and `createDirectoryLineCell` need nothing but a writable directory.
 
 ```bash
 npm install --save-dev @variance-authority/store
@@ -202,7 +202,7 @@ choice of where baselines live is yours to state.
 | `./durable` | a writable directory | baselines in a plain directory. The single-machine and self-hosted-runner case: nothing shares them. |
 | `./lfs` | a writable directory and `git` | the same layout, with the images tracked by git-LFS so a team gets them on checkout. Take it when baselines must travel with the branch. |
 | `./changelog` | `git` and a repository | reading back why a baseline is what it is. Take it when you are building a history view rather than running a comparison; nothing in the render path imports it. |
-| `./share` | a writable directory | a directory storing bytes a run derived — not baselines. See the last section. |
+| `./share` | a writable directory, or `git` and a remote CI can push to and your clone can fetch | the latest of what a run derived on each mainline and each branch — a run report, one record per suite — and the images those name. Not baselines. `createDirectoryLineCell` keeps lines in a directory, and `createGitLineCell` keeps them as refs in the repository that hosts your code. An HTTP endpoint or a bucket needs nothing from this package: `httpLineCell` is in `@variance-authority/core/share`. See the last section. |
 
 Both store backends implement one contract, `RasterStore`, which is defined in
 `@variance-authority/raster` and installed with this package:
@@ -423,29 +423,59 @@ The reading is over the whole commit message rather than a trailer block at the
 end, so a squash merge that folds three baseline commits into one yields three
 records instead of none.
 
-## A directory other machines may read
+## A line other machines may read
 
-`./share` is not a baseline store. `createDirectoryShare(root)` gives you a
-`get`/`put` pair over bytes that a run *derived* — a suite index, and whatever
-comes after it — under a key that is a commit. Neither call ever throws.
-Everything in it can be derived again from the tree it was derived at, which is
-why losing it costs a rebuild and losing a baseline costs the comparison.
+`./share` is not a baseline store. It gives you two cells for `publishLine` and
+`readLine` in `@variance-authority/core/share`, which keep the latest of what a
+run *derived* on one mainline or one branch — a run report, one record per
+suite — and the images those name. Everything on a line can be derived again
+from the commit it names, which is why losing it costs a rebuild and losing a
+baseline costs the comparison. [Sharing an
+evaluation](https://variance-authority.dev/docs/sharing) is the operator's side
+of it.
+
+A cell stores one manifest per line and replaces it only when it still holds
+the version it was read at, so two jobs publishing at once keep both entries
+rather than the last one.
+
+`createDirectoryLineCell(root)` keeps `<kind>/<name>/manifest.json` and the
+line's entries under `root`, and every image once under `root/images/`. A lock
+directory holds the condition, because `mkdir` is atomic on NFS as well as on a
+local disk. A directory is what every transport already is on the machine using
+it: `actions/cache` restores one, `aws s3 sync` mirrors one, an NFS mount is
+one, and a laptop has one.
+
+`createGitLineCell(options)` keeps each line as one commit under a ref in the
+repository that hosts your code, so any checkout that can fetch its branch can
+read its mainline's record with the credentials it already has:
 
 ```js
-import { createDirectoryShare } from '@variance-authority/store/share';
+import { createGitLineCell } from '@variance-authority/store/share';
 
-const share = createDirectoryShare('.variance/share');
-
-await share.put('9f8e7d6c5b4a', new TextEncoder().encode('{"suite":[]}'));
-console.log(new TextDecoder().decode(await share.get('9f8e7d6c5b4a')));
+const cell = createGitLineCell({
+  url: 'https://github.com/acme/web.git',
+  gitDir: '.variance/share.git',
+});
 ```
 
-A directory is what every transport already is on the machine using it:
-`actions/cache` restores one, `aws s3 sync` mirrors one, an NFS mount is one,
-and a laptop has one. Writes land through a temporary file in the same directory
-and a rename, so two jobs publishing at once cannot leave half a segment behind.
-[Sharing an evaluation](https://variance-authority.dev/docs/sharing) is the
-operator's side of it.
+`url` is the remote. `gitDir` is a bare repository the cell creates and owns;
+it never touches your clone. `namespace` is where the refs sit, `refs/variance`
+unless you set it. `reuseMs` is how long a fetched line is read again without
+fetching, 0 unless you set it. `timeoutMs` bounds each git command, 60 seconds
+unless you set it. `extraHeader` is the `http.extraheader` your clone sends to
+`url`: `actions/checkout` writes its token there, in the clone's own
+configuration, so pass it on. The cell gives it to git through the environment
+and never writes it to disk.
+
+`gitDescends(options, branch)` answers the question a mainline publish asks:
+whether one commit of `branch` strictly descends from another. It fetches the
+branch's commits alone into the same `gitDir`, once, and answers `undefined`
+when the fetch fails or a commit is not in it.
+
+The cell's repository is a partial clone: a fetch brings commits and trees, and
+a blob comes when it is read. Publishing a line that already names a thousand
+images downloads none of them and sends only the new ones. The ref holds one
+commit with no parent, so what the line replaced is the remote's to collect.
 
 ---
 

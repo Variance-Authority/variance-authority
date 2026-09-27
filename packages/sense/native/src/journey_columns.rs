@@ -78,6 +78,10 @@ pub struct Decoded {
 }
 
 impl Decoded {
+    pub fn has(&self, name: &str) -> bool {
+        self.columns.contains_key(name)
+    }
+
     pub fn bytes(&self, name: &str) -> Result<Vec<u8>, String> {
         let (width, bytes) = self
             .columns

@@ -539,6 +539,7 @@ to an array of one.
 | `root` | A directory in the repository. Recorded paths are relative to the checkout that contains it. | The cwd. |
 | `label` | Matches the `label` given to `testSelectionProbes()`. | `build` |
 | `cacheRoot` | Where that build wrote its block records. | [The cache](https://variance-authority.dev/docs/cache). |
+| `suite` | The suite this run is, as the root `variance.config.json` declares it under `suites`. Required once any suite is declared. Cannot be combined with `coverageFile`. | None. |
 | `coverageFile` | The coverage index this run merges into. A relative path is read from `root`. | The repository-keyed file in the cache. |
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
 | `preconditions` | Files whose contents are a precondition of every observation this run records. | None. |
@@ -565,7 +566,7 @@ branch that only ever ran in a service still names its test.
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
-| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, cacheRoot, coverageFile, executionFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
+| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, cacheRoot, suite, coverageFile, executionFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 | `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` (the services that report for themselves, described below) and `origin`. The browser half needs neither. |
 | `varianceWire` | The worker's end of the loopback listener the page and any reporting service answer on. | A listener on an ephemeral port, opened and closed by the fixture. |
 | `varianceVantage` | Where this worker reports what it is doing, for a process watching the run. | Whatever `VARIANCE_AUTHORITY_VANTAGE` names, and `undefined` when nothing does. |

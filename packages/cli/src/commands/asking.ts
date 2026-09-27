@@ -96,12 +96,9 @@ export function questionFor(asked: string): Question {
   const found = QUESTIONS.find((question) => questionOf(question.tool) === asked);
   if (found !== undefined) return found;
 
+  // The names are not listed here: `variance ask` lists them with what each answers.
   const names = QUESTIONS.map((question) => questionOf(question.tool));
-  throw new OperatorError(
-    `\`${asked}\` is not a question; there is ${names.join(', ')}. ` +
-      'Run `variance ask` with no question for what each one answers.' +
-      didYouMean(asked, names),
-  );
+  throw new OperatorError(`\`${asked}\` is not a question.${didYouMean(asked, names)}\n\`variance ask\` lists them.`);
 }
 
 /** One argument a question takes, in the spelling a reader has to type. */
@@ -236,7 +233,9 @@ export function inputFor(
   if (missing.length > 0) {
     // Where the missing argument comes from depends on what the question is
     // about: an id is printed by a run, a name or a specifier by the code.
-    const first = tool.name.startsWith('docs_')
+    const first = tool.name === 'docs_orient'
+      ? 'It takes words from the task, as `--query "<words>"`, and finds the files they are in.'
+      : tool.name.startsWith('docs_')
       ? 'Ask `packages` first; it prints the specifiers `entrypoint` takes, and `entrypoint` ' +
         'prints the names `symbol` and `uses` take. `search --query <word>` finds a name you ' +
         'can only describe.'

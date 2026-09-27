@@ -116,19 +116,12 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
   // The profile describes the *collector*, not the renderer. `--profile jsdom`
   // with a renderer is the sub-renderer split document.ts route 1 exists for: the
   // cheap tier decides almost everything and hands the residue to something that
-  // owns a GPU. What it costs is stated here rather than discovered from a report
-  // full of coordinates with no names — attribution joins regions to boxes, and a
-  // profile with no layout engine has no boxes to join them to (ADR-0002).
-  const warnings = [
-    ...plan.warnings,
-    ...(profile.layout
-      ? []
-      : [
-          `the \`${config.profile}\` profile has no layout engine, so no changed region in ` +
-            'this report could be joined to the node that occupies it; every region is ' +
-            'reported unattributed rather than attributed to a guess',
-        ]),
-  ];
+  // owns a GPU. What it costs is stated rather than discovered from a report full
+  // of coordinates with no names: a profile with no layout engine has no boxes to
+  // join regions to, so every region is unattributed rather than a guess
+  // (ADR-0002). Said only when a pixel changed, in `observeAll`.
+  const warnings = plan.warnings;
+  const layoutless = profile.layout ? undefined : `the \`${config.profile}\` profile has no layout engine; changed regions are unattributed`;
 
   // Opened once, before the first lookup, because a durable baseline is stored
   // per renderer identity and a run that guessed one would read another
@@ -157,6 +150,7 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
       observations,
       notObserved,
       warnings,
+      ...(layoutless === undefined ? {} : { layoutless }),
     });
   } finally {
     // A renderer is a browser, which is a child process, and nothing above this
@@ -180,6 +174,8 @@ async function observeAll(
     observations: CliObservationRecord[];
     notObserved: NotObserved[];
     warnings: readonly string[];
+    /** The profile's attribution limit, said only if some region changed. */
+    layoutless?: string;
   },
 ): Promise<CliRunReport> {
   const { config, deps, renderer } = context;
@@ -439,6 +435,9 @@ async function observeAll(
     ...(config.names !== undefined ? { names: config.names } : {}),
   });
 
+  const regioned = observations.some((entry) => entry.changedPixels > 0);
+  const unattributed = accumulated.layoutless !== undefined && regioned ? [accumulated.layoutless] : [];
+
   const report: CliRunReport = {
     runVersion: 1,
     at,
@@ -477,8 +476,8 @@ async function observeAll(
           },
         }
       : {}),
-    ...(warnings.length + laneWarnings.length + selection.length + orphaned.length + recorded.warnings.length > 0
-      ? { warnings: [...warnings, ...laneWarnings, ...selection, ...orphaned, ...recorded.warnings] }
+    ...(warnings.length + laneWarnings.length + unattributed.length + selection.length + orphaned.length + recorded.warnings.length > 0
+      ? { warnings: [...warnings, ...laneWarnings, ...unattributed, ...selection, ...orphaned, ...recorded.warnings] }
       : {}),
     ...(ignores !== undefined ? { ignores } : {}),
     ...(sensitivities !== undefined ? { sensitivities } : {}),

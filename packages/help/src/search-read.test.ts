@@ -64,7 +64,7 @@ describe('search from its published file', () => {
     expect([...(tree?.files ?? [])].length).toBeGreaterThan(0);
     expect([...(searchTree?.files ?? [])]).toEqual([...(tree?.files ?? [])]);
     expect(QUESTIONS.map((args) => askSearch(search, args, () => searchTree))).toEqual(expected);
-    expect(expected[0]).toContain('Source snapshot generated ');
+    expect(expected[0]).toContain('\nSnapshot ');
   });
 
   it('publishes the file when only the value was published', async () => {

@@ -29,19 +29,24 @@ import { isSwiftRelative } from './swift.js';
  * `?inline` — and they name the same file with different handling. Stripping
  * them is what keeps a perfectly ordinary asset import from being reported as an
  * unresolvable hole, which marks its file unknown.
+ *
+ * A *leading* `#` is not a fragment. `#polyfill` is a subpath import, which
+ * the nearest `package.json` maps in its `imports` field, and the resolver
+ * owns that map. The stylesheet `url(#gradient)` never reaches here: a
+ * stylesheet reader drops it as external first ([`isExternal`](./read.ts)).
  */
 export function requestOf(value: string): string | undefined {
   const trimmed = value.trim();
   if (trimmed === '' || trimmed.startsWith('data:') || trimmed.startsWith('node:')) return undefined;
 
-  const cut = Math.min(indexOr(trimmed, '?'), indexOr(trimmed, '#'));
+  const cut = Math.min(indexOr(trimmed, '?'), indexOr(trimmed, '#', trimmed.startsWith('#') ? 1 : 0));
   const bare = trimmed.slice(0, cut);
 
   return bare === '' ? undefined : bare;
 }
 
-function indexOr(value: string, mark: string): number {
-  const at = value.indexOf(mark);
+function indexOr(value: string, mark: string, from = 0): number {
+  const at = value.indexOf(mark, from);
   return at === -1 ? value.length : at;
 }
 
@@ -74,10 +79,12 @@ export function isRelative(request: string, language: LanguageId = 'module'): bo
 /**
  * The package a specifier asks for, or nothing when it asks for no package.
  *
- * A relative path, an absolute one, a URL and a Node builtin are all excluded,
- * and what is left is a bare specifier — whose package is its first segment, or
- * its first two when it is scoped. `@mui/material/Button` is `@mui/material`,
- * because that is the name an install resolves and the name a lockfile moves.
+ * A relative path, an absolute one, a URL, a Node builtin and a subpath import
+ * are all excluded — `#polyfill` is a name the importer's own package maps, and
+ * no lockfile moves it. What is left is a bare specifier, whose package is its
+ * first segment, or its first two when it is scoped. `@mui/material/Button` is
+ * `@mui/material`, because that is the name an install resolves and the name a
+ * lockfile moves.
  *
  * Nothing here checks whether the package exists. It cannot: the reason a bare
  * specifier reaches this function at all is that resolution declined to place
@@ -86,7 +93,7 @@ export function isRelative(request: string, language: LanguageId = 'module'): bo
  * on whose machine ran the scan.
  */
 export function packageOf(request: string): string | undefined {
-  if (isRelative(request) || request.startsWith('/') || request.includes('://')) return undefined;
+  if (isRelative(request) || request.startsWith('/') || request.startsWith('#') || request.includes('://')) return undefined;
   if (isBuiltin(request)) return undefined;
 
   const parts = request.split('/');

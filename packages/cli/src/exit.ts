@@ -99,8 +99,10 @@ export class OperatorError extends Error {
  * The refusals a program branches on. `unrecorded`: the project has no
  * recording to ask, so asking again changes nothing until a run writes one —
  * an editor stops asking instead of starting a process per keystroke.
+ * `unloaded`: the record holds no row for the file because the run never loaded
+ * it, which is a statement about the suite, not about the file's tests.
  */
-export type RefusalKind = 'unrecorded';
+export type RefusalKind = 'unrecorded' | 'unloaded';
 
 /**
  * Whether an error is a statement about the operator's configuration.

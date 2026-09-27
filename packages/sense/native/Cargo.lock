@@ -858,8 +858,6 @@ dependencies = [
 [[package]]
 name = "oxc_resolver"
 version = "11.24.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fa374d03b255c070a32ae65b8a05231b8e658104d6ef22034c09da8fa0c2fd9"
 dependencies = [
  "compact_str 0.9.1",
  "dashmap",
@@ -1168,6 +1166,7 @@ checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 name = "sense-native"
 version = "0.0.0"
 dependencies = [
+ "dashmap",
  "fast-glob",
  "json-strip-comments",
  "napi",
@@ -1182,6 +1181,7 @@ dependencies = [
  "oxc_syntax",
  "rayon",
  "regex",
+ "rustc-hash",
  "serde",
  "serde_json",
  "sha2",

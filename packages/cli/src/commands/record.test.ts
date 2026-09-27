@@ -117,7 +117,7 @@ describe('recordOf', () => {
       regions: [],
     };
 
-    expect(recordOf(unchanged).because).toContain('37 pixels do differ under the strict policy');
+    expect(recordOf(unchanged).because).toContain('37 pixels differ with antialiasing counted');
   });
 
   it('never turns a nearest node into an attribution', () => {

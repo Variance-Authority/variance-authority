@@ -42,7 +42,6 @@ import {
   stoppedBefore,
   stateOf,
   recordedCommit,
-  testCoverageFile,
   type CoveringChange,
   type CoveringRegion,
   type CoveringTest,
@@ -59,7 +58,7 @@ import { hopsToTests, nearbyWitnesses, type Narrowing } from './covering-reach.j
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
-import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
+import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
@@ -172,14 +171,15 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
 }
 
 async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Covering> {
-  const from = request.execution ?? (await recordedExecutionFile(request.root));
+  const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
+  const record = snapshotFor(request);
 
   if (request.since !== undefined) {
     // The snapshot's commit is the coordinate of what was recorded beside it,
     // and of nothing else: a journey file handed in by path names no commit, and
     // diffing it from the snapshot's would land its hunks on another text.
-    const at = from.startsWith(testCoverageFile(request.root))
-      ? await recordedCommit(testCoverageFile(request.root))
+    const at = record !== undefined && from.startsWith(record)
+      ? await recordedCommit(record)
       : undefined;
     const changed = await changeSince(request.since, request.root, at);
     const { index } = await readIndex(from, changed);
@@ -205,6 +205,7 @@ async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Cov
         `here, and that is a different statement from no test covering it. ${
           spelling(file, files)
         }`,
+      { kind: 'unloaded' },
     );
   }
 

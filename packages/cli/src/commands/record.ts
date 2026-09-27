@@ -270,10 +270,9 @@ function because(observation: Observation, changed: number, strict: number): str
   const green = observation.verdict === 'unchanged' || observation.verdict === 'ignored';
   if (!green || strict <= changed) return observation.because;
 
-  return (
-    `${observation.because}; ${strict.toLocaleString('en-US')} pixel${strict === 1 ? '' : 's'} do ` +
-    'differ under the strict policy (antialiasing counted), which the default policy forgives'
-  );
+  // The strict policy counts antialiasing, which the default policy forgives.
+  const pixels = `${strict.toLocaleString('en-US')} pixel${strict === 1 ? '' : 's'}`;
+  return `${observation.because}; ${pixels} differ with antialiasing counted`;
 }
 
 /**

@@ -4,9 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { identityDigest } from '@variance-authority/core/format';
+import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
+
+/** The directory a store names for this identity's partition. */
+const partition = (identity: RenderIdentity): string => digestFileName(identityDigest(identity));
 
 /**
  * Baselines in the repository, and the three things that can quietly go wrong.
@@ -72,7 +75,7 @@ describe('a baseline store in the repository', () => {
     expect(found?.comparable).toBe(true);
     expect(found?.raster.bytes).toBe('QUJD');
     // At the durable layout's path, not somewhere of this store's own devising.
-    const path = join(root, identityDigest(MAC), 'todo--empty.png');
+    const path = join(root, partition(MAC), 'todo--empty.png');
     expect((await stat(path)).isFile()).toBe(true);
   });
 
@@ -233,7 +236,7 @@ describe('a clone without git-lfs', () => {
     const pointer =
       'version https://git-lfs.github.com/spec/v1\n' +
       'oid sha256:4d7a2145b0d3f1e2c4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7\nsize 1024\n';
-    await writeFile(join(root, identityDigest(MAC), 'todo--empty.png'), pointer, 'utf8');
+    await writeFile(join(root, partition(MAC), 'todo--empty.png'), pointer, 'utf8');
 
     // The class as much as the message: `run` routes a `RasterStoreError` to the
     // operator exit and reads any other throw as a fact about the subject it was
@@ -257,7 +260,7 @@ describe('a clone without git-lfs', () => {
     const store = await createLfsStore({ root, git: TRACKED });
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
     await writeFile(
-      join(root, identityDigest(MAC), 'todo--empty.png'),
+      join(root, partition(MAC), 'todo--empty.png'),
       'version https://git-lfs.github.com/spec/v1\noid sha256:4d7a\nsize 1024\n',
       'utf8',
     );
@@ -310,8 +313,8 @@ describe('against a real git', () => {
       const store = await createLfsStore({ root, git: TRACKED, recordRoot: records });
       await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
 
-      expect(await readdir(join(root, identityDigest(MAC)))).toEqual(['todo--empty.png']);
-      expect(await readdir(join(records, identityDigest(MAC)))).toEqual(['todo--empty.json']);
+      expect(await readdir(join(root, partition(MAC)))).toEqual(['todo--empty.png']);
+      expect(await readdir(join(records, partition(MAC)))).toEqual(['todo--empty.json']);
       expect((await store.find({ subject: 'todo--empty' }, MAC))?.raster.bytes).toBe('QUJD');
     } finally {
       await rm(records, { recursive: true, force: true });

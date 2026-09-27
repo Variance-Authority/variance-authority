@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { identityDigest } from '@variance-authority/core/format';
+import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import type {
   Raster,
   RenderDocument,
@@ -62,7 +62,7 @@ function configOf(overrides: Partial<Config> = {}): Config {
 }
 
 function probesOf(
-  partitions: readonly { identity: string; baselines: number }[],
+  partitions: readonly { identity: string; baselines: number; colonSpelled?: number }[],
   options: { readonly opens?: boolean; readonly exists?: boolean } = {},
 ): DoctorProbes {
   return {
@@ -91,6 +91,7 @@ function probesOf(
     // Nothing cached. The cache is reported, never diagnosed: it holds only
     // images this machine can repaint.
     renderCache: async () => ({ root: '/cache/renders', bytes: 0, entries: 0, identities: [] }),
+    cache: async () => ({ root: '/cache', held: 0, remove: [], kept: [] }),
   };
 }
 
@@ -150,7 +151,29 @@ describe('a store this machine wrote', () => {
       { identity: THEIRS, baselines: 900, mine: false },
       { identity: MINE, baselines: 4, mine: true },
     ]);
-    expect(diagnosis.baselines.because).toContain('other 1 identit(ies)');
+    expect(diagnosis.baselines.because).toContain('1 other identit(ies) left alone');
+  });
+
+  it('says which baselines sit under a name Windows cannot check out, and where they go', async () => {
+    // They compare — the store reads the colon-spelled directory as a fallback —
+    // so this is no reason to fail. It is a reason to say so: `accept` moves only
+    // the subjects whose pixels change, and the rest stay under a name that
+    // breaks a Windows checkout and an artifact upload until somebody moves them.
+    const diagnosis = await doctor(
+      configOf(),
+      probesOf([{ identity: MINE, baselines: 8, colonSpelled: 3 }]),
+    );
+
+    expect(diagnosis.baselines.comparable).toBe(true);
+    expect(exitForDiagnosis(diagnosis)).toBe(EXIT_CLEAN);
+    const text = formatDiagnosis(diagnosis);
+    expect(text).toContain(`3 of them in a \`${MINE.slice(0, 16)}…\` directory`);
+    expect(text).toContain(`move its files into \`${digestFileName(MINE).slice(0, 16)}…\``);
+  });
+
+  it('prints no move for a store that has none to make', async () => {
+    const text = formatDiagnosis(await doctor(configOf(), probesOf([{ identity: MINE, baselines: 8 }])));
+    expect(text).not.toContain('Windows');
   });
 });
 
@@ -200,6 +223,6 @@ describe('states that are not a wrong machine', () => {
       probesOf([]),
     );
     expect(remote.baselines.partitions).toBeUndefined();
-    expect(remote.baselines.because).toContain('deliberately not contacted');
+    expect(remote.baselines.because).toContain('not contacted');
   });
 });

@@ -61,7 +61,7 @@ export {
   bandsBetween,
   UNATTRIBUTED,
 } from './component-hash.js';
-export type { BandDigests, ComponentBands, ComponentHash } from './component-hash.js';
+export type { BandDigests, ComponentBands, ComponentHash, ValueChange } from './component-hash.js';
 
 export { componentInstances, attributed } from './instances.js';
 export type { ComponentInstance } from './instances.js';

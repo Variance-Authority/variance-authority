@@ -57,6 +57,12 @@ the code behind it:
 variance serve --config variance.config.json   # MCP over stdio
 ```
 
+When that report is not on disk, `variance serve` answers from the report CI
+published to the share for your branch or mainline, and every report answer
+opens with the line and commit it was read from. The CLI's page says
+[which record it reads and what it says](../cli/README.md#a-checkout-with-no-run-of-its-own).
+`variance-authority-mcp` reads only the path it is given.
+
 Install this package when you want the server without the CLI, or when the
 client should launch a binary that takes the report path as its only argument:
 

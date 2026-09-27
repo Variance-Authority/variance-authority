@@ -72,6 +72,8 @@ import { idOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 import probeLog from '../instrument/probe-log.cjs';
+import { isThenable, TOLD, writeParts } from './journey-parts.js';
+import { journeyOf, type JourneyTrace } from './journey-carrier.js';
 
 /**
  * The join, re-exported so one import serves a driver: a participant that
@@ -97,6 +99,19 @@ export {
  */
 export { JOURNEY_COOKIE };
 
+/** What carries a journey across a fence: the cookie, or the application's trace. */
+export {
+  journeyOf,
+  openTelemetry,
+  sentry,
+  type JourneyTrace,
+  type OpenTelemetryApi,
+  type SentrySdk,
+} from './journey-carrier.js';
+
+/** Where a service with no host filesystem sends its parts. */
+export { receiveParts, type PartsReceiver } from './parts-receiver.js';
+
 /**
  * Whether this process reports at all. Absent, a head installs nothing.
  *
@@ -109,6 +124,13 @@ export const JOURNEY_VARIABLE = 'VARIANCE_AUTHORITY_JOURNEYS';
 export const JOURNEY_HEAD_VARIABLE = 'VARIANCE_AUTHORITY_HEAD';
 
 /**
+ * The directory a head writes its parts to, when the process is started rather
+ * than configured. Set, the head writes what each journey ran there and says
+ * nothing over the wire.
+ */
+export const JOURNEY_PARTS_VARIABLE = 'VARIANCE_AUTHORITY_PARTS';
+
+/**
  * How many journeys a head remembers the way home for after their scopes
  * released. A long-lived service answers every run pointed at it, and one entry
  * per test attempt is what a promise left running needs to still be heard.
@@ -118,25 +140,6 @@ const HOMES = 4096;
 /** One execution of one subject, as it crosses the wire: opaque, and nothing else. */
 export function mintJourney(): string {
   return randomUUID();
-}
-
-/**
- * Read a journey back out of a `Cookie` header.
- *
- * The header is the one place a head is guaranteed to have, whatever framework
- * sits above it. A head with a request-scoped cookie accessor of its own should
- * use that and pass the value straight to {@link JourneyCollector.enter}.
- */
-export function journeyOf(cookieHeader: string | undefined): string | undefined {
-  if (cookieHeader === undefined) return undefined;
-  for (const pair of cookieHeader.split(';')) {
-    const equals = pair.indexOf('=');
-    if (equals < 0) continue;
-    if (pair.slice(0, equals).trim() !== JOURNEY_COOKIE) continue;
-    const value = pair.slice(equals + 1).trim();
-    return value.length === 0 ? undefined : value;
-  }
-  return undefined;
 }
 
 export interface JourneyCollectorOptions {
@@ -153,6 +156,28 @@ export interface JourneyCollectorOptions {
    * survives being left in a production build.
    */
   readonly enabled?: boolean;
+  /**
+   * A directory to write this head's parts to, or the `http(s)://` address of
+   * a {@link receiveParts} that writes them for a runtime with no host
+   * filesystem. Defaults to
+   * {@link JOURNEY_PARTS_VARIABLE}. A part is what one journey ran here, as a
+   * case frame owned by the journey id alone; the case that handed the id out
+   * is joined to it when its run is finalized. Set, it enables the head.
+   */
+  readonly parts?: string;
+  /**
+   * The application's own tracing, which carries the journey as its trace id:
+   * `sentry(Sentry)` or `openTelemetry(api)`, handed the SDK the application
+   * initialized. Set, the head asks it which journey is running wherever
+   * {@link JourneyCollector.enter} did not say, so a service whose tracing
+   * continues the incoming trace needs no `enter` when its parts go to a
+   * directory. Over HTTP, `enter(undefined, ...)` holds each request open until
+   * its frame is sent. Each case runs inside that trace: the same SDK named as
+   * `trace` to `withJourneyCoverage`, as `sense/case-journey` shows.
+   *
+   * A trace carries an id and no way home, so this writes {@link parts}.
+   */
+  readonly trace?: JourneyTrace;
 }
 
 /** A head's participation in a run, or its cheap absence. */
@@ -178,6 +203,14 @@ export interface JourneyCollector {
   readonly close: () => Promise<void>;
 }
 
+const INSTALLED: unique symbol = Symbol.for('variance-authority.journeys');
+
+type Told = JourneyCollector & { readonly [TOLD]?: (trace: JourneyTrace) => void };
+
+const untraceable = (trace: JourneyTrace): string =>
+  `a ${trace.name} trace carries the journey and no way home, so a head it feeds writes parts: ` +
+  `set \`parts\` or ${JOURNEY_PARTS_VARIABLE}`;
+
 /**
  * Install the journey-keyed collector in this process.
  *
@@ -192,10 +225,41 @@ export interface JourneyCollector {
  * One line, and it is the whole of the extra setup a service needs — plus
  * forwarding the cookie on any request it makes onward, which is the only way
  * anything past the first hop is ever attributed.
+ *
+ * A realm holds one collector. A bundle whose build installed it before any
+ * instrumented module (`testSelectionProbes({ journeys: true })`) gets that
+ * one back from this call, options and all, until it is closed.
  */
 export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyCollector {
+  const realm = globalThis as { [INSTALLED]?: Told };
+  const installed = realm[INSTALLED];
+  if (installed !== undefined) {
+    if (options.trace !== undefined) {
+      const tell = installed[TOLD];
+      if (tell === undefined) throw new Error(untraceable(options.trace));
+      tell(options.trace);
+    }
+    return installed;
+  }
+  const collector = installJourneys(options);
+  if (!collector.collecting) return collector;
+  const held: Told = {
+    ...collector,
+    close: async () => {
+      if (realm[INSTALLED] === held) delete realm[INSTALLED];
+      await collector.close();
+    },
+  };
+  realm[INSTALLED] = held;
+  return held;
+}
+
+function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   const head = options.head ?? process.env[JOURNEY_HEAD_VARIABLE] ?? 'head';
+  const parts = options.parts ?? process.env[JOURNEY_PARTS_VARIABLE];
+  if (parts !== undefined && options.enabled !== false) return writeParts(head, parts, journeyOf, options.trace);
   const enabled = options.enabled ?? process.env[JOURNEY_VARIABLE] !== undefined;
+  if (enabled && options.trace !== undefined) throw new Error(untraceable(options.trace));
   if (!enabled) {
     return {
       collecting: false,
@@ -432,13 +496,4 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       else Object.defineProperty(globalThis, '__VA__', previous);
     },
   };
-}
-
-function isThenable(value: unknown): value is Promise<unknown> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { then?: unknown }).then === 'function' &&
-    typeof (value as { finally?: unknown }).finally === 'function'
-  );
 }

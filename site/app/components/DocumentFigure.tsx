@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Attribution from "./Attribution";
 import BetterTests from "./BetterTests";
 import DiffReport from "./DiffReport";
+import EverywhereAtOnce from "./EverywhereAtOnce";
 import EvidenceMap from "./EvidenceMap";
 import EvidenceSlices from "./EvidenceSlices";
 import GreatData from "./GreatData";
@@ -15,9 +16,12 @@ import Since from "./Since";
 import StoriesNotImports from "./StoriesNotImports";
 import Subjects from "./Subjects";
 import TestPurpose from "./TestPurpose";
+import TestStory from "./TestStory";
 import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
+  "adjacent-possible":
+    "Visual review is where Variance Authority starts. Every capability on the ring works from the same centre, and each one made the next cheaper to build.",
   tests:
     "The test proves that its codified path still holds. It cannot prove that nothing else changed.",
   "better-tests":
@@ -50,6 +54,8 @@ const CAPTIONS: Record<string, string> = {
     "Five tests load the module and one ran the changed branch. The import graph selects all five; the execution record selects the one. The dashed test loaded the module and ran none of it.",
   journeys:
     "One decision is one mark, however many regions the run records for it. An arm that entered is lit, and the line that fell through is dashed.",
+  "test-stories":
+    "One test, drawn twice. The journey says which code ran. The test story lists the same code in the order the test ran it: step 2 loads the modules, steps 4 and 5 run twice, and the branch at line 14 never runs.",
 };
 
 function Figure({ children, caption }: { children: ReactNode; caption: string }) {
@@ -160,6 +166,18 @@ export default function DocumentFigure({ slug }: { slug: string }) {
       return (
         <Figure caption={CAPTIONS["coverage-test-selection"]!}>
           <StoriesNotImports />
+        </Figure>
+      );
+    case "test-stories":
+      return (
+        <Figure caption={CAPTIONS["test-stories"]!}>
+          <TestStory />
+        </Figure>
+      );
+    case "adjacent-possible":
+      return (
+        <Figure caption={CAPTIONS["adjacent-possible"]!}>
+          <EverywhereAtOnce />
         </Figure>
       );
     default:

@@ -45,8 +45,6 @@ export function skillPath(): string | undefined {
 export function skillLine(): string {
   const at = skillPath();
   if (at === undefined) return '';
-  return (
-    `\nWhich question answers what, and what each one needs before it can answer, ` +
-    `is in the \`${SKILL_NAME}\` skill at ${said(at)}\n`
-  );
+  // The path names the skill: `…/skills/variance-authority/SKILL.md`.
+  return `\nSee the skill at ${said(at)}\n`;
 }

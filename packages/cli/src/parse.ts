@@ -3,16 +3,21 @@ import { asksForHelp, countOf, noPositionals, readFlags } from './args.js';
 import type { ProfileId } from '@variance-authority/core/format';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
-import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand, synopsisFor } from './usage.js';
-import { didYouMean } from './nearest.js';
+import { COMMANDS, DEFAULT_CONFIG, flagsFor, isCommand, synopsisFor } from './usage.js';
+import { didYouMean, nearest } from './nearest.js';
 import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
+import { parseStory, type ParsedStory } from './story-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
+import { oneRecord } from './commands/suite-record.js';
 import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
+import { parseReviewArgs, type ParsedReview } from './review-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
+import { parseCarryArgs, type ParsedCarry } from './carry-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
+import { parseCommentArgs, type ParsedComment } from './comment-args.js';
 import { parseShard, type Shard } from './commands/shard.js';
 
 export { USAGE } from './usage.js';
@@ -89,6 +94,8 @@ export type Parsed =
        * with a side effect. Implied by `--since` when a file graph is configured.
        */
       readonly against?: string;
+      /** `--suite <name>`: whose record `--since` narrows by, when more than one suite is declared. */
+      readonly suite?: string;
       /** `--flakes`: read every subject twice, not only the ones that changed. */
       readonly flakes: boolean;
       readonly exitZeroOnChanges: boolean;
@@ -99,11 +106,13 @@ export type Parsed =
       readonly format: ReportFormat;
       readonly subject?: string;
       readonly exitZeroOnChanges: boolean;
+      /** `--embed-images`: the HTML page carries its pictures instead of naming them. */
+      readonly embedImages: boolean;
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedCovering | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare
+  | ParsedDistill | ParsedStory | ParsedCovering | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare | ParsedCarry
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -153,6 +162,8 @@ export type Parsed =
       /** Shard snapshots to fold and land before reading, and `--into <path>`, where they land; this repository's cache otherwise. */
       readonly shards: readonly string[];
       readonly into?: string;
+      /** `--suite <name>`: whose record is read, and where shards land; beside `--into`, refused. */
+      readonly suite?: string;
     }
   | {
       readonly command: 'journeys';
@@ -179,16 +190,8 @@ export type Parsed =
   | ParsedPush
   | { readonly command: 'watch' }
   | { readonly command: 'serve'; readonly config: string; readonly justAnswer?: boolean }
-  | { readonly command: 'doctor'; readonly config: string }
-  | {
-      readonly command: 'comment';
-      readonly config: string;
-      readonly bodyFile?: string;
-      readonly runUrl?: string;
-      readonly marker: boolean;
-      /** Reports to read instead of the configured one. More than one is merged. */
-      readonly reports: readonly string[];
-    }
+  | { readonly command: 'doctor'; readonly config: string; readonly prune?: boolean }
+  | ParsedComment
   | {
       readonly command: 'help';
       /**
@@ -217,9 +220,14 @@ export function parseArgs(argv: readonly string[]): Parsed {
   }
 
   if (!isCommand(first)) {
+    // A likely match gets that command's synopsis; otherwise the list of
+    // commands, and the table stays behind `--help` rather than printed twice.
+    const meant = nearest(first, COMMANDS);
     throw new OperatorError(
-      `unknown command \`${first}\`; this tool has ${COMMANDS.join(', ')}.` +
-        `${didYouMean(first, COMMANDS)}\n\n${USAGE}`,
+      meant === undefined || !isCommand(meant)
+        ? `unknown command \`${first}\`; this tool has ${COMMANDS.join(', ')}. ` +
+            '`variance --help` prints the flags of each.'
+        : `unknown command \`${first}\`${didYouMean(first, COMMANDS)}\n\n${synopsisFor(meant)}`,
     );
   }
 
@@ -248,6 +256,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
       const commit = flags.values.get('--commit');
       const since = flags.values.get('--since');
       const against = flags.values.get('--against');
+      const suite = flags.values.get('--suite');
       noPositionals(flags.positionals, 'run');
 
       return {
@@ -261,6 +270,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(commit !== undefined ? { commit } : {}),
         ...(since !== undefined ? { since } : {}),
         ...(against !== undefined ? { against } : {}),
+        ...(suite !== undefined ? { suite } : {}),
         flakes: flags.present.has('--flakes'),
         exitZeroOnChanges: flags.present.has('--exit-zero-on-changes'),
       };
@@ -272,6 +282,13 @@ export function parseArgs(argv: readonly string[]): Parsed {
         throw new OperatorError(`--format must be text, json or html, not \`${format}\``);
       }
       const subject = flags.values.get('--subject');
+      const embedImages = flags.present.has('--embed-images');
+      if (embedImages && format !== 'html') {
+        throw new OperatorError(
+          `--embed-images puts the pictures inside an HTML page; add --format html, ` +
+            `or drop it for --format ${format}`,
+        );
+      }
 
       return {
         command: 'report',
@@ -279,6 +296,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         format,
         ...(subject !== undefined ? { subject } : {}),
         exitZeroOnChanges: flags.present.has('--exit-zero-on-changes'),
+        embedImages,
         // Named paths, not the configured one. A shard writes where its job told
         // it to, so `report` has to be able to read reports the config has never
         // heard of — and once it names them, adding the configured report to the
@@ -290,11 +308,14 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'ask': return parseAskArgs(flags, config);
 
     case 'distill': return parseDistill(flags);
+    case 'story': return parseStory(flags);
+    case 'review': return parseReviewArgs(flags);
     case 'covering': return parseCoveringArgs(flags);
     case 'index': return parseIndexArgs(flags);
     case 'select': return parseSelectArgs(flags);
     case 'reach': return parseReachArgs(flags);
     case 'share': return parseShareArgs(flags, config);
+    case 'carry': return parseCarryArgs(flags);
 
     case 'adjudicate': {
       const claims = flags.values.get('--claims');
@@ -425,6 +446,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
       if (into !== undefined && flags.positionals.length === 0) {
         throw new OperatorError('`--into` says where a fold lands, and nothing was named to fold');
       }
+      const suite = flags.values.get('--suite');
+      oneRecord(suite, into, '--into');
 
       return {
         command: 'journeys',
@@ -434,6 +457,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(limit !== undefined ? { limit } : {}),
         shards: flags.positionals.map((path) => resolve(path)),
         ...(into !== undefined ? { into: resolve(into) } : {}),
+        ...(suite !== undefined ? { suite } : {}),
       };
     }
 
@@ -458,34 +482,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
     case 'doctor':
       noPositionals(flags.positionals, 'doctor');
-      return { command: 'doctor', config };
+      return { command: 'doctor', config, ...(flags.present.has('--prune') ? { prune: true as const } : {}) };
 
-    case 'comment': {
-      const bodyFile = flags.values.get('--body-file');
-      const runUrl = flags.values.get('--run-url');
-      const marker = flags.present.has('--marker');
-
-      if (marker && (bodyFile !== undefined || runUrl !== undefined || flags.positionals.length > 0)) {
-        // Two different questions, and answering both at once would mean
-        // deciding which one the exit code is about. `--marker` is a constant
-        // this build carries; the body is a reading of a report that may not
-        // exist yet.
-        throw new OperatorError(
-          '`--marker` prints the marker and nothing else; it does not take --body-file, ' +
-            '--run-url or a report',
-        );
-      }
-
-      return {
-        command: 'comment',
-        config,
-        marker,
-        ...(bodyFile !== undefined ? { bodyFile } : {}),
-        // An empty `--run-url` is the workflow's "the operator published
-        // nothing", which must read as absent rather than as a link to ''.
-        ...(runUrl !== undefined && runUrl !== '' ? { runUrl } : {}),
-        reports: flags.positionals.map((path) => resolve(path)),
-      };
-    }
+    case 'comment': return parseCommentArgs(flags, config);
   }
 }

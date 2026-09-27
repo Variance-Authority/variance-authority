@@ -251,6 +251,12 @@ sensitivity is declared against: a rule that absorbs `texture` and `token`
 still reports a `geometry` change, and `relaxed` names the rule, the level and
 the bands it actually absorbed here.
 
+A `moved` entry also says how the component changed when both sides can say
+it. `grew` is the change in width and height that every instance of the
+component agrees on. `changed` lists each declared property whose values
+differ, with the values before and after: `padding-left` from `18px` to
+`24px`, or a custom property such as `--accent` under its own name.
+
 `causes` and `moved` are absent whenever neither side supplies component
 hashes — a baseline written before they existed, a store that dropped them, or
 a run with no snapshot. Absent means *unknown*. It does not mean nothing caused

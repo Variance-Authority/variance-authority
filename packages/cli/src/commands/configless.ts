@@ -11,29 +11,34 @@
  * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
  * an `ask` with no question, and an `ask` whose question is about the source —
  * whose commands otherwise go on to load a config like any other.
- * `withoutConfig` covers six whole commands, and narrows them out of the
+ * `withoutConfig` covers eight whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
  * added to one list and not the other is offered a flag it will ignore.
  */
 
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import { askSource, questions } from './ask.js';
 import { questionFor } from './asking.js';
 import { COMMENT_MARKER } from './comment.js';
-import { covering, formatCovering } from './covering.js';
+import { coveringAnswer, formatCoveringAnswer } from './covering-suites.js';
 import { distillFiles, formatDistill } from './distill.js';
 import { indexOutput } from './index-command.js';
 import { reachOutput } from './reach-command.js';
+import { review } from './review.js';
+import { formatReview } from './review-text.js';
 import { selectOutput } from './select-command.js';
+import { formatStory, story } from './story.js';
 import { watch, watching as watchingLines } from './watch.js';
 
-/** The six commands that read no project configuration at all. */
+/** The eight commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'index' | 'select' | 'reach' }
+  { command: 'watch' | 'distill' | 'covering' | 'review' | 'story' | 'index' | 'select' | 'reach' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -41,6 +46,8 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     parsed.command === 'watch'
     || parsed.command === 'distill'
     || parsed.command === 'covering'
+    || parsed.command === 'review'
+    || parsed.command === 'story'
     || parsed.command === 'index'
     || parsed.command === 'select'
     || parsed.command === 'reach'
@@ -120,7 +127,7 @@ export async function answerConfigless(
     // for the run that happened somewhere else.
     case 'covering': {
       try {
-        streams.out(formatCovering(await covering(parsed), parsed.format));
+        streams.out(formatCoveringAnswer(await coveringAnswer(parsed), parsed.format));
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.
@@ -129,6 +136,30 @@ export async function answerConfigless(
         }
         throw error;
       }
+      return EXIT_CLEAN;
+    }
+
+    // `covering`'s reason, asked of the whole change at once and after the
+    // suite: the recording and the list of runs beside it are where the run put
+    // them. `--out` keeps the answer as files, because a workflow uploads it and
+    // comments with it in steps that do not share this process's output.
+    case 'review': {
+      const answer = await review(parsed);
+      if (parsed.out !== undefined) {
+        await mkdir(parsed.out, { recursive: true });
+        await writeFile(join(parsed.out, 'review.json'), formatReview(answer, 'json'));
+        await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
+      }
+      streams.out(formatReview(answer, parsed.format));
+      return EXIT_CLEAN;
+    }
+
+    // `covering`'s reason, for one case instead of one line: a run writes the
+    // story beside its recording when the variable asks, and whoever reads it
+    // may be an agent in a checkout that configured this tool for nothing but
+    // its test seam.
+    case 'story': {
+      streams.out(formatStory(story(parsed), parsed.format));
       return EXIT_CLEAN;
     }
 
@@ -159,6 +190,7 @@ export async function answerConfigless(
         ...(parsed.since === undefined ? {} : { since: parsed.since }),
         ...(parsed.noGit ? { noGit: true } : {}),
         ...(parsed.execution === undefined ? {} : { execution: parsed.execution }),
+        ...(parsed.suite === undefined ? {} : { suite: parsed.suite }),
         ...(parsed.diff === undefined ? {} : { diff: parsed.diff }),
       });
       streams.err(said.err);

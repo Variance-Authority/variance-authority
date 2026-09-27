@@ -1,6 +1,6 @@
 {
   // The deployment descriptor for the review console: a vinext app on a Worker,
-  // the same D1 database and R2 bucket the packaged Worker uses, and the two
+  // the same D1 database and R2 bucket the packaged Worker uses, and the
   // secrets that are not here and must never be.
   //
   // `vinext build` writes `dist/server/wrangler.json` from this file; deploy that

@@ -219,4 +219,59 @@ describe('the bounded case fold', () => {
     expect(decodeExecutionIndex(answered.bytes)).toEqual(decodeExecutionIndex(oracle.bytes));
     expect(answered).toMatchObject({ tests: 2, modules: 1, crossings: 4 });
   });
+
+  it('keeps the base under every invocation at one commit, and names it until a file runs again', async () => {
+    const cases = await directory();
+    const root = resolve(cases, '..');
+    const index = resolve(root, 'cases.bin');
+    // The fold retires a test file the checkout no longer holds, so each one is there.
+    await mkdir(resolve(root, 'test'));
+    for (const file of ['a', 'b', 'c']) await writeFile(resolve(root, 'test', `${file}.test.ts`), '');
+    const modules = new Map<ModuleId, CapturedModule>([[7, captured('src/x.ts', 7, 3)]]);
+    let journals = 0;
+    // One run: each test file's one case calls one branch of `src/x.ts`.
+    const run = async (commit: string, calls: Readonly<Record<string, number>>): Promise<void> => {
+      const from = resolve(root, `run-${journals++}`);
+      await mkdir(from);
+      await writeFile(resolve(from, 'w.vac'), packFrames(Object.entries(calls).map(([file, branch]) =>
+        journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([[7, counters(3, [branch])]])))));
+      await writeCaseIndex(index, from, root, modules, {
+        tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
+        commit,
+      });
+    };
+    const before = async (): Promise<Record<string, number[]>> => {
+      const held = decodeExecutionIndex(await readFile(caseLayerFiles(index).before));
+      const entered: Record<string, number[]> = {};
+      for (const [at, test] of held.tests.entries()) {
+        entered[test.file] = held.modules.flatMap((module) =>
+          module.blocks.flatMap((block, ordinal) => (block.crossings.some((crossing) => crossing.test === at) ? [ordinal] : [])));
+      }
+      return entered;
+    };
+    const last = async () => JSON.parse(await readFile(caseLayerFiles(index).last, 'utf8'));
+
+    await run('base', { 'a.test.ts': 1, 'b.test.ts': 2 });
+    await run('head', { 'a.test.ts': 2 });
+    expect(await before()).toEqual({ 'test/a.test.ts': [1] });
+    expect(await last()).toMatchObject({ commit: 'head', before: 'base', files: ['test/a.test.ts'] });
+
+    // A second invocation at the same commit adds its files' base, and keeps the first's.
+    await run('head', { 'b.test.ts': 1 });
+    expect(await before()).toEqual({ 'test/a.test.ts': [1], 'test/b.test.ts': [2] });
+    expect(await last()).toMatchObject({ before: 'base', files: ['test/a.test.ts', 'test/b.test.ts'] });
+
+    // Running a file again retires this commit's own cases of it, so the layer
+    // no longer holds only the base's, and stops saying it does.
+    await run('head', { 'a.test.ts': 1 });
+    expect(await before()).toEqual({ 'test/a.test.ts': [2], 'test/b.test.ts': [2] });
+    expect((await last()).before).toBeUndefined();
+    await run('head', { 'c.test.ts': 0 });
+    expect((await last()).before).toBeUndefined();
+
+    // A new commit starts the layer again, from the run the index held.
+    await run('next', { 'b.test.ts': 0 });
+    expect(await before()).toEqual({ 'test/b.test.ts': [1] });
+    expect(await last()).toMatchObject({ commit: 'next', before: 'head', files: ['test/b.test.ts'] });
+  });
 });

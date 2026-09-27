@@ -2,6 +2,10 @@ import type { CanonicalValue } from '../format/canonical.js';
 import type { Rect } from '../format/capture.js';
 import type { Digest } from '../format/hash.js';
 import type { SemanticNode } from '../format/snapshot.js';
+import { declares } from '../compare/cascade.js';
+import { renamedAlias, renamedAttributes, renamedTokens, type Rename } from './rename.js';
+
+export type { Rename } from './rename.js';
 
 /**
  * Where one component's nodes stop and the next component's begin.
@@ -319,20 +323,25 @@ export interface Shape {
    * theme, so a subject-level list names them all and explains nothing.
    */
   readonly tokens: readonly string[];
-}
 
-/**
- * How a value that may carry a structural alias is rewritten before hashing.
- *
- * `undefined` for the per-name hashes, which have always hashed the alias the
- * normalizer assigned and must keep doing so byte for byte. Supplied by the
- * per-instance hashes, which need a boundary-local alias space — see
- * {@link ./instances.js}, where the argument for it lives.
- */
-export interface Rename {
-  readonly attribute: (name: string, value: string) => string;
-  readonly style: (value: string) => string;
-  readonly alias: (alias: string) => string;
+  /**
+   * Every distinct value a declaration set on this boundary's own nodes, per
+   * property, and every value a custom property resolved to, under its `--name`.
+   * Not part of any digest, and present only when the caller passed what was
+   * declared.
+   *
+   * The `style` digest can say a component's declarations are not what they were
+   * and never say which. These are the values it was built from, kept so two
+   * revisions can be compared by property — `padding-left 8px → 14px` — on a
+   * path that holds two sidecars and no documents.
+   *
+   * Declared, not computed: a node's `style` is the whole allowlist, about a
+   * hundred properties sitting at their initial values, and recording those
+   * multiplied a sidecar's size by six to say nothing anybody wrote. Layout
+   * output is left out for the reason {@link LAYOUT_OUTPUT} gives: it moves with
+   * every box, and `box` already says by how much.
+   */
+  readonly values?: Readonly<Record<string, readonly string[]>>;
 }
 
 /**
@@ -359,7 +368,12 @@ export interface Rename {
  * Paths are not hashed. A path is an address that shifts when an unrelated
  * sibling is inserted, so hashing one reports a change nobody made.
  */
-export function shapeOf(boundary: Boundary, layout: boolean, rename?: Rename): Shape {
+export function shapeOf(
+  boundary: Boundary,
+  layout: boolean,
+  rename?: Rename,
+  declared?: ReadonlySet<string>,
+): Shape {
   const { node, component, rung } = boundary;
   const style: CanonicalValue[] = [];
   const geometry: CanonicalValue[] = [];
@@ -368,21 +382,33 @@ export function shapeOf(boundary: Boundary, layout: boolean, rename?: Rename): S
   const wiring: CanonicalValue[] = [];
   const renders: string[] = [];
   const tokens = new Set<string>();
+  const values = new Map<string, Set<string>>();
+  const note = (property: string, value: string): void => {
+    const seen = values.get(property) ?? new Set<string>();
+    seen.add(value);
+    values.set(property, seen);
+  };
   let nodes = 0;
 
   const walk = (current: SemanticNode): CanonicalValue => {
     nodes += 1;
-    for (const token of Object.keys(current.tokens ?? {})) tokens.add(token);
-    const declared: Record<string, string> = {};
+    for (const [token, value] of Object.entries(current.tokens ?? {})) {
+      tokens.add(token);
+      if (declared !== undefined) note(token, value);
+    }
+    const own: Record<string, string> = {};
     const measured: Record<string, string> = {};
 
     for (const [property, value] of Object.entries(current.style)) {
       const resolved = rename === undefined ? value : rename.style(value);
       if (layout && LAYOUT_OUTPUT.has(property)) measured[property] = resolved;
-      else declared[property] = resolved;
+      else {
+        own[property] = resolved;
+        if (declared !== undefined && declares(declared, current.path, property)) note(property, value);
+      }
     }
 
-    style.push({ style: declared, tokens: renamedTokens(current, rename) });
+    style.push({ style: own, tokens: renamedTokens(current, rename) });
     // An entry per node, always. `null` for a node with no rect keeps position in
     // the list meaningful: dropping the entry would let two different trees agree
     // by coincidence.
@@ -464,36 +490,8 @@ export function shapeOf(boundary: Boundary, layout: boolean, rename?: Rename): S
     renders,
     nodes,
     tokens: [...tokens].sort(),
+    ...(declared === undefined
+      ? {}
+      : { values: Object.fromEntries([...values].map(([property, seen]) => [property, [...seen]])) }),
   };
-}
-
-function renamedAlias(node: SemanticNode, rename?: Rename): string | undefined {
-  if (rename === undefined || node.alias === undefined) return node.alias;
-  return rename.alias(node.alias);
-}
-
-function renamedAttributes(
-  node: SemanticNode,
-  rename?: Rename,
-): Readonly<Record<string, string>> {
-  if (rename === undefined) return node.attributes;
-
-  const renamed: Record<string, string> = {};
-  for (const [name, value] of Object.entries(node.attributes)) {
-    renamed[name] = rename.attribute(name, value);
-  }
-  return renamed;
-}
-
-function renamedTokens(
-  node: SemanticNode,
-  rename?: Rename,
-): Readonly<Record<string, string>> | undefined {
-  if (rename === undefined || node.tokens === undefined) return node.tokens;
-
-  const renamed: Record<string, string> = {};
-  for (const [name, value] of Object.entries(node.tokens)) {
-    renamed[name] = rename.style(value);
-  }
-  return renamed;
 }

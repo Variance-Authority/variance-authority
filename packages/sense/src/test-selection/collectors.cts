@@ -14,14 +14,20 @@
  */
 
 import async_hooks = require('node:async_hooks');
+import crypto = require('node:crypto');
 import journals = require('./journal-format.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
+import storyTap = require('../instrument/story-tap.cjs');
+import stories = require('../story/format.cjs');
 import type { ModuleId } from '../instrument/index.js';
+import type { JourneyTrace } from './journey.js';
 
 type Engine = ReturnType<typeof probeLog.createEngine>;
 type Bucket = ReturnType<Engine['open']>;
 type View = ReturnType<Engine['read']>;
 type Presence = Map<ModuleId, Uint32Array>;
+/** Where a case's story goes once the case settles; see `story/format.cts`. */
+type StoryWriter = (key: string, bytes: Uint8Array) => void;
 
 /** What the journal writer reads once the file is done with. */
 interface Collector {
@@ -51,15 +57,22 @@ interface Collector {
   runaways(): readonly string[];
 }
 
-interface Holder {
-  __VA__?: unknown;
-}
-
 /** What a case frame calls the bucket no case owns; mirrors `AMBIENT` in `cases.ts`. */
 const AMBIENT = '';
 
+/** Where {@link preload} leaves the bucket it logs into, for the first collector to take. */
+const LOADING = Symbol.for('variance-authority.test-selection.loading');
+
+interface Holder {
+  __VA__?: unknown;
+  [LOADING]?: Bucket;
+}
+
 /** Where the runner half of the seam finds the scope; mirrors `CASE_SCOPE` in `cases.ts`. */
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
+
+/** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-trace-environment.cts`. */
+const TRACE = Symbol.for('variance-authority.test-selection.trace');
 
 /** Mirrors `EVALUATING` in `../instrument/index.ts`, with the entered bit beside it. */
 const ENTERED_EVALUATING = 0x80000001;
@@ -108,27 +121,72 @@ function foldInto(union: Presence, view: View): void {
  * Exported for a host that loads instrumented modules before its first
  * collector exists: `runner.ts` installs the engine when it registers its
  * module hooks, and every probe that fires before a file is observed writes
- * into the idle bucket rather than into a missing root.
+ * into the idle bucket rather than into a missing root. A host that loads them
+ * for the file it is about to run calls {@link preload} instead.
  *
  * Vitest without isolation evaluates this once per test file in one realm, and
  * every module the first file evaluated has already read the root and keeps it.
  * So a later file writes into the same engine through buckets of its own. The
  * two kinds of engine differ in whether the root asks an async scope on every
- * probe, which a realm decides once.
+ * probe, which a realm decides once. So is whether a story is taped: the tap
+ * is the root, and a module loaded before it would never write to it.
  */
-function attach(holder: Holder, continuations: boolean): Engine {
+function attach(holder: Holder, continuations: boolean, story = false): Engine {
   const found = probeLog.engineOf(holder.__VA__);
   if (found !== undefined) {
-    if (found.scoped === continuations) return found;
-    throw new Error(
-      'variance-authority: this realm is already recording ' +
-        (found.scoped ? 'with' : 'without') +
-        ' continuations, and a module keeps the recording it first found.',
-    );
+    if (found.scoped !== continuations) {
+      throw new Error(
+        'variance-authority: this realm is already recording ' +
+          (found.scoped ? 'with' : 'without') +
+          ' continuations, and a module keeps the recording it first found.',
+      );
+    }
+    if (story && storyTap.tapOf(holder.__VA__) === undefined) {
+      throw new Error(
+        'variance-authority: this realm was recording before stories were asked for, and a module ' +
+          'keeps the recording it first found, so a story would miss every module loaded before now.',
+      );
+    }
+    return found;
   }
   const engine = probeLog.createEngine(continuations);
-  holder.__VA__ = engine.root;
+  holder.__VA__ = story ? storyTap.createTap(engine, storyTap.TAPE_LIMIT).root : engine.root;
   return engine;
+}
+
+/**
+ * The realm's engine, installed ahead of the first collector and logging into
+ * a bucket that collector takes as the one its file loaded into.
+ *
+ * For a host that loads instrumented modules on behalf of the test file it is
+ * about to run. Vitest imports the case runner, then the `snapshotSerializers`
+ * and `diff` files, and only then the setup module a collector is made in.
+ * Under isolation, the default, a worker loads them for the one file it runs,
+ * so what they evaluate is part of loading that file as much as a setup file's
+ * imports are: a change to the top level of a module they import fails the
+ * file whether or not any case of it prints through the serializer. In the
+ * idle bucket nothing would read it, and no file would be credited with it.
+ *
+ * Only a realm this call starts gets the bucket: in one already recording, a
+ * collector may be writing now, and switching buckets under it would take
+ * what loads next away from its file.
+ */
+function preload(holder: Holder, continuations: boolean, story = false): Engine {
+  const fresh = probeLog.engineOf(holder.__VA__) === undefined;
+  const engine = attach(holder, continuations, story);
+  if (fresh) {
+    const bucket = engine.open(AMBIENT);
+    engine.use(bucket);
+    holder[LOADING] = bucket;
+  }
+  return engine;
+}
+
+/** The bucket {@link preload} opened, handed to the first collector that asks and to no other. */
+function taken(holder: Holder): Bucket | undefined {
+  const bucket = holder[LOADING];
+  delete holder[LOADING];
+  return bucket;
 }
 
 /**
@@ -148,7 +206,7 @@ const twoAtOnce = (open: string, opening: string): string =>
 /** One bucket for the file. */
 function flat(holder: Holder): Collector {
   const engine = attach(holder, false);
-  const bucket = engine.open(AMBIENT);
+  const bucket = taken(holder) ?? engine.open(AMBIENT);
   engine.use(bucket);
   return {
     scoped: false,
@@ -163,9 +221,13 @@ function flat(holder: Holder): Collector {
  *
  * @param continuations Hold the case bracket in an async context rather than
  * a variable, and mark the cases whose work outlived them.
+ * @param story Where each case's story goes as the case settles, when the run
+ * asked for stories.
  */
-function scoped(holder: Holder, continuations: boolean): Collector {
-  const engine = attach(holder, continuations);
+function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Collector {
+  const engine = attach(holder, continuations, story !== undefined);
+  const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
+  if (tap !== undefined) storyTap.listen(tap, holder);
   const buckets = new Map<string, Bucket>();
   const late = new Set<string>();
   // A bucket is written the moment its case settles and then dropped, so a
@@ -176,14 +238,35 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   // How each case's body settled, by key: `true` when it threw or rejected. A
   // retry settles the same key again, and its answer replaces the first.
   const stopped = new Map<string, boolean>();
+  // The journey id a case handed out, by case key: minted the first time the
+  // case asks, so a case that never crosses a fence carries nothing. A late
+  // bucket under the same key is the same case and names the same journey.
+  const journeys = new Map<string, string>();
+  // The trace a journey rides, where the runner's environment put one in this
+  // realm: the application's tracing, initialized once for the worker. Then
+  // every case runs inside a trace whose id is its journey, so the id is minted
+  // as the case starts rather than the first time the case asks.
+  const trace = (holder as { [TRACE]?: JourneyTrace })[TRACE];
+  const journeyOf = (key: string): string => {
+    let id = journeys.get(key);
+    if (id === undefined) {
+      // 32 hex digits: a trace id as W3C and every tracer spell it, and a
+      // cookie value no engine encodes differently.
+      id = crypto.randomUUID().replaceAll('-', '');
+      journeys.set(key, id);
+    }
+    return id;
+  };
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     const view = engine.close(bucket);
     const settled = stopped.get(bucket.key);
+    const journey = journeys.get(bucket.key);
     // A case that stopped before it crossed anything is still a case that
     // stopped: its frame is what tells a reader the journey was cut short.
-    if (view.rows.length === 0 && settled !== true) return undefined;
-    frames.push(journals.encodeLog(settled === undefined ? name : journals.settledCase(name, settled), view));
+    if (view.rows.length === 0 && settled !== true && journey === undefined) return undefined;
+    const owner = settled === undefined ? name : journals.settledCase(name, settled);
+    frames.push(journals.encodeLog(journey === undefined ? owner : journals.packJourney(owner, journey), view));
     foldInto(union, view);
     return view;
   };
@@ -196,6 +279,10 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     return bucket;
   };
 
+  // What loaded before this collector existed, when a host loaded it for this
+  // file, opens the file's ambient bucket, and `seal` reports it as loaded.
+  const loading = taken(holder);
+  if (loading !== undefined) buckets.set(AMBIENT, loading);
   let ambient = bucketFor(AMBIENT);
   // Set when a second case opens while one is still open and no async context
   // tells them apart. From then on every crossing is the file's, and the file
@@ -232,6 +319,12 @@ function scoped(holder: Holder, continuations: boolean): Collector {
       engine.use(ambient);
     }
     if (!bucket.closed) close(bucket, bucket.key);
+    if (tap === undefined || bucket.key === AMBIENT) return;
+    story!(bucket.key, stories.encodeStory(tap.read(), bucket.key, stopped.get(bucket.key)));
+    // The tape starts again once no case is running, so it holds one case at a
+    // time where cases run one at a time, and never cuts one that is running.
+    for (const [key, open] of buckets) if (key !== AMBIENT && open.open) return;
+    tap.reset();
   };
   // A case is over when its body settles, not when it returns: an async case
   // returns a promise at its first await and everything past that await is
@@ -267,12 +360,25 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     }
     const bucket = bucketFor(key);
     bucket.open = true;
-    if (scopes !== undefined) return scopes.run(bucket, () => settling(bucket, body));
+    const carried = trace;
+    const run = carried === undefined
+      ? body
+      : (): Result => carried.carry(journeyOf(key), nameOf(key), body);
+    if (scopes !== undefined) return scopes.run(bucket, () => settling(bucket, run));
     current = bucket;
     engine.use(bucket);
-    return settling(bucket, body);
+    return settling(bucket, run);
   };
-  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter };
+  // The case running now, asked from inside it: the async store where there is
+  // one, the variable where there is not, and no case at all in the ambient
+  // bucket or once the file is tangled.
+  const journey = (): string | undefined => {
+    if (tangled) return undefined;
+    const bucket = scopes === undefined ? current : scopes.getStore();
+    if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT) return undefined;
+    return journeyOf(bucket.key);
+  };
+  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey };
 
   const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
   return {
@@ -287,6 +393,8 @@ function scoped(holder: Holder, continuations: boolean): Collector {
         if (scopes === undefined) engine.use(ambient);
       }
       const view = close(before, ambientKey(testFile));
+      // Loading the file is no case's story.
+      tap?.reset();
       return view === undefined ? new Map() : presenceOf(view);
     },
     finish(testFile) {
@@ -303,4 +411,4 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   };
 }
 
-export = { attach, flat, scoped, presenceOf, foldInto };
+export = { attach, preload, flat, scoped, presenceOf, foldInto };

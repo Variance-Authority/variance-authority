@@ -56,7 +56,7 @@ SENSITIVITY — 38 subject(s) not asserted on in full, by 2 rule(s)
   routes — asserts on layout; absorbed token difference(s) in 38 of 41 subject(s):
     a route asserts the page assembles, not what it is painted
   [dead] legacy-embed — asserts on content across 3 subject(s) and absorbed
-    nothing (a third-party embed you do not style); nothing here needed relaxing
+    nothing (a third-party embed you do not style)
 ```
 
 A rule that absorbs something is working. A rule that matches subjects and

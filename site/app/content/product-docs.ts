@@ -1,3 +1,5 @@
+import acrossDimensions from "../../../docs/across-dimensions.md?raw";
+import adjacentPossible from "../../../docs/adjacent-possible.md?raw";
 import architecture from "../../../docs/architecture.md?raw";
 import agentCli from "../../../docs/agent-cli.md?raw";
 import agentCodeReview from "../../../docs/agent-code-review.md?raw";
@@ -34,6 +36,8 @@ import index from "../../../docs/README.md?raw";
 import information from "../../../docs/information.md?raw";
 import instruments from "../../../docs/instruments.md?raw";
 import journeys from "../../../docs/journeys.md?raw";
+import jvm from "../../../docs/jvm.md?raw";
+import testStories from "../../../docs/test-stories.md?raw";
 import lexicon from "../../../docs/lexicon.md?raw";
 import locate from "../../../docs/locate.md?raw";
 import metrics from "../../../docs/metrics.md?raw";
@@ -82,6 +86,7 @@ import understandExecution from "../../../docs/understand-execution.md?raw";
 import understandInterface from "../../../docs/understand-interface.md?raw";
 import vantage from "../../../docs/vantage.md?raw";
 import variations from "../../../docs/variations.md?raw";
+import aBTesting from "../../../docs/a-b-testing.md?raw";
 
 export interface ProductDocument {
   slug: string;
@@ -97,6 +102,7 @@ const documents = [
   ["reasoning", reasoning, "docs/reasoning.md"],
   ["evidence-field", evidenceField, "docs/evidence-field.md"],
   ["great-data", greatData, "docs/great-data.md"],
+  ["adjacent-possible", adjacentPossible, "docs/adjacent-possible.md"],
   ["better-tests", betterTests, "docs/better-tests.md"],
   ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
   ["test-level-coverage", testLevelCoverage, "docs/test-level-coverage.md"],
@@ -132,6 +138,7 @@ const documents = [
   ["ignores", ignores, "docs/ignores.md"],
   ["sensitivity", sensitivity, "docs/sensitivity.md"],
   ["variations", variations, "docs/variations.md"],
+  ["a-b-testing", aBTesting, "docs/a-b-testing.md"],
   ["composition", composition, "docs/composition.md"],
   ["changelog", changelog, "docs/changelog.md"],
   ["placement", placement, "docs/placement.md"],
@@ -161,6 +168,9 @@ const documents = [
   ["execution-record", executionRecord, "docs/execution-record.md"],
   ["observability", observability, "docs/observability.md"],
   ["journeys", journeys, "docs/journeys.md"],
+  ["jvm", jvm, "docs/jvm.md"],
+  ["across-dimensions", acrossDimensions, "docs/across-dimensions.md"],
+  ["test-stories", testStories, "docs/test-stories.md"],
   ["locate", locate, "docs/locate.md"],
   ["lexicon", lexicon, "docs/lexicon.md"],
   ["polyglot", polyglot, "docs/polyglot.md"],

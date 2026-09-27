@@ -9,8 +9,9 @@
     "collector": "collector/index.mjs",
     "excludeTags": ["no-variance"]
   },
-  "baselines": { "kind": "directory", "root": ".variance/baselines" },
+  "baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" },
   "fonts": ["ui-sans-serif/400/normal/sha256-case-system-stack"],
-  "report": ".variance/run.json",
-  "images": ".variance/images"
+  "report": { "path": ".variance/run.json", "carry": "share" },
+  "images": ".variance/images",
+  "share": { "kind": "git" }
 }

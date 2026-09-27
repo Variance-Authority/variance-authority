@@ -42,7 +42,7 @@ export const Composed = {
  * `tags: ['no-variance']` keeps it out of the run, and `excludeTags` in
  * `variance.config.json` is what honours the tag. Recording a baseline for it
  * would be recording a baseline for the act of contaminating the page, and the
- * twelve subjects the case reports stay twelve.
+ * fourteen subjects the case reports stay fourteen.
  *
  * `src/alone.chromium.test.js` is the file that uses it, by collecting a second
  * story before and after this one runs.
@@ -97,7 +97,7 @@ export const LeaksASheet = {
  *
  * `src/finish.chromium.test.js` is the file that uses it. `no-variance` keeps it
  * out of the run: it is a subject about the driver, not about a component, and
- * the case still reports twelve.
+ * the case still reports fourteen.
  */
 export const FinishesLate = {
   name: 'Button — busy after render',

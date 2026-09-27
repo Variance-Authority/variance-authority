@@ -37,6 +37,8 @@ reached a line.
 - [`selection`](../selection/README.md) — which observations entered a changed
   region, which were whole, and which changed files the record has nothing to
   say about
+- [`story`](../story/README.md) — the regions a visited ordinal names, read from
+  the record the story was taken beside
 
 ## Boundary
 
@@ -98,4 +100,5 @@ flowchart TB
   JRN[journey] -->|one row per subject, across processes| CROSS
   SCAN[source-scan] -->|what a test can statically reach| CROSS
   CROSS -->|entered, whole, unread| SEL[selection]
+  CROSS -->|the regions a visit names| STORY[story]
 ```

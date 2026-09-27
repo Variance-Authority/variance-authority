@@ -30,6 +30,7 @@ import {
   type Plan,
 } from './commands/run.js';
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
+import { prunedLines, pruneNow, pruneWhenDueLines } from './commands/prune-cache.js';
 import { ask } from './commands/ask.js';
 import { questionFor } from './commands/asking.js';
 import { said } from './here.js';
@@ -41,20 +42,21 @@ import {
   readClaims,
 } from './commands/adjudicate.js';
 import { liveIgnores } from './commands/ignores.js';
-import { reportsAt } from './commands/merge.js';
-import { mainlineCosts, publishedCostsLine } from './commands/costs.js';
-import { workersOf } from './commands/lanes.js';
+import { reportsFor } from './commands/report-read.js';
+import { costsToPlace, publishedCostsLine } from './commands/costs.js';
 import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
 import { journeysOutput } from './commands/journeys-command.js';
+import { suiteRecord } from './commands/suite-record.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { renderComment } from './commands/comment.js';
 import { doctor, machineProbes } from './commands/doctor.js';
-import { publishedLine } from './commands/share.js';
+import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
+import { runCarry } from './commands/carry.js';
 import { answerConfigless, constantAnswer, withoutConfig } from './commands/configless.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
@@ -90,6 +92,7 @@ export async function dispatch(
   if (withoutConfig(parsed)) return answerConfigless(parsed, streams);
   if (parsed.command === 'journeys' && parsed.operation !== undefined)
     return runJourneyArtifactCommand(parsed, streams);
+  if (parsed.command === 'carry') return runCarry(parsed, streams, mainlinesOf);
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {
@@ -128,6 +131,7 @@ export async function dispatch(
           ...(parsed.since !== undefined ? { since: parsed.since } : {}),
           ...(parsed.against !== undefined ? { against: parsed.against } : {}),
           relations: effective.source?.relations === true,
+          ...(parsed.suite !== undefined ? { suite: parsed.suite } : {}),
         },
         effective.source?.dirs ?? [],
       );
@@ -140,18 +144,12 @@ export async function dispatch(
         process.env,
       );
 
-      // Read only when something is placed by them: a shard's files, or the order
-      // several workers take them in. Every shard of a build descends from one
-      // merge base, so every shard reads the same costs and agrees on placement.
-      const costs =
-        parsed.shard !== undefined || workersOf(effective) > 1 ? await mainlineCosts(effective) : null;
-
       try {
         const report = await run({
           config: effective,
           ...(parsed.subjects !== undefined ? { subjects: parsed.subjects } : {}),
           ...(parsed.shard !== undefined ? { shard: parsed.shard } : {}),
-          ...(costs !== null ? { costs } : {}),
+          ...(await costsToPlace(effective, parsed.shard !== undefined)),
           ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
           ...(parsed.flakes ? { flakes: true } : {}),
           ...(identity !== undefined ? { identity } : {}),
@@ -168,8 +166,10 @@ export async function dispatch(
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             scanRelations: async (dirs) =>
               relationsFor(process.cwd(), dirs, effective.source?.taints, effective.source?.before),
-            readJourney: async (...asked) => journeyAgainst(process.cwd(), ...asked),
-            readJourneys: async (subjects) => recordedJourneys(process.cwd(), subjects),
+            readJourney: async (diff, relations, packages) =>
+              journeyAgainst(process.cwd(), diff, relations, packages, await suiteRecord(process.cwd(), parsed.suite)),
+            readJourneys: async (subjects) =>
+              recordedJourneys(process.cwd(), subjects, await suiteRecord(process.cwd(), parsed.suite)),
             ...(effective.source?.changes === undefined
               ? {}
               : {
@@ -189,8 +189,8 @@ export async function dispatch(
         // After the report is on disk and before the exit code is decided:
         // publishing is the last thing a run does for somebody else, and the
         // first thing that must not change what this run concluded.
-        const shared = await publishedLine(effective, report, effective.report);
-        const priced = await publishedCostsLine(effective, report);
+        const shared =
+          (await publishedLine(effective, report, effective.report)) + (await publishedCostsLine(effective, report));
 
         // Last, and for the same reason: the cache this run may have added to
         // is regenerable, so nothing it does here can reach a verdict. It runs
@@ -199,10 +199,10 @@ export async function dispatch(
         // run rather than on the durable ones, because a machine that has moved
         // to a tribunal is the machine whose leftover cache nothing else will
         // ever come back for.
-        const renders = renderCacheLine(await sweepRenders(effective));
+        const renders = renderCacheLine(await sweepRenders(effective)) + (await pruneWhenDueLines(effective));
 
         streams.out(
-          `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}${priced}${renders}`,
+          `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}${renders}`,
         );
         return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
       } finally {
@@ -211,7 +211,7 @@ export async function dispatch(
     }
 
     case 'report': {
-      const report = await reportsAt(parsed.reports, config.report);
+      const report = await reportsFor(parsed.reports, config, parsed.embedImages);
       streams.out(
         formatReport({
           report,
@@ -235,7 +235,7 @@ export async function dispatch(
           ...parsed,
           ...(at === undefined ? {} : { at }),
           report: config.report,
-          read: () => reportsAt(parsed.reports, config.report),
+          read: () => reportsFor(parsed.reports, config),
         }),
       );
       // A reading is not a verdict. `report` and `adjudicate` are where a run is
@@ -248,7 +248,7 @@ export async function dispatch(
       // Both halves before either is used, so a broken declaration is reported
       // as a broken declaration rather than as a run with nothing in it.
       const claims = await readClaims(parsed.claims);
-      const report = await reportsAt(parsed.reports, config.report);
+      const report = await reportsFor(parsed.reports, config);
       const result = adjudicateReport({ report, claims });
 
       streams.out(formatAdjudication(result));
@@ -325,6 +325,7 @@ export async function dispatch(
           all: parsed.all,
           shards: parsed.shards,
           ...(parsed.into !== undefined ? { into: parsed.into } : {}),
+          ...(parsed.suite !== undefined ? { suite: parsed.suite } : {}),
           ...(parsed.file !== undefined ? { file: parsed.file } : {}),
           ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
         }),
@@ -374,12 +375,13 @@ export async function dispatch(
       let pushed;
       try {
         pushed = await push({
-          report: await reportsAt(parsed.reports, config.report),
+          report: await reportsFor(parsed.reports, config),
           reportDir: dirname(config.report),
           review: config.review,
           build: identity.run,
           commit: identity.commit,
           ...(parsed.branch !== undefined ? { branch: parsed.branch } : {}),
+          ...(config.share !== undefined ? { share: config.share } : {}),
           onProgress: ticker.on,
         });
       } finally {
@@ -402,6 +404,8 @@ export async function dispatch(
       return EXIT_CLEAN;
 
     case 'doctor': {
+      // Pruned first, so the finding below reports the cache as it now stands.
+      if (parsed.prune === true) streams.out(prunedLines(await pruneNow(config)) || 'cache: nothing to prune\n');
       const diagnosis = await doctor(config, machineProbes(config));
       streams.out(`${formatDiagnosis(diagnosis)}\n`);
       return exitForDiagnosis(diagnosis);
@@ -413,10 +417,12 @@ export async function dispatch(
     }
 
     case 'comment': {
-      const report = await reportsAt(parsed.reports, config.report);
+      const report = await reportsFor(parsed.reports, config);
       const body = renderComment({
         report,
         ...(parsed.runUrl !== undefined ? { runUrl: parsed.runUrl } : {}),
+        ...(parsed.toAccept !== undefined ? { toAccept: parsed.toAccept } : {}),
+        ...(parsed.imageRoot !== undefined ? { imageRoot: parsed.imageRoot } : {}),
       });
 
       // An empty file, never a missing one. The poster has to tell "nothing
@@ -473,10 +479,7 @@ function sideJob(
   streams: { err(text: string): void },
 ): ExitCode {
   if (!suppress || code !== EXIT_REVIEW) return code;
-  streams.err(
-    'changes need review, and --exit-zero-on-changes suppressed the exit code. ' +
-      'This job is reporting, not gating. Operator errors are still exit 2.\n',
-  );
+  streams.err('changes need review; --exit-zero-on-changes exits 0, not 1.\n');
   return EXIT_CLEAN;
 }
 

@@ -49,15 +49,13 @@
  * nothing: every import in the file is still there to be read. Marking the file
  * unknown over that would report a single unsupported form — one the grammar is
  * simply a version behind on — as imports nobody could read, when every one of
- * them was. An error hides an import
- * only when it sits where this reader looks — the top level, and inside the
- * `import_list` Kotlin wraps its imports in.
+ * them was. An error hides an import only when it sits where this reader
+ * looks: the top level of the file, where both grammars put the package and
+ * the imports.
  *
  * Reflection is invisible, as it is to the compiler.
  */
 
-import { missingGrammar, parserFor, type GrammarNode } from './grammar.js';
-import type { Export, Read, Request } from './read.js';
 import type { TreeWorld } from './world.js';
 
 /** Extensions a JVM import can land on. A Kotlin file may import a Java class and back. */
@@ -65,138 +63,6 @@ const JVM_FILES = ['.java', '.kt'];
 
 /** The suffix that makes a request name a package directory rather than a file. */
 const WHOLE_PACKAGE = '.*';
-
-export function readJava(file: string, source: string): Read {
-  return readJvm(file, source, 'java');
-}
-
-export function readKotlin(file: string, source: string): Read {
-  return readJvm(file, source, 'kotlin');
-}
-
-function readJvm(file: string, source: string, id: 'java' | 'kotlin'): Read {
-  const parser = parserFor(id);
-  if (parser === undefined) {
-    return { requests: [], unknown: missingGrammar(file, id) };
-  }
-
-  const tree = parser.parse(source);
-  if (tree === null) {
-    return { requests: [], unknown: `${file} could not be parsed as ${id}.` };
-  }
-
-  const requests: Request[] = [];
-  const exports: Export[] = [];
-  const seen = new Set<string>();
-  let broken = false;
-
-  const want = (value: string, local: string, line: number): void => {
-    if (value === '' || seen.has(value)) return;
-    seen.add(value);
-    requests.push({
-      value,
-      kind: 'imports',
-      bindings: [{ imported: local, local, type: false, line }],
-      line,
-      // Always. See the module doc: nothing in the statement separates this
-      // repository's packages from the platform's.
-      guessed: true,
-    });
-  };
-
-  const walk = (node: GrammarNode, top: boolean): void => {
-    for (const child of node.namedChildren) {
-      const line = child.startPosition.row + 1;
-      // This walk descends only into `import_list`, so the levels it steps over
-      // are exactly the ones an import could have been lost from.
-      if (child.type === 'ERROR' || child.isMissing) broken = true;
-      switch (child.type) {
-        case 'package_declaration':
-        case 'package_header': {
-          const name = dotted(child);
-          // The file's own package. Visible without an import, and the edge
-          // nothing else in the file would ever produce.
-          if (name !== undefined) want(`${name}${WHOLE_PACKAGE}`, '*', line);
-          break;
-        }
-
-        case 'import_list': {
-          walk(child, false);
-          break;
-        }
-
-        case 'import_declaration':
-        case 'import_header': {
-          const name = dotted(child);
-          if (name === undefined) break;
-          // Kotlin gives the `*` a node; Java leaves it anonymous and ends the
-          // statement with a semicolon, so the text is what has to be read.
-          const wide = child.namedChildren.some((part) => part.type === 'wildcard_import')
-            || /\*\s*;?\s*$/.test(child.text);
-          const alias = child.namedChildren
-            .find((part) => part.type === 'import_alias')?.namedChildren[0]?.text;
-          const last = name.slice(name.lastIndexOf('.') + 1);
-          want(wide ? `${name}${WHOLE_PACKAGE}` : name, alias ?? last, line);
-          break;
-        }
-
-        default: {
-          if (!top) break;
-          const name = declared(child);
-          if (name !== undefined) exports.push({ exported: name, local: name, type: false, line });
-        }
-      }
-    }
-  };
-
-  // Kotlin wraps its imports in an `import_list`; Java lists them at the top.
-  walk(tree.rootNode, true);
-
-  return {
-    requests,
-    ...(exports.length === 0 ? {} : { exports }),
-    ...(broken
-      ? { unknown: `${file} did not parse cleanly as ${id}, so what it imports may be incomplete.` }
-      : {}),
-  };
-}
-
-/** Declarations a file publishes to its package and to anything importing it. */
-const DECLARATIONS = new Set([
-  'class_declaration',
-  'interface_declaration',
-  'enum_declaration',
-  'record_declaration',
-  'annotation_type_declaration',
-  'object_declaration',
-  'function_declaration',
-  'property_declaration',
-  'type_alias',
-]);
-
-function declared(node: GrammarNode): string | undefined {
-  if (!DECLARATIONS.has(node.type)) return undefined;
-  // Java names the field; Kotlin does not, so the first identifier-shaped child
-  // is the name. Both are the node's own name and never a nested one.
-  const field = node.childForFieldName('name');
-  if (field !== null) return field.text;
-  return node.namedChildren
-    .find((child) => child.type === 'type_identifier' || child.type === 'simple_identifier')?.text;
-}
-
-/** The dotted name inside a package or import statement, however it is spelled. */
-function dotted(node: GrammarNode): string | undefined {
-  const name = node.namedChildren.find(
-    (child) => child.type === 'scoped_identifier' || child.type === 'identifier',
-  );
-  if (name === undefined) return undefined;
-  // Kotlin's `identifier` holds `simple_identifier` children with the dots
-  // between them as anonymous nodes, so its own text is already the dotted name.
-  // Java's `scoped_identifier` is the same shape. Whitespace is possible in
-  // neither, but a line break inside one would be, so it is taken out.
-  const text = name.text.replace(/\s+/g, '');
-  return text === '' ? undefined : text;
-}
 
 /**
  * Every file a JVM import could mean. Empty for anything outside this repository.

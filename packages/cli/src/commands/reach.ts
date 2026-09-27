@@ -237,7 +237,7 @@ function seedsOf(
       : fromFiles === 0
         ? many(fromPackages, 'changed package')
         : `${many(fromFiles, 'changed file')} and ${many(fromPackages, 'changed package')}`) +
-    (still.length === 0 ? '' : ` (${ranAsBefore(still)})`) +
+    (still.length === 0 ? '' : ` (${listed(still)}: no runtime change)`) +
     (narrowed.length === 0 ? '' : ` (${byExport(narrowed, movedExports)})`);
   if (unscanned.length > 0) {
     return {
@@ -390,17 +390,24 @@ function sample(files: readonly string[]): string {
   return `${files.slice(0, 3).join(', ')}${files.length > 3 ? ', …' : ''}`;
 }
 
-/** The clause naming the changed files that seeded nothing, and why. */
+/**
+ * The clause naming the changed files that seeded nothing. It does not add *so
+ * it seeds nothing*: a file that changes nothing that runs has nothing to walk
+ * from, and the sentence it sits in already says what was reached.
+ */
 function ranAsBefore(files: readonly string[]): string {
-  return `${listed(files)} ${files.length === 1 ? 'changes' : 'change'} nothing that runs, so ` +
-    `${files.length === 1 ? 'it seeds' : 'they seed'} nothing`;
+  return `${listed(files)} ${files.length === 1 ? 'changes' : 'change'} nothing that runs`;
 }
 
-/** The clause naming the changed files that seeded only the importers of what they moved. */
+/**
+ * The clause naming the changed files that seeded only the importers of what
+ * they moved. Naming the exports is the whole claim: a file that changes
+ * `total` is walked from through the files that import `total`, and only those.
+ */
 function byExport(files: readonly string[], movedExports: MovedExports): string {
   const said = files.slice(0, 3).map((file) => `${file} changes ${movedExports.get(file)!.join(', ')}`);
   const more = files.length > 3 ? `; ${files.length - 3} more` : '';
-  return `${said.join('; ')}${more}; only files that import a changed export are walked`;
+  return `${said.join('; ')}${more}`;
 }
 
 /**

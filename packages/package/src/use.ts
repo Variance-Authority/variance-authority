@@ -71,6 +71,23 @@ export interface Use {
   readonly type: boolean;
   /** Whether the importing file is a story, a test, or ordinary source. */
   readonly kind: UseKind;
+  /**
+   * The request this name is read through when no import names it: `ns.x` off
+   * `import * as ns`, or `m.x` off `import()`. `line` is where that request is
+   * written, so `line` above is the read and this is the load. Absent for a
+   * named import.
+   */
+  readonly through?: Through;
+}
+
+/**
+ * A module held whole. `dynamic` is an `import()`, which loads the module when
+ * that call runs rather than when the importing file loads; `namespace` is a
+ * static `import * as`.
+ */
+export interface Through {
+  readonly kind: 'dynamic' | 'namespace';
+  readonly line: number;
 }
 
 /** A specifier that reaches into a package past what its `exports` map opens. */

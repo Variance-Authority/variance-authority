@@ -1,4 +1,3 @@
-import { dirname, resolve } from 'node:path';
 import { profileById, type ProfileId, type Viewport } from '@variance-authority/core/format';
 import type { Retention } from '@variance-authority/raster';
 import {
@@ -35,15 +34,10 @@ import { parseSource, type ChangeConfig, type SourceConfig } from './config-sour
 import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
 import { parseNames, type NamesConfig } from './config-names.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
+import { parseSuitesAt, type DeclaredSuite } from './config-suites.js';
+import { checkCarriers, parsePlacement, type Carrier } from './config-placement.js';
 
-export type {
-  BlankConfig,
-  ChangeConfig,
-  IgnoreConfig,
-  NamesConfig,
-  SensitivityConfig,
-  SourceConfig,
-};
+export type { BlankConfig, ChangeConfig, IgnoreConfig, NamesConfig, SensitivityConfig, SourceConfig };
 export type { AxisConfig } from './config-names.js';
 
 /**
@@ -88,8 +82,7 @@ export type { AxisConfig } from './config-names.js';
  * still meets the whole configuration at one path.
  */
 
-/** Where the run's own report is written when the config does not say. */
-export const DEFAULT_REPORT_PATH = '.variance/report.json';
+export { DEFAULT_REPORT_PATH, type Carrier } from './config-placement.js';
 
 export { ConfigError } from './config-values.js';
 export type { ParseOptions } from './config-values.js';
@@ -199,6 +192,9 @@ export interface Config {
 
   /** Where `run` writes, and where `report`, `accept`, and `serve` read. */
   readonly report: string;
+
+  /** Who carries the report and its images off the machine; absent when nobody does. */
+  readonly reportCarry?: Carrier;
 
   /** Directory for candidate images, resolved beside the report by default. */
   readonly images: string;
@@ -320,6 +316,9 @@ export interface Config {
    * whole, longest recorded first, and a worker that finishes takes the next.
    */
   readonly workers?: number;
+
+  /** The suites the repository runs, and their kinds; read from the root file only. */
+  readonly suites?: readonly DeclaredSuite[];
 }
 
 /**
@@ -360,6 +359,7 @@ const TOP_LEVEL = [
   'concurrency',
   'workers',
   'cacheRoot',
+  'suites',
 ] as const;
 
 /**
@@ -426,10 +426,11 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
 
   const share = root['share'] === undefined ? undefined : parseShare(root['share'], options);
 
-  const report = resolveFrom(options.baseDir, path(root, 'report', options) ?? DEFAULT_REPORT_PATH);
-  const images = path(root, 'images', options);
+  const { report, images, reportCarry } = parsePlacement(root, options);
   const intent = optionalText(root, 'intent', options);
   const cacheRoot = path(root, 'cacheRoot', options);
+  const suites = root['suites'] === undefined ? undefined : parseSuitesAt(root['suites'], options);
+  checkCarriers({ share, reportCarry, suites }, options);
   const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
   const ignore = root['ignore'] === undefined ? undefined : parseIgnores(root['ignore'], options);
   const blank = root['blank'] === undefined ? undefined : parseBlanks(root['blank'], options);
@@ -481,10 +482,8 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(root['review'] === undefined ? {} : { review: parseReview(root['review'], options) }),
     ...(root['source'] === undefined ? {} : { source: parseSource(root['source'], options) }),
     report,
-    // Beside the *report* rather than beside the config: `ObservationRecord.images`
-    // paths are relative to the report, so an image directory anchored anywhere
-    // else produces links that resolve to nothing on the machine reading them.
-    images: images === undefined ? resolve(dirname(report), 'images') : resolveFrom(options.baseDir, images),
+    ...(reportCarry === undefined ? {} : { reportCarry }),
+    images,
     ...(intent !== undefined ? { intent } : {}),
     ...(cacheRoot !== undefined ? { cacheRoot: resolveFrom(options.baseDir, cacheRoot) } : {}),
     ...(alone !== undefined ? { alone } : {}),
@@ -495,5 +494,6 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
     ...(concurrency === undefined ? {} : { concurrency }),
     ...(workers === undefined ? {} : { workers }),
+    ...(suites === undefined ? {} : { suites }),
   };
 }

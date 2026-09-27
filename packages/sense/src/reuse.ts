@@ -54,6 +54,7 @@
 
 import type { Digest } from './digest.js';
 import type { FileRecord } from '@variance-authority/core/relate';
+import type { NativeIndexGraph } from './native-index-graph.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
 import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
 import { treeOf, type Tree } from './tree.js';
@@ -90,6 +91,14 @@ export interface RecordCache {
    * names no bytes, so the next scan builds it again.
    */
   set(record: FileRecord, witnesses: readonly string[], targets?: readonly (string | undefined)[]): void;
+  /**
+   * Remember every record a cold closure holds, as `set` would one at a time.
+   *
+   * Optional, because holding the closure is only a saving for a cache that
+   * publishes it without asking for the records back. A cache without it is
+   * handed each record through `set` instead, which is the scan it always had.
+   */
+  adopt?(graph: NativeIndexGraph): void;
 }
 
 export interface PersistentRecordCache extends RecordCache {
@@ -104,7 +113,7 @@ export interface PersistentRecordCache extends RecordCache {
 }
 
 /** Bumped when what a `FileRecord` holds or the config inputs change, so record keys move. */
-const VERSION = 6;
+const VERSION = 9;
 
 /**
  * Files whose *contents* decide where other files resolve to.

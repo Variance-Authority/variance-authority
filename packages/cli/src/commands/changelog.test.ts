@@ -153,9 +153,8 @@ describe('the history, as the operator reads it', () => {
     // Unlabelled, because the operator wrote it and a prefix would read as this
     // command having summarised it.
     expect(text).toContain('\n  tighten the card\n');
-    // Spelled out here and nowhere in the record: a reader at a terminal has room
-    // for the sentence that a commit message, written on every update, does not.
-    expect(text).toContain('1 of 3 subject(s) this shape reached were promoted here');
+    // `1/3` above is the whole statement; no second line repeats it.
+    expect(text).not.toContain('were promoted here');
   });
 
   it('prints what bounded the reading even when it found something', () => {

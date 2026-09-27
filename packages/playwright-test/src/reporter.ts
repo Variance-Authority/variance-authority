@@ -34,7 +34,13 @@ import {
   stagingDirectory,
   type InstrumentMode,
 } from '@variance-authority/sense/journal';
-import { repositoryRoot, testCoverageFile } from '@variance-authority/sense/test-selection';
+import {
+  cacheRootFor,
+  prunedLine,
+  pruneWhenDue,
+  recordFileFor,
+  repositoryRoot,
+} from '@variance-authority/sense/test-selection';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -58,6 +64,8 @@ export interface ExecutionReporterOptions {
   readonly cacheRoot?: string;
   /** The coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
+  /** The suite this run is, as the root `variance.config.json` declares it under `suites`. */
+  readonly suite?: string;
   /**
    * The probe recipe the build placed, matching `testSelectionProbes()`'s
    * `mode`. `presence` when absent, as it is there.
@@ -96,6 +104,7 @@ export default class implements Reporter {
   // Against `root`, as every other seam resolves them and as the fixture does:
   // the workers stage beside this snapshot, so the fold has to write the same one.
   readonly #coverageFile: string | undefined;
+  readonly #snapshot: string;
   readonly #executionFile: string | undefined;
   #directory: string | undefined;
 
@@ -105,6 +114,9 @@ export default class implements Reporter {
     this.#root = repositoryRoot(start);
     this.#coverageFile =
       options.coverageFile === undefined ? undefined : resolve(start, options.coverageFile);
+    // Before any worker starts, so a suite the configuration does not declare
+    // fails the run rather than the fold at its end.
+    this.#snapshot = recordFileFor(this.#root, start, options);
     this.#executionFile =
       options.executionFile === undefined ? undefined : resolve(start, options.executionFile);
   }
@@ -119,8 +131,7 @@ export default class implements Reporter {
     // environment as it stood when it started and has no other way to be told.
     // Beside the snapshot, so a suite that redirected its index redirects this
     // too and two projects sharing a checkout do not share a directory.
-    const snapshot = this.#coverageFile ?? testCoverageFile(this.#root);
-    this.#directory = resolve(dirname(snapshot), `.run-${process.pid}-${randomUUID()}`);
+    this.#directory = resolve(dirname(this.#snapshot), `.run-${process.pid}-${randomUUID()}`);
     openStage(this.#directory);
   }
 
@@ -136,6 +147,7 @@ export default class implements Reporter {
         ...(this.#options.label === undefined ? {} : { label: this.#options.label }),
         ...(this.#options.cacheRoot === undefined ? {} : { cacheRoot: this.#options.cacheRoot }),
         ...(this.#coverageFile === undefined ? {} : { coverageFile: this.#coverageFile }),
+        ...(this.#options.suite === undefined ? {} : { suite: this.#options.suite }),
         ...(this.#options.mode === undefined ? {} : { mode: this.#options.mode }),
         ...(this.#options.preconditions === undefined
           ? {}
@@ -166,5 +178,8 @@ export default class implements Reporter {
     } finally {
       await closeStage(directory);
     }
+    // After the fold has let go of the index, and at most once a day.
+    const pruned = prunedLine(await pruneWhenDue(this.#options.cacheRoot ?? cacheRootFor(this.#root)));
+    if (pruned !== '') process.stderr.write(`${pruned}\n`);
   }
 }

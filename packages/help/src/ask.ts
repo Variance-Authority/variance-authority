@@ -105,7 +105,7 @@ export function ask(
   const tree = tool.wants?.(input) === true ? walk?.() : undefined;
   const answer = tool.run(help, input, tree === undefined ? undefined : { tree });
   const at = workspaceGeneration(help);
-  return at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`;
+  return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
 }
 
 /** The same answer as data: the generation is a field, and absent when unknown. */
@@ -125,7 +125,7 @@ export function askSearch(index: SearchIndex, args: readonly string[], walk?: ()
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
   const answer = answerSearch(index, input, tree);
   const at = index.generation?.generatedAt;
-  return at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`;
+  return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
 }
 
 /** Every verb and what it answers, for the usage text and for `--help`. */

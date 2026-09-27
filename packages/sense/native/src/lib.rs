@@ -16,19 +16,26 @@
 
 use napi_derive::napi;
 use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
 
 mod acquire;
 mod batch;
+mod compact;
 mod conditions;
 mod depends;
 mod digest;
+mod emitted;
+mod generation;
 mod git;
+mod graph_index;
 #[cfg(feature = "grammars")]
 mod grammar;
 #[cfg(feature = "grammars")]
 mod languages;
 mod harvest;
+mod held;
 mod index;
+mod index_chain;
 mod instrument;
 mod instrument_walk;
 mod journey;
@@ -42,27 +49,45 @@ mod journey_read;
 mod journey_record;
 mod journey_select;
 mod journey_stitch;
+mod log;
+mod members;
 mod mocks;
 mod module_moved;
 mod module_readers;
 mod module_shape;
 mod module_verdict;
 mod order;
+mod package_flows;
+mod package_graph;
+mod package_owners;
+mod parse_columns;
 mod path;
 mod read;
+mod record;
 mod resolve;
 mod seed;
+mod segment;
 mod side_effects;
+mod specifier;
+mod stored;
 mod tree;
+mod witness;
 
 pub use seed::seed_files;
 
+/// One module's parse, as JSON: the value `readBatch` answers for a file on
+/// disk, for source text the caller already holds.
+#[napi(catch_unwind)]
+pub fn read_source(file: String, source: String) -> String {
+    let read = read::read_module(&file, &source, &oxc_allocator::Allocator::default(), true);
+    serde_json::to_string(&read).unwrap_or_default()
+}
+
 /// What one file of a tree-sitter language asks for and publishes, as JSON.
 ///
-/// The AST does not cross — a `Read` is a handful of specifiers and names, which
-/// is what the JavaScript readers already build per file, so this hands back the
-/// same object graph the oracle would have and no more. `null` means no reader
-/// here claims that language, and the caller falls back to its own.
+/// The AST does not cross — a `Read` is a handful of specifiers and names, the
+/// same object graph every reader answers with, and no more. `null` means no
+/// reader here claims that language, and the caller records the file as unknown.
 #[cfg(feature = "grammars")]
 #[napi(catch_unwind)]
 pub fn read_language(language: String, file: String, source: String) -> Option<String> {
@@ -72,17 +97,32 @@ pub fn read_language(language: String, file: String, source: String) -> Option<S
 
 /// The same method on a build whose grammars did not compile: it claims nothing.
 ///
-/// The method stays rather than disappearing, because `record.ts` reaches an
-/// addon that has it and an addon that does not through two different branches,
-/// and only one of them is the branch every language takes on a machine with no
-/// addon at all. Answering `null` is the branch already worn smooth: the
-/// JavaScript reader is the implementation of record, and the five languages
-/// read exactly as they read where nothing was compiled. Everything else this
-/// crate does — git identity, the path set, the oxc parse, resolution, the
-/// journey fold — is here and is what it was.
+/// The method stays rather than disappearing, so `record.ts` has one branch for
+/// it: `null` makes every file in the five languages *unknown*, with a reason
+/// that names the missing grammars. Everything else this crate does — git
+/// identity, the path set, the oxc parse, resolution, the journey fold — is here
+/// and is what it was.
 #[cfg(not(feature = "grammars"))]
 #[napi(catch_unwind)]
 pub fn read_language(_language: String, _file: String, _source: String) -> Option<String> {
+    None
+}
+
+/// The targets a `Package.swift` declares, as JSON `[{ name, path }]`.
+///
+/// `null` when the manifest does not parse, or on a build without the grammars;
+/// either way `swift.ts` keeps the conventional `Sources/<name>` layout.
+#[cfg(feature = "grammars")]
+#[napi(catch_unwind)]
+pub fn swift_targets(source: String) -> Option<String> {
+    let targets = languages::swift_targets(&source)?;
+    serde_json::to_string(&targets).ok()
+}
+
+/// The same method on a build whose grammars did not compile: it claims nothing.
+#[cfg(not(feature = "grammars"))]
+#[napi(catch_unwind)]
+pub fn swift_targets(_source: String) -> Option<String> {
     None
 }
 
@@ -97,8 +137,15 @@ pub fn read_language(_language: String, _file: String, _source: String) -> Optio
 pub struct GitTree {
     paths: Vec<String>,
     oids: Vec<git::Oid>,
-    at: HashMap<String, u32>,
+    at: Arc<HashMap<String, u32>>,
     seeds: Vec<String>,
+    /// Whether git vouches that each path is a regular file, by index.
+    regular: Arc<Vec<bool>>,
+    /// Paths on disk git gave no digest for.
+    unhashed: Vec<String>,
+    /// The package manifests and `tsconfig*.json` files in each directory, made
+    /// the first time a scan asks where built output comes from.
+    listing: OnceLock<Arc<emitted::Listing>>,
 }
 
 /// Every tracked path under `root`, or nothing when this is not a checkout.
@@ -120,6 +167,16 @@ pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
     Some(tree_from_snapshot(snapshot, seeds))
 }
 
+impl GitTree {
+    fn listing(&self) -> Arc<emitted::Listing> {
+        let made = || {
+            let (at, regular) = (Arc::clone(&self.at), Arc::clone(&self.regular));
+            Arc::new(emitted::Listing::of(at, regular, &self.unhashed))
+        };
+        Arc::clone(self.listing.get_or_init(made))
+    }
+}
+
 fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
     let mut at = HashMap::with_capacity(snapshot.paths.len() * 2);
     for (index, path) in snapshot.paths.iter().enumerate() {
@@ -129,8 +186,11 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
     GitTree {
         paths: snapshot.paths,
         oids: snapshot.oids,
-        at,
+        at: Arc::new(at),
+        regular: Arc::new(snapshot.regular),
+        unhashed: snapshot.unhashed,
         seeds,
+        listing: OnceLock::new(),
     }
 }
 
@@ -205,7 +265,8 @@ impl GitTree {
                 condition_names,
             },
             Some(oids),
-            Some(&self.at),
+            Some(self.at.as_ref()),
+            Some(self.listing()),
         )
     }
 
@@ -237,7 +298,15 @@ impl GitTree {
             },
             &self.at,
             &self.oids,
+            self.listing(),
         )
+    }
+
+    /// Walk the module closure of `seeds` and keep it here as records and a
+    /// parse layer, for a cold build that publishes from this side.
+    #[napi(catch_unwind)]
+    pub fn index_graph(&self, options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
+        graph_index::index_graph(options, &self.at, &self.oids, self.listing())
     }
 
     /// Every path, sorted by code unit.

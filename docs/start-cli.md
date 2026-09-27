@@ -119,7 +119,7 @@ collector, the baselines and the report. Unknown keys are refused by name.
 | --- | --- |
 | `project` | the name rows are filed under in a shared history service. Required even with no `history` configured, because rows written under a name nobody chose cannot be re-attributed later. |
 | `profile` | how much of the page is observed: `chromium` for a full render, or `jsdom` for structure only, with no layout engine and no animation clock. Not the same choice as `browser`, which names the engine that paints — `chromium` (the default), `firefox` or `webkit`. |
-| `viewport` | `width` and `height`, plus optional `deviceScaleFactor` (default `1`) and `colorScheme` (default `light`). All four are part of the identity a baseline is stored under. |
+| `viewport` | `width` and `height`, plus optional `deviceScaleFactor` (default `1`) and `colorScheme` (default `light`). The scale factor is part of the identity a baseline is stored under, so a run at another scale reports `incomparable`. Size and colour scheme are not: changing either compares against the same baseline and reports `changed`. |
 | `retention` | `durable` compares against a baseline image saved by an earlier run, and requires `baselines`. `ephemeral` compares two images produced inside the same run and keeps neither, and refuses `baselines`. |
 | `subjects` | where subjects come from. See the three kinds below. |
 | `baselines` | where approved images are kept: `directory`, `lfs` or `remote`. |
@@ -188,6 +188,10 @@ on what your config selected, before the first expensive run:
 - **baselines** — the kind, the identities already in the store, and
   `NOT COMPARABLE HERE` when nothing in it was painted by a machine like this one;
 - **renders** — the size of the render cache and where it is;
+- **cache** — the size of the rest of [the cache](cache.md), which entries the
+  next prune removes and under which rule, and which it keeps because git or
+  the process table could not answer. `variance doctor --prune` runs that
+  prune now;
 - **history** — configured or none.
 
 Doctor exits `2` for exactly two findings: no renderer could be opened here, and

@@ -19,8 +19,7 @@ crate-type = ["cdylib"]
 # that lost Python, Rust, Java, Kotlin and Swift. Off is a fallback the build
 # script reaches for after the default build has already failed
 # (`build.mjs`), and it costs exactly those five languages: `readLanguage`
-# answers nothing, and `record.ts` reads them with the JavaScript oracle it
-# falls back to whenever no addon reached the machine at all.
+# answers nothing, and `record.ts` records every file in them as unknown.
 [features]
 default = ["grammars"]
 grammars = [
@@ -35,6 +34,9 @@ grammars = [
 [dependencies]
 napi = { version = "3", default-features = false, features = ["napi8"] }
 napi-derive = "3"
+# The sharded map and the hasher `oxc_resolver` caches paths with, so the
+# layouts `Emitted` keeps beside that cache cost what it costs.
+dashmap = "6"
 # The matcher `oxc_resolver` already builds, and the one rolldown reads a
 # `sideEffects` glob with.
 fast-glob = "1"
@@ -50,6 +52,7 @@ oxc_span = "0.144.0"
 oxc_syntax = { version = "0.144.0", features = ["to_js_string"] }
 rayon = "1"
 regex = "1"
+rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
@@ -60,6 +63,15 @@ tree-sitter-python = { version = "0.25", optional = true }
 tree-sitter-rust = { version = "0.24", optional = true }
 tree-sitter-swift = { version = "0.7", optional = true }
 zstd = "0.13"
+
+# oxc_resolver deep-copies a tsconfig's `paths` into every config that extends
+# it and normalises the copy once per config, so a monorepo whose base declares
+# thousands of aliases over a thousand package configs held gigabytes of the
+# same map during a cold scan. The vendored copy shares the map and its built
+# form; resolution answers are the upstream ones.
+# TODO: drop the patch once upstream shares an inherited `paths` map.
+[patch.crates-io]
+oxc_resolver = { path = "vendor/oxc_resolver" }
 
 [build-dependencies]
 napi-build = "2"

@@ -200,17 +200,21 @@ async function request(method, url, payload) {
   return response.status === 204 ? undefined : await response.json();
 }
 
-/** The body a superseded docket is replaced with. Short, and it says why it is here. */
+/**
+ * The body a superseded docket is replaced with.
+ *
+ * Replaced rather than deleted: this action keeps exactly one comment per pull
+ * request, and deleting it would leave the check's history with a gap nobody
+ * can account for. That is the action's bookkeeping, so it stays here and the
+ * reviewer reads only the outcome.
+ */
 function cleared(marker) {
   return [
     marker,
     '',
     '## Visual variance — nothing to review',
     '',
-    'A later run on this branch found nothing that needs review, so the docket that was ' +
-      'here no longer describes it. It was replaced rather than deleted: this action keeps ' +
-      "exactly one comment per pull request, and deleting it would leave the check's " +
-      'history with a gap nobody can account for.',
+    'A later run found nothing to review.',
   ].join('\n');
 }
 

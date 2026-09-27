@@ -33,6 +33,8 @@ runner and no index.
   name, a span and a digest
 - [`journey`](../journey/README.md) — the same probes, resolved through a
   per-execution factory rather than a per-realm one
+- [`story`](../story/README.md) — the same probes, reporting every hit to a
+  root that tapes it before the engine sees it
 
 ## Boundary
 
@@ -85,4 +87,5 @@ flowchart LR
   INST -->|instrumented source| REALM[[the realm that executes]]
   INST -->|region inventory| CROSS[crossings]
   INST -->|the same probes, per execution| JRN[journey]
+  INST -->|every hit, in order| STORY[story]
 ```

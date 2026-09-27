@@ -138,7 +138,7 @@ describe('the recorded partings a run can reach', () => {
     );
 
     expect(result.notes).toContainEqual(
-      expect.stringContaining('this pool cannot hold two, so nothing above is an absence'),
+      expect.stringContaining('this pool has fewer, so finding none is not an absence'),
     );
   });
 
@@ -160,15 +160,15 @@ describe('the recorded partings a run can reach', () => {
     // snapshot, and both have to carry the reason a widened pool is not this
     // run: a subject deleted two commits ago is still recorded as a party.
     const deliberate = journeysOf(reading({ pool: { kind: 'all' } }));
-    expect(deliberate.pool).toContain('--all asked for the accumulated record');
-    expect(deliberate.pool).toContain('deleted two commits ago is still a party');
+    expect(deliberate.pool).toContain('the whole journal, as --all asked');
+    expect(deliberate.pool).toContain('a deleted subject still counts');
 
     const fallback = journeysOf(
       reading({ pool: { kind: 'unasked', report: '.variance/report.json' } }),
     );
     expect(fallback.pool).toContain('no report at .variance/report.json');
-    expect(fallback.pool).toContain('deleted two commits ago is still a party');
-    expect(fallback.pool).toContain('pass --all to ask for the record on purpose');
+    expect(fallback.pool).toContain('a deleted subject still counts');
+    expect(fallback.pool).toContain('run once to narrow it to this run, or pass --all');
   });
 
   it('says how stale the record is, or that it cannot say', () => {

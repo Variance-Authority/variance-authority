@@ -54,9 +54,54 @@ Delete any of it and you pay one full run. A missing, foreign or corrupt file is
 read as an absent record rather than an empty one, so a selector widens to the
 whole suite instead of narrowing on damage.
 
+### One record for each suite
+
+If your repository runs more than one test suite, declare each one, with its
+kind, under `suites` in the `variance.config.json` at the repository root:
+
+```json
+{
+  "suites": {
+    "unit": { "kind": "unit" },
+    "stories": { "kind": "visual" },
+    "checkout": { "kind": "e2e" }
+  }
+}
+```
+
+The kind is one of `unit`, `integration`, `e2e` and `visual`. Nothing infers it
+from the runner, because a Playwright suite can be `e2e` or `visual` and only
+you know which one you meant.
+
+Each declared suite has its own record, at
+`<repository-digest>/suites/<name>/coverage.bin`, with its `.cases.bin` and its
+runs log beside it. Name the suite in the runner integration with the `suite`
+option, and `testCoverageFile(root, { suite })` returns its path. A Playwright
+run then never replaces what the unit suite recorded, and each record keeps the
+commit its own suite last ran at. The module names table and the [source index](source-index.md)
+stay at the top of the directory, because they describe the checkout and not a
+run. A worktree seeds each suite's record from the same suite in the primary
+checkout, never from another suite's.
+
+Once `suites` is declared, a run stops before it starts when its integration
+names no suite, names one the file does not declare, or names a suite and a
+`coverageFile` together. A repository that declares no suites keeps the one
+`coverage.bin` described above.
+
+`variance select`, `variance run --since` and `variance journeys` each answer
+for one runner, so each reads one suite's record: the one `--suite <name>`
+names, or the only one declared. With more than one declared and no `--suite`,
+they stop and list the suites.
+
+`variance covering` asks the other question, which suites saw this code, so it
+reads every declared suite's record and answers under each suite's name and
+kind. A suite that never loaded the file says so, and so does a suite with no
+recording yet. A payment module your unit suite walked and your visual suite
+never loaded reads as exactly that. `--suite <name>` asks one record alone.
+
 ## What each host records
 
-Five hosts write this file, and they write the same structures into it. What
+Six hosts write this file, and they write the same structures into it. What
 differs is the owner of an observation — the key a crossing joins, which is
 whatever that host schedules — and where the bracket goes that separates one
 case from the next.
@@ -68,9 +113,10 @@ case from the next.
 | Rstest | the test file | `it` and `test` wherever the suite reads them — off the realm, or off the object an import of `@rstest/core` compiles to |
 | Playwright | the spec file | the test, which is already the window the driver closes |
 | Storybook | the story | the story, which is already the unit the preview shows |
+| [A JVM on the JUnit Platform](jvm.md) | the test class's source file | the top-level test class, which the listener closes as the next one starts |
 | [Any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) | the test file it observes | the body it hands to `observer.case` |
 
-None of the seams asks you to change a runner option to record cases, and the
+None of the Node seams asks you to change a runner option to record cases, and the
 snapshot's bytes do not depend on them — the case axis is a second file beside
 it. A test file that runs in a page, under Vitest or Rstest browser mode, is
 recorded per file only: that run writes no case index and prints a warning.

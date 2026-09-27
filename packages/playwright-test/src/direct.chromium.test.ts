@@ -101,7 +101,8 @@ chromium_('the additive Playwright path', () => {
     expect(() => assertUnchanged(accepted)).not.toThrow();
     expect(accepted.verdict).toBe('unchanged');
     expect(accepted.because).toContain('accepted under --update-snapshots');
-    expect(accepted.because).toContain('cart/empty');
+    expect(accepted.because).toContain('no baseline under this renderer');
+    expect(accepted.subject).toBe('cart/empty');
 
     const unchanged = await observe(page!, locator, info('none'), {
       baselines,

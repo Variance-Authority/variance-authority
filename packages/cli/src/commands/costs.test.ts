@@ -1,37 +1,43 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Config } from '../config.js';
-import { costsLine, costsOf, mainlineCosts, publishCosts, publishedCostsLine } from './costs.js';
+import type { Env } from '../share-lines.js';
+import { costsEntryOf } from './costs-entry.js';
+import { costsOf, mainlineCosts, publishedCostsLine } from './costs.js';
 import { shardOwnedBecause, type CliRunReport } from './run-report.js';
+import { publishRun } from './share.js';
 
 /**
  * Subject costs, from the report that timed them to the run that balances on
- * them. The round trip is the claim: a merged report's costs, published under
- * its commit, are what the next build's shards read from the merge base.
+ * them. The round trip is the claim: a report's costs, published to the
+ * mainline beside its suite index, are what the next build's shards read.
  */
 
-const git = promisify(execFile);
+const run = promisify(execFile);
+const PUSH: Env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'push', GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main' };
+const LOCAL: Env = {};
 
 let home: string;
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-costs-'));
-  process.env['XDG_CACHE_HOME'] = home;
+  process.env['XDG_CACHE_HOME'] = join(home, 'cache');
 });
 
-afterEach(() => {
+afterEach(async () => {
   delete process.env['XDG_CACHE_HOME'];
+  await rm(home, { recursive: true, force: true });
 });
 
 function configOf(share: { root?: string } = {}): Config {
   return {
     project: 'web',
     report: join(home, 'report.json'),
-    ...(share.root === undefined ? {} : { share: { kind: 'directory', root: share.root } }),
+    ...(share.root === undefined ? {} : { share: { kind: 'directory', root: share.root, mainlines: ['main'] } }),
   } as Config;
 }
 
@@ -47,18 +53,33 @@ function reportOf(commit: string | undefined, over: Partial<CliRunReport> = {}):
       { subject: 'story:c', verdict: 'unchanged', because: 'nothing moved', regions: [] },
     ],
     notObserved: [],
+    composition: { subjects: ['story:a', 'story:b', 'story:c'], components: [] },
     ...over,
   } as CliRunReport;
 }
 
+async function reportAt(commit: string): Promise<string> {
+  const path = join(home, `run-${commit}.json`);
+  await writeFile(path, JSON.stringify(reportOf(commit)));
+  return path;
+}
+
+async function git(cwd: string, ...args: string[]): Promise<string> {
+  return (await run('git', args, { cwd })).stdout.trim();
+}
+
 async function repository(): Promise<{ dir: string; head: string }> {
-  const dir = await mkdtemp(join(tmpdir(), 'variance-costs-repo-'));
-  await git('git', ['init', '--quiet'], { cwd: dir });
-  await git('git', ['config', 'user.email', 'test@example.com'], { cwd: dir });
-  await git('git', ['config', 'user.name', 'Test'], { cwd: dir });
-  await git('git', ['commit', '--quiet', '--allow-empty', '-m', 'one'], { cwd: dir });
-  const { stdout } = await git('git', ['rev-parse', 'HEAD'], { cwd: dir });
-  return { dir, head: stdout.trim() };
+  const dir = await mkdtemp(join(home, 'repo-'));
+  const origin = await mkdtemp(join(home, 'origin-'));
+  await git(origin, 'init', '--bare', '--quiet');
+  await git(dir, 'init', '--quiet', '-b', 'main');
+  await git(dir, 'config', 'user.email', 'test@example.com');
+  await git(dir, 'config', 'user.name', 'Test');
+  await git(dir, 'remote', 'add', 'origin', origin);
+  await git(dir, 'commit', '--quiet', '--allow-empty', '-m', 'one');
+  await git(dir, 'push', '--quiet', 'origin', 'main');
+  await git(dir, 'fetch', '--quiet', 'origin');
+  return { dir, head: await git(dir, 'rev-parse', 'HEAD') };
 }
 
 describe('subject costs', () => {
@@ -74,29 +95,29 @@ describe('subject costs', () => {
     const root = join(home, 'share');
     const config = configOf({ root });
 
-    expect(await publishCosts(config, reportOf(head))).toEqual({ commit: head, subjects: 2 });
-    expect(await readdir(join(root, 'web', 'subject-costs-v1'))).toEqual([`${head}.bin`]);
+    const done = await publishRun(config, await reportAt(head), { env: PUSH, cwd: dir });
+    expect(done).toMatchObject({ published: { written: ['suite-index-v1', 'subject-costs-v1'] } });
+    expect(await readdir(root)).not.toEqual([]);
 
-    const found = await mainlineCosts(config, { ref: 'HEAD', cwd: dir });
+    const found = await mainlineCosts(config, { env: LOCAL, cwd: dir });
     expect(found?.commit).toBe(head);
-    expect(found?.behind).toBe(0);
+    expect(found?.distance).toBe(0);
     expect(Object.fromEntries(found?.costs ?? [])).toEqual({ 'story:a': 81, 'story:b': 120 });
   });
 
   it('come from the share on a machine that holds none, and are kept for the next command', async () => {
     const { dir, head } = await repository();
     const root = join(home, 'share');
-    await publishCosts(configOf({ root }), reportOf(head));
+    await publishRun(configOf({ root }), await reportAt(head), { env: PUSH, cwd: dir });
 
-    process.env['XDG_CACHE_HOME'] = await mkdtemp(join(tmpdir(), 'variance-costs-cold-'));
-    expect((await mainlineCosts(configOf({ root }), { ref: 'HEAD', cwd: dir }))?.commit).toBe(head);
-    // No share now: only the local copy the fetch kept can answer.
-    expect((await mainlineCosts(configOf(), { ref: 'HEAD', cwd: dir }))?.commit).toBe(head);
+    process.env['XDG_CACHE_HOME'] = await mkdtemp(join(home, 'cold-'));
+    const found = await mainlineCosts(configOf({ root }), { env: LOCAL, cwd: dir });
+    expect(Object.fromEntries(found?.costs ?? [])).toEqual({ 'story:a': 81, 'story:b': 120 });
   });
 
   it('are not found where the lineage has none', async () => {
     const { dir } = await repository();
-    expect(await mainlineCosts(configOf(), { ref: 'HEAD', cwd: dir })).toBeNull();
+    expect(await mainlineCosts(configOf({ root: join(home, 'share') }), { env: LOCAL, cwd: dir })).toBeNull();
   });
 
   it('are refused from a report with no commit, from one shard, and from a run that timed nothing', async () => {
@@ -108,18 +129,17 @@ describe('subject costs', () => {
       observations: [{ subject: 'story:c', verdict: 'unchanged', because: 'nothing moved', regions: [] }],
     });
 
-    expect(await publishCosts(config, reportOf(undefined))).toMatch(/names no commit/);
-    expect(await publishCosts(config, shard)).toMatch(/is one shard; publish the shards together/);
-    expect(await publishCosts(config, untimed)).toMatch(/timed no subject/);
+    const at = { commit: '3f1c' };
+    expect(await costsEntryOf(config, reportOf(undefined), at)).toEqual({ none: 'this report names no commit' });
+    expect(await costsEntryOf(config, shard, at)).toEqual({ none: 'this report is one shard; publish the shards together' });
+    expect(await costsEntryOf(config, untimed, at)).toEqual({ none: 'this report timed no subject' });
+    expect(await costsEntryOf(config, reportOf('3f1c'), at)).toMatchObject({ name: 'subject-costs-v1', commit: '3f1c' });
   });
 
-  it('say where they went when shared, and a run says nothing when there is nothing', async () => {
+  it('say where a run kept them, and a run says nothing when there is nothing', async () => {
     const config = configOf({ root: join(home, 'share') });
 
-    expect(await costsLine(config, reportOf('3f1c'))).toMatch(
-      /^subject costs of 2 subject\(s\): .*3f1c\.costs\.json \(published\)$/,
-    );
-    expect(await publishedCostsLine(config, reportOf('3f1c'))).toMatch(/^subject costs: .*\(published\)\n$/);
+    expect(await publishedCostsLine(config, reportOf('3f1c'))).toMatch(/^subject costs: .*3f1c\.costs\.json\n$/);
     expect(await publishedCostsLine(config, reportOf(undefined))).toBe('');
   });
 });

@@ -15,7 +15,7 @@ import { rm } from 'node:fs/promises';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import { commitOf } from './commit.js';
-import { layeredCoverage } from './format-layer.js';
+import { landRun } from './commit-runs.js';
 import {
   codeUnitOrder,
   crossingsOf,
@@ -36,11 +36,13 @@ import {
   type FinishedFile,
 } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
-import type { SelectionRun } from './selection-run.js';
+import { removeSeamModules, type SelectionRun } from './selection-run.js';
 import { governingPreconditions } from './governing-config.js';
+import { cacheRootFor, markCheckout } from './cache-layers.js';
+import { prunedLine, pruneWhenDue } from './prune.js';
+import { repositoryRoot } from './repository-root.js';
 import {
   seedTestCoverage,
-  writeCoverageBytes,
   type CoverageModule,
   type TestCoverage,
 } from './index.js';
@@ -54,10 +56,11 @@ export interface FoldDestination {
   /**
    * Modules this seam generated for this run.
    *
-   * Nothing reads them once the journals are folded, and leaving them would
+   * Nothing reads them once the last run is folded, and leaving them would
    * grow a directory in the user's project by a file or two a run — including
    * after a run that refuses, which is why they come off in a `finally` rather
-   * than at the happy end.
+   * than at the happy end. A watching runner's last run is the one before it
+   * closes, so its seam takes them off at the close instead.
    */
   readonly shims: readonly string[];
   /**
@@ -79,7 +82,8 @@ export interface FoldDestination {
  *
  * Idempotent: a runner that announces the end twice — two hooks of two major
  * versions both answered, a reporter installed on the root config and on a
- * project — folds once.
+ * project — folds once. A watching runner folds every rerun, because its seam
+ * calls `reopenRun` when one starts.
  */
 export function foldRun(
   run: SelectionRun,
@@ -140,7 +144,7 @@ export function foldRun(
     // lock, because a merge that landed while the numbering was still deciding
     // would describe modules the table had not agreed on yet.
     const merged = await withIndexLock(coverageFile, async (lock) => {
-      await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+      await landRun(coverageFile, current, root);
       // Everything this run saw, numbered for the next one. A file first met
       // today was instrumented under its path; from here on it has a number.
       await nameModules(
@@ -148,12 +152,15 @@ export function foldRun(
         [...modules.values()].map((module) => module.file),
         lock,
       );
+      markCheckout(repositoryRoot(root));
     });
     if (!merged.held) noteABusyIndex(coverageFile);
     // Beside the snapshot, never inside it. The snapshot answers *which files
-    // must run*, and its readers are unchanged. A run whose files ran in a page
-    // recorded no case, and an index with no case in it would answer *which
-    // cases walk this line* with none.
+    // must run*, and its readers are unchanged. `run.cases` is whether the run
+    // could record a case: one whose files ran in a page could not. One that
+    // could, and recorded no case and finished no file — no worker loaded this
+    // seam's modules — is declined by the writer, which leaves the index there
+    // as it was.
     if (run.cases) {
       await writeCaseIndex(executionFile, caseDirectory, root, modules, {
         tests,
@@ -171,8 +178,12 @@ export function foldRun(
     try {
       await record(files);
     } finally {
-      for (const shim of destination.shims) await rm(shim, { force: true });
+      // A watching runner loads them again for every rerun; its close takes them off.
+      if (!run.watching) removeSeamModules(run, destination.shims);
     }
+    // After the lock is released, and at most once a day: see `prune.ts`.
+    const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));
+    if (pruned !== '') console.warn(pruned);
   };
 }
 

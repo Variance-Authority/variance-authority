@@ -22,10 +22,11 @@
  *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
-import { testCoverageFile } from './index.js';
+import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 
 export interface JestTestSelectionOptions {
@@ -37,6 +38,12 @@ export interface JestTestSelectionOptions {
   readonly root?: string;
   /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
+  /**
+   * The suite this run is, as the root `variance.config.json` declares it under
+   * `suites`. Required once any suite is declared, and refused beside
+   * `coverageFile`.
+   */
+  readonly suite?: string;
   /**
    * Additional files whose contents are preconditions of every test observation.
    * Jest transforms these files normally but Sense does not place probes in them,
@@ -102,6 +109,29 @@ export interface JestJourneyCoverageOptions {
   readonly mode?: InstrumentMode;
   /** Follow deliberately concurrent tests through their async contexts. */
   readonly continuations?: boolean;
+  /**
+   * Directories where processes beyond a fence write what they ran under a
+   * case's journey id: part frames (`.vac`) and the inventories they name
+   * (`.rec`). Read when the run is finalized, never while it runs.
+   */
+  readonly parts?: readonly string[];
+  /**
+   * Labels of Node services instrumented with `testSelectionProbes`, whose
+   * inventories sit in the checkout's record store under that label.
+   */
+  readonly heads?: readonly string[];
+  /**
+   * A module whose export is the application's tracing, told to carry each
+   * case's journey as its trace id: `module.exports = sentry(Sentry)` after
+   * `Sentry.init`, or `openTelemetry(api)` after the SDK is registered, both
+   * from `@variance-authority/sense/case-journey`.
+   *
+   * It is required once per worker, outside every test file's sandbox, because
+   * an SDK hooks `fetch` for the whole process: initialized again in each
+   * file, the first file's hooks outlive it and the next file's requests carry
+   * the wrong trace. The project's `testEnvironment` still runs.
+   */
+  readonly trace?: string;
 }
 
 /** The subset of a Jest configuration this seam reads and rewrites. */
@@ -154,6 +184,8 @@ interface JourneyReporterConfig {
   readonly journeyFile: string;
   readonly mode?: InstrumentMode;
   readonly continuations?: boolean;
+  readonly parts?: readonly string[];
+  readonly heads?: readonly string[];
 }
 
 /** The variable the reporter sets before workers fork, and the setup file reads. */
@@ -182,6 +214,14 @@ export const CASE_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CASES'
  */
 export const CONTINUATIONS_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CONTINUATIONS';
 
+/**
+ * Set beside them when the run asked for stories, to the directory they go to,
+ * and read once by `jest-globals.cts`, which installs the tap with its
+ * collector. Mirrors `STORY_VARIABLE` for the sandbox, which cannot resolve a
+ * cache directory.
+ */
+export const STORY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY';
+
 /** Jest's pattern for the modules it transforms when nothing is configured. */
 const DEFAULT_PATTERN = '\\.[jt]sx?$';
 
@@ -192,6 +232,8 @@ export const SELECTION_TRANSFORM = here('./jest-transform.js');
 export const SELECTION_GLOBALS = here('./jest-globals.cjs');
 export const SELECTION_SETUP = here('./jest-setup.cjs');
 export const SELECTION_REPORTER = here('./jest-reporter.js');
+/** The environment a configuration with a `trace` runs its own environment through. */
+export const TRACE_ENVIRONMENT = here('./jest-trace-environment.cjs');
 
 /**
  * Add source instrumentation, test-file attribution, and coverage persistence to
@@ -225,9 +267,7 @@ export function withTestSelection(
 ): JestConfig {
   const rootDir = resolve(options.root ?? config.rootDir ?? process.cwd());
   const root = repositoryRoot(rootDir);
-  const coverageFile = options.coverageFile === undefined
-    ? testCoverageFile(root)
-    : resolve(rootDir, options.coverageFile);
+  const coverageFile = recordFileFor(root, rootDir, options);
   const inline = inlineProjects(config);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
@@ -272,20 +312,54 @@ export function withJourneyCoverage(
   const root = repositoryRoot(rootDir);
   const inline = inlineProjects(config);
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
-  const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, rootDir), options.mode, declared));
+  const trace = options.trace === undefined ? undefined : configuredPath(options.trace, rootDir)[0];
+  if (options.trace !== undefined && trace === undefined) {
+    throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
+  }
+  const journeyProject = (project: JestConfig, at: string): JestConfig =>
+    traced(instrumented(project, root, at, options.mode, declared), at, trace);
+  const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
     journeyFile: resolve(rootDir, options.journeyFile),
     ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
+    ...(options.parts === undefined ? {} : { parts: options.parts.map((part) => resolve(rootDir, part)) }),
+    ...(options.heads === undefined ? {} : { heads: [...options.heads] }),
   };
 
   return {
-    ...(projects === undefined ? instrumented(config, root, rootDir, options.mode, declared) : config),
+    ...(projects === undefined ? journeyProject(config, rootDir) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
+  };
+}
+
+/**
+ * Run a project's environment through the one that requires the trace once
+ * per worker. The project's environment is resolved here as Jest resolves it —
+ * `node` when unset, `jest-environment-<name>` before `<name>` — and passed on
+ * as a file.
+ */
+function traced(config: JestConfig, rootDir: string, trace: string | undefined): JestConfig {
+  if (trace === undefined) return config;
+  const named = config.testEnvironment ?? 'node';
+  const [path] = configuredPath(named, rootDir);
+  const require = createRequire(resolve(rootDir, 'package.json'));
+  let environment = path;
+  if (environment === undefined) {
+    try {
+      environment = require.resolve(`jest-environment-${named}`);
+    } catch {
+      environment = require.resolve(named);
+    }
+  }
+  const options = (config['testEnvironmentOptions'] ?? {}) as Record<string, unknown>;
+  return {
+    ...config,
+    testEnvironment: TRACE_ENVIRONMENT,
+    testEnvironmentOptions: { ...options, varianceAuthority: { environment, trace } },
   };
 }
 

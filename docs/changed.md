@@ -1,4 +1,4 @@
-# See what changed.
+# See what changed
 
 Every change has a beginning and an end. In between is the mess. You edit a
 line, move a component, replace a dependency, change a condition, fix one bug
@@ -19,13 +19,13 @@ spot only when it is asked to mean that nothing else changed.
 Source control gives a precise account of the edit. It does not give a precise
 account of its effect.
 
-One changed line can reach forty screens. Forty changed lines can leave
+One changed line can affect forty screens. Forty changed lines can leave
 observable behaviour untouched. A refactor can preserve the result while taking
-a completely different route through the program. A dependency, an environment
+a different route through the program. A dependency, an environment
 or a piece of data can change the result without your source changing at all.
 
-A diff records where you acted. It does not tell you where the effect
-travelled. That path only exists while the system runs.
+A diff records where you acted. It does not record what the edit affected,
+and that is only decided while the system runs.
 
 ## The result says what happened, not how
 
@@ -38,7 +38,7 @@ leave the questions that matter unanswered:
 - Which branch did execution take?
 - Which component produced the result?
 - Which source was actually involved?
-- Did the same cause reach anything else?
+- Did the same cause affect anything else?
 - Was the state already different before this action?
 - Does another run do the same thing?
 
@@ -46,9 +46,9 @@ Looking only at the end turns investigation into reconstruction. You walk
 backwards from the symptom, open files, add logs, rerun the program and form a
 theory — after the evidence of what happened has gone.
 
-## The middle carries the explanation
+## The explanation is in the middle
 
-A useful model of a change is not just before and after.
+A useful model of a change needs more than a before and an after.
 
 The exact pieces differ by system; the shape does not. Something starts in one
 condition, something acts on it, work happens, state changes, and an observable
@@ -86,8 +86,8 @@ difference; judgement gives it meaning.
 Most development is not one edit followed by one verdict. You form an
 intention, change the system, look at what happened, adjust your understanding,
 and change it again. Sometimes you are building something new, sometimes
-repairing damage, sometimes bending an existing abstraction until it serves
-another case, sometimes removing code while proving that nothing anyone depends
+repairing damage, sometimes changing an existing abstraction until it also
+handles another case, sometimes removing code while proving that nothing anyone depends
 on changed with it.
 
 The question is the same every time: what did this change actually do? The
@@ -113,8 +113,8 @@ tells you what became externally distinguishable. History tells you whether the
 same thing has happened before. Each is partial; together they connect cause to
 effect.
 
-You can travel that chain in either direction. When you changed the code
-deliberately, start at the source and ask how far the effect travelled. When
+You can read that chain in either direction. When you changed the code
+deliberately, start at the source and ask what the change reaches. When
 you found something wrong, start at the effect and ask where the two readings
 first parted. Those are not separate problems — they are opposite directions
 through the same evidence.
@@ -152,7 +152,7 @@ That boundary matters too. Where the available observation cannot separate two
 explanations, the correct result is not a guess. It is another question, and
 another point of observation.
 
-Software changes by moving through paths. Tests preserve [the ones you cared
+Every change runs along paths through the program. Tests preserve [the ones you cared
 enough to codify](tests.md#high-level-is-a-strength-and-a-blind-spot). That is
 their strength. Keeping the rest is what prevents that strength becoming a
 blind spot, and lets you explain what happened while the system ran.

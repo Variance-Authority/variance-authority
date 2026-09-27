@@ -5,13 +5,14 @@ import { OperatorError } from '../exit.js';
 /**
  * What `nx` and `turbo` already know, borrowed rather than recomputed.
  *
- * A file scan resolves specifiers, and it stops at the package boundary: in a
- * workspace, `@scope/design-system` resolves into that package's built output, and
- * built output is not what anybody edits. So a diff inside one package reaches
- * nothing in the package that consumes it, and every monorepo has exactly the
- * component library the boundary hides.
+ * A file scan resolves specifiers, and reads a workspace package's built output
+ * as its source when the package's `tsconfig` names `outDir` and `rootDir`
+ * (ADR-0080). Where nothing says so — a bundler with its own configuration, a
+ * `tsconfig` with no `rootDir` — it stops at the package boundary:
+ * `@scope/design-system` resolves into built output nobody edits, so a diff inside
+ * one package reaches nothing in the package that consumes it.
  *
- * Both of these tools compute precisely that missing edge, from the manifests, and
+ * Both of these tools compute that missing edge, from the manifests, and
  * every repository that has one has already configured it. Asking is cheaper than
  * being right independently, and being right independently would mean shipping a
  * second workspace resolver whose answer must agree with theirs.

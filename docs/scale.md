@@ -52,11 +52,12 @@ second axis: the case axis is a separate file, priced at the end.
 A tool that reads your whole codebase can run out of memory on a large one.
 There is a size past which dying is fair, and this page says where it puts that
 size rather than leaving you to find it. The largest row in the table below is
-two million modules: about a minute of first scan, an index near a gigabyte and
-a record near another. That row is extrapolated rather than measured, and past
-it the arithmetic still runs but nobody has watched it. A decades-old enterprise
-tree an order of magnitude beyond that is a rock, and nothing here pretends to
-lift it.
+two million modules: 50 seconds to under three minutes of first scan,
+depending on how large the average module is, an index of 0.6 to 1.5 GB and a
+record of at least 770 MB. That row is extrapolated
+rather than measured, and past it the arithmetic still runs but nobody has
+watched it. A decades-old enterprise tree an order of magnitude beyond that is
+a rock, and nothing here pretends to lift it.
 
 What [test selection](selecting.md) is built for is the shape a large
 repository usually has in practice: hundreds of thousands of files, grown
@@ -134,48 +135,80 @@ produces is the rate this page is extrapolated from.
 
 Measured on [Material UI](https://github.com/mui/material-ui), 41,171 tracked
 paths of which 24,519 are modules, the first scan is **586 ms** and produces a
-10.5 MB index. Every run after it reuses that index, so the figure that matters
-is what a run pays before it selects anything, after an edit:
+10.5 MB index. Measured on [Kibana](https://github.com/elastic/kibana) at
+`df0daaddcc`, an application monorepo of 125,804 tracked paths, the scan reads
+the 105,900 modules under `src`, `x-pack` and `packages`, 465.2 MB of source:
+the first scan is **6,344 ms** and produces an 81.5 MB index. Every run after
+the first reuses its index, so the figure that matters is what a run pays
+before it selects anything, after an edit:
 
-| since the last run, the tree is | a run waits |
-|---|---|
-| new, no index at all | 586 ms |
-| unchanged | 301 ms |
-| four files edited | 320 ms |
-| five hundred files edited | 385 ms |
+| since the last run, the tree is | a run on Material UI waits | a run on Kibana waits |
+|---|---|---|
+| new, no index at all | 586 ms | 6,344 ms |
+| unchanged | 301 ms | 2,117 ms |
+| four files edited | 320 ms | 2,355 ms |
+| five hundred files edited | 385 ms | 2,575 ms |
 
 ```mermaid
+---
+config:
+  xyChart:
+    height: 300
+---
 xychart-beta horizontal
-  accTitle: Milliseconds a run waits on Material UI, by what changed since the last run
-  x-axis ["unchanged", "four files edited", "five hundred files edited", "no index at all"]
-  y-axis "milliseconds" 0 --> 600
-  bar [301, 320, 385, 0]
-  bar [0, 0, 0, 0]
-  bar [0, 0, 0, 586]
-  bar [0, 0, 0, 0]
+  accTitle: Milliseconds a run waits on Material UI and on Kibana, by what changed since the last run
+  x-axis ["Material UI, unchanged", "Material UI, four files edited", "Material UI, five hundred files edited", "Material UI, no index at all", "Kibana, unchanged", "Kibana, four files edited", "Kibana, five hundred files edited", "Kibana, no index at all"]
+  y-axis "milliseconds" 0 --> 9000
+  bar [301, 320, 385, 0, 2117, 2355, 2575, 0]
+  bar [0, 0, 0, 0, 0, 0, 0, 0]
+  bar [0, 0, 0, 586, 0, 0, 0, 6344]
+  bar [0, 0, 0, 0, 0, 0, 0, 0]
 ```
 
 An edit costs the records it touched and a fixed toll on top, which is why the
-last three rows sit together. Where those numbers come from, and what a file
-appearing or moving costs, is in [what a source scan costs](performance.md).
+last three rows sit together in both columns. Where those numbers come from,
+and what a file appearing or moving costs, is in [what a source scan
+costs](performance.md).
 
 **The cold scan is about 0.024 ms per module** — 586 ms over 24,519. Scaled up
 linearly that is **roughly 5 seconds at 200,000 modules and about 50 seconds at
 2,000,000**, once per machine and never again. Read both as linear
-extrapolation from the one measured scan, not as measurements: the scan reads,
+extrapolation from Material UI's scan, not as measurements: the scan reads,
 parses and resolves each module, and resolution is priced per specifier, so a
 repository averaging more imports per file costs more than that line predicts.
+
+**Kibana's cold scan is 0.060 ms per module**, 2.5 times Material UI's rate:
+the line above predicts 2,542 ms for its 105,900 modules, and the scan takes
+6,344 ms. Per byte of source the two are closer — 23.5 ms per MB over Material
+UI's 24.9 MB, 13.6 ms per MB over Kibana's 465.2 MB — and a Kibana module
+averages 4.4 KB where a Material UI module averages 1.0 KB. Price a first scan
+by the megabytes of source you have, not by the number of files. Scaled up
+linearly at Kibana's rate per module, 200,000 modules is a 12.0-second first
+scan and 2,000,000 is a 120-second one; like Material UI's line above, both are
+extrapolation, not measurements.
+
 The 300 ms a warm run pays underneath the diff is charged against the whole
 tree as well, and it grows on the same axis: **about 7 µs per tracked path**,
 roughly 2 µs of which is git answering what the working tree looks like. A
 9,000-path checkout of similar module density is a 65 ms warm run; a
 400,000-path one pays the toll ten times over, so budget around three seconds
-of walk and index decode on every run. Before anything else, turn on the two
-git settings that make the walk cheaper and that ship off: `core.fsmonitor`,
-which lets a daemon report what changed instead of git stat-ing every path, and
-`core.untrackedCache`, which lets git skip directories whose modification time
-has not moved. [The scan page](performance.md#git-and-the-two-accelerators)
-measures both.
+of walk and index decode on every run.
+
+Before anything else, turn on the two git settings that make the walk cheaper
+and that ship off: `core.fsmonitor`, which lets a daemon report what changed
+instead of git stat-ing every path, and `core.untrackedCache`, which lets git
+skip directories whose modification time has not moved. [The scan
+page](performance.md#git-and-the-two-accelerators) measures both.
+
+**On Kibana the toll is 16.8 µs per tracked path** — 2,117 ms over 125,804 —
+which puts a 400,000-path checkout near seven seconds. More than half of it is
+opening the scan's own index: 1,275 ms of the 2,117. Git's part depends on the
+untracked cache, the second of the two settings above. The clone the Kibana
+column is timed on does not set `core.untrackedCache`, but its `.git/index`
+already stores an untracked cache, and git uses it: the scan's `status` there
+is 282 ms, 2.2 µs per path. With `-c core.untrackedCache=false` the same call is
+921 ms, 7.3 µs per path. With the cache removed from the index, an unchanged run
+costs about 700 ms more.
 
 Size scales with files, and it stays linear. The comparison worth making is
 against the cache you would have written first: one JSON object per file, each
@@ -200,20 +233,23 @@ xychart-beta horizontal
   bar [0, 0]
 ```
 
-**Three counts of Material UI appear on this page and they are not the same
-count.** 41,171 is every path git tracks in the checkout. 24,519 is the module
-files among them, and it is what the timings above are charged per. 25,117 is
-the records the index wrote, because the walk also records the stylesheets and
-declaration files the module listing excludes, and it is what the byte rates
-below are charged per.
+**Three counts of each repository appear on this page and they are not the
+same count.** 41,171 and 125,804 are every path git tracks in each checkout.
+24,519 and 105,900 are the module files among them, Kibana's taken under the
+three directories its scan reads, and they are what the timings above are
+charged per. 25,117 and 106,219 are the records each index wrote, because the
+walk also records the stylesheets and declaration files the module listing
+excludes, and they are what the byte rates below are charged per.
 
 Real trees give the rate to work from, and it is a range rather than one number:
 **318 B per file** over Material UI's 25,117 records, **411 B** over
 [Docusaurus](https://github.com/facebook/docusaurus)'s 2,670, and **556 B** over
-a 1,236-file TypeScript workspace. Bytes per file track how many edges a file
-has, not how large the repository is, which is why the largest of the three is
-the cheapest per file. A real 200,000-file tree lands somewhere between about
-60 MB and 110 MB.
+a 1,236-file TypeScript workspace, and **767.6 B** over Kibana's 106,219. The
+size of the repository does not predict the rate: Material UI costs less per
+file than a workspace a twentieth its size, and Kibana, about four times
+Material UI's size, costs more per file than any of the other three. A real
+200,000-file tree lands somewhere between about 60 MB and
+150 MB.
 
 That is the whole index on disk. A run does not load it either. A generation is
 a chain of segments and a scan appends rather than rewrites, so the newest
@@ -434,25 +470,28 @@ and use it, fetch the one CI stitched and layer today's run on top, or work from
 nothing at all. A missing or stale record costs a slower answer, never a
 different one. The scan caches are content-addressed and behave the same way.
 
-## What the index and the record cost, at four sizes
+## What the index and the record cost, at five sizes
 
 Both files grow with modules and stay linear. The index column you can price
 before recording anything, from a count git already gives you; the record
 column is priced per module your suite covers, which only a recording tells
-you. Material UI's row is measured on a real repository. The 200,000 row is
-measured, at that size, on fixtures rather than on a real tree. The outer two rows are **extrapolation** — those figures
-extended linearly to a size no one has measured.
+you. Material UI's row and Kibana's are measured on real repositories. No suite
+was recorded on Kibana, so its row has an index and a dash in the two columns
+only a recording answers. The 200,000 row is measured, at that size, on
+fixtures rather than on a real tree. The outer two rows are **extrapolation** —
+those figures extended linearly to a size no one has measured.
 
 | your repository | modules | modules its suite covers | source index | execution record |
 |---|---|---|---|---|
 | a medium app, ~200k lines | ~2,000 | ~1,400 | ~0.7 MB | ~1 MB |
 | a large library — Material UI | 24,519 | 791 | 10.5 MB | 0.5 MB |
-| a large monorepo | 200,000 | 200,000 | 60–110 MB | 77 MB, a floor |
-| a very large monorepo | 2,000,000 | 2,000,000 | ~600 MB – 1.1 GB | ~770 MB, a floor |
+| an application monorepo — Kibana | 105,900 | — | 81.5 MB | — |
+| a large monorepo | 200,000 | 200,000 | 60–150 MB | 77 MB, a floor |
+| a very large monorepo | 2,000,000 | 2,000,000 | ~600 MB – 1.5 GB | ~770 MB, a floor |
 
-The index column is a range, not a point, because the rate is: across the three
-real projects above it runs 318 B to 556 B per file, and what sets it is edges
-per file. Multiplied out to 200,000 files that is 60 MB to 110 MB, and to
+The index column is a range, not a point, because the rate is: across the four
+real projects above it runs 318 B to 767.6 B per file, and what sets it is edges
+per file. Multiplied out to 200,000 files that is 60 MB to 150 MB, and to
 2,000,000 it is ten times that. The 67.3 MB the synthetic shape measured sits
 inside the range, near its floor.
 
@@ -889,7 +928,10 @@ transfer directly, and every byte figure here is decimal: 1 KB is 1,000 bytes
 and 1 MB is 1,000,000. The times do, and they are single-machine wall clock taken
 with a warm filesystem cache, which makes them a floor rather than a budget —
 on shared CI vCPUs, which is the other end of the hardware range, expect
-worse.
+worse. Kibana's timings are each the median of five runs: the table's from
+five runs of
+[`source-index.mjs`](../packages/sense/scripts/source-index.mjs), and the
+untracked-cache figures from harnesses that are not in the repository.
 
 **The diffs measured above are all modules the record has seen.** A real pull
 request contains a config, a generated file, a module added since the recording,

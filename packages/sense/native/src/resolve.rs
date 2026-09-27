@@ -1,14 +1,25 @@
 //! Repository-local module resolution, matching the JavaScript oracle.
+//!
+//! The resolver reads the disk through `Emitted`, so an import that lands in a
+//! workspace package's built output answers with the source it is built from.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
 use oxc_resolver::{
-    ResolveOptions, Resolver, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
+    ResolveOptions, ResolverGeneric, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
 };
 
+use crate::emitted::{Emitted, Origin};
+
+type Resolver = ResolverGeneric<Emitted>;
+
 const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+/// What a declaration file ends in, which is also where its stem ends:
+/// `context.d.ts` is `context`, as a request names it.
+const DECLARATION_SUFFIXES: [&str; 3] = [".d.ts", ".d.mts", ".d.cts"];
 const STYLE_EXTENSIONS: &[&str] = &[".css", ".scss", ".sass", ".less"];
 const DEFAULT_CONDITIONS: [&str; 4] = ["source", "import", "require", "default"];
 
@@ -25,11 +36,21 @@ pub struct Resolvers {
     governed: RwLock<HashMap<PathBuf, Arc<Resolver>>>,
     /// Condition set → its resolver, so configs that agree share one.
     conditioned: Mutex<HashMap<Vec<String>, Arc<Resolver>>>,
+    /// Condition set → the resolver that finds only declarations under it.
+    declarations: Mutex<HashMap<Vec<String>, Arc<Resolver>>>,
     canonical: Mutex<HashMap<PathBuf, PathBuf>>,
+    /// The file system every resolver here reads, shared so an answer is
+    /// mapped by the layouts that produced it.
+    emitted: Emitted,
 }
 
 impl Resolvers {
     pub fn new(tsconfig: Option<String>, condition_names: Option<Vec<String>>) -> Self {
+        Self::over(tsconfig, condition_names, Emitted::default())
+    }
+
+    /// Resolvers that read the disk through `emitted`.
+    pub fn over(tsconfig: Option<String>, condition_names: Option<Vec<String>>, emitted: Emitted) -> Self {
         let options = ResolveOptions {
             extensions: MODULE_EXTENSIONS
                 .iter()
@@ -68,7 +89,7 @@ impl Resolvers {
             ..ResolveOptions::default()
         };
 
-        let modules = Resolver::new(options.clone());
+        let modules = Resolver::new_with_file_system(emitted.clone(), options.clone());
         // `cloneWithOptions` normalizes against OXC defaults; it does not merge
         // with the factory's current settings. The oracle supplies only an empty
         // extension alias, so the exact resolver intentionally has no tsconfig.
@@ -82,7 +103,9 @@ impl Resolvers {
             named: condition_names.is_some(),
             governed: RwLock::new(HashMap::new()),
             conditioned: Mutex::new(conditioned),
+            declarations: Mutex::new(HashMap::new()),
             canonical: Mutex::new(HashMap::new()),
+            emitted,
         }
     }
 
@@ -128,6 +151,34 @@ impl Resolvers {
         }))
     }
 
+    /// The declaration resolver beside `modules`: its options, with `.d.ts` as
+    /// the only extension and a nodenext `./context.js` read as
+    /// `./context.d.ts`. `clone_with_options` shares the cache.
+    fn declarations_for(&self, modules: &Resolver) -> Arc<Resolver> {
+        let options = modules.options();
+        let build = || {
+            Arc::new(modules.clone_with_options(ResolveOptions {
+                extensions: vec![".d.ts".to_owned()],
+                extension_alias: [(".js", ".d.ts"), (".mjs", ".d.mts"), (".cjs", ".d.cts")]
+                    .map(|(from, to)| (from.to_owned(), vec![to.to_owned()]))
+                    .to_vec(),
+                ..options.clone()
+            }))
+        };
+        let Ok(mut held) = self.declarations.lock() else {
+            return build();
+        };
+        Arc::clone(held.entry(options.condition_names.clone()).or_insert_with(build))
+    }
+
+    /// A declaration answers last, and only when nothing else was found: not
+    /// beside a module, a stylesheet or `.json`, and not for a request that a
+    /// package or a build's output answers. TypeScript tries `.d.ts` before
+    /// `.js`, and this parts from it: an edge to the stand-in would leave a
+    /// change to the `.js` a runtime loads reaching nothing, and `EMITTED`
+    /// orders a declaration's sources the same way. A declaration inside a
+    /// build's output never answers here, so the answer is the same whether the
+    /// build ran or not.
     pub fn resolve(
         &self,
         root: &Path,
@@ -137,32 +188,62 @@ impl Resolvers {
     ) -> Option<String> {
         let request = request_of(written)?;
         let modules = self.modules_for(from);
+        let mut elsewhere = false;
         for resolver in [modules.as_ref(), &self.exact] {
             let Ok(answer) = resolver.resolve_file(from, request) else {
                 continue;
             };
-            let resolved = answer.path();
-            if let Some(file) = to_repo_path(root, resolved) {
-                if known.is_some_and(|paths| paths.contains_key(&file)) {
-                    if !case_folded(request, resolved) {
-                        return Some(file);
-                    }
-                    continue;
-                }
-            }
-            let canonical = self.canonical(resolved);
-            if case_folded(request, &canonical) {
-                continue;
-            }
-            if let Some(file) = to_repo_path(root, &canonical) {
-                return Some(file);
+            match self.land(root, request, answer.path(), known) {
+                Landing::File(file) => return Some(file),
+                Landing::Elsewhere => elsewhere = true,
+                Landing::Folded => {}
             }
         }
-        None
+        if elsewhere {
+            return None;
+        }
+        let answer = self.declarations_for(&modules).resolve_file(from, request).ok()?;
+        let path = answer.path();
+        let declared = path.file_name().and_then(|name| name.to_str()).is_some_and(|name| {
+            DECLARATION_SUFFIXES.iter().any(|suffix| name.len() > suffix.len() && name.ends_with(suffix))
+        });
+        if !declared || !matches!(self.emitted.origin(path), Origin::Disk) {
+            return None;
+        }
+        match self.land(root, request, path, known) {
+            Landing::File(file) => Some(file),
+            Landing::Elsewhere | Landing::Folded => None,
+        }
+    }
+
+    /// Where a path a resolver found lands: a repository file, somewhere a scan
+    /// records nothing, or a file that only matched because the disk ignores case.
+    fn land(&self, root: &Path, request: &str, path: &Path, known: Option<&HashMap<String, u32>>) -> Landing {
+        let resolved = match self.emitted.origin(path) {
+            Origin::Source(source) if self.emitted.vouched(&source) => Cow::Owned(source),
+            // The resolver never saw the source, so a link there is read
+            // where it points, as an import of it would be.
+            Origin::Source(source) => Cow::Owned(self.canonical(&source)),
+            Origin::Nowhere => return Landing::Elsewhere,
+            Origin::Disk | Origin::Directory => Cow::Borrowed(path),
+        };
+        let resolved = resolved.as_ref();
+        if let Some(file) = to_repo_path(root, resolved, known) {
+            if known.is_some_and(|paths| paths.contains_key(&file)) {
+                return if case_folded(request, resolved) { Landing::Folded } else { Landing::File(file) };
+            }
+        }
+        let canonical = self.canonical(resolved);
+        if case_folded(request, &canonical) {
+            return Landing::Folded;
+        }
+        to_repo_path(root, &canonical, known).map_or(Landing::Elsewhere, Landing::File)
     }
 
     /// What the resolver found for a request, manifest included: the answer
-    /// `resolve` reduces to a repository path.
+    /// `resolve` reduces to a repository path before it asks for a
+    /// declaration. Its path may name built output that is not on disk, which
+    /// `resolve` reads as its source.
     pub fn resolution(&self, from: &Path, request: &str) -> Option<oxc_resolver::Resolution> {
         let request = request_of(request)?;
         let modules = self.modules_for(from);
@@ -186,17 +267,31 @@ impl Resolvers {
     }
 }
 
+/// A specifier as a resolvable request, cut at a build tool's `?` or `#`
+/// suffix. A leading `#` is a subpath import the `imports` field maps, not a
+/// fragment, and `specifier.ts` `requestOf` draws the same line.
 pub fn request_of(value: &str) -> Option<&str> {
     let trimmed = value.trim();
     if trimmed.is_empty() || trimmed.starts_with("data:") || trimmed.starts_with("node:") {
         return None;
     }
-    let cut = [trimmed.find('?'), trimmed.find('#')]
+    let fragment = trimmed.char_indices().skip(1).find(|&(_, c)| c == '#').map(|(at, _)| at);
+    let cut = [trimmed.find('?'), fragment]
         .into_iter()
         .flatten()
         .min()
         .unwrap_or(trimmed.len());
     (cut > 0).then(|| &trimmed[..cut])
+}
+
+/// Where a found path lands.
+enum Landing {
+    File(String),
+    /// Outside the repository, under an excluded directory, or built output
+    /// with no source: found, and not a file a scan records.
+    Elsewhere,
+    /// A different name that matched only because the disk ignores case.
+    Folded,
 }
 
 fn case_folded(request: &str, resolved: &Path) -> bool {
@@ -214,29 +309,41 @@ fn case_folded(request: &str, resolved: &Path) -> bool {
 }
 
 fn stem(name: &str) -> &str {
+    let declared = DECLARATION_SUFFIXES.iter().find_map(|suffix| name.strip_suffix(suffix));
+    if let Some(stem) = declared.filter(|stem| !stem.is_empty()) {
+        return stem;
+    }
     match name.rfind('.') {
         Some(0) | None => name,
         Some(at) => &name[..at],
     }
 }
 
-fn to_repo_path(root: &Path, absolute: &Path) -> Option<String> {
+/// Where `absolute` sits in the repository, or nothing when it is outside the
+/// checkout or under a directory the scan declines. A `build/` is declined
+/// unless `known`, Git's listing, holds the file: the evidence the seeder
+/// reads, so an import lands on every file a scan would read and on nothing
+/// the disk alone put there.
+fn to_repo_path(root: &Path, absolute: &Path, known: Option<&HashMap<String, u32>>) -> Option<String> {
     let relative = absolute.strip_prefix(root).ok()?;
     if relative.as_os_str().is_empty() {
         return None;
     }
     let mut parts = Vec::new();
+    let mut only_listed = false;
     for component in relative.components() {
         let Component::Normal(part) = component else {
             return None;
         };
         let part = part.to_str()?;
-        if crate::path::excluded(part) {
+        if crate::path::excluded_when_listed(part) {
             return None;
         }
+        only_listed |= crate::path::excluded(part);
         parts.push(part);
     }
-    Some(parts.join("/"))
+    let file = parts.join("/");
+    (!only_listed || known.is_some_and(|paths| paths.contains_key(&file))).then_some(file)
 }
 
 #[cfg(test)]
@@ -247,5 +354,51 @@ mod tests {
     fn strips_build_suffixes() {
         assert_eq!(request_of(" ./button.ts?raw#x "), Some("./button.ts"));
         assert_eq!(request_of("node:fs"), None);
+    }
+
+    #[test]
+    fn a_build_directory_is_source_where_git_lists_it() {
+        let root = std::env::temp_dir().join(format!("sense-listed-build-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for (path, text) in [
+            ("src/commands/b.ts", "import './build/a';\n"),
+            ("src/commands/build/a.ts", "export {};\n"),
+            ("src/commands/dist/c.ts", "export {};\n"),
+        ] {
+            std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+            std::fs::write(root.join(path), text).unwrap();
+        }
+        let root = std::fs::canonicalize(root).unwrap();
+        let from = root.join("src/commands/b.ts");
+        let listed = HashMap::from([
+            ("src/commands/b.ts".to_owned(), 0),
+            ("src/commands/build/a.ts".to_owned(), 1),
+            ("src/commands/dist/c.ts".to_owned(), 2),
+        ]);
+        let unlisted = HashMap::from([("src/commands/b.ts".to_owned(), 0)]);
+        let resolvers = Resolvers::new(None, None);
+        let ask = |request, known| resolvers.resolve(&root, &from, request, known);
+        assert_eq!(ask("./build/a", Some(&listed)), Some("src/commands/build/a.ts".to_owned()));
+        assert_eq!(ask("./build/a", Some(&unlisted)), None);
+        assert_eq!(ask("./build/a", None), None);
+        assert_eq!(ask("./dist/c", Some(&listed)), None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_declaration_stem_drops_the_whole_suffix() {
+        assert_eq!(stem("context.d.ts"), "context");
+        assert_eq!(stem("context.d.mts"), "context");
+        assert_eq!(stem("context.ts"), "context");
+        assert_eq!(stem(".d.ts"), ".d");
+        assert!(case_folded("./Context", Path::new("/src/context.d.ts")));
+        assert!(!case_folded("./context", Path::new("/src/context.d.ts")));
+    }
+
+    #[test]
+    fn keeps_a_subpath_import() {
+        assert_eq!(request_of("#polyfill"), Some("#polyfill"));
+        assert_eq!(request_of("#internal/a.js?raw#x"), Some("#internal/a.js"));
+        assert_eq!(request_of("#"), Some("#"));
     }
 }

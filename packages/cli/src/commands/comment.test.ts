@@ -157,6 +157,19 @@ describe('renderComment', () => {
     expect(body).toContain('in `main → list item 2 of 3`');
   });
 
+  it('shows the count and the leading cause first, and folds the docket whole', () => {
+    // A notification is opened on a phone. The first screen answers what moved
+    // and why; every cause and what painted the images stay in the body, one
+    // element away, because nothing here is capped silently.
+    const body = renderComment({ report: tokenChange(1) });
+    const fold = body.indexOf('<details>');
+
+    expect(body.indexOf('Cause: **`Toggle`** at `src/ds/components.tsx:107`')).toBeLessThan(fold);
+    expect(body.indexOf('### Causes')).toBeGreaterThan(fold);
+    expect(body.indexOf('playwright-chromium')).toBeGreaterThan(fold);
+    expect(body.trimEnd().endsWith('</details>')).toBe(true);
+  });
+
   it('carries a stable marker so the poster updates its own comment', () => {
     // Without it the poster cannot tell its previous comment from anyone else's,
     // and a new comment per run buries the current state under a history nobody
@@ -296,7 +309,7 @@ describe('renderComment', () => {
     );
 
     const body = renderComment({ report: many, limits: { causes: 5 } });
-    expect(body).toContain('20 further cause(s) reaching 20 subject(s)');
+    expect(body).toContain('20 more cause(s) reaching 20 subject(s)');
   });
 
   it('cuts an over-long body to fit and states how much it cut', () => {
@@ -391,6 +404,22 @@ describe('renderComment', () => {
     expect(renderComment({ report: tokenChange(1) })).not.toContain('Full report and images');
   });
 
+  it('states the step the reviewer takes next above the fold, in the operator\'s words', () => {
+    // A reviewer on a pull request has no report on disk, so the command-line
+    // fallback gives way to the link, and accepting is where this repository
+    // says it is. Both come before the docket, which is folded.
+    const body = renderComment({
+      report: tokenChange(1),
+      runUrl: 'https://example.invalid/page',
+      toAccept: 'dispatch **variance** on `main`',
+    });
+    expect(body).toContain('To accept: dispatch **variance** on `main`');
+    expect(body.indexOf('To accept')).toBeLessThan(body.indexOf('<details>'));
+    expect(body).not.toContain('variance report --subject');
+    expect(renderComment({ report: tokenChange(1) })).toContain('variance report --subject');
+    expect(renderComment({ report: tokenChange(1) })).not.toContain('To accept');
+  });
+
   it('carries the drift total to the reviewer who is about to approve the next step', () => {
     // The finding no comparison on this pull request can reach. Each of the
     // eleven approvals was correct about the 2px it saw; the 8px is a sum, and
@@ -448,6 +477,6 @@ describe('renderComment', () => {
       limits: { drift: 4 },
     });
 
-    expect(body).toContain('8 further drifted token(s) are not listed here');
+    expect(body).toContain('8 more drifted token(s) in the run report');
   });
 });

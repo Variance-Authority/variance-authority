@@ -1,0 +1,5 @@
+---
+'@variance-authority/store': patch
+---
+
+`createDirectoryLineCell` compares each segment of a line's name with the name the volume stores. On a volume that treats two spellings as one name, such as the default volume on macOS or Windows, branches `Feature` and `feature` are two lines and one directory. A line that finds its directory only through another spelling is absent: `load` answers `{ kind: 'absent' }`, and so does `blob` for an entry path, so `readLine` answers `absent` too. `store` refuses the line with a detail that names it, the segment as the line spells it, and the spelling the volume stores, so `publishLine` answers `refused` instead of replacing the other line's entries. `store` checks after it makes the directory, so when two writers publish both spellings at once, in one process or in two, one is written and the other is refused. On a case-sensitive volume the two branches are still two lines. An image path is read under any spelling, because every line shares the images. The check costs one `readdir` for each segment of the name, on each read that finds a manifest or an entry and on each write.

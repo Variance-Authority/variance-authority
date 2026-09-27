@@ -27,10 +27,11 @@ import type { InstrumentMode } from '../instrument/index.js';
 import { defaultInclude } from './instrumented-modules.js';
 import { carriedJournal, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
-import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
-import { testCoverageFile } from './index.js';
+import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
+import { askedForStories } from '../story/directory.js';
 
 export interface RstestTestSelectionOptions {
   /**
@@ -41,6 +42,12 @@ export interface RstestTestSelectionOptions {
   readonly root?: string;
   /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
+  /**
+   * The suite this run is, as the root `variance.config.json` declares it under
+   * `suites`. Required once any suite is declared, and refused beside
+   * `coverageFile`.
+   */
+  readonly suite?: string;
   /** Decide which bundled modules are product source. */
   readonly include?: (file: string) => boolean;
   /**
@@ -102,6 +109,24 @@ export interface RstestFileResult {
   readonly project?: string;
 }
 
+/** What `onTestRunEnd` is handed: `rerunTestPaths` is there only when Rstest watches. */
+interface RstestRunEnd {
+  readonly results: readonly RstestFileResult[];
+  readonly rerunTestPaths?: readonly string[];
+}
+
+/**
+ * The files the cycle that just ended ran. A watching Rstest hands every file
+ * of the session in `results`, and the ones this cycle ran in `rerunTestPaths`:
+ * a file that did not run this cycle wrote no journal to fold.
+ */
+function cycleResults(run: SelectionRun, payload: RstestRunEnd): readonly RstestFileResult[] {
+  if (payload.rerunTestPaths === undefined) return payload.results;
+  run.watching = true;
+  const ran = new Set(payload.rerunTestPaths);
+  return payload.results.filter((file) => ran.has(file.testPath));
+}
+
 /** The subset of an Rstest configuration this seam reads and rewrites. */
 export interface RstestConfig {
   readonly root?: string;
@@ -147,9 +172,7 @@ export function withTestSelection(
 ): RstestConfig {
   const configRoot = resolve(options.root ?? config.root ?? process.cwd());
   const root = repositoryRoot(configRoot);
-  const coverageFile = options.coverageFile === undefined
-    ? testCoverageFile(root)
-    : resolve(configRoot, options.coverageFile);
+  const coverageFile = recordFileFor(root, configRoot, options);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
 
@@ -194,14 +217,18 @@ export function withTestSelection(
     : resolve(configRoot, options.executionFile);
   const settle = foldRun(run, { coverageFile, executionFile, shims: [setupId] });
   const reporter = {
-    onTestRunEnd: (payload: { readonly results: readonly RstestFileResult[] }) => settle(
-      payload.results.map((file) => ({
+    // A watching Rstest starts every cycle here, after the last cycle's end.
+    onTestRunStart: () => reopenRun(run),
+    onTestRunEnd: (payload: RstestRunEnd) => settle(
+      cycleResults(run, payload).map((file) => ({
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
       })),
     ),
+    // A watching run kept its shim for the cycles after the first.
+    onExit: () => removeSeamModules(run, [setupId]),
   };
   const reporters = config.reporters === undefined ? ['default'] : array(config.reporters);
 
@@ -226,11 +253,13 @@ export function withTestSelection(
     // module finds the probe log its header resolves.
     setupFiles: [
       writeSeamModule(
+        run,
         setupId,
         setupSource(run.runDirectory, run.caseDirectory, {
           runner: RSTEST_API,
           continuations: options.continuations === true,
           scope,
+          story: askedForStories(coverageFile),
         }),
       ),
       ...setupFiles,
@@ -283,7 +312,7 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
     name: 'variance-authority:test-selection',
     setup(api: RsbuildPluginApi): void {
       if (api.useExposed('rstest')?.getRstestConfig().browser?.enabled !== true) return;
-      writeSeamModule(setupId, browserSetupSource(mode, RSTEST_API));
+      writeSeamModule(run, setupId, browserSetupSource(mode, RSTEST_API));
       // TODO: record cases in a page — a drain per test, carried on each
       // test's `meta` as the file's is.
       if (run.cases) {

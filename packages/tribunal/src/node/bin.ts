@@ -8,11 +8,13 @@ import { createDirectoryBucket } from './bucket.js';
 import { openDatabase, type TribunalDatabase } from './database.js';
 import { serveTribunal, type TribunalService } from './serve.js';
 import { createTribunal } from '../worker.js';
+import type { Capability } from '../next.js';
 
 /**
  * `variance-authority-tribunal` — the thing the operator runs.
  *
- * A process, a port, a file, a directory and two tokens. The same review
+ * A process, a port, a file, a directory and two tokens, or three when something
+ * only reads the share. The same review
  * service a Cloudflare deployment serves, with SQLite where D1 was and a
  * directory where R2 was; every route, every refusal and every status code is
  * the same code.
@@ -46,6 +48,7 @@ export const STORAGE_VARIABLE = 'VARIANCE_TRIBUNAL_STORAGE';
 export const PROJECT_VARIABLE = 'VARIANCE_TRIBUNAL_PROJECT';
 export const INGEST_TOKEN_VARIABLE = 'VARIANCE_TRIBUNAL_INGEST_TOKEN';
 export const REVIEW_TOKEN_VARIABLE = 'VARIANCE_TRIBUNAL_REVIEW_TOKEN';
+export const SHARE_TOKEN_VARIABLE = 'VARIANCE_TRIBUNAL_SHARE_TOKEN';
 export const RETENTION_VARIABLE = 'VARIANCE_TRIBUNAL_RETENTION_DAYS';
 export const REVIEWER_VARIABLE = 'VARIANCE_TRIBUNAL_REVIEWER';
 export const TRUST_NETWORK_VARIABLE = 'VARIANCE_TRIBUNAL_TRUST_NETWORK';
@@ -68,6 +71,8 @@ export interface TribunalConfig {
   readonly project: string;
   readonly ingestToken: string;
   readonly reviewToken: string;
+  /** Reads the share and nothing else. Absent when the variable is unset. */
+  readonly shareToken?: string;
   readonly retentionDays?: number;
   readonly reviewer: string;
   /**
@@ -87,27 +92,28 @@ export interface TribunalConfig {
  * tested once, by hand, before it is weakened.
  */
 export function readConfig(env: Readonly<Record<string, string | undefined>>): TribunalConfig {
+  // The project scopes every row and every object key, so one deployment can
+  // serve several repositories without their `story:card` colliding. There is no
+  // default on purpose: an invented one puts two projects' baselines in one
+  // namespace, and the first symptom is every subject reporting `changed` at once.
   const project = (env[PROJECT_VARIABLE] ?? '').trim();
   if (project === '') {
     throw new Error(
-      `${PROJECT_VARIABLE} is not set. It scopes every row and every object key, so one ` +
-        'deployment can serve several repositories without their `story:card` colliding. There ' +
-        'is no default on purpose: an invented one puts two projects\' baselines in one ' +
-        'namespace, and the first symptom is every subject reporting `changed` at once.',
+      `${PROJECT_VARIABLE} is not set. It scopes every row and every object key, and has no default.`,
     );
   }
 
   const host = orDefault(env[HOST_VARIABLE], DEFAULT_HOST);
   const loopback = LOOPBACK.has(host);
+  // This service has bearer tokens and no accounts, no TLS and no rate limit, so
+  // a network bind is a decision somebody should have typed. The review surface
+  // is not served on one, because nothing would stand between it and an approve
+  // button on the internet.
   if (!loopback && orDefault(env[TRUST_NETWORK_VARIABLE], '') === '') {
     throw new Error(
-      `${HOST_VARIABLE} is "${host}", which is reachable from outside this machine, and ` +
-        `${TRUST_NETWORK_VARIABLE} is not set. This service has bearer tokens and no accounts, ` +
-        'no TLS and no rate limit, so a network bind is a decision somebody should have typed. ' +
-        `Set ${TRUST_NETWORK_VARIABLE}=1 to confirm it — and read what it costs: the review ` +
-        'surface is not served on a network bind, because there would be nothing between it and ' +
-        'an approve button on the internet. Put the Next.js adapter behind your own sign-in ' +
-        'instead, or leave this on loopback behind a reverse proxy that authenticates.',
+      `${HOST_VARIABLE}=${host} is not loopback; set ${TRUST_NETWORK_VARIABLE}=1 to allow it. ` +
+        'The review UI is not served on a network bind: put the Next.js adapter behind your own ' +
+        'sign-in, or stay on loopback behind a reverse proxy that authenticates.',
     );
   }
 
@@ -141,6 +147,7 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
     // it to be relaxed.
     ingestToken: env[INGEST_TOKEN_VARIABLE] ?? '',
     reviewToken: env[REVIEW_TOKEN_VARIABLE] ?? '',
+    ...(env[SHARE_TOKEN_VARIABLE] === undefined ? {} : { shareToken: env[SHARE_TOKEN_VARIABLE] }),
     ...(retentionDays === undefined ? {} : { retentionDays }),
     reviewer: orDefault(env[REVIEWER_VARIABLE], defaultReviewer()),
   };
@@ -157,7 +164,8 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
  * Three rules, in order:
  *
  * 1. **A caller holding a token gets what the token is for.** CI posts with the
- *    ingest token from wherever CI runs. The mount replaces the header before the
+ *    ingest token from wherever CI runs, and a machine that only reads the share
+ *    presents the share token. The mount replaces the header before the
  *    Worker sees it, so this is the only place the caller's own bearer is read.
  * 2. **On a loopback bind, a caller with no token reviews.** The socket is the
  *    gate: only this machine can reach it, and the person at this machine is the
@@ -165,12 +173,13 @@ export function readConfig(env: Readonly<Record<string, string | undefined>>): T
  * 3. **On a network bind, no token is no capability** — and the surface is not
  *    served at all, so there is no page to be tricked into carrying one.
  */
-export function authorizeFor(config: TribunalConfig): (request: Request) => 'ingest' | 'review' | null {
+export function authorizeFor(config: TribunalConfig): (request: Request) => Capability | null {
   return (request: Request) => {
     const bearer = bearerOf(request);
     if (bearer !== null) {
       if (bearer === config.ingestToken) return 'ingest';
       if (bearer === config.reviewToken) return 'review';
+      if (config.shareToken !== undefined && bearer === config.shareToken) return 'share';
       return null;
     }
     return config.loopback ? 'review' : null;
@@ -211,6 +220,7 @@ export async function start(
       project: config.project,
       ingestToken: config.ingestToken,
       reviewToken: config.reviewToken,
+      ...(config.shareToken === undefined ? {} : { shareToken: config.shareToken }),
       ...(config.retentionDays === undefined ? {} : { retentionDays: config.retentionDays }),
     });
 
@@ -219,7 +229,11 @@ export async function start(
       host: config.host,
       port: config.port,
       authorize: authorizeFor(config),
-      tokens: { ingest: config.ingestToken, review: config.reviewToken },
+      tokens: {
+        ingest: config.ingestToken,
+        review: config.reviewToken,
+        ...(config.shareToken === undefined ? {} : { share: config.shareToken }),
+      },
       ui: config.loopback,
       reviewer: config.reviewer,
     });
@@ -240,7 +254,9 @@ export async function start(
           ? `served at ${service.url} — this bind is reachable only from this machine`
           : `not served: ${HOST_VARIABLE} is a network address. The JSON API is up and wants a bearer token`
       }\n` +
-      `  auth:     bearer tokens from ${INGEST_TOKEN_VARIABLE} and ${REVIEW_TOKEN_VARIABLE}\n`,
+      `  auth:     bearer tokens from ${INGEST_TOKEN_VARIABLE} and ${REVIEW_TOKEN_VARIABLE}` +
+      (config.shareToken === undefined ? '' : `, and a share reader's from ${SHARE_TOKEN_VARIABLE}`) +
+      '\n',
   );
 
   return {
@@ -296,15 +312,12 @@ export function readArguments(argv: readonly string[]): string | null {
   const flag = given.split('=')[0] as string;
   const variable = AS_VARIABLE[flag];
 
+  // Configured by environment, because a service is started by a supervisor, a
+  // unit file or a container, and all three pass one.
   throw new Error(
     variable === undefined
-      ? `this service takes no arguments and received \`${given}\`. It is configured by ` +
-          `environment, because a service is started by a supervisor, a unit file or a ` +
-          `container, and all three pass one.\n\n${USAGE}`
-      : `\`${flag}\` is ${variable}, and this service is configured by environment rather ` +
-          `than by flags. Accepting the flag and ignoring it would start the service against ` +
-          `the default instead — for ${DATABASE_VARIABLE}, an empty database in the working ` +
-          `directory, reported as a successful start.\n\n${USAGE}`,
+      ? `this service takes no arguments and received \`${given}\`; it is configured by environment.\n\n${USAGE}`
+      : `\`${flag}\` is ${variable}; this service is configured by environment, not flags.\n\n${USAGE}`,
   );
 }
 
@@ -326,6 +339,7 @@ const VARIABLES: readonly (readonly [string, string])[] = [
   [PROJECT_VARIABLE, 'required — scopes every row and every object key'],
   [INGEST_TOKEN_VARIABLE, 'required — what CI pushes with'],
   [REVIEW_TOKEN_VARIABLE, 'required — what a person decides with'],
+  [SHARE_TOKEN_VARIABLE, 'optional — what a machine reads the share with'],
   [DATABASE_VARIABLE, `the SQLite file (default ${DEFAULT_DATABASE})`],
   [STORAGE_VARIABLE, `where images are kept (default ${DEFAULT_STORAGE})`],
   [PORT_VARIABLE, `default ${DEFAULT_PORT}`],

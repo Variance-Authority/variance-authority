@@ -39,6 +39,7 @@ const CONCEPTS: readonly Concept[] = [
   { name: 'lexicon', pattern: /\blexicon\b/i, owner: 'docs/lexicon.md' },
   { name: 'polyglot', pattern: /\bpolyglot\b/i, owner: 'docs/polyglot.md' },
   { name: 'runtime scenario', pattern: /\bruntime scenarios?\b/i, owner: 'docs/scenarios.md' },
+  { name: 'great green dragon rule', pattern: /\bgreat green dragon\b/i, owner: 'docs/variations.md' },
 ];
 
 const PUBLIC_PAGES = MARKDOWN.filter((file) => /^docs\/[^/]+\.md$/.test(file))

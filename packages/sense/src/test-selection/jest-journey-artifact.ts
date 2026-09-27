@@ -11,12 +11,17 @@ interface PendingJourneyRun {
   readonly root: string;
   readonly stores: readonly string[];
   readonly instrumentation: string;
+  /** Directories of part frames written beyond a fence; absent in a run that has none. */
+  readonly parts?: readonly string[];
+  /** Where the inventories those parts name are kept. */
+  readonly partStores?: readonly string[];
 }
 
 /**
- * What finalizing or stitching a journey artifact wrote, as counts. `passes`
- * comes from a finalize and `shards` from a stitch; each is absent from the
- * other.
+ * What finalizing or stitching a journey artifact wrote, as counts, and what
+ * it could not charge to a case, by name. `passes` comes from a finalize and
+ * `shards` from a stitch; each is absent from the other. The names are the
+ * ones the artifact carries, which `journeyGaps` reads back.
  */
 export interface JourneyArtifactResult {
   readonly tests: number;
@@ -30,6 +35,23 @@ export interface JourneyArtifactResult {
    * either build recorded and never misses a case that ran a changed line.
    */
   readonly renumbered: readonly string[];
+  /**
+   * Modules a case ran that no record holds. What ran there is in no region,
+   * so a change to them selects nothing. Absent from a stitch of a shard that
+   * does not carry them.
+   */
+  readonly unrecorded?: readonly string[];
+  /**
+   * Part files that ran code under no journey a case handed out. What they
+   * ran is charged to no case, so a change there selects nothing.
+   */
+  readonly unclaimed?: readonly string[];
+  /**
+   * Heads that wrote parts in the run before and none in this one: the
+   * artifact the finalize replaced is the run before. Absent when there was
+   * none to compare with, which is not a finding.
+   */
+  readonly silent?: readonly string[];
 }
 
 /** The retryable material Jest leaves for a post-run finalizer. */
@@ -71,7 +93,16 @@ export async function finalizeJestJourneys(journeyFile: string): Promise<Journey
       `finalizing journey coverage requires the Sense native addon: ${whyAbsent('foldJourneyTo')}`,
     );
   }
-  const result = foldTo(cases, manifest.root, [...manifest.stores], manifest.instrumentation, output);
+  const result = foldTo(
+    cases,
+    manifest.root,
+    [...manifest.stores],
+    manifest.instrumentation,
+    output,
+    undefined,
+    [...manifest.parts ?? []],
+    [...manifest.partStores ?? []],
+  );
   await rm(pending, { recursive: true, force: true });
   return result;
 }

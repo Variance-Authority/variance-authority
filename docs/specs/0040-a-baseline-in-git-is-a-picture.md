@@ -114,7 +114,7 @@ interface RecordStore {
 ## 3. A cold record costs approval, and never costs comparison
 
 What a lone image still supplies, with nothing added to any format: `identity`,
-from the `v1:<32 hex>` directory it sits in; `width` and `height`, from the IHDR,
+from the `v1-<32 hex>` directory it sits in; `width` and `height`, from the IHDR,
 with an eight-byte reader for exactly this already shipping at
 `packages/png/src/size.ts:26`; and `pictured`, because there are pixels.
 

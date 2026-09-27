@@ -68,7 +68,22 @@ export interface Parsed {
   readonly declares?: readonly string[];
   /** What the file mocks and loads for real, as `mockTaint` reads it. Absent when it does neither. */
   readonly mocks?: ImportDiff;
+  /**
+   * The names this file reads off a module it holds whole — a namespace import,
+   * or an `import()` — which the request's `bindings` cannot say. A listing of
+   * where a name is used, never a selection input. Absent when there are none,
+   * and absent from any reader but the native one.
+   */
+  readonly members?: readonly Member[];
   readonly unknown?: string;
+}
+
+/** One name read through a request that took the module whole. */
+export interface Member {
+  /** The index, in the same parse's `requests`, of the request the name is read through. */
+  readonly request: number;
+  readonly name: string;
+  readonly line: number;
 }
 
 /** Content-addressed parses used by a scan and by consumers sharing its work. */

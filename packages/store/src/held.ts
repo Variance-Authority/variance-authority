@@ -4,7 +4,7 @@ import { readdir } from 'node:fs/promises';
 import { basename, join, relative, sep } from 'node:path';
 import type { Digest } from '@variance-authority/core/format';
 import { orAbsent } from './absent.js';
-import { IDENTITY_DIRECTORY } from './placement.js';
+import { identityOfPartition } from './placement.js';
 
 /**
  * What a file-backed store holds and the plan did not name (ADR-0063).
@@ -36,10 +36,11 @@ export async function held(
  * One walk serves both layouts: `flat` puts the identity partitions directly
  * under the root and `beside` scatters them among the subjects' own
  * directories, and in both cases the thing being looked for is a directory
- * named for this digest with records directly inside it. A directory that is
- * some *other* machine's partition is not descended into — its contents are
- * baselines this run is not entitled to an opinion about — and a directory that
- * is not a partition at all is a `beside` subject folder, so it is.
+ * named for this digest — in either spelling `placement.ts` reads — with
+ * records directly inside it. A directory that is some *other* machine's
+ * partition is not descended into — its contents are baselines this run is not
+ * entitled to an opinion about — and a directory that is not a partition at all
+ * is a `beside` subject folder, so it is.
  *
  * `by-document` is the render cache, which lives inside the identity partition
  * when the cache root was not split off. It is not read here for the same
@@ -59,14 +60,15 @@ async function records(root: string, digest: Digest): Promise<readonly string[]>
   for (const entry of entries) {
     const path = join(root, entry.name);
     if (!entry.isDirectory()) continue;
-    if (entry.name === digest) {
+    const identity = identityOfPartition(entry.name);
+    if (identity === digest) {
       const inside = await orAbsent(() => readdir(path, { withFileTypes: true }), path);
       for (const record of inside ?? []) {
         if (record.isFile() && record.name.endsWith('.json')) found.push(join(path, record.name));
       }
       continue;
     }
-    if (IDENTITY_DIRECTORY.test(entry.name)) continue;
+    if (identity !== undefined) continue;
     found.push(...(await records(path, digest)));
   }
   return found;
@@ -88,7 +90,7 @@ async function records(root: string, digest: Digest): Promise<readonly string[]>
  */
 function nameOf(root: string, digest: Digest, path: string): string {
   const parts = relative(root, path.slice(0, -'.json'.length)).split(sep);
-  const named = parts.filter((part) => part !== digest);
+  const named = parts.filter((part) => identityOfPartition(part) !== digest);
   const leaf = named.at(-1) ?? basename(path);
   return [...named.slice(0, -1), decoded(leaf)].join('/');
 }

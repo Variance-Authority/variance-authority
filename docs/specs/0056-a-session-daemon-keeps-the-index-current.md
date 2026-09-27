@@ -79,6 +79,12 @@ whole segment or none.
 - **One per checkout.** A second start prints the first one's pid and exits 0. A
   worktree is a checkout of its own.
 - **Not in CI.** CI runs `variance index` once. It has no session to watch.
+- **At the session's priority.** Whatever starts it, whether a skill, a hook or
+  a launcher we ship, starts it at the priority of the process that asked. It
+  never uses `nice`, a background QoS, or a launchd `ProcessType` of
+  `Background`. Under `taskpolicy -c background` the addon reads 10–30× slower,
+  and the process can neither raise itself out of that clamp nor reliably detect
+  it (journal 0073). So the launcher is the only place this can be decided.
 
 ## 5. What the user sees
 
@@ -101,7 +107,8 @@ On the seven-Material-UI corpus, measured by
 `packages/sense/scripts/published-index.mjs` with a new row per case:
 
 1. One edited file is published within 250 ms of the write, measured from the
-   write to the new manifest.
+   write to the new manifest. This holds for a daemon started by the shipped
+   skill or hook, not only for one started by hand from a terminal.
 2. With nothing moving, the daemon uses under 1% of one core.
 3. A generation the daemon published equals the one `variance index` publishes
    over the same tree. This holds across the edit, add, delete, rename, checkout

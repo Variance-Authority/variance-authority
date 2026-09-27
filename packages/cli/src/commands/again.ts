@@ -161,19 +161,16 @@ export async function again(
       components: moved?.components ?? [],
       bands: moved?.bands ?? [],
       ...(absorbed !== undefined ? { absorbed } : {}),
+      // Unabsorbed, no comparison of this subject means anything until the
+      // instability is fixed: the next run may take the other reading.
       because:
-        'read twice in the same world, seconds apart, with nothing changed in between, ' +
-        `and the two readings disagree${describeMovement(moved)}. ` +
+        `two readings seconds apart, with nothing changed between, differ${describeMovement(moved)}. ` +
         (absorbed !== undefined
-          ? `Every band that moved is one this subject is not asserted on, by \`${absorbed.rule}\` ` +
-            `(${sensitivity?.reason ?? absorbed.level}), so this is a fact about the page rather ` +
-            'than a defect in it: nothing here gates, and nothing here is refused'
-          : 'The subject does not read the same way twice, so ' +
-            (verdict === 'changed'
-              ? 'its difference against the baseline is neither confirmed nor cleared'
-              : `its verdict of \`${verdict}\` was reached from one of two readings that do ` +
-                'not agree, and the next run may reach the other one') +
-            ' — no comparison of it means anything until that is fixed'),
+          ? `Every band that moved is not asserted on, by \`${absorbed.rule}\` ` +
+            `(${sensitivity?.reason ?? absorbed.level}); nothing gates and nothing is refused`
+          : verdict === 'changed'
+            ? 'Change neither confirmed nor cleared'
+            : `Its verdict of \`${verdict}\` came from one of two readings that disagree`),
     },
   };
 }
@@ -223,7 +220,7 @@ function movedBetween(
 /** The naming half of the sentence, absent when nothing could name it. */
 function describeMovement(moved: Movement | undefined): string {
   if (moved === undefined) {
-    return ' (no snapshot was collected, so the disagreement could not be resolved to a component)';
+    return ' (no snapshot collected; component unknown)';
   }
   if (moved.components.length === 0) {
     return moved.bands.length === 0 ? '' : ` in ${moved.bands.join(', ')}`;
@@ -235,5 +232,5 @@ function describeMovement(moved: Movement | undefined): string {
       component.file === undefined ? component.name : `${component.name} ${component.file}`,
     )
     .join(', ');
-  return `: ${named} read differently${bands}`;
+  return `: ${named}${bands}`;
 }

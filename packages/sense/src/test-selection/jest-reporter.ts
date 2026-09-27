@@ -21,13 +21,17 @@ import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
+import { askedForStories } from '../story/directory.js';
 import journalFormat from './journal-format.cjs';
 import { writeCaseIndex } from './case-fold.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
-import { layeredCoverage } from './format-layer.js';
+import { landRun } from './commit-runs.js';
+import { cacheRootFor, markCheckout } from './cache-layers.js';
+import { prunedLine, pruneWhenDue } from './prune.js';
+import { repositoryRoot } from './repository-root.js';
 import {
   codeUnitOrder,
   crossingsOf,
@@ -36,6 +40,7 @@ import {
   moduleNamesFile,
   projectPath,
   readRecords,
+  recordStores,
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
@@ -44,6 +49,7 @@ import {
   CASE_DIRECTORY_VARIABLE,
   CONTINUATIONS_VARIABLE,
   jestStore,
+  STORY_DIRECTORY_VARIABLE,
   RUN_DIRECTORY_VARIABLE,
   SELECTION_GLOBALS,
   SELECTION_SETUP,
@@ -51,7 +57,6 @@ import {
 } from './jest.js';
 import {
   seedTestCoverage,
-  writeCoverageBytes,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
@@ -90,6 +95,8 @@ interface JourneyReporterConfig {
   readonly journeyFile: string;
   readonly mode?: Parameters<typeof instrumentationId>[0];
   readonly continuations?: boolean;
+  readonly parts?: readonly string[];
+  readonly heads?: readonly string[];
 }
 
 type JestReporterConfig = SelectionReporterConfig | JourneyReporterConfig;
@@ -117,14 +124,14 @@ class JestCoverageReporter {
   }
 
   onRunStart(): void {
-    this.#runDirectory = resolve(
-      dirname('journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile),
-      `.run-${process.pid}-${randomUUID()}`,
-    );
+    const recordFile = 'journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile;
+    this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
     if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';
+    const stories = askedForStories(recordFile);
+    if (stories !== undefined) process.env[STORY_DIRECTORY_VARIABLE] = stories;
   }
 
   async onRunComplete(contexts: Iterable<JestTestContext>, results: JestRunResults): Promise<void> {
@@ -134,6 +141,7 @@ class JestCoverageReporter {
     delete process.env[RUN_DIRECTORY_VARIABLE];
     delete process.env[CASE_DIRECTORY_VARIABLE];
     delete process.env[CONTINUATIONS_VARIABLE];
+    delete process.env[STORY_DIRECTORY_VARIABLE];
     this.#runDirectory = undefined;
     this.#caseDirectory = undefined;
 
@@ -150,6 +158,11 @@ class JestCoverageReporter {
         root,
         stores,
         instrumentation,
+        parts: this.#config.parts ?? [],
+        partStores: [
+          ...(this.#config.parts ?? []),
+          ...(this.#config.heads ?? []).flatMap((label) => recordStores(root, label)),
+        ],
       });
       return;
     }
@@ -197,7 +210,7 @@ class JestCoverageReporter {
     // lock, because a merge that landed while the numbering was still deciding
     // would describe modules the table had not agreed on yet.
     const merged = await withIndexLock(coverageFile, async (lock) => {
-      await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+      await landRun(coverageFile, current, root);
       // Everything this run saw, numbered for the next one. A file first met
       // today was instrumented under its path; from here on it has a number.
       await nameModules(
@@ -205,6 +218,7 @@ class JestCoverageReporter {
         [...modules.values()].map((module) => module.file),
         lock,
       );
+      markCheckout(repositoryRoot(root));
     });
     if (!merged.held) noteABusyIndex(coverageFile);
     // A run that finished test files and placed no module at all is a seam that
@@ -223,6 +237,9 @@ class JestCoverageReporter {
       await rm(caseDirectory, { recursive: true, force: true });
     }
     await rm(runDirectory, { recursive: true, force: true });
+    // After the lock is released, and at most once a day: see `prune.ts`.
+    const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));
+    if (pruned !== '') console.warn(pruned);
   }
 }
 

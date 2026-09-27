@@ -29,8 +29,7 @@ Subjects the diff cannot reach are ruled out by name, with the reason:
 
 ```
 [not observed] story:checkout--summary
-not affected by the diff against origin/main: its baseline records 4 component(s)
-and this diff touched none of them (Button, Badge, Toggle)
+not affected by the diff against origin/main: none of its 4 components touched
 ```
 
 Of the subjects that survive that cut, one whose document digest equals the
@@ -63,7 +62,7 @@ variance run --flakes
 ```
 
 ```
-[unstable] story:case-surface--ticking: … Clock src/ds.jsx:118 read differently
+[unstable] story:case-surface--ticking: … differ: Clock src/ds.jsx:118
   (geometry, token, content)
 ```
 
