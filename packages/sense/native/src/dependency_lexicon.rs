@@ -4,8 +4,7 @@
 //! the resolver owns availability. This corpus has its own file and cadence:
 //! unchanged declaration graphs are retained when the source index moves.
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{fs, path::{Path, PathBuf}};
 use std::sync::{Arc, OnceLock};
 use dashmap::DashMap;
 use napi_derive::napi;
@@ -16,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use crate::read::read_module;
 use crate::resolve::Resolvers;
+#[path = "dependency_lexicon_boundary.rs"] mod boundary;
 #[path = "dependency_lexicon_query.rs"]
 mod query;
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -185,8 +185,9 @@ fn descendants(directory: &Path) -> Vec<PathBuf> {
     while let Some(current) = pending.pop() {
         let Ok(entries) = fs::read_dir(current) else { continue };
         for entry in entries.flatten() {
+            if entry.file_type().is_ok_and(|kind| kind.is_symlink()) { continue; }
             let path = entry.path();
-            if path.is_dir() { pending.push(path); } else { files.push(path); }
+            if path.is_dir() && entry.file_name() != "node_modules" { pending.push(path); } else if path.is_file() { files.push(path); }
         }
     }
     files
@@ -234,7 +235,7 @@ fn openings(directory: &Path, package: &str, manifest: &serde_json::Value) -> (B
 }
 
 struct Reader<'a> {
-    root: &'a Path,
+    root: &'a Path, package: Option<PathBuf>,
     resolver: &'a Resolvers,
     cache: HashMap<PathBuf, Vec<Name>>,
     stack: HashSet<PathBuf>,
@@ -340,11 +341,11 @@ impl Reader<'_> {
 
     fn target(&mut self, from: &Path, specifier: &str) -> Option<PathBuf> {
         let answer = self.resolver.declaration_resolution(from, specifier)?;
+        if !boundary::permits(self.package.as_deref(), answer.package_json().map(|manifest| manifest.path()), answer.path(), specifier) { return None; }
         if let Some(manifest) = answer.package_json() { self.sources.insert(manifest.path().to_owned()); }
         Some(answer.path().to_owned())
     }
 }
-
 fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Resolvers, previous: Option<&Api>) -> (Api, bool) {
     let runtime_resolution = resolver.resolution(importer, specifier);
     let declaration_resolution = resolver.declaration_resolution(importer, specifier);
@@ -362,7 +363,7 @@ fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Resolvers, prev
     if let Some(prior) = previous.filter(|prior| unchanged(root, prior, &runtime, &declarations, &entrypoint)) {
         return (prior.clone(), true);
     }
-    let mut reader = Reader { root, resolver, cache: HashMap::new(), stack: HashSet::new(), sources: BTreeSet::new() };
+    let mut reader = Reader { root, package: declaration.package_json().map(|manifest| manifest.path().to_owned()), resolver, cache: HashMap::new(), stack: HashSet::new(), sources: BTreeSet::new() };
     if let Some(resolution) = runtime_resolution.as_ref() {
         if let Some(manifest) = resolution.package_json() { reader.sources.insert(manifest.path().to_owned()); }
     }

@@ -93,3 +93,22 @@ it('indexes every declared available package, including one no source file impor
   expect(refreshDependencyLexicon(root).reused).toBe(5);
   expect(readDependencyLexicon(root).lexicon?.entries.find((entry) => entry.api.runtime?.name === 'state-kit')?.api.names?.[0]?.signature).toContain('id: string');
 });
+
+it('does not read an installed dependency nested beneath a selected package wildcard', () => {
+  process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-lexicon-cache-'));
+  const root = mkdtempSync(join(tmpdir(), 'va-lexicon-wildcard-'));
+  execFileSync('git', ['init', '--quiet', root]);
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'fixture', dependencies: { wildcard: '1.0.0' } }));
+  execFileSync('git', ['add', '.'], { cwd: root });
+  const installed = join(root, 'node_modules', 'wildcard');
+  mkdirSync(join(installed, 'node_modules', 'nested'), { recursive: true });
+  writeFileSync(join(installed, 'package.json'), JSON.stringify({ name: 'wildcard', version: '1.0.0', exports: { '.': './public.d.ts', './*': './*' } }));
+  writeFileSync(join(installed, 'public.d.ts'), "export declare const publicName: true;\nexport { privateName } from 'nested';\n");
+  writeFileSync(join(installed, 'node_modules', 'nested', 'package.json'), JSON.stringify({ name: 'nested', version: '1.0.0', types: 'private.d.ts' }));
+  writeFileSync(join(installed, 'node_modules', 'nested', 'private.d.ts'), 'export declare const privateName: true;\n');
+  refreshDependencyLexicon(root);
+  const specifiers = readDependencyLexicon(root).lexicon?.availability.map((entry) => entry.specifier);
+  expect(specifiers).toContain('wildcard/public.d.ts');
+  expect(specifiers?.some((specifier) => specifier.includes('/node_modules/'))).toBe(false);
+  expect(queryDependencyLexicon(root, 'privateName')?.total).toBe(0);
+});
