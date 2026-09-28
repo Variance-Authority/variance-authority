@@ -20,6 +20,7 @@ export const COMMANDS = [
   'select',
   'reach',
   'covering',
+  'coverage',
   'review',
   'report',
   'ask',
@@ -116,6 +117,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   accept: ['--all', '--shape', '--message-file', '--message'],
   changelog: ['--component', '--subject', '--limit', '--since'],
   journeys: ['--all', '--file', '--limit', '--into', '--suite'],
+  coverage: ['--against', '--suite', '--root', '--format'],
   review: ['--since', '--against', '--suite', '--out', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
@@ -133,6 +135,7 @@ export const USAGE = [
   'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
+  'variance coverage [--suite <name> [--against <record>]] [--root <path>] [--format text|markdown|json]',
   'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] [--root <path>] [--format text|markdown|json]',
   'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]',
@@ -157,15 +160,15 @@ export const USAGE = [
 /**
  * The flags a command accepts, the configuration ones included where they apply.
  *
- * `watch`, `distill`, `covering`, `review`, `story`, `index`, `select` and
- * `reach` do not read project configuration. One holds a live listener; the
- * next four read evidence a run left behind, named on the command line or found
+ * `watch`, `distill`, `covering`, `coverage`, `review`, `story`, `index`,
+ * `select` and `reach` do not read project configuration. One holds a live
+ * listener; the next five read evidence a run left behind, named on the command line or found
  * where a run puts it; the last three are asked by a repository whose tests another runner runs, and
  * which may have configured this tool for nothing else. `carry` is on the list
  * for the same reason and names `--config` itself: the suites it carries are
  * the repository root's, and a project is read only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'review', 'story', 'index', 'select', 'reach', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'review', 'story', 'index', 'select', 'reach', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

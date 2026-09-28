@@ -123,18 +123,31 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
   return { regions, counts, testFiles, unread: unread.sort() };
 }
 
-/** The source regions both records hold, each with its row at the base. */
-function matched(base: ExecutionModule, now: ExecutionModule): readonly (readonly [ExecutionBlock, ExecutionBlock])[] {
-  const held = new Map<string, ExecutionBlock>();
-  const seen = new Map<string, number>();
-  for (const block of base.blocks) held.set(addressKey(`${block.name}\0${block.path}`, seen), block);
-  seen.clear();
+/**
+ * The source regions both records hold, each with its row at the base.
+ *
+ * Exported so a reader counting what the two records hold joins them the way
+ * the motion does, and a region counted as written is one the motion never
+ * paired.
+ */
+export function matched(base: ExecutionModule, now: ExecutionModule): readonly (readonly [ExecutionBlock, ExecutionBlock])[] {
+  const held = new Map(regionAddresses(base.blocks));
   const pairs: (readonly [ExecutionBlock, ExecutionBlock])[] = [];
-  for (const block of now.blocks) {
-    const was = held.get(addressKey(`${block.name}\0${block.path}`, seen));
+  for (const [address, block] of regionAddresses(now.blocks)) {
+    const was = held.get(address);
     if (was !== undefined && was.kind === block.kind && block.source) pairs.push([was, block]);
   }
   return pairs;
+}
+
+/**
+ * Each of a module's regions with the address the case index carries its cases
+ * by: name path and structural path, told apart by occurrence. Two cuts of one
+ * module, by two suites or at two commits, name one region by one address.
+ */
+export function regionAddresses(blocks: readonly ExecutionBlock[]): readonly (readonly [string, ExecutionBlock])[] {
+  const seen = new Map<string, number>();
+  return blocks.map((block) => [addressKey(`${block.name}\0${block.path}`, seen), block] as const);
 }
 
 /** The cases that called into a region, once each, in record order. */

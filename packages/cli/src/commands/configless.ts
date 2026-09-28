@@ -11,7 +11,7 @@
  * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
  * an `ask` with no question, and an `ask` whose question is about the source —
  * whose commands otherwise go on to load a config like any other.
- * `withoutConfig` covers eight whole commands, and narrows them out of the
+ * `withoutConfig` covers nine whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
@@ -25,6 +25,8 @@ import type { Parsed } from '../parse.js';
 import { askSource, questions } from './ask.js';
 import { questionFor } from './asking.js';
 import { COMMENT_MARKER } from './comment.js';
+import { coverage } from './coverage.js';
+import { formatCoverage } from './coverage-text.js';
 import { coveringAnswer, formatCoveringAnswer } from './covering-suites.js';
 import { distillFiles, formatDistill } from './distill.js';
 import { indexOutput } from './index-command.js';
@@ -35,10 +37,10 @@ import { selectOutput } from './select-command.js';
 import { formatStory, story } from './story.js';
 import { watch, watching as watchingLines } from './watch.js';
 
-/** The eight commands that read no project configuration at all. */
+/** The nine commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'review' | 'story' | 'index' | 'select' | 'reach' }
+  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'review' | 'story' | 'index' | 'select' | 'reach' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -46,6 +48,7 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     parsed.command === 'watch'
     || parsed.command === 'distill'
     || parsed.command === 'covering'
+    || parsed.command === 'coverage'
     || parsed.command === 'review'
     || parsed.command === 'story'
     || parsed.command === 'index'
@@ -131,6 +134,22 @@ export async function answerConfigless(
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.
+        if (parsed.format === 'json' && error instanceof OperatorError && error.kind !== undefined) {
+          streams.out(`${JSON.stringify({ refused: error.kind })}\n`);
+        }
+        throw error;
+      }
+      return EXIT_CLEAN;
+    }
+
+    // `covering`'s reason, counted over every region the suites loaded: the
+    // records are where the runs put them, and a pull request's base is the
+    // one its mainline published. The ratio decides nothing, so the exit is
+    // clean whatever it says (ADR-0081).
+    case 'coverage': {
+      try {
+        streams.out(formatCoverage(await coverage(parsed), parsed.format));
+      } catch (error) {
         if (parsed.format === 'json' && error instanceof OperatorError && error.kind !== undefined) {
           streams.out(`${JSON.stringify({ refused: error.kind })}\n`);
         }
