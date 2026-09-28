@@ -17,7 +17,7 @@ import type { ObservationRecord, RegionRecord } from './format.js';
  * ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)).
  * Applitools clusters by diff-region shape so one accept propagates across the
  * batch. This project has had the *fingerprints* since 2026-08-05 and printed
- * them one region at a time — [`comparison.md`](../../../docs/comparison.md)
+ * them one region at a time — [`compare-visual-review.md`](../../../docs/compare-visual-review.md)
  * states the gap in as many words: they group the batch for you, and here the
  * operator copies one digest out of a report.
  *

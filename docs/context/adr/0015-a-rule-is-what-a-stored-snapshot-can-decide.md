@@ -49,7 +49,7 @@ That is the property worth protecting, and it is the one that is ours:
    closes.
 
 A team whose requirement is accessibility checking should buy the tool built for
-it, and [`docs/comparison.md`](../../comparison.md) says so in those words.
+it, and [`docs/compare-visual-review.md`](../../compare-visual-review.md) says so in those words.
 
 Two rules follow, and both exist to stop the list growing by making bad rules
 survivable:

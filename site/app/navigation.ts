@@ -30,6 +30,7 @@ export const NAVIGATION = [
       { href: "/docs/evidence-field", label: "Use the evidence you have" },
       { href: "/docs/great-data", label: "What one run leaves you" },
       { href: "/docs/adjacent-possible", label: "Why it does so many things" },
+      { href: "/docs/extend-what-you-use", label: "Extend what you already use" },
     ],
   },
   {
@@ -390,7 +391,9 @@ export const NAVIGATION = [
       { href: "/docs/performance", label: "Performance" },
       { href: "/docs/native-code", label: "Native code" },
       { href: "/reference/packages", label: "Package reference" },
-      { href: "/reference/comparison", label: "Compare operating models" },
+      { href: "/reference/comparison", label: "Compare with the tool you have" },
+      { href: "/reference/compare-visual-review", label: "Compare visual review tools" },
+      { href: "/docs/compare-coverage", label: "Compare coverage services" },
       { href: "/docs/on-testing", label: "On testing: decide what each test adds" },
       {
         href: "/docs/coverage-test-selection",

@@ -775,4 +775,4 @@ timing change cannot be mistaken for an isolation change.
 
 **See also.** [Flakiness](flakiness.md) — what kind of thing variance is ·
 [Ignore rules](ignores.md) — absorbing what cannot be stabilized ·
-[Comparison](comparison.md) — where each operating model fits
+[Comparison](compare-visual-review.md) — where each operating model fits

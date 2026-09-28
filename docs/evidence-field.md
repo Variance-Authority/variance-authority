@@ -95,7 +95,7 @@ supply one when it reports:
 
 Each boundary in the system has an answer behind it, because a boundary without
 an observation cannot support a conclusion. Which product produced that answer
-is open. [Choose the operating model that fits](comparison.md) sets the capture
+is open. [Choose the operating model that fits](compare-visual-review.md) sets the capture
 and operational contracts side by side with Percy, Chromatic, Argos and
 Applitools.
 

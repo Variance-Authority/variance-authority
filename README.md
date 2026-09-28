@@ -221,7 +221,7 @@ only on identities their producers emitted.
 
 The [adoption gates](docs/gates.md) state where the tool fits Playwright,
 Storybook, Jest, and Vitest — under jsdom and in browser mode. The
-[product comparison](docs/comparison.md) states what Percy, Chromatic, Argos,
+[product comparison](docs/compare-visual-review.md) states what Percy, Chromatic, Argos,
 and Applitools provide that this project does not.
 
 ## Documentation

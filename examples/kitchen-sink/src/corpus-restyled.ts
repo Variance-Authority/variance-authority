@@ -150,7 +150,7 @@ export const RESTYLED_CASES: readonly CorpusCase[] = [
           '`style-changed` and the answer is `token`; under `chromium` the boxes measurably ' +
           'move and `rect-changed` is louder. Both are correct readings of what each profile ' +
           'can see, which is the content of ADR-0008. This clause existed as prose in ' +
-          '`docs/comparison.md` — "the other three are reported and not scored" — for as long ' +
+          '`docs/compare-visual-review.md` — "the other three are reported and not scored" — for as long ' +
           'as the band field asserted nothing.',
       },
     },

@@ -2,7 +2,7 @@
  * The competitor table, with a gate instead of a promise.
  *
  * Every cell here is wrapped in the doc marker, and the marker means exactly one
- * thing: this string is a verbatim fragment of docs/comparison.md — the document
+ * thing: this string is a verbatim fragment of docs/compare-visual-review.md — the document
  * that cites each vendor's published pages and states what each does better than
  * this project. `docs-claims.check.ts` reads every `*Comparison*.tsx` in this
  * directory and fails `yarn check` when a marked fragment is not in that

@@ -19,7 +19,7 @@ record execution through the transformer you already use, and [Eyes](eyes.md)
 records React Testing Library's `screen` queries from a setup file. Choosing
 tests, investigating shared state and reducing unnecessary imports all work in a
 suite that never opens a browser. [Choose the operating
-model](comparison.md) compares the capture and review contracts of the hosted
+model](compare-visual-review.md) compares the capture and review contracts of the hosted
 services against this one.
 
 ## Faster: don't surrender to workarounds

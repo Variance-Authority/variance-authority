@@ -157,6 +157,18 @@ export { testsGovernedBy } from './lookup.js';
 export { caseLayerFiles, type LastCaseRun } from './case-fold.js';
 export { commitRunsFile, landRun, readCommitRuns, type CommitRuns } from './commit-runs.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
+export {
+  countCoverage,
+  coverageChange,
+  regionRun,
+  type CountedSuite,
+  type CoverageCount,
+  type KindOverlap,
+  type RegionRun,
+  type RegionTally,
+  type SuiteChange,
+  type SuiteCount,
+} from './coverage-count.js';
 export type { CoverageShard };
 
 /**

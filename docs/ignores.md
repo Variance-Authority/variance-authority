@@ -76,7 +76,7 @@ once on the snapshot.
 There is no coordinate form. A rectangle stops covering the thing it was drawn
 around the first time the layout moves. Existing rasters go through the
 library seam, not the CLI configuration path, and have no document element for
-a selector to follow ([`comparison.md`](comparison.md)).
+a selector to follow ([`compare-visual-review.md`](compare-visual-review.md)).
 
 ### By shape — a fingerprint
 
