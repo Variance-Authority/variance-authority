@@ -121,7 +121,7 @@ import { resolve } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
-import { codeUnitOrder, idOrder, isMissing, projectPath } from './instrumented-modules.js';
+import { codeUnitOrder, isMissing, projectPath } from './instrumented-modules.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
@@ -290,7 +290,7 @@ export function executionIndexFrom(
 
   const rows = [...modules.entries()]
     .filter(([id]) => crossings.has(id) || loaded.has(id))
-    .sort(([left], [right]) => idOrder(left, right));
+    .sort(([left], [right]) => codeUnitOrder(left, right));
 
   return {
     tests,

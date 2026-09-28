@@ -84,7 +84,7 @@ try {
       VARIANCE_AUTHORITY_JOURNEYS: journeyFile,
       VARIANCE_AUTHORITY_JEST_CACHE: join(work, 'cache'),
       VARIANCE_AUTHORITY_PARTS: parts,
-      XDG_CACHE_HOME: work,
+      VARIANCE_AUTHORITY_CACHE: work,
     },
   });
 } finally {

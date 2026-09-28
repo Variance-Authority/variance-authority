@@ -27,12 +27,12 @@ describe('a diff that moved the install', () => {
   beforeEach(() => {
     // Every journal these cases write is addressed through this, so none of them
     // can read or overwrite the recording this repository keeps for itself.
-    process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-select-install-cache-'));
+    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-install-cache-'));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['XDG_CACHE_HOME'];
+    delete process.env['VARIANCE_AUTHORITY_CACHE'];
   });
 
   it('runs the tests that entered a module importing the bumped package', async () => {

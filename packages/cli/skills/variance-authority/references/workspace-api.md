@@ -376,7 +376,18 @@ packages it prints what the package imports from other packages and what other
 packages import from it. A use is one file importing one name from another
 package. A package's share is of the uses on that side. A name's share is of all
 the use the package that exports it gets from outside, so it says what part of
-that package's use the name is. Then it prints how many recorded test cases ran
+that package's use the name is. It also names external packages requested along
+local imports from those files, with each request's source line. Manifest
+declarations are context beside that evidence; declarations without import
+evidence along the path are listed separately. An unread path is named rather
+than reported as using nothing. `variance index` also refreshes a separate
+lexicon of every installed direct third-party package available to each
+workspace. `ask search` reads its public names and documentation alongside
+local help and accepts `--from` and `--to` to select an area. The complete
+signatures and JSDoc are in `dependency-lexicon.json` beside the source index.
+The native refresh checks declaration files and package manifests separately
+from repository source.
+Then it prints how many recorded test cases ran
 each file, and for a test file the cases it declares. Last come the narrower
 questions, as commands. Run it from the checkout you are asking about.
 

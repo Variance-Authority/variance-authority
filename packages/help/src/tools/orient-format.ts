@@ -18,7 +18,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { CasesEntered, JourneysAround, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
+import type { CasesEntered, ExternalOrientation, JourneysAround, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
 import { formatJourneys } from './orient-journeys-format.js';
 
 /** Everything an orientation answer is made of. */
@@ -26,6 +26,7 @@ export interface OrientReading {
   /** The files asked about, in the order asked. */
   readonly files: readonly string[];
   readonly around: PackagesAround;
+  readonly external?: { readonly index: string; readonly orientation?: ExternalOrientation };
   readonly recorded: readonly RecordedCases[];
   /** Each suite's journeys; absent when they were not asked for. */
   readonly journeys?: readonly JourneysAround[];
@@ -110,6 +111,40 @@ function packages(reading: OrientReading): readonly string[] {
       ...side(one.takes, 'Takes from', one.indexed),
       ...side(one.taken, 'Used by', one.indexed),
     );
+  }
+  return lines;
+}
+
+function external(reading: OrientReading): readonly string[] {
+  const answer = reading.external?.orientation;
+  if (answer === undefined) return [];
+  const lines = [
+    '',
+    `External packages requested along local imports from these files (${plural(answer.reached, 'source file')} reached):`,
+  ];
+  if (answer.dependencies.length === 0) lines.push('  No external package request was read from this path.');
+  for (const dependency of answer.dependencies) {
+    const declared = dependency.declaredIn.length === 0
+      ? 'no reached manifest declares it'
+      : `declared in ${dependency.declaredIn.join(', ')}`;
+    lines.push(`  ${dependency.package} — ${plural(dependency.files, 'file')}, ${plural(dependency.imports, 'request')}; ${declared}`);
+    for (const site of dependency.sites) {
+      const names = site.names.map(nameOf).join(', ');
+      lines.push(`    ${site.file}:${site.line}  ${site.specifier} (${names}; ${site.distance} local imports away)`);
+    }
+    if (dependency.moreSites > 0) lines.push(`    ${plural(dependency.moreSites, 'more request')} not shown.`);
+  }
+  if (answer.more > 0) lines.push(`  ${plural(answer.more, 'more external package')} not shown.`);
+  if (answer.declaredOnly.length > 0) {
+    const more = answer.moreDeclaredOnly > 0 ? `, ${answer.moreDeclaredOnly} more` : '';
+    lines.push(`  Declared locally without import evidence along this path: ${answer.declaredOnly.join(', ')}${more}.`);
+  }
+  if (answer.missing.length > 0) lines.push(`  Not in the source index: ${answer.missing.join(', ')}.`);
+  if (answer.unread > 0 || answer.stale > 0 || answer.dropped > 0) {
+    const action = answer.stale > 0 || answer.dropped > 0
+      ? 'Run `variance index` to refresh changed or dropped records.'
+      : 'The listed requests are observed evidence; unread files may add more.';
+    lines.push(`  Incomplete reading: ${answer.unread} unread, ${answer.stale} changed since indexing, ${answer.dropped} dropped index segments. ${action}`);
   }
   return lines;
 }
@@ -202,6 +237,7 @@ export function formatOrientation(reading: OrientReading): string {
     ...named(reading),
     '',
     ...packages(reading),
+    ...external(reading),
     ...cases(reading),
     ...(reading.journeysUnread === undefined ? formatJourneys(reading.journeys ?? []) : ['', `Journeys: not read: ${reading.journeysUnread.replace(/\.$/u, '')}.`]),
     ...(asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)]),

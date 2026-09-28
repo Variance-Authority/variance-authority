@@ -1,12 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { nameModules, readModuleNames, type ModuleNames } from '../module-names.js';
-import { withIndexLock } from './index-lock.js';
 import { cacheLayers, cacheRootFor, layeredFiles, repositoryLayers } from './cache-layers.js';
-import { openModuleNames, recordStore, recordStores } from './instrumented-modules.js';
+import { recordStore, recordStores } from './instrumented-modules.js';
 import {
   readTestCoverage,
   readableTestCoverage,
@@ -15,21 +13,6 @@ import {
   writeTestCoverage,
   type TestCoverage,
 } from './index.js';
-
-/**
- * {@link nameModules} under the exclusion it requires.
- *
- * Every test here grows the table, and growing it is what the lock covers — so
- * the fixture takes one rather than each test remembering to, which is the same
- * reason the production folds hand one another a token instead of a convention.
- */
-async function number(names: string, paths: Iterable<string>): Promise<ModuleNames> {
-  const held = await withIndexLock(resolve(dirname(names), 'coverage.bin'), (lock) =>
-    nameModules(names, paths, lock),
-  );
-  if (!held.held) throw new Error(`the index beside ${names} was already held`);
-  return held.value;
-}
 
 async function checkout(): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-layers-'));
@@ -55,26 +38,47 @@ describe('where the repository says the cache is', () => {
     return at;
   }
 
-  test('`cacheRoot` at the repository root answers for every directory in it, over XDG_CACHE_HOME', async () => {
+  test('`cacheRoot` at the repository root answers for every directory in it, over VARIANCE_AUTHORITY_CACHE', async () => {
     const at = await repository({ project: 'p', cacheRoot: '.variance/cache' });
     const member = resolve(at, 'packages', 'member');
     await mkdir(member, { recursive: true });
-    vi.stubEnv('XDG_CACHE_HOME', '/tmp/elsewhere');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '/tmp/elsewhere');
 
     expect(cacheRootFor(at)).toBe(resolve(at, '.variance/cache'));
     expect(cacheRootFor(member)).toBe(resolve(at, '.variance/cache'));
     vi.unstubAllEnvs();
   });
 
-  test('without the key it is the user cache, and XDG_CACHE_HOME counts only when absolute', async () => {
+  test('without the key it is inside the repository, whatever XDG_CACHE_HOME says', async () => {
     const at = await repository({ project: 'p' });
+    const member = resolve(at, 'packages', 'member');
+    await mkdir(member, { recursive: true });
+    const inside = resolve(at, 'node_modules', '.cache', 'variance-authority');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '');
     vi.stubEnv('XDG_CACHE_HOME', '/xdg');
-    expect(cacheRootFor(at)).toBe(resolve('/xdg', 'variance-authority'));
-    vi.stubEnv('XDG_CACHE_HOME', '');
-    expect(cacheRootFor(at)).toBe(resolve(homedir(), '.cache', 'variance-authority'));
-    vi.stubEnv('XDG_CACHE_HOME', 'relative');
-    expect(cacheRootFor(at)).toBe(resolve(homedir(), '.cache', 'variance-authority'));
+    expect(cacheRootFor(at)).toBe(inside);
+    expect(cacheRootFor(member)).toBe(inside);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', 'relative');
+    expect(cacheRootFor(at)).toBe(inside);
     vi.unstubAllEnvs();
+  });
+
+  test('an absolute VARIANCE_AUTHORITY_CACHE is the cache directory itself', async () => {
+    const at = await repository({ project: 'p' });
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '/isolated');
+    expect(cacheRootFor(at)).toBe(resolve('/isolated'));
+    vi.unstubAllEnvs();
+  });
+
+  test('a worktree with no config writes inside itself and reads the primary checkout', async () => {
+    const at = await checkout();
+    const path = await worktree(at, resolve(at, 'primary', '.git', 'worktrees', 'feature'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '');
+    const layers = cacheLayers(path);
+    vi.unstubAllEnvs();
+
+    expect(layers.base.startsWith(resolve(at, 'primary', 'node_modules', '.cache', 'variance-authority'))).toBe(true);
+    expect(layers.top.startsWith(resolve(path, 'node_modules', '.cache', 'variance-authority'))).toBe(true);
   });
 
   test('a `cacheRoot` that is not a path is refused, naming the file', async () => {
@@ -123,9 +127,9 @@ describe('where a checkout keeps its cache', () => {
       '/cache',
     );
 
-    expect(layeredFiles(layers, 'names.bin')).toEqual([
-      resolve(layers.top, 'names.bin'),
-      resolve(layers.base, 'names.bin'),
+    expect(layeredFiles(layers, 'coverage.bin')).toEqual([
+      resolve(layers.top, 'coverage.bin'),
+      resolve(layers.base, 'coverage.bin'),
     ]);
   });
 
@@ -174,33 +178,6 @@ describe('where a checkout keeps its cache', () => {
 });
 
 describe('what a checkout inherits', () => {
-  test('a worktree takes over the numbering rather than restarting it', async () => {
-    const at = await checkout();
-    const cacheRoot = resolve(at, 'cache');
-    const primary = resolve(at, 'primary');
-    const base = await number(openModuleNames(primary, cacheRoot), ['a.ts', 'b.ts', 'c.ts']);
-
-    const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
-    const grown = await number(openModuleNames(path, cacheRoot), ['d.ts']);
-
-    // Every id the base assigned still means the path it meant, and the new one
-    // continues the count instead of repeating an id that is already spoken for.
-    expect(grown.idOf('a.ts')).toBe(base.idOf('a.ts'));
-    expect(grown.idOf('c.ts')).toBe(base.idOf('c.ts'));
-    expect(grown.idOf('d.ts')).toBe(base.count);
-  });
-
-  test('the primary checkout does not see what a worktree numbered', async () => {
-    const at = await checkout();
-    const cacheRoot = resolve(at, 'cache');
-    const primary = resolve(at, 'primary');
-    await number(openModuleNames(primary, cacheRoot), ['a.ts']);
-    const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
-    await number(openModuleNames(path, cacheRoot), ['branch-only.ts']);
-
-    expect(readModuleNames(openModuleNames(primary, cacheRoot)).idOf('branch-only.ts')).toBeUndefined();
-  });
-
   test('a worktree reads the record store beneath its own, nearest last', async () => {
     const at = await checkout();
     const cacheRoot = resolve(at, 'cache');
@@ -212,21 +189,6 @@ describe('what a checkout inherits', () => {
       recordStore(primary, 'build', cacheRoot),
       recordStore(path, 'build', cacheRoot),
     ]);
-  });
-
-  test('seeding is once: a checkout that has its own keeps it', async () => {
-    const at = await checkout();
-    const cacheRoot = resolve(at, 'cache');
-    const primary = resolve(at, 'primary');
-    await number(openModuleNames(primary, cacheRoot), ['a.ts']);
-    const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
-    await number(openModuleNames(path, cacheRoot), ['b.ts']);
-    // The base grows after the worktree already took a copy.
-    await number(openModuleNames(primary, cacheRoot), ['later.ts']);
-
-    const held = readModuleNames(openModuleNames(path, cacheRoot));
-    expect(held.idOf('b.ts')).toBeDefined();
-    expect(held.idOf('later.ts')).toBeUndefined();
   });
 });
 

@@ -5,14 +5,12 @@ use std::path::{Path, PathBuf};
 use crate::order;
 
 const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02];
-const NUMBERED: u8 = 0;
+/// A module is named by its path: tag `1`, then the path. Tag `0`, a numbered
+/// module, is refused as damage — nothing writes one (ADR-0056, amended).
 const NAMED: u8 = 1;
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum ModuleId {
-    Number(u32),
-    Name(String),
-}
+/// A module's repository-relative path.
+pub type ModuleId = String;
 
 #[derive(Clone)]
 pub struct Test {
@@ -321,11 +319,10 @@ fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
     let count = read.number()?;
     let mut scratch = Vec::new();
     for _ in 0..count {
-        let id = match read.byte()? {
-            NUMBERED => ModuleId::Number(read.number()?),
-            NAMED => ModuleId::Name(read.text()?),
-            _ => return Err(damaged()),
-        };
+        if read.byte()? != NAMED {
+            return Err(damaged());
+        }
+        let id = read.text()?;
         if !visitor.wants(&id) {
             read.skip()?;
             read.skip()?;

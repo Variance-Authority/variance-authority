@@ -14,7 +14,7 @@ the question "what did that number cost me" has no answer at all.
 Refusing tolerances is not the same as refusing to exclude anything, and until
 2026-08-05 this project did both. A header carrying a clock made every subject
 containing it permanently red, and the two available responses were to delete the
-subject or to stop running. `docs/comparison.md` conceded the gap to all three
+subject or to stop running. `docs/compare-visual-review.md` conceded the gap to all three
 competitors, and conceded the strongest form of it to Argos, which scopes an
 ignore to a `(test, diff-shape)` pair rather than to a rectangle and publishes
 [the implementation](https://github.com/argos-ci/mask-fingerprint).

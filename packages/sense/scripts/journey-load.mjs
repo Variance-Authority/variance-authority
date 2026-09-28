@@ -93,7 +93,7 @@ if (!collector.collecting) { console.error('the head did not install'); process.
  * bucket up afresh on every crossing could not fail it.
  */
 const probeFor = (module) =>
-  new Function(`${PROBE_RUNTIME.replace('.r(0,0)', `.r(${module},${counts[module]})`)}__vaE();return __va;`)();
+  new Function(`${PROBE_RUNTIME.replace('.r("",0)', `.r(${JSON.stringify(`src/m${module}.ts`)},${counts[module]})`)}__vaE();return __va;`)();
 
 // Built before the baseline is taken: these closures are the instrumented
 // module's own weight, which `worker-load.mjs` prices, and counting them here

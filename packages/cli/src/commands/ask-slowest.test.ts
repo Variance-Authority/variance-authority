@@ -16,12 +16,12 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-slowest-cache-'));
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-slowest-cache-'));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['XDG_CACHE_HOME'];
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
 function checkout(): string {

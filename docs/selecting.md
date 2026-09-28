@@ -26,7 +26,7 @@ change did not reach it.
 Other products make different, useful choices. Chromatic's TurboSnap traces a
 change through the bundler's dependency graph and tests the stories it reaches.
 Percy and Argos leave selection and sharding with the team. The
-[product comparison](comparison.md) explains those operating models in context.
+[product comparison](compare-visual-review.md) explains those operating models in context.
 
 A change still has to travel from a file to a component, and for that there is
 [an optional file graph](#the-expensive-row-and-what-retires-it) read from the
@@ -774,5 +774,5 @@ and costs of the coverage file ·
 tables themselves ·
 [`packages/sense`](../packages/sense) for what the scan reads and where it stops ·
 [`packages/cli`](../packages/cli) for the rest of the command line ·
-[`comparison.md §2`](comparison.md#chromatic) for what TurboSnap does that this
+[`compare-visual-review.md §2`](compare-visual-review.md#chromatic) for what TurboSnap does that this
 does not.

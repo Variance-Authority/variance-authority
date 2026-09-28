@@ -61,7 +61,7 @@ describe('a local run spread across workers', () => {
       ],
       {
         cwd: fixture,
-        env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
+        env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
       },
     );
 

@@ -64,6 +64,7 @@ export interface Declaration {
  */
 const KINDS: Readonly<Record<string, DeclarationKind>> = {
   FunctionDeclaration: 'function',
+  TSDeclareFunction: 'function',
   ClassDeclaration: 'class',
   TSInterfaceDeclaration: 'interface',
   TSTypeAliasDeclaration: 'type',
@@ -216,6 +217,10 @@ function record(node: Statement, into: Map<string, Declaration>, source: Source,
   // top-level binding, so neither belongs in a map of what this file declares.
   const id = 'id' in node ? node.id : null;
   if (id === null || id === undefined || id.type !== 'Identifier') return;
+
+  // Declaration merging gives a callable function its namespace members. The
+  // callable remains the public head when a CommonJS `export =` names it.
+  if (kind === 'namespace' && into.has(id.name)) return;
 
   into.set(id.name, declarationOf(source, context, kind, headOf(source.text, node.start, headEnd(node))));
 }

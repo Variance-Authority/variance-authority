@@ -292,7 +292,7 @@ fn prepare(
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<_, _>>()
         .map_err(fail)?;
-    let journey = Journey::of(recording, &bytes).map_err(fail)?;
+    let journey = Journey::of(recording, bytes).map_err(fail)?;
     let seeds = seeds(&journey).map_err(fail)?;
     // Git's listing owns which package each file is in. Without it, the files
     // the graph read are the listing, and the runner's packages are unknown.

@@ -184,7 +184,11 @@ public final class RecordLocation {
     return new Layers(own.resolve(".work").resolve(key(here)), base);
   }
 
-  /** {@code cacheRoot} of the root config, resolved against it; else {@code XDG_CACHE_HOME} when absolute, else {@code ~/.cache}. */
+  /**
+   * {@code cacheRoot} of the root config, resolved against it; else {@code VARIANCE_AUTHORITY_CACHE} when absolute;
+   * else {@code node_modules/.cache/variance-authority} in the checkout. The same answer as {@code cacheRootFor} in
+   * {@code @variance-authority/sense}, which says why the default is inside the checkout.
+   */
   private static Path cacheRoot(Path checkout) {
     Path file = checkout.resolve(CONFIG);
     Map<String, Object> config = config(file);
@@ -195,11 +199,9 @@ public final class RecordLocation {
       }
       return checkout.resolve((String) named).normalize();
     }
-    String xdg = System.getenv("XDG_CACHE_HOME");
-    Path home = xdg != null && Paths.get(xdg).isAbsolute()
-        ? Paths.get(xdg)
-        : Paths.get(System.getProperty("user.home"), ".cache");
-    return home.resolve("variance-authority").normalize();
+    String isolated = System.getenv("VARIANCE_AUTHORITY_CACHE");
+    if (isolated != null && Paths.get(isolated).isAbsolute()) return Paths.get(isolated).normalize();
+    return checkout.resolve("node_modules").resolve(".cache").resolve("variance-authority").normalize();
   }
 
   /** The checkout a worktree was cut from, read from its {@code .git} file, or {@code here}. */

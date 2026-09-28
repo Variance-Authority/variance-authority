@@ -82,7 +82,7 @@ that line, and asks `narrowByExecution` about it:
 
 The build writes its head inventory to [your cache](../../docs/cache.md), keyed
 by repository. This repository names no `cacheRoot`, so the outer file points
-`XDG_CACHE_HOME` at its own temporary directory, which keeps the run out of your
+`VARIANCE_AUTHORITY_CACHE` at its own temporary directory, which keeps the run out of your
 cache. The coverage file and Playwright's results go to the
 same temporary directory, and it is removed when the run ends.
 

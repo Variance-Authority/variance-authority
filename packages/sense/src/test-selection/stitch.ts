@@ -9,7 +9,7 @@
  */
 
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
-import { codeUnitOrder, idOrder } from './instrumented-modules.js';
+import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ObservedSubject } from './journal.js';
 import type { ExecutedModule } from './probes.js';
@@ -221,7 +221,7 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
               hits: [...ordinals].sort(ascending),
               shared: [...(common?.get(id) ?? [])].sort(ascending),
             }))
-            .sort((left, right) => idOrder(left.id, right.id)),
+            .sort((left, right) => codeUnitOrder(left.id, right.id)),
         },
         ...(preconditions === undefined ? {} : { preconditions }),
       });

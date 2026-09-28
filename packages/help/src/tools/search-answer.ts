@@ -4,6 +4,7 @@ import type { SearchIndex } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames } from './loose.js';
+import { queryDependencyLexicon, type ThirdPartyMatch } from '../dependency-lexicon.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -105,8 +106,8 @@ export interface SearchArea {
 /**
  * One `search` answer, as the text and `--format json` both read it.
  *
- * Sections are present when they ran. `loose` runs only when `published` and
- * `exported` are both empty, and none of the three runs when `refused` is set.
+ * Sections are present when they ran. `loose` runs only when the exact local
+ * and third-party sections are empty; no section runs when `refused` is set.
  */
 export interface SearchAnswer {
   /** The query as it was matched: lowercase. */
@@ -117,8 +118,10 @@ export interface SearchAnswer {
   readonly refused?: string;
   readonly published?: Matches<PublishedMatch>;
   readonly exported?: Matches<ExportedMatch>;
-  /** Present only when both sections above are empty, which is when it runs. */
+  /** Present only when the exact sections are empty, which is when it runs. */
   readonly loose?: Matches<PublishedMatch | ExportedMatch>;
+  /** Installed third-party names available to this workspace or area. */
+  readonly thirdParty?: Matches<ThirdPartyMatch>;
 }
 
 /** The answer, and the resolved area the text renders its header from. */
@@ -292,7 +295,7 @@ function exported(
 }
 
 /** The search over an opened index, and the area the text answer names. */
-export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree): Searched {
+export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): Searched {
   const query = question.query.toLowerCase();
   const area =
     question.from === undefined && question.to === undefined ? undefined : areaOf(question.from, question.to, tree);
@@ -312,14 +315,17 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within);
   const answered = new Set(hits.map((hit) => hit.name));
   const rest = exported(index, named, answered, within);
+  // FIXME: a graph closure admits dependencies owned only by a reached workspace (Help -> MCP -> Eyes offers Eyes-only test APIs).
+  const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.files]);
 
   const answer: SearchAnswer = {
     query,
     ...(counted === undefined ? {} : { area: counted }),
     published: published(index, hits, CAP),
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
+    ...(thirdParty === undefined ? {} : { thirdParty }),
   };
-  if (hits.length > 0 || rest.total > 0) return { answer, area };
+  if (hits.length > 0 || rest.total > 0 || (thirdParty?.total ?? 0) > 0) return { answer, area };
 
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the
@@ -342,6 +348,6 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
  * publishing, then — only when both are empty — the names a looser reading
  * finds.
  */
-export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree): SearchAnswer {
-  return searched(index, question, tree).answer;
+export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): SearchAnswer {
+  return searched(index, question, tree, root).answer;
 }

@@ -168,21 +168,11 @@ export const EVALUATING = 0x80000000;
 
 /**
  * What an instrumented module reports itself as, and the only identity that
- * reaches the running code.
- *
- * A number when the repository has one for the file — see
- * [`module-names`](../module-names.ts) for where numbers come from and why they
- * are assigned rather than derived from the path. The module is handed its own
- * number by the transform, so the emitted code states it as a literal and the
- * running code consults nothing.
- *
- * The path otherwise. A transform is handed a module and must return text; it
- * cannot wait for a number and must not invent one, and the path is the one
- * other thing exactly as unique as the module. It costs its own length at every
- * crossing for one run: the fold numbers what the journals reported, and the
- * next transform of that file emits a number.
+ * reaches the running code: its repository-relative path, which the emitted
+ * code states as a literal (ADR-0056, amended 2026-09-28). Every artifact names
+ * the module by the same path, so nothing downstream needs a table to read it.
  */
-export type ModuleId = number | string;
+export type ModuleId = string;
 
 export interface Instrumented {
   /** Identity of the exact source string whose offsets and blocks follow. */
@@ -255,7 +245,7 @@ export function instrument(
  * does.
  */
 function runtime(id: ModuleId, count: number): string {
-  const module = typeof id === 'number' ? String(id) : JSON.stringify(id);
+  const module = JSON.stringify(id);
 
   return (
     `var __vaK,__vaG,__vaB,__vaA;function __vaF(){}function __vaP(){}` +
@@ -270,11 +260,11 @@ function runtime(id: ModuleId, count: number): string {
 }
 
 /**
- * The emitted runtime with placeholder numbers.
+ * The emitted runtime with a placeholder path and count.
  *
  * A transform cache that keys on the instrumentation identity alone serves the
  * previous probe after this text changes: the regions are the same, so the
  * identity is too. What the text does is not a region question, and a cache
  * that stores it keys on the text.
  */
-export const PROBE_RUNTIME = runtime(0, 0);
+export const PROBE_RUNTIME = runtime('', 0);

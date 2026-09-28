@@ -17,8 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
-import { readModuleNames, type ModuleNames } from '../module-names.js';
-import { defaultInclude, openModuleNames, type CapturedModule } from './instrumented-modules.js';
+import { defaultInclude, type CapturedModule } from './instrumented-modules.js';
 
 export interface SelectionRun {
   readonly root: string;
@@ -41,7 +40,6 @@ export interface SelectionRun {
   readonly configs: Map<string, Set<string>>;
   /** The configuration that describes the run, once the runner has said which. */
   runConfig: string | undefined;
-  readonly names: ModuleNames;
   readonly mode: InstrumentMode;
   /**
    * Which transformed modules are product source, for a transform that is not
@@ -109,9 +107,6 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     preconditions: new Set<string>(),
     configs: new Map<string, Set<string>>(),
     runConfig: undefined,
-    // Once per process, before any module is transformed: the table this run
-    // reads is the one the last fold published, and this run's own fold grows it.
-    names: readModuleNames(openModuleNames(root)),
     mode,
     include: defaultInclude,
     shims: new Set<string>(),

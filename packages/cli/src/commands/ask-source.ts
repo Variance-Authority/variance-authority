@@ -43,7 +43,7 @@ export async function wholeSource(
   const tree = reading.tree === true ? sourced.tree?.() : undefined;
   return {
     answer: () => tool.run(sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }),
-    data: () => searchNames(searchIndexOf(sourced.help), searchQuestion(input), tree),
+    data: () => searchNames(searchIndexOf(sourced.help), searchQuestion(input), tree, root),
     at: workspaceGeneration(sourced.help),
   };
 }
@@ -62,8 +62,8 @@ export async function searchSource(
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
   return {
-    answer: () => answerSearch(index, input, tree),
-    data: () => searchNames(index, searchQuestion(input), tree),
+    answer: () => answerSearch(index, input, tree, root),
+    data: () => searchNames(index, searchQuestion(input), tree, root),
     at: index.generation?.generatedAt,
   };
 }

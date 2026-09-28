@@ -25,7 +25,7 @@ for another string.
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | This server; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 | Nothing in hand, and the repository unknown | `docs_orient` with no `files`; it prints the code map, the repository's packages in areas, and `area` opens one area. |
-| Files in hand, and the code around them unknown | `docs_orient`; it names each file's package, the names the package imports from other packages and the names they import from it, the recorded tests that ran each file, and the calls those tests took into and out of it. It finds no file itself. |
+| Files in hand, and the code around them unknown | `docs_orient`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
 
 ## Search finds the name; the graph finds the area
 
@@ -48,6 +48,13 @@ actually connects to.
 Once the search returns the name, ask `symbol` for its contract and `uses` for
 its exact import sites. `uses --from` only orders those sites by path proximity;
 it does not perform another graph traversal or remove any result.
+
+`variance index` publishes a separate catalogue of installed third-party APIs.
+`ask search` shows those names in their own section. A `--from` or `--to`
+path limits them to packages available to the workspaces in that graph closure;
+the answer labels imports separately from availability. Ask
+`symbol --name <name> --package <package>` for the installed signature and full documentation.
+The declaration provider is named when it differs from the runtime package.
 
 This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the

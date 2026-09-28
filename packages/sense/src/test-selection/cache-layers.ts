@@ -20,9 +20,9 @@
  *
  * ```
  * <cache>/test-selection/<repository>/
- *   coverage.bin, names.bin, <label>/     the base: the primary checkout's own
+ *   coverage.bin, <label>/                the base: the primary checkout's own
  *   .work/<workspace>/                    one per worktree
- *     coverage.bin, names.bin, <label>/
+ *     coverage.bin, <label>/
  * ```
  *
  * A worktree reads both layers and writes only its own. That is the whole of the
@@ -46,14 +46,16 @@
 
 // compass: variance-authority.reach
 
-import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { repositoryRoot } from './repository-root.js';
 
 /** The file a repository names its cache directory in, at its root. */
 export const CACHE_CONFIG = 'variance.config.json';
+
+/** The variable that names the cache directory itself, for a caller isolating its runs. */
+export const CACHE_VARIABLE = 'VARIANCE_AUTHORITY_CACHE';
 
 const configs = new Map<string, RootConfig | undefined>();
 
@@ -89,14 +91,22 @@ export function rootConfig(root: string): RootConfig | undefined {
  * The directory everything variance-authority caches for `root` lives in.
  *
  * The repository owns the answer, in `cacheRoot` of the {@link CACHE_CONFIG}
- * at its root, resolved against that root. It beats the environment on
- * purpose: a sandboxed agent that may not write `~/.cache` sets
- * `XDG_CACHE_HOME` to a temporary directory, and a project that named a
- * directory inside its checkout must not have its recording split by that.
- * Without the key it is `variance-authority` under `XDG_CACHE_HOME`, or under
- * `~/.cache` when that is unset, empty or relative — the XDG specification
- * requires an absolute path, and a relative one would resolve against
- * whichever directory the run started in.
+ * at its root, resolved against that root. Without the key it is
+ * `VARIANCE_AUTHORITY_CACHE` when that is an absolute path, and
+ * `node_modules/.cache/variance-authority` under the repository root otherwise.
+ *
+ * The default is inside the checkout because the checkout is the one place
+ * every party that runs here may write. A coding agent's sandbox allows writes
+ * in the working tree and refuses `~/.cache`; a user cache would leave the
+ * agent reading a recording it can never refresh, and a write that fails there
+ * reads back as a stale answer rather than as an error. `XDG_CACHE_HOME` is not
+ * consulted: a harness sets it for its own reasons, and honouring it split one
+ * repository's recording across as many directories as there were harnesses.
+ * `VARIANCE_AUTHORITY_CACHE` is ours, so only a caller who means this cache sets
+ * it — a test suite keeping its runs out of the checkout's recording.
+ * `node_modules/.cache` is ignored by every project's `.gitignore`, by Vitest's
+ * watcher and by file watchers already, so a write during a run is seen by
+ * nothing that would react to it.
  *
  * A `cacheRoot` that is not a path is an error rather than a default, because
  * the cache a run would fall back to is one the reader never sees.
@@ -105,9 +115,10 @@ export function cacheRootFor(root: string): string {
   const config = rootConfig(root);
   const named = config === undefined ? undefined : cacheRootIn(config);
   if (named !== undefined) return named;
-  const xdg = process.env['XDG_CACHE_HOME'];
+  const isolated = process.env[CACHE_VARIABLE];
+  if (isolated !== undefined && isAbsolute(isolated)) return resolve(isolated);
 
-  return resolve(xdg !== undefined && isAbsolute(xdg) ? xdg : resolve(homedir(), '.cache'), 'variance-authority');
+  return resolve(repositoryRoot(root), 'node_modules', '.cache', 'variance-authority');
 }
 
 function cacheRootIn({ file, value: config }: RootConfig): string | undefined {
@@ -295,44 +306,4 @@ function readPrimary(here: string): string {
   return basename(worktrees) === 'worktrees' && basename(dirname(worktrees)) === '.git'
     ? dirname(dirname(worktrees))
     : here;
-}
-
-/**
- * Give this checkout the base's copy of an artifact it has none of.
- *
- * For the artifacts a worktree may not merely read across: a numbering
- * authority. `names.bin` assigns each path an id counted up from the size of
- * the table, and that id is baked into the emitted code and joined against by
- * every record store. A worktree that read the base's table without taking it
- * over would number its own new paths from zero and mean, by id 7, a different
- * file than the base does — silently, and in the direction that makes a run
- * attribute one module's crossings to another. Taking the table over continues
- * its count, so every id the base assigned still means what it meant and no new
- * one repeats it.
- *
- * Copied through a temporary name and renamed into place, because the reader is
- * synchronous and forgiving: a chain it cannot parse is an empty table, and an
- * empty table is precisely the renumbering this exists to prevent. A reader must
- * see the whole chain or none of it, never half.
- *
- * Silent on every failure. An artifact that could not be seeded is an artifact
- * this checkout builds for itself, which is what it would have done anyway.
- */
-export function seedFromBase(layers: CacheLayers, names: readonly string[]): void {
-  if (layers.top === layers.base) return;
-  for (const name of names) {
-    const to = resolve(layers.top, name);
-    const from = resolve(layers.base, name);
-    if (existsSync(to) || !existsSync(from)) continue;
-    const staging = `${to}.${process.pid.toString(16)}.seed`;
-    try {
-      cpSync(from, staging, { recursive: true });
-      renameSync(staging, to);
-    } catch {
-      // Somebody else got there first, or there was nothing to take.
-      try {
-        rmSync(staging, { recursive: true, force: true });
-      } catch { /* the staging copy outlives this run at worst */ }
-    }
-  }
 }

@@ -60,7 +60,7 @@ function playwright(work, env = {}) {
         // Keyed by repository in the cache (docs/cache.md), and this repository
         // names no `cacheRoot`, so pointing both at one directory is the whole
         // of what keeps this run out of a developer's own cache.
-        XDG_CACHE_HOME: join(work, 'cache'),
+        VARIANCE_AUTHORITY_CACHE: join(work, 'cache'),
         ...env,
       },
       stdio: ['ignore', 'pipe', 'pipe'],

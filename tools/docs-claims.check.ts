@@ -355,7 +355,7 @@ describe("the site routes package visitors to adopter integrations", () => {
 /**
  * Every competitor table on the site quotes the compared document.
  *
- * `docs/comparison.md` is the repository's one carefully sourced statement about
+ * `docs/compare-visual-review.md` is the repository's one carefully sourced statement about
  * Percy, Chromatic, Argos, and Applitools — every vendor fact in it links the
  * vendor's own published page, and its second section states what each does
  * better than this project. The site does not get a second opinion: every
@@ -395,7 +395,7 @@ describe("the comparison tables quote the compared document", () => {
       .toLowerCase();
 
   const COMPARED = flatten(
-    readFileSync(join(ROOT, "docs/comparison.md"), "utf8"),
+    readFileSync(join(ROOT, "docs/compare-visual-review.md"), "utf8"),
   );
 
   // Block comments blanked first, because every one of these components explains
@@ -444,7 +444,7 @@ describe("the comparison tables quote the compared document", () => {
 
   it("is rendered on the comparison page", () => {
     const page = readFileSync(
-      join(ROOT, "site/app/(docs)/reference/comparison/page.tsx"),
+      join(ROOT, "site/app/(docs)/reference/compare-visual-review/page.tsx"),
       "utf8",
     );
     expect(page).toContain("<Comparison />");
@@ -457,7 +457,7 @@ describe("the comparison tables quote the compared document", () => {
       "utf8",
     );
     expect(page).toContain("<OperatingBargain />");
-    expect(bargain).toContain('href="/reference/comparison"');
+    expect(bargain).toContain('href="/reference/compare-visual-review"');
   });
 });
 

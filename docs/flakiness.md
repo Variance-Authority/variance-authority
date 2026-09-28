@@ -230,7 +230,7 @@ naming where it is does not close it.
 
 A subject that declared what it asserts on has already answered for changes
 outside it. A route declared `layout` ([`ignores.md`](ignores.md),
-[`comparison.md`](comparison.md)) has said in the config that it does not assert
+[`compare-visual-review.md`](compare-visual-review.md)) has said in the config that it does not assert
 on what the page is painted with — so a clock ticking inside it is a fact about
 the page rather than a defect in it:
 
@@ -713,7 +713,7 @@ each `describe` block rather than across the file.
 [Variance Authority](README.md) treats an unstable hash as a finding with a cause, not noise
 to suppress. Diff-shape grouping can correlate recurring observations, but it
 does not license automatic acceptance: the same suppression can hide a later
-regression in the same region. [The product comparison](comparison.md) covers
+regression in the same region. [The product comparison](compare-visual-review.md) covers
 the different acceptance trade-offs.
 
 [`mask-fingerprint`](https://github.com/argos-ci/mask-fingerprint) derives a key

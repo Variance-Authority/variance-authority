@@ -220,7 +220,7 @@ async function graphFor(now: ExecutionIndex, root: string) {
 }
 
 /** The commit a base was recorded at: its last run's, or its snapshot's. */
-async function baseCommit(against: string): Promise<string | undefined> {
+export async function baseCommit(against: string): Promise<string | undefined> {
   // No last run beside it: the snapshot it sits beside may still say.
   const commit = (await lastRun(caseLayerFiles(against).last))?.commit;
   if (commit !== undefined) return commit;

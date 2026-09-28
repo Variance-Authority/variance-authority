@@ -27,13 +27,13 @@ let previous: string | undefined;
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'variance-share-entries-'));
   cache = await mkdtemp(join(tmpdir(), 'variance-share-entries-cache-'));
-  previous = process.env['XDG_CACHE_HOME'];
-  process.env['XDG_CACHE_HOME'] = cache;
+  previous = process.env['VARIANCE_AUTHORITY_CACHE'];
+  process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
 });
 
 afterAll(async () => {
-  if (previous === undefined) delete process.env['XDG_CACHE_HOME'];
-  else process.env['XDG_CACHE_HOME'] = previous;
+  if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  else process.env['VARIANCE_AUTHORITY_CACHE'] = previous;
   await rm(dir, { recursive: true, force: true });
   await rm(cache, { recursive: true, force: true });
 });

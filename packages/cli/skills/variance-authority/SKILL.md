@@ -99,8 +99,10 @@ Zero is a test whose own source changed.
 One directory keeps what can be rebuilt from the checkout: rendered images, the
 test-selection recording, and the source index. It is `cacheRoot` in the
 `variance.config.json` at the repository root; otherwise
-`$XDG_CACHE_HOME/variance-authority` when that is an absolute path; otherwise
-`~/.cache/variance-authority`. Rendered images and the source index are keyed
+`$VARIANCE_AUTHORITY_CACHE` when that is an absolute path; otherwise
+`node_modules/.cache/variance-authority` inside the checkout, which a sandbox
+that allows writes in the working tree allows too. Do not set
+`XDG_CACHE_HOME` to make a run pass: it is not read. Rendered images and the source index are keyed
 by the bytes they came from, so a stale entry, another branch's cache or no
 cache at all costs a slower answer and never a different one. The recording has
 its own refresh rules, in [test selection](references/test-selection.md). Runs

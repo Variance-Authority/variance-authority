@@ -185,6 +185,6 @@ Variance Authority gives you the component and
 reported; it does not give you any of those six.
 
 To weigh those trade-offs side by side, read
-[how the operating models compare](comparison.md#5-choose-the-ownership-model-you-want).
+[how the operating models compare](compare-visual-review.md#5-choose-the-ownership-model-you-want).
 For the exact API each package exports, read
 [the surface reference](surface.md).

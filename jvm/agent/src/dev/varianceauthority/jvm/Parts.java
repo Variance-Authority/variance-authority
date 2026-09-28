@@ -44,7 +44,8 @@ public final class Parts {
   private static final byte[] PART_MAGIC = {0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02};
   private static final byte[] RECORD_MAGIC = {0x56, 0x41, 0x52, 0x45, 0x43, 0x00, 0x00, 0x01};
   private static final int NAMED = 1;
-  private static final int UNNUMBERED = 0xffffffff;
+  // Every frame names its module by the path, the first string of its dictionary.
+  private static final int BY_PATH = 0xffffffff;
   private static final int INSTRUMENTED = 1;
   private static final int RECORD_HEADER = 32;
   /** The owner key of a window no journey was open for. */
@@ -254,7 +255,7 @@ public final class Parts {
     int bits = (count + 7) >> 3;
     int columns = align(count, 4) + count * 4 * 5 + align(bits, 4) + count * 16;
     ByteBuffer out = ByteBuffer.allocate(RECORD_HEADER + dictionary + columns).order(ByteOrder.LITTLE_ENDIAN);
-    out.putInt(UNNUMBERED).putInt(INSTRUMENTED).putInt(count).putInt(dictionary).put(digest(module.sourceDigest));
+    out.putInt(BY_PATH).putInt(INSTRUMENTED).putInt(count).putInt(dictionary).put(digest(module.sourceDigest));
     out.putInt(strings.size());
     for (byte[] bytes : strings) {
       out.putInt(bytes.length).put(bytes);

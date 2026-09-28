@@ -1,0 +1,48 @@
+import Comparison from "../../../components/Comparison";
+import DocsPage from "../../../components/DocsPage";
+import MarkdownDocument from "../../../components/MarkdownDocument";
+import MarkdownLead from "../../../components/MarkdownLead";
+import {
+  documentDescription,
+  documentTitle,
+  documentToc,
+} from "../../../content/markdown-text";
+import { productDocument } from "../../../content/product-docs";
+import { pageMetadata } from "../../../metadata";
+
+export const revalidate = 3600;
+
+const document = productDocument("compare-visual-review")!;
+const title = documentTitle(document.source);
+const description = documentDescription(document.source);
+
+export const metadata = pageMetadata(
+  "/reference/compare-visual-review",
+  title,
+  description,
+);
+
+export default function Page() {
+  return (
+    <DocsPage
+      current="/reference/compare-visual-review"
+      eyebrow="Reference"
+      title={title}
+      description={
+        <MarkdownLead
+          source={document.source}
+          sourcePath={document.sourcePath}
+        />
+      }
+      toc={documentToc(document.source)}
+    >
+      <figure className="doc-figure">
+        <Comparison />
+      </figure>
+      <MarkdownDocument
+        source={document.source}
+        sourcePath={document.sourcePath}
+      />
+    </DocsPage>
+  );
+}

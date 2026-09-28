@@ -70,11 +70,7 @@ impl Record<'_> {
 
 /// The files a journey's blocks are in, then its tests' files: the graph's seeds.
 pub(crate) fn seeds(journey: &Journey) -> Result<Vec<String>, String> {
-    let mut seeds: Vec<String> = journey.module_files.iter().map(|&id| journey.text(id).map(str::to_owned)).collect::<Result<_, _>>()?;
-    for &id in &journey.test_files {
-        seeds.push(journey.text(id)?.to_owned());
-    }
-    Ok(seeds)
+    Ok(journey.files()?.into_iter().chain(journey.test_file_names()?).map(str::to_owned).collect())
 }
 
 fn score(func: &Func, region: &Region) -> Option<u32> {
@@ -86,39 +82,44 @@ fn score(func: &Func, region: &Region) -> Option<u32> {
 
 pub(crate) fn record<'j>(journey: &'j Journey, graph: &Graph) -> Result<Record<'j>, String> {
     let files = graph.files.len();
-    let mut regions: Vec<Region> = Vec::with_capacity(journey.kinds.len());
+    let mut regions: Vec<Region> = Vec::new();
     let mut regions_of = vec![0..0; files];
-    for (module, &id) in journey.module_files.iter().enumerate() {
-        let file = graph.ids[journey.text(id)?];
+    // Regions share their sets of cases, so each set is decoded once. The
+    // journey reads its columns lazily through cells, so this stays on one thread.
+    let mut sets: HashMap<u32, Vec<u32>> = HashMap::new();
+    let mut members: Vec<u32> = Vec::new();
+    for module in 0..journey.modules() {
+        let file = graph.ids[journey.module_file(module)?];
         let from = regions.len() as u32;
-        for block in journey.blocks(module) {
-            let name = journey.text(journey.names[block])?;
+        for block in journey.regions(module)? {
+            let name = journey.text(block.name)?;
+            if let std::collections::hash_map::Entry::Vacant(slot) = sets.entry(block.called) {
+                slot.insert(journey.members(block.called)?);
+            }
+            members.push(block.called);
             regions.push(Region {
                 file,
-                kind: journey.text(journey.kinds[block])?,
+                kind: journey.text(block.kind)?,
                 name,
                 last: name.rsplit('/').next().unwrap_or(name),
-                start: journey.starts[block],
-                end: journey.ends[block],
-                loaded: journey.loaded[block] == 1,
+                start: block.start,
+                end: block.end,
+                loaded: block.loaded,
                 cases: 0,
             });
         }
         regions_of[file as usize] = from..regions.len() as u32;
     }
-    let members: Vec<Vec<u32>> = (0..regions.len()).into_par_iter().map(|block| journey.members(block)).collect::<Result<_, _>>()?;
     let mut entered: Vec<Vec<u32>> = vec![Vec::new(); journey.tests()];
-    for (j, cases) in members.iter().enumerate() {
+    for (j, set) in members.iter().enumerate() {
+        let cases = &sets[set];
         regions[j].cases = cases.len() as u32;
         for &case in cases {
             entered[case as usize].push(j as u32);
         }
     }
-    let tests = journey
-        .test_files
-        .iter()
-        .zip(&journey.test_names)
-        .map(|(&file, &name)| Ok((graph.ids[journey.text(file)?], journey.text(name)?)))
+    let tests = (0..journey.tests())
+        .map(|test| Ok((graph.ids[journey.test_file(test)?], journey.test_name(test)?)))
         .collect::<Result<_, String>>()?;
 
     // Both directions of the match, from one pass over each file's pairs.
@@ -195,11 +196,8 @@ pub(crate) fn record<'j>(journey: &'j Journey, graph: &Graph) -> Result<Record<'
         }
     }
     // The recording's module order, which is the order the walk tries them in.
-    let order: HashMap<u32, usize> = journey
-        .module_files
-        .iter()
-        .enumerate()
-        .filter_map(|(at, &id)| Some((*graph.ids.get(journey.text(id).ok()?)?, at)))
+    let order: HashMap<u32, usize> = (0..journey.modules())
+        .filter_map(|at| Some((*graph.ids.get(journey.module_file(at).ok()?)?, at)))
         .collect();
     for list in handed.values_mut() {
         list.sort_by_key(|&(file, at)| (order.get(&file).copied().unwrap_or(usize::MAX), at));

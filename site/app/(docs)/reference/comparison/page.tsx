@@ -1,4 +1,3 @@
-import Comparison from "../../../components/Comparison";
 import DocsPage from "../../../components/DocsPage";
 import MarkdownDocument from "../../../components/MarkdownDocument";
 import MarkdownLead from "../../../components/MarkdownLead";
@@ -36,9 +35,6 @@ export default function Page() {
       }
       toc={documentToc(document.source)}
     >
-      <figure className="doc-figure">
-        <Comparison />
-      </figure>
       <MarkdownDocument
         source={document.source}
         sourcePath={document.sourcePath}

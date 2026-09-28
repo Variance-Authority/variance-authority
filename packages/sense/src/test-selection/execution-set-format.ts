@@ -11,7 +11,7 @@ import {
 } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import type { CrossingSetsPool, SetId } from './crossing-sets.js';
-import { intern } from '@variance-authority/core/segment';
+import { codeUnitOrder, intern } from '@variance-authority/core/segment';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 
 /**
@@ -51,9 +51,14 @@ export interface SetExecutionIndex {
  * while its module evaluated. The representation therefore grows with regions
  * plus distinct sets, not with the test-by-region product that exhausted Jest's
  * parent-process heap.
+ *
+ * Module rows are written in code-unit order of path, the order the string
+ * table is sorted in, so a reader finds one module by a binary search rather
+ * than a table of every path. The native fold and stitch write the same order.
  */
 export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   const { strings, id } = intern(dictionary(index));
+  const modules = [...index.modules].sort((left, right) => codeUnitOrder(left.file, right.file));
   const encoded = strings.map((value) => Buffer.from(value, 'utf8'));
   const stringOffsets = new Uint32Array(strings.length + 1);
   let byteOffset = 0;
@@ -64,8 +69,8 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   stringOffsets[strings.length] = byteOffset;
 
   const blockCount = index.modules.reduce((total, module) => total + module.blocks.length, 0);
-  const moduleFile = new Uint32Array(index.modules.length);
-  const moduleBlocks = new Uint32Array(index.modules.length + 1);
+  const moduleFile = new Uint32Array(modules.length);
+  const moduleBlocks = new Uint32Array(modules.length + 1);
   const blockKind = new Uint32Array(blockCount);
   const blockName = new Uint32Array(blockCount);
   const blockPath = new Uint32Array(blockCount);
@@ -76,7 +81,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   const blockLoaded = new Uint8Array(blockCount);
 
   let block = 0;
-  for (const [moduleAt, module] of index.modules.entries()) {
+  for (const [moduleAt, module] of modules.entries()) {
     if (module.called.length !== module.blocks.length || module.loaded.length !== module.blocks.length) {
       throw new Error('journey set columns do not match the region inventory');
     }
@@ -94,7 +99,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
       block += 1;
     }
   }
-  moduleBlocks[index.modules.length] = block;
+  moduleBlocks[modules.length] = block;
 
   return sections({
     'strings.blob': blob(Buffer.concat(encoded), stringOffsets),

@@ -5,7 +5,7 @@ harness, and the `toHaveScreenshot` assertions that already work are usually
 worth keeping. This page takes one harness at a time and says what stays yours,
 what you add, what the change buys and what it costs, so you can adopt at a
 single boundary instead of rebuilding the workflow around it. For the vendor
-tradeoffs in full, see [how it compares](comparison.md) and [where a build gate
+tradeoffs in full, see [how it compares](compare-visual-review.md) and [where a build gate
 fits](gates.md); for the exact APIs, [the surface reference](surface.md).
 
 New here? Start with [your first run](start.md).
@@ -256,7 +256,7 @@ and produces one subject per story.
 
 What a hosted product does here that a self-run setup does not — branch
 baselines it stores, reviewers it staffs, a managed device fleet — is set out on
-[how it compares](comparison.md).
+[how it compares](compare-visual-review.md).
 
 ## Start without replacing anything
 

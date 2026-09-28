@@ -253,6 +253,32 @@ impl Resolvers {
             .ok()
     }
 
+    /// The install's declaration answer for a request, including its provider manifest.
+    pub fn declaration_resolution(&self, from: &Path, request: &str) -> Option<oxc_resolver::Resolution> {
+        let request = request_of(request)?;
+        let modules = self.modules_for(from);
+        let direct = modules.resolve_dts(from, request).ok().filter(|answer| {
+            let path = answer.path().to_string_lossy();
+            path.ends_with(".d.ts") || path.ends_with(".d.mts") || path.ends_with(".d.cts")
+                || path.ends_with(".ts") || path.ends_with(".mts") || path.ends_with(".cts")
+                || path.ends_with(".tsx")
+        });
+        if direct.is_some() || request.starts_with('.') || request.starts_with("@types/") { return direct; }
+        let typed = if let Some(scoped) = request.strip_prefix('@') {
+            let mut parts = scoped.splitn(3, '/');
+            let scope = parts.next()?;
+            let name = parts.next()?;
+            let rest = parts.next().map_or(String::new(), |rest| format!("/{rest}"));
+            format!("@types/{scope}__{name}{rest}")
+        } else {
+            format!("@types/{request}")
+        };
+        modules.resolve_dts(from, &typed).ok().filter(|answer| {
+            let path = answer.path().to_string_lossy();
+            path.ends_with(".d.ts") || path.ends_with(".d.mts") || path.ends_with(".d.cts")
+        })
+    }
+
     fn canonical(&self, path: &Path) -> PathBuf {
         if let Ok(held) = self.canonical.lock() {
             if let Some(known) = held.get(path) {

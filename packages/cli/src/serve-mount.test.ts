@@ -229,7 +229,7 @@ function session(cwd = workspace): {
   const child = spawn(process.execPath, [BIN, 'serve'], {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...env, NO_COLOR: '1', XDG_CACHE_HOME: join(cwd, 'cache') },
+    env: { ...env, NO_COLOR: '1', VARIANCE_AUTHORITY_CACHE: join(cwd, 'cache') },
   });
   const waiting = new Map<number, { resolve(result: unknown): void; reject(error: Error): void }>();
   let ended: Error | undefined;

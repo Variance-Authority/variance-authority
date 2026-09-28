@@ -7,7 +7,7 @@ import ComparisonTable from "./ComparisonTable";
  * The table itself is shared — every vendor cell is a checked quote, and the
  * rows live in ComparisonTable. What is here is the framing around it and the
  * footnotes, which quote the same document and carry the same marker: doc()
- * means this string appears verbatim in docs/comparison.md, and
+ * means this string appears verbatim in docs/compare-visual-review.md, and
  * `docs-claims.check.ts` fails `yarn check` when it stops being true.
  */
 const doc = (fragment: string) => fragment;

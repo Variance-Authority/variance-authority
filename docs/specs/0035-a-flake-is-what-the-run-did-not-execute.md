@@ -118,8 +118,10 @@ list. It has not been explained, and the ladder continues past it.
 
 **A footprint is not a coverage percentage.** The question is which regions were
 entered, never how many, and no threshold, ratio or score is derived from this
-index. The instrument records the path, not the percentage
-([0028](0028-the-instrument.md)).
+index for a flake rung, a selection or a verdict. The instrument records the
+path, not the percentage ([0028](0028-the-instrument.md)). A ratio that is only
+reported, and read back by nothing, is
+[ADR-0081](../context/adr/0081-a-coverage-ratio-is-reported-never-read.md).
 
 **An empty footprint is not an empty intersection.** A subject the collector
 produced with no probes loaded has *no evidence*, and reads as unobserved. The

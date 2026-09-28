@@ -5,7 +5,7 @@
  * or an editor names, or the ones `docs_search`, `docs_symbol` and `docs_grep`
  * found. Finding them is those tools' job. The first two answer from the index
  * `variance index` publishes and the third runs ripgrep over what one file
- * reaches, so nothing here reads the text of a file. This answers the graph
+ * reaches, so orientation does not scan source text. This answers the graph
  * questions each of those files raises: the package it belongs to, the names
  * that cross that package's edge in both directions, the recorded cases that
  * ran it, the calls those cases took into and out of it, and the commands that
@@ -29,7 +29,7 @@
 
 import type { Tool } from '@variance-authority/mcp/tools';
 import { basename } from 'node:path';
-import { codeMapPage, journeysAround, packagesAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
+import { codeMapPage, dependenciesAround, journeysAround, packagesAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
 import { formatCodeMapPage } from './code-map-format.js';
 import { formatOrientation, type OrientReading } from './orient-format.js';
 
@@ -73,11 +73,12 @@ export const orient: Tool<unknown> = {
     'which find them. Says which package each file is in, what that package imports from other packages and ' +
     'what other packages import from it, as each package\'s share of that side with the names it takes, ' +
     'each name weighed against all the outside use of the package that exports it, ' +
+    'which external packages the local imports from those files request, ' +
     'which recorded test cases ran each file or a test file declares, which functions in other files call into it and ' +
     'which it calls, as the recorded cases were walked over the static call graph, with how each call is known, the package ' +
     'flows those cases take through it, and the narrower questions to ask next. Reads the source index `variance index` ' +
-    'publishes, the latest recorded run and the journeys `variance index` prepares from it; reads no file\'s text and runs ' +
-    'nothing itself.',
+    'publishes, the latest recorded run and the journeys `variance index` prepares from it; does not scan source text or ' +
+    'run tests.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -112,9 +113,11 @@ export const orient: Tool<unknown> = {
           'ask with `files` alone, or with `area` alone.',
       );
     }
+    const external = dependenciesAround(root, files, { rows: 8, names: 3 });
     return formatOrientation({
       files,
       around: packagesAround(root, files, LIMITS),
+      external,
       // TODO: a file that only ran while its module evaluated is counted with
       // no case, because the cases whose files import it are the file graph's
       // answer and this builds no graph; `variance covering --file` builds one

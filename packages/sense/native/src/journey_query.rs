@@ -21,7 +21,7 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 
 use crate::journey_journal;
-use crate::journey_read::{pairs, Journey};
+use crate::journey_read::{overlaps, pairs, Journey};
 
 /// One changed file and the lines that changed, as `[start, end]` pairs.
 #[napi(object)]
@@ -76,40 +76,39 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
     let journey = Journey::open(file)?;
     let tests = (0..journey.tests())
         .map(|at| Ok(JourneyTest {
-            id: journey.text(journey.test_ids[at])?.to_owned(),
-            file: journey.text(journey.test_files[at])?.to_owned(),
-            name: journey.text(journey.test_names[at])?.to_owned(),
-            stopped: match journey.test_settled.as_ref().map(|column| column[at]) {
+            id: journey.test_id(at)?.to_owned(),
+            file: journey.test_file(at)?.to_owned(),
+            name: journey.test_name(at)?.to_owned(),
+            stopped: match journey.test_settled(at)? {
                 Some(journey_journal::STOPPED) => Some(true),
                 Some(journey_journal::FINISHED) => Some(false),
                 _ => None,
             },
         }))
         .collect::<Result<Vec<_>, String>>()?;
-    let by_file = journey.by_file()?;
 
     let mut modules = Vec::new();
     for change in changed {
-        let Some(&module) = by_file.get(change.file.as_str()) else { continue };
+        let Some(module) = journey.module_of(&change.file)? else { continue };
         let ranges = pairs(&change.ranges);
-        let every = ranges.is_empty()
-            || journey.blocks(module).any(|block| journey.overlaps(block, &ranges) && journey.loaded[block] == 1);
-        let blocks = journey
-            .blocks(module)
-            .map(|block| Ok(JourneyRegion {
-                kind: journey.text(journey.kinds[block])?.to_owned(),
-                name: journey.text(journey.names[block])?.to_owned(),
-                path: journey.text(journey.paths[block])?.to_owned(),
-                start_line: journey.starts[block],
-                end_line: journey.ends[block],
-                source: journey.sources[block] == 1,
-                loaded: journey.loaded[block] == 1,
-                tests: if every || journey.overlaps(block, &ranges) { journey.members(block)? } else { Vec::new() },
+        let regions = journey.regions(module)?;
+        let every = ranges.is_empty() || regions.iter().any(|region| overlaps(region, &ranges) && region.loaded);
+        let blocks = regions
+            .iter()
+            .map(|region| Ok(JourneyRegion {
+                kind: journey.text(region.kind)?.to_owned(),
+                name: journey.text(region.name)?.to_owned(),
+                path: journey.text(region.path)?.to_owned(),
+                start_line: region.start,
+                end_line: region.end,
+                source: region.source,
+                loaded: region.loaded,
+                tests: if every || overlaps(region, &ranges) { journey.members(region.called)? } else { Vec::new() },
             }))
             .collect::<Result<_, String>>()?;
         modules.push(JourneyModule { file: change.file.clone(), blocks });
     }
-    let files = by_file.keys().map(|file| (*file).to_owned()).collect();
+    let files = journey.files()?.into_iter().map(str::to_owned).collect();
     Ok(JourneyProjection { tests, modules, files })
 }
 
@@ -155,9 +154,9 @@ fn declared<'a>(journey: &'a Journey, files: &[String]) -> Result<HashMap<&'a st
     let asked: HashSet<&str> = files.iter().map(String::as_str).collect();
     let mut declared: HashMap<&str, Vec<&str>> = HashMap::new();
     for case in 0..journey.tests() {
-        let file = journey.text(journey.test_files[case])?;
+        let file = journey.test_file(case)?;
         if asked.contains(file) {
-            declared.entry(file).or_default().push(journey.text(journey.test_names[case])?);
+            declared.entry(file).or_default().push(journey.test_name(case)?);
         }
     }
     for names in declared.values_mut() {
@@ -172,7 +171,6 @@ fn declared<'a>(journey: &'a Journey, files: &[String]) -> Result<HashMap<&'a st
 /// so a question about three files never carries a recording's cases across.
 fn entered(file: &str, files: &[String], titles: usize) -> Result<Vec<CasesEntered>, String> {
     let journey = Journey::open(file)?;
-    let by_file = journey.by_file()?;
     let declares = declared(&journey, files)?;
     files
         .iter()
@@ -181,7 +179,7 @@ fn entered(file: &str, files: &[String], titles: usize) -> Result<Vec<CasesEnter
             let declared = own.map(|names| names.len() as u32);
             let declared_names =
                 own.map(|names| names.iter().take(titles).map(|&name| name.to_owned()).collect()).unwrap_or_default();
-            let Some(&module) = by_file.get(asked.as_str()) else {
+            let Some(module) = journey.module_of(asked)? else {
                 return Ok(CasesEntered {
                     file: asked.clone(),
                     cases: None,
@@ -191,16 +189,20 @@ fn entered(file: &str, files: &[String], titles: usize) -> Result<Vec<CasesEnter
                     declared_names,
                 });
             };
+            let regions = journey.regions(module)?;
             let mut cases: HashSet<u32> = HashSet::new();
-            for block in journey.blocks(module) {
-                cases.extend(journey.members(block)?);
+            let mut sets = HashSet::new();
+            for region in &regions {
+                if sets.insert(region.called) {
+                    cases.extend(journey.members(region.called)?);
+                }
             }
-            let loaded = journey.blocks(module).any(|block| journey.loaded[block] == 1);
+            let loaded = regions.iter().any(|region| region.loaded);
             let mut named = cases
                 .iter()
                 .map(|&case| {
                     let case = case as usize;
-                    Ok((journey.text(journey.test_files[case])?, journey.text(journey.test_names[case])?))
+                    Ok((journey.test_file(case)?, journey.test_name(case)?))
                 })
                 .collect::<Result<Vec<_>, String>>()?;
             named.sort_unstable_by(|left, right| {

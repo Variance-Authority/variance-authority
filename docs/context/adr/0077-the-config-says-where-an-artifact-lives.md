@@ -76,9 +76,8 @@ builds no key.**
     artifact. A share holds one record per mainline and per branch, and
     nothing older. The record is a set of entries: `report-v1`, and one
     `suite-v1` per carried suite, each naming the commit it was derived at. A
-    `suite-v1` holds the coverage record and its per-case index and no names
-    table, because both name files repository-relative and the table only
-    numbers what the next instrumented build emits
+    `suite-v1` holds the coverage record and its per-case index, and both
+    name files repository-relative
     ([`share-entries.ts`](../../../packages/cli/src/share-entries.ts)). Images sit beside the record, once each, by pixel
     digest. So `carry: "share"` on a suite or on the report makes it an entry
     in the record, and a publish replaces only the entries it carries. No
@@ -189,16 +188,6 @@ builds no key.**
 
 ## Open
 
-- **Suites carried apart share one names table.** `names.bin` numbers paths
-  counting up from its own size (`cache-layers.ts:253`), and a suite's record
-  is written in those numbers. Two jobs that restore the same base and each
-  record one suite write two tables that disagree past the base. Restoring
-  both into one layer then reads one suite's rows under the other's names.
-  - Until the table is carried by content, `carry` saves the whole layer
-    under each suite's key.
-  - A restore takes one suite's layer, plus the other suites' directories
-    only when their names table is a prefix of the one restored.
-  - Anything else is reported as a suite that did not come back, never read.
 - **Old identity partitions stay in the baseline cache.** Without the renderer
   in the key, a renderer bump keeps the old partition inside every later save
   until something prunes it.

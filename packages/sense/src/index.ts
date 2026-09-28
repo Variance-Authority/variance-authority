@@ -24,6 +24,7 @@
 // compass: variance-authority.reach
 
 export { scanRelations, type ScanOptions } from './scan.js';
+export { refreshDependencyLexiconNative, queryDependencyLexiconNative } from './dependency-lexicon.js';
 
 /**
  * Which languages this build reads, and every extension a scan will open.
@@ -76,9 +77,11 @@ export type { SourceIndexState } from './source-index-file.js';
 
 export {
   packagesAround,
+  dependenciesAround,
   recordedCases,
   type CasesEntered,
   type Orientation,
+  type ExternalOrientation,
   type OrientFlow,
   type OrientFlows,
   type OrientLimits,

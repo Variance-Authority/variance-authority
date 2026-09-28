@@ -49,7 +49,7 @@ other engine accepts, so Chromium is the only engine whose text rasterization
 you can pin and get back somewhere else; WebKit and Firefox paint text the way
 their host does, which makes their baselines that host's property. Give them
 one host, or one container image, and keep it, and they are as good a painter
-as anything — [how this compares](comparison.md) sets out what else follows
+as anything — [how this compares](compare-visual-review.md) sets out what else follows
 from the engine.
 
 Pinning is not the fast way to take the photograph. Chromium spends most of its

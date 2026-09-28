@@ -38,14 +38,11 @@ const NO_OWNER = 0xffffffff;
 const INSTRUMENTED = 1;
 
 /**
- * The id of a module the table had not numbered when it was transformed.
- *
- * A record under it answers for the path instead, which the frame already
- * carries as the first string of its dictionary. One run per new file pays a
- * path where it would have paid four bytes; the fold numbers it, and the next
- * transform of that file emits a number.
+ * The id field of every frame written: the module is named by its path, the
+ * first string of the frame's dictionary. A frame holding anything else was
+ * filed under a module number and answers for no path; readers skip it.
  */
-export const UNNUMBERED = 0xffffffff;
+export const BY_PATH = 0xffffffff;
 
 const align = (bytes: number, to: number): number => (bytes + to - 1) & ~(to - 1);
 
@@ -128,7 +125,7 @@ function encodeRecord(module: CapturedModule): Buffer {
   const columns = align(count, 4) + count * 4 * 5 + align(bits, 4) + count * DIGEST_BYTES;
   const out = Buffer.alloc(RECORD_HEADER + dictionary + columns);
 
-  out.writeUInt32LE(typeof module.id === 'number' ? module.id : UNNUMBERED, 0);
+  out.writeUInt32LE(BY_PATH, 0);
   out.writeUInt32LE(module.instrumented ? INSTRUMENTED : 0, 4);
   out.writeUInt32LE(count, 8);
   out.writeUInt32LE(dictionary, 12);
@@ -175,7 +172,7 @@ const kindId = (kind: BlockKind): number => KINDS.indexOf(kind);
 
 /** Where one frame sits, and the identity it answers for. */
 export interface Frame {
-  /** The module's number, or {@link UNNUMBERED} when {@link framePath} answers instead. */
+  /** {@link BY_PATH} for a frame {@link framePath} names; anything else names no path. */
   readonly id: number;
   readonly at: number;
   readonly length: number;
@@ -267,11 +264,10 @@ export function decodeRecord(raw: Buffer, frame: Frame): CapturedModule | undefi
   }
 
   const file = strings[0];
-  if (file === undefined) return undefined;
-  const numbered = payload.readUInt32LE(0);
+  if (file === undefined || payload.readUInt32LE(0) !== BY_PATH) return undefined;
   return {
     file,
-    id: numbered === UNNUMBERED ? file : numbered,
+    id: file,
     sourceDigest: digestText(payload, 16),
     instrumented: (payload.readUInt32LE(4) & INSTRUMENTED) !== 0,
     blocks,

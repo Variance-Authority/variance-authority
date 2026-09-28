@@ -31,12 +31,12 @@ const cwd = process.cwd();
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-mainline-base-'));
-  process.env['XDG_CACHE_HOME'] = join(home, 'ci-cache');
+  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
 });
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['XDG_CACHE_HOME'];
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
   await rm(home, { recursive: true, force: true });
 });
 
@@ -51,12 +51,12 @@ describe('`variance select` in a checkout that recorded nothing', () => {
     expect(there.err).toContain('record of "unit": read from this checkout; the mainline\'s is read only when this checkout has none.');
 
     const clone = await cloneOf(home, ci.origin);
-    process.env['XDG_CACHE_HOME'] = join(home, 'laptop-cache');
+    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
     await writeFile(join(clone, 'src/total.ts'), change);
     const here = await selectedIn(clone);
 
     expect(here.out).toBe(there.out);
-    const kept = join(home, 'laptop-cache', 'variance-authority', 'share', 'read', 'unit', ci.first, 'coverage.bin');
+    const kept = join(home, 'laptop-cache', 'share', 'read', 'unit', ci.first, 'coverage.bin');
     expect(here.err.split('\n')).toContain(
       `record of "unit": read from mainline main, published at ${ci.first}, at the merge base with this checkout; kept at ${kept}.`,
     );
@@ -68,7 +68,7 @@ describe('`variance select` in a checkout that recorded nothing', () => {
     const ci = await published(home);
     const branch = await branchPublished(home, ci.dir);
     const clone = await cloneOf(home, ci.origin, 'feat/x');
-    process.env['XDG_CACHE_HOME'] = join(home, 'laptop-cache');
+    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
     await writeFile(join(clone, 'src/total.ts'), BEFORE.replace('0.9', '0.8'));
 
     const here = await selectedIn(clone);
@@ -84,7 +84,7 @@ describe('`variance review` after runs laid over no recording', () => {
   it('starts where the mainline published its record, and compares the cases with the mainline\'s', async () => {
     const ci = await published(home);
     const clone = await cloneOf(home, ci.origin);
-    process.env['XDG_CACHE_HOME'] = join(home, 'laptop-cache');
+    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
     await ranHere(clone, ci.first);
 
     const answer = await review(parseReview(['--root', clone]));
@@ -100,7 +100,7 @@ describe('`variance review` after runs laid over no recording', () => {
     const ci = await published(home);
     const branch = await branchPublished(home, ci.dir);
     const clone = await cloneOf(home, ci.origin, 'feat/x');
-    process.env['XDG_CACHE_HOME'] = join(home, 'laptop-cache');
+    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
     await ranHere(clone, branch);
 
     const answer = await review(parseReview(['--root', clone]));
@@ -117,7 +117,7 @@ describe('`variance review` after runs laid over no recording', () => {
     await recordIn(ci.dir, second, ['test/total.test.ts'], [DISCOUNTS, ROUNDS]);
     await publishTo(home, ci.dir, second, PUSH, 'mainline main');
     await git(clone, 'fetch', '--quiet', 'origin');
-    process.env['XDG_CACHE_HOME'] = join(home, 'laptop-cache');
+    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
     await ranHere(clone, ci.first);
 
     const answer = await review(parseReview(['--root', clone]));

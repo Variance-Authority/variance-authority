@@ -122,7 +122,7 @@ for (let module = 0; module < MODULES; module += 1) {
       increments += times;
     }
   };
-  const header = PROBE_RUNTIME.replace('.r(0,0)', `.r(${module},${blocks})`);
+  const header = PROBE_RUNTIME.replace('.r("",0)', `.r(${JSON.stringify(`src/m${module}.ts`)},${blocks})`);
   const probe = new Function('__run', `${header}__run(__va);__vaE();return __va;`)(
     module % 7 === 0 ? enter : () => {},
   );

@@ -43,19 +43,19 @@ pub(crate) struct Owners<'a> {
 }
 
 #[derive(Deserialize)]
-struct Manifest {
+pub(crate) struct Manifest {
     name: Option<serde_json::Value>,
-    dependencies: Option<serde_json::Value>,
+    pub dependencies: Option<serde_json::Value>,
     #[serde(rename = "peerDependencies")]
-    peer_dependencies: Option<serde_json::Value>,
+    pub peer_dependencies: Option<serde_json::Value>,
     #[serde(rename = "optionalDependencies")]
-    optional_dependencies: Option<serde_json::Value>,
+    pub optional_dependencies: Option<serde_json::Value>,
     #[serde(rename = "devDependencies")]
-    dev_dependencies: Option<serde_json::Value>,
+    pub dev_dependencies: Option<serde_json::Value>,
 }
 
 /// The keys of a dependency map; anything that is not a map declares nothing.
-fn declared(field: &Option<serde_json::Value>) -> impl Iterator<Item = String> + '_ {
+pub(crate) fn declared(field: &Option<serde_json::Value>) -> impl Iterator<Item = String> + '_ {
     field.as_ref().and_then(serde_json::Value::as_object).into_iter().flat_map(|map| map.keys().cloned())
 }
 

@@ -22,13 +22,13 @@
 //! looked at once per module, so the cost follows the change and not the day of
 //! shards the file holds.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use napi_derive::napi;
 
 use crate::journey_graph::{Graph, JourneyGraph};
 use crate::journey_query::JourneyChange;
-use crate::journey_read::{pairs, Journey};
+use crate::journey_read::{innermost_at, overlaps, pairs, Journey, Region};
 
 #[napi(object)]
 pub struct JourneySelection {
@@ -68,12 +68,18 @@ impl<'a> Selecting<'a> {
     }
 
     fn every_entrant(&mut self, module: usize) -> Result<(), String> {
+        let regions = self.journey.regions(module)?;
+        self.enter_sets(&regions)
+    }
+
+    /// Enter the tests of every set `regions` point at, each set once.
+    fn enter_sets(&mut self, regions: &[Region]) -> Result<(), String> {
         let journey = self.journey;
         self.seen.fill(false);
         let mut sets = HashSet::new();
-        for block in journey.blocks(module) {
-            if sets.insert(journey.called[block]) {
-                let members = journey.members(block)?;
+        for region in regions {
+            if sets.insert(region.called) {
+                let members = journey.members(region.called)?;
                 self.enter(&members);
             }
         }
@@ -109,32 +115,25 @@ impl<'a> Selecting<'a> {
 
         let journey = self.journey;
         let settled = read == Some("bodies");
-        let candidates: Vec<usize> = journey.blocks(module).filter(|block| journey.overlaps(*block, ranges)).collect();
-        let mut chosen: Vec<usize> = Vec::new();
+        let candidates: Vec<Region> =
+            journey.regions(module)?.into_iter().filter(|region| overlaps(region, ranges)).collect();
+        let mut chosen: Vec<Region> = Vec::new();
         let mut innermost = Vec::new();
         for (start, end) in ranges {
             for line in (*start).max(1)..=*end {
-                journey.innermost_at(&candidates, line, &mut innermost);
+                innermost_at(&candidates, line, &mut innermost);
                 chosen.extend(&innermost);
             }
         }
-        chosen.sort_unstable();
-        chosen.dedup();
+        chosen.sort_unstable_by_key(|region| region.at);
+        chosen.dedup_by_key(|region| region.at);
         if settled {
             // Text between two declarations falls in the module's own region,
             // and the reading proved nothing there runs differently.
-            chosen.retain(|block| journey.text(journey.kinds[*block]).map_or(true, |kind| kind != "module"));
+            chosen.retain(|region| journey.text(region.kind).map_or(true, |kind| kind != "module"));
         }
-        let loaded = chosen.iter().any(|block| journey.loaded[*block] == 1);
-
-        self.seen.fill(false);
-        let mut sets = HashSet::new();
-        for block in chosen {
-            if sets.insert(journey.called[block]) {
-                let members = journey.members(block)?;
-                self.enter(&members);
-            }
-        }
+        let loaded = chosen.iter().any(|region| region.loaded);
+        self.enter_sets(&chosen)?;
         if loaded {
             match self.importers(file) {
                 Some(tests) if !tests.is_empty() => self.entered.extend(tests),
@@ -144,13 +143,13 @@ impl<'a> Selecting<'a> {
         Ok(None)
     }
 
-    fn bumped(&mut self, name: &str, by_file: &HashMap<&str, usize>) -> Result<(), String> {
+    fn bumped(&mut self, name: &str) -> Result<(), String> {
         let Some(files) = self.graph.as_ref().and_then(|graph| graph.package_importers(name)) else { return Ok(()) };
         for file in files {
             if let Some(test) = self.held.get(file).copied() {
                 self.entered.insert(test);
             }
-            if let Some(module) = by_file.get(file).copied() {
+            if let Some(module) = self.journey.module_of(file)? {
                 self.every_entrant(module)?;
             }
         }
@@ -166,7 +165,6 @@ fn select(
 ) -> Result<JourneySelection, String> {
     let journey = Journey::open(file)?;
     let tests = journey.test_file_names()?;
-    let by_file = journey.by_file()?;
     let mut selecting = Selecting {
         journey: &journey,
         held: tests.iter().copied().collect(),
@@ -178,13 +176,13 @@ fn select(
     let mut unread = Vec::new();
     for change in changed {
         let ranges = pairs(&change.ranges);
-        let module = by_file.get(change.file.as_str()).copied();
+        let module = journey.module_of(&change.file)?;
         if let Some(file) = selecting.change(&change.file, &ranges, module, change.read.as_deref())? {
             unread.push(file);
         }
     }
     for name in packages {
-        selecting.bumped(name, &by_file)?;
+        selecting.bumped(name)?;
     }
     Ok(JourneySelection {
         whole: selecting.held.iter().map(|test| (*test).to_owned()).collect(),

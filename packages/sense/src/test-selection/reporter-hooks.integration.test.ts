@@ -108,7 +108,7 @@ describe('which of the two complete writers this checkout drives', () => {
     // still publishes a snapshot.
     await execute(process.execPath, [vitest, 'run', '--config', config], {
       cwd: fixture,
-      env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
+      env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
     }).catch(() => undefined);
 
     const called = (await readFile(log, 'utf8'))

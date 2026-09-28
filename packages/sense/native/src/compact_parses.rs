@@ -31,7 +31,7 @@ pub(crate) struct Parses<'a> {
     harvested: &'a [u8],
     pub request_value: U32s<'a>,
     pub request_kind: U32s<'a>,
-    request_line: U32s<'a>,
+    pub request_line: U32s<'a>,
     pub request_bindings: U32s<'a>,
     pub binding_imported: U32s<'a>,
     binding_local: U32s<'a>,

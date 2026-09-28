@@ -12,7 +12,6 @@
  * the instrument loads it inside every test worker and the scanner's imports
  * are nothing a worker needs.
  */
-
 import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
@@ -23,19 +22,16 @@ import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
 import type { Aliases } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
-  NativeJourneyGraph,
-  NativeJourneySelection,
-  NativeJourneyChange,
+  NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
   NativeJourneyProjection,
   NativeJourneyFold,
   NativeJourneyFoldResult,
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
-import type { NativeCasesEntered, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import { witnessesOf } from './witness.js';
-
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 export type {
   NativeJourneyGraph,
@@ -47,7 +43,6 @@ export type {
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
-
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
   readonly size: number;
@@ -81,7 +76,6 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
   directories(): Record<string, string>;
   configDigest(header: string[], names: string[], aliasesUnknown: boolean): string;
 }
-
 /**
  * What a batch of files said, in columns rather than in objects.
  *
@@ -105,7 +99,6 @@ export interface NativeReadBatch {
   readonly declareCounts: Uint32Array;
   readonly declares: string[];
 }
-
 export interface NativeScanBatch extends NativeReadBatch {
   /** Every file represented by the columns, in their shared row order. */
   readonly files: string[];
@@ -121,7 +114,7 @@ export interface NativeLogSegment {
   readonly length: number;
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeJourneys {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
   /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
   gitTree(root: string): NativeGitTree | null;
@@ -245,6 +238,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeJourneys {
   ): NativeJourneySelection;
   /** The packages `files` belong to and the names crossing their edges, read off the source index at `index`; `null` when none was published. */
   orientPackages?(root: string, index: string, files: string[], rows: number, names: number): NativeOrientation | null;
+  /** Indexed external requests from `files`; `null` when no index is published. */
+  externalDependencies?(root: string, index: string, files: string[], rows: number, sites: number): NativeExternalOrientation | null;
   /** For each of `files`, the cases in the journey file at `file` that ran it. */
   casesEntered?(file: string, files: string[], titles: number): NativeCasesEntered[];
 }

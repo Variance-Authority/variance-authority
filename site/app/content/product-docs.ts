@@ -1,5 +1,6 @@
 import acrossDimensions from "../../../docs/across-dimensions.md?raw";
 import adjacentPossible from "../../../docs/adjacent-possible.md?raw";
+import extendWhatYouUse from "../../../docs/extend-what-you-use.md?raw";
 import architecture from "../../../docs/architecture.md?raw";
 import agentCli from "../../../docs/agent-cli.md?raw";
 import agentCodeReview from "../../../docs/agent-code-review.md?raw";
@@ -15,6 +16,8 @@ import cache from "../../../docs/cache.md?raw";
 import cases from "../../../docs/cases.md?raw";
 import changelog from "../../../docs/changelog.md?raw";
 import comparison from "../../../docs/comparison.md?raw";
+import compareCoverage from "../../../docs/compare-coverage.md?raw";
+import compareVisualReview from "../../../docs/compare-visual-review.md?raw";
 import composeObservation from "../../../docs/compose-observation.md?raw";
 import composition from "../../../docs/composition.md?raw";
 import distance from "../../../docs/distance.md?raw";
@@ -103,6 +106,7 @@ const documents = [
   ["evidence-field", evidenceField, "docs/evidence-field.md"],
   ["great-data", greatData, "docs/great-data.md"],
   ["adjacent-possible", adjacentPossible, "docs/adjacent-possible.md"],
+  ["extend-what-you-use", extendWhatYouUse, "docs/extend-what-you-use.md"],
   ["better-tests", betterTests, "docs/better-tests.md"],
   ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
   ["test-level-coverage", testLevelCoverage, "docs/test-level-coverage.md"],
@@ -134,6 +138,8 @@ const documents = [
   ["replacing", replacing, "docs/replacing.md"],
   ["gates", gates, "docs/gates.md"],
   ["comparison", comparison, "docs/comparison.md"],
+  ["compare-visual-review", compareVisualReview, "docs/compare-visual-review.md"],
+  ["compare-coverage", compareCoverage, "docs/compare-coverage.md"],
   ["attribution", attribution, "docs/attribution.md"],
   ["ignores", ignores, "docs/ignores.md"],
   ["sensitivity", sensitivity, "docs/sensitivity.md"],

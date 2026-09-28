@@ -177,4 +177,27 @@ describe('an orientation, said', () => {
   it('says a share too small to round as less than one percent, never as none', () => {
     expect([percent(0), percent(0.004), percent(0.005), percent(1)]).toEqual(['0%', '<1%', '1%', '100%']);
   });
+
+  it('keeps external import evidence apart from declarations and says when the index is incomplete', () => {
+    const text = formatOrientation({
+      ...READING,
+      external: {
+        index: '/cache/source-index.bin',
+        orientation: {
+          dependencies: [{
+            package: 'state-kit', files: 1, imports: 1, moreSites: 0,
+            declaredIn: ['root package.json'],
+            sites: [{ file: 'packages/checkout/src/total.ts', line: 4, specifier: 'state-kit', kind: 'imports', names: ['createStore'], distance: 0 }],
+          }],
+          more: 0, reached: 2, unread: 1, stale: 0, missing: [],
+          declaredOnly: ['other-kit'], moreDeclaredOnly: 0, dropped: 0,
+        },
+      },
+    });
+    expect(text).toContain('External packages requested along local imports from these files (2 source files reached):');
+    expect(text).toContain('state-kit — 1 file, 1 request; declared in root package.json');
+    expect(text).toContain('packages/checkout/src/total.ts:4  state-kit (createStore; 0 local imports away)');
+    expect(text).toContain('Declared locally without import evidence along this path: other-kit.');
+    expect(text).toContain('Incomplete reading: 1 unread');
+  });
 });

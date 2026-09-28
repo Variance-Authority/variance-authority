@@ -148,6 +148,7 @@ variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance coverage [--suite <name> [--against <record>]] [--root <path>] [--format text|markdown|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
@@ -778,6 +779,72 @@ graph does not list, such as one added after `index` ran, is counted on its own
 line, because its distance was never measured; it is not counted as further
 than one import away.
 
+### Coverage: how much each kind of suite runs, and what changed it
+
+`coverage` counts the regions each suite ran, over every region any suite
+loaded, and says how many regions more than one kind of suite runs and how many
+only one kind runs. It reads the case index each suite already wrote, so there is
+no second instrument and no second run:
+
+```bash
+variance coverage
+```
+
+```text
+coverage at 7556a03a — 4,812 regions in 311 files the suites loaded
+  any suite           4,356  90.5%
+    checkout  e2e     3,900  81.0%  recorded at 7556a03a
+    stories   visual    718  14.9%  recorded at 63e1d779
+    unit      unit    3,352  69.7%  recorded at 7556a03a
+  more than one kind  2,910
+  one kind alone      1,446  unit 380 · e2e 986 · visual 80
+  nothing ran           339
+  ran only at load      117
+```
+
+Each number is a count of regions, the functions and branches the recording
+cuts a module into. A region counts as run when a case called into it. A
+region that ran only while its module loaded is counted on its own line,
+because loading a module runs its top level for whichever test imported it
+first, so the count is lower than a line coverage tool reports for the same
+run. Every suite's share is taken over the same total, so `visual 14.9%` is
+14.9% of the code any suite loaded, not of the code the visual suite loaded. A
+suite the root config declares and that has not recorded is printed as
+`unrecorded`, never as `0%`. When two suites cut one module into different
+regions, the regions one cut has and the other does not are counted as not
+joined.
+
+With a base, each count is printed at the base and now, beside the parts that
+add up to the change:
+
+```text
+coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the base) in 311 files the suites loaded
+  any suite           4,310 -> 4,356  90.0% -> 90.5%
+    checkout  e2e     3,832 -> 3,900  80.0% -> 81.0%  gained 51 · lost 2 · written 22, 19 run
+    stories   visual  1,437 ->   718  30.0% -> 14.9%  lost 716 · hidden 3
+    unit      unit    3,353 -> 3,352  70.0% -> 69.7%  gained 4 · lost 9 · written 22, 4 run
+  stories: src/checkout.stories.tsx no longer runs 716 regions it ran at the base
+```
+
+`gained`, `lost` and `hidden` are the regions whose cases changed, the words
+[What a change moved](#what-a-change-moved) uses. `written` and `deleted` are
+regions only one of the two records has, in a file both have, and `now loads`
+and `no longer loads` count the files only one of them has. The parts always
+add up to the change in the count. The test files whose regions changed most
+are named under the table.
+
+Each suite's base is the record its mainline published to the
+[share](../../docs/sharing.md), for a suite the root config gives to it with
+`"carry": "share"`. For one suite, `--suite <name> --against <record>` names a
+case index instead. The comparison is printed only when every recorded suite has
+a base, because every share is taken over the regions all the suites loaded,
+and a suite missing from the base changes that total for all of them. Each
+suite with no base is named with the reason.
+
+`--format markdown` prints a table for a job summary, and `--format json` prints
+every count. `coverage` exits `0` whenever it could read the records, whatever
+the numbers are: a threshold is a line in your own workflow.
+
 ### Watch: ask about a suite that has not finished
 
 A finished run leaves a file, so any number of processes can open it whenever
@@ -1216,6 +1283,8 @@ variance select --format vitest
 source index updated: 2215 files, 0 read again, at <cache>/test-selection/<digest>/source-index.bin
 code map: 71 packages in 16 areas, 2 deep, over 8 dependency layers
 journeys, suite unit: 5718 cases walked; a caller is found for 216327 of the 253543 functions they ran (85%); 8895 calls, 204 package flows; 2 imports the index did not resolve were resolved by the walk
+dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.json
+questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
 ```
 
 It scans the whole checkout, rebuilds only the records of files whose bytes
@@ -1227,12 +1296,15 @@ line describes the code map it writes beside the index, which
 manifests keep the map that is there. A checkout with no packages to put on it
 prints `code map: none, because …` with the reason, and a map that could not be
 written prints `code map: not prepared: …`; in both cases the index is
-published. Each line after those two describes one suite's journeys, which it
-walks from that suite's latest recording and writes beside the index, and which
-`variance ask orient --files` reads for the calls into and out of a file and
-the [package flows](../../docs/orientation.md#choose-the-entrance-from-what-you-have)
+published. Each line after those two describes one suite's journeys, which it walks from that suite's latest
+recording and writes beside the index, and which `variance ask orient --files`
+reads for the calls into and out of a file and the
+[package flows](../../docs/orientation.md#choose-the-entrance-from-what-you-have)
 its tests take. A checkout with no declared suites prints one `journeys:` line.
-A suite with no recording prints `not prepared: nothing is recorded at …`.
+A suite with no recording prints `not prepared: nothing is recorded at …`. The
+last two lines are what `variance ask` answers from, and each says why when it
+could not be written. An index the file system refuses
+to write prints `source index not written: <reason>, at <path>` and exits `2`.
 
 In CI, run it as its own step after you restore the cache. A reader that finds
 nothing published there exits `2` and names the missing step, because an index

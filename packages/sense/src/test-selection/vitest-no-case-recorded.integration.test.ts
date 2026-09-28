@@ -45,7 +45,7 @@ afterEach(async () => {
 async function run(fixture: string, env: Record<string, string> = {}): Promise<string> {
   const { stderr } = await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts'], {
     cwd: fixture,
-    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory, ...env },
+    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory, ...env },
   });
   return stderr;
 }

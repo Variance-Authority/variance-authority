@@ -90,6 +90,39 @@ export interface NativeOrientation {
   readonly dropped: number;
 }
 
+/** One external request read from a source-index parse, along a local import path from an asked file. */
+export interface NativeExternalSite {
+  readonly file: string;
+  readonly line: number;
+  readonly specifier: string;
+  readonly kind: string;
+  readonly names: readonly string[];
+  readonly distance: number;
+}
+
+/** One package requested by source reached from an asked file. */
+export interface NativeExternalDependency {
+  readonly package: string;
+  readonly imports: number;
+  readonly files: number;
+  readonly sites: readonly NativeExternalSite[];
+  readonly moreSites: number;
+  readonly declaredIn: readonly string[];
+}
+
+/** External requests and the limits of what the published index could answer. */
+export interface NativeExternalOrientation {
+  readonly dependencies: readonly NativeExternalDependency[];
+  readonly more: number;
+  readonly reached: number;
+  readonly unread: number;
+  readonly stale: number;
+  readonly missing: readonly string[];
+  readonly declaredOnly: readonly string[];
+  readonly moreDeclaredOnly: number;
+  readonly dropped: number;
+}
+
 /** One asked file's row in a recording. */
 export interface NativeCasesEntered {
   readonly file: string;
@@ -216,4 +249,15 @@ export interface NativeOrientMaps {
   prepareOrientMap?(root: string, index: string, scanned?: boolean | null): NativeOrientMapPrepared | null;
   /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept, or one of a format this reader does not know. */
   orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
+}
+
+/** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */
+export interface NativeDependencyLexicon {
+  /** Refresh all installed third-party public declarations on the Rust side. */
+  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string): {
+    readonly path: string; readonly packages: number; readonly entrypoints: number;
+    readonly reused: number; readonly unavailable: number;
+  };
+  queryDependencyLexicon(path: string, query: string, files: string[] | null,
+    exact: boolean, packageName: string | null, limit: number): string | null;
 }

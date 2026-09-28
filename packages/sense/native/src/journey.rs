@@ -154,15 +154,7 @@ fn unrecorded(run: &CaseRun, found: &HashMap<ModuleId, Module>) -> Result<Vec<St
     }
     let mut visitor = UnrecordedVisitor { charge: Charge::new(run), missing: &missing, named: HashSet::new() };
     replay_run(run, &mut visitor)?;
-    let mut named: Vec<String> = visitor
-        .named
-        .into_iter()
-        .map(|id| match id {
-            ModuleId::Name(name) => name,
-            // A numbered module is named by its record, and there is none.
-            ModuleId::Number(number) => format!("#{number}"),
-        })
-        .collect();
+    let mut named: Vec<String> = visitor.named.into_iter().collect();
     named.sort_unstable_by(|left, right| order::code_unit(left, right));
     Ok(named)
 }
@@ -222,7 +214,7 @@ fn fold(
 ) -> Result<Folded, String> {
     let mut modules: Vec<Module> = found.into_values().collect();
     modules.sort_by(|left, right| {
-        order::code_unit(&left.file, &right.file).then_with(|| id_order(&left.id, &right.id))
+        order::code_unit(&left.file, &right.file).then_with(|| order::code_unit(&left.id, &right.id))
     });
     let row_of: HashMap<ModuleId, usize> = modules
         .iter()
@@ -544,11 +536,3 @@ fn module_of(offsets: &[usize], first: usize, last: usize, block: usize) -> usiz
     low
 }
 
-fn id_order(left: &ModuleId, right: &ModuleId) -> std::cmp::Ordering {
-    match (left, right) {
-        (ModuleId::Number(left), ModuleId::Number(right)) => left.cmp(right),
-        (ModuleId::Number(_), ModuleId::Name(_)) => std::cmp::Ordering::Less,
-        (ModuleId::Name(_), ModuleId::Number(_)) => std::cmp::Ordering::Greater,
-        (ModuleId::Name(left), ModuleId::Name(right)) => order::code_unit(left, right),
-    }
-}

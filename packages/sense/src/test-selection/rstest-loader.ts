@@ -76,10 +76,10 @@ function instrumentModule(
     readFileSync(at, 'utf8'),
   );
 
-  // Under its id, the same one every other seam instruments under, so a journal
+  // Under its path, the same one every other seam instruments under, so a journal
   // reads the same whoever produced it.
   const name = projectPath(run.root, wrote);
-  const moduleId = run.names.idOf(name) ?? name;
+  const moduleId = name;
   const done = instrument(code, name, moduleId, { mode: run.mode });
   if (done === undefined) {
     run.modules.set(moduleId, {

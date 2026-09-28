@@ -170,7 +170,7 @@ went further than we have on one axis: they name the responsible **CSS property*
 where we stop at a component, a band and a `file:line`. Anyone building
 culprit-naming for a moved component hash should read them first. The commercial
 row — Percy, Chromatic, Argos, Applitools — is
-[`comparison.md`](../comparison.md) and stays there.
+[`compare-visual-review.md`](../compare-visual-review.md) and stays there.
 
 ## Coverage adequacy
 

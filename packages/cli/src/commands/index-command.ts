@@ -12,14 +12,20 @@
  * keeps it beside the index: the fold reads every record, so it is paid here
  * once rather than by every question.
  *
- * It last walks each suite's latest recording over the index and keeps the
+ * It then walks each suite's latest recording over the index and keeps the
  * journeys beside it, which `variance ask orient` reads for the calls into and
  * out of a file.
  *
- * One line per step on stdout, because the step's output is read by the person
- * looking at a pipeline log: where the index is, how many files it holds and how
- * many this run had to read again; what the code map holds, or why there is
- * none; then per suite what the walk found, or why it was not made.
+ * Last it publishes the value `variance ask` answers from, the search beside it
+ * included. `search` is a lookup that never scans, so without this a fresh
+ * checkout — every agent's first session — ran `index`, asked `search`, and was
+ * refused until some other question happened to publish one.
+ *
+ * One line per artifact on stdout, because the step's output is read by the
+ * person looking at a pipeline log: where the index is, how many files it holds
+ * and how many this run had to read again; then what the code map holds, or why
+ * there is none; then per suite what the walk found, or why it was not made; then
+ * the lexicon and the published value, or why each is not.
  */
 
 import {
@@ -30,6 +36,8 @@ import {
   type PreparedJourneys,
   type SourceUpdate,
 } from '@variance-authority/sense';
+import { readWorkspace, readWorkspaceSnapshot, refreshDependencyLexicon, workspaceGeneration, workspaceSnapshotPath } from '@variance-authority/help';
+import { OperatorError } from '../exit.js';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -39,12 +47,52 @@ export interface IndexRequest {
 
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const update = await updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {});
-  return `${[describe(update), codeMap(request.cwd, update), ...(await journeys(request.cwd, update))].join('\n')}\n`;
+  // A scan treats an unwritable cache as a cold next run. This step exists to
+  // write it, so a refusal is the answer, and nothing after it has an index to read.
+  if (update.refused !== undefined) {
+    const reason = update.refused.startsWith(`${update.path}: `) ? update.refused.slice(update.path.length + 2) : update.refused;
+    throw new OperatorError(`source index not written: ${reason}, at ${update.path}`);
+  }
+  return `${[
+    describe(update),
+    codeMap(request.cwd, update),
+    ...(await journeys(request.cwd, update)),
+    lexicon(request.cwd),
+    await answerable(request.cwd, update.path, request.noGit === true),
+  ].join('\n')}\n`;
 }
 
 /**
- * Journeys are walked last, from each suite's latest recording, so a walk that
- * fails leaves the index and the map standing and says why. Walking is kept
+ * Publishing swallows a failed write, because a question it answered is still
+ * answered. The step that exists to publish reads the value back instead, so a
+ * cache it could not write is a line in the log rather than a later refusal.
+ */
+async function answerable(root: string, index: string, noGit: boolean): Promise<string> {
+  const at = workspaceSnapshotPath(index);
+  try {
+    const generation = workspaceGeneration(await readWorkspace(root, { index, saveIndex: false, ...(noGit ? { packs: false } : {}) }));
+    const published = workspaceGeneration(await readWorkspaceSnapshot(root, { index }));
+    if (generation === undefined || published !== generation) {
+      return `questions: not published: the value read back from ${at} is not the one this run wrote`;
+    }
+    return `questions: published at ${at}`;
+  } catch (error) {
+    return `questions: not published: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+function lexicon(root: string): string {
+  try {
+    const { path, packages, entrypoints, reused, unavailable } = refreshDependencyLexicon(root);
+    return `dependency lexicon: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;
+  } catch (error) {
+    return `dependency lexicon: not prepared: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
+ * Journeys are walked after the index and the map, from each suite's latest
+ * recording, so a walk that fails leaves both standing and says why. Walking is kept
  * when the recording, the index, the runner's alias table and the walk are the
  * ones the kept journeys were made from. They carry the update's listing of the
  * checkout rather than asking git again.

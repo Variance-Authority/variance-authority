@@ -36,7 +36,7 @@ const worktree = join(work, 'worktree');
 const bare = join(work, 'bare');
 const xdg = join(work, 'xdg');
 // The layer lives under the work directory on both sides of the comparison.
-process.env['XDG_CACHE_HOME'] = xdg;
+process.env['VARIANCE_AUTHORITY_CACHE'] = xdg;
 const calc = 'calc/src/main/java/org/example/calc/Calc.java';
 const words = 'words/src/main/java/org/example/words/Words.java';
 const test = (module, name) => `${module}/src/test/java/org/example/${module}/${name}.java`;
@@ -49,7 +49,7 @@ function git(at, ...args) {
 function docker(at, ...command) {
   return spawnSync('docker', [
     'run', '--rm', '-v', `${work}:${work}`, '-v', `${bin}:/va:ro`, '-v', `${m2}:/root/.m2`, '-w', at,
-    '-e', `XDG_CACHE_HOME=${xdg}`, image, ...command,
+    '-e', `VARIANCE_AUTHORITY_CACHE=${xdg}`, image, ...command,
   ], { encoding: 'utf8' });
 }
 

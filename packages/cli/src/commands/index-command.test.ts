@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
@@ -23,17 +23,20 @@ const cwd = process.cwd();
 const BIN = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
 
 beforeEach(() => {
-  process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['XDG_CACHE_HOME'];
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
-/** The lines after the index's own: no manifest names a package, and nothing is recorded. */
+/** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. */
 function unprepared(root: string): string {
-  return `code map: none, because no manifest names a package\njourneys: not prepared: nothing is recorded at ${testCoverageFile(root)}.cases.bin\n`;
+  return 'code map: none, because no manifest names a package\n' +
+    `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}.cases.bin\n` +
+    `dependency lexicon: 0 workspace-dependency pairs, 0 public entrypoints, 0 reused, 0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n` +
+    `questions: published at ${sourceIndexPath(root)}.help.json\n`;
 }
 
 function checkout(): string {
@@ -139,11 +142,44 @@ describe('variance index', () => {
     expect(read.stdout).toBe('src/unit.ts\nsrc/widget.ts\n');
   });
 
+  it('leaves a fresh checkout answering `ask search`, which never scans', async () => {
+    const root = checkout();
+    expect(spawnSync(process.execPath, [BIN, 'index'], { cwd: root, encoding: 'utf8' }).status).toBe(EXIT_CLEAN);
+
+    const searched = spawnSync(process.execPath, [BIN, 'ask', 'search', '--query', 'widget'], { cwd: root, encoding: 'utf8' });
+    expect(searched.stderr).toBe('');
+    expect(searched.status).toBe(EXIT_CLEAN);
+    expect(searched.stdout).toContain('widget');
+  });
+
+  // A file where the cache directory should be, rather than a mode: a mode is
+  // no refusal to root, and this has to refuse on every runner.
+  it('refuses, naming what the file system refused, when the index cannot be written', async () => {
+    const root = checkout();
+    const cache = join(mkdtempSync(join(tmpdir(), 'va-index-unwritable-')), 'cache');
+    writeFileSync(cache, 'not a directory\n');
+    process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+
+    const refused = await run(['index']);
+
+    expect(refused.code).toBe(EXIT_OPERATOR);
+    expect(refused.out).toBe('');
+    expect(refused.err).toMatch(new RegExp(`^source index not written: .+, at ${escaped(sourceIndexPath(root))}\\n`, 'u'));
+    expect(refused.err).not.toContain('defect in the tool');
+  });
+
   it('takes no argument', async () => {
     checkout();
 
     const positional = await run(['index', 'src']);
     expect(positional.code).toBe(EXIT_OPERATOR);
     expect(positional.out).toBe('');
+    const api = await run(['index', '--api', 'src/widget.ts']);
+    expect(api.code).toBe(EXIT_OPERATOR);
+    expect(api.err).toContain('`--api` is not a `variance index` flag');
   });
 });
+
+function escaped(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}

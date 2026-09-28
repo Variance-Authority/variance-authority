@@ -32,8 +32,8 @@ let previous: string | undefined;
 // visual one ran and never loaded it, and the end-to-end one has not run.
 beforeAll(async () => {
   cache = await mkdtemp(join(tmpdir(), 'variance-covering-suites-cache-'));
-  previous = process.env['XDG_CACHE_HOME'];
-  process.env['XDG_CACHE_HOME'] = cache;
+  previous = process.env['VARIANCE_AUTHORITY_CACHE'];
+  process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
   root = await mkdtemp(join(tmpdir(), 'variance-covering-suites-'));
   execFileSync('git', ['init', '--quiet', root]);
   await writeFile(join(root, 'variance.config.json'), JSON.stringify(SUITES));
@@ -47,8 +47,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (previous === undefined) delete process.env['XDG_CACHE_HOME'];
-  else process.env['XDG_CACHE_HOME'] = previous;
+  if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  else process.env['VARIANCE_AUTHORITY_CACHE'] = previous;
   await rm(cache, { recursive: true, force: true });
 });
 

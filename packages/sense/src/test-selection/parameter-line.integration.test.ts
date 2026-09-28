@@ -41,7 +41,7 @@ async function record(): Promise<string> {
   await execute(
     process.execPath,
     [vitest, 'run', '--config', resolve(fixture, 'vitest.config.ts')],
-    { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+    { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
   );
   return coverageFile;
 }

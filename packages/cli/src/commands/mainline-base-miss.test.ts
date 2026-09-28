@@ -23,23 +23,23 @@ const UNSET = 'VARIANCE_MAINLINE_BASE_TEST_TOKEN';
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-mainline-miss-'));
-  process.env['XDG_CACHE_HOME'] = join(home, 'ci-cache');
+  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
 });
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['XDG_CACHE_HOME'];
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
   delete process.env[UNSET];
   await rm(home, { recursive: true, force: true });
 });
 
 /** The read layer the clone's cache keeps the mainline's records in. */
-const readLayer = () => join(home, 'laptop-cache', 'variance-authority', 'share', 'read');
+const readLayer = () => join(home, 'laptop-cache', 'share', 'read');
 
 /** A clone with its own cache, and the change `select` is asked about. */
 async function laptop(origin: string): Promise<string> {
   const clone = await cloneOf(home, origin);
-  process.env['XDG_CACHE_HOME'] = join(home, 'laptop-cache');
+  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
   await writeFile(join(clone, 'src/total.ts'), BEFORE.replace('0.9', '0.8'));
   return clone;
 }

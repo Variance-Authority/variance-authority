@@ -9,7 +9,7 @@ states how the build gate works — the command CI runs and the integer it reads
 — and then walks each vendor's job and says which parts of it a self-run setup
 takes over, and which stay vendor-only whatever you adopt: a managed device
 fleet, reviewers the vendor staffs, and support commitments. For the wider
-tradeoffs, see [how it compares](comparison.md).
+tradeoffs, see [how it compares](compare-visual-review.md).
 
 New here? Start with [your first run](start.md).
 

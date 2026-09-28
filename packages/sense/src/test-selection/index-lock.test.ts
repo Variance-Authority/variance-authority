@@ -2,7 +2,6 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { nameModules } from '../module-names.js';
 import { IndexLock, LOCK_POLL_MS, LOCK_WAIT_MS, withIndexLock } from './index-lock.js';
 
 describe('who may grow the index', () => {
@@ -125,11 +124,7 @@ describe('who may grow the index', () => {
     });
 
     // A token outlives its call, so holding one is not the same as holding the
-    // index. Numbering with a released one is the one way past the signature,
-    // and it is refused rather than silently unlocked.
+    // index.
     expect(kept?.held).toBe(false);
-    await expect(
-      nameModules(resolve(file, '..', 'names.bin'), ['src/cart.js'], kept as IndexLock),
-    ).rejects.toThrow(/was released before/);
   });
 });

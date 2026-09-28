@@ -128,9 +128,8 @@ header must not land in front of them.
 
 The one thing the module asks of its realm is `globalThis.__VA__`, a factory
 `(id: ModuleId, count: number) => Uint32Array` with one mutable property `e`,
-the evaluating depth. `id` is the id the module was instrumented under — the
-number the names table gave its path, or the path itself until the table has
-one — and `count` is the number of blocks, so a factory can refuse or replace
+the evaluating depth. `id` is the repository-relative path the module was
+instrumented under, and `count` is the number of blocks, so a factory can refuse or replace
 an array whose length no longer matches. A module with no factory throws at its
 first probe.
 Three factories ship, and each is a different answer to *who was executing*:

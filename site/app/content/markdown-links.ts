@@ -30,6 +30,7 @@ const DOCUMENT_ROUTES: Readonly<Record<string, string>> = {
   "agent-questions": "/agents/questions",
   "agent-workspace-api": "/agents/workspace-api",
   comparison: "/reference/comparison",
+  "compare-visual-review": "/reference/compare-visual-review",
   start: "/start",
   "start-cli": "/start/cli",
   "start-custom": "/start/custom",

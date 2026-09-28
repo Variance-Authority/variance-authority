@@ -8,7 +8,7 @@ import { observeRasters } from './observe.js';
  *
  * [`docs/gates.md`](../../../docs/gates.md) scores this **yes** against Argos on
  * the strength of `observeRasters` and a raster `CaptureArtifact`, and
- * [`docs/comparison.md`](../../../docs/comparison.md) sells it as the library
+ * [`docs/compare-visual-review.md`](../../../docs/compare-visual-review.md) sells it as the library
  * seam that replaces a CLI upload. Neither `observeRasters` nor
  * `@variance-authority/png`'s foreign-image constructor had a caller of any
  * kind, so the row was scored off a signature.

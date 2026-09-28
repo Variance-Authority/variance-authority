@@ -37,8 +37,12 @@ export interface PersistentSourceIndex {
   readonly cache: ParseCache;
   /** Tree-keyed resolved records passed to `scanRelations` as `reuse`. */
   readonly reuse: RecordCache;
-  /** Atomically publish the facts this scan used; I/O failure is absorbed. */
-  save(): Promise<void>;
+  /**
+   * Atomically publish the facts this scan used. I/O failure is absorbed and
+   * returned: what the file system refused, or `undefined` when the index on
+   * disk holds what this scan used.
+   */
+  save(): Promise<string | undefined>;
 }
 
 /**
@@ -168,8 +172,8 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     async save() {
       const native = nativeParses.get(cache);
       if (!dirty && native === undefined &&
-          (adopted === undefined || records.size === available.size)) return;
-      await file.save({
+          (adopted === undefined || records.size === available.size)) return undefined;
+      return file.save({
         parses,
         ...(adopted?.config === undefined
           ? stored.config === undefined ? {} : { config: stored.config }

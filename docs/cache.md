@@ -6,7 +6,7 @@ test-selection recording, the [source index](source-index.md), the renders a
 run took, the suite indexes a share publishes, what a git share fetched, and
 the suite records `select` and `review` read from your mainline. Your repository says where it is, in `cacheRoot`
 of the `variance.config.json` at its root. When it does not say, it is
-`~/.cache/variance-authority`. Every command, every test runner integration and
+`node_modules/.cache/variance-authority` inside the checkout. Every command, every test runner integration and
 every function that takes a `cacheRoot` option read that one answer, so a
 recording written by `yarn test` is the recording `variance select` reads.
 
@@ -22,15 +22,21 @@ The first of these that applies decides it:
    Playwright recorder with one.
 2. `cacheRoot` in `variance.config.json` at the repository root, resolved
    against that directory.
-3. `$XDG_CACHE_HOME/variance-authority`, when `XDG_CACHE_HOME` is an absolute
-   path.
-4. `~/.cache/variance-authority`.
+3. `$VARIANCE_AUTHORITY_CACHE`, when it is an absolute path. It names the
+   cache directory itself.
+4. `node_modules/.cache/variance-authority` at the repository root.
 
 The repository root is the top of the git work tree, so a test run started in
-`packages/app` reads the same file as one started at the top. An empty or
-relative `XDG_CACHE_HOME` is ignored: the XDG specification requires an
-absolute path, and a relative one would give a different directory for each
-directory a run starts in.
+`packages/app` reads the same file as one started at the top.
+
+The default is inside the checkout because the checkout is the one directory
+every party that runs there may write: you, CI, and a coding agent whose
+sandbox allows writes in the working tree and refuses your home directory.
+`node_modules/` is already in every project's `.gitignore`, and Vitest's
+watcher and other file watchers already skip it, so a run writing its
+recording is seen by nothing that reacts to it. `XDG_CACHE_HOME` is not read:
+agent harnesses set it for their own reasons, and a repository whose
+recording follows it has as many recordings as it has harnesses.
 
 `cacheRootFor(root)` from `@variance-authority/sense/test-selection` returns the
 answer for a checkout. `variance index` prints the path of the source index it
@@ -38,8 +44,8 @@ wrote, which is inside it.
 
 ## Name it yourself
 
-Set `cacheRoot` when the default is a place your runs may not write, or a place
-you do not want them to write:
+Set `cacheRoot` when you want the cache somewhere else inside the checkout, or
+outside it:
 
 ```json
 {
@@ -52,14 +58,6 @@ you do not want them to write:
 .variance/
 ```
 
-A coding agent in a sandbox is the usual case. The sandbox allows writes inside
-the checkout and refuses `~/.cache`, so the agent sets `XDG_CACHE_HOME` to a
-temporary directory to make the run pass. Every run then records into a
-directory that the next session never reads, and your own `yarn test` records
-into another. With `cacheRoot` in the file, the agent, your terminal and CI use
-one directory, and `XDG_CACHE_HOME` no longer changes it. The config is read
-before the environment for this reason.
-
 Write the key only in the file at the repository root. Every test runner reads
 that file and no other, so the CLI refuses `cacheRoot` in a
 `variance.config.json` in a subdirectory and names the file to put it in. A
@@ -68,6 +66,10 @@ config in a subdirectory without the key gets the root's answer.
 A file at the root that is not JSON, or a `cacheRoot` that is not a non-empty
 string, stops the run with an error that names the file. The run does not fall
 back to the default, because you would not know where the recording went.
+
+`VARIANCE_AUTHORITY_CACHE` is for a harness that keeps its runs apart from the
+checkout's recording, such as a test suite of its own. The key in the file wins
+over it, so a repository that names its cache keeps one answer for everyone.
 
 ## What is in it
 
@@ -81,7 +83,6 @@ back to the default, because you would not know where the recording went.
     coverage.runs.json           the runs at the current commit, and the commit before them
     coverage.stories/            a test story for each test a run recorded, when you ask for them
     suites/<name>/               the same files for each suite you declare
-    names.bin                    the ids those records use for file paths
     source-index.bin             the source index, and its segments beside it
     source-index.bin.map         the code map `variance ask orient` reads
     <label>/                     one record store per runner or plugin
@@ -116,27 +117,27 @@ primary checkout's layer when its own has nothing. So a worktree you created
 this morning starts from what the repository already recorded. It never writes
 the primary checkout's files.
 
-With the default location, both layers are in one directory. With a relative
-`cacheRoot`, each checkout resolves the path against its own root: the worktree
-writes inside the worktree, and still reads the primary checkout's layer from
-inside the primary checkout.
+With the default location or a relative `cacheRoot`, each checkout resolves
+the path against its own root: the worktree writes inside the worktree, and
+still reads the primary checkout's layer from inside the primary checkout. With
+`VARIANCE_AUTHORITY_CACHE` or an absolute `cacheRoot`, both layers are in one
+directory.
 
 ## In CI
 
 Cache the whole directory, and restore it to the same absolute path it was
-written from, because `<repository>` is a digest of that path. With
-`cacheRoot` set, the path is inside the checkout:
+written from, because `<repository>` is a digest of that path:
 
 ```yaml
 - uses: actions/cache@v4
   with:
-    path: .variance/cache
+    path: node_modules/.cache/variance-authority
     key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
     restore-keys: |
       variance-${{ runner.os }}-${{ runner.arch }}-
 ```
 
-Without it, the path is `~/.cache/variance-authority`. The
+With `cacheRoot` set, the path is the one it names. The
 [source index](source-index.md#caching-it-in-ci) page explains why the commit is
 in the key.
 

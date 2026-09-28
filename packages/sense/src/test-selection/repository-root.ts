@@ -2,8 +2,8 @@
  * The one directory every recorded name is relative to.
  *
  * A module id, a journal's test file, a journey's region and a diff's path all
- * meet in `names.bin`, and they only join when they were spelled from the same
- * place. Git owns that place: it is the checkout the starting directory sits
+ * name a file by its path, and they only join when they were spelled from the
+ * same place. Git owns that place: it is the checkout the starting directory sits
  * in. A test runner's own root — Jest's `rootDir`, Vitest's `root` — answers
  * where the runner resolves its configuration, which is a different question,
  * and a package-level config would otherwise record a second name space that

@@ -17,12 +17,12 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 const cwd = process.cwd();
 
 beforeEach(() => {
-  process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-orient-cache-'));
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-orient-cache-'));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['XDG_CACHE_HOME'];
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
 /** Two packages, one importing two names from the other through its manifest. */
@@ -221,6 +221,10 @@ describe('variance ask orient', () => {
         '  Takes from: no package in this checkout.',
         '  Used by, 1 package, 3 uses:',
         '    100%  @t/checkout  priceOf 67%, currency 33%',
+        '',
+        'External packages requested along local imports from these files (3 source files reached):',
+        '  No external package request was read from this path.',
+        '  Not in the source index: src/gone.ts.',
         '',
         `Recorded cases: none read from ${testCoverageFile(root)}.cases.bin, nothing is recorded there. A run with \`withTestSelection\` records them.`,
         '',

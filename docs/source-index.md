@@ -32,13 +32,16 @@ variance index
 ```
 
 It scans the whole checkout, reuses the record of every file whose bytes are
-unchanged, and appends what changed as a new layer. It prints two lines, then
-one line per test suite:
+unchanged, and appends what changed as a new layer. It prints a line for the index and one for
+the code map, one per test suite for its journeys, and two for what
+`variance ask` answers from:
 
 ```text
 source index updated: 2215 files, 0 read again, at <cache>/test-selection/<digest>/source-index.bin
 code map: 71 packages in 16 areas, 2 deep, over 8 dependency layers
 journeys, suite unit: 5718 cases walked; a caller is found for 216327 of the 253543 functions they ran (85%); 8895 calls, 204 package flows; 2 imports the index did not resolve were resolved by the walk
+dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.json
+questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
 ```
 
 - **The index.** How many files it holds, how many it read again, and where it
@@ -60,6 +63,15 @@ journeys, suite unit: 5718 cases walked; a caller is found for 216327 of the 253
   line ends with what the walk resolved that the index did not, and anything it
   could not read as the recording ran it, such as a runner config that did not
   load.
+- **The last two lines.** What `variance ask` answers from: the third-party dependencies the checkout declares, and the
+  value `ask search` and the other source questions read without scanning.
+  Either one says `not prepared` or `not published`, with the reason, when it
+  could not be written.
+
+When the file system refuses the index itself, the command prints
+`source index not written: <reason>, at <path>` and exits `2`. Every reader of
+the index would otherwise answer from the one already there, so nothing after
+it runs.
 
 These commands read what `variance index` published, and do not scan:
 
@@ -204,13 +216,13 @@ as it was on the day it was first written and re-scans everything that has
 changed since, which looks like a warm cache and costs a cold one. Put the
 commit in the key and the stable part in the restore prefix, so each job saves
 its own entry and starts from the newest one that exists. `path` is your cache
-directory, `~/.cache/variance-authority` unless your repository names another
+directory, `node_modules/.cache/variance-authority` unless your repository names another
 (see [the cache](cache.md#in-ci)):
 
 ```yaml
 - uses: actions/cache@v4
   with:
-    path: ~/.cache/variance-authority
+    path: node_modules/.cache/variance-authority
     key: variance-index-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
     restore-keys: |
       variance-index-${{ runner.os }}-${{ runner.arch }}-

@@ -7,7 +7,7 @@ import ComparisonTable from "./ComparisonTable";
  * footnotes here are not: this page says "this project" where the document says
  * "Variance Authority", and compresses two paragraphs of it into a sentence.
  * Those are the site's own words and carry no marker. doc() means one thing on
- * both pages — verbatim in docs/comparison.md, checked by
+ * both pages — verbatim in docs/compare-visual-review.md, checked by
  * `docs-claims.check.ts` — so a rewrite that wore it would be a claim about
  * sourcing the document does not support.
  */
@@ -22,7 +22,7 @@ export default function LandingComparison() {
       <p className="mt-2 max-w-3xl text-sm leading-6 text-quiet">
         Every vendor cell is quoted from the{" "}
         <a
-          href="/reference/comparison"
+          href="/reference/compare-visual-review"
           className="text-ivory underline decoration-hairline underline-offset-4 transition-colors hover:decoration-orange"
         >
           comparison document
@@ -73,7 +73,7 @@ export default function LandingComparison() {
             Hosted features and pricing change, so the linked pages are the
             authority for a buying decision.{" "}
             <a
-              href="/reference/comparison"
+              href="/reference/compare-visual-review"
               className="font-mono text-orange transition-colors hover:text-ivory"
             >
               Full comparison, with sources →
