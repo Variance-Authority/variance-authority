@@ -27,7 +27,6 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { basename } from 'node:path';
 import { codeMapPage, dependenciesAround, packagesAround, recordedCases } from '@variance-authority/sense';
-import { dependencyApisAround } from '../dependency-api.js';
 import { formatCodeMapPage } from './code-map-format.js';
 import { formatOrientation } from './orient-format.js';
 
@@ -63,10 +62,10 @@ export const orient: Tool<unknown> = {
     'which find them. Says which package each file is in, what that package imports from other packages and ' +
     'what other packages import from it, as each package\'s share of that side with the names it takes, ' +
     'each name weighed against all the outside use of the package that exports it, ' +
-    'which external packages the local imports from those files request, their separately refreshed installed public APIs when available, ' +
+    'which external packages the local imports from those files request, ' +
     'which recorded test cases ran each file or a test file declares, ' +
     'and the narrower questions to ask next. Reads the ' +
-    'source index `variance index` publishes, the separate dependency API corpus and the latest recorded run; does not scan source text or run tests.',
+    'source index `variance index` publishes and the latest recorded run; does not scan source text or run tests.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -102,7 +101,6 @@ export const orient: Tool<unknown> = {
       files,
       around: packagesAround(root, files, LIMITS),
       external,
-      api: dependencyApisAround(root, files, external.orientation),
       // TODO: a file that only ran while its module evaluated is counted with
       // no case, because the cases whose files import it are the file graph's
       // answer and this builds no graph; `variance covering --file` builds one

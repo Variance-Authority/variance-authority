@@ -24,6 +24,7 @@
 // compass: variance-authority.reach
 
 export { scanRelations, type ScanOptions } from './scan.js';
+export { refreshDependencyLexiconNative, queryDependencyLexiconNative } from './dependency-lexicon.js';
 
 /**
  * Which languages this build reads, and every extension a scan will open.

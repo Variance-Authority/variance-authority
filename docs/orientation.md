@@ -179,20 +179,17 @@ Names declared locally without import evidence along the path are listed
 separately. An unread file or a changed index is named, so an incomplete path
 does not read as a path with no dependencies.
 
-The installed public API is a separate reading. After `variance index`, run
-`variance index --api <source-file> [source-file ...]` for the area in hand. It
-resolves only the external entrypoints those files import and records their
-installed package versions, public names, signatures and JSDoc. `orient
---files` then shows the signatures and first documentation lines for names the
-area imports, labelled with the time that API corpus was refreshed. A type
-provider such as `@types/picomatch` is named separately when it supplies the
-declarations for another runtime package. Repeating `index --api` retains
-unchanged declaration readings and rebuilds one whose declaration files or
-package manifests changed; it reads the published source index and does not
-rescan repository source. If the resolver cannot supply declarations, the
-answer says so rather than inventing an API. The corpus lives beside the
-source index at `dependency-api.json` and keeps the complete public names,
-signatures and JSDoc for the entrypoints requested there.
+`variance index` also refreshes a separate catalogue of installed third-party
+APIs. It reads every direct dependency available to a workspace, including a
+package that workspace has not imported. The source index adds observed
+external requests; the manifest alone cannot prove use. The resolver selects
+the installed runtime and declaration provider for each public entrypoint.
+The catalogue keeps names, signatures and JSDoc in `dependency-lexicon.json`
+beside the source index. A refresh retains unchanged declaration readings and
+reads changed declarations without rescanning repository source. `ask search`
+uses this catalogue alongside local names; `--from` and `--to` constrain which
+workspace's available packages it shows. `orient --files` keeps the dependency
+graph concise. Ask for a name when its third-party API detail matters.
 
 ## Ask the record, or produce a new one
 

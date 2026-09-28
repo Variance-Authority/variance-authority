@@ -380,14 +380,13 @@ that package's use the name is. It also names external packages requested along
 local imports from those files, with each request's source line. Manifest
 declarations are context beside that evidence; declarations without import
 evidence along the path are listed separately. An unread path is named rather
-than reported as using nothing. Run `variance index --api <source-file>
-[source-file ...]` after `variance index` to publish installed public
-declarations for the external packages used along that path. `orient` labels
-that API corpus with its refresh time and shows imported names, signatures and
-JSDoc where the installed package supplies them; a separate `@types` provider
-is named when it owns the declarations. The complete public names, signatures
-and JSDoc are in `dependency-api.json` beside the source index. The API refresh
-checks declaration files and package manifests, and does not rescan source.
+than reported as using nothing. `variance index` also refreshes a separate
+lexicon of every installed direct third-party package available to each
+workspace. `ask search` reads its public names and documentation alongside
+local help and accepts `--from` and `--to` to select an area. The complete
+signatures and JSDoc are in `dependency-lexicon.json` beside the source index.
+The native refresh checks declaration files and package manifests separately
+from repository source.
 Then it prints how many recorded test cases ran
 each file, and for a test file the cases it declares. Last come the narrower
 questions, as commands. Run it from the checkout you are asking about.

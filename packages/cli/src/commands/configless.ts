@@ -27,7 +27,7 @@ import { questionFor } from './asking.js';
 import { COMMENT_MARKER } from './comment.js';
 import { coveringAnswer, formatCoveringAnswer } from './covering-suites.js';
 import { distillFiles, formatDistill } from './distill.js';
-import { indexApiOutput, indexOutput } from './index-command.js';
+import { indexOutput } from './index-command.js';
 import { reachOutput } from './reach-command.js';
 import { review } from './review.js';
 import { formatReview } from './review-text.js';
@@ -167,10 +167,6 @@ export async function answerConfigless(
     // same reason: it publishes what they read, and a pipeline that runs them
     // may have configured this tool for nothing else.
     case 'index': {
-      if (parsed.apiFiles !== undefined) {
-        streams.out(indexApiOutput(process.cwd(), parsed.apiFiles));
-        return EXIT_CLEAN;
-      }
       streams.out(await indexOutput({ cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) }));
       return EXIT_CLEAN;
     }

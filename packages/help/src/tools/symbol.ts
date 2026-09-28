@@ -3,6 +3,7 @@ import { stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
+import { queryDependencyLexicon } from '../dependency-lexicon.js';
 
 /**
  * `docs_symbol` — one name, in full.
@@ -18,7 +19,8 @@ export const symbol: Tool<Help> = {
     'Everything known about one exported name: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
     'written above it, the README passage that names it — and which packages import it. Names are ' +
-    'matched exactly; use docs_search when the exact name is not known, docs_uses for import sites.',
+    'matched exactly, including installed third-party declarations when the API catalogue is ' +
+    'published; use docs_search when the exact name is not known, docs_uses for local import sites.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -29,7 +31,7 @@ export const symbol: Tool<Help> = {
     additionalProperties: false,
   },
 
-  run(help, input) {
+  run(help, input, invocation) {
     const name = stringArg(input, 'name');
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
@@ -38,6 +40,16 @@ export const symbol: Tool<Help> = {
       ([published, held]) => wanted === undefined || isPackage(published, held, wanted),
     );
 
+    if (found.length === 0 && invocation?.root !== undefined) {
+      const matches = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
+      if (matches === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\``);
+      if (matches.total > 0) return [
+        ...matches.shown.map((entry) => `${entry.specifier} · ${entry.name} [${entry.kind}]${entry.version === undefined ? '' : ` · ${entry.package}@${entry.version}`}` +
+          `${entry.declarationProvider === undefined ? '' : ` · declarations: ${entry.declarationProvider}`}` +
+          `\n${entry.at}:${entry.line}${entry.signature === undefined ? '' : `\n${entry.signature}`}${entry.doc === undefined ? '' : `\n${entry.doc}`}`),
+        ...(matches.total > matches.shown.length ? [`${matches.total - matches.shown.length} more matches not shown.`] : []),
+      ].join('\n\n');
+    }
     if (found.length === 0) throw new Error(unfound(help, name, wanted));
 
     const [first] = found;

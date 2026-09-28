@@ -18,7 +18,7 @@
  */
 
 import { prepareCodeMap, updateSourceIndex, type PreparedCodeMap, type SourceUpdate } from '@variance-authority/sense';
-import { refreshDependencyApis } from '@variance-authority/help';
+import { refreshDependencyLexicon } from '@variance-authority/help';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -28,13 +28,16 @@ export interface IndexRequest {
 
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const update = await updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {});
-  return `${describe(update)}\n${codeMap(request.cwd, update)}\n`;
+  return `${describe(update)}\n${codeMap(request.cwd, update)}\n${lexicon(request.cwd)}\n`;
 }
 
-/** Refresh installed API declarations for only the source paths the reader named. */
-export function indexApiOutput(root: string, files: readonly string[]): string {
-  const { path, requests, reused, unavailable, unread } = refreshDependencyApis(root, files);
-  return `dependency API corpus: ${requests} requests, ${reused} reused, ${unavailable} unavailable${unread === 0 ? '' : `, ${unread} source files unread`}, at ${path}\n`;
+function lexicon(root: string): string {
+  try {
+    const { path, packages, entrypoints, reused, unavailable } = refreshDependencyLexicon(root);
+    return `dependency lexicon: ${packages} package contexts, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;
+  } catch (error) {
+    return `dependency lexicon: not prepared: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 /**

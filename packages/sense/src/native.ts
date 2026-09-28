@@ -12,7 +12,6 @@
  * the instrument loads it inside every test worker and the scanner's imports
  * are nothing a worker needs.
  */
-
 import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
@@ -32,7 +31,6 @@ import type {
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import { witnessesOf } from './witness.js';
-
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 export type {
   NativeJourneyGraph,
@@ -44,7 +42,6 @@ export type {
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
-
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing {
   readonly size: number;
@@ -78,7 +75,6 @@ export interface NativeGitTree extends NativeOrientMapListing {
   directories(): Record<string, string>;
   configDigest(header: string[], names: string[], aliasesUnknown: boolean): string;
 }
-
 /**
  * What a batch of files said, in columns rather than in objects.
  *
@@ -102,7 +98,6 @@ export interface NativeReadBatch {
   readonly declareCounts: Uint32Array;
   readonly declares: string[];
 }
-
 export interface NativeScanBatch extends NativeReadBatch {
   /** Every file represented by the columns, in their shared row order. */
   readonly files: string[];
@@ -117,8 +112,14 @@ export interface NativeLogSegment {
   readonly digest: string;
   readonly length: number;
 }
-
 export interface NativeScanner extends NativeOrientMaps {
+  /** Refresh all installed third-party public declarations on the Rust side. */
+  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string): {
+    readonly path: string; readonly packages: number; readonly entrypoints: number;
+    readonly reused: number; readonly unavailable: number;
+  };
+  queryDependencyLexicon(path: string, query: string, files: string[] | null,
+    exact: boolean, packageName: string | null, limit: number): string | null;
   /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
   gitTree(root: string): NativeGitTree | null;

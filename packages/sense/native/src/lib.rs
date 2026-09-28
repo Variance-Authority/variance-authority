@@ -23,6 +23,8 @@ mod batch;
 mod compact;
 mod conditions;
 mod depends;
+mod dependency_lexicon;
+mod dependency_namespace;
 mod digest;
 mod emitted;
 mod external_dependencies;

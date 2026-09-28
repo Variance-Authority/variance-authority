@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -12,13 +12,15 @@ import { indexOutput } from './index-command.js';
 /**
  * `variance index`, the pipeline step every graph reader reads after.
  *
- * Its one line is what a pipeline log shows, so the assertions are on the line:
+ * Its lines are what a pipeline log shows, so the assertions are on the lines:
  * built, then updated with nothing read again, then updated with one file read
  * again after an edit.
  */
 
 const cwd = process.cwd();
 const BIN = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
+const lexiconLine = (root: string): string =>
+  `dependency lexicon: 0 package contexts, 0 public entrypoints, 0 reused, 0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n`;
 
 beforeEach(() => {
   process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
@@ -60,15 +62,15 @@ describe('variance index', () => {
 
     expect(await run(['index'])).toEqual({
       code: EXIT_CLEAN,
-      out: `source index built: 2 files, at ${at}\ncode map: none, because no manifest names a package\n`,
+      out: `source index built: 2 files, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`,
       err: '',
     });
     expect(await indexOutput({ cwd: root }))
-      .toBe(`source index updated: 2 files, 0 read again, at ${at}\ncode map: none, because no manifest names a package\n`);
+      .toBe(`source index updated: 2 files, 0 read again, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`);
 
     writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 2;\n');
     expect(await indexOutput({ cwd: root }))
-      .toBe(`source index updated: 2 files, 1 read again, at ${at}\ncode map: none, because no manifest names a package\n`);
+      .toBe(`source index updated: 2 files, 1 read again, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`);
   });
 
   it("carries the scan's listing to the code map, and a map prepared with no scan says git listed the checkout again", async () => {
@@ -83,8 +85,8 @@ describe('variance index', () => {
     const root = checkout();
     const at = sourceIndexPath(root);
 
-    expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\ncode map: none, because no manifest names a package\n`);
-    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\ncode map: none, because no manifest names a package\n`);
+    expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`);
+    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`);
   });
 
   it('keeps the index it published when the code map cannot be written, and says why there is no map', async () => {
@@ -107,7 +109,7 @@ describe('variance index', () => {
     writeFileSync(join(worktree, 'src/unit.ts'), 'export const unit = 2;\n');
 
     expect(await indexOutput({ cwd: worktree })).toBe(
-      `source index built on ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree)}\ncode map: none, because no manifest names a package\n`,
+      `source index built on ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree)}\ncode map: none, because no manifest names a package\n${lexiconLine(worktree)}`,
     );
   });
 
@@ -137,5 +139,8 @@ describe('variance index', () => {
     const positional = await run(['index', 'src']);
     expect(positional.code).toBe(EXIT_OPERATOR);
     expect(positional.out).toBe('');
+    const api = await run(['index', '--api', 'src/widget.ts']);
+    expect(api.code).toBe(EXIT_OPERATOR);
+    expect(api.err).toContain('`--api` is not a `variance index` flag');
   });
 });

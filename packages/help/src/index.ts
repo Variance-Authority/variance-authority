@@ -43,5 +43,5 @@ export { serveWorkspace } from './server.js';
 export type { WorkspaceOptions } from './server.js';
 export { writePages } from './write.js';
 export type { PagesOptions, Written } from './write.js';
-export { dependencyApisAround, refreshDependencyApis } from './dependency-api.js';
-export type { DependencyApiReading } from './dependency-api.js';
+export { readDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';
+export type { DependencyLexicon, LexiconEntry, LexiconAvailability, LexiconIssue } from './dependency-lexicon.js';

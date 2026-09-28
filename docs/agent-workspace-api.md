@@ -49,6 +49,13 @@ Once the search returns the name, ask `symbol` for its contract and `uses` for
 its exact import sites. `uses --from` only orders those sites by path proximity;
 it does not perform another graph traversal or remove any result.
 
+`variance index` publishes a separate catalogue of installed third-party APIs.
+`ask search` shows those names in their own section. A `--from` or `--to`
+path limits them to packages available to the workspaces in that graph closure;
+the answer labels imports separately from availability. Ask
+`symbol --name <name> --package <package>` for the installed signature and full documentation.
+The declaration provider is named when it differs from the runtime package.
+
 This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the
 files a module names in `/// <depends path="…" />`. It

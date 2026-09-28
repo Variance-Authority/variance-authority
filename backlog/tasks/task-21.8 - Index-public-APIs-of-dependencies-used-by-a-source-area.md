@@ -1,11 +1,11 @@
 ---
 id: TASK-21.8
-title: Index public APIs of dependencies used by a source area
+title: Index public APIs of available third-party dependencies
 status: Done
 assignee:
   - '@akorzunov'
 created_date: '2026-09-27 23:54'
-updated_date: '2026-09-28 00:41'
+updated_date: '2026-09-28 01:49'
 labels: []
 dependencies:
   - TASK-21.7
@@ -16,32 +16,32 @@ ordinal: 39000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Let an agent inspect the public declarations, signatures and JSDoc of external packages this source area uses, including versions older or newer than model training. Resolve the installed package through the project resolver and keep the API corpus separate from source-use evidence; rebuild it when the resolved dependency changes.
+Build a separate Rust-maintained catalogue of every third-party dependency this checkout declares as available, whether or not source imports it. Resolve installed identities and public entrypoints from each owning package context. The source index supplies observed imports. Ask search and symbol query the catalogue alongside local help; graph-scoped search selects domain availability while orient remains compact.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [x] #1 A dependency used in an area has an exact resolved package identity and version when the resolver can supply them; ambiguous or unavailable identity is stated as such.
-- [x] #2 Only public entrypoints from dependencies used by the area are indexed; transitive packages merely present in an installation are excluded.
-- [x] #3 Public names, signatures and JSDoc are queryable as separate evidence from repository imports.
-- [x] #4 A dependency API change refreshes its corpus without requiring a repository source scan, and unchanged dependencies retain their indexed data.
-- [x] #5 The result is checked against this repository and a fixture with an external dependency.
+- [x] #1 The catalogue includes declared third-party dependencies across root and workspace manifests, including unimported solutions, and excludes installed transitive packages with no first-party declaration or import evidence.
+- [x] #2 Each available dependency resolves from its owning package context and records installed runtime identity, version and public entrypoints when possible; unavailable resolution is explicit.
+- [x] #3 Public names, signatures and JSDoc are indexed separately and can be queried without naming a source file.
+- [x] #4 Ordinary variance index refreshes the catalogue without a source-file argument or repository source scan; unchanged installed API readings are reused and changed declarations refresh.
+- [x] #5 Graph-scoped ask search joins local help and third-party availability for from and to paths while orient keeps its concise dependency graph; a fixture and this repository verify the split.
 <!-- AC:END -->
 
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
-1. Use the external import sites already published by orient to identify the exact specifiers and importer directories to resolve. 2. Resolve installed public type entrypoints through the project resolver; record package identity/version or an explicit unavailable reason. 3. Build a separate persistent API corpus from public declarations, signatures and JSDoc, keyed by resolved entrypoint content, and refresh it explicitly without rescanning source. 4. Expose a query that joins current use evidence to that corpus, then verify against a fixture and this repository.
+1. Remove index --api and the API detail dump from orient. 2. Have ordinary index refresh the installed third-party catalogue in Rust from tracked manifests and source-index import evidence. 3. Resolve public entrypoints and declaration graphs, including separate type providers and export-equals namespaces, with digest-based reuse. 4. Query bounded third-party matches in Rust from ask search and symbol, using the existing source-graph closure for from and to. 5. Verify with multi-workspace fixtures and this checkout.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Verified on this checkout: index --api packages/help/src/index.ts resolved oxc-parser@0.144.0, oxc-resolver@11.24.2, and picomatch@4.0.7 with @types/picomatch@4.0.3; a repeat reused all 9 requests. The fixture kept fancy-lib out when only state-kit was imported; changing only the declaration file rebuilt the API entry while the source index stayed as published. The CLI orientation shows imported signatures and JSDoc; the separate dependency-api.json keeps full public entries. Build, lint, check (17,750 tests), measure, and 34 focused tests pass. Full test suite with Chromium and two workers: 609 files passed, four browser case files failed (three Storybook fixture cases and one test requiring multiple engines), with no dependency feature failures.
+Native implementation and query are in packages/sense/native. The fixture proves an unimported direct dependency, an imported undeclared dependency, exclusion of an unused installed package, two installed versions from different workspaces, separate type providers, export-equals declarations, and declaration-only refresh with reuse. Self run indexed 213 package contexts and 3221 entrypoints in about 1.3 seconds cold and 1.1 seconds warm; ask search with from and to and ask symbol returned installed React APIs while orient stayed concise. Build, lint, check, measure and 13 focused tests pass. The full test run passed 599 files and failed 13 browser case files on hook timeouts, missing WebKit, and Storybook fixture expectations; the new fixture passed and the three index output expectations were fixed and rerun green.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Added an explicitly refreshed dependency API corpus keyed to external requests observed in source, with exact installed runtime and declaration-provider versions, public names, signatures and JSDoc. Verified on a fixture and this repository, including unchanged reuse and declaration-only refresh.
+Replaced file-scoped dependency API indexing with a Rust-maintained catalogue refreshed by variance index. Ask search and symbol now query installed third-party APIs with workspace scope; orient remains concise. Verified by multi-workspace fixture, self indexing and querying, build, lint, check, measure and focused tests. The full suite still has unrelated browser case failures.
 <!-- SECTION:FINAL_SUMMARY:END -->
