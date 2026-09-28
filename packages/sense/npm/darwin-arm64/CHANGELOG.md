@@ -1,5 +1,7 @@
 # @variance-authority/sense-darwin-arm64
 
+## 0.11.0
+
 ## 0.10.0
 
 ## 0.9.0
