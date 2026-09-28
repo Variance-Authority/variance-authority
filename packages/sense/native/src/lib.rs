@@ -25,6 +25,7 @@ mod conditions;
 mod depends;
 mod digest;
 mod emitted;
+mod external_dependencies;
 mod generation;
 mod git;
 mod graph_index;

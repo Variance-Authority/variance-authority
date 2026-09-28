@@ -76,9 +76,11 @@ export type { SourceIndexState } from './source-index-file.js';
 
 export {
   packagesAround,
+  dependenciesAround,
   recordedCases,
   type CasesEntered,
   type Orientation,
+  type ExternalOrientation,
   type OrientFlow,
   type OrientFlows,
   type OrientLimits,

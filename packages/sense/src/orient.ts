@@ -18,7 +18,7 @@
 
 import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
-import type { NativeCasesEntered, NativeOrientation } from './native-orient.js';
+import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation } from './native-orient.js';
 import { sourceIndexPath } from './source-index.js';
 import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js';
 import { recordPath } from './test-selection/record-location.js';
@@ -27,6 +27,7 @@ import { declaredSuites } from './test-selection/suites.js';
 export type {
   NativeCasesEntered as CasesEntered,
   NativeOrientation as Orientation,
+  NativeExternalOrientation as ExternalOrientation,
   NativeOrientFlow as OrientFlow,
   NativeOrientFlows as OrientFlows,
   NativeOrientPackage as OrientPackage,
@@ -46,7 +47,7 @@ export interface PackagesAround {
   readonly orientation?: NativeOrientation;
 }
 
-function entry<Name extends 'orientPackages' | 'casesEntered'>(name: Name) {
+function entry<Name extends 'orientPackages' | 'externalDependencies' | 'casesEntered'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -66,6 +67,17 @@ export function packagesAround(root: string, files: readonly string[], limits: O
   const orient = entry('orientPackages');
   const index = sourceIndexPath(root);
   const orientation = orient(root, index, [...files], limits.rows, limits.names);
+  return orientation === null ? { index } : { index, orientation };
+}
+
+/** External packages requested by the indexed local import closure of `files`. */
+export function dependenciesAround(root: string, files: readonly string[], limits: OrientLimits): {
+  readonly index: string;
+  readonly orientation?: NativeExternalOrientation;
+} {
+  const inspect = entry('externalDependencies');
+  const index = sourceIndexPath(root);
+  const orientation = inspect(root, index, [...files], limits.rows, limits.names);
   return orientation === null ? { index } : { index, orientation };
 }
 

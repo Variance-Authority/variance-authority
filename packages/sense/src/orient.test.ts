@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { packagesAround, recordedCases } from './orient.js';
+import { dependenciesAround, packagesAround, recordedCases } from './orient.js';
+import { updateSourceIndex } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
@@ -119,5 +120,42 @@ describe('the recorded cases around some files', () => {
 describe('the packages around some files', () => {
   it('is absent, with the index it looked for, when no index was ever published', () => {
     expect(packagesAround(root, ['src/api.ts'], { rows: 5, names: 4 })).toEqual({ index: sourceIndexPath(root) });
+  });
+});
+
+describe('external dependencies along local imports', () => {
+  it('uses code to separate areas when root declarations and root:* supply the install', async () => {
+    const files = {
+      'package.json': JSON.stringify({
+        name: 'fixture', workspaces: ['packages/*'],
+        dependencies: { 'state-kit': '2.0.0', 'intl-engine': '5.0.0', 'fancy-lib': '1.0.0', 'unused-root': '1.0.0' },
+      }),
+      'packages/settings/package.json': JSON.stringify({ name: '@project/settings', dependencies: { 'state-kit': 'root:*', 'unused-local': 'root:*' } }),
+      'packages/settings/src/page.ts': "import { createStore } from 'state-kit';\nimport { local } from './local.js';\nexport const page = [createStore, local];\n",
+      'packages/settings/src/local.ts': "import { translate } from 'intl-engine';\nexport const local = translate;\n",
+      'packages/tooling/package.json': JSON.stringify({ name: '@project/tooling', dependencies: { 'fancy-lib': 'root:*' } }),
+      'packages/tooling/src/run.ts': "import { build } from 'fancy-lib';\nexport const run = build;\n",
+    };
+    for (const [file, source] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, file)), { recursive: true });
+      writeFileSync(join(root, file), source);
+    }
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture'], { cwd: root });
+    await updateSourceIndex(root);
+
+    const answer = dependenciesAround(root, ['packages/settings/src/page.ts'], { rows: 8, names: 3 }).orientation;
+    expect(answer?.dependencies.map((dependency) => dependency.package)).toEqual(['intl-engine', 'state-kit']);
+    expect(answer?.dependencies.find((dependency) => dependency.package === 'state-kit')).toMatchObject({
+      files: 1, imports: 1,
+      sites: [{ file: 'packages/settings/src/page.ts', line: 1, names: ['createStore'], distance: 0 }],
+      declaredIn: ['packages/settings/package.json', 'root package.json'],
+    });
+    expect(answer?.dependencies.find((dependency) => dependency.package === 'intl-engine')).toMatchObject({
+      sites: [{ file: 'packages/settings/src/local.ts', line: 1, names: ['translate'], distance: 1 }],
+      declaredIn: ['root package.json'],
+    });
+    expect(answer?.declaredOnly).toEqual(['unused-local']);
+    expect(answer?.unread).toBe(0);
   });
 });

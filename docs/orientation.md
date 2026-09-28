@@ -125,7 +125,7 @@ tree is the answer. Both are exact and need no Variance index.
 | Nothing yet, in a repository you do not know | `variance ask orient` | The code map: the repository's packages in areas, each with its size, its dependency layers and the packages the rest of the repository imports most from it; `--area <id>` opens one area |
 | An exact string in the working tree | `rg -n <text> .` | Current files containing that text |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
-| Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[,...]` | Each file's package, with the names it imports from other packages and the names they import from it, and the recorded tests that ran each file |
+| Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[,...]` | Each file's package, the names crossing its package boundary, external packages requested along its local imports, and the recorded tests that ran it |
 | Words for an exported source name | `variance ask search --query <words>` | Matching exported names |
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
 | An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation and consumers |
@@ -169,6 +169,15 @@ it beside the index, so asking for a page reads one file. When the index
 changes and the map was built from an earlier one, the page says so. With no
 map, the answer names `variance index`, or says why `variance index` built
 none, instead of printing an empty map.
+
+With a file in hand, `orient --files` also walks its indexed local imports and
+names the external packages those files request. Each package has importing
+files and lines. A manifest declaration is shown beside the imports, not
+counted as one: a root manifest may declare packages for many parts of a
+monorepo, while only the imports along this path say which ones this code uses.
+Names declared locally without import evidence along the path are listed
+separately. An unread file or a changed index is named, so an incomplete path
+does not read as a path with no dependencies.
 
 ## Ask the record, or produce a new one
 

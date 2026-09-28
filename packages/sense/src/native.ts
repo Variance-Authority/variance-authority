@@ -23,16 +23,14 @@ import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
 import type { Aliases } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
-  NativeJourneyGraph,
-  NativeJourneySelection,
-  NativeJourneyChange,
+  NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
   NativeJourneyProjection,
   NativeJourneyFold,
   NativeJourneyFoldResult,
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
-import type { NativeCasesEntered, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import { witnessesOf } from './witness.js';
 
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
@@ -244,6 +242,8 @@ export interface NativeScanner extends NativeOrientMaps {
   ): NativeJourneySelection;
   /** The packages `files` belong to and the names crossing their edges, read off the source index at `index`; `null` when none was published. */
   orientPackages?(root: string, index: string, files: string[], rows: number, names: number): NativeOrientation | null;
+  /** Indexed external requests from `files`; `null` when no index is published. */
+  externalDependencies?(root: string, index: string, files: string[], rows: number, sites: number): NativeExternalOrientation | null;
   /** For each of `files`, the cases in the journey file at `file` that ran it. */
   casesEntered?(file: string, files: string[], titles: number): NativeCasesEntered[];
 }
