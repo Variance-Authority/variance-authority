@@ -44,7 +44,19 @@ published:
 ```text
 source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin
 code map: 59 packages in 11 areas, 2 deep, over 8 dependency layers
+dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.json
+questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
 ```
+
+The last two lines are what `variance ask` answers from: the third-party
+dependencies the checkout declares, and the value `ask search` and the other
+source questions read without scanning. Either one says `not prepared` or
+`not published`, with the reason, when it could not be written.
+
+When the file system refuses the index itself, the command prints
+`source index not written: <reason>, at <path>` and exits `2`. Every reader of
+the index would otherwise answer from the one already there, so nothing after
+it runs.
 
 These commands read what `variance index` published, and do not scan:
 

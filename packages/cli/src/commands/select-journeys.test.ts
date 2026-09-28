@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { readWorkspace } from '@variance-authority/help';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { encodeExecutionIndex } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
@@ -103,6 +105,19 @@ describe('selecting from a journey file', () => {
     const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
     expect(said.out).toBe('test/branch.test.ts\n');
     expect(said.err).not.toContain('yarn.lock');
+  });
+
+  // A question that publishes reads the index `variance index` wrote and saves
+  // what it learned; the trace through the bare package has to survive that.
+  it('traces the same bump after a reading of the workspace saved over the index', async () => {
+    await readWorkspace(root, { index: sourceIndexPath(root) });
+    git('add', '.');
+    git('commit', '-qm', 'before');
+    writeFileSync(join(root, 'yarn.lock'), lockfile('1.1.0'));
+    git('commit', '-qam', 'bump');
+    writeFileSync(join(root, 'change.patch'), git('diff', 'HEAD~1', 'HEAD'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('test/branch.test.ts\n');
   });
 
   it('keeps every test when the patch changes the lockfile and names no blob to compare', async () => {

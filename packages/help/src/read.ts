@@ -31,8 +31,6 @@
  * already said what the file imports also says what it exports.
  */
 
-import { execFileSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
@@ -61,6 +59,7 @@ import {
   type Use,
 } from '@variance-authority/package/help';
 import { indexedNames, type IndexedSource } from './indexed-surface.js';
+import { coversWhole, scanScope } from './scan-scope.js';
 import {
   readWorkspaceSnapshot,
   republishWorkspaceSnapshot,
@@ -259,7 +258,8 @@ async function scanIndexed(
   readonly sources: Map<string, IndexedSource>;
   readonly records: readonly FileRecord[];
   readonly cache: ParseCache;
-  save(): Promise<void>;
+  /** What the file system refused when the index was written, or `undefined`. */
+  save(): Promise<string | undefined>;
 }> {
   const where = resolve(root);
   const index = await openSourceIndex(options.index ?? sourceIndexPath(where));
@@ -304,7 +304,10 @@ async function scanIndexed(
     sources,
     records: tainted.records,
     cache: index.cache,
-    save: () => index.save(),
+    // The index describes the whole of the root it belongs to, and a save keeps
+    // only the records this scan touched. A scan of some of its directories is
+    // answered and published, and never written over the index it read.
+    save: coversWhole(dirs) ? () => index.save() : () => Promise.resolve(undefined),
   };
 }
 
@@ -400,7 +403,6 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
   scanned.sources.clear();
   byFile.clear();
   if (options.save !== false) {
-    // FIXME: this save drops the bare-specifier edge `variance index` records, so a lockfile bump selects nothing after an `ask`.
     if (options.saveIndex !== false) await scanned.save();
     await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, options.index);
   }
@@ -474,22 +476,4 @@ function joinUsage(documented: Help, offerings: readonly Offering[], usage: Usag
     exported: usage.exported,
     unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
   };
-}
-
-function scanScope(root: string, offerings: readonly Offering[]): { readonly root: string; readonly dirs: readonly string[] } {
-  const crossesRoot = offerings.some((offering) => relative(root, realpathSync(offering.dir)).startsWith('..'));
-  if (!crossesRoot) return { root, dirs: ['.'] };
-  let repository = root;
-  try {
-    repository = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' }).trim();
-  } catch { /* A non-Git workspace is its own scan boundary. */ }
-  if (repository === root) return { root, dirs: ['.'] };
-
-  const dirs = new Set<string>();
-  for (const path of [root, ...offerings.map((offering) => offering.dir)]) {
-    const from = relative(repository, realpathSync(path));
-    if (from === '' || from.startsWith('..')) continue;
-    dirs.add(from.split('/')[0]!);
-  }
-  return { root: repository, dirs: [...dirs].sort() };
 }

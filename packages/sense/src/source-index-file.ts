@@ -36,12 +36,16 @@ export interface SourceIndexFile {
   readonly state: SourceIndexState;
   /** The committed chain's segment digests that were read: the generation's identity. */
   readonly generation: readonly Digest[];
-  /** Append what `next` changes about it; cache I/O never fails a scan. */
+  /**
+   * Append what `next` changes about it; cache I/O never fails a scan. What the
+   * file system refused, when it did, so a caller whose job is the write can
+   * say so; `undefined` when the chain holds `next`.
+   */
   save(
     next: StoredSourceIndex,
     encodedParses?: EncodedParseLayer,
     graph?: NativeIndexGraph,
-  ): Promise<void>;
+  ): Promise<string | undefined>;
 }
 
 /**
@@ -83,8 +87,9 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
     generation: opened.log.digests,
     async save(next, encodedParses, graph) {
       const current = await baseline(path, opened);
-      if (graph !== undefined && await published(path, current, next, encodedParses, graph)) return;
-      await append(current, next, encodedParses, graph);
+      const cold = graph === undefined ? false : await published(path, current, next, encodedParses, graph);
+      if (cold !== false) return cold ?? undefined;
+      return append(current, next, encodedParses, graph);
     },
   };
 }
@@ -133,7 +138,7 @@ async function append(
   stored: StoredSourceIndex,
   encodedParses?: EncodedParseLayer,
   graph?: NativeIndexGraph,
-): Promise<void> {
+): Promise<string | undefined> {
   const parses = differenceLayer(current.stored.parses, stored.parses, unchanged);
   const records = differenceLayer(current.stored.records, stored.records, unchanged);
   const directories = differenceLayer(current.stored.directories, stored.directories);
@@ -147,7 +152,7 @@ async function append(
     current.log.dropped === 0 &&
     current.stored.config === stored.config &&
     empty(parses) && empty(records) && empty(directories)
-  ) return;
+  ) return undefined;
 
   // The native layer is published ahead of the delta, onto whatever chain is
   // there. Its keys are not in `stored`, so the difference deletes every one the
@@ -187,17 +192,20 @@ async function append(
       const bytes = native.bytes;
       await current.log.publishAll([bytes, delta], () => [whole([bytes, delta])]);
     }
+    return undefined;
   } catch (error) {
     // Not written. The next scan is cold and this run's graph is unchanged.
     if (!(error instanceof LogNotWritten)) throw error;
+    return error.message;
   }
 }
 
 /**
  * Publish a cold build from the addon that holds its closure, when the chain
  * is empty: the parse layer, then one generation holding the closure's records
- * and everything JavaScript read beside it. Whether this was the save's path;
- * a refusal from the file system is the cache not written, as in `append`.
+ * and everything JavaScript read beside it. `false` when this is not the
+ * save's path; otherwise what the file system refused, or `null` when written —
+ * a refusal is the cache not written, as in `append`.
  *
  * Only the empty chain. A committed one decides for itself whether to compact,
  * and that decision stays with [`immutable-log.ts`](./immutable-log.ts); a save
@@ -209,7 +217,7 @@ async function published(
   next: StoredSourceIndex,
   encodedParses: EncodedParseLayer | undefined,
   graph: NativeIndexGraph,
-): Promise<boolean> {
+): Promise<string | null | false> {
   if (current.log.committed || current.log.legacy || current.log.digests.length > 0) return false;
   if (encodedParses === undefined) return false;
   const parses = differenceLayer(current.stored.parses, next.parses, unchanged);
@@ -218,13 +226,12 @@ async function published(
   // Nothing precedes the generation, so there is nothing for it to delete. A
   // deletion here is a baseline this function does not describe.
   if (parses.deletes.size + records.deletes.size + directories.deletes.size > 0) return false;
-  graph.publish(path, sourceIndexDocuments({
+  return graph.publish(path, sourceIndexDocuments({
     ...(next.config === undefined ? {} : { config: next.config }),
     directories: directories.puts,
     records: records.puts,
     parses: new Map([...parses.puts].filter(([key]) => !encodedParses.keys.has(key))),
   }));
-  return true;
 }
 
 /**

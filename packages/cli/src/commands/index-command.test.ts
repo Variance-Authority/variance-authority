@@ -144,6 +144,22 @@ describe('variance index', () => {
     expect(searched.stdout).toContain('widget');
   });
 
+  // A file where the cache directory should be, rather than a mode: a mode is
+  // no refusal to root, and this has to refuse on every runner.
+  it('refuses, naming what the file system refused, when the index cannot be written', async () => {
+    const root = checkout();
+    const cache = join(mkdtempSync(join(tmpdir(), 'va-index-unwritable-')), 'cache');
+    writeFileSync(cache, 'not a directory\n');
+    process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+
+    const refused = await run(['index']);
+
+    expect(refused.code).toBe(EXIT_OPERATOR);
+    expect(refused.out).toBe('');
+    expect(refused.err).toMatch(new RegExp(`^source index not written: .+, at ${escaped(sourceIndexPath(root))}\\n`, 'u'));
+    expect(refused.err).not.toContain('defect in the tool');
+  });
+
   it('takes no argument', async () => {
     checkout();
 
@@ -155,3 +171,7 @@ describe('variance index', () => {
     expect(api.err).toContain('`--api` is not a `variance index` flag');
   });
 });
+
+function escaped(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
