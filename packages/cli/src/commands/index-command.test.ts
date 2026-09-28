@@ -20,7 +20,7 @@ import { indexOutput } from './index-command.js';
 const cwd = process.cwd();
 const BIN = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
 const lexiconLine = (root: string): string =>
-  `dependency lexicon: 0 package contexts, 0 public entrypoints, 0 reused, 0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n`;
+  `dependency lexicon: 0 workspace-dependency pairs, 0 public entrypoints, 0 reused, 0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n`;
 
 beforeEach(() => {
   process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@akorzunov'
 created_date: '2026-09-27 23:54'
-updated_date: '2026-09-28 01:49'
+updated_date: '2026-09-28 02:04'
 labels: []
 dependencies:
   - TASK-21.7
@@ -38,6 +38,8 @@ Build a separate Rust-maintained catalogue of every third-party dependency this 
 
 <!-- SECTION:NOTES:BEGIN -->
 Native implementation and query are in packages/sense/native. The fixture proves an unimported direct dependency, an imported undeclared dependency, exclusion of an unused installed package, two installed versions from different workspaces, separate type providers, export-equals declarations, and declaration-only refresh with reuse. Self run indexed 213 package contexts and 3221 entrypoints in about 1.3 seconds cold and 1.1 seconds warm; ask search with from and to and ask symbol returned installed React APIs while orient stayed concise. Build, lint, check, measure and 13 focused tests pass. The full test run passed 599 files and failed 13 browser case files on hook timeouts, missing WebKit, and Storybook fixture expectations; the new fixture passed and the three index output expectations were fixed and rerun green.
+
+Correction to the self-run count: 213 means distinct owning-manifest and external-dependency pairs, not 213 packages. The saved corpus has 53 owning manifests and 63 distinct external package names.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

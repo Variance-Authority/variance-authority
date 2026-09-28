@@ -34,7 +34,7 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
 function lexicon(root: string): string {
   try {
     const { path, packages, entrypoints, reused, unavailable } = refreshDependencyLexicon(root);
-    return `dependency lexicon: ${packages} package contexts, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;
+    return `dependency lexicon: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;
   } catch (error) {
     return `dependency lexicon: not prepared: ${error instanceof Error ? error.message : String(error)}`;
   }
