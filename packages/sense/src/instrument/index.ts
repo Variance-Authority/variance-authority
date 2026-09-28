@@ -166,15 +166,13 @@ export interface InstrumentOptions {
  */
 export const EVALUATING = 0x80000000;
 
-// TODO: narrow to `string`. The journal and module-record formats and the
-// native fold still decode a numbered module, which nothing writes.
 /**
  * What an instrumented module reports itself as, and the only identity that
  * reaches the running code: its repository-relative path, which the emitted
  * code states as a literal (ADR-0056, amended 2026-09-28). Every artifact names
  * the module by the same path, so nothing downstream needs a table to read it.
  */
-export type ModuleId = number | string;
+export type ModuleId = string;
 
 export interface Instrumented {
   /** Identity of the exact source string whose offsets and blocks follow. */
@@ -247,7 +245,7 @@ export function instrument(
  * does.
  */
 function runtime(id: ModuleId, count: number): string {
-  const module = typeof id === 'number' ? String(id) : JSON.stringify(id);
+  const module = JSON.stringify(id);
 
   return (
     `var __vaK,__vaG,__vaB,__vaA;function __vaF(){}function __vaP(){}` +
@@ -262,11 +260,11 @@ function runtime(id: ModuleId, count: number): string {
 }
 
 /**
- * The emitted runtime with placeholder numbers.
+ * The emitted runtime with a placeholder path and count.
  *
  * A transform cache that keys on the instrumentation identity alone serves the
  * previous probe after this text changes: the regions are the same, so the
  * identity is too. What the text does is not a region question, and a cache
  * that stores it keys on the text.
  */
-export const PROBE_RUNTIME = runtime(0, 0);
+export const PROBE_RUNTIME = runtime('', 0);

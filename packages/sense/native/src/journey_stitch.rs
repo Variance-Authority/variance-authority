@@ -6,7 +6,7 @@ use napi_derive::napi;
 
 use crate::journey_columns;
 use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
-use crate::journey_journal::{self, ModuleId, Test};
+use crate::journey_journal::{self, Test};
 use crate::journey_output;
 use crate::journey_record::{self, Block, Module};
 use crate::order;
@@ -130,7 +130,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
             (reconciled.blocks, reconciled.lands)
         };
         modules.push(Module {
-            id: ModuleId::Name(file.clone()),
+            id: file.clone(),
             file,
             digest: [0; 16],
             blocks,

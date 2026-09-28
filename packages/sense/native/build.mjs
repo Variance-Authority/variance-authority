@@ -46,7 +46,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TARGETS } from './targets.mjs';
@@ -190,7 +190,12 @@ const into =
   published === undefined ? join(here, '..', 'dist', 'native') : join(here, '..', 'npm', published);
 
 mkdirSync(into, { recursive: true });
-copyFileSync(from, join(into, 'scan.node'));
+// Copied beside and renamed over, never written in place: macOS keeps the code
+// signature of a binary it has loaded by inode, and a process that loads a
+// Mach-O rewritten under the same inode is killed at `require`.
+const staging = join(into, `scan.node.${process.pid}`);
+copyFileSync(from, staging);
+renameSync(staging, join(into, 'scan.node'));
 
 if (!existsSync(join(into, 'scan.node'))) process.exit(1);
 console.log(`sense: native scanner at ${join(into, 'scan.node')}`);

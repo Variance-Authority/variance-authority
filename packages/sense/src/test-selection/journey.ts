@@ -68,7 +68,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { channelFrom, JOURNEY_COOKIE, type Channel } from '@variance-authority/wire';
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
-import { idOrder } from './instrumented-modules.js';
+import { codeUnitOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 import probeLog from '../instrument/probe-log.cjs';
@@ -352,7 +352,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     send(over, {
       scope: 'journey',
       ...(settled === 0 ? {} : { settled }),
-      modules: entered.sort((left, right) => idOrder(left.id, right.id)),
+      modules: entered.sort((left, right) => codeUnitOrder(left.id, right.id)),
     });
   };
 
@@ -393,7 +393,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
       scope: 'process',
       modules: [...since]
         .map(([id, hits]) => ({ id, hits: hits.sort((left, right) => left - right), shared: [] }))
-        .sort((left, right) => idOrder(left.id, right.id)),
+        .sort((left, right) => codeUnitOrder(left.id, right.id)),
     });
   };
 

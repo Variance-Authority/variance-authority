@@ -11,7 +11,7 @@
 
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { AMBIENT, type CaseJournal } from './cases.js';
-import { codeUnitOrder, idOrder } from './instrumented-modules.js';
+import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ExecutionJournal } from './probes.js';
 
@@ -141,7 +141,7 @@ export function joinObservations(
             hits: [...ordinals].sort((a, b) => a - b),
             shared: [...(held.shared.get(id) ?? [])].sort((a, b) => a - b),
           }))
-          .sort((left, right) => idOrder(left.id, right.id)),
+          .sort((left, right) => codeUnitOrder(left.id, right.id)),
       },
       ...(held.preconditions.size === 0
         ? {}

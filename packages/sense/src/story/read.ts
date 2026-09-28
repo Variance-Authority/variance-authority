@@ -152,9 +152,7 @@ export function regionsOfStory(
   path: string,
   story: ReturnType<typeof stories.decodeStory>,
 ): { readonly files: readonly string[]; readonly regions: readonly (readonly Region[] | undefined)[] } {
-  // A tape written while modules were numbered names them by a number nothing
-  // can turn back into a path; it is shown as that number.
-  const files = story.rows.map(([id]) => (typeof id === 'string' ? id : `module ${id}`));
+  const files = story.rows.map(([id]) => id);
   const snapshot = recordOfStories(dirname(path));
   const regions = existsSync(snapshot)
     ? askCoverageFile(snapshot, (view) => story.rows.map(([, count], row) => regionsOf(view, files[row]!, count)))

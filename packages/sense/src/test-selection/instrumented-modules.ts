@@ -28,7 +28,7 @@ import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { repositoryLayers } from './cache-layers.js';
 import type { CoverageBlock } from './index.js';
 import {
-  UNNUMBERED,
+  BY_PATH,
   decodeRecord,
   frameRecord,
   framePath,
@@ -44,7 +44,7 @@ export type { ModuleId };
 export interface CapturedModule {
   /** Repository-relative, forward-slashed: the same path a coverage row carries. */
   readonly file: string;
-  /** What the emitted code reports itself as: a number, or {@link file} unnumbered. */
+  /** What the emitted code reports itself as: {@link file}, the path. */
   readonly id: ModuleId;
   readonly sourceDigest: string;
   /** False records module-level unknown evidence; consumers widen without consulting blocks. */
@@ -225,7 +225,7 @@ async function readStore(
   const answers = new Map<ModuleId, Answer>();
   for (const segment of await readSegments(store, instrumentation)) {
     for (const frame of frames(segment.raw, segment.from)) {
-      const id = frame.id === UNNUMBERED ? framePath(segment.raw, frame) : frame.id;
+      const id = frame.id === BY_PATH ? framePath(segment.raw, frame) : undefined;
       if (id === undefined || !wanted.has(id)) continue;
       answers.set(id, { raw: segment.raw, frame });
     }
@@ -412,20 +412,6 @@ export function loadedOf(
 
 export function codeUnitOrder(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
-}
-
-/**
- * A total order over ids, so a fold that has both kinds produces one sequence.
- *
- * Numbers first and in numeric order, paths after them. Nothing reads meaning
- * into the order — it exists so that two processes folding the same run write
- * the same bytes.
- */
-export function idOrder(left: ModuleId, right: ModuleId): number {
-  if (typeof left === 'number' && typeof right === 'number') return left - right;
-  if (typeof left === 'number') return -1;
-  if (typeof right === 'number') return 1;
-  return codeUnitOrder(left, right);
 }
 
 export function isMissing(error: unknown): boolean {

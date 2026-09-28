@@ -9,7 +9,6 @@ import { scanJournal, type JournalVisitor } from './crossing-fold.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import {
   codeUnitOrder,
-  idOrder,
   isMissing,
   projectPath,
   type CapturedModule,
@@ -293,7 +292,7 @@ export async function foldCaseRun(
   budget = DEFAULT_BUDGET,
 ): Promise<CaseFold> {
   const shaped = [...modules.entries()].sort(([leftId, left], [rightId, right]) =>
-    codeUnitOrder(left.file, right.file) || idOrder(leftId, rightId),
+    codeUnitOrder(left.file, right.file) || codeUnitOrder(leftId, rightId),
   );
   const rowOf = new Map<ModuleId, number>();
   const moduleBlocks = new Uint32Array(shaped.length + 1);

@@ -10,7 +10,6 @@ import {
   openRecords,
   readRecord,
   readRecords,
-  idOrder,
   recordStore,
   writeRecord,
   type CapturedModule,
@@ -77,23 +76,10 @@ describe('what the default include calls product source', () => {
 });
 
 describe('the id a module carries', () => {
-  it('answers under the number the table gave it', async () => {
-    writeRecord(openRecords(storeOf()), captured({ id: 41 }));
-
-    expect((await readRecord(storeOf(), 41))?.file).toBe('src/cart.js');
-    expect(await readRecord(storeOf(), 'src/cart.js')).toBeUndefined();
-  });
-
-  it('answers under its path until it has a number', async () => {
+  it('answers under its path', async () => {
     writeRecord(openRecords(storeOf()), captured());
 
     expect((await readRecord(storeOf(), 'src/cart.js'))?.id).toBe('src/cart.js');
-  });
-
-  it('orders numbers before paths, so two folds of one run write one sequence', () => {
-    const ids: ModuleId[] = ['src/b.js', 7, 'src/a.js', 2];
-
-    expect(ids.sort(idOrder)).toEqual([2, 7, 'src/a.js', 'src/b.js']);
   });
 });
 
@@ -243,12 +229,12 @@ describe('a store of module records', () => {
 
 describe('the fold of a run\'s journals', () => {
   const journals: readonly ReadJournal[] = [
-    { testFile: 'test/alpha.case.ts', modules: [{ id: 7, hits: [0, 1, 2], shared: [0, 1], loaded: [0, 1] }] },
-    { testFile: 'test/beta.case.ts', modules: [{ id: 7, hits: [0, 3], shared: [0], loaded: [0] }] },
+    { testFile: 'test/alpha.case.ts', modules: [{ id: 'src/cart.js', hits: [0, 1, 2], shared: [0, 1], loaded: [0, 1] }] },
+    { testFile: 'test/beta.case.ts', modules: [{ id: 'src/cart.js', hits: [0, 3], shared: [0], loaded: [0] }] },
     { testFile: 'test/gamma.case.ts', modules: [] },
   ];
   const rows = (fold: ReadonlyMap<ModuleId, ReadonlyMap<number, ReadonlySet<string>>>): unknown =>
-    [...fold.get(7)!].map(([ordinal, tests]) => [ordinal, [...tests].sort()]);
+    [...fold.get('src/cart.js')!].map(([ordinal, tests]) => [ordinal, [...tests].sort()]);
 
   it('credits what a module did while evaluating to every file that consumed it', () => {
     expect(rows(crossingsOf(journals))).toEqual([

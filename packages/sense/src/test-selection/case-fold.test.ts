@@ -66,19 +66,19 @@ describe('the bounded case fold', () => {
     const frames = [
       journalFormat.encodeJournal(
         packCase('/repo/test/branch.test.ts', 'calls alpha', '1'),
-        new Map([[7, counters(3, [0, 1])]]),
+        new Map([['src/branch.ts', counters(3, [0, 1])]]),
       ),
       journalFormat.encodeJournal(
         packCase('/repo/test/branch.test.ts', 'loads beta', '2'),
-        new Map([[7, counters(3, [], [2])]]),
+        new Map([['src/branch.ts', counters(3, [], [2])]]),
       ),
       journalFormat.encodeJournal(
         packCase('/repo/test/branch.test.ts', AMBIENT, AMBIENT),
-        new Map([[7, counters(3, [0], [2])]]),
+        new Map([['src/branch.ts', counters(3, [0], [2])]]),
       ),
     ];
     await writeFile(resolve(cases, 'worker.vac'), packFrames(frames));
-    const modules = new Map<ModuleId, CapturedModule>([[7, captured('src/branch.ts', 7, 3)]]);
+    const modules = new Map<ModuleId, CapturedModule>([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
 
     const run = await inspectCaseRun(cases, '/repo');
     const folded = await foldCaseRun(run, modules, 64);
@@ -96,16 +96,16 @@ describe('the bounded case fold', () => {
     // under the same coordinate, which calls what the first only loaded.
     const cases = await directory();
     await writeFile(resolve(cases, 'a.vac'), packFrames([
-      journalFormat.encodeJournal(packCase('/repo/test/late.test.ts', 'settles', '1'), new Map([[7, counters(3, [0], [2])]])),
-      journalFormat.encodeJournal(packCase('/repo/test/late.test.ts', 'other', '2'), new Map([[8, counters(2, [1])]])),
-      journalFormat.encodeJournal(packCase('/repo/test/late.test.ts', 'settles', '1'), new Map([[7, counters(3, [2])], [8, counters(2, [0])]])),
+      journalFormat.encodeJournal(packCase('/repo/test/late.test.ts', 'settles', '1'), new Map([['src/late.ts', counters(3, [0], [2])]])),
+      journalFormat.encodeJournal(packCase('/repo/test/late.test.ts', 'other', '2'), new Map([['src/early.ts', counters(2, [1])]])),
+      journalFormat.encodeJournal(packCase('/repo/test/late.test.ts', 'settles', '1'), new Map([['src/late.ts', counters(3, [2])], ['src/early.ts', counters(2, [0])]])),
     ]));
     await writeFile(resolve(cases, 'b.vac'), packFrames([
-      journalFormat.encodeJournal(packCase('/repo/test/early.test.ts', 'first', '1'), new Map([[8, counters(2, [], [0, 1])]])),
+      journalFormat.encodeJournal(packCase('/repo/test/early.test.ts', 'first', '1'), new Map([['src/early.ts', counters(2, [], [0, 1])]])),
     ]));
     const modules = new Map<ModuleId, CapturedModule>([
-      [7, captured('src/late.ts', 7, 3)],
-      [8, captured('src/early.ts', 8, 2)],
+      ['src/late.ts', captured('src/late.ts', 'src/late.ts', 3)],
+      ['src/early.ts', captured('src/early.ts', 'src/early.ts', 2)],
     ]);
 
     const run = await inspectCaseRun(cases, '/repo');
@@ -152,7 +152,7 @@ describe('the bounded case fold', () => {
     const everyBlock = new Uint32Array(blocksPerModule);
     everyBlock.fill(1);
     const entered = new Map<ModuleId, Uint32Array>(
-      Array.from({ length: moduleCount }, (_, at) => [at + 1, everyBlock]),
+      Array.from({ length: moduleCount }, (_, at) => [`src/wide-${at}.ts`, everyBlock]),
     );
     const frames = Array.from({ length: testCount }, (_, test) =>
       journalFormat.encodeJournal(
@@ -162,8 +162,8 @@ describe('the bounded case fold', () => {
     await writeFile(resolve(cases, 'worker.vac'), packFrames(frames));
     const modules = new Map<ModuleId, CapturedModule>(
       Array.from({ length: moduleCount }, (_, at) => [
-        at + 1,
-        captured(`src/wide-${at}.ts`, at + 1, blocksPerModule),
+        `src/wide-${at}.ts`,
+        captured(`src/wide-${at}.ts`, `src/wide-${at}.ts`, blocksPerModule),
       ]),
     );
 
@@ -184,9 +184,9 @@ describe('the bounded case fold', () => {
     const store = resolve(cases, '..', 'store');
     await mkdir(store);
     const module: CapturedModule = {
-      ...captured('src/branch.ts', 7, 3),
+      ...captured('src/branch.ts', 'src/branch.ts', 3),
       sourceDigest: digestString('source'),
-      blocks: captured('src/branch.ts', 7, 3).blocks.map((block) => ({
+      blocks: captured('src/branch.ts', 'src/branch.ts', 3).blocks.map((block) => ({
         ...block,
         digest: digestString(`block-${block.ordinal}`),
       })),
@@ -198,16 +198,16 @@ describe('the bounded case fold', () => {
     await writeFile(resolve(cases, 'worker.vac'), packFrames([
       journalFormat.encodeJournal(
         packCase('/repo/test/branch.test.ts', 'alpha', '1'),
-        new Map([[7, counters(3, [0, 1])]]),
+        new Map([['src/branch.ts', counters(3, [0, 1])]]),
       ),
       journalFormat.encodeJournal(
         packCase('/repo/test/branch.test.ts', 'beta', '2'),
-        new Map([[7, counters(3, [0, 2])]]),
+        new Map([['src/branch.ts', counters(3, [0, 2])]]),
       ),
     ]));
 
     const run = await inspectCaseRun(cases, '/repo');
-    const oracle = await foldCaseRun(run, new Map([[7, module]]), 64);
+    const oracle = await foldCaseRun(run, new Map([['src/branch.ts', module]]), 64);
     const answered = native()!.foldJourney!(
       cases,
       '/repo',
@@ -227,14 +227,14 @@ describe('the bounded case fold', () => {
     // The fold retires a test file the checkout no longer holds, so each one is there.
     await mkdir(resolve(root, 'test'));
     for (const file of ['a', 'b', 'c']) await writeFile(resolve(root, 'test', `${file}.test.ts`), '');
-    const modules = new Map<ModuleId, CapturedModule>([[7, captured('src/x.ts', 7, 3)]]);
+    const modules = new Map<ModuleId, CapturedModule>([['src/x.ts', captured('src/x.ts', 'src/x.ts', 3)]]);
     let journals = 0;
     // One run: each test file's one case calls one branch of `src/x.ts`.
     const run = async (commit: string, calls: Readonly<Record<string, number>>): Promise<void> => {
       const from = resolve(root, `run-${journals++}`);
       await mkdir(from);
       await writeFile(resolve(from, 'w.vac'), packFrames(Object.entries(calls).map(([file, branch]) =>
-        journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([[7, counters(3, [branch])]])))));
+        journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([['src/x.ts', counters(3, [branch])]])))));
       await writeCaseIndex(index, from, root, modules, {
         tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
         commit,

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { CoverageBlock } from './index.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import {
-  UNNUMBERED,
+  BY_PATH,
   decodeRecord,
   frameRecord,
   framePath,
@@ -100,21 +100,24 @@ describe('a module record as bytes', () => {
     expect(readSegmentHeader(Buffer.alloc(0))).toBeUndefined();
   });
 
-  it('files a numbered frame under its number, and a scan reads it without decoding', () => {
-    const raw = segment(captured({ id: 41 }));
-    const [frame] = [...frames(raw, readSegmentHeader(raw)!.frames)];
-
-    expect(frame!.id).toBe(41);
-    expect(framePath(raw, frame!)).toBe('src/cart.js');
-  });
-
-  it('files a module the table has no number for under the path it carries', () => {
+  it('files a module under the path it carries, and a scan reads it without decoding', () => {
     const raw = segment(captured());
     const [frame] = [...frames(raw, readSegmentHeader(raw)!.frames)];
 
-    expect(frame!.id).toBe(UNNUMBERED);
+    expect(frame!.id).toBe(BY_PATH);
     expect(framePath(raw, frame!)).toBe('src/cart.js');
     expect(readAll(raw)[0]?.id).toBe('src/cart.js');
+  });
+
+  it('reads a frame filed under a module number as no module, checksum and all', () => {
+    const raw = Buffer.from(segment(captured()));
+    const [frame] = [...frames(raw, readSegmentHeader(raw)!.frames)];
+    raw.writeUInt32LE(41, frame!.at);
+    let hash = 2166136261;
+    for (const byte of raw.subarray(frame!.at, frame!.at + frame!.length)) hash = Math.imul(hash ^ byte, 16777619) >>> 0;
+    raw.writeUInt32LE(hash >>> 0, frame!.at - 4);
+
+    expect(readAll(raw)[0]).toBeUndefined();
   });
 
   it('loses the tail of a write that was interrupted, and nothing before it', () => {

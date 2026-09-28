@@ -794,16 +794,17 @@ one pass over each array and the reporter reads bytes.
 
 ```
 journal  "VAJRN" | version | test file | modules | module | module | …
-module   0 | id   or   1 | path | hits | shared | loaded
+module   1 | path | hits | shared | loaded
 hits     count | gap | gap | …
 ```
 
-A module is written as `1 | path`; `0 | id`, a numbered module, is still read
-and nothing writes it. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
+A module is written as `1 | path`, and a reader refuses any other tag as a
+damaged frame. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
 rise within a module, so a region costs one byte. A run of eight thousand test
-files over two hundred thousand modules reports sixteen million module rows,
-which is a gigabyte of text for the workers to render and the reporter to parse,
-and a quarter of that as frames. No checksum: one process writes a journal and
+files over two hundred thousand modules reports sixteen million module rows. As
+frames each row is its module's path and its ordinals as gaps, which is under
+half the bytes of the same rows as JSON, and nothing is rendered or parsed as
+text on the way. No checksum: one process writes a journal and
 closes it, one reader opens it once that process is gone, and the only damage
 available to it is a tail that never arrived — which a decode obliged to land
 exactly on the end of the frame refuses for nothing.
@@ -826,9 +827,9 @@ payload  id 4 | flags 4 | blocks 4 | dictionary 4 | source digest 16 |
          field: kind, owner, name, path, startLine, endLine, source bits, digest
 ```
 
-The id is a reserved sentinel that says the module is named by its path. A
-number in that field is still read, and nothing writes one. The path is the
-first string of the dictionary, at a fixed offset from the start of the payload, so a reader places
+The id is `0xffffffff`, which says the module is named by its path, and a
+reader skips a frame holding anything else. The path is the first string of
+the dictionary, at a fixed offset from the start of the payload, so a reader places
 a frame without decoding it: a scan for one module reads four bytes and, at
 most, one string. The rest of the strings a
 record uses — its block names, its block paths — are interned within the frame

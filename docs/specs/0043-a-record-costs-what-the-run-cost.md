@@ -31,7 +31,7 @@ costs the repository whatever the run cost. At the shape this is built for that
 is not a slow path. It is an impossible one:
 
 - **Recording.** `crossingsOf` at
-  `packages/sense/src/test-selection/instrumented-modules.ts:434` returns
+  `packages/sense/src/test-selection/instrumented-modules.ts:377` returns
   `Map<ModuleId, Map<ordinal, Set<string>>>` — one entry per region a test
   entered, holding test paths as strings. Thirty-one test files of a
   40,000-module shape cost 2.5 GB; five hundred exhaust a twelve-gigabyte heap.
