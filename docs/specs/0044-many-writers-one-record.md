@@ -128,8 +128,7 @@ it waited — *both contributions in the index* while a run still writes the ind
 and *both contributions in the overlay, and in the index after the fold that
 follows* once [0043](0043-a-record-costs-what-the-run-cost.md) item 3 lands. The
 two are the same requirement against two write paths, and this spec's item 1
-follows the index writer wherever that item puts it. Then the same pair with `nameModules` racing, where
-no two paths hold one id. Then a fold of sixteen shards of the 200,000-module
+follows the index writer wherever that item puts it. Then a fold of sixteen shards of the 200,000-module
 fixture under `/usr/bin/time -l`, reporting a peak under the 600 MB ceiling. Then
 a landed fold over a local index whose carried modules have moved on disk, where
 every test whose ranges are no longer readable is demoted.
