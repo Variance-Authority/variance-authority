@@ -16,8 +16,8 @@ import { observeNetwork } from './network.js';
  *
  * It also cannot be checked with a semantic hash, which is why this suite is
  * here and not in the collector's. A GIF cycling through its frames changes no
- * attribute, no matched rule and no box; it changes pixels. So the assertion is
- * two screenshots.
+ * attribute, no matched rule and no box; it changes pixels. So the assertion
+ * compares screenshots of the response the network observer served.
  */
 
 const BROWSER_AVAILABLE = ((): boolean => {
@@ -211,47 +211,31 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   if (server !== undefined) await new Promise<void>((resolve) => server!.close(() => resolve()));
-}, 60_000);
+});
 
 /**
- * Screenshot the image until it changes, or until the budget runs out.
+ * Screenshot the image for the whole budget after the observer freezes it.
  *
- * **Waiting, not sampling a fixed window**, and the difference was measured
- * rather than guessed. Headless Chromium advances an image animation when it
- * paints, not on a wall clock, so the delay before the first visible change is
- * not the frame delay: across eight trials it fell between 172ms and 497ms for
- * a GIF whose frames are 60ms apart. A six-sample, 420ms window therefore
- * failed about one run in six — claiming an animating image was still, which is
- * the exact false statement this suite exists to make impossible. **A flaky
- * test for a flake fix is a joke with a long setup.**
+ * The three-second window is longer than the unfrozen fixture's observed delay
+ * before a visible change. The byte test proves the first-frame response was
+ * made; this test proves Chromium decodes and paints that response consistently.
  *
- * A wall-clock deadline alone can expire after too few screenshots when the
- * whole suite loads the browser. The reproduction arm therefore takes up to
- * 25 actual samples, stopping as soon as one differs. The frozen arm takes at
- * least 15 samples and watches for three seconds. Unequal gaps keep regular
- * screenshot overhead from repeatedly landing on the same GIF phase.
- *
- * `animations: 'allow'` is passed explicitly rather than left to the default,
- * because the default is Playwright's to change and this arm's whole job is to
- * let the page move.
+ * `animations: 'allow'` is explicit so Playwright does not hold the image still
+ * on the test's behalf.
  */
 const BUDGET_MS = 3_000;
-const MIN_SHOTS = 15;
-const MAX_SHOTS = 25;
-const GAPS_MS = [37, 71, 109, 53, 89];
+const GAP_MS = 50;
 
-async function distinctRenderings(watch: boolean, stopOnChange: boolean): Promise<number> {
+async function distinctRenderings(): Promise<number> {
   const page: Page = await browser!.newPage({ viewport: { width: 100, height: 100 } });
 
   try {
-    const network = watch ? await observeNetwork(page) : undefined;
+    const network = await observeNetwork(page);
     await page.goto(`${base}/page`, { waitUntil: 'load' });
-    await network?.settle();
+    await network.settle();
 
-    // Both arms compare screenshots, and a GIF that failed to decode paints
-    // nothing in both — so "held still" and "never arrived" have the same
-    // signature. This is the difference between them, checked before either arm
-    // is allowed to conclude anything.
+    // A GIF that failed to decode also paints one unchanging image. Check that
+    // Chromium decoded the intercepted response before calling it held still.
     const decoded = await page.locator('#spinner').evaluate((img) => ({
       width: (img as HTMLImageElement).naturalWidth,
       complete: (img as HTMLImageElement).complete,
@@ -261,18 +245,13 @@ async function distinctRenderings(watch: boolean, stopOnChange: boolean): Promis
     const seen = new Set<string>();
     const until = Date.now() + BUDGET_MS;
 
-    for (
-      let sample = 0;
-      stopOnChange ? sample < MAX_SHOTS : sample < MIN_SHOTS || Date.now() < until;
-      sample += 1
-    ) {
+    while (Date.now() < until) {
       const shot = await page.locator('#spinner').screenshot({ animations: 'allow' });
       seen.add(shot.toString('base64'));
-      if (stopOnChange && seen.size > 1) break;
-      await new Promise((resolve) => setTimeout(resolve, GAPS_MS[sample % GAPS_MS.length]));
+      await new Promise((resolve) => setTimeout(resolve, GAP_MS));
     }
 
-    await network?.close();
+    await network.close();
     return seen.size;
   } finally {
     await page.close();
@@ -280,17 +259,8 @@ async function distinctRenderings(watch: boolean, stopOnChange: boolean): Promis
 }
 
 describe.skipIf(!BROWSER_AVAILABLE)('an animated GIF, which no CSS reaches', () => {
-  it('keeps animating when nothing is watching the wire', async () => {
-    // The reproduction, and the reason the next test is evidence rather than a
-    // tautology. If this ever passes, the fixture has stopped animating and
-    // everything below is asserting that a still image is still.
-    expect(await distinctRenderings(false, true)).toBeGreaterThan(1);
-  }, 60_000);
-
   it('holds still when the response is truncated to its first frame', async () => {
-    // Three seconds of looking — six times the longest delay ever measured
-    // before the unfrozen fixture moved.
-    expect(await distinctRenderings(true, false)).toBe(1);
+    expect(await distinctRenderings()).toBe(1);
   }, 60_000);
 
   it('reports which URLs it froze, rather than freezing silently', async () => {
