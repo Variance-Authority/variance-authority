@@ -108,7 +108,7 @@ fn identity(root: &Path, resolution: &oxc_resolver::Resolution) -> Option<Identi
 
 fn previous(path: &Path) -> Option<Lexicon> {
     let prior: Lexicon = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
-    if prior.version != 3 { return None; }
+    if prior.version != 4 { return None; }
     Some(prior)
 }
 
@@ -486,7 +486,7 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
     availability.sort_by(|a, b| (a.owner.as_str(), a.specifier.as_str()).cmp(&(b.owner.as_str(), b.specifier.as_str())));
     issues.sort_by(|a, b| (&a.owner, &a.package, &a.reason).cmp(&(&b.owner, &b.package, &b.reason)));
     issues.dedup_by(|a, b| a.owner == b.owner && a.package == b.package && a.reason == b.reason);
-    let corpus = Lexicon { version: 3, refreshed_at, entries: entries.into_values().collect(), availability, issues };
+    let corpus = Lexicon { version: 4, refreshed_at, entries: entries.into_values().collect(), availability, issues };
     let path_ref = Path::new(&path);
     if let Some(parent) = path_ref.parent() {
         fs::create_dir_all(parent).map_err(|error| napi::Error::from_reason(error.to_string()))?;

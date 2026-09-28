@@ -74,6 +74,7 @@ it('indexes every declared available package, including one no source file impor
   const first = refreshDependencyLexicon(root);
   expect(first).toMatchObject({ packages: 7, entrypoints: 6, reused: 0, unavailable: 0 });
   const read = readDependencyLexicon(root).lexicon;
+  expect(read?.version).toBe(4);
   expect(read?.availability.map((entry) => [entry.owner, entry.specifier, entry.imported])).toEqual([
     ['package.json', 'fancy-lib', false], ['package.json', 'globbing', false], ['package.json', 'react', false], ['package.json', 'state-kit', false],
     ['package.json', 'undocumented-kit', true],
@@ -88,6 +89,8 @@ it('indexes every declared available package, including one no source file impor
   expect(queryDependencyLexicon(root, 'makeStore')?.total).toBe(2);
   expect(queryDependencyLexicon(root, 'useState', undefined, true, 'react')?.shown[0]?.declarationProvider).toBe('@types/react@19.0.1');
   expect(queryDependencyLexicon(root, 'globbing', undefined, true, 'globbing')?.shown[0]?.signature).toContain('value: string');
+  writeFileSync(readDependencyLexicon(root).path, JSON.stringify({ ...read, version: 3 }));
+  expect(refreshDependencyLexicon(root).reused).toBe(0);
   expect(refreshDependencyLexicon(root).reused).toBe(6);
   writeFileSync(join(installed, 'index.d.ts'), '/** Use local state. */\nexport declare function makeStore<T>(value: T, id: string): T;\n');
   expect(refreshDependencyLexicon(root).reused).toBe(5);

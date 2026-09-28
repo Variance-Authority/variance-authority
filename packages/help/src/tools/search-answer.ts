@@ -315,6 +315,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within);
   const answered = new Set(hits.map((hit) => hit.name));
   const rest = exported(index, named, answered, within);
+  // FIXME: a graph closure admits dependencies owned only by a reached workspace (Help -> MCP -> Eyes offers Eyes-only test APIs).
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.files]);
 
   const answer: SearchAnswer = {
