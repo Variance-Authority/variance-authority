@@ -4,6 +4,7 @@ import type { Help } from '@variance-authority/package/help';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
+import { silentBlocks } from './silent.js';
 
 /**
  * `docs_symbol` — one name, in full.
@@ -43,7 +44,9 @@ export const symbol: Tool<Help> = {
     if (found.length === 0 && invocation?.root !== undefined) {
       const matches = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
       if (matches === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\``);
-      if (matches.total > 0) return [
+      const silent = silentBlocks(invocation.root, name, matches.silent ?? [], wanted !== undefined);
+      if (matches.total > 0 || silent.length > 0) return [
+        ...silent,
         ...matches.shown.map((entry) => `${entry.specifier} · ${entry.name} [${entry.kind}]${entry.version === undefined ? '' : ` · ${entry.package}@${entry.version}`}` +
           `${entry.declarationProvider === undefined ? '' : ` · declarations: ${entry.declarationProvider}`}` +
           `\n${entry.at}:${entry.line}${entry.signature === undefined ? '' : `\n${entry.signature}`}${entry.doc === undefined ? '' : `\n${entry.doc}`}`),

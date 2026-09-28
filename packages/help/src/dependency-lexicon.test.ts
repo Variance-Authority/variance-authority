@@ -74,7 +74,7 @@ it('indexes every declared available package, including one no source file impor
   const first = refreshDependencyLexicon(root);
   expect(first).toMatchObject({ packages: 7, entrypoints: 6, reused: 0, unavailable: 0 });
   const read = readDependencyLexicon(root).lexicon;
-  expect(read?.version).toBe(4);
+  expect(read?.version).toBe(5);
   expect(read?.availability.map((entry) => [entry.owner, entry.specifier, entry.imported])).toEqual([
     ['package.json', 'fancy-lib', false], ['package.json', 'globbing', false], ['package.json', 'react', false], ['package.json', 'state-kit', false],
     ['package.json', 'undocumented-kit', true],
