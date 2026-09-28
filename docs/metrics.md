@@ -6,7 +6,7 @@ reports no readings.** The readings the repository can substantiate, with their
 counts, timings and the test files that produce them, are in
 [Evidence instruments](instruments.md#where-each-claim-is-measured);
 [replacement gates](gates.md) turns those readings into an adoption decision,
-and [product comparison](comparison.md) covers capability and ownership
+and [product comparison](compare-visual-review.md) covers capability and ownership
 differences.
 
 **You do not need this page to review a run.** A run already presents its

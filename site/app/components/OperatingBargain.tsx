@@ -18,7 +18,7 @@ export default function OperatingBargain() {
       <p className="mt-6 max-w-3xl text-sm leading-6 text-quiet">
         If you want a vendor to operate visual review, storage, and the browser
         grid for you, compare the managed options before choosing your setup. {" "}
-        <a href="/reference/comparison" className="text-orange transition-colors hover:text-ivory">
+        <a href="/reference/compare-visual-review" className="text-orange transition-colors hover:text-ivory">
           Compare visual review operating models →
         </a>
       </p>

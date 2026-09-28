@@ -32,7 +32,7 @@ Here:
   renderings of one story and names the input that changed, or says every input
   agreed and the output changed anyway.
 
-[Comparison](comparison.md) sets the four hosted products side by side.
+[Comparison](compare-visual-review.md) sets the four hosted products side by side.
 
 ## Before you collect
 

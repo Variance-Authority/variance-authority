@@ -29,7 +29,7 @@ export type Observability = 'full' | 'structural-only' | 'declared-only' | 'none
  * process.** A role, an accessible name, an ARIA state and a text node are facts
  * about a document, so a dropped `aria-label` and a changed string are settled at
  * the cheapest tier this project has — no browser, no screenshot, no baseline
- * image. That is the concrete form of `docs/comparison.md` §3.3: the category no
+ * image. That is the concrete form of `docs/compare-visual-review.md` §3.3: the category no
  * raster comparison can reach is also the category that costs least to reach.
  *
  * The return type is `Record<Band, …>` on purpose. Declaring a new band and

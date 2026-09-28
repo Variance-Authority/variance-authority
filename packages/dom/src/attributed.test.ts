@@ -10,7 +10,7 @@ import { attributeProvenance, statesProps } from './attributed.js';
 /**
  * The claim: attribution is not React-shaped.
  *
- * `docs/comparison.md` said "React only for provenance" as if it were a property
+ * `docs/compare-visual-review.md` said "React only for provenance" as if it were a property
  * of the approach. It is a count. The pipeline asks a renderer for two things —
  * a component name per element and a digest of what was passed in — and a build
  * plugin that writes two attributes supplies both. What follows is the same

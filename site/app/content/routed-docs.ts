@@ -26,6 +26,7 @@ export function routedDocument(path: string): RoutedDocument | undefined {
 function productSlug(path: string): string | undefined {
   if (path === "/docs") return "overview";
   if (path === "/reference/comparison") return "comparison";
+  if (path === "/reference/compare-visual-review") return "compare-visual-review";
 
   const documented = /^\/docs\/([a-z0-9-]+)$/.exec(path);
   if (documented) return documented[1];

@@ -15,6 +15,8 @@ import cache from "../../../docs/cache.md?raw";
 import cases from "../../../docs/cases.md?raw";
 import changelog from "../../../docs/changelog.md?raw";
 import comparison from "../../../docs/comparison.md?raw";
+import compareCoverage from "../../../docs/compare-coverage.md?raw";
+import compareVisualReview from "../../../docs/compare-visual-review.md?raw";
 import composeObservation from "../../../docs/compose-observation.md?raw";
 import composition from "../../../docs/composition.md?raw";
 import distance from "../../../docs/distance.md?raw";
@@ -134,6 +136,8 @@ const documents = [
   ["replacing", replacing, "docs/replacing.md"],
   ["gates", gates, "docs/gates.md"],
   ["comparison", comparison, "docs/comparison.md"],
+  ["compare-visual-review", compareVisualReview, "docs/compare-visual-review.md"],
+  ["compare-coverage", compareCoverage, "docs/compare-coverage.md"],
   ["attribution", attribution, "docs/attribution.md"],
   ["ignores", ignores, "docs/ignores.md"],
   ["sensitivity", sensitivity, "docs/sensitivity.md"],

@@ -161,7 +161,7 @@ rather than three separate tools.
 - The location is the line the element is _written_ on, resolved on demand
   through the source map a development server already emits — no plugin, no
   `jsxImportSource`, no build change of any kind
-  ([`comparison.md`](comparison.md#31-a-diff-that-names-a-component-and-a-file)).
+  ([`compare-visual-review.md`](compare-visual-review.md#31-a-diff-that-names-a-component-and-a-file)).
 
 ## Where each claim is measured
 

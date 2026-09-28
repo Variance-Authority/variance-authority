@@ -105,5 +105,5 @@ never name this project.
 These cases are run on one Mac and one Chromium. They say nothing about a hosted
 review product, a browser fleet, a service-level deployment, or repository-scale
 change detection. [`docs/gates.md`](../docs/gates.md) and
-[`docs/comparison.md`](../docs/comparison.md) cover those; measurement
+[`docs/compare-visual-review.md`](../docs/compare-visual-review.md) cover those; measurement
 definitions are in [`docs/metrics.md`](../docs/metrics.md).
