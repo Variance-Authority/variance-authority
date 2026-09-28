@@ -46,6 +46,7 @@ mod journey_columns;
 mod journey_format;
 mod journey_graph;
 mod journey_journal;
+mod journey_lazy;
 mod journey_output;
 mod journey_query;
 mod journey_read;
