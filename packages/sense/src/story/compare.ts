@@ -120,7 +120,7 @@ export interface Loaded {
 export function compareReadings(root: string, a: Side, b: Side): Comparison {
   const load = (entry: StoryEntry): Loaded => {
     const story = stories.decodeStory(readFileSync(entry.path));
-    return { story, ...regionsOfStory(root, entry.path, story) };
+    return { story, ...regionsOfStory(entry.path, story) };
   };
   return compareLoaded(
     root,

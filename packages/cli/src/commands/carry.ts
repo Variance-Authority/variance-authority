@@ -210,10 +210,6 @@ export function carryPlan(input: CarryInput): CarryPlan {
     if (suite.carry !== 'actions-cache') continue;
     const artifact = `suite-${suite.name}`;
     if (direction === 'save' && !savesRecording(run, line, input.mainlines, artifact, notes)) continue;
-    // TODO: restore one suite's layer and take another suite's directory only
-    // when its names table is a prefix of the one restored — two suites
-    // carried apart in one job overlay the layer, and the second one's table
-    // wins (ADR-0077, Open).
     const prefix = `suite-${suite.name}-${basename(top)}`;
     const mainlines = 'names' in input.mainlines ? input.mainlines.names.filter((name) => name !== line) : [];
     keyed(

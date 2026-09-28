@@ -35,11 +35,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import type { BlockKind } from '../instrument/index.js';
-import { readModuleNames } from '../module-names.js';
 import { askCoverageFile } from '../test-selection/coverage-file.js';
 import { KINDS } from '../test-selection/format-layout.js';
 import type { TestCoverageView } from '../test-selection/format-view.js';
-import { moduleNamesFile } from '../test-selection/instrumented-modules.js';
 import { findModules } from '../test-selection/lookup.js';
 import { NO_LINE } from '../test-selection/written-lines.js';
 import { recordOfStories, storyDirectories } from './directory.js';
@@ -151,12 +149,12 @@ export function listStories(root: string): StoryEntry[] {
 
 /** Every region a module holds by ordinal, for each row of `story`, where the snapshot beside it holds them. */
 export function regionsOfStory(
-  root: string,
   path: string,
   story: ReturnType<typeof stories.decodeStory>,
 ): { readonly files: readonly string[]; readonly regions: readonly (readonly Region[] | undefined)[] } {
-  const names = existsSync(moduleNamesFile(root)) ? readModuleNames(moduleNamesFile(root)) : undefined;
-  const files = story.rows.map(([id]) => (typeof id === 'string' ? id : names?.pathOf(id) ?? `module ${id}`));
+  // A tape written while modules were numbered names them by a number nothing
+  // can turn back into a path; it is shown as that number.
+  const files = story.rows.map(([id]) => (typeof id === 'string' ? id : `module ${id}`));
   const snapshot = recordOfStories(dirname(path));
   const regions = existsSync(snapshot)
     ? askCoverageFile(snapshot, (view) => story.rows.map(([, count], row) => regionsOf(view, files[row]!, count)))
@@ -167,7 +165,7 @@ export function regionsOfStory(
 /** The route in the story at `path`, named through the record it was taped beside. */
 export function readRoute(root: string, path: string): Route {
   const story = stories.decodeStory(readFileSync(path));
-  const { files, regions } = regionsOfStory(root, path, story);
+  const { files, regions } = regionsOfStory(path, story);
   return drawRoute(root, story, files, regions);
 }
 

@@ -166,21 +166,13 @@ export interface InstrumentOptions {
  */
 export const EVALUATING = 0x80000000;
 
+// TODO: narrow to `string`. The journal and module-record formats and the
+// native fold still decode a numbered module, which nothing writes.
 /**
  * What an instrumented module reports itself as, and the only identity that
- * reaches the running code.
- *
- * A number when the repository has one for the file — see
- * [`module-names`](../module-names.ts) for where numbers come from and why they
- * are assigned rather than derived from the path. The module is handed its own
- * number by the transform, so the emitted code states it as a literal and the
- * running code consults nothing.
- *
- * The path otherwise. A transform is handed a module and must return text; it
- * cannot wait for a number and must not invent one, and the path is the one
- * other thing exactly as unique as the module. It costs its own length at every
- * crossing for one run: the fold numbers what the journals reported, and the
- * next transform of that file emits a number.
+ * reaches the running code: its repository-relative path, which the emitted
+ * code states as a literal (ADR-0056, amended 2026-09-28). Every artifact names
+ * the module by the same path, so nothing downstream needs a table to read it.
  */
 export type ModuleId = number | string;
 

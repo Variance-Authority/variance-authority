@@ -64,9 +64,9 @@ describe('planPrune', () => {
     const root = await cache();
     const young = join(root, 'test-selection', 'young');
     const old = join(root, 'test-selection', 'old');
-    await put(join(young, 'names.bin'), 29 * DAY);
+    await put(join(young, 'coverage.bin'), 29 * DAY);
     await date(young, 29 * DAY);
-    await put(join(old, 'names.bin'), 31 * DAY);
+    await put(join(old, 'coverage.bin'), 31 * DAY);
     await date(old, 31 * DAY);
 
     const plan = await planPrune(root, owners());
@@ -215,7 +215,7 @@ test('a running process is the writer only of what was written after it started'
 test('scratchPid reads the process a scratch name belongs to', () => {
   expect(scratchPid('.run-4242-9f')).toBe(4242);
   expect(scratchPid('coverage.bin.4242-x.tmp')).toBe(4242);
-  expect(scratchPid('names.bin.4242.3.tmp')).toBe(4242);
+  expect(scratchPid('coverage.bin.4242.3.tmp')).toBe(4242);
   expect(scratchPid('coverage.bin.1092.seed')).toBe(0x1092);
   expect(scratchPid('orphan.tmp')).toBeUndefined();
   expect(scratchPid('coverage.bin')).toBeNull();

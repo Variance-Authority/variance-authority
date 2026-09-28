@@ -27,11 +27,9 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { instrument, instrumentationId, PROBE_RUNTIME, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { readModuleNames } from '../module-names.js';
+import { instrument, instrumentationId, PROBE_RUNTIME, type InstrumentMode } from '../instrument/index.js';
 import {
   defaultInclude,
-  openModuleNames,
   openRecords,
   projectPath,
   writeRecord,
@@ -111,13 +109,6 @@ export async function createTransformer(
   const mode = config.mode ?? 'presence';
   const instrumentation = instrumentationId(mode);
   const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
-  // Once per worker. The table is immutable for the life of this run — the fold
-  // that grows it is the reporter, in the parent, after the last worker exits.
-  const names = readModuleNames(openModuleNames(root));
-  const idOf = (path: string): ModuleId => {
-    const file = projectPath(root, path);
-    return names.idOf(file) ?? file;
-  };
   const forInner = (options: JestTransformRequest): JestTransformRequest => ({
     ...options,
     ...(innerConfig === undefined ? {} : { transformerConfig: innerConfig }),
@@ -131,12 +122,6 @@ export async function createTransformer(
       .update(innerKey ?? defaultKey(source, path, options))
       .update('\0')
       .update(path)
-      .update('\0')
-      // The id is emitted as a literal, so a file that was numbered since the
-      // last run produces different text from the same source. Jest would
-      // otherwise serve the cached text, and the run would report a path the
-      // journal's reader has already stopped expecting.
-      .update(String(idOf(path)))
       .update('\0')
       .update(JSON.stringify(innerConfig ?? null))
       .update('\0')
@@ -165,7 +150,7 @@ export async function createTransformer(
       const transformed = innerProcessAsync === undefined
         ? { code: source }
         : await innerProcessAsync(source, path, forInner(options));
-      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed, mode, excluded);
+      return place(root, recordsOf(options.config), path, options, source, transformed, mode, excluded);
     },
   };
   if (inner === undefined || inner.process !== undefined) {
@@ -173,7 +158,7 @@ export async function createTransformer(
       const transformed = inner?.process === undefined
         ? { code: source }
         : inner.process(source, path, forInner(options));
-      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed, mode, excluded);
+      return place(root, recordsOf(options.config), path, options, source, transformed, mode, excluded);
     };
   }
   return transformer;
@@ -196,7 +181,6 @@ function place(
   root: string,
   records: RecordWriter,
   path: string,
-  id: ModuleId,
   options: JestTransformRequest,
   source: string,
   transformed: JestTransformedSource,
@@ -217,6 +201,10 @@ function place(
     (at) => (at === path ? source : readFileSync(at, 'utf8')),
   );
   const file = projectPath(root, wrote);
+  // The module reports under the path Jest transformed, which is the path its
+  // journal row names; `file` is where the regions' lines are, which a source
+  // map may place elsewhere.
+  const id = projectPath(root, path);
   const done = instrument(transformed.code, file, id, { mode });
   const captured: CapturedModule = done === undefined
     ? { file, id, sourceDigest, instrumented: false, blocks: [] }

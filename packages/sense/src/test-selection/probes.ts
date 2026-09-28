@@ -15,11 +15,9 @@ import {
   type InstrumentMode,
   type ModuleId,
 } from '../instrument/index.js';
-import { readModuleNames } from '../module-names.js';
 import {
   cleanId,
   defaultInclude,
-  openModuleNames,
   projectPath,
   openRecords,
   recordStore,
@@ -195,11 +193,6 @@ export function testSelectionProbes(
     writeRecord(records, captured);
   };
 
-  // Once, here, rather than per module: the table is immutable while this build
-  // runs, and the fold that grows it runs after. A file it has never numbered is
-  // instrumented under its path and numbered by the next fold.
-  const names = readModuleNames(openModuleNames(root, options.cacheRoot));
-
   return {
     name: 'variance-authority:test-selection-probes',
     enforce: 'post',
@@ -228,23 +221,22 @@ export function testSelectionProbes(
         (at) => readFileSync(at, 'utf8'),
       );
 
-      // Instrumented under its id, which is all the page then reports. The path
+      // Instrumented under its path, which is all the page then reports. The path
       // is repository-relative: a journal that named absolute paths would be a
       // journal from the build machine's disk — unreadable on a driver that
       // mounted the checkout somewhere else, and a leak of a layout nobody asked
       // for. It rides in the record, once, rather than in every copy of the
       // module the bundle ships.
       const file = projectPath(root, wrote);
-      const id = names.idOf(file) ?? file;
-      const done = instrument(code, file, id, options.mode === undefined ? {} : { mode: options.mode });
+      const done = instrument(code, file, file, options.mode === undefined ? {} : { mode: options.mode });
       if (done === undefined) {
-        persist({ file, id, sourceDigest, instrumented: false, blocks: [] });
+        persist({ file, id: file, sourceDigest, instrumented: false, blocks: [] });
         return null;
       }
 
       persist({
         file,
-        id,
+        id: file,
         sourceDigest,
         instrumented: true,
         blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),

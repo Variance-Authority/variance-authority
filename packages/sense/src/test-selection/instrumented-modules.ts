@@ -25,7 +25,7 @@ import { mkdirSync, openSync, writeSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
-import { repositoryLayers, seedFromBase } from './cache-layers.js';
+import { repositoryLayers } from './cache-layers.js';
 import type { CoverageBlock } from './index.js';
 import {
   UNNUMBERED,
@@ -50,24 +50,6 @@ export interface CapturedModule {
   /** False records module-level unknown evidence; consumers widen without consulting blocks. */
   readonly instrumented: boolean;
   readonly blocks: readonly CoverageBlock[];
-}
-
-/** Where a repository keeps the numbers it calls its modules by. */
-export function moduleNamesFile(root: string, cacheRoot?: string): string {
-  return resolve(repositoryLayers(root, cacheRoot).top, 'names.bin');
-}
-
-/**
- * This checkout's table, with the repository's taken over first if it has none.
- *
- * The read path for the numbering: see {@link seedFromBase} for why a worktree
- * must own the table rather than read across it.
- */
-export function openModuleNames(root: string, cacheRoot?: string): string {
-  const layers = repositoryLayers(root, cacheRoot);
-  seedFromBase(layers, ['names.bin', 'names.bin.segments']);
-
-  return resolve(layers.top, 'names.bin');
 }
 
 /**

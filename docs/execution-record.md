@@ -42,9 +42,8 @@ path you name, typically inside the repository so CI can upload it as an
 artifact, and ignore that path. The same run writes a second file at
 `<coverageFile>.cases.bin`, under the same rule.
 
-Three more things live under that directory. Each instrumenting build keeps a
-store of module records under a `<label>` of its own; the module names table is
-`names.bin` beside the snapshot; and a run in progress keeps a
+Two more things live under that directory. Each instrumenting build keeps a
+store of module records under a `<label>` of its own, and a run in progress keeps a
 `.run-<pid>-<uuid>` directory there until its reporter folds the journals and
 removes it. The Jest seam keeps its record store under Jest's own
 `cacheDirectory` instead, so a cached transform and the meaning of its ordinals
@@ -78,8 +77,8 @@ Each declared suite has its own record, at
 runs log beside it. Name the suite in the runner integration with the `suite`
 option, and `testCoverageFile(root, { suite })` returns its path. A Playwright
 run then never replaces what the unit suite recorded, and each record keeps the
-commit its own suite last ran at. The module names table and the [source index](source-index.md)
-stay at the top of the directory, because they describe the checkout and not a
+commit its own suite last ran at. The [source index](source-index.md)
+stays at the top of the directory, because it describes the checkout and not a
 run. A worktree seeds each suite's record from the same suite in the primary
 checkout, never from another suite's.
 
@@ -195,12 +194,11 @@ those entry points, not functions you can call.
 | Structure | Primary key | Identity across runs | Lives |
 |---|---|---|---|
 | block | `(module path, ordinal)` | `kind`, `name`, `path` | module record, coverage |
-| module | file path | the number the names table gave the path | module record, coverage |
+| module | file path | the same | module record, coverage |
 | test | test file path, or a story id | the same | coverage |
 | case | test file path and the case's declaration path under it | the runner's id where it hands one over, otherwise the same pair | the case index, with the duration its runner reported |
 | precondition | `name` and `digest` together | the same pair | coverage, per test |
 | crossing | `(block, test)` | the same pair | coverage |
-| module names table | repository-relative path | the number, for as long as the file exists | the repository's cache |
 | module record | module id under a build label | the instrumentation id | the label's store |
 | worker journal | one test file in one worker | none, folded on read | the run directory |
 | page journal | one drain of one page | none, folded on read | the driver's memory |
@@ -556,65 +554,6 @@ above. Beside the snapshot, each instrumenting build keeps what it instrumented
 as one record per module in a store named by that build's `<label>`; the
 ordinals in the snapshot mean nothing without it.
 
-## The module names table
-
-The id is assigned rather than derived. The table that assigns it is `names.bin`
-beside the snapshot.
-
-**Why a number.** An id is written once into a module's emitted code and then
-repeated once per crossing, and crossings are where the cost is: this
-repository's suite records two hundred and eighty thousand of them against
-eight hundred and fifty modules. A digest spends sixty-four bits at every one
-of them and cannot spend fewer, because a digest is uniformly distributed: a
-sorted run of them has gaps as wide as the space, and measures 64.00 bits an
-element under zstd, which is the same as not compressing it at all. Two hundred
-thousand modules come to 17.6 bits of module. Numbering them exactly spends
-eighteen, and a sorted run of exact numbers is a run of small gaps, which is a
-run that compresses.
-
-**Shape.** Paths sorted and front-coded — each entry keeps only the bytes it
-does not share with the one before it — with a whole path every sixteenth
-entry, so a lookup binary-searches the block heads and then walks at most
-fifteen entries. On two hundred thousand monorepo paths that is 22 bytes a path
-against 50 stored plainly. The id is a column beside the entries rather than
-the position of one, which is what lets storage order be the sorted order:
-nothing about where a path sits decides what it is called, so a file added
-today renumbers nobody numbered before it.
-
-**Growth.** The table rides the immutable log
-([`source-structures.md`](source-structures.md) has its shape): an append is a
-new segment listing only the paths that are new, published under one atomic
-manifest, and a compaction merges the chain into one sorted run without
-disturbing an id. A lookup binary-searches each of the at most eight segments
-in a chain.
-
-**Who assigns.** The fold, at the end of a run: the runner's reporter in its
-parent process, or — where the fold is one of several processes writing one
-index — under the same lock the coverage merge takes, because the table is
-read-modify-write too and two folds appending at once would each read the same
-count and hand one number to two paths. Transforms only read, and a read is a
-read of an immutable file, which is what makes the table safe under a build
-that transpiles ten changed files in ten processes while a hundred and
-ninety-nine thousand stay cached. New paths are numbered in sorted order rather
-than in the order they were met, so two machines that meet the same set of new
-files agree on what to call them and cache the same emitted code.
-
-**A path with no number.** A transform has to write an id into the code it is
-emitting, right then, and only the fold at the end of a run may hand out a new
-number. So a transform that meets a path the table has not numbered emits the
-path itself, which identifies the module exactly as well and needs no table. The journal reports
-it, the fold recognises a path rather than a number, numbers it for next time,
-and the run is correct with one module paying path-length bytes at its
-crossings. Nothing is reserved and nothing is claimed, so two processes that
-meet two new files at the same moment cannot collide.
-
-**A table that is lost.** A missing, foreign or corrupt chain is an empty
-table: every module is unnumbered for one run and numbered again by the fold,
-from zero. The emitted id is part of the Jest transform's cache key, so no
-worker serves text that names a number the table no longer agrees with, and a
-record appended under a reused number is the later frame and the one a reader
-takes. Persistence is a saving, never a new way for a run to fail.
-
 ## Keys
 
 **Test.** The owner of an observation: the test file's repository-relative
@@ -626,12 +565,11 @@ a duplicate.
 **Module.** The module's repository-relative path, with `modules.source` as
 the digest it must still have for its blocks to mean anything.
 
-**Module id.** A `u32`: the number the names table gave the module's path, and
-what an instrumented module reports itself as. A module the table had not
-numbered when it was transformed reports its path instead, and the record filed
-under a reserved unnumbered marker answers for that path until the fold numbers
-it. Both are one `ModuleId`, ordered numbers first and then paths, so two folds
-of one run write one sequence.
+**Module id.** The module's repository-relative path, and what an instrumented
+module reports itself as: the transform writes it into the emitted code as a
+literal. Every seam instruments under the same path, so a journal reads the same
+whichever runner wrote it, and every artifact joins another by that path with
+no table between them.
 
 **Block, within a file.** `(module row, ordinal)`. Ordinals are unique within
 a module and the first block is the module root.
@@ -833,11 +771,10 @@ Three journal shapes exist, and each includes a list of `ExecutedModule`; the
 record that gives their ordinals meaning is the fourth shape here:
 
 ```json
-{ "id": 5104, "hits": [0, 1, 2, 3, 5, 6], "shared": [0], "loaded": [0, 1] }
+{ "id": "src/cart/total.ts", "hits": [0, 1, 2, 3, 5, 6], "shared": [0], "loaded": [0, 1] }
 ```
 
-`id` is the id the module was instrumented under — its number, or its path
-until it has one — `hits` the ordinals whose counter was above zero, ascending,
+`id` is the path the module was instrumented under, `hits` the ordinals whose counter was above zero, ascending,
 and `shared` the subset of `hits` whose counter had the `EVALUATING` bit set.
 `loaded`, in the worker journal only, is the subset of `hits` whose counter was
 already above zero in the snapshot the setup file took before the file's first
@@ -861,7 +798,8 @@ module   0 | id   or   1 | path | hits | shared | loaded
 hits     count | gap | gap | …
 ```
 
-Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
+A module is written as `1 | path`; `0 | id`, a numbered module, is still read
+and nothing writes it. Counts, ids and gaps are varints and text is a length and its UTF-8; ordinals
 rise within a module, so a region costs one byte. A run of eight thousand test
 files over two hundred thousand modules reports sixteen million module rows,
 which is a gigabyte of text for the workers to render and the reporter to parse,
@@ -888,9 +826,9 @@ payload  id 4 | flags 4 | blocks 4 | dictionary 4 | source digest 16 |
          field: kind, owner, name, path, startLine, endLine, source bits, digest
 ```
 
-The id is the module's number, or a reserved sentinel for a module transformed
-before the table had one for it. Either way the path is the first string of the
-dictionary, at a fixed offset from the start of the payload, so a reader places
+The id is a reserved sentinel that says the module is named by its path. A
+number in that field is still read, and nothing writes one. The path is the
+first string of the dictionary, at a fixed offset from the start of the payload, so a reader places
 a frame without decoding it: a scan for one module reads four bytes and, at
 most, one string. The rest of the strings a
 record uses — its block names, its block paths — are interned within the frame
@@ -1091,9 +1029,6 @@ test, is refused at open.
 | blocks a test crossed | O(C) | the crossings column |
 | tests covering a line | O(M + B²) | `coveringTests` |
 | fold worker journals | O(journal bytes) | the reporter of a runner seam |
-| read the names table | one read of at most eight immutable files | the transform, per build |
-| a path's number | O(log M) per segment, then at most fifteen entries | the names table lookup |
-| number what a run met | O(M log M), the compaction it publishes beside the delta | the fold, at the end of a run |
 | record drained subjects | O(hits + modules reported) | `recordExecution` |
 | merge with the previous record | O(M_prev + M_cur + Σ B) | `mergeCoverage` |
 | re-cut an unobserved module's rows | O(module length) | `mergeCoverage`, per changed module |
