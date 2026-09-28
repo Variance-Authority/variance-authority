@@ -18,6 +18,7 @@
  */
 
 import { prepareCodeMap, updateSourceIndex, type PreparedCodeMap, type SourceUpdate } from '@variance-authority/sense';
+import { refreshDependencyApis } from '@variance-authority/help';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -28,6 +29,12 @@ export interface IndexRequest {
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const update = await updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {});
   return `${describe(update)}\n${codeMap(request.cwd, update)}\n`;
+}
+
+/** Refresh installed API declarations for only the source paths the reader named. */
+export function indexApiOutput(root: string, files: readonly string[]): string {
+  const { path, requests, reused, unavailable, unread } = refreshDependencyApis(root, files);
+  return `dependency API corpus: ${requests} requests, ${reused} reused, ${unavailable} unavailable${unread === 0 ? '' : `, ${unread} source files unread`}, at ${path}\n`;
 }
 
 /**

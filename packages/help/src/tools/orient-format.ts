@@ -18,6 +18,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { CasesEntered, ExternalOrientation, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
+import type { DependencyApiReading } from '../dependency-api.js';
 
 /** Everything an orientation answer is made of. */
 export interface OrientReading {
@@ -25,6 +26,7 @@ export interface OrientReading {
   readonly files: readonly string[];
   readonly around: PackagesAround;
   readonly external?: { readonly index: string; readonly orientation?: ExternalOrientation };
+  readonly api?: DependencyApiReading;
   readonly recorded: readonly RecordedCases[];
 }
 
@@ -135,8 +137,53 @@ function external(reading: OrientReading): readonly string[] {
   }
   if (answer.missing.length > 0) lines.push(`  Not in the source index: ${answer.missing.join(', ')}.`);
   if (answer.unread > 0 || answer.stale > 0 || answer.dropped > 0) {
-    lines.push(`  Incomplete reading: ${answer.unread} unread, ${answer.stale} changed since indexing, ${answer.dropped} dropped index segments. Run \`variance index\` to refresh it.`);
+    const action = answer.stale > 0 || answer.dropped > 0
+      ? 'Run `variance index` to refresh changed or dropped records.'
+      : 'The listed requests are observed evidence; unread files may add more.';
+    lines.push(`  Incomplete reading: ${answer.unread} unread, ${answer.stale} changed since indexing, ${answer.dropped} dropped index segments. ${action}`);
   }
+  return lines;
+}
+
+function publicApis(reading: OrientReading): readonly string[] {
+  if (reading.api === undefined || reading.external?.orientation === undefined) return [];
+  if (reading.external.orientation.dependencies.length === 0) return [];
+  const { api } = reading;
+  if (api.refreshedAt === undefined) {
+    return ['', `Dependency APIs: no separate corpus at ${api.path}. Run \`variance index --api ${reading.files.map(shell).join(' ')}\` to publish it.`];
+  }
+  const lines = ['', `Dependency APIs, separately refreshed at ${api.refreshedAt}:`];
+  const entries = new Map(api.entries.map((entry) => [`${entry.file}\0${entry.specifier}`, entry]));
+  for (const dependency of reading.external.orientation.dependencies) {
+    const shown = new Set<string>();
+    const named = new Set<string>();
+    for (const site of dependency.sites) {
+      const entry = entries.get(`${site.file}\0${site.specifier}`);
+      if (entry === undefined) continue;
+      const resolved = entry.api;
+      const runtime = resolved.runtime;
+      const identity = runtime === undefined ? dependency.package : `${runtime.name}@${runtime.version}`;
+      const provider = resolved.declarations !== undefined && resolved.declarations.name !== runtime?.name
+        ? `; declarations from ${resolved.declarations.name}@${resolved.declarations.version}` : '';
+      if (!shown.has(identity)) {
+        lines.push(`  ${identity}${provider}${resolved.names === undefined ? '' : `; ${plural(resolved.names.length, 'public name')}`}`);
+        shown.add(identity);
+      }
+      if (resolved.unavailable !== undefined) { lines.push(`    ${resolved.unavailable}`); continue; }
+      const requested = site.names.filter((name) => name !== '*');
+      const names = requested.length === 0 ? resolved.names?.slice(0, 3) :
+        requested.flatMap((name) => resolved.names?.filter((entry) => entry.name === name) ?? []);
+      for (const name of names?.slice(0, 3) ?? []) {
+        const key = `${identity}\0${name.name}\0${name.kind}`;
+        if (named.has(key)) continue;
+        named.add(key);
+        const signature = name.signature?.replace(/\s+/gu, ' ').trim();
+        lines.push(`    ${name.name} (${name.kind})${signature === undefined ? '' : `: ${signature}`}`);
+        if (name.doc !== undefined) lines.push(`      ${name.doc.split('\n')[0]}`);
+      }
+    }
+  }
+  if (api.missing.length > 0) lines.push(`  ${plural(api.missing.length, 'request')} has no API reading in this corpus. Run \`variance index --api ${reading.files.map(shell).join(' ')}\` to refresh it.`);
   return lines;
 }
 
@@ -229,6 +276,7 @@ export function formatOrientation(reading: OrientReading): string {
     '',
     ...packages(reading),
     ...external(reading),
+    ...publicApis(reading),
     ...cases(reading),
     ...(asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)]),
   ].join('\n');

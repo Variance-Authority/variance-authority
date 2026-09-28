@@ -58,6 +58,9 @@ export interface Reader {
   readonly reached: Map<string, Names>;
   /** `<package name> <subpath>` to the source that entrypoint begins at. */
   readonly entrypoints: ReadonlyMap<string, string>;
+  /** Follow declaration re-exports through the install's resolver. */
+  readonly dependencyDeclarations?: boolean;
+  readonly dependencyManifests?: Set<string>;
 }
 
 /**
@@ -73,8 +76,20 @@ export function createReader(root: string, entrypoints: ReadonlyMap<string, stri
   return { root, parses: new Map(), reached: new Map(), entrypoints };
 }
 
+/** An installed package's public declaration graph, including its public re-exports. */
+export function createDependencyReader(root: string): Reader {
+  return { ...createReader(root), dependencyDeclarations: true, dependencyManifests: new Set() };
+}
+
 /** Where a specifier points, or nothing when it leaves this workspace. */
 function targetOf(reader: Reader, from: string, specifier: string): string | undefined {
+  if (reader.dependencyDeclarations === true) {
+    try {
+      const resolved = RESOLVER.resolveDtsSync(from, specifier);
+      if (resolved.packageJsonPath !== undefined) reader.dependencyManifests?.add(resolved.packageJsonPath);
+      return resolved.path;
+    } catch { return undefined; }
+  }
   if (!specifier.startsWith('.')) return reader.entrypoints.get(requested(specifier));
 
   try {
@@ -108,6 +123,37 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
   const at = relative(reader.root, file);
   const source = parseFile(reader.parses, file, at);
   const local = declarationsIn(source);
+  const imported = new Map<string, { to: string; name: string }>();
+  if (reader.dependencyDeclarations === true) {
+    for (const statement of source.parsed.module.staticImports) {
+      const to = targetOf(reader, file, statement.moduleRequest.value);
+      if (to === undefined) continue;
+      for (const entry of statement.entries) {
+        if (entry.localName.value !== undefined) {
+          imported.set(entry.localName.value, { to, name: entry.importName.name ?? 'default' });
+        }
+      }
+    }
+    for (const statement of source.parsed.program.body) {
+      if (statement.type !== 'TSImportEqualsDeclaration' || statement.moduleReference.type !== 'TSExternalModuleReference') continue;
+      const request = statement.moduleReference.expression.value;
+      if (typeof request !== 'string') continue;
+      const to = targetOf(reader, file, request);
+      if (to !== undefined) imported.set(statement.id.name, { to, name: 'default' });
+    }
+  }
+
+  if (reader.dependencyDeclarations === true) for (const statement of source.parsed.program.body) {
+    if (statement.type !== 'TSExportAssignment' || statement.expression.type !== 'Identifier') continue;
+    const name = statement.expression.name;
+    const declaration = local.get(name);
+    if (declaration !== undefined) add(found, 'default', declaration);
+    else {
+      const from = imported.get(name);
+      const kinds = from === undefined ? undefined : namesReachedBy(reader, from.to, stack).get(from.name);
+      if (kinds !== undefined) for (const foundDeclaration of kinds.values()) add(found, 'default', foundDeclaration);
+    }
+  }
 
   for (const statement of source.parsed.module.staticExports) {
     // A name this file does not declare is still written *somewhere*, and the
@@ -144,6 +190,14 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
       if (specifier === undefined) {
         const declaration = local.get(entry.localName.name ?? name);
         if (declaration === undefined) {
+          const sourceImport = imported.get(entry.localName.name ?? name);
+          if (sourceImport !== undefined) {
+            const kinds = namesReachedBy(reader, sourceImport.to, stack).get(sourceImport.name);
+            if (kinds !== undefined) {
+              for (const declaration of kinds.values()) add(found, name, declaration);
+              continue;
+            }
+          }
           throw new Error(`${at} exports \`${name}\`, and no declaration there says what it is`);
         }
         add(found, name, declaration);

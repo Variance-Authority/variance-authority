@@ -179,6 +179,21 @@ Names declared locally without import evidence along the path are listed
 separately. An unread file or a changed index is named, so an incomplete path
 does not read as a path with no dependencies.
 
+The installed public API is a separate reading. After `variance index`, run
+`variance index --api <source-file> [source-file ...]` for the area in hand. It
+resolves only the external entrypoints those files import and records their
+installed package versions, public names, signatures and JSDoc. `orient
+--files` then shows the signatures and first documentation lines for names the
+area imports, labelled with the time that API corpus was refreshed. A type
+provider such as `@types/picomatch` is named separately when it supplies the
+declarations for another runtime package. Repeating `index --api` retains
+unchanged declaration readings and rebuilds one whose declaration files or
+package manifests changed; it reads the published source index and does not
+rescan repository source. If the resolver cannot supply declarations, the
+answer says so rather than inventing an API. The corpus lives beside the
+source index at `dependency-api.json` and keeps the complete public names,
+signatures and JSDoc for the entrypoints requested there.
+
 ## Ask the record, or produce a new one
 
 An ordinary source question reuses a published workspace generation for one

@@ -947,16 +947,19 @@
     "names": {
       ".": {
         "AnsweringOptions": "interface",
+        "DependencyApiReading": "interface",
         "PagesOptions": "interface",
         "ReadingOptions": "interface",
         "SearchIndex": "interface",
         "SnapshotOptions": "interface",
         "WorkspaceOptions": "interface",
         "Written": "interface",
+        "dependencyApisAround": "function",
         "readSearchForAnswer": "function",
         "readWorkspace": "function",
         "readWorkspaceForAnswer": "function",
         "readWorkspaceSnapshot": "function",
+        "refreshDependencyApis": "function",
         "refreshWorkspace": "function",
         "serveWorkspace": "function",
         "workspaceGeneration": "function",
@@ -1359,6 +1362,9 @@
     "names": {
       ".": {
         "DeclarationKind": "type",
+        "DependencyApi": "interface",
+        "DependencyApiName": "interface",
+        "DependencyIdentity": "interface",
         "Entrypoint": "interface",
         "Names": "type",
         "OFFERED": "const",
@@ -1368,8 +1374,10 @@
         "PublishedPackage": "interface",
         "Reader": "interface",
         "countNames": "function",
+        "createDependencyReader": "function",
         "createReader": "function",
         "namesReachedBy": "function",
+        "readDependencyApi": "function",
         "readOfferings": "function",
         "readSurface": "function"
       },
