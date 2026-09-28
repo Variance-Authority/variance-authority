@@ -5,8 +5,8 @@ Percy, `jest-image-snapshot` — and the question you bring to a red build is
 rarely *did these pixels change*. It is which tests this edit could affect, whether
 the change on screen is the change somebody authored, or why one state keeps
 disagreeing with itself. [Variance Authority](README.md) answers those from
-different readings — a parse of the source, a completed run report, a record of
-what previous executions covered, a suite still running — and asking the wrong
+different readings — a parse of the source, a completed run report, a
+[record of what each test covered](test-level-coverage.md), a suite still running — and asking the wrong
 one pays for a full suite render to get an answer a source reading already had.
 This page is how you pick the reading before you pay for it.
 
@@ -20,6 +20,9 @@ renders those subjects.
 | The decision in front of you | What answers it | Command |
 | --- | --- | --- |
 | Which test files can this diff not have reached? | The recorded execution journal, checked against the diff | `variance select --since origin/main` |
+| Which tests went through this line, nearest first? | The regions each named test case covered | `variance covering --file <path> --line <n>` |
+| Which changed regions does a test already cover, and which does none? | The same coverage record, read against the diff | `variance covering --since origin/main` |
+| Where did two subjects take different paths through the same module? | Each subject's [journey](understand-execution.md#start-here-which-part-of-a-module-two-subjects-took-differently): the regions it covered while its state was painted | `variance journeys` |
 | Which subjects are worth rendering this run? | Source reach, what each subject was last seen rendering, and the [execution index](execution-record.md) | `variance run --since origin/main` |
 | What changed, and is it one cause or many? | The completed run report | `variance ask summary`, then `variance ask changes` |
 | Is this subject changing, or disagreeing with itself? | Every subject read twice in the same run | `variance run --flakes` |
