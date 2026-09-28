@@ -22,7 +22,7 @@ beforeAll(async () => {
   const coverageFile = resolve(directory, 'coverage.bin');
   await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts'], {
     cwd: fixture,
-    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
+    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
   preconditions = new Map(
     decodeTestCoverage(await readFile(coverageFile)).tests

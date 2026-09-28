@@ -48,13 +48,13 @@ function coverage(
 let root: string;
 
 beforeEach(() => {
-  process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-durations-cache-'));
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-durations-cache-'));
   root = mkdtempSync(join(tmpdir(), 'va-durations-'));
   execFileSync('git', ['init', '--quiet', root]);
 });
 
 afterEach(() => {
-  delete process.env['XDG_CACHE_HOME'];
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
 function record(snapshot: TestCoverage, cases?: ExecutionIndex): string {

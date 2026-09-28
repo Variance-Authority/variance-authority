@@ -34,7 +34,7 @@ const jestRun = (directory: string, journeyFile: string, parts: string, target: 
       PARTS_DIRECTORY: parts,
       VARIANCE_AUTHORITY_HEAD: 'pricing',
       VARIANCE_AUTHORITY_BUILD: resolve(directory, 'build'),
-      XDG_CACHE_HOME: directory,
+      VARIANCE_AUTHORITY_CACHE: directory,
     },
   });
 

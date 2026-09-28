@@ -418,11 +418,14 @@ for (const file of writePages('.', 'docs/api', {
 `readWorkspace` is the reading the six answers are asked of, for a program that
 wants to ask more than one of them or to ask them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
-and who imports it. Six options, all optional: `index`, the path of the source
+and who imports it. Eight options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
-already have than kept its own under the checkout; `save`, whether to write what
-this reading learned back to that index for the next one, on unless you say
-otherwise; `changed`, the authoritative scan-root-relative file list an editor,
+already have than kept its own under the checkout; `packs`, whether the scan
+reads file bytes from Git's object store, on unless you say otherwise; `save`,
+whether to publish what this reading learned for the next one, on unless you say
+otherwise; `saveIndex`, whether that publication also writes the scan's records
+back to the source index, on unless you say otherwise, and off for a caller that
+has just published that index itself; `changed`, the authoritative scan-root-relative file list an editor,
 watcher or orchestrator already has, which skips Git status discovery; `taints`,
 addition-only Sense taints for declarative module loads the language's imports
 do not express; and `records`, a function handed the import

@@ -126,8 +126,16 @@ export async function readWorkspaceForAnswer(
 export interface IndexedUsageOptions {
   /** Where the index is kept. The checkout's own cache layer when absent. */
   readonly index?: string;
+  /** Read each file's bytes from Git's object store, as `variance index --no-git` turns off. On when absent. */
+  readonly packs?: boolean;
   /** Whether to publish what this scan learned. On, because the next question is the point. */
   readonly save?: boolean;
+  /**
+   * Whether that publication also saves this scan's records into the source
+   * index. On. `variance index` turns it off: it published the index this scan
+   * read a moment before, and it is the index's owner.
+   */
+  readonly saveIndex?: boolean;
   /**
    * Authoritative changed file paths, relative to the scan root.
    * Present skips Git status discovery; renames name both paths.
@@ -270,6 +278,7 @@ async function scanIndexed(
     cache: index.cache,
     reuse: index.reuse,
     ...(options.changed === undefined ? {} : { changed: options.changed }),
+    ...(options.packs === undefined ? {} : { packs: options.packs }),
     parsed: (file, parsed) => {
       usage.accept(file, owner(file), parsed);
     },
@@ -337,7 +346,7 @@ export async function refreshWorkspace(
   if (!sameSurface(read, documented)) return documentWorkspace(read, options);
   const help = joinUsage(documented, read.offerings, read.scanned.usage);
   if (options.save !== false) {
-    await read.scanned.save();
+    if (options.saveIndex !== false) await read.scanned.save();
     await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, options.index);
   }
   return help;
@@ -391,7 +400,8 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
   scanned.sources.clear();
   byFile.clear();
   if (options.save !== false) {
-    await scanned.save();
+    // FIXME: this save drops the bare-specifier edge `variance index` records, so a lockfile bump selects nothing after an `ask`.
+    if (options.saveIndex !== false) await scanned.save();
     await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, options.index);
   }
   return help;

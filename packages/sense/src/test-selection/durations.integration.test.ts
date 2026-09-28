@@ -89,7 +89,7 @@ async function recorded(): Promise<{ coverageFile: string; reported: Map<string,
 
   await execute(process.execPath, [vitest, 'run', '--config', config], {
     cwd: fixture,
-    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
+    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
 
   const reported = new Map(

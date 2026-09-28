@@ -33,7 +33,7 @@ describe('selecting from a journey file', () => {
   let root: string;
 
   beforeEach(async () => {
-    process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-select-journeys-cache-'));
+    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-journeys-cache-'));
     root = project();
     process.chdir(root);
     await indexOutput({ cwd: root, noGit: true });
@@ -41,7 +41,7 @@ describe('selecting from a journey file', () => {
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['XDG_CACHE_HOME'];
+    delete process.env['VARIANCE_AUTHORITY_CACHE'];
   });
 
   it('skips the test file that never entered the changed function', async () => {

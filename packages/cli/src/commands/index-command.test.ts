@@ -20,15 +20,16 @@ import { indexOutput } from './index-command.js';
 const cwd = process.cwd();
 const BIN = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
 const lexiconLine = (root: string): string =>
-  `dependency lexicon: 0 workspace-dependency pairs, 0 public entrypoints, 0 reused, 0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n`;
+  `dependency lexicon: 0 workspace-dependency pairs, 0 public entrypoints, 0 reused, 0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n` +
+  `questions: published at ${sourceIndexPath(root)}.help.json\n`;
 
 beforeEach(() => {
-  process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
 });
 
 afterEach(() => {
   process.chdir(cwd);
-  delete process.env['XDG_CACHE_HOME'];
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
 function checkout(): string {
@@ -131,6 +132,16 @@ describe('variance index', () => {
     const read = spawnSync(process.execPath, [BIN, 'reach', '--since', 'HEAD'], { cwd: root, env, encoding: 'utf8' });
     expect(read.status).toBe(EXIT_CLEAN);
     expect(read.stdout).toBe('src/unit.ts\nsrc/widget.ts\n');
+  });
+
+  it('leaves a fresh checkout answering `ask search`, which never scans', async () => {
+    const root = checkout();
+    expect(spawnSync(process.execPath, [BIN, 'index'], { cwd: root, encoding: 'utf8' }).status).toBe(EXIT_CLEAN);
+
+    const searched = spawnSync(process.execPath, [BIN, 'ask', 'search', '--query', 'widget'], { cwd: root, encoding: 'utf8' });
+    expect(searched.stderr).toBe('');
+    expect(searched.status).toBe(EXIT_CLEAN);
+    expect(searched.stdout).toContain('widget');
   });
 
   it('takes no argument', async () => {

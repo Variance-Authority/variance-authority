@@ -33,7 +33,7 @@ async function record(...flags: string[]): Promise<{ coverageFile: string; stder
   const { [RECORDING_VARIABLE]: _open, ...environment } = process.env;
   const { stderr } = await execute(process.execPath, [resolve(fixture, 'run.mjs'), ...flags], {
     cwd: fixture,
-    env: { ...environment, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
+    env: { ...environment, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
   return { coverageFile, stderr };
 }

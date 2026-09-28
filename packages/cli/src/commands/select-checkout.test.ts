@@ -28,12 +28,12 @@ describe('reading this checkout', () => {
   beforeEach(() => {
     // Every journal these cases write is addressed through this, so none of them
     // can read or overwrite the recording this repository keeps for itself.
-    process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-select-cache-'));
+    process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-select-cache-'));
   });
 
   afterEach(() => {
     process.chdir(cwd);
-    delete process.env['XDG_CACHE_HOME'];
+    delete process.env['VARIANCE_AUTHORITY_CACHE'];
   });
 
   it('skips nothing and names the file when nothing has been recorded here', async () => {

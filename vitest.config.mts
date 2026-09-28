@@ -104,7 +104,7 @@ export const suite = defineConfig({
     // directory is gone before anything can say whose the layer was: one
     // machine held seven thousand of them. The recording is folded in the main
     // process, which does not read `env`, so it still lands in the real cache.
-    env: { XDG_CACHE_HOME: mkdtempSync(join(tmpdir(), 'va-test-cache-')) },
+    env: { VARIANCE_AUTHORITY_CACHE: mkdtempSync(join(tmpdir(), 'va-test-cache-')) },
   },
   esbuild: {
     jsx: 'automatic',

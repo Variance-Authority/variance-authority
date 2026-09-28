@@ -56,7 +56,7 @@ describe('the Vitest integration', () => {
     await execute(
       process.execPath,
       [vitest, 'run', 'test/beta.case.ts', '--config', resolve(fixture, 'vitest.default.config.ts')],
-      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
@@ -78,7 +78,7 @@ describe('the Vitest integration', () => {
     await execute(
       process.execPath,
       [vitest, 'run', '--config', resolve(fixture, 'vitest.jsdom.config.ts')],
-      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
@@ -100,7 +100,7 @@ describe('the Vitest integration', () => {
     await execute(
       process.execPath,
       [vitest, 'run', '--no-isolate', '--no-file-parallelism', '--config', resolve(fixture, 'vitest.config.ts')],
-      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
@@ -127,7 +127,7 @@ describe('the Vitest integration', () => {
     await execute(
       process.execPath,
       [vitest, 'run', '--config', resolve(fixture, 'vitest.skipped.config.ts')],
-      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
@@ -164,7 +164,7 @@ describe('the Vitest integration', () => {
     await execute(
       process.execPath,
       [vitest, 'run', '--config', resolve(fixture, 'vitest.hook.config.ts')],
-      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
     ).catch(() => undefined);
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
@@ -196,7 +196,7 @@ describe('the Vitest integration', () => {
     await execute(
       process.execPath,
       [vitest, 'run', '--config', resolve(entriesFixture, 'vitest.config.ts')],
-      { cwd: entriesFixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+      { cwd: entriesFixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
@@ -224,7 +224,7 @@ describe('the Vitest integration', () => {
     await execute(
       process.execPath,
       [vitest, 'run', '--config', resolve(unenteredFixture, 'vitest.config.ts')],
-      { cwd: unenteredFixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+      { cwd: unenteredFixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
@@ -262,7 +262,7 @@ describe('the Vitest integration', () => {
         [vitest, 'run', testFile, '--config', resolve(fixture, 'vitest.config.ts')],
         {
           cwd: fixture,
-          env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
+          env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
         },
       );
     }
@@ -375,7 +375,7 @@ describe('the Vitest integration', () => {
           env: {
             ...process.env,
             VARIANCE_AUTHORITY_COVERAGE: coverageFile,
-            XDG_CACHE_HOME: directory,
+            VARIANCE_AUTHORITY_CACHE: directory,
             ...env,
           },
         },

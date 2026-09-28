@@ -30,7 +30,7 @@ const run = (config: string, directory: string, env: NodeJS.ProcessEnv = {}): Pr
     env: {
       ...process.env,
       VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'),
-      XDG_CACHE_HOME: directory,
+      VARIANCE_AUTHORITY_CACHE: directory,
       ...env,
     },
   },

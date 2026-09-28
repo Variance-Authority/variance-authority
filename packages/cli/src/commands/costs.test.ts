@@ -27,11 +27,11 @@ let home: string;
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-costs-'));
-  process.env['XDG_CACHE_HOME'] = join(home, 'cache');
+  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'cache');
 });
 
 afterEach(async () => {
-  delete process.env['XDG_CACHE_HOME'];
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
   await rm(home, { recursive: true, force: true });
 });
 
@@ -132,7 +132,7 @@ describe('subject costs', () => {
     const root = join(home, 'share');
     await publishRun(configOf({ root }), await reportAt(head), { env: PUSH, cwd: dir });
 
-    process.env['XDG_CACHE_HOME'] = await mkdtemp(join(home, 'cold-'));
+    process.env['VARIANCE_AUTHORITY_CACHE'] = await mkdtemp(join(home, 'cold-'));
     const found = await mainlineCosts(configOf({ root }), { env: LOCAL, cwd: dir });
     expect(Object.fromEntries(found?.costs ?? [])).toEqual({ 'story:a': 81, 'story:b': 120 });
   });

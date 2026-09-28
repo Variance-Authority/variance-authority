@@ -60,7 +60,7 @@ async function main() {
 
   const cache = mkdtempSync(join(tmpdir(), 'variance-published-index-'));
   const worktree = `${corpus}-worktree`;
-  const env = { ...process.env, XDG_CACHE_HOME: cache };
+  const env = { ...process.env, VARIANCE_AUTHORITY_CACHE: cache };
   const tracked = git(corpus, 'ls-files').split('\n').filter(Boolean);
   const sources = tracked.filter((file) => /\/src\/.*\.js$/.test(file) && file.startsWith('copy1/')).sort();
   const one = ['copy1/packages/mui-material/src/Button/Button.js'];
@@ -86,7 +86,7 @@ async function main() {
 
   try {
     measure('publish, nothing published', 'publish', corpus, undefined, () => {
-      rmSync(join(cache, 'variance-authority'), { recursive: true, force: true });
+      rmSync(cache, { recursive: true, force: true });
     });
     // TODO: time the stages of this row separately (tree listing, configuration
     // digest, the walk over held records, taint, save). It costs about what
@@ -103,11 +103,11 @@ async function main() {
 
     git(corpus, 'worktree', 'add', '--quiet', '--detach', worktree);
     edit(worktree, one);
-    const worktreeIndex = () => rmSync(join(cache, 'variance-authority', 'test-selection'), {
+    const worktreeIndex = () => rmSync(join(cache, 'test-selection'), {
       recursive: true, force: true,
     });
     measure('worktree, first publish, primary published', 'publish', worktree, undefined, () => {
-      rmSync(join(cache, 'variance-authority'), { recursive: true, force: true });
+      rmSync(cache, { recursive: true, force: true });
       spawnSync(process.execPath, [HERE, '--row', 'publish', corpus, ''], { env });
     });
     measure('worktree, first publish, nothing published', 'publish', worktree, undefined, worktreeIndex);

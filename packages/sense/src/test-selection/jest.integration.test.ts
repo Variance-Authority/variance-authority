@@ -42,7 +42,7 @@ describe('the Jest integration', () => {
           ...process.env,
           VARIANCE_AUTHORITY_COVERAGE: coverageFile,
           VARIANCE_AUTHORITY_JEST_CACHE: cacheDirectory,
-          XDG_CACHE_HOME: directory,
+          VARIANCE_AUTHORITY_CACHE: directory,
         },
       },
     );
@@ -136,7 +136,7 @@ describe('the Jest integration', () => {
             ...process.env,
             VARIANCE_AUTHORITY_JOURNEYS: journeyFile,
             VARIANCE_AUTHORITY_JEST_CACHE: `${journeyFile}.cache`,
-            XDG_CACHE_HOME: directory,
+            VARIANCE_AUTHORITY_CACHE: directory,
           },
         },
       );
@@ -230,7 +230,7 @@ describe('the Jest integration', () => {
           ...process.env,
           VARIANCE_AUTHORITY_COVERAGE: coverageFile,
           VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
-          XDG_CACHE_HOME: directory,
+          VARIANCE_AUTHORITY_CACHE: directory,
         },
       },
     );
@@ -263,7 +263,7 @@ describe('the Jest integration', () => {
             ...process.env,
             VARIANCE_AUTHORITY_COVERAGE: resolve(into, 'coverage.bin'),
             VARIANCE_AUTHORITY_JEST_CACHE: resolve(into, 'cache'),
-            XDG_CACHE_HOME: into,
+            VARIANCE_AUTHORITY_CACHE: into,
             ...(story ? { VARIANCE_AUTHORITY_STORY: '1' } : {}),
           },
         },

@@ -32,7 +32,7 @@ describe('a run whose reporters were replaced on the command line', () => {
     await execute(
       process.execPath,
       [vitest, 'run', 'test/branch.case.ts', '--reporter', 'dot', '--config', resolve(fixture, 'vitest.config.ts')],
-      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory } },
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));

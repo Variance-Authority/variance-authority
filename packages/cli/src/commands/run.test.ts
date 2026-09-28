@@ -466,7 +466,7 @@ describe('storeFor', () => {
     // nobody will ever read, and the LFS quota pays for it forever.
     const root = await directory('variance-baselines-');
     const cache = await directory('variance-cache-');
-    vi.stubEnv('XDG_CACHE_HOME', cache);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
 
     const store = await storeFor(configOf({ baselines: { kind: 'lfs', root } }));
     const raster = rasterFor(documentFor('fixture:a'), IDENTITY);

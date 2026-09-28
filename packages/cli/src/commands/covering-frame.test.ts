@@ -29,8 +29,8 @@ let previous: string | undefined;
 
 beforeAll(async () => {
   cache = await mkdtemp(join(tmpdir(), 'variance-covering-frame-'));
-  previous = process.env['XDG_CACHE_HOME'];
-  process.env['XDG_CACHE_HOME'] = cache;
+  previous = process.env['VARIANCE_AUTHORITY_CACHE'];
+  process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
   await promisify(execFile)(
     process.execPath,
     [resolve(repository, 'node_modules/vitest/vitest.mjs'), 'run', '--config', resolve(fixture, 'vitest.config.ts')],
@@ -40,8 +40,8 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (previous === undefined) delete process.env['XDG_CACHE_HOME'];
-  else process.env['XDG_CACHE_HOME'] = previous;
+  if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  else process.env['VARIANCE_AUTHORITY_CACHE'] = previous;
   await rm(cache, { recursive: true, force: true });
 });
 

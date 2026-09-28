@@ -45,7 +45,7 @@ async function record(args: readonly string[], only?: string) {
       env: {
         ...process.env,
         VARIANCE_AUTHORITY_COVERAGE: coverageFile,
-        XDG_CACHE_HOME: directory,
+        VARIANCE_AUTHORITY_CACHE: directory,
         ...(only === undefined ? {} : { VARIANCE_AUTHORITY_FILES: only }),
       },
     },

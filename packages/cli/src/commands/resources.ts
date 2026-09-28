@@ -85,7 +85,7 @@ export async function decoderFor(config: Config): Promise<PngDecoder | undefined
  * exact document by this exact machine or finds nothing. A wrong location, a
  * stale entry, or a cache shared between projects can therefore cost a re-render
  * and can never produce a wrong image, so `cacheRootFor` may answer from
- * `XDG_CACHE_HOME` when the repository names no `cacheRoot`.
+ * `VARIANCE_AUTHORITY_CACHE` when the repository names no `cacheRoot`.
  *
  * *What it costs.* A directory the baselines do not reach, which is why it
  * prunes itself rather than waiting to be found. See {@link sweepRenderCache},

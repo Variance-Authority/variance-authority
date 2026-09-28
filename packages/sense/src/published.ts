@@ -187,6 +187,7 @@ export async function updateSourceIndex(
     reuse,
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   });
+  // FIXME: a refused write is swallowed by `append`, so `variance index` reports "built" over an unwritable cache.
   await source.save();
   // The checkout's own index names its checkout, so the cache can tell when it is gone.
   if (options.index === undefined) markCheckout(realPath(where));

@@ -49,7 +49,7 @@ beforeAll(async () => {
   committed = stdout.split('\0').filter(Boolean);
   await execute(process.execPath, [vitest, 'run', '--config', resolve(fixture, 'vitest.config.ts')], {
     cwd: fixture,
-    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
+    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
   for (const file of [limits, slider]) recorded.set(file, readFileSync(resolve(repository, file), 'utf8'));
 }, 30_000);

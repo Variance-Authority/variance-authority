@@ -189,13 +189,13 @@ as it was on the day it was first written and re-scans everything that has
 changed since, which looks like a warm cache and costs a cold one. Put the
 commit in the key and the stable part in the restore prefix, so each job saves
 its own entry and starts from the newest one that exists. `path` is your cache
-directory, `~/.cache/variance-authority` unless your repository names another
+directory, `node_modules/.cache/variance-authority` unless your repository names another
 (see [the cache](cache.md#in-ci)):
 
 ```yaml
 - uses: actions/cache@v4
   with:
-    path: ~/.cache/variance-authority
+    path: node_modules/.cache/variance-authority
     key: variance-index-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
     restore-keys: |
       variance-index-${{ runner.os }}-${{ runner.arch }}-

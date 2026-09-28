@@ -50,7 +50,7 @@ it('records every rerun of a watching Vitest, and leaves no run directory or shi
 
   await execute(process.execPath, [script], {
     cwd: fixture,
-    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
+    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
   const shims = JSON.parse(await readFile(report, 'utf8')) as { between: string[]; rerun: string[]; closed: string[] };
 

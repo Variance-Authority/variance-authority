@@ -42,8 +42,8 @@ async function recorded(): Promise<string> {
   made.push(root);
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
   writeFileSync(join(root, 'package.json'), '{"name":"root-fixture","private":true}\n');
-  const previous = process.env['XDG_CACHE_HOME'];
-  process.env['XDG_CACHE_HOME'] = cache;
+  const previous = process.env['VARIANCE_AUTHORITY_CACHE'];
+  process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
   try {
     await writeTestCoverage(testCoverageFile(root), {
       version: 3,
@@ -52,13 +52,13 @@ async function recorded(): Promise<string> {
       modules: [],
     });
   } finally {
-    if (previous === undefined) delete process.env['XDG_CACHE_HOME'];
-    else process.env['XDG_CACHE_HOME'] = previous;
+    if (previous === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    else process.env['VARIANCE_AUTHORITY_CACHE'] = previous;
   }
   return root;
 }
 
-const env = (): NodeJS.ProcessEnv => ({ ...process.env, XDG_CACHE_HOME: cache });
+const env = (): NodeJS.ProcessEnv => ({ ...process.env, VARIANCE_AUTHORITY_CACHE: cache });
 
 describe('a tool that reads a checkout', () => {
   it('refuses a call whose host named no checkout, rather than reading the working directory', () => {

@@ -100,5 +100,5 @@ everything recorded was executed in the other process. The only artifact is the
 coverage index the driver merges into at teardown, written into a temporary
 directory the outer file creates and removes. The head inventory the service's
 build writes is keyed by repository in [the cache](../../docs/cache.md). This
-repository names no `cacheRoot`, so the outer file's `XDG_CACHE_HOME` is the
+repository names no `cacheRoot`, so the outer file's `VARIANCE_AUTHORITY_CACHE` is the
 whole of what keeps this run out of your own cache.

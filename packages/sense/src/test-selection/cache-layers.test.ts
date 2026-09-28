@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { nameModules, readModuleNames, type ModuleNames } from '../module-names.js';
@@ -55,26 +55,47 @@ describe('where the repository says the cache is', () => {
     return at;
   }
 
-  test('`cacheRoot` at the repository root answers for every directory in it, over XDG_CACHE_HOME', async () => {
+  test('`cacheRoot` at the repository root answers for every directory in it, over VARIANCE_AUTHORITY_CACHE', async () => {
     const at = await repository({ project: 'p', cacheRoot: '.variance/cache' });
     const member = resolve(at, 'packages', 'member');
     await mkdir(member, { recursive: true });
-    vi.stubEnv('XDG_CACHE_HOME', '/tmp/elsewhere');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '/tmp/elsewhere');
 
     expect(cacheRootFor(at)).toBe(resolve(at, '.variance/cache'));
     expect(cacheRootFor(member)).toBe(resolve(at, '.variance/cache'));
     vi.unstubAllEnvs();
   });
 
-  test('without the key it is the user cache, and XDG_CACHE_HOME counts only when absolute', async () => {
+  test('without the key it is inside the repository, whatever XDG_CACHE_HOME says', async () => {
     const at = await repository({ project: 'p' });
+    const member = resolve(at, 'packages', 'member');
+    await mkdir(member, { recursive: true });
+    const inside = resolve(at, 'node_modules', '.cache', 'variance-authority');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '');
     vi.stubEnv('XDG_CACHE_HOME', '/xdg');
-    expect(cacheRootFor(at)).toBe(resolve('/xdg', 'variance-authority'));
-    vi.stubEnv('XDG_CACHE_HOME', '');
-    expect(cacheRootFor(at)).toBe(resolve(homedir(), '.cache', 'variance-authority'));
-    vi.stubEnv('XDG_CACHE_HOME', 'relative');
-    expect(cacheRootFor(at)).toBe(resolve(homedir(), '.cache', 'variance-authority'));
+    expect(cacheRootFor(at)).toBe(inside);
+    expect(cacheRootFor(member)).toBe(inside);
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', 'relative');
+    expect(cacheRootFor(at)).toBe(inside);
     vi.unstubAllEnvs();
+  });
+
+  test('an absolute VARIANCE_AUTHORITY_CACHE is the cache directory itself', async () => {
+    const at = await repository({ project: 'p' });
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '/isolated');
+    expect(cacheRootFor(at)).toBe(resolve('/isolated'));
+    vi.unstubAllEnvs();
+  });
+
+  test('a worktree with no config writes inside itself and reads the primary checkout', async () => {
+    const at = await checkout();
+    const path = await worktree(at, resolve(at, 'primary', '.git', 'worktrees', 'feature'));
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '');
+    const layers = cacheLayers(path);
+    vi.unstubAllEnvs();
+
+    expect(layers.base.startsWith(resolve(at, 'primary', 'node_modules', '.cache', 'variance-authority'))).toBe(true);
+    expect(layers.top.startsWith(resolve(path, 'node_modules', '.cache', 'variance-authority'))).toBe(true);
   });
 
   test('a `cacheRoot` that is not a path is refused, naming the file', async () => {

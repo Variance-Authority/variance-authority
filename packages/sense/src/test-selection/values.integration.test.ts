@@ -46,7 +46,7 @@ beforeAll(async () => {
   coverageFile = resolve(directory, 'coverage.bin');
   await execute(process.execPath, [vitest, 'run', '--config', resolve(fixture, 'vitest.config.ts')], {
     cwd: fixture,
-    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
+    env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
   relations = relationsOfFiles(await scanRelations({ root: repository, dirs: [relative(repository, fixture)] }));
 }, 30_000);

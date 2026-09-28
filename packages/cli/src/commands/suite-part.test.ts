@@ -96,11 +96,11 @@ describe('share --publish over every shard', () => {
 
   beforeEach(async () => {
     home = await mkdtemp(join(tmpdir(), 'variance-suite-part-'));
-    process.env['XDG_CACHE_HOME'] = home;
+    process.env['VARIANCE_AUTHORITY_CACHE'] = home;
   });
 
   afterEach(() => {
-    delete process.env['XDG_CACHE_HOME'];
+    delete process.env['VARIANCE_AUTHORITY_CACHE'];
   });
 
   const configOf = (root?: string): Config =>

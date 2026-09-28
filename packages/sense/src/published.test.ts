@@ -111,8 +111,8 @@ describe('the published source index', () => {
   it("starts a worktree's first update from the primary checkout's, reading only what differs", async () => {
     const layers = await mkdtemp(join(tmpdir(), 'variance-published-layers-'));
     const worktree = join(layers, 'worktree');
-    const cacheHome = process.env['XDG_CACHE_HOME'];
-    process.env['XDG_CACHE_HOME'] = layers;
+    const cacheHome = process.env['VARIANCE_AUTHORITY_CACHE'];
+    process.env['VARIANCE_AUTHORITY_CACHE'] = layers;
     try {
       const primary = await updateSourceIndex(root);
       const published = await openImmutableLog(primary.path);
@@ -128,8 +128,8 @@ describe('the published source index', () => {
 
       expect(await updateSourceIndex(worktree)).not.toHaveProperty('from');
     } finally {
-      if (cacheHome === undefined) delete process.env['XDG_CACHE_HOME'];
-      else process.env['XDG_CACHE_HOME'] = cacheHome;
+      if (cacheHome === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+      else process.env['VARIANCE_AUTHORITY_CACHE'] = cacheHome;
       git('worktree', 'remove', '--force', worktree);
       await rm(layers, { recursive: true, force: true });
     }

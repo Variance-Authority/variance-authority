@@ -41,7 +41,7 @@ describe.each([
         VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
         VARIANCE_AUTHORITY_PARTS: parts,
         VARIANCE_AUTHORITY_BUILD: resolve(directory, 'build'),
-        XDG_CACHE_HOME: directory,
+        VARIANCE_AUTHORITY_CACHE: directory,
       },
     });
     // Two test files, each with its own checkout and pricing.

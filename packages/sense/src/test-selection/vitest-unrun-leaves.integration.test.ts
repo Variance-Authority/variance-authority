@@ -29,7 +29,7 @@ async function recording(config: string, flags: readonly string[]) {
     env: {
       ...process.env,
       VARIANCE_AUTHORITY_COVERAGE: coverageFile,
-      XDG_CACHE_HOME: directory,
+      VARIANCE_AUTHORITY_CACHE: directory,
       CUT_STARTED: resolve(directory, 'started'),
     },
   }).catch((error: unknown) => {

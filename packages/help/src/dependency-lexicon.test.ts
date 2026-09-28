@@ -6,14 +6,14 @@ import { afterEach, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { queryDependencyLexicon, readDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';
 
-const before = process.env['XDG_CACHE_HOME'];
+const before = process.env['VARIANCE_AUTHORITY_CACHE'];
 afterEach(() => {
-  if (before === undefined) delete process.env['XDG_CACHE_HOME'];
-  else process.env['XDG_CACHE_HOME'] = before;
+  if (before === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  else process.env['VARIANCE_AUTHORITY_CACHE'] = before;
 });
 
 it('indexes every declared available package, including one no source file imports, and refreshes changed declarations', async () => {
-  process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-lexicon-cache-'));
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-lexicon-cache-'));
   const root = mkdtempSync(join(tmpdir(), 'va-lexicon-fixture-'));
   execFileSync('git', ['init', '--quiet', root]);
   for (const [path, value] of Object.entries({
@@ -98,7 +98,7 @@ it('indexes every declared available package, including one no source file impor
 });
 
 it('does not read an installed dependency nested beneath a selected package wildcard', () => {
-  process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-lexicon-cache-'));
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-lexicon-cache-'));
   const root = mkdtempSync(join(tmpdir(), 'va-lexicon-wildcard-'));
   execFileSync('git', ['init', '--quiet', root]);
   writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'fixture', dependencies: { wildcard: '1.0.0' } }));
