@@ -1282,6 +1282,8 @@ variance select --format vitest
 ```
 source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin
 code map: 59 packages in 11 areas, 2 deep, over 8 dependency layers
+dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.json
+questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
 ```
 
 It scans the whole checkout, rebuilds only the records of files whose bytes
@@ -1293,7 +1295,9 @@ line describes the code map it writes beside the index, which
 manifests keep the map that is there. A checkout with no packages to put on it
 prints `code map: none, because …` with the reason, and a map that could not be
 written prints `code map: not prepared: …`; in both cases the index is
-published.
+published. The last two lines are what `variance ask` answers from, and each
+says why when it could not be written. An index the file system refuses to
+write prints `source index not written: <reason>, at <path>` and exits `2`.
 
 In CI, run it as its own step after you restore the cache. A reader that finds
 nothing published there exits `2` and names the missing step, because an index

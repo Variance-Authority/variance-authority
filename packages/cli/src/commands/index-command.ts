@@ -25,6 +25,7 @@
 
 import { prepareCodeMap, updateSourceIndex, type PreparedCodeMap, type SourceUpdate } from '@variance-authority/sense';
 import { readWorkspace, readWorkspaceSnapshot, refreshDependencyLexicon, workspaceGeneration, workspaceSnapshotPath } from '@variance-authority/help';
+import { OperatorError } from '../exit.js';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -34,6 +35,12 @@ export interface IndexRequest {
 
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const update = await updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {});
+  // A scan treats an unwritable cache as a cold next run. This step exists to
+  // write it, so a refusal is the answer, and nothing after it has an index to read.
+  if (update.refused !== undefined) {
+    const reason = update.refused.startsWith(`${update.path}: `) ? update.refused.slice(update.path.length + 2) : update.refused;
+    throw new OperatorError(`source index not written: ${reason}, at ${update.path}`);
+  }
   return `${describe(update)}\n${codeMap(request.cwd, update)}\n${lexicon(request.cwd)}\n${await answerable(request.cwd, update.path, request.noGit === true)}\n`;
 }
 

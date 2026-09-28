@@ -117,6 +117,11 @@ export interface SourceUpdate {
   readonly path: string;
   /** What the index was before this update. */
   readonly was: SourceIndexState;
+  /**
+   * What the file system refused when this update wrote the index. Present only
+   * then: the counts describe the scan, and the index on disk is what it was.
+   */
+  readonly refused?: string;
   /** Files the published generation holds. */
   readonly files: number;
   /** Files whose record this update rebuilt, because the published one no longer described them. */
@@ -187,13 +192,13 @@ export async function updateSourceIndex(
     reuse,
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   });
-  // FIXME: a refused write is swallowed by `append`, so `variance index` reports "built" over an unwritable cache.
-  await source.save();
+  const refused = await source.save();
   // The checkout's own index names its checkout, so the cache can tell when it is gone.
   if (options.index === undefined) markCheckout(realPath(where));
   return {
     path,
     was,
+    ...(refused === undefined ? {} : { refused }),
     files,
     reread: files - reused.size,
     ...(from === undefined ? {} : { from }),
