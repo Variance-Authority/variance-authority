@@ -19,6 +19,12 @@ depend on.
 <p>Choose exact text search, indexed source relations, or observed subject search from the evidence you already have.</p>
 <em>Orient before you change code →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="boundaries.md">
+<span>Structure</span>
+<strong>See what your imports build</strong>
+<p>Number every package by the layers beneath it, see in a pull request which packages changed layer, and check imports against rules you write.</p>
+<em>Read the layers →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="agent-interrogate.md">
 <span>Live test</span>
 <strong>Find out why this test is stuck</strong>
