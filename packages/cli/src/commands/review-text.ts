@@ -73,7 +73,7 @@ function markdown(review: Review): string {
     lines.push('', '| Changed regions | All | New |', '| --- | ---: | ---: |');
     for (const [kind, all, written] of reach) lines.push(`| ${REACH_TEXT[kind]} | ${all} | ${written} |`);
   }
-  lines.push(...casesText(review.files, code));
+  lines.push(...casesMarkdown(review.files, code));
   lines.push(...beforeText(review, code), ...beyondText(review, code));
   const motion = motionText(review.motion).filter((line) => line !== '');
   if (motion.length > 0) {
@@ -201,6 +201,35 @@ function casesText(files: readonly ReviewFile[], code: (value: string) => string
     ].join('; ')}`);
   }
   return lines;
+}
+
+/**
+ * The same cases for a comment: the count as the fold's summary, and under it
+ * one nested list per test file, a level for each `describe` a case sits in,
+ * so a long run of titles reads as the tree the file declares.
+ */
+function casesMarkdown(files: readonly ReviewFile[], code: (value: string) => string): readonly string[] {
+  const changed = files.filter((file) => file.cases !== undefined && file.cases.added.length + file.cases.removed.length > 0);
+  if (changed.length === 0) return [];
+  const added = changed.reduce((sum, file) => sum + file.cases!.added.length, 0);
+  const removed = changed.reduce((sum, file) => sum + file.cases!.removed.length, 0);
+  const lines = ['', `<details><summary>Cases: ${added} added, ${removed} removed, in ${changed.length} test file${changed.length === 1 ? '' : 's'}</summary>`, ''];
+  for (const file of changed) {
+    lines.push(`- ${code(file.file)}`);
+    const titled = [
+      ...file.cases!.added.map((name) => ({ path: name.split(' > '), mark: '+' })),
+      ...file.cases!.removed.map((name) => ({ path: name.split(' > '), mark: '−' })),
+    ];
+    let open: readonly string[] = [];
+    for (const { path, mark } of titled) {
+      let shared = 0;
+      while (shared < open.length && shared < path.length - 1 && open[shared] === path[shared]) shared += 1;
+      for (let depth = shared; depth < path.length - 1; depth += 1) lines.push(`${'  '.repeat(depth + 1)}- ${path[depth]}`);
+      lines.push(`${'  '.repeat(path.length)}- ${mark} ${path[path.length - 1]}`);
+      open = path.slice(0, -1);
+    }
+  }
+  return [...lines, '', '</details>'];
 }
 
 /** Changed files the tests declare as preconditions: every test that declares one depends on it without importing it. */

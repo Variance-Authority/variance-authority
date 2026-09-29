@@ -146,6 +146,8 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const markdown = formatReview(answer, 'markdown');
     expect(markdown.startsWith(`${REVIEW_MARKER}\n`)).toBe(true);
     expect(markdown).toContain('| no case covered it | 1 | 1 |');
+    expect(markdown).toContain('<details><summary>Cases: 1 added, 0 removed, in 1 test file</summary>');
+    expect(markdown).toContain('- `test/total.test.ts`\n  - + rounds');
   });
 
   it('does not call a region far when the only test that covered it is one the import graph does not hold', async () => {
