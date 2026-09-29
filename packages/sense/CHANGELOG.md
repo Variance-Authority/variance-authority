@@ -1,5 +1,23 @@
 # @variance-authority/sense
 
+## 0.12.0
+
+### Minor Changes
+
+- 0d67928: `symbol` names the README of a dependency that ships no declarations, and the passage that names the symbol
+- 509e699: `variance coverage` lists the files no suite recorded. The source index now stores each JavaScript and TypeScript file's bytes, lines of code and the regions the instrument would cut from it, so the report adds a `source:` block: how many product files are in scope, which of them no suite recorded, by directory, and a second ratio over every region in that source. The files the test harness loads, which are what the preconditions every test declares reach through their imports, are listed apart as before reach, counted within the scope's own entry points, and counted as run in that ratio, which says what share of the run they are. Without `--from`, the source is what every declared directory's entry points reach, and each directory gets a row of its own. `--packages` gives every workspace the root `package.json` names a row, counted over its own files and over everything they import. `--from <dir>` measures one part of a monorepo apart: what the directory's entry points reach along its imports, with shared packages it imports included. Entry points are declared in the root `variance.config.json` under `entrypoints`, for example `{ "packages/apps/next": ["app/**"] }`; a directory with none declared starts from every file under it. `sourceScope`, `fileSizes` and `matchesGlob` in `@variance-authority/sense`, and `parseEntrypoints`, `declaredEntrypoints` and `sharedPreconditions` in `@variance-authority/sense/test-selection`, are what it reads. The source index format moves to version 14, so an existing index is rebuilt once.
+- dad30ec: `journeysAmong` answers with the calls a chosen set of tests placed
+
+  The prepared journeys now keep which cases placed each call, not only how many. `journeysAmong(root, cases, suite)` takes cases by their position in the recording and returns every call those cases placed, counted among them, with how many cases placed it in all and how the call is known. Nothing is truncated. So a question that kept 15 of the 50 tests through a file maps what those 15 reach, and a call only the other 35 made is left out. Journeys prepared by an earlier walk are prepared again on the next `variance index`.
+- 63751d2: `variance ask orient --files` names the calls into and out of each file
+
+  `variance index` now walks each case of the latest recording over the static call graph and writes the result beside the source index. `orient --files <path>[:<line>]` reads it: for each file, the functions the most cases ran, the functions in other files that call into it and those it calls, each with its case count and how the call is known, and the package flows those cases take through the file. With a line, the calls narrow to the function holding it, and a line written after the recording says so. When the recording or the index changed after the walk, the answer says `not prepared` and why, and never answers from an older walk. The walk resolves an import the way the test runner did, through each Vite or Vitest config's `resolve.alias`.
+
+### Patch Changes
+
+- 6cee6cf: The dependency lexicon no longer enumerates every file a package's `./*` export opens; a subpath through a pattern is read when a source file imports it
+- 4bea04c: A region an edit beside it renumbered, such as the second of two callbacks after the first was deleted, is no longer read as one region lost and another gained. Siblings of the same name are paired by their cases first, and `caseMotion` returns the ones it paired this way as `renumbered`, which the motion text counts on a line of its own. Each test file's line now names the functions it entered and left, grouped by file, instead of a count of regions. `variance review --format markdown` draws the same motion as a Mermaid diagram, from test files to directories, above the folded text. `variance review --from-run <run id or URL>` downloads the `variance-review` artifact with `gh run download` and prints the review the run made.
+
 ## 0.11.0
 
 ### Minor Changes
