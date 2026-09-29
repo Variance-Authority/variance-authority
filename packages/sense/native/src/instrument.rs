@@ -206,7 +206,7 @@ impl Utf16 {
 /// Where TypeScript-ESTree says a program starts: the first directive or
 /// statement, or a decorator in front of an exported class. Recordings made
 /// when the walk read that tree carry this offset, so it stays.
-fn typescript_start(program: &Program) -> u32 {
+pub(crate) fn typescript_start(program: &Program) -> u32 {
     if let Some(directive) = program.directives.first() {
         return directive.span.start;
     }

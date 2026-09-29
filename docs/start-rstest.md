@@ -148,8 +148,8 @@ npx variance run --config variance.config.json
 ```
 
 The suite passes as it did, having written one capture per subject. The first
-durable run exits `1` and reports `button/save` as `new` — an image nobody has
-approved is not a pass. Look at the candidate, then approve it by id:
+durable run exits `0` and reports `button/save` as `new` — nothing moved, and
+an image nobody has approved is not a pass either. Look at the candidate, then approve it by id:
 
 ```bash
 npx variance report --config variance.config.json --format html > .variance/report.html

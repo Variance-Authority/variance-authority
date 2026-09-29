@@ -10,10 +10,10 @@ module**, so the answer to all three is in the report:
 
 ```text
 coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the base) in 311 files the suites loaded
-  any suite           4,310 -> 4,356  90.0% -> 90.5%
-    checkout  e2e     3,832 -> 3,900  80.0% -> 81.0%  gained 51 · lost 2 · written 22, 19 run
-    stories   visual  1,437 ->   718  30.0% -> 14.9%  lost 716 · hidden 3
-    unit      unit    3,353 -> 3,352  70.0% -> 69.7%  gained 4 · lost 9 · written 22, 4 run
+  any suite           4,310 → 4,356  90.0% → 90.5%
+    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  gained 51 · lost 2 · written 22, 19 run
+    stories   visual  1,437 →   718  30.0% → 14.9%  lost 716 · hidden 3
+    unit      unit    3,353 → 3,352  70.0% → 69.7%  gained 4 · lost 9 · written 22, 4 run
   stories: src/checkout.stories.tsx no longer runs 716 regions it ran at the base
 ```
 
@@ -88,6 +88,7 @@ instrument and no second run.
 | Code that only one kind of suite runs | no answer | counted per kind: unit, integration, e2e, visual |
 | Why a suite's number changed | the difference of two totals | regions gained, lost, written and deleted, which add up to the change |
 | Which test file caused it | no answer | named |
+| Files no test ran | at 0%, when the reporter is told to include every file under a glob | listed with their lines and regions, within the application `--from` names, following its imports into shared packages |
 | A suite that has not run | the last report, carried forward | `unrecorded`, never `0%` |
 
 The base for each suite is the record your mainline published to the

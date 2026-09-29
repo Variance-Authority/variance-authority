@@ -55,11 +55,34 @@ selector, verdict or exit code reads it.**
    every module a declared suite recorded. A suite's own ratio uses the same
    denominator as the total, so *visual 30%* is 30% of the code any suite
    loaded, not of the code the visual suite loaded.
-3. **What no suite loaded is counted apart, in files.** The source index lists
-   every source file. A file no suite recorded has no regions, so it is
-   reported as a number of files on its own line, and never folded into the
-   ratio as regions nobody ran. A module recorded with `instrumented: false` is
-   counted the same way, as loaded and unread.
+3. **What no suite recorded is counted apart, on a ratio of its own.** The
+   source index lists every source file, and the scan stores each parse's
+   size: bytes, lines of code, and the regions the instrument's walk cuts from
+   it. A product source file that no suite recorded is listed with those
+   counts, and its regions join a second ratio, *total coverage for X of the R
+   regions*. They never join the first ratio's denominator,
+   because a cut made from a parse may not match the cut a real build makes.
+   Which files are in scope is `--from`'s: what a directory's declared
+   `entrypoints` reach along the recorded imports, or every file under it when
+   it declares none. Without `--from`, the source is what every declared
+   directory's entry points reach together, and each directory gets a line of
+   its own; a file no entry point reaches is not counted anywhere.
+   `--packages` gives every workspace the root manifest names such a line,
+   counted twice: over its own files, and over everything they import. With no
+   entry point declared, it is every file the index holds. A monorepo measures
+   each application apart, and a shared package an application imports is part
+   of it. A file whose language stores no size is left out, never counted as
+   empty. A module recorded with `instrumented: false` is counted as loaded
+   and unread. What the harness loads is before reach: the files the
+   preconditions every test in a record declares reach through their imports,
+   walked by `beforeReach`, counted within each scope, so the runner's config,
+   which no application imports, is in none. They ran under every test and have
+   no region in any record. They are listed on their own line, their regions
+   count as run in the second ratio, and the ratio says what share of the run
+   they are: code the harness runs is tested by every test and aimed at by
+   none, which is how most of a harness is tested. A module a seam loaded, chose not to
+   instrument and the harness does not load is in no record and is listed with
+   the files nothing loaded, so the report says *recorded*, never *loaded*.
 4. **Regions are joined by address, across suites and across commits.** Two
    builds can cut one module differently, and an edit shifts a region down the
    file. The case index already names a region by address — name path and
@@ -117,6 +140,10 @@ selector, verdict or exit code reads it.**
 - A region that ran only at load is not counted as run, so the ratio is lower
   than the line coverage Istanbul prints for the same run. The *ran only at
   load* line is the difference.
-- The files no suite loaded are a count, not a ratio, until something cuts
-  their regions without running them. Spec 0080 keeps that as its open
-  decision.
+- Two ratios are printed, and a reader has to know which one a number is. The
+  one over the whole source counts what the harness loads as run, which no
+  record shows, so its share of the run is printed with it. The one over what the suites loaded
+  is the one the change is decomposed into.
+- The scan now walks every JavaScript and TypeScript parse a second time to
+  count its regions, and the source index grew three columns (format version
+  14), so every existing index is rebuilt once.

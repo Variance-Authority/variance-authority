@@ -72,3 +72,29 @@ describe('what a change moved', () => {
     expect(caseMotion(base, now, { exclude: new Set(['src/total.ts']) }).regions).toEqual([]);
   });
 });
+
+describe('a region an edit beside it renumbered', () => {
+  const C = { id: 'c.test.ts > three', file: 'c.test.ts', name: 'three', stopped: false };
+
+  it('is paired by its cases, not its occurrence, and is named as renumbered rather than lost and gained', () => {
+    // The first of three `.filter` callbacks is deleted: by occurrence the second now is the first at the base.
+    const base = index([A, B, C], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [1]), block('pick/filter.arg0', 9, [2])]);
+    const now = index([A, B, C], [block('pick/filter.arg0', 5, [1]), block('pick/filter.arg0', 9, [2])]);
+
+    const motion = caseMotion(base, now);
+
+    expect(motion.regions).toEqual([]);
+    expect(motion.testFiles).toEqual([]);
+    expect(motion.renumbered.map((region) => region.startLine)).toEqual([5, 9]);
+  });
+
+  it('still reads a sibling whose cases changed by its address', () => {
+    const base = index([A, B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [1])]);
+    const now = index([A, B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [])]);
+
+    const motion = caseMotion(base, now);
+
+    expect(motion.regions.map((region) => [region.startLine, region.motion])).toEqual([[5, 'lost']]);
+    expect(motion.renumbered).toEqual([]);
+  });
+});

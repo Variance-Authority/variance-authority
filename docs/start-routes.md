@@ -264,15 +264,16 @@ names the baseline root and the render cache. A pass is a machine that can do
 what your config asks for. It touches no network, so a remote store or history
 service is reported as configured, never as one the run can talk to.
 
-The first durable run exits `1` with `checkout/empty` reported as `new`. That
-`1` is not a failure. `0` means nothing needs review, `1` means the run happened
-and found something a person must decide about, and `2` means the run did not
-happen as configured — a bad config, a missing browser, a store the run cannot
-talk to. The codes are separate so a CI job can page whoever owns the runner
-image on `2` and ask a reviewer on `1`. A first run is `1` because a route with
-no baseline is a candidate nobody has approved, and nothing accepts on your
-behalf: accepting an unseen image would record whatever was on screen as the
-truth and report green from then on.
+The first durable run exits `0` with `checkout/empty` reported as `new`. `0`
+means nothing needs review, `1` means the run happened and found something a
+person must decide about, and `2` means the run did not happen as configured — a
+bad config, a missing browser, a store the run cannot talk to. The codes are
+separate so a CI job can page whoever owns the runner image on `2` and ask a
+reviewer on `1`. A first run is `0` because nothing moved: there was nothing yet
+to move from. It is not a pass either. A route with no baseline is a candidate
+nobody has approved, it stays `new` on every run until somebody does, and
+nothing accepts on your behalf: accepting an unseen image would record whatever
+was on screen as the truth and report `unchanged` from then on.
 
 Reviewing is you looking at that candidate. Write the report as HTML beside its
 JSON source, so its relative image links work, and open it:

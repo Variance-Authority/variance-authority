@@ -61,13 +61,23 @@ export async function loadConfig(path: string): Promise<Config> {
         'looks for it; this file is not that one, so set it there',
     );
   }
-  // The same rule for `suites`, compared by file rather than by value: two files
-  // declaring the same suites today are two places to change tomorrow.
-  if (config.suites !== undefined && realpathSync(baseDir) !== realpathSync(repositoryRoot(baseDir))) {
+  // The same rule for `suites` and `entrypoints`, compared by file rather than
+  // by value: two files declaring the same suites today are two places to
+  // change tomorrow.
+  const atRoot = realpathSync(baseDir) === realpathSync(repositoryRoot(baseDir));
+  if (config.suites !== undefined && !atRoot) {
     throw new ConfigError(
       source,
       'suites',
       'is read from the variance.config.json at the repository root, where every test runner ' +
+        'looks for it; this file is not that one, so declare them there',
+    );
+  }
+  if ((value as Record<string, unknown>)['entrypoints'] !== undefined && !atRoot) {
+    throw new ConfigError(
+      source,
+      'entrypoints',
+      'is read from the variance.config.json at the repository root, where `variance coverage --from` ' +
         'looks for it; this file is not that one, so declare them there',
     );
   }

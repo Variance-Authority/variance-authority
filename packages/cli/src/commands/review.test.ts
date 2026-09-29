@@ -145,7 +145,12 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     const markdown = formatReview(answer, 'markdown');
     expect(markdown.startsWith(`${REVIEW_MARKER}\n`)).toBe(true);
-    expect(markdown).toContain('| no case covered it | 1 | 1 |');
+    expect(markdown).toContain('> [!WARNING]\n> **1 of 2 changed regions in 1 file have no case that covers them**, all of them new code.');
+    expect(markdown).toContain('| 🔴 no case covered it | 1 | 1 |');
+    expect(markdown).not.toContain('| **');
+    expect(markdown).toContain('⚙️ `config.json` changed, and the one test file loads it before any import.');
+    expect(markdown).toContain('<details><summary>🧪 Cases: +1 −0 in 1 test file</summary>');
+    expect(markdown).toContain('- `test/total.test.ts`\n  - + rounds');
   });
 
   it('does not call a region far when the only test that covered it is one the import graph does not hold', async () => {
@@ -168,6 +173,11 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     expect(answer).toMatchObject({ from: first, base: 'recording', runs: { runs: 2 } });
     expect(formatReview(answer, 'text')).toContain('the commit the recording was at before these runs. 2 runs recorded 1 test file.');
+    const select = `\`variance select --since ${first.slice(0, 12)}\``;
+    expect(formatReview(answer, 'markdown')).toContain(`🎯 All 1 test file ran at this commit. ${select} lists the ones this change reaches.`);
+    expect(formatReview({ ...answer, suite: 4 }, 'markdown')).toContain(
+      `🎯 **1 of 4 test files ran** at this commit, 25% of the suite; the other 3 kept the rows recorded before it. ${select}`,
+    );
   });
 
   it('writes the answer beside what it prints when given a directory', async () => {

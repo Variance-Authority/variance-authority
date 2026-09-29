@@ -97,6 +97,8 @@ pub struct HeldParse {
     #[serde(default)]
     members: Vec<HeldMember>,
     unknown: Option<String>,
+    #[serde(default)]
+    size: Option<crate::source_size::Size>,
 }
 
 /// Both ends, each `NONE` where JavaScript's `optional` would write it.
@@ -179,5 +181,9 @@ impl ParseRow for HeldParse {
 
     fn harvested(&self) -> bool {
         self.harvested
+    }
+
+    fn size(&self) -> Option<crate::source_size::Size> {
+        self.size
     }
 }

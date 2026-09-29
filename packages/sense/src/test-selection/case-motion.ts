@@ -58,6 +58,14 @@ export interface CaseMotion {
    * said about their regions: no row is not the same as no case.
    */
   readonly unread: readonly string[];
+  /**
+   * Regions an edit beside them renumbered: the address pairs them with a
+   * sibling of the same name, and their cases say which sibling they are. They
+   * are paired by their cases, so they did not move, and are named here rather
+   * than dropped without a word. Absent from an answer written before siblings
+   * were paired, which never looked for them: that is not the same as none.
+   */
+  readonly renumbered?: readonly MovedRegion[];
 }
 
 /** What `caseMotion` may consult, and what it leaves out. */
@@ -75,7 +83,10 @@ export interface CaseMotionOptions {
  * by occurrence — and kind, the rule the case index carries its cases by
  * across runs, so a region an edit moved down the file is still the same
  * region. A region only one side holds did not move: the edit wrote or deleted
- * it, and the diff already says so. Only calls count; a region entered while
+ * it, and the diff already says so. The occurrence counts siblings of one name,
+ * so deleting the first of three `.filter` callbacks pairs the second with the
+ * first: before the address is read, a region at the base and one now of the
+ * same kind and name whose cases are the same cases are paired by them. Only calls count; a region entered while
  * its module evaluated was entered by whichever case imported it first.
  */
 export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: CaseMotionOptions = {}): CaseMotion {
@@ -88,6 +99,7 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
   };
   const current = new Map(now.modules.map((module) => [module.file, module]));
   const unread: string[] = [];
+  const renumbered: MovedRegion[] = [];
   for (const held of base.modules) {
     if (options.exclude?.has(held.file) === true) continue;
     const module = current.get(held.file);
@@ -96,8 +108,10 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
       continue;
     }
     let stopped: ReadonlySet<number> | undefined | null = null;
-    for (const [row, block] of matched(held, module)) {
-      const region = { file: module.file, kind: block.kind, name: block.name, startLine: block.startLine, endLine: block.endLine };
+    const paired = byCases(base, now, held, module);
+    renumbered.push(...paired.renumbered.map((block) => place(module.file, block)));
+    for (const [row, block] of paired.pairs) {
+      const region = place(module.file, block);
       const before = callers(base, row);
       const after = callers(now, block);
       const was = filesOf(before);
@@ -120,7 +134,70 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
   const testFiles = [...reach]
     .map(([file, { entered, left }]) => ({ file, entered: inOrder(entered), left: inOrder(left) }))
     .sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : 0));
-  return { regions, counts, testFiles, unread: unread.sort() };
+  return { regions, counts, testFiles, unread: unread.sort(), renumbered: inOrder(renumbered) };
+}
+
+function place(file: string, block: ExecutionBlock): MovedRegion {
+  return { file, kind: block.kind, name: block.name, startLine: block.startLine, endLine: block.endLine };
+}
+
+/**
+ * The pairs `matched` makes, after first pairing each region whose cases name
+ * it among siblings of one kind and name: a set of cases one base row and one
+ * region now share, and no other sibling on either side holds. A region with
+ * no cases names nothing, so it is left to the address. `renumbered` is each
+ * region now the cases paired with a row the address would not have.
+ */
+function byCases(
+  base: ExecutionIndex,
+  now: ExecutionIndex,
+  held: ExecutionModule,
+  module: ExecutionModule,
+): { readonly pairs: readonly (readonly [ExecutionBlock, ExecutionBlock])[]; readonly renumbered: readonly ExecutionBlock[] } {
+  const address = matched(held, module);
+  const siblings = (blocks: readonly ExecutionBlock[]) => {
+    const groups = new Map<string, ExecutionBlock[]>();
+    for (const block of blocks) {
+      const key = `${block.kind}\0${block.name}`;
+      const group = groups.get(key);
+      if (group === undefined) groups.set(key, [block]);
+      else group.push(block);
+    }
+    return groups;
+  };
+  const was = siblings(held.blocks);
+  const cases = new Map<ExecutionBlock, string>();
+  const named = (index: ExecutionIndex, block: ExecutionBlock) => {
+    let key = cases.get(block);
+    if (key === undefined) cases.set(block, (key = callers(index, block).map((test) => test.id).sort().join('\0')));
+    return key;
+  };
+  const chosen = new Map<ExecutionBlock, ExecutionBlock>();
+  for (const [key, group] of siblings(module.blocks.filter((block) => block.source))) {
+    const rows = was.get(key);
+    if (rows === undefined || (rows.length === 1 && group.length === 1)) continue;
+    const once = (index: ExecutionIndex, blocks: readonly ExecutionBlock[]) => {
+      const seen = new Map<string, ExecutionBlock | null>();
+      for (const block of blocks) {
+        const set = named(index, block);
+        if (set !== '') seen.set(set, seen.has(set) ? null : block);
+      }
+      return seen;
+    };
+    const atBase = once(base, rows);
+    for (const [set, block] of once(now, group)) {
+      const row = atBase.get(set);
+      if (block !== null && row !== undefined && row !== null) chosen.set(block, row);
+    }
+  }
+  if (chosen.size === 0) return { pairs: address, renumbered: [] };
+  const taken = new Set(chosen.values());
+  const pairs: (readonly [ExecutionBlock, ExecutionBlock])[] = [...chosen].map(([block, row]) => [row, block] as const);
+  const renumbered: ExecutionBlock[] = [];
+  const byAddress = new Map(address.map(([row, block]) => [block, row]));
+  for (const [block, row] of chosen) if (byAddress.get(block) !== row) renumbered.push(block);
+  for (const [row, block] of address) if (!chosen.has(block) && !taken.has(row)) pairs.push([row, block]);
+  return { pairs, renumbered };
 }
 
 /**

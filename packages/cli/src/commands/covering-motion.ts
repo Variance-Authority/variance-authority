@@ -141,7 +141,7 @@ export async function motionAgainst(
  */
 export function motionText(
   motion: CoveringMotion | undefined,
-  named: (tests: readonly ExecutionTest[]) => string = (tests) => tests.map((test) => test.id).join(', '),
+  named: (tests: readonly ExecutionTest[]) => string = casesByFile,
 ): readonly string[] {
   if (motion === undefined) return [];
   const { base, moved } = motion;
@@ -181,12 +181,54 @@ export function motionText(
     }
   }
   for (const test of moved.testFiles) {
-    lines.push(`${test.file} now enters ${test.entered.length} region${
-      test.entered.length === 1 ? '' : 's'
-    } it did not, and no longer enters ${test.left.length}.`);
+    const reach = [
+      ...(test.entered.length === 0 ? [] : [`now enters ${functionsIn(test.entered)}`]),
+      ...(test.left.length === 0 ? [] : [`no longer enters ${functionsIn(test.left)}`]),
+    ];
+    lines.push(`${test.file} ${reach.join(', and ')}.`);
+  }
+  const renumbered = moved.renumbered?.length ?? 0;
+  if (renumbered > 0) {
+    lines.push(`${renumbered} region${renumbered === 1 ? '' : 's'} renumbered by an edit beside ${
+      renumbered === 1 ? 'it' : 'them'
+    } kept the same cases, so ${renumbered === 1 ? 'it is' : 'they are'} not counted as moved.`);
   }
   if (moved.unread.length > 0) lines.push(`Not compared, the current record has no row for: ${moved.unread.join(', ')}.`);
   return lines;
+}
+
+/** How many functions a list of regions sits in: a function counts once however many of its branches are listed. */
+const NAMED_FUNCTIONS = 4;
+
+/**
+ * The regions a test file's reach gained or lost, said as the functions they
+ * sit in, file by file: `native` and its branches are one function, and the
+ * region count follows in brackets. A module's own top level is named so.
+ */
+export function functionsIn(regions: readonly MovedRegion[]): string {
+  if (regions.length === 0) return 'nothing';
+  const byFile = new Map<string, Set<string>>();
+  for (const region of regions) {
+    const name = region.kind === 'module' || region.name === '' ? 'the top level' : region.name.split('/')[0]!;
+    const held = byFile.get(region.file);
+    if (held === undefined) byFile.set(region.file, new Set([name]));
+    else held.add(name);
+  }
+  const functions = [...byFile.values()].reduce((sum, names) => sum + names.size, 0);
+  const count = `${regions.length} region${regions.length === 1 ? '' : 's'}`;
+  if (functions > NAMED_FUNCTIONS) return `${functions} functions in ${byFile.size} files (${count})`;
+  const said = [...byFile].map(([file, names]) => `${[...names].join(', ')} in ${file}`).join('; ');
+  return `${said} (${count})`;
+}
+
+/** Cases by id when there are two or fewer, and otherwise counted by the test file they are in. */
+function casesByFile(tests: readonly ExecutionTest[]): string {
+  if (tests.length <= 2) return tests.map((test) => test.id).join(', ');
+  const files = new Map<string, number>();
+  for (const test of tests) files.set(test.file, (files.get(test.file) ?? 0) + 1);
+  return `${tests.length} cases in ${files.size} test file${files.size === 1 ? '' : 's'}: ${
+    [...files].map(([file, cases]) => `${file} (${cases})`).join(', ')
+  }`;
 }
 
 function place(region: MovedRegion): string {
@@ -205,7 +247,13 @@ function within(moved: CaseMotion, file: string): CaseMotion {
       left: test.left.filter((region) => region.file === file),
     }))
     .filter((test) => test.entered.length + test.left.length > 0);
-  return { regions, counts, testFiles, unread: moved.unread.filter((unread) => unread === file) };
+  return {
+    regions,
+    counts,
+    testFiles,
+    unread: moved.unread.filter((unread) => unread === file),
+    ...(moved.renumbered === undefined ? {} : { renumbered: moved.renumbered.filter((region) => region.file === file) }),
+  };
 }
 
 /** The file graph when a case stopped, which is when a hidden region can name the case. */

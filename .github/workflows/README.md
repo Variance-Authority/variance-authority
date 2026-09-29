@@ -29,9 +29,12 @@ an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
 The other two files here, [`check.yml`](check.yml) and
 [`release.yml`](release.yml), are this repository's own build and publish, and
-neither is a recipe. `check.yml` also ends with `variance review` over the
-suite's own recording, and comments on the pull request under a marker of its
-own, so it never overwrites the gate's comment.
+neither is a recipe. On a pull request, `check.yml` runs only the tests the
+change reached, selected by `yarn test:since` from the recording `main` saved,
+and a push to `main` runs the whole suite. It then posts two comments on the
+pull request, each under its own marker so neither overwrites the gate's:
+`variance review` over the suite's recording, and `variance coverage` against
+the record `main` saved.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
 nightly, and the shards on demand only — sharding fourteen subjects across two
@@ -115,8 +118,11 @@ three arrangements. This is what each one needs in your copy:
 
 ## Getting a first baseline
 
-The first run of any subject reports `new` and exits `1`. An image nobody has
-approved is not a pass, and nothing in these files promotes one on its own.
+The first run of any subject reports `new`, and the comment lists it as NEW,
+apart from anything that needs review. `new` does not turn the check red —
+nothing moved — but an image nobody has approved is not a pass either, and
+nothing in these files promotes one on its own: the subject stays `new` on
+every run until somebody accepts it.
 
 To end that state under `cache`: run `variance.yml` from the Actions tab on `main`, tick
 `accept: true`, and let it finish. That run executes
@@ -128,7 +134,7 @@ restores that store and compares against it.
 nobody has ever reviewed and the subjects whose component just changed. The CLI
 cannot yet tell those two apart, so a job that ran it on a schedule or a push
 would promote the regression it was added to catch. That is why every accept is
-a person's act. Read the report from the run that went red first.
+a person's act. Read the report from the run that listed them first.
 
 ## Accepting a change on a pull request
 

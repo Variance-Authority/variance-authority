@@ -129,8 +129,8 @@ renderer, engine, platform, device scale factor and fonts that an approved image
 is stored under. It exits `2` when no browser opens or when the root has no
 images this machine could compare against.
 
-The first durable run exits `1` and reports every story `new`. An image nobody
-approved is not a pass. Promote the candidates the run already produced:
+The first durable run exits `0` and reports every story `new`. Nothing moved,
+and an image nobody approved is not a pass either. Promote the candidates the run already produced:
 
 ```bash
 npx variance accept --config variance.config.json --all

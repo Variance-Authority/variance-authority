@@ -122,6 +122,10 @@ impl ParseRow for Read {
     fn harvested(&self) -> bool {
         self.harvested
     }
+
+    fn size(&self) -> Option<crate::source_size::Size> {
+        self.size
+    }
 }
 
 /// What the path says about reading it: `parseWay` and the second half of

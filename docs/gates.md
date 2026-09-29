@@ -34,19 +34,22 @@ never share a code, so a red build says which of the two it is before anybody
 opens it. Gate on the integer; nothing parses the output.
 
 Each state the run compares gets a **verdict** — the per-subject outcome
-(`unchanged`, `changed`, `new`, `incomparable` or `ignored`). Six things take
+(`unchanged`, `changed`, `new`, `incomparable` or `ignored`). Five things take
 the run to `1`:
 
 | The run exits `1` when | Because |
 | --- | --- |
 | a subject is `changed` | pixels moved outside what you excluded |
-| a subject is `new` | no baseline has been approved under that id yet, and a subject must not join the suite unreviewed |
 | a subject is `incomparable` | the baseline was painted under a different browser, platform, scale factor or font stack, so the comparison was refused rather than reported as agreement |
 | a subject the run meant to observe failed | a subject that cannot be observed does not silently pass |
 | two readings of one subject, seconds apart, disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
 | an observation reports an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not read, say — so the images agree about something smaller than what you asked for |
 
-Three things deliberately do not take it there:
+Four things deliberately do not take it there:
+
+- **A `new` verdict.** No baseline has been approved under that id yet, so
+  nothing moved. It is not a pass either: the comment lists it as NEW, apart
+  from what needs review, and it stays `new` until somebody accepts it.
 
 - **An `ignored` verdict.** Every moved pixel fell inside a subtree you
   excluded.
@@ -54,7 +57,7 @@ Three things deliberately do not take it there:
 - **A `warn` diagnostic.** It states a standing limit of the configuration
   rather than a finding.
 
-All three are recorded either way; what changes is whether they block the
+All four are recorded either way; what changes is whether they block the
 build.
 
 Posting the result to the pull request is not part of the gate. `npx variance

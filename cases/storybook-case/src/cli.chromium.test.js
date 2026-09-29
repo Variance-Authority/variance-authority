@@ -153,14 +153,14 @@ if (!READY) {
 }
 
 live('the durable workflow, end to end', () => {
-  it('reports every subject as new, and refuses to call that a pass', () => {
+  it('reports every subject as new, and neither fails nor accepts it', () => {
     const { status, out } = variance('run');
 
-    // `new` is not a regression and is not a pass. Exit 1 is the honest code:
-    // something is waiting for a person, and a green build here would record
-    // fourteen baselines nobody looked at.
+    // `new` is not a regression and is not a pass. Nothing moved, so the exit
+    // is 0; nothing was accepted either, so the next run reports the same
+    // fourteen subjects `new` until a person accepts them.
     expect(out).toContain('14 new');
-    expect(status).toBe(1);
+    expect(status).toBe(0);
 
     // The whole reason the report carries a second list. A summary that says
     // nothing needs review because eleven subjects failed to render is worse

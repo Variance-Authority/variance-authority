@@ -50,8 +50,11 @@ import { picturesOf } from './comment-images.js';
  * images — sits whole under one `<details>`, because a phone is where the
  * notification is opened and the docket is what a reviewer opens on purpose.
  *
- * **The comment exists exactly when the check is red, and one function decides
- * both.** {@link exitFor} owns the question. A second rule here — say, "comment
+ * **The comment exists when the check is red, and one function decides both.**
+ * {@link exitFor} owns the question. The one comment over a green check is a run
+ * with NEW subjects: it says so in its heading and says nothing needs review, so
+ * it cannot be read as a finding the check forgot, and without it a subject
+ * nobody accepted would be visible nowhere on the pull request. A second rule here — say, "comment
  * when something changed" — would drift from it on the cases that matter most:
  * a run where every subject failed to render changes nothing and must still be
  * reviewed, and a report that never stated what it skipped cannot support the
@@ -175,7 +178,8 @@ export interface CommentOptions {
 }
 
 /**
- * The comment body, or the empty string when there is nothing to review.
+ * The comment body, or the empty string when there is nothing to review and
+ * nothing NEW.
  *
  * Empty rather than a cheerful "no visual changes". A bot that comments on every
  * green pull request trains the team to filter it out, and the filter does not
@@ -186,10 +190,10 @@ export function renderComment(options: CommentOptions): string {
 
   // The single decision point. See the note above: the comment's existence and
   // the check's colour are the same question, asked once.
-  if (exitFor(report) === EXIT_CLEAN) return '';
+  const docket = docketOf(report);
+  if (exitFor(report) === EXIT_CLEAN && docket.fresh === 0) return '';
 
   const limits: CommentLimits = { ...DEFAULT_LIMITS, ...options.limits };
-  const docket = docketOf(report);
   const pictures = picturesOf(report, options.imageRoot);
 
   const blocks = [

@@ -58,6 +58,7 @@ export const CROSSES = [
   'packages/playwright-test/src/in-place',
   'packages/presentation/src/playwright',
   'packages/route-collector/src/world',
+  'packages/sense/src/test-selection/drain',
   'packages/storybook/src/finish-wait',
   'packages/storybook/src/preview',
 ];
@@ -83,8 +84,22 @@ export const SERIALIZED = [
  * `__VA__` is one global: instrumenting the collector means a probe inside the
  * collector calls the collector, and a test that installs a fake in its place is
  * answered by recursion or by a `TypeError` at the first probe.
+ *
+ * So the runtime is the modules that read or install `__VA__`, named one by
+ * one, and not the directory they sit in — less the `.cts` collectors, which
+ * are loaded with `require` and never pass through the transform: the rest of `test-selection` — the
+ * recording's readers, the selection, the counts — is code the suite asserts
+ * on, and leaving it out made it before reach, run under every test and
+ * measured by none.
  */
-export const RUNTIME = ['packages/sense/src/instrument/', 'packages/sense/src/test-selection/'];
+export const RUNTIME = [
+  'packages/sense/src/instrument/',
+  'packages/sense/src/test-selection/journey',
+  'packages/sense/src/test-selection/journey-parts',
+  'packages/sense/src/test-selection/probes',
+  'packages/sense/src/test-selection/runner',
+  'packages/sense/src/test-selection/vitest',
+];
 
 export const PAGE_SIDE = [...CROSSES, ...SERIALIZED, ...RUNTIME];
 

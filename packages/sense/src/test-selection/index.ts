@@ -124,6 +124,8 @@ export {
   type DeclaredSuite,
   type SuiteKind,
 } from './suites.js';
+export { defaultInclude } from './instrumented-modules.js';
+export { declaredEntrypoints, parseEntrypoints, EntrypointsError, type Entrypoints } from './entrypoints.js';
 export { repositoryRoot } from './repository-root.js';
 export {
   PRUNE_REASONS,
@@ -152,7 +154,7 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.
 export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
-export { testsGovernedBy } from './lookup.js';
+export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 export { caseLayerFiles, type LastCaseRun } from './case-fold.js';
 export { commitRunsFile, landRun, readCommitRuns, type CommitRuns } from './commit-runs.js';

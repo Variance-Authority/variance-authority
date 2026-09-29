@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
+import { REVIEW_ARTIFACT } from './commands/review-from-run.js';
 import { OperatorError } from './exit.js';
 
 export type ReviewFormat = 'text' | 'markdown' | 'json';
@@ -14,6 +15,10 @@ export interface ParsedReview {
   readonly out?: string;
   /** The declared suite whose record is read. Required once the root config declares any. */
   readonly suite?: string;
+  /** A CI run whose uploaded review is printed instead of one read from this checkout. */
+  readonly fromRun?: string;
+  /** The artifact `--from-run` downloads. */
+  readonly artifact?: string;
   readonly root: string;
   readonly format: ReviewFormat;
 }
@@ -28,12 +33,21 @@ export function parseReviewArgs(flags: Flags): ParsedReview {
   const against = flags.values.get('--against');
   const out = flags.values.get('--out');
   const suite = flags.values.get('--suite');
+  const fromRun = flags.values.get('--from-run');
+  const artifact = flags.values.get('--artifact');
+  if (fromRun !== undefined) {
+    const local = (['--since', '--against', '--suite', '--out'] as const).filter((flag) => flags.values.get(flag) !== undefined);
+    if (local.length > 0) throw new OperatorError(`--from-run prints the review the run already made, so ${local.join(' and ')} has nothing to change in it`);
+  } else if (artifact !== undefined) {
+    throw new OperatorError('--artifact names what `--from-run` downloads, and no `--from-run` was given');
+  }
   return {
     command: 'review',
     ...(since === undefined ? {} : { since }),
     ...(against === undefined ? {} : { against: resolve(against) }),
     ...(out === undefined ? {} : { out: resolve(out) }),
     ...(suite === undefined ? {} : { suite }),
+    ...(fromRun === undefined ? {} : { fromRun, artifact: artifact ?? REVIEW_ARTIFACT }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format,
   };

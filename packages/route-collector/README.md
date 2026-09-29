@@ -141,7 +141,7 @@ npx variance run --config variance.config.json
 your `PATH`. `doctor` launches the browser and measures the fonts you asserted
 rather than consulting a version table.
 
-The first durable run exits `1` with both routes reported as `new`. `0` means
+The first durable run exits `0` with both routes reported as `new`: nothing moved, and nothing is approved until you accept it. `0` means
 nothing needs review, `1` means the run happened and found something a person
 must decide about, and `2` means the run did not happen as configured.
 

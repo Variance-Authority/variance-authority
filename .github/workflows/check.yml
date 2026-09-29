@@ -173,14 +173,92 @@ jobs:
           key: ${{ steps.carry.outputs.suite-unit-key }}
           restore-keys: ${{ steps.carry.outputs.suite-unit-restore-keys }}
 
+      # The mainline's record, as the restore left it, copied aside before the
+      # suite layers this change onto it. It is the base the coverage below is
+      # compared with. The recording's file is asked of `sense`, which owns
+      # where a suite records; the case index sits beside it as
+      # `<recording>.cases.bin`, and the whole directory is copied because the
+      # commit the index was recorded at is read from its neighbours.
+      - name: keep the base record
+        id: base
+        shell: bash
+        run: |
+          recording=$(node --input-type=module -e "
+            const { testCoverageFile } = await import('@variance-authority/sense/test-selection');
+            process.stdout.write(testCoverageFile(process.cwd(), { suite: 'unit' }));
+          ")
+          if [ -f "$recording.cases.bin" ]; then
+            cp -R "$(dirname "$recording")" "$RUNNER_TEMP/base-unit"
+            echo "cases=$RUNNER_TEMP/base-unit/$(basename "$recording").cases.bin" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No recording was restored, so this run has no base: the whole suite runs, and coverage is printed without a comparison."
+          fi
+
       # `vitest run` is the unit suites and the corpus. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
       # 2026-08-04 and now run in the `rules` job. It records which case ran
       # which region at this commit, which is what the review below reads.
+      #
+      # A pull request runs what its change reached, and nothing else: this
+      # repository ships test selection, so its own pull requests are selected
+      # by it. `yarn test:since` reads the restored recording, diffs from the
+      # commit it was recorded at, and runs the files whose recorded regions the
+      # change entered. It runs the whole suite itself when the reading cannot be
+      # made, and says why. The selected run layers onto the restored recording,
+      # so the coverage below counts every file, and a file that did not run
+      # keeps the rows the mainline recorded for it.
+      #
+      # A push to `main`, and a dispatch, run the whole suite. That is the gate a
+      # selection is a smaller claim than, and it is what the recording `main`
+      # saves is cut from: every file observed at `main`'s own commit, so the next
+      # pull request selects from rows no older than its base.
       - name: test
         id: test
         shell: bash
-        run: yarn test
+        env:
+          SELECT: ${{ github.event_name == 'pull_request' && steps.base.outputs.cases != '' }}
+        run: |
+          if [ "$SELECT" = true ]; then
+            yarn test:since
+          else
+            yarn test
+          fi
+
+      # How much the suite runs, against the record the mainline saved. The
+      # parts of the change are printed beside each count: regions gained, lost,
+      # written and deleted, and the test files that moved them most, then the
+      # source no suite recorded, counted once per package. Printed to
+      # the job summary on every run, and on a pull request also posted as its
+      # own comment, under a marker this step writes, so it never overwrites the
+      # review's. The source index is published first, because under CI a reader
+      # refuses to build it on demand. `coverage` exits 0 whatever the numbers
+      # are: there is no threshold here, and adding one is a line in this step.
+      - name: report coverage
+        id: coverage
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
+        shell: bash
+        env:
+          AGAINST: ${{ steps.base.outputs.cases }}
+        run: |
+          node packages/cli/dist/bin.js index
+          body="$RUNNER_TEMP/coverage.md"
+          echo '<!-- variance-authority:coverage -->' > "$body"
+          echo '### 📊 Coverage' >> "$body"
+          if [ -n "$AGAINST" ]; then
+            node packages/cli/dist/bin.js coverage --suite unit --against "$AGAINST" --packages --format markdown >> "$body"
+          else
+            node packages/cli/dist/bin.js coverage --packages --format markdown >> "$body"
+          fi
+          cat "$body" >> "$GITHUB_STEP_SUMMARY"
+          echo "body=$body" >> "$GITHUB_OUTPUT"
+
+      - name: post coverage
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.coverage.outcome == 'success' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BODY: ${{ steps.coverage.outputs.body }}
+        run: node .github/actions/variance/post-comment.mjs --body-file "$BODY" --marker "$(head -n 1 "$BODY")"
 
       # What the change did, read from what the suite just recorded: the edits,
       # the changed regions no case covered or only a distant test covered, the

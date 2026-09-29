@@ -372,8 +372,8 @@ npx variance run --config variance.config.json
 browser that will paint, measures the fonts you asserted inside it, and lists
 which identities the baseline root stores.
 
-The first durable run exits `1` and reports both receipts as `new` — an image
-nobody has approved is not a pass. Write the HTML report beside the JSON one,
+The first durable run exits `0` and reports both receipts as `new` — nothing
+moved, and an image nobody has approved is not a pass either. Write the HTML report beside the JSON one,
 because the image links inside it are relative to the report:
 
 ```bash

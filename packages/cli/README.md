@@ -113,8 +113,8 @@ variance accept --config variance.config.json story:checkout--empty
 variance run --config variance.config.json
 ```
 
-The first successful durable run exits `1` because its subjects are `new`.
-Review the generated candidates, accept the intended subject ids explicitly,
+The first successful durable run reports its subjects `new` and exits `0`:
+nothing moved, and nothing is approved either. Review the generated candidates, accept the intended subject ids explicitly,
 then rerun. An unchanged run exits `0`; a configuration, browser, collector, or
 store failure exits `2`.
 
@@ -148,8 +148,8 @@ variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--root <path>] [--format text|markdown|json]
-variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] [--root <path>] [--format text|markdown|json]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
+variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -533,7 +533,7 @@ now is listed, and so is each region they entered for the first time:
 ```text
 Against the run before it: 1 lost.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
-src/checkout/total.test.ts now enters 0 regions it did not, and no longer enters 1.
+src/checkout/total.test.ts no longer enters applyDiscount in src/checkout/total.ts (1 region).
 ```
 
 The words are the ones `--against` uses below.
@@ -633,12 +633,15 @@ Against base/coverage.bin.cases.bin at 3f9e21c07a44: 1 lost, 1 hidden, 2 gained.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
   hidden   src/checkout/tax.ts 12-30 function taxFor — was tax.test.ts > rounds; stopped: tax.test.ts > rounds
   ...
-src/checkout/total.test.ts now enters 2 regions it did not, and no longer enters 1.
+src/checkout/total.test.ts now enters formatTotal in src/checkout/format.ts (2 regions), and no longer enters applyDiscount in src/checkout/total.ts (1 region).
 ```
 
 A region is matched across the two by its place in the module's tree, not by
 its lines, so a function your change moved down the file is still the same
-function. Each region whose cases moved is one of four:
+function. Siblings of one name, such as three `.filter` callbacks in one
+function, are told apart by their cases first, so deleting one of them does not
+read as the others losing and gaining theirs; the answer counts those it paired
+this way as renumbered. Each region whose cases moved is one of four:
 
 - **lost**: cases walked it at the base, none do now, and every case that could
   have reached it finished. This is a regression.
@@ -767,6 +770,26 @@ suite, and review after it:
     npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
+In the markdown, the test files whose reach moved are also drawn as a Mermaid
+diagram: a test file on the left, a directory of the code it runs on the right,
+and each edge counts the functions it now enters or no longer enters. The same
+lines as the text follow it, folded.
+
+A comment shows part of the answer, and `review.json` holds all of it. Upload
+the `--out` directory as an artifact, and anyone with the GitHub CLI can print
+the whole review in their own terminal:
+
+```bash
+variance review --from-run https://github.com/acme/shop/actions/runs/36531792356
+```
+
+`--from-run` takes a run id or the URL of a run or one of its jobs. It runs
+`gh run download` for the artifact `variance-review`, or the one `--artifact`
+names, and prints the `review.json` inside in the format asked for. The review
+is the one the run made, so `--since`, `--against`, `--suite` and `--out` are
+refused beside it. When `gh` is not installed, or the artifact has expired, the
+message says which.
+
 A suite split over several invocations at one commit keeps the base's cases for
 every file any of them ran. Once an invocation runs a file a second time, that
 file's replaced cases are this commit's own, and the review no longer names a
@@ -819,10 +842,10 @@ add up to the change:
 
 ```text
 coverage at 7556a03a against each suite's base — 4,812 regions (4,790 at the base) in 311 files the suites loaded
-  any suite           4,310 -> 4,356  90.0% -> 90.5%
-    checkout  e2e     3,832 -> 3,900  80.0% -> 81.0%  gained 51 · lost 2 · written 22, 19 run
-    stories   visual  1,437 ->   718  30.0% -> 14.9%  lost 716 · hidden 3
-    unit      unit    3,353 -> 3,352  70.0% -> 69.7%  gained 4 · lost 9 · written 22, 4 run
+  any suite           4,310 → 4,356  90.0% → 90.5%
+    checkout  e2e     3,832 → 3,900  80.0% → 81.0%  gained 51 · lost 2 · written 22, 19 run
+    stories   visual  1,437 →   718  30.0% → 14.9%  lost 716 · hidden 3
+    unit      unit    3,353 → 3,352  70.0% → 69.7%  gained 4 · lost 9 · written 22, 4 run
   stories: src/checkout.stories.tsx no longer runs 716 regions it ran at the base
 ```
 
@@ -840,6 +863,72 @@ case index instead. The comparison is printed only when every recorded suite has
 a base, because every share is taken over the regions all the suites loaded,
 and a suite missing from the base changes that total for all of them. Each
 suite with no base is named with the reason.
+
+A record holds only the modules some suite loaded, so a file that no suite
+loaded is in no record. `coverage` reads the rest from the
+[source index](../../docs/cache.md), which stores the size of every JavaScript
+and TypeScript file it parsed: its bytes, the lines that hold code, the regions the recording would
+cut it into, and how many names it exports. The files no suite recorded are
+listed by directory, and the share is printed again over every region in the
+source:
+
+```text
+source: 338 files reached from the entry points of packages/apps/main
+  before reach                     4 files   212 lines    61 regions
+  recorded by no suite             27 files  1,203 lines  388 regions
+    packages/apps/main/src/legacy  12 files  610 lines    201 regions
+    packages/apps/main/src/admin   9 files   402 lines    131 regions
+    libs/ui/charts                 6 files   191 lines    56 regions
+  total coverage for 4,417 of the 5,261 regions: 84.0%, 1.4% before reach
+```
+
+Tests, `*.config.*` files and declaration files are not source here, because no
+recording instruments them.
+
+*Before reach* is what the test harness loads: the files the runner's config
+reaches through its imports, as the recording names it
+([changes before and beyond reach](../../docs/changes-before-and-beyond.md)).
+Only the part of it the scope's entry points reach is counted, so the config
+itself is in no scope. Those files ran under every test and no record holds a
+region of them, so the second share counts them as run and says how much of
+the run they are: code every test runs and no test is aimed at.
+`--format json` names every file.
+
+Without `--from`, the source is what every declared directory's entry points
+reach, and a table under the share gives each directory a row; a file none of
+them reaches is not counted. With no entry points declared, the source is every
+file the index holds. `--from <dir>` counts one part of a repository on its own. The
+source is then what the directory's entry points import, followed through every
+import, so a shared package the application imports is counted with it and a
+sibling application is not. Every count above the source lines is narrowed to
+the same files. The root `variance.config.json` declares the entry points, as
+paths relative to each directory, where `*` matches within one path segment and
+`**` matches any number of segments:
+
+```json
+{
+  "entrypoints": {
+    "packages/apps/main": ["src/main.tsx"],
+    "packages/apps/next": ["app/**"]
+  }
+}
+```
+
+A directory with no entry points declared starts from every file under it, and
+the first line says so. A pattern that matches no file is named.
+
+`--packages` gives every workspace the root `package.json` names a row of that
+table:
+
+```text
+                  own     before reach  with imports  before reach
+  packages/cli    81.9%   0.0%          85.7%         1.1%
+  packages/sense  59.5%   3.3%          65.3%         3.2%
+```
+
+*Own* counts the package's own files. *With imports* counts everything its
+files reach, including the other workspaces they import. Each is followed by
+how much of what ran is before reach.
 
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever

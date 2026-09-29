@@ -29,6 +29,9 @@ pub(crate) struct Parses<'a> {
     declares_present: &'a [u8],
     unknown: U32s<'a>,
     harvested: &'a [u8],
+    bytes: U32s<'a>,
+    lines: U32s<'a>,
+    blocks: U32s<'a>,
     pub request_value: U32s<'a>,
     pub request_kind: U32s<'a>,
     pub request_line: U32s<'a>,
@@ -86,6 +89,9 @@ impl<'a> Parses<'a> {
             declares_present: stored.u8s("parses.declares-present")?,
             unknown: u32s("parses.unknown")?,
             harvested: stored.u8s("parses.harvested")?,
+            bytes: u32s("parses.bytes")?,
+            lines: u32s("parses.lines")?,
+            blocks: u32s("parses.blocks")?,
             request_kind: u32s("requests.kind")?,
             request_line: u32s("requests.line")?,
             request_bindings: stored.offsets("requests.bindings", request_value.len(), binding_imported.len())?,
@@ -130,6 +136,9 @@ impl<'a> Parses<'a> {
             ("parses.declares-present", self.declares_present.len()),
             ("parses.unknown", self.unknown.len()),
             ("parses.harvested", self.harvested.len()),
+            ("parses.bytes", self.bytes.len()),
+            ("parses.lines", self.lines.len()),
+            ("parses.blocks", self.blocks.len()),
         ])?;
         same_length(self.deleted.len(), &[("parses.deleted-way", self.deleted_way.len())])?;
         same_length(self.request_value.len(), &[
@@ -289,5 +298,13 @@ impl ParseRow for ParseView<'_, '_> {
 
     fn harvested(&self) -> bool {
         flag(self.columns.harvested, self.row)
+    }
+
+    fn size(&self) -> Option<crate::source_size::Size> {
+        use crate::segment::NONE;
+        let (bytes, lines, blocks) =
+            (self.columns.bytes.at(self.row), self.columns.lines.at(self.row), self.columns.blocks.at(self.row));
+        (bytes != NONE && lines != NONE)
+            .then(|| crate::source_size::Size { bytes, lines, blocks: (blocks != NONE).then_some(blocks) })
     }
 }

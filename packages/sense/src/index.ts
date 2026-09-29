@@ -42,6 +42,7 @@ export {
   type Parsed,
   type ParseCache,
   type PersistentParseCache,
+  type SourceSize,
 } from './cache.js';
 export type { SourceSymbol, SourceSymbolKind, TextSpan } from './harvest.js';
 export { enrichSources, type HarvestSubject } from './enrich.js';
@@ -74,6 +75,8 @@ export {
   type SourceUpdateOptions,
 } from './published.js';
 export type { SourceIndexState } from './source-index-file.js';
+
+export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } from './source-scope.js';
 
 export {
   packagesAround,

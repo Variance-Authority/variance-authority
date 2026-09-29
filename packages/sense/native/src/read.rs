@@ -13,6 +13,7 @@ use serde::Serialize;
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
 use crate::members::{members_in, Member};
 use crate::mocks::{mocks_in, Mocks};
+use crate::source_size::{size_of, Size};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -93,6 +94,8 @@ pub struct Read {
     pub(crate) members: Vec<Member>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) size: Option<Size>,
 }
 
 pub(crate) struct Lines(Vec<usize>);
@@ -307,6 +310,8 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
     }
 
     let members = members_in(&parsed.program, &lines, &requests, &dynamic);
+    let clean = !parsed.panicked && parsed.diagnostics.is_empty();
+    let size = size_of(source, &parsed.program, source_type.is_typescript(), clean);
     Read {
         requests,
         exports,
@@ -316,6 +321,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         mocks: mocks_in(source, &parsed.program),
         members,
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
+        size: Some(size),
     }
 }
 
