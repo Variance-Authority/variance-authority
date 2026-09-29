@@ -1,12 +1,13 @@
 import { afterAll, expect, it } from 'vitest';
-import { JOBS, PACKAGES } from './dependency-jobs.js';
-import { workspaceOf } from './dependency-jobs-fixture.js';
+import { INVENTED_JOBS, INVENTED_PACKAGES } from './__fixtures__/invented-packages.js';
+import { inventedWorkspace } from './__fixtures__/invented-workspace.js';
 import { queryDependencyLexicon } from './dependency-lexicon.js';
 
 // compass: variance-authority.report.agent-surface
 
 /**
- * Described jobs against packages as they publish themselves. A count gates: how
+ * Described jobs against INVENTED packages (see `__fixtures__/invented-packages.ts`),
+ * so this measures the ranking and not how real packages read. A count gates: how
  * many of the jobs reach the package that should answer them, and how many have
  * it first. Both are printed, so a change to the ranking moves a number a
  * reviewer can read.
@@ -22,18 +23,18 @@ afterAll(() => {
 const TOP = 3;
 
 it('reaches the package that should answer a described job', async () => {
-  expect(JOBS.length).toBeGreaterThanOrEqual(20);
-  const root = await workspaceOf(PACKAGES, PACKAGES.map((item) => item.name));
+  expect(INVENTED_JOBS.length).toBeGreaterThanOrEqual(20);
+  const root = await inventedWorkspace(INVENTED_PACKAGES, INVENTED_PACKAGES.map((item) => item.name));
   let reached = 0;
   let first = 0;
   const missed: string[] = [];
-  for (const { job, expects } of JOBS) {
+  for (const { job, expects } of INVENTED_JOBS) {
     const packages = (queryDependencyLexicon(root, job)?.described ?? []).map((hit) => hit.package);
     if (packages.slice(0, TOP).includes(expects)) reached += 1;
     else missed.push(`${job} -> ${expects}, got ${packages.slice(0, TOP).join(', ') || 'nothing'}`);
     if (packages[0] === expects) first += 1;
   }
-  console.log(`described jobs: ${reached}/${JOBS.length} reach the expected package in the first ${TOP}; ${first}/${JOBS.length} have it first`);
+  console.log(`described jobs: ${reached}/${INVENTED_JOBS.length} reach the expected package in the first ${TOP}; ${first}/${INVENTED_JOBS.length} have it first`);
   expect(missed).toEqual([]);
-  expect(first).toBeGreaterThanOrEqual(Math.ceil(JOBS.length * 0.8));
+  expect(first).toBeGreaterThanOrEqual(Math.ceil(INVENTED_JOBS.length * 0.8));
 }, 120_000);

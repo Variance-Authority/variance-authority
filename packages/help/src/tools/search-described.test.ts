@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
-import { PACKAGES } from '../dependency-jobs.js';
-import { workspaceOf } from '../dependency-jobs-fixture.js';
+import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
+import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { answerSearch, searchIndexOf } from './search.js';
 
@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 it('reaches react from "state management", answers an undescribed job empty with its scope, and reads the words at refresh', async () => {
-  const root = await workspaceOf(PACKAGES, ['react']);
+  const root = await inventedWorkspace(INVENTED_PACKAGES, ['react']);
   const help = readHelp(root);
   const said = (query: string): string => answerSearch(searchIndexOf(help), { query }, treeOf([], root), root);
 

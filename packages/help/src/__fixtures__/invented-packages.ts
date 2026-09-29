@@ -1,9 +1,9 @@
 /**
- * Twenty-four jobs an agent might describe, each with the package that should
- * answer it, over packages as they publish themselves: a description, keywords,
- * README headings and a few exported names. The fixture is the corpus the
- * measurement runs against, so a change to how a described job is ranked moves
- * a number instead of a feeling.
+ * INVENTED packages, not installs: each is a description, keywords, README
+ * headings and a few exported names written by hand in the shape a package
+ * publishes them, named after a well-known package. None is the published text.
+ * Twenty-four jobs an agent might describe follow, each with the package that
+ * should answer it, so a change to how a described job is ranked moves a number.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -17,7 +17,7 @@ export interface FixturePackage {
   readonly names?: Readonly<Record<string, string>>;
 }
 
-export const PACKAGES: readonly FixturePackage[] = [
+export const INVENTED_PACKAGES: readonly FixturePackage[] = [
   { name: 'react', description: 'React is a JavaScript library for building user interfaces.', keywords: ['react'],
     names: { useState: 'Returns a stateful value, and a function to update it.', useEffect: 'Accepts a function that contains imperative code.', useReducer: 'An alternative to useState for state logic.' } },
   { name: 'redux', description: 'Predictable state container for JavaScript apps', keywords: ['redux', 'state', 'predictable', 'functional', 'flux'], headings: ['Installation', 'Basic Example'] },
@@ -48,7 +48,7 @@ export const PACKAGES: readonly FixturePackage[] = [
 ];
 
 /** What each described job should reach. */
-export const JOBS: readonly { readonly job: string; readonly expects: string }[] = [
+export const INVENTED_JOBS: readonly { readonly job: string; readonly expects: string }[] = [
   { job: 'state management', expects: 'redux' },
   { job: 'validate a schema', expects: 'zod' },
   { job: 'make http requests', expects: 'axios' },

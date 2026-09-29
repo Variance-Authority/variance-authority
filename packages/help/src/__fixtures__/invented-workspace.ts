@@ -3,17 +3,17 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { updateSourceIndex } from '@variance-authority/sense';
-import type { FixturePackage } from './dependency-jobs.js';
-import { refreshDependencyLexicon } from './dependency-lexicon.js';
+import type { FixturePackage } from './invented-packages.js';
+import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 
 // compass: variance-authority.report.agent-surface
 
 /**
- * A checkout whose one workspace declares `declared` and whose `node_modules`
+ * A checkout of INVENTED packages: a checkout whose one workspace declares `declared` and whose `node_modules`
  * holds each of `packages` as it publishes itself, indexed and refreshed the way
  * `variance index` does. Points the cache at a directory of its own.
  */
-export async function workspaceOf(packages: readonly FixturePackage[], declared: readonly string[]): Promise<string> {
+export async function inventedWorkspace(packages: readonly FixturePackage[], declared: readonly string[]): Promise<string> {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-jobs-cache-'));
   const root = mkdtempSync(join(tmpdir(), 'va-jobs-fixture-'));
   execFileSync('git', ['init', '--quiet', root]);
