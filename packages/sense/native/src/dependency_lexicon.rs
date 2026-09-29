@@ -120,6 +120,8 @@ pub struct LexiconRefresh {
     pub entrypoints: u32,
     pub reused: u32,
     pub unavailable: u32,
+    /// Entries that resolved to no entrypoint; absent when nothing was read to count them.
+    pub unresolved: Option<u32>,
     /// True when the chain and the installed files were where the last refresh left them, and nothing was read.
     pub unchanged: bool,
 }
@@ -377,7 +379,7 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
     let held = built::read(lexicon_path, VERSION);
     if let (Some(held), Some(chain)) = (held.as_ref(), chain.as_ref()) {
         if built::holds(root_path, held, chain) {
-            return Ok(LexiconRefresh { path, packages: held.packages, entrypoints: held.entrypoints, reused: held.reusable, unavailable: held.unavailable, unchanged: true });
+            return Ok(LexiconRefresh { path, packages: held.packages, entrypoints: held.entrypoints, reused: held.reusable, unavailable: held.unavailable, unresolved: None, unchanged: true });
         }
     }
     let has_index = Path::new(&index).exists();
@@ -494,5 +496,5 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
         }
         fs::write(built::file(path_ref), bytes).map_err(|error| napi::Error::from_reason(error.to_string()))?;
     }
-    Ok(LexiconRefresh { path, packages: wanted.len() as u32, entrypoints: corpus.entries.len() as u32, reused, unavailable, unchanged: false })
+    Ok(LexiconRefresh { path, packages: wanted.len() as u32, entrypoints: corpus.entries.len() as u32, reused, unavailable, unresolved: Some(corpus.entries.iter().filter(|entry| entry.api.entrypoint.is_none()).count() as u32), unchanged: false })
 }

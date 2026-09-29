@@ -89,8 +89,7 @@ for (const corpus of CORPORA) {
       } finally {
         writeFileSync(edited, original);
       }
-      const lexicon = JSON.parse(readFileSync(path, 'utf8')) as { entries: readonly { api: { entrypoint?: string | null } }[] };
-      const unresolved = lexicon.entries.filter((entry) => entry.api.entrypoint === undefined || entry.api.entrypoint === null).length;
+      const unresolved = warm.value.unresolved ?? 0;
       const asks: Record<string, readonly string[]> = {
         stack: ['ask', 'stack', '--from', corpus.pick],
         search: ['ask', 'search', '--query', corpus.word, '--from', corpus.pick],
