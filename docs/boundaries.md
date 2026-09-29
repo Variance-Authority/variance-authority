@@ -187,6 +187,24 @@ packages named `postoffice-…` lower. Where several ceilings hold a package the
 lowest decides, so a cap written in a subfolder can tighten a folder's ceiling
 and never loosen it. `maxLayer` is a whole number from 1.
 
+A ceiling constrains the layer a package ends up with, not only the imports
+written inside it. If a package lower in the graph gets deeper, every package
+above it may get deeper too, so a capped package can fail although none of its
+own files changed. This is what the rule says: `maxLayer` is how deep that
+package may become, whichever dependency made it deeper. The ceiling follows
+the package, not the edit that moved its layer.
+
+```
+payments   layer 5, maxLayer 5
+   ↓
+ledger     layer 4
+```
+
+If `ledger` takes a new import and moves from layer 4 to 5, `payments` moves
+from 5 to 6 without an edit, and `variance restrictions` reports it above its
+ceiling. `variance layers` shows the same edit in the pull request that made
+it, with `ledger` as the cause and `payments` as carried.
+
 `variance restrictions` lists each package above its ceiling with its layer,
 the ceiling and the file that states it, and exits 1, like a restricted
 import. The layer is the same repository-wide number `variance layers` prints,

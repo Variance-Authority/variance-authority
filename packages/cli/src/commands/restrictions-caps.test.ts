@@ -64,6 +64,16 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 }
 
 describe('variance restrictions with a maxLayer', () => {
+  it('refuses an entry that mixes a ceiling with an import rule instead of dropping half of it', async () => {
+    checkout([{ from: '.', to: '.', type: 'restricted', for: '.', maxLayer: 5 }]);
+    await run(['index']);
+
+    const refused = await run(['restrictions']);
+
+    expect(refused.code).toBe(EXIT_OPERATOR);
+    expect(refused.err).toContain('does not take `from`, `to`, `type`');
+  });
+
   it('names each package above its ceiling with the layer, the ceiling, the message and the file, and exits 1', async () => {
     checkout([{ for: 'packages', maxLayer: 4, message: 'keep the tree shallow' }]);
     await run(['index']);

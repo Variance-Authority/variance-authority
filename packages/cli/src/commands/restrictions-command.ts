@@ -55,6 +55,10 @@ function parseRules(path: string, text: string): { rules: RelationRule[]; caps: 
   listed.forEach((rule, at) => {
     const entry = rule as Record<string, unknown> | null;
     if (entry !== null && (entry['maxLayer'] !== undefined || entry['for'] !== undefined)) {
+      const mixed = ['from', 'to', 'type'].filter((key) => entry[key] !== undefined);
+      if (mixed.length > 0) {
+        throw new OperatorError(`${path}, rule ${at + 1}: a layer ceiling (\`for\`, \`maxLayer\`) does not take ${mixed.map((key) => `\`${key}\``).join(', ')}; write the import rule as its own entry.`);
+      }
       caps.push(parseCap(path, at, entry));
     } else {
       rules.push(parseRule(path, at, entry));

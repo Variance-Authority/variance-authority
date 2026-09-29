@@ -138,8 +138,11 @@ export function restrictedImports(records: readonly FileRecord[], files: readonl
   return found.sort((a, b) => byCodeUnit(a.from, b.from) || byCodeUnit(a.to, b.to));
 }
 
-// TODO: a floor on the layer of what a package may import (`toLayerBelow`) is not written; the layer of a
-// target moves when the target's own imports change, so it would fail a build for an edit elsewhere.
+// TODO: a constraint on the layer of an imported target (`toLayerBelow`) is deliberately not implemented.
+// `maxLayer` constrains a property of the package the rule names, so a change anywhere in its transitive
+// dependencies may legitimately push that package over its ceiling. A target-layer rule would instead make
+// an unchanged import invalid solely because the imported package changed its own dependency depth,
+// coupling the import policy to a mutable property of another package.
 
 /**
  * Every package above a ceiling that names it, in code-unit order. Every file

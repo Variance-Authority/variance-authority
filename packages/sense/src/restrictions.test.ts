@@ -141,6 +141,14 @@ describe('a ceiling on the layer of a package', () => {
     ]);
   });
 
+  it('fails a capped package when a dependency below it makes its derived layer exceed the ceiling', () => {
+    const files: RuleFile[] = [{ directory: 'packages', rules: [], caps: [{ for: 'payments', maxLayer: 5 }] }];
+    const at = (ledger: number, payments: number) => [layer('ledger', ledger), layer('payments', payments)];
+
+    expect(cappedLayers(at(4, 5), files)).toEqual([]);
+    expect(cappedLayers(at(5, 6), files).map((v) => `${v.package} ${v.layer}>${v.maxLayer}`)).toEqual(['payments 6>5']);
+  });
+
   it('finds nothing without ceilings', () => {
     expect(listed([{ directory: '', rules: [] }])).toEqual([]);
   });
