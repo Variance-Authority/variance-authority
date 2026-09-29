@@ -4,7 +4,7 @@ import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
-import { thirdLine, thirdScope } from './third-party.js';
+import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { ExportedMatch, PublishedMatch } from './search-answer.js';
 import { searched } from './search-answer.js';
 
@@ -139,6 +139,18 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
     ...third.shown.map(thirdLine),
     ...(third.total > third.shown.length ? [`\n${third.total - third.shown.length} more not shown.`] : []),
   ];
+  const described = third?.described ?? [];
+  const describedSection =
+    described.length === 0
+      ? []
+      : [
+          '',
+          `${third?.describedTotal ?? described.length} ${(third?.describedTotal ?? described.length) === 1 ? 'package describes' : 'packages describe'} \`${query}\` in ` +
+            'their own words or the words of their names, best first:',
+          '',
+          ...described.map(describedLine),
+          ...((third?.describedTotal ?? 0) > described.length ? [`\n${(third?.describedTotal ?? 0) - described.length} more not shown.`] : []),
+        ];
   const seenLoosely = (answer.loose?.shown ?? []).map(matchLine);
   const looseSection =
     looser === 0
@@ -156,12 +168,12 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   // where the tool looked has been handed a fact they cannot place.
   const where = area === undefined ? [] : [areaLine(area), ''];
 
-  if (found.total === 0 && rest.total === 0 && (third?.total ?? 0) === 0) {
+  if (found.total === 0 && rest.total === 0 && (third?.total ?? 0) === 0 && described.length === 0) {
     const nowhere =
       area === undefined
         ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    return [...where, nowhere, ...thirdSection, ...looseSection, ...missing].join('\n');
+    return [...where, nowhere, ...thirdSection, ...describedSection, ...looseSection, ...missing].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,
@@ -179,7 +191,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
           ...more,
         ];
 
-  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...thirdSection, ...looseSection, ...missing].join('\n');
+  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...thirdSection, ...describedSection, ...looseSection, ...missing].join('\n');
 
   const hidden = rest.total > rest.shown.length ? [`\n${rest.total - rest.shown.length} more not shown.`] : [];
 
@@ -192,6 +204,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
     ...rest.shown.map(exportedLine),
     ...hidden,
     ...thirdSection,
+    ...describedSection,
     ...looseSection,
     ...missing,
   ].join('\n');
@@ -215,7 +228,9 @@ export const search: Tool<Help> = {
     'come first, ordered by how many packages import them, each carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them. Installed third-party ' +
-    'names appear separately when the third-party API catalogue is published. Names that match only ' +
+    'names appear separately when the third-party API catalogue is published, followed by the installed ' +
+    'packages that describe your words — in their own description, keywords and README headings, or in ' +
+    'the words of their names — so a job reaches a package by what it does. Names that match only ' +
     'loosely — your words apart, or within a character of the ones written — are listed last and ' +
     'labelled, never mixed in. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
@@ -224,8 +239,8 @@ export const search: Tool<Help> = {
     'for files that reach a known dependency. Both traverse the resolved module graph at any ' +
     'depth. Internal exports are filtered by their declaring file; third-party names are limited ' +
     'to packages available to workspaces in that closure. An empty ' +
-    'answer is a fact about the area. Matching is the substring you typed and nothing else — no ' +
-    'synonyms, no stemming, no model — so a repository that calls sign-in `CredentialGate` is ' +
+    'answer is a fact about the area. Names match the substring you typed and nothing else — no ' +
+    'synonyms, no model; only the package descriptions above are read by word stem — so a repository that calls sign-in `CredentialGate` is ' +
     'not reached by `auth`. Supplying the likely vocabulary is your half: when a query matches ' +
     'nothing, ask again with another candidate name rather than a longer description of the ' +
     'same idea.',

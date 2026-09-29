@@ -7,6 +7,7 @@ use std::path::Path;
 use napi_derive::napi;
 use serde::Serialize;
 
+use super::describing::{described, Described};
 use super::{Api, Lexicon, Readme};
 
 #[derive(Clone, Serialize)]
@@ -58,7 +59,14 @@ struct Silent {
 
 /// `silent` is asked for by an exact name only: a search over words has no name to be silent about.
 #[derive(Serialize)]
-struct Matches { total: u32, shown: Vec<Match>, silent: Vec<Silent>, scope: Scope }
+struct Matches {
+    total: u32, shown: Vec<Match>, silent: Vec<Silent>, scope: Scope,
+    /// Packages whose own words describe the question, asked for by words rather than one name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    described: Option<Vec<Described>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    described_total: Option<u32>,
+}
 
 /// What the question searched, so an empty answer says how much it looked at.
 #[derive(Serialize)]
@@ -127,7 +135,7 @@ pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<S
     };
     let lexicon: Lexicon = serde_json::from_slice(&bytes)
         .map_err(|error| napi::Error::from_reason(format!("the dependency lexicon did not read: {error}")))?;
-    if !matches!(lexicon.version, 4..=6) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
+    if !matches!(lexicon.version, 4..=7) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
     let allowed = files.as_ref().map(|files| owners(&lexicon, files));
     let entries: HashMap<&str, &Api> = lexicon.entries.iter().map(|entry| (entry.id.as_str(), &entry.api)).collect();
     let query = if exact { query } else { query.to_lowercase() };
@@ -135,12 +143,14 @@ pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<S
     let mut searched = HashMap::<(&str, &str), Vec<Match>>::new();
     let mut silent = BTreeMap::<(String, String), Silent>::new();
     let mut looked = (BTreeSet::<&str>::new(), BTreeSet::<&str>::new());
+    let mut read = Vec::new();
     for row in &lexicon.availability {
         if allowed.as_ref().is_some_and(|owners| !owners.contains(row.owner.as_str())) { continue; }
         if package.as_ref().is_some_and(|wanted| wanted != &row.package && wanted != &row.specifier) { continue; }
         let Some(api) = entries.get(row.entry.as_str()) else { continue };
         looked.0.insert(row.owner.as_str());
         looked.1.insert(row.package.as_str());
+        read.push((row, *api));
         if let (true, Some(reason)) = (exact, api.unavailable.as_ref()) {
             let key = (row.entry.clone(), row.specifier.clone());
             let imported = row.imported == Some(true);
@@ -170,7 +180,9 @@ pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<S
     shown.sort_by(|a, b| b.imported.cmp(&a.imported)
         .then_with(|| (&a.specifier, &a.name, &a.kind).cmp(&(&b.specifier, &b.name, &b.kind))));
     shown.truncate(limit as usize);
-    let answer = serde_json::to_string(&Matches { total, shown, silent: silent.into_values().collect(),
+    let words = if exact { None } else { described(&query, read.iter().copied(), limit as usize) };
+    let (described_total, described) = match words { Some((total, shown)) => (Some(total), Some(shown)), None => (None, None) };
+    let answer = serde_json::to_string(&Matches { total, shown, silent: silent.into_values().collect(), described, described_total,
         scope: Scope { owners: looked.0.into_iter().map(str::to_owned).collect(), packages: looked.1.len() as u32,
             location: allowed.map(|allowed| { let mut held: Vec<String> = allowed.into_iter().map(str::to_owned).collect(); held.sort_unstable(); held }) } })
         .map_err(|error| napi::Error::from_reason(error.to_string()))?;

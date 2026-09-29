@@ -36,7 +36,7 @@ export interface LexiconAvailability {
 }
 export interface LexiconIssue { readonly owner: string; readonly package: string; readonly reason: string }
 export interface DependencyLexicon {
-  readonly version: 4 | 5 | 6;
+  readonly version: 4 | 5 | 6 | 7;
   readonly refreshedAt: string;
   readonly entries: readonly LexiconEntry[];
   readonly availability: readonly LexiconAvailability[];
@@ -50,7 +50,7 @@ export function readDependencyLexicon(root: string): { readonly path: string; re
   const path = pathOf(root);
   try {
     const value: unknown = JSON.parse(readFileSync(path, 'utf8'));
-    if (typeof value !== 'object' || value === null || ![4, 5, 6].includes((value as Partial<DependencyLexicon>).version ?? 0)
+    if (typeof value !== 'object' || value === null || ![4, 5, 6, 7].includes((value as Partial<DependencyLexicon>).version ?? 0)
       || !Array.isArray((value as Partial<DependencyLexicon>).entries)
       || !Array.isArray((value as Partial<DependencyLexicon>).availability)) return { path };
     return { path, lexicon: value as DependencyLexicon };
@@ -86,11 +86,25 @@ export interface LexiconScope {
   /** The manifests that own the paths the question stood at; absent when it stood nowhere. */
   readonly location?: readonly string[];
 }
+/** A package whose own words, or the words of its names, hold what a described job asked for. */
+export interface DescribedPackage {
+  readonly package: string; readonly specifier: string; readonly version?: string;
+  readonly manifest: string; readonly declaredAs?: 'dependency' | 'optional' | 'peer' | 'dev';
+  readonly imports?: number; readonly site?: string; readonly imported: boolean;
+  /** The question's words the package holds. */
+  readonly words: readonly string[];
+  /** How many of them the package says about itself rather than through a name. */
+  readonly said: number;
+  readonly description?: string;
+}
 export interface LexiconMatches {
   readonly total: number; readonly shown: readonly ThirdPartyMatch[];
   readonly scope: LexiconScope;
   /** Present on an exact question; a lexicon written before READMEs were recorded lists the packages without one. */
   readonly silent?: readonly SilentPackage[];
+  /** Present on a question by words: the packages that describe it, best first, under a lexicon that recorded what packages say. */
+  readonly described?: readonly DescribedPackage[];
+  readonly describedTotal?: number;
 }
 
 /** Return names the native lexicon found, or absence when it is unpublished. */
