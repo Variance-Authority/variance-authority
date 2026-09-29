@@ -240,6 +240,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   orientPackages?(root: string, index: string, files: string[], rows: number, names: number): NativeOrientation | null;
   /** Both of the above from one read of the chain and one listing of the tree; `null` when no index is published. */
   orientAround?(root: string, index: string, files: string[], packageRows: number, packageNames: number, externalRows: number, externalSites: number): { packages: NativeOrientation; external: NativeExternalOrientation } | null;
+  /** The published path graph (`variance-authority-source-tree` bytes) folded from the chain at `index`; `null` when none was published. */
+  encodeSourceTreeFromIndex?(index: string): Uint8Array | null;
   /** Indexed external requests from `files`; `null` when no index is published. */
   externalDependencies?(root: string, index: string, files: string[], rows: number, sites: number): NativeExternalOrientation | null;
   /** For each of `files`, the cases in the journey file at `file` that ran it. */

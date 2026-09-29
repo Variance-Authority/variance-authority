@@ -47,7 +47,7 @@ export interface PackagesAround {
   readonly orientation?: NativeOrientation;
 }
 
-function entry<Name extends 'orientPackages' | 'orientAround' | 'externalDependencies' | 'casesEntered'>(name: Name) {
+function entry<Name extends 'orientPackages' | 'orientAround' | 'encodeSourceTreeFromIndex' | 'externalDependencies' | 'casesEntered'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -133,4 +133,9 @@ export function recordedCases(root: string, files: readonly string[], titles: nu
       return { ...named, recording, unread: error instanceof Error ? error.message : String(error) };
     }
   });
+}
+
+/** The path graph of the published index, encoded by the native scanner; `null` when no index was published. */
+export function sourceTreeBytes(root: string): Uint8Array | null {
+  return entry('encodeSourceTreeFromIndex')(sourceIndexPath(root));
 }
