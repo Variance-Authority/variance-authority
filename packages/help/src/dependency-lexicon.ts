@@ -1,7 +1,7 @@
 /** The Rust-published third-party lexicon, read by help questions. */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { queryDependencyLexiconNative, refreshDependencyLexiconNative, sourceIndexPath } from '@variance-authority/sense';
+import { dependencyStackNative, queryDependencyLexiconNative, refreshDependencyLexiconNative, sourceIndexPath } from '@variance-authority/sense';
 
 export interface DependencyApiName {
   readonly name: string; readonly kind: string; readonly at: string; readonly line: number;
@@ -98,4 +98,28 @@ export function queryDependencyLexicon(root: string, query: string, files?: read
   exact = false, packageName?: string, limit = 20): LexiconMatches | undefined {
   const answer = queryDependencyLexiconNative(root, query, files, exact, packageName, limit);
   return answer === undefined ? undefined : JSON.parse(answer) as LexiconMatches;
+}
+
+/** One package usable at a location, as the owning manifest reads it. */
+export interface StackRow {
+  readonly package: string; readonly manifest: string;
+  readonly role: 'runtime' | 'dev' | 'types-only';
+  readonly declaredAs?: 'dependency' | 'optional' | 'peer' | 'dev';
+  readonly version?: string;
+  /** `unread` when the source index was not read for the owner, which is not the same as no imports. */
+  readonly state: 'imported' | 'unused' | 'unread';
+  readonly imports?: number; readonly site?: string; readonly specifiers: number;
+}
+export interface Stack {
+  readonly location: readonly string[]; readonly total: number;
+  readonly imported: number; readonly unused: number; readonly unread: number;
+  readonly offset: number; readonly remaining: number;
+  readonly rows: readonly StackRow[];
+  readonly unreadable: readonly { readonly manifest: string; readonly package: string; readonly reason: string }[];
+}
+
+/** Every package usable at `files`, imported first, one page; absent when the lexicon is unpublished. */
+export function dependencyStack(root: string, files: readonly string[], offset = 0, limit = 40): Stack | undefined {
+  const answer = dependencyStackNative(root, files, offset, limit);
+  return answer === undefined ? undefined : JSON.parse(answer) as Stack;
 }

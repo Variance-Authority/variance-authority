@@ -1008,6 +1008,7 @@
         "sharedSegments": "function",
         "slowestTests": "const",
         "specifierOf": "function",
+        "stack": "const",
         "symbol": "const",
         "unfound": "function",
         "uses": "const"
@@ -2473,6 +2474,7 @@
         "auditTaints": "function",
         "codeMapPage": "function",
         "dependenciesAround": "function",
+        "dependencyStackNative": "function",
         "enrichSources": "function",
         "fileSizes": "function",
         "forksBetween": "function",

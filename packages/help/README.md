@@ -80,7 +80,7 @@ npx variance-authority-help search viewport --from packages/app/ --just-answer
 ```
 
 Nine verbs, each taking the same arguments as the tool of the same name below:
-`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `orient`, `slowest-tests`, `gaps`. An entrypoint is
+`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `orient`, `slowest-tests`, `stack`, `gaps`. An entrypoint is
 one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
@@ -335,7 +335,7 @@ npx variance-authority-help .
 ```
 
 The nine tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
-`docs_uses`, `docs_search`, `docs_grep`, `docs_orient`, `docs_slowest_tests` and `docs_gaps`, and they answer in the
+`docs_uses`, `docs_search`, `docs_grep`, `docs_orient`, `docs_slowest_tests`, `docs_stack` and `docs_gaps`, and they answer in the
 same words as the nine verbs above. `variance serve` serves the same nine under the same names,
 so a workspace with the CLI declares one server and asks it about both the run
 and the source.

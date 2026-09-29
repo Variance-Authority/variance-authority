@@ -103,6 +103,8 @@ export interface ParsedAsk {
   /** Use the last published source generation without inspecting the checkout. */
   readonly justAnswer?: boolean;
   readonly limit?: number;
+  /** `--offset <n>`: rows to skip, for a question that pages. */
+  readonly offset?: number;
   /**
    * `--at <address>`: a running watcher to ask, instead of the last report.
    *
@@ -154,6 +156,11 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const taintFile = flags.values.get('--taint-file');
   const justAnswer = flags.present.has('--just-answer');
   const limit = countOf(flags.values.get('--limit'), 'tests to list');
+  const said = flags.values.get('--offset');
+  if (said !== undefined && !/^(0|[1-9][0-9]*)$/.test(said)) {
+    throw new OperatorError(`--offset is how many rows to skip and must be a whole number, not \`${said}\``);
+  }
+  const offset = said === undefined ? undefined : Number(said);
   const at = flags.values.get('--at');
   const format = flags.values.get('--format') ?? 'text';
   if (format !== 'text' && format !== 'json') {
@@ -186,6 +193,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(taintFile !== undefined ? { taintFile: resolve(taintFile) } : {}),
     ...(justAnswer ? { justAnswer: true as const } : {}),
     ...(limit !== undefined ? { limit } : {}),
+    ...(offset !== undefined ? { offset } : {}),
     ...(at !== undefined ? { at } : {}),
     ...(format === 'json' ? { format } : {}),
     reports: reports.map((path) => resolve(path)),

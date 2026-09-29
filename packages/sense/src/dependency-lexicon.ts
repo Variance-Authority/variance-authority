@@ -19,3 +19,11 @@ export function queryDependencyLexiconNative(root: string, query: string, files?
   const path = join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json');
   return addon.queryDependencyLexicon(path, query, files === undefined ? null : [...files], exact, packageName ?? null, limit) ?? undefined;
 }
+
+/** Ask the native lexicon for every package usable at `files`, one page of it. */
+export function dependencyStackNative(root: string, files: readonly string[], offset: number, limit: number): string | undefined {
+  const addon = native();
+  if (addon === undefined) throw new Error(`the dependency lexicon requires the native scanner: ${nativeRefusal() ?? 'it is unavailable'}`);
+  const path = join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json');
+  return addon.dependencyStack(path, [...files], offset, limit) ?? undefined;
+}
