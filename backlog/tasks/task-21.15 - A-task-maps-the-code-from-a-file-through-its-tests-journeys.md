@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-28 23:35'
-updated_date: '2026-09-29 04:06'
+updated_date: '2026-09-29 04:11'
 labels: []
 dependencies: []
 parent_task_id: TASK-21
@@ -73,4 +73,6 @@ Hubs and passage (scratchpad hubs.mjs, purpose.mjs, MUI recording):
 Masks landed in Rust (TASK-21.16, ea8e8cf1). The sense addon has journey_masks.rs (every region is a bit and belongs to the smallest function holding it; sets are expanded once; journey sizes), pathsThrough(root, {file,line}) (majority path = passage, minority paths with their smallest case) and forksBetween(root, a, b) (connection, near misses, forks by separation, thin under 3). Results match the JS prototype on this repo and zod, at 4-7 ms per question. On MUI styleFunctionSx the passage is identical (4004 of 4043), with 3 paths instead of 6, because closure branches now belong to the closure. Next limb for this task: the codemap is composed from these calculations. From the file, the task keeps the tests that entered it. For each function in the file, pathsThrough collapses the majority path to one row and expands the minority paths. forksBetween joins the file to what the kept tests reach beyond it. The codemap needs no caller.
 
 journeyMap landed in Rust (journey_map.rs, on the masks from TASK-21.16). journeyMap(root, file, terms?) returns: tests that entered the file; those kept (a case is kept when its test file or name holds any term, ignoring case, or every case when no terms are given), named smallest journey first with alike counts; each function of the file as its paths among the kept cases; beyond the file, structure (entered by at least half the suite) counted against the suite; the spine (entered by more than half the kept cases), nearest first, where nearest is the smallest kept journey that reached the place; and branches (functions entered by exactly the same fewer kept cases), each told by its smallest case. No caller is read. Self-check on journeys.ts in this repo: 65 of 5736 entered, spine 281, structure 0, 9 ms; the terms do the narrowing, as the prototype found. MUI InputBase/utils.js: 735 of 5832 entered, structure 31; the spine is useFormControlState -> InputBase2 -> FormControl, which is the caller the rods lost, found in 8 ms. pathsThrough's smallest.alike is now absent instead of 0, since that answer did not compare whole journeys.
+
+forksBetween also ranks no forks when a side has fewer than 3 near misses. Found by using it: isFilled <-> FormControl useCallback on MUI ranked six regions at 100% off a single near miss.
 <!-- SECTION:NOTES:END -->
