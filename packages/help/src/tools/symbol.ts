@@ -5,6 +5,7 @@ import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
+import { provenance } from './third-party.js';
 
 /**
  * `docs_symbol` — one name, in full.
@@ -49,7 +50,7 @@ export const symbol: Tool<Help> = {
         ...silent,
         ...matches.shown.map((entry) => `${entry.specifier} · ${entry.name} [${entry.kind}]${entry.version === undefined ? '' : ` · ${entry.package}@${entry.version}`}` +
           `${entry.declarationProvider === undefined ? '' : ` · declarations: ${entry.declarationProvider}`}` +
-          `\n${entry.at}:${entry.line}${entry.signature === undefined ? '' : `\n${entry.signature}`}${entry.doc === undefined ? '' : `\n${entry.doc}`}`),
+          `\n${provenance(entry)}\n${entry.at}:${entry.line}${entry.signature === undefined ? '' : `\n${entry.signature}`}${entry.doc === undefined ? '' : `\n${entry.doc}`}`),
         ...(matches.total > matches.shown.length ? [`${matches.total - matches.shown.length} more matches not shown.`] : []),
       ].join('\n\n');
     }

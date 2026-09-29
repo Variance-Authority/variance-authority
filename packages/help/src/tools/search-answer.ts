@@ -4,7 +4,7 @@ import type { SearchIndex } from '../search-index.js';
 import type { Area } from './area.js';
 import { areaOf } from './area.js';
 import { looseNames } from './loose.js';
-import { queryDependencyLexicon, type ThirdPartyMatch } from '../dependency-lexicon.js';
+import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 
 /**
  * What `search` found, before a word of it is written.
@@ -121,7 +121,7 @@ export interface SearchAnswer {
   /** Present only when the exact sections are empty, which is when it runs. */
   readonly loose?: Matches<PublishedMatch | ExportedMatch>;
   /** Installed third-party names available to this workspace or area. */
-  readonly thirdParty?: Matches<ThirdPartyMatch>;
+  readonly thirdParty?: LexiconMatches;
 }
 
 /** The answer, and the resolved area the text renders its header from. */

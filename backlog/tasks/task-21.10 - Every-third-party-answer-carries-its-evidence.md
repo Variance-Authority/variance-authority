@@ -1,10 +1,11 @@
 ---
 id: TASK-21.10
 title: Every third-party answer carries its evidence
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-09-28 03:54'
-updated_date: '2026-09-28 03:55'
+updated_date: '2026-09-29 08:14'
 labels: []
 dependencies:
   - TASK-21.9
@@ -20,8 +21,14 @@ An agent deciding whether to use a dependency needs to see why the answer says i
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Each third-party hit names its declaring manifest, declaration kind and installed version, or says which of them could not be resolved
-- [ ] #2 Each hit says whether the owning area imports the package, with a stable count and one source site
-- [ ] #3 An empty third-party answer names the scope searched and the number of dependencies in it
-- [ ] #4 Output headers say "usable here" only for names that meet the ownership rule of TASK-21.9
+- [x] #1 Each third-party hit names its declaring manifest, declaration kind and installed version, or says which of them could not be resolved
+- [x] #2 Each hit says whether the owning area imports the package, with a stable count and one source site
+- [x] #3 An empty third-party answer names the scope searched and the number of dependencies in it
+- [x] #4 Output headers say "usable here" only for names that meet the ownership rule of TASK-21.9
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Lexicon v6 rows carry declaredAs (dependency/optional/peer/dev), a written-import count and the first site per owner; queries return manifest, declaredAs, imports, site and a scope (manifests read, distinct packages). Types-only packages take their version from the declarations. search and symbol print 'version · declared-as in manifest · imported N× (first file:line) / not imported', unresolved facts said as such. An empty third-party answer names the packages and manifests searched. 'usable from that start point' is only printed for a scoped question (21.9 rule); an unscoped one says 'offered by some manifest in this workspace'. Test: search-third-party.test.ts, dependency-lexicon.test.ts.
+<!-- SECTION:FINAL_SUMMARY:END -->

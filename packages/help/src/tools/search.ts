@@ -4,6 +4,7 @@ import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
+import { thirdLine, thirdScope } from './third-party.js';
 import type { ExportedMatch, PublishedMatch } from './search-answer.js';
 import { searched } from './search-answer.js';
 
@@ -130,9 +131,12 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
   const looser = answer.loose?.total ?? 0;
   const third = answer.thirdParty;
   const missing = root !== undefined && third === undefined ? ['', 'Dependency lexicon not published; run `variance index` to prepare it.'] : [];
-  const thirdSection = third === undefined || third.total === 0 ? [] : [
-    '', `${third.total} available third-party ${third.total === 1 ? 'name' : 'names'} match \`${query}\`:`, '',
-    ...third.shown.map((match) => `${match.specifier} · ${match.name} [${match.kind}]${match.version === undefined ? '' : ` @${match.version}`}${match.imported ? ' · imported in workspace' : ''} — ${match.summary ?? 'UNDOCUMENTED'}`),
+  const thirdSection = third === undefined ? [] : third.total === 0 ? ['', `No third-party name matches \`${query}\`. ${thirdScope(third.scope)}`] : [
+    '',
+    `${third.total} third-party ${third.total === 1 ? 'name' : 'names'} match \`${query}\`, ` +
+      (area === undefined ? 'offered by some manifest in this workspace:' : 'usable from that start point, under the manifest that owns it:'),
+    '',
+    ...third.shown.map(thirdLine),
     ...(third.total > third.shown.length ? [`\n${third.total - third.shown.length} more not shown.`] : []),
   ];
   const seenLoosely = (answer.loose?.shown ?? []).map(matchLine);
@@ -157,7 +161,7 @@ export function answerSearch(index: SearchIndex, input: Readonly<Record<string, 
       area === undefined
         ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    return [...where, nowhere, ...looseSection, ...missing].join('\n');
+    return [...where, nowhere, ...thirdSection, ...looseSection, ...missing].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,

@@ -21,7 +21,7 @@ it('indexes every declared available package, including one no source file impor
     'src/page.ts': "import { pulse } from 'undocumented-kit';\nexport const page = pulse();\n",
     'packages/alpha/package.json': JSON.stringify({ name: 'alpha', dependencies: { 'state-kit': '0.4.0' } }),
     'packages/alpha/src/page.ts': 'export const alpha = 1;\n',
-    'packages/beta/package.json': JSON.stringify({ name: 'beta', dependencies: { 'fancy-lib': '1.0.0' } }),
+    'packages/beta/package.json': JSON.stringify({ name: 'beta', devDependencies: { 'fancy-lib': '1.0.0' } }),
     'packages/beta/src/page.ts': 'export const beta = 1;\n',
   })) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -74,12 +74,21 @@ it('indexes every declared available package, including one no source file impor
   const first = refreshDependencyLexicon(root);
   expect(first).toMatchObject({ packages: 7, entrypoints: 6, reused: 0, unavailable: 0 });
   const read = readDependencyLexicon(root).lexicon;
-  expect(read?.version).toBe(5);
+  expect(read?.version).toBe(6);
   expect(read?.availability.map((entry) => [entry.owner, entry.specifier, entry.imported])).toEqual([
     ['package.json', 'fancy-lib', false], ['package.json', 'globbing', false], ['package.json', 'react', false], ['package.json', 'state-kit', false],
     ['package.json', 'undocumented-kit', true],
     ['packages/alpha/package.json', 'state-kit', false], ['packages/beta/package.json', 'fancy-lib', false],
   ]);
+  expect(read?.availability.map((entry) => [entry.owner, entry.specifier, entry.declaredAs, entry.imports, entry.site])).toEqual([
+    ['package.json', 'fancy-lib', 'dependency', 0, undefined], ['package.json', 'globbing', 'dependency', 0, undefined],
+    ['package.json', 'react', 'dependency', 0, undefined], ['package.json', 'state-kit', 'dependency', 0, undefined],
+    ['package.json', 'undocumented-kit', undefined, 1, 'src/page.ts:1'],
+    ['packages/alpha/package.json', 'state-kit', 'dependency', 0, undefined], ['packages/beta/package.json', 'fancy-lib', 'dev', 0, undefined],
+  ]);
+  expect(queryDependencyLexicon(root, 'flashy', ['packages/beta/src/page.ts'])?.shown[0]).toMatchObject({ manifest: 'packages/beta/package.json', declaredAs: 'dev', imports: 0 });
+  expect(queryDependencyLexicon(root, 'pulse')?.shown[0]).toMatchObject({ manifest: 'package.json', imports: 1, site: 'src/page.ts:1' });
+  expect(queryDependencyLexicon(root, 'nothing-matches', ['packages/beta/src/page.ts'])).toMatchObject({ total: 0, scope: { owners: ['packages/beta/package.json'], packages: 1 } });
   expect(read?.entries.flatMap((entry) => entry.api.names?.map((name) => name.name) ?? []).sort()).toEqual(['React', 'flashy', 'globbing', 'makeStore', 'makeStore', 'pulse', 'useState']);
   expect(read?.availability.find((entry) => entry.package === 'undocumented-kit')?.declared).toBe(false);
   expect(read?.availability.some((entry) => entry.package === 'transitive-only')).toBe(false);

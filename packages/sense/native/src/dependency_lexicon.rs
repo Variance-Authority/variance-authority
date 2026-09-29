@@ -64,6 +64,7 @@ struct Api {
 #[derive(Serialize, Deserialize)]
 struct Entry { id: String, api: Api }
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Availability {
     owner: String,
     package: String,
@@ -72,6 +73,15 @@ struct Availability {
     declared: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     imported: Option<bool>,
+    /// How the owning manifest declares it: `dependency`, `optional`, `peer` or `dev`; absent when it does not.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    declared_as: Option<String>,
+    /// Written requests for this specifier under the owner; absent when no source index was read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    imports: Option<u32>,
+    /// The first of them by path, as `file:line`; absent when none was written.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    site: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 struct Issue { owner: String, package: String, reason: String }
@@ -85,10 +95,10 @@ struct Lexicon {
     issues: Vec<Issue>,
 }
 #[derive(Clone)]
-struct Owner { manifest: String, directory: String, name: String, declared: BTreeSet<String> }
+struct Owner { manifest: String, directory: String, name: String, declared: BTreeSet<String>, kinds: BTreeMap<String, &'static str> }
 
 #[derive(Default)]
-struct Wanted { declared: bool, imported: BTreeSet<String> }
+struct Wanted { declared: bool, imported: BTreeSet<String>, requests: BTreeMap<String, (u32, String, u32)> }
 
 #[napi(object)]
 pub struct LexiconRefresh {
@@ -131,7 +141,7 @@ fn readme(root: &Path, runtime: &Option<Identity>) -> Option<Readme> {
 }
 
 /// Version 5 added `readme`. A 4 still answers queries; a refresh rewrites it as a 5.
-const VERSION: u8 = 5;
+const VERSION: u8 = 6;
 
 fn previous(path: &Path) -> Option<Lexicon> {
     let prior: Lexicon = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
@@ -174,11 +184,16 @@ fn owners(root: &Path, paths: &[String]) -> Vec<Owner> {
         if manifest != "package.json" && !patterns.iter().any(|pattern| pattern.is_match(directory)) { continue; }
         let value: serde_json::Value = match fs::read(root.join(manifest)).ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok()) { Some(value) => value, None => continue };
-        let declared = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]
-            .into_iter().filter_map(|field| value.get(field).and_then(serde_json::Value::as_object))
-            .flat_map(|map| map.keys().cloned()).collect();
+        // A package in more than one field is reported under the strongest: what ships, then what a consumer must bring, then what only builds.
+        let mut kinds = BTreeMap::<String, &'static str>::new();
+        for (field, kind) in [("dependencies", "dependency"), ("optionalDependencies", "optional"), ("peerDependencies", "peer"), ("devDependencies", "dev")] {
+            for package in value.get(field).and_then(serde_json::Value::as_object).into_iter().flat_map(|map| map.keys()) {
+                kinds.entry(package.clone()).or_insert(kind);
+            }
+        }
+        let declared = kinds.keys().cloned().collect();
         found.push(Owner { manifest: manifest.clone(), directory: directory.to_owned(),
-            name: value.get("name").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(), declared });
+            name: value.get("name").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(), declared, kinds });
     }
     found.sort_by(|a, b| a.manifest.cmp(&b.manifest));
     found
@@ -410,6 +425,12 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
                     let Some(owner) = owner_for(&site.file, &owners) else { continue };
                     let held = wanted.entry((owner.manifest.clone(), dependency.package.clone())).or_default();
                     held.declared |= owner.declared.contains(&dependency.package);
+                    let request = held.requests.entry(site.specifier.clone()).or_insert((0, site.file.clone(), site.line));
+                    request.0 += 1;
+                    if crate::order::code_unit(&site.file, &request.1).then(site.line.cmp(&request.2)).is_lt() {
+                        request.1 = site.file.clone();
+                        request.2 = site.line;
+                    }
                     held.imported.insert(site.specifier);
                 }
             }
@@ -461,7 +482,10 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
                 api.entrypoint.as_deref().unwrap_or(&specifier));
             outputs.push((Availability { owner: manifest.clone(), package: package.clone(), specifier: specifier.clone(),
                 entry: id.clone(), declared: wanted.declared,
-                imported: has_index.then(|| wanted.imported.contains(&specifier)) }, Entry { id, api }, reused));
+                imported: has_index.then(|| wanted.imported.contains(&specifier)),
+                declared_as: owner.kinds.get(package).map(|kind| (*kind).to_owned()),
+                imports: has_index.then(|| wanted.requests.get(&specifier).map_or(0, |request| request.0)),
+                site: wanted.requests.get(&specifier).map(|request| format!("{}:{}", request.1, request.2)) }, Entry { id, api }, reused));
         }
         (manifest.clone(), package.clone(), outputs, issues)
     }).collect();

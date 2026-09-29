@@ -9,7 +9,8 @@ import { readHelp } from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { searchNames } from '../tools.js';
-import { searchIndexOf } from './search.js';
+import { answerSearch, searchIndexOf } from './search.js';
+import { symbol } from './symbol.js';
 
 /**
  * A dependency is usable where the manifest owning the location declares it.
@@ -56,4 +57,16 @@ it('offers a name only from the workspace whose manifest declares it, not from o
   expect(total('alphaOnlyName', 'packages/beta/src/index.ts')).toBe(0);
   expect(total('betaOwnName', 'packages/beta/src/index.ts')).toBe(1);
   expect(total('alphaOnlyName', 'packages/alpha/src/index.ts')).toBe(1);
+
+  const said = (query: string, from?: string): string => answerSearch(index, from === undefined ? { query } : { query, from }, tree, root);
+  const own = said('betaOwnName', 'packages/beta/src/index.ts');
+  expect(own).toContain('usable from that start point');
+  expect(own).toContain('beta-kit · betaOwnName [const] @1.0.0 · dependency in packages/beta/package.json · not imported');
+  expect(said('betaOwnName')).toContain('offered by some manifest in this workspace');
+  expect(said('alphaOnlyName', 'packages/beta/src/index.ts')).toContain(
+    'No third-party name matches `alphaonlyname`. Third-party names searched: 1 package under packages/beta/package.json.',
+  );
+  expect(symbol.run(readHelp(root), { name: 'betaOwnName' }, { root })).toContain(
+    '@1.0.0 · dependency in packages/beta/package.json · not imported',
+  );
 });

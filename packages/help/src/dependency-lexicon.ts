@@ -28,10 +28,15 @@ export interface LexiconAvailability {
   readonly entry: string;
   readonly declared: boolean;
   readonly imported?: boolean;
+  /** How the owning manifest declares it; absent when it only imports it. */
+  readonly declaredAs?: 'dependency' | 'optional' | 'peer' | 'dev';
+  /** Written requests for the specifier under the owner, and the first of them as `file:line`. */
+  readonly imports?: number;
+  readonly site?: string;
 }
 export interface LexiconIssue { readonly owner: string; readonly package: string; readonly reason: string }
 export interface DependencyLexicon {
-  readonly version: 4 | 5;
+  readonly version: 4 | 5 | 6;
   readonly refreshedAt: string;
   readonly entries: readonly LexiconEntry[];
   readonly availability: readonly LexiconAvailability[];
@@ -45,7 +50,7 @@ export function readDependencyLexicon(root: string): { readonly path: string; re
   const path = pathOf(root);
   try {
     const value: unknown = JSON.parse(readFileSync(path, 'utf8'));
-    if (typeof value !== 'object' || value === null || ![4, 5].includes((value as Partial<DependencyLexicon>).version ?? 0)
+    if (typeof value !== 'object' || value === null || ![4, 5, 6].includes((value as Partial<DependencyLexicon>).version ?? 0)
       || !Array.isArray((value as Partial<DependencyLexicon>).entries)
       || !Array.isArray((value as Partial<DependencyLexicon>).availability)) return { path };
     return { path, lexicon: value as DependencyLexicon };
@@ -58,6 +63,14 @@ export function refreshDependencyLexicon(root: string) { return refreshDependenc
 export interface ThirdPartyMatch {
   readonly source: 'third-party'; readonly name: string; readonly specifier: string;
   readonly kind: string; readonly package: string; readonly version?: string;
+  /** The manifest this hit is offered under. */
+  readonly manifest: string;
+  /** How that manifest declares the package; absent when it only imports it. */
+  readonly declaredAs?: 'dependency' | 'optional' | 'peer' | 'dev';
+  /** Written imports of the specifier under that manifest; absent when no source index was read. */
+  readonly imports?: number;
+  /** The first of them, `file:line`. */
+  readonly site?: string;
   readonly summary?: string; readonly imported: boolean;
   readonly at?: string; readonly line?: number; readonly signature?: string;
   readonly doc?: string; readonly declarationProvider?: string;
@@ -67,8 +80,11 @@ export interface SilentPackage {
   readonly package: string; readonly specifier: string; readonly version?: string;
   readonly reason: string; readonly readme?: DependencyReadme; readonly imported: boolean;
 }
+/** What a question searched: the manifests it read and how many distinct packages they offered. */
+export interface LexiconScope { readonly owners: readonly string[]; readonly packages: number }
 export interface LexiconMatches {
   readonly total: number; readonly shown: readonly ThirdPartyMatch[];
+  readonly scope: LexiconScope;
   /** Present on an exact question; a lexicon written before READMEs were recorded lists the packages without one. */
   readonly silent?: readonly SilentPackage[];
 }
