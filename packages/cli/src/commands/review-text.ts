@@ -13,7 +13,7 @@
 
 import type { ReviewFormat } from '../review-args.js';
 import { motionText } from './covering-motion.js';
-import { motionGraph } from './review-graph.js';
+import { changeGraph } from './review-graph.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
 
@@ -119,9 +119,9 @@ function markdown(review: Review): string {
     lines.push('', `<details><summary>🗂️ ${unrecorded.length} changed file${unrecorded.length === 1 ? '' : 's'} not in the record, so not counted</summary>`, '');
     lines.push(...unrecorded.map((file) => `- ${code(file)}`), '', '</details>');
   }
+  lines.push(...changeGraph(review));
   const motion = motionText(review.motion).filter((line) => line !== '');
   if (motion.length > 0) {
-    lines.push(...motionGraph(review.motion?.moved?.testFiles ?? []));
     lines.push('', '<details><summary>🔀 Cases changed against the base</summary>', '', '```', ...motion, '```', '', '</details>');
   }
   const files = review.files.filter((file) => file.regions !== undefined || file.verdict !== undefined || file.unread !== undefined || file.created === true);
