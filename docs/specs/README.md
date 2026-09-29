@@ -89,6 +89,7 @@ hiding it.
 | [The code map offers choices](0083-the-code-map-offers-choices.md) | The published code map and source index expose areas, packages, imports, files and names. | **Complete local menus.** Nothing turns those records into bounded, paged options for a choice model or measures whether the correct route was offered. |
 | [A decision walks the code map](0084-a-decision-walks-the-code-map.md) | The map and source index provide places and relations; agents can use `search`, `symbol`, `grep` and `orient` directly. | **A measured choice walk.** No controller batches independent choices, pursues several routes, backs out of dead ends or hands an agent the exact routes it found. |
 | [A README-only dependency is flagged](0085-a-readme-only-dependency-is-flagged.md) | The dependency lexicon records a package without declarations as `unavailable` with a reason; a workspace package's README already answers a name with no doc comment. | **The dependency's README.** A package that ships only a README is not flagged as having one, and its passage for a name is never read. |
+| [A README is searched](0086-a-readme-is-searched.md) | `ask symbol` reads the nearest README for a workspace name found by its declaration, and names a README-only dependency's README and passage; `ask search` reads no README. | **Finding by prose.** A name a README explains and no declaration carries is found by neither, and a dependency with declarations never has its README read. |
 
 ## Discharged
 
