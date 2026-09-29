@@ -96,3 +96,12 @@ fn manifest(bytes: &[u8]) -> Option<Vec<Reference>> {
     });
     (parsed.format == "variance-authority-immutable-log" && parsed.version == 1 && digests).then_some(parsed.segments)
 }
+
+/// The digests of the segments the manifest at `path` names, oldest first: the chain's identity, read
+/// without opening a segment. A missing file, a legacy single-segment file and a malformed manifest have
+/// none, and a refresh that finds none reads the chain.
+pub(crate) fn manifest_digests(path: &str) -> Option<Vec<String>> {
+    let bytes = std::fs::read(path).ok()?;
+    if !bytes.starts_with(MAGIC) { return None; }
+    Some(manifest(&bytes)?.into_iter().map(|reference| reference.digest).collect())
+}

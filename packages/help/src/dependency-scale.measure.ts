@@ -18,13 +18,16 @@ import { readDependencyLexicon, refreshDependencyLexicon } from './dependency-le
  *
  * Each corpus is indexed once through the CLI into a cache of its own, so every
  * question reads a published generation the way a user's does. The catalogue is
- * then refreshed cold (no lexicon on disk) and again over the unchanged install.
- * Three answers are timed end to end, node start included, and each must come in
- * under a second warm. An unchanged install reuses every entry that has
- * something to reuse: the ones that resolved to no declarations have no entrypoint
- * to compare, are recomputed because there is nothing to skip, and are counted apart. `recomputed` is the
- * ceiling on entries that had something to reuse and were read again anyway: 0 on Kibana; on the Material UI
- * copies, whose installs symlink outside the checkout, a handful that varies by run.
+ * then refreshed cold (no lexicon on disk), again over the unchanged install and index, and once more
+ * with the record of what it was built from removed. Three answers are timed end to end, node start
+ * included, and each must come in under a second warm.
+ *
+ * A refresh that finds the source index and the install where it left them does nothing. One that must
+ * read again reuses every entry that has something to reuse: the ones that resolved to no declarations
+ * have no entrypoint to compare, are recomputed because there is nothing to skip, and are counted apart.
+ * `recomputed` is the ceiling on entries that had something to reuse and were read again anyway: 0 on
+ * Kibana; on the Material UI copies, whose installs symlink outside the checkout, a handful that varies
+ * by run.
  */
 
 const EXAMPLES = join(homedir(), 'dev', 'variance-authority-examples');
@@ -35,6 +38,7 @@ const CORPORA = [
 
 const BIN = fileURLToPath(new URL('../../cli/dist/bin.js', import.meta.url));
 const WARM_BUDGET_MS = 1000;
+const UNCHANGED_BUDGET_MS = 500;
 const RUNS = 3;
 const caches: string[] = [];
 afterAll(() => { for (const cache of caches) rmSync(cache, { recursive: true, force: true }); });
@@ -55,6 +59,10 @@ for (const corpus of CORPORA) {
       const { path } = readDependencyLexicon(corpus.root);
       rmSync(path);
       const cold = timed(() => refreshDependencyLexicon(corpus.root));
+      const nothing = timed(() => refreshDependencyLexicon(corpus.root));
+      // The record of what the lexicon was built from is what lets a refresh do nothing; without it the
+      // refresh reads everything again and reuses what it can, which is the path a changed install takes.
+      rmSync(path.replace(/\.json$/, '.built.json'));
       const warm = timed(() => refreshDependencyLexicon(corpus.root));
       const lexicon = JSON.parse(readFileSync(path, 'utf8')) as { entries: readonly { api: { entrypoint?: string | null } }[] };
       const unresolved = lexicon.entries.filter((entry) => entry.api.entrypoint === undefined || entry.api.entrypoint === null).length;
@@ -69,11 +77,13 @@ for (const corpus of CORPORA) {
       });
       console.log(
         `${corpus.name}: index ${(index.ms / 1000).toFixed(1)} s; catalogue ${cold.value.entrypoints} entries, ` +
-          `cold refresh ${(cold.ms / 1000).toFixed(1)} s, unchanged refresh ${(warm.ms / 1000).toFixed(1)} s ` +
+          `cold refresh ${(cold.ms / 1000).toFixed(1)} s, re-read ${(warm.ms / 1000).toFixed(1)} s, unchanged ${nothing.ms.toFixed(0)} ms ` +
           `(${warm.value.reused} reused, ${unresolved} unresolved); warm answers ` +
           answers.map((answer) => `${answer.ask} ${answer.ms.toFixed(0)} ms`).join(', '),
       );
       expect(cold.value.reused).toBe(0);
+      expect(nothing.value.unchanged, 'the unchanged refresh read nothing').toBe(true);
+      expect(nothing.ms, 'unchanged refresh').toBeLessThan(UNCHANGED_BUDGET_MS);
       expect(warm.value.entrypoints - warm.value.reused - unresolved, 'entries recomputed on an unchanged install').toBeLessThanOrEqual(corpus.recomputed);
       for (const answer of answers) {
         expect(answer.bytes, `${answer.ask} answered`).toBeGreaterThan(200);

@@ -256,7 +256,7 @@ export interface NativeDependencyLexicon {
   /** Refresh all installed third-party public declarations on the Rust side. */
   refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string): {
     readonly path: string; readonly packages: number; readonly entrypoints: number;
-    readonly reused: number; readonly unavailable: number;
+    readonly reused: number; readonly unavailable: number; readonly unchanged: boolean;
   };
   queryDependencyLexicon(path: string, query: string, files: string[] | null,
     exact: boolean, packageName: string | null, limit: number): string | null;

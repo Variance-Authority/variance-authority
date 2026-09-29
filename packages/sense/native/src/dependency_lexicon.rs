@@ -16,6 +16,7 @@ use sha2::{Digest, Sha256};
 use crate::read::read_module;
 use crate::resolve::Resolvers;
 #[path = "dependency_lexicon_boundary.rs"] mod boundary;
+#[path = "dependency_lexicon_built.rs"] mod built;
 #[path = "dependency_lexicon_query.rs"]
 mod query;
 #[path = "dependency_stack.rs"]
@@ -117,6 +118,8 @@ pub struct LexiconRefresh {
     pub entrypoints: u32,
     pub reused: u32,
     pub unavailable: u32,
+    /// True when the chain and the installed files were where the last refresh left them, and nothing was read.
+    pub unchanged: bool,
 }
 
 fn relative(root: &Path, path: &Path) -> String {
@@ -407,6 +410,14 @@ fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Resolvers, prev
 #[napi(catch_unwind)]
 pub fn refresh_dependency_lexicon(root: String, index: String, path: String, refreshed_at: String) -> napi::Result<LexiconRefresh> {
     let root_path = Path::new(&root);
+    let lexicon_path = Path::new(&path);
+    // Read before anything else, so a chain that moves during the refresh is never recorded as the one it read.
+    let chain = crate::index_chain::manifest_digests(&index);
+    if let (Some(held), Some(chain)) = (built::read(lexicon_path, VERSION), chain.as_ref()) {
+        if built::holds(root_path, &held, chain) {
+            return Ok(LexiconRefresh { path, packages: held.packages, entrypoints: held.entrypoints, reused: held.reusable, unavailable: held.unavailable, unchanged: true });
+        }
+    }
     let Some(snapshot) = crate::git::snapshot(&root) else {
         return Err(napi::Error::from_reason(format!("git could not list the checkout at {root}")));
     };
@@ -527,6 +538,7 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
     issues.dedup_by(|a, b| a.owner == b.owner && a.package == b.package && a.reason == b.reason);
     let corpus = Lexicon { version: VERSION, refreshed_at, entries: entries.into_values().collect(), availability, issues };
     let path_ref = Path::new(&path);
+    let _ = fs::remove_file(built::file(path_ref));
     if let Some(parent) = path_ref.parent() {
         fs::create_dir_all(parent).map_err(|error| napi::Error::from_reason(error.to_string()))?;
     }
@@ -534,6 +546,11 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
     let bytes = serde_json::to_vec(&corpus).map_err(|error| napi::Error::from_reason(error.to_string()))?;
     fs::write(&temporary, bytes).map_err(|error| napi::Error::from_reason(error.to_string()))?;
     fs::rename(&temporary, path_ref).map_err(|error| napi::Error::from_reason(error.to_string()))?;
-    Ok(LexiconRefresh { path, packages: wanted.len() as u32, entrypoints: corpus.entries.len() as u32,
-        reused, unavailable: corpus.entries.iter().filter(|entry| entry.api.unavailable.is_some()).count() as u32 + corpus.issues.len() as u32 })
+    let unavailable = corpus.entries.iter().filter(|entry| entry.api.unavailable.is_some()).count() as u32 + corpus.issues.len() as u32;
+    if let Some(chain) = chain {
+        let record = built::record(root_path, path_ref, chain, VERSION, &corpus.entries, &owners, wanted.len() as u32, unavailable);
+        let bytes = serde_json::to_vec(&record).map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        fs::write(built::file(path_ref), bytes).map_err(|error| napi::Error::from_reason(error.to_string()))?;
+    }
+    Ok(LexiconRefresh { path, packages: wanted.len() as u32, entrypoints: corpus.entries.len() as u32, reused, unavailable, unchanged: false })
 }
