@@ -2504,6 +2504,7 @@
         "openParseCache": "function",
         "openRecordCache": "function",
         "openSourceIndex": "function",
+        "orientAround": "function",
         "packageLayers": "function",
         "packagesAround": "function",
         "pathsThrough": "function",

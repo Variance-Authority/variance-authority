@@ -15,6 +15,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
+import { decodeExecutionTests } from './execution-format.js';
+import { openSetExecutionIndex } from './execution-set-format.js';
 import { openTestCoverage } from './format-view.js';
 import { declaredSuite } from './suites.js';
 
@@ -118,18 +120,39 @@ export async function seedTestCoverage(
   // anything: there is no base beneath a path somebody passed in.
   const inside = relative(layers.top, file).split(sep).join('/');
   if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return;
+  await seedFrom(layers.base, inside, file, (bytes) => void openTestCoverage(bytes));
+  // The case index is a second record beside the snapshot, and the run folds
+  // into whatever it finds there, replacing the cases of the files it ran. With
+  // nothing seeded the first run in a worktree would write a partial index that
+  // then stands for the whole suite.
+  await seedFrom(layers.base, `${inside}.cases.bin`, `${file}.cases.bin`, (bytes) => {
+    if (openSetExecutionIndex(bytes) === undefined) decodeExecutionTests(bytes);
+  });
+}
+
+/**
+ * Copy `name` from under `base` to `target` unless `target` is already there,
+ * and unless `opens` refuses the bytes. No base and an unreadable one are the
+ * same answer: nothing to inherit.
+ */
+async function seedFrom(
+  base: string,
+  name: string,
+  target: string,
+  opens: (bytes: Uint8Array) => void,
+): Promise<void> {
   try {
-    await stat(file);
+    await stat(target);
     return;
   } catch (error) {
     if (!missing(error)) throw error;
   }
   try {
-    const bytes = await readFile(resolve(layers.base, inside));
+    const bytes = await readFile(resolve(base, name));
     // Opening parses the section index and nothing else, which is the whole of
     // what "this build can read it" means and costs a fraction of a decode.
-    openTestCoverage(bytes);
-    await writeCoverageBytes(file, bytes);
+    opens(bytes);
+    await writeCoverageBytes(target, bytes);
   } catch {
     // No base, or one this build has no claim on. Either way there is nothing
     // to inherit and the run records its own.

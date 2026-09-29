@@ -81,6 +81,7 @@ export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } 
 export {
   packagesAround,
   dependenciesAround,
+  orientAround,
   recordedCases,
   type CasesEntered,
   type Orientation,

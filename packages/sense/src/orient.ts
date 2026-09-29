@@ -47,7 +47,7 @@ export interface PackagesAround {
   readonly orientation?: NativeOrientation;
 }
 
-function entry<Name extends 'orientPackages' | 'externalDependencies' | 'casesEntered'>(name: Name) {
+function entry<Name extends 'orientPackages' | 'orientAround' | 'externalDependencies' | 'casesEntered'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -70,11 +70,30 @@ export function packagesAround(root: string, files: readonly string[], limits: O
   return orientation === null ? { index } : { index, orientation };
 }
 
-/** External packages requested by the indexed local import closure of `files`. */
-export function dependenciesAround(root: string, files: readonly string[], limits: OrientLimits): {
+/**
+ * `packagesAround` and `dependenciesAround` over one read of the chain and one listing of the tree, which is
+ * what either costs: where the repository leaves `core.fsmonitor` off, `git status` is 2.2 s on seven copies
+ * of Material UI, and a question that made it twice paid 4.4 s.
+ */
+export function orientAround(root: string, files: readonly string[], packages: OrientLimits, external: OrientLimits): {
+  readonly packages: PackagesAround;
+  readonly external: DependenciesAround;
+} {
+  const index = sourceIndexPath(root);
+  const both = entry('orientAround')(root, index, [...files], packages.rows, packages.names, external.rows, external.names);
+  return both === null
+    ? { packages: { index }, external: { index } }
+    : { packages: { index, orientation: both.packages }, external: { index, orientation: both.external } };
+}
+
+/** The external requests part of an answer. */
+export interface DependenciesAround {
   readonly index: string;
   readonly orientation?: NativeExternalOrientation;
-} {
+}
+
+/** External packages requested by the indexed local import closure of `files`. */
+export function dependenciesAround(root: string, files: readonly string[], limits: OrientLimits): DependenciesAround {
   const inspect = entry('externalDependencies');
   const index = sourceIndexPath(root);
   const orientation = inspect(root, index, [...files], limits.rows, limits.names);
@@ -89,11 +108,12 @@ export type RecordedCases =
 /**
  * For each suite the root config declares, or the one record of a repository
  * that declares none: the cases its latest recording says entered each of
- * `files`, with the first `titles` of them named; whether the file also ran as
- * its module loaded, which the recording credits to no case; and, for a test
- * file, the cases it declares.
+ * `files`, with the first `titles` of them named; for a file that also ran as
+ * its module loaded, which the recording credits to no case, the cases whose
+ * test files import it over the source index at `root`; and, for a test file,
+ * the cases it declares.
  *
- * The nearest layer holding a per-case index answers, the way every reader of
+ * The layer holding the most cases answers, the nearest on a tie, the way every reader of
  * a recording finds one. A suite with none says where it looked, and so does
  * one the addon could not read, so the caller can say why that suite is absent
  * rather than print it as a suite that ran nothing.
@@ -108,7 +128,7 @@ export function recordedCases(root: string, files: readonly string[], titles: nu
     if (recording === undefined) return { ...named, recording: candidates[0]!, unread: 'nothing is recorded there' };
     const cases = entry('casesEntered');
     try {
-      return { ...named, recording, files: cases(recording, [...files], titles) };
+      return { ...named, recording, files: cases(recording, [...files], titles, sourceIndexPath(root)) };
     } catch (error) {
       return { ...named, recording, unread: error instanceof Error ? error.message : String(error) };
     }

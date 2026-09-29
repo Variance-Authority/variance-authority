@@ -5,7 +5,7 @@ import type { FileRecord } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { searchNames } from '../tools.js';
-import { searchIndexOf } from './search.js';
+import { answerSearch, searchIndexOf } from './search.js';
 
 /**
  * `search` as data: the fields the text is written from, and the difference
@@ -77,4 +77,12 @@ describe('searchNames', () => {
   });
 
 
+});
+
+describe('the flow from words to orient', () => {
+  it('ends an answer that located a file with the orient question for that file', () => {
+    const hit = searchNames(INDEX, { query: 'e' }).exported?.shown[0];
+    expect(hit, 'the fixture exports a name it does not publish').toBeDefined();
+    expect(answerSearch(INDEX, { query: 'e' })).toContain(`variance ask orient --files ${hit!.at}`);
+  });
 });

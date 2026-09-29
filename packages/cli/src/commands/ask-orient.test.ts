@@ -209,18 +209,19 @@ describe('variance ask orient', () => {
         '  src/gone.ts                     not in the source index',
         '',
         `Packages, from the source index at ${sourceIndexPath(root)} (4 files indexed).`,
-        "A use is one file importing one name from another package. A package's share is of the uses on that side; " +
-          "a name's share is of every use the package exporting it gets from outside.",
+        "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +
+          "a name's share is of every use the package exporting it gets from outside. Each share has its count beside it, " +
+          "and a denominator under 10 is given as the count alone.",
         '',
         '@t/checkout  packages/checkout',
         '  Takes from, 1 package, 3 uses:',
-        '    100%  @t/cart  priceOf 67%, currency 33%',
+        '    3 of 3  @t/cart  priceOf 2 of 3, currency 1 of 3',
         '  Used by: no package in this checkout.',
         '',
         '@t/cart  packages/cart',
         '  Takes from: no package in this checkout.',
         '  Used by, 1 package, 3 uses:',
-        '    100%  @t/checkout  priceOf 67%, currency 33%',
+        '    3 of 3  @t/checkout  priceOf 2 of 3, currency 1 of 3',
         '',
         'External packages requested along local imports from these files (3 source files reached):',
         '  No external package request was read from this path.',

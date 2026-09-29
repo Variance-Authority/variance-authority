@@ -36,6 +36,14 @@ export interface OrientReading {
 
 const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
+/** Below this many uses in a denominator a percentage says less than the count does, so only the count is printed. */
+export const SHARE_FLOOR = 10;
+
+/** A share with the count it is over, or the bare count when the denominator is under the floor. */
+export function counted(share: number, uses: number, of: number): string {
+  return of < SHARE_FLOOR ? `${uses} of ${of}` : `${percent(share)} (${uses})`;
+}
+
 /** A share as a whole percent, and a share too small to round to one said as that. */
 export function percent(share: number): string {
   const whole = Math.round(share * 100);
@@ -72,16 +80,17 @@ function side(flows: OrientFlows, heading: string, indexed: number): readonly st
   }
   const others = flows.rows.length + flows.more;
   const rows = flows.rows.map((row) => {
-    const names = row.names.map((name) => `${nameOf(name.name)} ${percent(name.share)}`);
+    const names = row.names.map((name) => `${nameOf(name.name)} ${counted(name.share, name.uses, name.of)}`);
     if (row.moreNames > 0) names.push(`${plural(row.moreNames, 'more name')}`);
-    return { share: percent(row.share), party: row.package ?? `files in no package`, names: names.join(', ') };
+    return { share: counted(row.share, row.uses, flows.units), party: row.package ?? `files in no package`, names: names.join(', ') };
   });
-  if (flows.more > 0) rows.push({ share: percent(flows.moreShare), party: plural(flows.more, 'more package'), names: '' });
+  if (flows.more > 0) rows.push({ share: counted(flows.moreShare, Math.round(flows.moreShare * flows.units), flows.units), party: plural(flows.more, 'more package'), names: '' });
   // Only a row followed by names is padded; the count of the rest has nothing after it to align.
+  const wideShare = Math.max(4, ...rows.map((row) => row.share.length));
   const wide = Math.max(0, ...rows.filter((row) => row.names !== '').map((row) => row.party.length));
   return [
     `  ${heading}, ${plural(others, 'package')}, ${plural(flows.units, 'use')}${flows.unread === 0 ? '' : ` (the ${unread})`}:`,
-    ...rows.map((row) => `    ${row.share.padStart(4)}  ${row.names === '' ? row.party : `${row.party.padEnd(wide)}  ${row.names}`}`),
+    ...rows.map((row) => `    ${row.share.padStart(wideShare)}  ${row.names === '' ? row.party : `${row.party.padEnd(wide)}  ${row.names}`}`),
   ];
 }
 
@@ -99,8 +108,9 @@ function packages(reading: OrientReading): readonly string[] {
   ];
   const lines = [
     `Packages, from the source index at ${around.index} (${state.join('; ')}).`,
-    'A use is one file importing one name from another package. A package\'s share is of the uses on that side; ' +
-      'a name\'s share is of every use the package exporting it gets from outside.',
+    'Observed in source: a use is one file importing one name from another package. A package\'s share is of the uses on that side; ' +
+      'a name\'s share is of every use the package exporting it gets from outside. Each share has its count beside it, ' +
+      `and a denominator under ${SHARE_FLOOR} is given as the count alone.`,
   ];
   if (orientation.stale > 0) lines.push('`variance index` updates the index.');
   if (orientation.packages.length === 0) lines.push('', 'None of these files is in a package.');
@@ -155,11 +165,6 @@ function listed(names: readonly string[], count: number): readonly string[] {
   return [...names.map((name) => `      ${name}`), ...(more > 0 && names.length > 0 ? [`      ${plural(more, 'more case')}.`] : [])];
 }
 
-/** Said once under the rows, because a row marked with it counts only part of what ran the file. */
-const EVALUATED =
-  '  * The recording names no case for what runs while a module evaluates. The cases whose files import the module ran it, ' +
-  'and `variance covering --file` names them.';
-
 function row(entered: CasesEntered, wide: number): readonly string[] {
   const file = entered.file.padEnd(wide);
   const declared = entered.declared ?? 0;
@@ -172,11 +177,21 @@ function row(entered: CasesEntered, wide: number): readonly string[] {
   const also = declared > 0 ? [`      It is also a test file declaring ${plural(declared, 'recorded case')}.`] : [];
   const titles = entered.titles.map((title) => `${title.file} > ${title.name}`);
   if (entered.cases === 0) {
-    return [`  ${file}  ${entered.loaded === true ? 'ran only while its module evaluated.*' : 'recorded, and no case ran it.'}`, ...also];
+    if (entered.loaded !== true) return [`  ${file}  recorded, and no case ran it.`, ...also];
+    // Only the importers could name a case, and there is no index to read them from.
+    const why = entered.loaders == null
+      ? 'the source index names no importers to read the cases from'
+      : 'no recorded case imports it';
+    return [`  ${file}  ran only while its module evaluated, and ${why}.`, ...also];
   }
-  const ran = entered.loaded === true
-    ? `${plural(entered.cases, 'case')} ran it, and it also ran while its module evaluated*`
-    : `${plural(entered.cases, 'case')} ran it`;
+  const imported = entered.loaders == null || entered.loaders === 0
+    ? ''
+    : entered.loaders === entered.cases
+      ? ', all of them by importing it'
+      : `, ${entered.loaders} of them by importing it`;
+  const ran = entered.loaded === true && entered.loaders == null
+    ? `${plural(entered.cases, 'case')} ran it; it also ran while its module evaluated, and the source index names no importers to read those cases from`
+    : `${plural(entered.cases, 'case')} ran it${imported}`;
   return [`  ${file}  ${ran}${titles.length > 0 ? ':' : '.'}`, ...listed(titles, entered.cases), ...also];
 }
 
@@ -190,7 +205,6 @@ function cases(reading: OrientReading): readonly string[] {
     }
     const wide = Math.max(...suite.files.map((entered) => entered.file.length));
     lines.push('', `${named}, from ${suite.recording}:`, ...suite.files.flatMap((entered) => row(entered, wide)));
-    if (suite.files.some((entered) => entered.loaded === true)) lines.push(EVALUATED);
   }
   return lines;
 }

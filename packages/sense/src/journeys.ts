@@ -69,7 +69,7 @@ export function journeysPath(index: string, suite?: string): string {
   return suite === undefined ? `${index}.journeys` : `${index}.${encodeURIComponent(suite)}.journeys`;
 }
 
-/** One suite's recording, found the way every reader of a recording finds one: the nearest layer that holds it. */
+/** One suite's recording, found the way every reader of one finds it: the layer that holds the most cases. */
 function recordings(root: string): readonly { readonly suite?: string; readonly recording?: string; readonly looked: string }[] {
   const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
   const layers = repositoryLayers(root);

@@ -29,7 +29,7 @@
 
 import type { Tool } from '@variance-authority/mcp/tools';
 import { basename } from 'node:path';
-import { codeMapPage, dependenciesAround, journeysAround, packagesAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
+import { codeMapPage, journeysAround, orientAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
 import { formatCodeMapPage } from './code-map-format.js';
 import { formatOrientation, type OrientReading } from './orient-format.js';
 
@@ -113,15 +113,11 @@ export const orient: Tool<unknown> = {
           'ask with `files` alone, or with `area` alone.',
       );
     }
-    const external = dependenciesAround(root, files, { rows: 8, names: 3 });
+    const { packages: around, external } = orientAround(root, files, LIMITS, { rows: 8, names: 3 });
     return formatOrientation({
       files,
-      around: packagesAround(root, files, LIMITS),
+      around,
       external,
-      // TODO: a file that only ran while its module evaluated is counted with
-      // no case, because the cases whose files import it are the file graph's
-      // answer and this builds no graph; `variance covering --file` builds one
-      // and names them, so the answer points there instead of counting them.
       recorded: recordedCases(root, files, TITLES),
       ...journeysOf(root, asks),
     });

@@ -238,10 +238,12 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   ): NativeJourneySelection;
   /** The packages `files` belong to and the names crossing their edges, read off the source index at `index`; `null` when none was published. */
   orientPackages?(root: string, index: string, files: string[], rows: number, names: number): NativeOrientation | null;
+  /** Both of the above from one read of the chain and one listing of the tree; `null` when no index is published. */
+  orientAround?(root: string, index: string, files: string[], packageRows: number, packageNames: number, externalRows: number, externalSites: number): { packages: NativeOrientation; external: NativeExternalOrientation } | null;
   /** Indexed external requests from `files`; `null` when no index is published. */
   externalDependencies?(root: string, index: string, files: string[], rows: number, sites: number): NativeExternalOrientation | null;
   /** For each of `files`, the cases in the journey file at `file` that ran it. */
-  casesEntered?(file: string, files: string[], titles: number): NativeCasesEntered[];
+  casesEntered?(file: string, files: string[], titles: number, index?: string | null): NativeCasesEntered[];
 }
 
 /** `Relations`, flattened to the columns the addon walks. */

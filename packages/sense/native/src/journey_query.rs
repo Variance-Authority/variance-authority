@@ -135,10 +135,14 @@ pub struct CasesEntered {
     pub cases: Option<u32>,
     /// Whether a region of the file ran while its module evaluated. Such a
     /// region is credited to no case: the cases whose files import the module
-    /// ran it, and the file graph names them, which this reading does not
-    /// build. So `cases` is the ones that entered it and not every one that ran
-    /// it. `undefined` with no row.
+    /// ran it. `undefined` with no row.
     pub loaded: Option<bool>,
+    /// How many of `cases` are there because their test file imports this one,
+    /// directly or through others, over the source index. Only a file that ran
+    /// while its module evaluated has any; `undefined` for one that did not, and
+    /// also for one that did whose importers could not be read, when `cases`
+    /// is only the cases that entered it.
+    pub loaders: Option<u32>,
     /// The first of those cases in code-unit order of file and then name.
     pub titles: Vec<EnteredCase>,
     /// How many recorded cases the file declares, when it is a test file the
@@ -169,9 +173,24 @@ fn declared<'a>(journey: &'a Journey, files: &[String]) -> Result<HashMap<&'a st
 /// them. The whole of a module's regions answers it, because a case that
 /// entered any region of the file entered the file; the sets are expanded here
 /// so a question about three files never carries a recording's cases across.
-fn entered(file: &str, files: &[String], titles: usize) -> Result<Vec<CasesEntered>, String> {
+///
+/// A file that ran while its module evaluated also has the cases whose test
+/// files import it, when `index` holds the source index they are read from.
+fn entered(file: &str, files: &[String], titles: usize, index: Option<&str>) -> Result<Vec<CasesEntered>, String> {
     let journey = Journey::open(file)?;
     let declares = declared(&journey, files)?;
+    let mut loading: Vec<&str> = Vec::new();
+    for asked in files {
+        if let Some(module) = journey.module_of(asked)? {
+            if journey.regions(module)?.iter().any(|region| region.loaded) {
+                loading.push(asked);
+            }
+        }
+    }
+    let importing = match index {
+        Some(index) if !loading.is_empty() => crate::journey_loaders::importers(index, &loading)?,
+        _ => None,
+    };
     files
         .iter()
         .map(|asked| {
@@ -184,6 +203,7 @@ fn entered(file: &str, files: &[String], titles: usize) -> Result<Vec<CasesEnter
                     file: asked.clone(),
                     cases: None,
                     loaded: None,
+                    loaders: None,
                     titles: Vec::new(),
                     declared,
                     declared_names,
@@ -198,6 +218,16 @@ fn entered(file: &str, files: &[String], titles: usize) -> Result<Vec<CasesEnter
                 }
             }
             let loaded = regions.iter().any(|region| region.loaded);
+            let mut loaders = None;
+            if let Some(importers) = importing.as_ref().and_then(|found| found.get(asked.as_str())) {
+                let before = cases.len();
+                for case in 0..journey.tests() {
+                    if importers.contains(journey.test_file(case)?) {
+                        cases.insert(case as u32);
+                    }
+                }
+                loaders = Some((cases.len() - before) as u32);
+            }
             let mut named = cases
                 .iter()
                 .map(|&case| {
@@ -215,6 +245,7 @@ fn entered(file: &str, files: &[String], titles: usize) -> Result<Vec<CasesEnter
                 file: asked.clone(),
                 cases: Some(cases.len() as u32),
                 loaded: Some(loaded),
+                loaders,
                 titles,
                 declared,
                 declared_names,
@@ -225,6 +256,11 @@ fn entered(file: &str, files: &[String], titles: usize) -> Result<Vec<CasesEnter
 
 /// For each of `files`, the recorded cases in the journey file at `file` that entered it.
 #[napi(catch_unwind)]
-pub fn cases_entered(file: String, files: Vec<String>, titles: u32) -> napi::Result<Vec<CasesEntered>> {
-    entered(&file, &files, titles as usize).map_err(napi::Error::from_reason)
+pub fn cases_entered(
+    file: String,
+    files: Vec<String>,
+    titles: u32,
+    index: Option<String>,
+) -> napi::Result<Vec<CasesEntered>> {
+    entered(&file, &files, titles as usize, index.as_deref()).map_err(napi::Error::from_reason)
 }

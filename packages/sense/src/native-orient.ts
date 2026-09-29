@@ -17,6 +17,9 @@
 export interface NativeOrientShare {
   readonly name: string;
   readonly share: number;
+  /** The uses behind `share`, and the total they are over. */
+  readonly uses: number;
+  readonly of: number;
 }
 
 /** One other package on one side of an asked package, largest share first. */
@@ -26,6 +29,8 @@ export interface NativeOrientFlow {
   readonly directory?: string | null;
   /** Of the side's uses. */
   readonly share: number;
+  /** The uses behind `share`. */
+  readonly uses: number;
   readonly names: readonly NativeOrientShare[];
   /** Names past the limit. */
   readonly moreNames: number;
@@ -130,11 +135,17 @@ export interface NativeCasesEntered {
   readonly cases?: number | null;
   /**
    * Whether a region of the file ran while its module evaluated. The recording
-   * credits that to no case — the cases whose files import the module ran it,
-   * and the file graph names them — so `cases` is then not every case that ran
-   * the file. Absent with no row.
+   * credits that to no case; the cases whose files import the module ran it,
+   * and `loaders` counts them. Absent with no row.
    */
   readonly loaded?: boolean | null;
+  /**
+   * How many of `cases` are there because their test file imports this one,
+   * over the source index. Absent when the file did not run while its module
+   * evaluated, and when it did but the index could not name its importers, so
+   * `cases` is then only the cases that entered it.
+   */
+  readonly loaders?: number | null;
   /** The first of those cases, in code-unit order of test file and then name. */
   readonly titles: readonly { readonly file: string; readonly name: string }[];
   /** Recorded cases the file declares, when it is a test file the recording ran; absent when it declares none. */

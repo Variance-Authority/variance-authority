@@ -68,6 +68,20 @@ fn an_import_is_followed_through_a_barrel_to_its_declaration() {
 }
 
 #[test]
+fn an_export_star_fan_out_routes_a_name_only_to_the_file_that_declares_it() {
+    let graph = graph(&[
+        ("a.ts", "import { second, nowhere } from './barrel';\nsecond();\nnowhere();\n"),
+        ("barrel.ts", "export * from './b';\nexport * from './c';\n"),
+        ("b.ts", "export function first() {}\n"),
+        ("c.ts", "export function second() {}\n"),
+    ]);
+    let parsed = graph.parsed(0).unwrap();
+    let targets: Vec<Target> = parsed.calls.iter().map(|call| graph.target_of(0, call.from, &call.callee, call.callback)).collect();
+    assert!(matches!(targets[0], Target::Fn { file: 3, func: 0, how: How::Import }));
+    assert!(!matches!(targets[1], Target::Fn { .. } | Target::NotFunction { .. }), "a name no star target declares reaches no file");
+}
+
+#[test]
 fn a_local_name_resolves_to_the_declaration_whose_scope_holds_the_call() {
     let graph = graph(&[("a.ts", "function f() {}\nfunction g() {\n  function f() {}\n  f();\n}\nf();\n")]);
     let parsed = graph.parsed(0).unwrap();

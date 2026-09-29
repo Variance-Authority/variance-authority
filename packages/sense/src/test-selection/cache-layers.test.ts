@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { cacheLayers, cacheRootFor, layeredFiles, repositoryLayers } from './cache-layers.js';
+import { CrossingSets } from './crossing-sets.js';
+import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { recordStore, recordStores } from './instrumented-modules.js';
 import {
   readTestCoverage,
@@ -212,6 +214,26 @@ describe('the snapshot a checkout starts from', () => {
 
     expect((await readTestCoverage(file)).tests).toEqual(snapshot.tests);
     expect(file).not.toBe(testCoverageFile(primary, { cacheRoot }));
+  });
+
+  test('a worktree starts from the repository case index too, so its first run folds into the whole suite', async () => {
+    const at = await checkout();
+    const cacheRoot = resolve(at, 'cache');
+    const primary = resolve(at, 'primary');
+    const base = testCoverageFile(primary, { cacheRoot });
+    await writeTestCoverage(base, snapshot);
+    const cases = encodeSetExecutionIndex({
+      tests: [{ id: 'a > b', file: 'a.test.ts', name: 'b' }],
+      modules: [],
+      sets: new CrossingSets(1).pool(),
+    });
+    await writeFile(`${base}.cases.bin`, cases);
+
+    const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
+    const file = testCoverageFile(path, { cacheRoot });
+    await seedTestCoverage(file, path, cacheRoot);
+
+    expect(await readFile(`${file}.cases.bin`)).toEqual(cases);
   });
 
   test('a reader takes the repository snapshot without making a copy of it', async () => {
