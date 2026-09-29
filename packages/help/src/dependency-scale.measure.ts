@@ -22,7 +22,12 @@ import { readDependencyLexicon, refreshDependencyLexicon } from './dependency-le
  * question reads a published generation the way a user's does. The catalogue is
  * then refreshed cold (no lexicon on disk), again over the unchanged install and index, and once more
  * with the record of what it was built from removed. Three answers are timed end to end, node start
- * included, and each must come in under a second warm.
+ * included, and each must come in under a second warm. So is `orient` over the start point, which reads
+ * the package graph, the external requests and the recorded cases. Its cost is the working-tree reading,
+ * `status`, which walks every file unless the repository turns on the two accelerators
+ * `docs/performance.md` names; on seven copies of Material UI that walk is 2.2 s. The orient child is
+ * given those two settings through the environment, which is how a process is given a setting without a
+ * repository's configuration being written, and its first run primes them.
  *
  * A refresh that finds the source index and the install where it left them does nothing. One that must
  * read again reuses every entry that has something to reuse: the ones that resolved to no declarations
@@ -38,6 +43,14 @@ const CORPORA = [
 ] as const;
 
 const BIN = fileURLToPath(new URL('../../cli/dist/bin.js', import.meta.url));
+const HELP = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
+const ACCELERATED = {
+  GIT_CONFIG_COUNT: '2',
+  GIT_CONFIG_KEY_0: 'core.fsmonitor',
+  GIT_CONFIG_VALUE_0: 'true',
+  GIT_CONFIG_KEY_1: 'core.untrackedCache',
+  GIT_CONFIG_VALUE_1: 'true',
+};
 const WARM_BUDGET_MS = 1000;
 const UNCHANGED_BUDGET_MS = 500;
 const EDIT_BUDGET_MS = 1500;
@@ -48,12 +61,16 @@ afterAll(() => { for (const cache of caches) rmSync(cache, { recursive: true, fo
 const median = (values: readonly number[]): number => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] as number;
 const cli = (root: string, cache: string, args: readonly string[]): string =>
   execFileSync(process.execPath, [BIN, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, VARIANCE_AUTHORITY_CACHE: cache }, maxBuffer: 1 << 28 });
+const orient = (root: string, cache: string, file: string): string =>
+  execFileSync(process.execPath, [HELP, 'orient', '--files', file, '--root', root], {
+    encoding: 'utf8', env: { ...process.env, ...ACCELERATED, VARIANCE_AUTHORITY_CACHE: cache }, maxBuffer: 1 << 28,
+  });
 const timed = <T>(run: () => T): { value: T; ms: number } => { const start = performance.now(); const value = run(); return { value, ms: performance.now() - start }; };
 
 for (const corpus of CORPORA) {
-  const live = existsSync(join(corpus.root, '.git')) && existsSync(BIN) ? describe : describe.skip;
+  const live = existsSync(join(corpus.root, '.git')) && existsSync(BIN) && existsSync(HELP) ? describe : describe.skip;
   live(corpus.name, () => {
-    it('answers stack, search and symbol from a start point under a second warm, and refreshes an unchanged install by reuse', async () => {
+    it('answers stack, search, symbol and orient from a start point under a second warm, and refreshes an unchanged install by reuse', async () => {
       const cache = mkdtempSync(join(tmpdir(), 'va-scale-'));
       caches.push(cache);
       process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
@@ -99,6 +116,9 @@ for (const corpus of CORPORA) {
         const runs = Array.from({ length: RUNS }, () => timed(() => cli(corpus.root, cache, args)));
         return { ask, ms: median(runs.map((run) => run.ms)), bytes: runs[0]?.value.length ?? 0 };
       });
+      orient(corpus.root, cache, corpus.pick);
+      const oriented = Array.from({ length: RUNS }, () => timed(() => orient(corpus.root, cache, corpus.pick)));
+      answers.push({ ask: 'orient', ms: median(oriented.map((run) => run.ms)), bytes: oriented[0]?.value.length ?? 0 });
       console.log(
         `${corpus.name}: index ${(index.ms / 1000).toFixed(1)} s; catalogue ${cold.value.entrypoints} entries, ` +
           `cold refresh ${(cold.ms / 1000).toFixed(1)} s, re-read ${(warm.ms / 1000).toFixed(1)} s, unchanged ${nothing.ms.toFixed(0)} ms, one edited file ${edit.ms.toFixed(0)} ms (index ${(reindex.ms / 1000).toFixed(1)} s) ` +
@@ -121,7 +141,7 @@ for (const corpus of CORPORA) {
 }
 
 for (const corpus of CORPORA) {
-  if (!(existsSync(join(corpus.root, '.git')) && existsSync(BIN))) {
-it.todo(`${corpus.name}: stack, search and symbol answer from a start point under a second warm, and an unchanged catalogue refresh reuses its entries — needs the corpus installed at ${corpus.root} or named in VARIANCE_AUTHORITY_SCALE_KIBANA / VARIANCE_AUTHORITY_SCALE_MUI7, and the CLI built`);
+  if (!(existsSync(join(corpus.root, '.git')) && existsSync(BIN) && existsSync(HELP))) {
+it.todo(`${corpus.name}: stack, search, symbol and orient answer from a start point under a second warm, and an unchanged catalogue refresh reuses its entries — needs the corpus installed at ${corpus.root} or named in VARIANCE_AUTHORITY_SCALE_KIBANA / VARIANCE_AUTHORITY_SCALE_MUI7, and the CLI and the help binary built`);
   }
 }

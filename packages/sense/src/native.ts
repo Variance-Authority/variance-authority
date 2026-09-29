@@ -241,7 +241,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /** Indexed external requests from `files`; `null` when no index is published. */
   externalDependencies?(root: string, index: string, files: string[], rows: number, sites: number): NativeExternalOrientation | null;
   /** For each of `files`, the cases in the journey file at `file` that ran it. */
-  casesEntered?(file: string, files: string[], titles: number): NativeCasesEntered[];
+  casesEntered?(file: string, files: string[], titles: number, index?: string | null): NativeCasesEntered[];
 }
 
 /** `Relations`, flattened to the columns the addon walks. */

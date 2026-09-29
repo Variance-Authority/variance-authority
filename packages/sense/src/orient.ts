@@ -69,6 +69,9 @@ export function packagesAround(root: string, files: readonly string[], limits: O
   return orientation === null ? { index } : { index, orientation };
 }
 
+// TODO: `packagesAround` and this each ask git for the tree's `status`, so a question
+// asks twice what one answer holds; where the repository leaves `core.fsmonitor` off that is
+// 2.2 s a time on seven copies of Material UI, and one entry returning both readings would halve it.
 /** External packages requested by the indexed local import closure of `files`. */
 export function dependenciesAround(root: string, files: readonly string[], limits: OrientLimits): {
   readonly index: string;
@@ -88,9 +91,10 @@ export type RecordedCases =
 /**
  * For each suite the root config declares, or the one record of a repository
  * that declares none: the cases its latest recording says entered each of
- * `files`, with the first `titles` of them named; whether the file also ran as
- * its module loaded, which the recording credits to no case; and, for a test
- * file, the cases it declares.
+ * `files`, with the first `titles` of them named; for a file that also ran as
+ * its module loaded, which the recording credits to no case, the cases whose
+ * test files import it over the source index at `root`; and, for a test file,
+ * the cases it declares.
  *
  * The layer holding the most cases answers, the nearest on a tie, the way every reader of
  * a recording finds one. A suite with none says where it looked, and so does
@@ -107,7 +111,7 @@ export function recordedCases(root: string, files: readonly string[], titles: nu
     if (recording === undefined) return { ...named, recording: candidates[0]!, unread: 'nothing is recorded there' };
     const cases = entry('casesEntered');
     try {
-      return { ...named, recording, files: cases(recording, [...files], titles) };
+      return { ...named, recording, files: cases(recording, [...files], titles, sourceIndexPath(root)) };
     } catch (error) {
       return { ...named, recording, unread: error instanceof Error ? error.message : String(error) };
     }

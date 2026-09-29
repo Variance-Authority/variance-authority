@@ -141,6 +141,54 @@ describe('the recorded cases around some files', () => {
   });
 });
 
+describe('the cases that loaded a module', () => {
+  it('names the cases whose test files import a file that ran only while its module evaluated, through a file between', async () => {
+    const files = {
+      'package.json': JSON.stringify({ name: 'fixture' }),
+      'src/flags.ts': 'export const flags = { on: true };\n',
+      'src/mid.ts': "import { flags } from './flags.js';\nexport const mid = flags;\n",
+      'test/direct.test.ts': "import { flags } from '../src/flags.js';\nexport const direct = flags;\n",
+      'test/through.test.ts': "import { mid } from '../src/mid.js';\nexport const through = mid;\n",
+      'test/apart.test.ts': 'export const apart = 1;\n',
+    };
+    for (const [file, source] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, file)), { recursive: true });
+      writeFileSync(join(root, file), source);
+    }
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture'], { cwd: root });
+    await updateSourceIndex(root);
+    const sets = new CrossingSets(3);
+    record(encodeSetExecutionIndex({
+      tests: [
+        { id: 'apart > x', file: 'test/apart.test.ts', name: 'x' },
+        { id: 'direct > y', file: 'test/direct.test.ts', name: 'y' },
+        { id: 'through > z', file: 'test/through.test.ts', name: 'z' },
+      ],
+      modules: [{
+        file: 'src/flags.ts',
+        blocks: [region('module', '', 1, 1)],
+        called: Uint32Array.of(sets.intern([])),
+        loaded: Uint8Array.of(1),
+      }],
+      sets: sets.pool(),
+    }));
+
+    const [only] = recordedCases(root, ['src/flags.ts'], 5);
+
+    expect(only && 'files' in only ? only.files : undefined).toEqual([
+      {
+        file: 'src/flags.ts',
+        cases: 2,
+        loaded: true,
+        loaders: 2,
+        titles: [{ file: 'test/direct.test.ts', name: 'y' }, { file: 'test/through.test.ts', name: 'z' }],
+        declaredNames: [],
+      },
+    ]);
+  });
+});
+
 describe('the packages around some files', () => {
   it('is absent, with the index it looked for, when no index was ever published', () => {
     expect(packagesAround(root, ['src/api.ts'], { rows: 5, names: 4 })).toEqual({ index: sourceIndexPath(root) });

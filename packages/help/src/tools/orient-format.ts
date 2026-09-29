@@ -155,11 +155,6 @@ function listed(names: readonly string[], count: number): readonly string[] {
   return [...names.map((name) => `      ${name}`), ...(more > 0 && names.length > 0 ? [`      ${plural(more, 'more case')}.`] : [])];
 }
 
-/** Said once under the rows, because a row marked with it counts only part of what ran the file. */
-const EVALUATED =
-  '  * The recording names no case for what runs while a module evaluates. The cases whose files import the module ran it, ' +
-  'and `variance covering --file` names them.';
-
 function row(entered: CasesEntered, wide: number): readonly string[] {
   const file = entered.file.padEnd(wide);
   const declared = entered.declared ?? 0;
@@ -172,11 +167,21 @@ function row(entered: CasesEntered, wide: number): readonly string[] {
   const also = declared > 0 ? [`      It is also a test file declaring ${plural(declared, 'recorded case')}.`] : [];
   const titles = entered.titles.map((title) => `${title.file} > ${title.name}`);
   if (entered.cases === 0) {
-    return [`  ${file}  ${entered.loaded === true ? 'ran only while its module evaluated.*' : 'recorded, and no case ran it.'}`, ...also];
+    if (entered.loaded !== true) return [`  ${file}  recorded, and no case ran it.`, ...also];
+    // Only the importers could name a case, and there is no index to read them from.
+    const why = entered.loaders == null
+      ? 'the source index names no importers to read the cases from'
+      : 'no recorded case imports it';
+    return [`  ${file}  ran only while its module evaluated, and ${why}.`, ...also];
   }
-  const ran = entered.loaded === true
-    ? `${plural(entered.cases, 'case')} ran it, and it also ran while its module evaluated*`
-    : `${plural(entered.cases, 'case')} ran it`;
+  const imported = entered.loaders == null || entered.loaders === 0
+    ? ''
+    : entered.loaders === entered.cases
+      ? ', all of them by importing it'
+      : `, ${entered.loaders} of them by importing it`;
+  const ran = entered.loaded === true && entered.loaders == null
+    ? `${plural(entered.cases, 'case')} ran it; it also ran while its module evaluated, and the source index names no importers to read those cases from`
+    : `${plural(entered.cases, 'case')} ran it${imported}`;
   return [`  ${file}  ${ran}${titles.length > 0 ? ':' : '.'}`, ...listed(titles, entered.cases), ...also];
 }
 
@@ -190,7 +195,6 @@ function cases(reading: OrientReading): readonly string[] {
     }
     const wide = Math.max(...suite.files.map((entered) => entered.file.length));
     lines.push('', `${named}, from ${suite.recording}:`, ...suite.files.flatMap((entered) => row(entered, wide)));
-    if (suite.files.some((entered) => entered.loaded === true)) lines.push(EVALUATED);
   }
   return lines;
 }

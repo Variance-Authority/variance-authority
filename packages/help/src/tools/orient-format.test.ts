@@ -66,10 +66,18 @@ const READING: OrientReading = {
           file: 'packages/checkout/src/total.ts',
           cases: 5,
           loaded: true,
+          loaders: 3,
           titles: [{ file: 'test/total.test.ts', name: 'adds tax' }],
           declaredNames: [],
         },
-        { file: 'packages/cart/src/price.ts', cases: 0, loaded: true, titles: [], declaredNames: [] },
+        {
+          file: 'packages/cart/src/price.ts',
+          cases: 2,
+          loaded: true,
+          loaders: 2,
+          titles: [{ file: 'test/cart.test.ts', name: 'prices a line' }],
+          declaredNames: [],
+        },
         { file: 'README.md', titles: [], declaredNames: [] },
         { file: 'test/total.test.ts', titles: [], declared: 3, declaredNames: ['adds tax'] },
       ],
@@ -106,16 +114,16 @@ describe('an orientation, said', () => {
         '     <1%  files in no package  default <1%',
         '',
         'Recorded cases, suite unit, from /cache/suites/unit/coverage.bin.cases.bin:',
-        '  packages/checkout/src/total.ts  5 cases ran it, and it also ran while its module evaluated*:',
+        '  packages/checkout/src/total.ts  5 cases ran it, 3 of them by importing it:',
         '      test/total.test.ts > adds tax',
         '      4 more cases.',
-        '  packages/cart/src/price.ts      ran only while its module evaluated.*',
+        '  packages/cart/src/price.ts      2 cases ran it, all of them by importing it:',
+        '      test/cart.test.ts > prices a line',
+        '      1 more case.',
         '  README.md                       not recorded: the recording has no row for this file.',
         '  test/total.test.ts              a test file declaring 3 recorded cases:',
         '      adds tax',
         '      2 more cases.',
-        '  * The recording names no case for what runs while a module evaluates. The cases whose files import the module ran it, ' +
-          'and `variance covering --file` names them.',
         '',
         'Recorded cases, suite stories: none read from /cache/suites/stories/coverage.bin.cases.bin, nothing is recorded there. A run with `withTestSelection` records them.',
         '',
@@ -147,14 +155,19 @@ describe('an orientation, said', () => {
     expect(text).toContain('2 files asked about:\n  scripts/build.ts  no package\n  src/new.ts        not in the source index\n');
   });
 
-  it('says no case ran a file only when no region of it ran, and points at the loaders of one that only loaded', () => {
+  it('says no case ran a file only when no region of it ran, and what the importers could not name for one that only loaded', () => {
     const recorded = (entered: CasesEntered) => [{ recording: '/cache/cases.bin', files: [entered] }];
     const idle = formatOrientation({ ...READING, recorded: recorded({ file: 'src/idle.ts', cases: 0, loaded: false, titles: [], declaredNames: [] }) });
     const loaded = { ...READING, recorded: recorded({ file: 'src/flags.ts', cases: 0, loaded: true, titles: [], declaredNames: [] }) };
+    const nobody = recorded({ file: 'src/flags.ts', cases: 0, loaded: true, loaders: 0, titles: [], declaredNames: [] });
 
     expect(idle).toContain('  src/idle.ts  recorded, and no case ran it.\n');
-    expect(idle).not.toContain('* The recording names no case');
-    expect(formatOrientation(loaded)).toContain('  src/flags.ts  ran only while its module evaluated.*\n');
+    expect(formatOrientation(loaded)).toContain(
+      '  src/flags.ts  ran only while its module evaluated, and the source index names no importers to read the cases from.\n',
+    );
+    expect(formatOrientation({ ...READING, recorded: nobody })).toContain(
+      '  src/flags.ts  ran only while its module evaluated, and no recorded case imports it.\n',
+    );
     expect(followUps(loaded)).toContain('variance covering --file src/flags.ts');
   });
 

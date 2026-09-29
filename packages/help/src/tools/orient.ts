@@ -118,10 +118,6 @@ export const orient: Tool<unknown> = {
       files,
       around: packagesAround(root, files, LIMITS),
       external,
-      // TODO: a file that only ran while its module evaluated is counted with
-      // no case, because the cases whose files import it are the file graph's
-      // answer and this builds no graph; `variance covering --file` builds one
-      // and names them, so the answer points there instead of counting them.
       recorded: recordedCases(root, files, TITLES),
       ...journeysOf(root, asks),
     });
