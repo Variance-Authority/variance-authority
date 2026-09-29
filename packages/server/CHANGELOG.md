@@ -1,5 +1,9 @@
 # @variance-authority/server
 
+## 0.12.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.11.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
