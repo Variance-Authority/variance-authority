@@ -99,7 +99,7 @@ export function changeGraph(review: Review): readonly string[] {
     '  classDef loaded fill:#f6f8fa,stroke:#8c959f,color:#1f2328',
     '```',
   );
-  if (all.length > drawn.length) lines.push('', `${all.length - drawn.length} better-covered functions not drawn.`);
+  if (all.length > drawn.length) lines.push('', overflow(all.length - drawn.length, all.length));
   lines.push('', '</details>');
   return lines;
 }
@@ -143,6 +143,11 @@ function coveringTests(moved: readonly RegionMotion[], drawn: readonly Fn[]): Re
     by.set(key(fn), tests);
   }
   return new Map([...by].map(([at, tests]) => [at, [...tests].sort(order)]));
+}
+
+/** The line under a diagram that left functions out; a change this wide is named as such. */
+function overflow(left: number, total: number): string {
+  return total > 200 ? `${left} better-covered functions not drawn, in a change of ${total}.` : `${left} better-covered functions not drawn.`;
 }
 
 function key(fn: Fn): string {
