@@ -29,9 +29,12 @@ an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
 The other two files here, [`check.yml`](check.yml) and
 [`release.yml`](release.yml), are this repository's own build and publish, and
-neither is a recipe. `check.yml` also ends with `variance review` over the
-suite's own recording, and comments on the pull request under a marker of its
-own, so it never overwrites the gate's comment.
+neither is a recipe. On a pull request, `check.yml` runs only the tests the
+change reached, selected by `yarn test:since` from the recording `main` saved,
+and a push to `main` runs the whole suite. It then posts two comments on the
+pull request, each under its own marker so neither overwrites the gate's:
+`variance review` over the suite's recording, and `variance coverage` against
+the record `main` saved.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
 nightly, and the shards on demand only — sharding fourteen subjects across two

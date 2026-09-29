@@ -175,13 +175,16 @@ the search with `grep -ril "<task terms>" .compass`.
 
 ## Standing rules
 
-- **Commit to `main`.** No branch, no PR, unless asked.
+- **Change `main` through a pull request.** Never push to `main`. Cut a branch
+  from `origin/main`, because local `main` may hold unpushed work, push the
+  branch, and open a PR. `check.yml` on the PR is where the change is tested:
+  it runs the tests the change reached and reports how coverage moved against
+  the mainline's record.
 - **A PR body follows
   [`.github/pull_request_template.md`](.github/pull_request_template.md).**
-  `gh pr create --body-file` skips the template, so apply it yourself. Branch from
-  `origin/main`, because local `main` holds unpushed work. Before sending, have
-  a subagent with no other context read the body alone, say what the PR is,
-  and quote each sentence it could not follow. Fix those sentences.
+  `gh pr create --body-file` skips the template, so apply it yourself. Before
+  sending, have a subagent with no other context read the body alone, say what
+  the PR is, and quote each sentence it could not follow. Fix those sentences.
 - **Absent is not empty** (ADR-0002). A thing the run could not determine is
   missing from the output, never zero, never `[]`.
 - **A package is named for what it is for** (ADR-0042), never for a library it
