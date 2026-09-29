@@ -1,7 +1,8 @@
 # See the structure your imports build
 
-`variance layers` numbers every package by how much of the repository sits
-beneath it, and tells you in a pull request which packages changed number.
+`variance layers` numbers every package by the longest chain of packages it
+imports beneath it, and tells you in a pull request which packages changed
+number.
 `variance restrictions` checks imports against rules you write down. Neither
 asks you to tag packages or declare an architecture first: both read the import
 graph in the [source index](source-index.md), so the layers are the ones your
@@ -16,12 +17,15 @@ imports. Packages that import each other in a cycle count as one step.
 
 The number says three separate things.
 
-**How much a package needs beneath it.** A layer 1 package can be used, built
-and tested alone. A layer 7 package needs a chain of six layers under it. This
-is dependency weight, and it grows with every import. It is not blast radius:
-the packages most of the repository imports sit in the lowest layers, so a
-change to one of them affects the most code. Layers count what a package needs,
-not what needs it.
+**How deep a package's longest chain goes.** A layer 1 package can be used,
+built and tested alone. A layer 7 package has a chain of six packages under it,
+each importing the next. This is dependency depth, not size: a layer 7 package
+may need six packages or six hundred, and an import of a package from a lower
+layer than its highest one leaves the layer as it is. Only an import that
+lengthens the longest chain raises it. Depth is not blast radius either: the
+packages most of the repository imports sit in the lowest layers, so a change
+to one of them affects the most code. Layers count how long the chain a package
+needs is, not how many packages it needs and not what needs it.
 
 **Which way the graph points.** With layers, every import has a direction, and
 the direction is the same for the whole repository: a package may know about
