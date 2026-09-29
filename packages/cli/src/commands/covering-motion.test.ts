@@ -61,7 +61,7 @@ describe('what the last run moved', () => {
     const text = formatCovering(answer, 'text');
     expect(text).toContain('Against the run before it: 1 lost.');
     expect(text).toContain('  lost     src/total.ts 30-34 function round — was total.test.ts > discounts');
-    expect(text).toContain('total.test.ts now enters nothing, and no longer enters round in src/total.ts (1 region).');
+    expect(text).toContain('total.test.ts no longer enters round in src/total.ts (1 region).');
   });
 
   it('says there was nothing to compare when no run came before', async () => {

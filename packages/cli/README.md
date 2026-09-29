@@ -533,7 +533,7 @@ now is listed, and so is each region they entered for the first time:
 ```text
 Against the run before it: 1 lost.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
-src/checkout/total.test.ts now enters nothing, and no longer enters applyDiscount in src/checkout/total.ts (1 region).
+src/checkout/total.test.ts no longer enters applyDiscount in src/checkout/total.ts (1 region).
 ```
 
 The words are the ones `--against` uses below.

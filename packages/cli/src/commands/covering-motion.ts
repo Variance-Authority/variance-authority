@@ -181,12 +181,17 @@ export function motionText(
     }
   }
   for (const test of moved.testFiles) {
-    lines.push(`${test.file} now enters ${functionsIn(test.entered)}, and no longer enters ${functionsIn(test.left)}.`);
+    const reach = [
+      ...(test.entered.length === 0 ? [] : [`now enters ${functionsIn(test.entered)}`]),
+      ...(test.left.length === 0 ? [] : [`no longer enters ${functionsIn(test.left)}`]),
+    ];
+    lines.push(`${test.file} ${reach.join(', and ')}.`);
   }
-  if (moved.renumbered.length > 0) {
-    lines.push(`${moved.renumbered.length} region${moved.renumbered.length === 1 ? '' : 's'} renumbered by an edit beside ${
-      moved.renumbered.length === 1 ? 'it' : 'them'
-    } kept the same cases, so ${moved.renumbered.length === 1 ? 'it is' : 'they are'} not counted as moved.`);
+  const renumbered = moved.renumbered?.length ?? 0;
+  if (renumbered > 0) {
+    lines.push(`${renumbered} region${renumbered === 1 ? '' : 's'} renumbered by an edit beside ${
+      renumbered === 1 ? 'it' : 'them'
+    } kept the same cases, so ${renumbered === 1 ? 'it is' : 'they are'} not counted as moved.`);
   }
   if (moved.unread.length > 0) lines.push(`Not compared, the current record has no row for: ${moved.unread.join(', ')}.`);
   return lines;
@@ -247,7 +252,7 @@ function within(moved: CaseMotion, file: string): CaseMotion {
     counts,
     testFiles,
     unread: moved.unread.filter((unread) => unread === file),
-    renumbered: moved.renumbered.filter((region) => region.file === file),
+    ...(moved.renumbered === undefined ? {} : { renumbered: moved.renumbered.filter((region) => region.file === file) }),
   };
 }
 

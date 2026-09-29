@@ -62,9 +62,10 @@ export interface CaseMotion {
    * Regions an edit beside them renumbered: the address pairs them with a
    * sibling of the same name, and their cases say which sibling they are. They
    * are paired by their cases, so they did not move, and are named here rather
-   * than dropped without a word.
+   * than dropped without a word. Absent from an answer written before siblings
+   * were paired, which never looked for them: that is not the same as none.
    */
-  readonly renumbered: readonly MovedRegion[];
+  readonly renumbered?: readonly MovedRegion[];
 }
 
 /** What `caseMotion` may consult, and what it leaves out. */
