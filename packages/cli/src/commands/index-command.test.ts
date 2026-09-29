@@ -31,11 +31,11 @@ afterEach(() => {
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
-/** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. */
-function unprepared(root: string): string {
+/** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `unchanged` is a run that found the index where the last one left it. */
+function unprepared(root: string, unchanged = false): string {
   return 'code map: none, because no manifest names a package\n' +
     `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}.cases.bin\n` +
-    `dependency lexicon: 0 workspace-dependency pairs, 0 public entrypoints, 0 reused, 0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n` +
+    `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n` +
     `questions: published at ${sourceIndexPath(root)}.help.json\n`;
 }
 
@@ -75,7 +75,7 @@ describe('variance index', () => {
       err: '',
     });
     expect(await indexOutput({ cwd: root }))
-      .toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root)}`);
+      .toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root, true)}`);
 
     writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 2;\n');
     expect(await indexOutput({ cwd: root }))
@@ -95,7 +95,7 @@ describe('variance index', () => {
     const at = sourceIndexPath(root);
 
     expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\n${unprepared(root)}`);
-    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root)}`);
+    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root, true)}`);
   });
 
   it('keeps the index it published when the code map cannot be written, and says why there is no map', async () => {

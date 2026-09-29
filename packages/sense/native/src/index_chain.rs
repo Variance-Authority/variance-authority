@@ -96,3 +96,23 @@ fn manifest(bytes: &[u8]) -> Option<Vec<Reference>> {
     });
     (parsed.format == "variance-authority-immutable-log" && parsed.version == 1 && digests).then_some(parsed.segments)
 }
+
+/// The digests of the segments the manifest at `path` names, oldest first: the chain's identity, read
+/// without opening a segment. A missing file, a legacy single-segment file and a malformed manifest have
+/// none, and a refresh that finds none reads the chain.
+pub(crate) fn manifest_digests(path: &str) -> Option<Vec<String>> {
+    let bytes = std::fs::read(path).ok()?;
+    if !bytes.starts_with(MAGIC) { return None; }
+    Some(manifest(&bytes)?.into_iter().map(|reference| reference.digest).collect())
+}
+
+/// The segments of `chain` past its first `known`, read and checked against the digests they are named by,
+/// for a reader that already holds the first `known`. Content addressing is the check: a segment is its
+/// digest or it is not used, and `None` says one was missing or did not match, so the caller reads it all.
+pub(crate) fn read_tail(path: &str, chain: &[String], known: usize) -> Option<Vec<Vec<u8>>> {
+    let directory = format!("{path}.segments");
+    chain.get(known..)?.par_iter().map(|digest| {
+        let segment = std::fs::read(format!("{directory}/{}.bin", digest.replacen(':', "-", 1))).ok()?;
+        (crate::digest::of_sha256(Sha256::digest(&segment).as_slice()) == *digest).then_some(segment)
+    }).collect()
+}

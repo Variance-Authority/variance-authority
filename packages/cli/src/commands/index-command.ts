@@ -83,7 +83,8 @@ async function answerable(root: string, index: string, noGit: boolean): Promise<
 
 function lexicon(root: string): string {
   try {
-    const { path, packages, entrypoints, reused, unavailable } = refreshDependencyLexicon(root);
+    const { path, packages, entrypoints, reused, unavailable, unchanged } = refreshDependencyLexicon(root);
+    if (unchanged) return `dependency lexicon: unchanged, nothing read: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${unavailable} unavailable, at ${path}`;
     return `dependency lexicon: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;
   } catch (error) {
     return `dependency lexicon: not prepared: ${error instanceof Error ? error.message : String(error)}`;
