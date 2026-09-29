@@ -60,6 +60,22 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+/**
+ * Publish the fixture's source index, the step CI runs before `coverage`. Under
+ * CI `coverage` reads a published index and never builds one, so a fixture that
+ * relied on it building one passed locally and failed on every runner.
+ */
+async function publishIndex(repo: string): Promise<void> {
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    const indexed = await ask(['index']);
+    if (indexed.code !== 0) throw new Error(`variance index failed in ${repo}: ${indexed.err}`);
+  } finally {
+    process.chdir(cwd);
+  }
+}
+
 async function ask(argv: readonly string[]) {
   let out = '';
   let err = '';
@@ -162,6 +178,7 @@ describe('coverage of the source no suite loaded', () => {
       await writeFile(join(repo, file), text);
     }
     execFileSync('git', ['add', '.'], { cwd: repo });
+    await publishIndex(repo);
     await record(`${testCoverageFile(repo, { suite: 'unit' })}.cases.bin`, {
       tests: [MAIN],
       modules: [
@@ -195,6 +212,7 @@ describe('coverage of the source no suite loaded', () => {
         await writeFile(join(bare, file), text);
       }
       execFileSync('git', ['add', '.'], { cwd: bare });
+      await publishIndex(bare);
       await record(`${testCoverageFile(bare, { suite: 'unit' })}.cases.bin`, {
         tests: [MAIN],
         modules: [
@@ -252,6 +270,7 @@ describe('coverage of the source the harness loads', () => {
       await writeFile(join(repo, file), text);
     }
     execFileSync('git', ['add', '.'], { cwd: repo });
+    await publishIndex(repo);
     const at = testCoverageFile(repo, { suite: 'unit' });
     await record(`${at}.cases.bin`, { tests: [TEST], modules: [{ file: 'app/src/a.ts', blocks: [region('a', true)] }] });
     // What the seam writes: each test rests on its own file and on the config it could not instrument.
@@ -324,6 +343,7 @@ describe('coverage of each package', () => {
       await writeFile(join(repo, file), text);
     }
     execFileSync('git', ['add', '.'], { cwd: repo });
+    await publishIndex(repo);
     await record(`${testCoverageFile(repo, { suite: 'unit' })}.cases.bin`, {
       tests: [MAIN],
       modules: [
