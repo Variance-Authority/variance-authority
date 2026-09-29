@@ -16,11 +16,12 @@
 
 // compass: variance-authority.reach.relations
 
+import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
 import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation } from './native-orient.js';
 import { sourceIndexPath } from './source-index.js';
 import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js';
-import { recordPath, richestCaseIndex } from './test-selection/record-location.js';
+import { recordPath } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
 
 export type {
@@ -107,7 +108,7 @@ export function recordedCases(root: string, files: readonly string[], titles: nu
   return suites.map((suite) => {
     const named = suite === undefined ? {} : { suite };
     const candidates = layeredFiles(layers, `${recordPath(root, suite)}.cases.bin`);
-    const recording = richestCaseIndex(candidates);
+    const recording = candidates.find((candidate) => existsSync(candidate));
     if (recording === undefined) return { ...named, recording: candidates[0]!, unread: 'nothing is recorded there' };
     const cases = entry('casesEntered');
     try {

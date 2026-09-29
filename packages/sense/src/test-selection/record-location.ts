@@ -12,7 +12,6 @@
 // compass: variance-authority.reach
 
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
@@ -158,36 +157,6 @@ async function seedFrom(
     // No base, or one this build has no claim on. Either way there is nothing
     // to inherit and the run records its own.
   }
-}
-
-/**
- * The case index to read among `candidates`, nearest layer first: the one that
- * names the most cases, the nearest on a tie.
- *
- * A worktree's index is the base's with its own runs folded in, so it is the
- * larger one, unless it began before seeding existed, or from a run of one
- * file, in which case the nearest layer alone would let that partial file hide
- * the whole suite the base still holds. Absent is not empty: a candidate that
- * cannot be read counts for nothing rather than for zero cases.
- */
-export function richestCaseIndex(candidates: readonly string[]): string | undefined {
-  let best: string | undefined;
-  let most = -1;
-  for (const candidate of candidates) {
-    if (!existsSync(candidate)) continue;
-    let count = 0;
-    try {
-      const bytes = readFileSync(candidate);
-      count = (openSetExecutionIndex(bytes)?.tests ?? decodeExecutionTests(bytes)).length;
-    } catch {
-      // Unreadable here; the caller opens the nearest one and says why.
-    }
-    if (count > most) {
-      best = candidate;
-      most = count;
-    }
-  }
-  return best;
 }
 
 /**

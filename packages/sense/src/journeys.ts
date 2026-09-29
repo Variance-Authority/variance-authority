@@ -14,13 +14,14 @@
 
 // compass: variance-authority.reach.relations
 
+import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { keptRunnerAliases, runnerConfigs, unlistedRunnerAliases, type RunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
 import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js';
-import { recordPath, richestCaseIndex } from './test-selection/record-location.js';
+import { recordPath } from './test-selection/record-location.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { declaredSuites } from './test-selection/suites.js';
 
@@ -74,7 +75,7 @@ function recordings(root: string): readonly { readonly suite?: string; readonly 
   const layers = repositoryLayers(root);
   return suites.map((suite) => {
     const candidates = layeredFiles(layers, `${recordPath(root, suite)}.cases.bin`);
-    const recording = richestCaseIndex(candidates);
+    const recording = candidates.find((candidate) => existsSync(candidate));
     return { ...(suite === undefined ? {} : { suite }), ...(recording === undefined ? {} : { recording }), looked: candidates[0]! };
   });
 }
