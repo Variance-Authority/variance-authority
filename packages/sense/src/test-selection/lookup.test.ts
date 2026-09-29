@@ -3,7 +3,7 @@ import { encodeTestCoverage } from './format.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { coverage, testFiles } from './__fixtures__/coverage.js';
-import { findModule, findModules, findString, findTest, testsGovernedBy } from './lookup.js';
+import { findModule, findModules, findString, findTest, sharedPreconditions, testsGovernedBy } from './lookup.js';
 
 const view = (): TestCoverageView => openTestCoverage(encodeTestCoverage(coverage));
 
@@ -84,6 +84,23 @@ describe('which tests a changed file governs', () => {
       'vitest.config.ts',
     ]);
     expect(answer.unread).toEqual([]);
+  });
+});
+
+describe('what the harness loads before every test', () => {
+  it('is the preconditions every test declares, without each test own file', () => {
+    expect(sharedPreconditions(view())).toEqual(['vitest.config.ts']);
+  });
+
+  it('leaves out a precondition one test does not declare', () => {
+    const tests = coverage.tests.map((test, at) =>
+      at === 0 ? test : { ...test, preconditions: [...test.preconditions, { name: 'setup.ts', digest: 'source:setup' }] });
+
+    expect(sharedPreconditions(openTestCoverage(encodeTestCoverage({ ...coverage, tests })))).toEqual(['vitest.config.ts']);
+  });
+
+  it('names nothing for a recording with no tests', () => {
+    expect(sharedPreconditions(openTestCoverage(encodeTestCoverage({ ...coverage, tests: [], modules: [] })))).toEqual([]);
   });
 });
 

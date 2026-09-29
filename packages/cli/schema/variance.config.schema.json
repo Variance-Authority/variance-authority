@@ -139,6 +139,16 @@
         }
       },
       "description": "Every test suite the repository runs, by name, with its kind. Each suite records separately, and names itself with the suite option of its test runner integration. Read only from the variance.config.json at the repository root."
+    },
+    "entrypoints": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": { "type": "string", "minLength": 1 }
+      },
+      "description": "Where each part of the repository starts, by its directory spelled from the repository root. Each pattern is relative to that directory: `*` matches within one path segment and `**` any number of segments. `variance coverage --from <dir>` counts the files these entry points import, followed through every import. Read only from the variance.config.json at the repository root."
     }
   },
   "$defs": {

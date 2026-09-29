@@ -77,6 +77,7 @@ mod resolve;
 mod seed;
 mod segment;
 mod side_effects;
+mod source_size;
 mod specifier;
 mod stored;
 mod tree;

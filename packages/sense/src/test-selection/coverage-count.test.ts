@@ -91,7 +91,7 @@ describe('how much of what the suites loaded each suite ran', () => {
     expect(count.overlap).toEqual({ several: 1, alone: { unit: 1, e2e: 0 } });
   });
 
-  it.todo('counts the source files no suite loaded, from the source index, as files and never as regions nobody ran — needs each seam to publish which files it would instrument, so the count is not a guess at its include and exclude patterns');
+  it.todo('tells a source file a seam loaded and chose not to instrument from one no suite loaded — needs each seam to publish which files it would instrument, so the count is not a guess at its include and exclude patterns');
 });
 
 describe('what changed one suite\'s count', () => {

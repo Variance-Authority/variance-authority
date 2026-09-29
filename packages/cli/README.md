@@ -148,7 +148,7 @@ variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--root <path>] [--format text|markdown|json]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
@@ -840,6 +840,72 @@ case index instead. The comparison is printed only when every recorded suite has
 a base, because every share is taken over the regions all the suites loaded,
 and a suite missing from the base changes that total for all of them. Each
 suite with no base is named with the reason.
+
+A record holds only the modules some suite loaded, so a file that no suite
+loaded is in no record. `coverage` reads the rest from the
+[source index](../../docs/cache.md), which stores the size of every JavaScript
+and TypeScript file it parsed: its bytes, the lines that hold code, the regions the recording would
+cut it into, and how many names it exports. The files no suite recorded are
+listed by directory, and the share is printed again over every region in the
+source:
+
+```text
+source: 338 files reached from the entry points of packages/apps/main
+  before reach                     4 files   212 lines    61 regions
+  recorded by no suite             27 files  1,203 lines  388 regions
+    packages/apps/main/src/legacy  12 files  610 lines    201 regions
+    packages/apps/main/src/admin   9 files   402 lines    131 regions
+    libs/ui/charts                 6 files   191 lines    56 regions
+  total coverage for 4,417 of the 5,261 regions: 84.0%, 1.4% before reach
+```
+
+Tests, `*.config.*` files and declaration files are not source here, because no
+recording instruments them.
+
+*Before reach* is what the test harness loads: the files the runner's config
+reaches through its imports, as the recording names it
+([changes before and beyond reach](../../docs/changes-before-and-beyond.md)).
+Only the part of it the scope's entry points reach is counted, so the config
+itself is in no scope. Those files ran under every test and no record holds a
+region of them, so the second share counts them as run and says how much of
+the run they are: code every test runs and no test is aimed at.
+`--format json` names every file.
+
+Without `--from`, the source is what every declared directory's entry points
+reach, and a table under the share gives each directory a row; a file none of
+them reaches is not counted. With no entry points declared, the source is every
+file the index holds. `--from <dir>` counts one part of a repository on its own. The
+source is then what the directory's entry points import, followed through every
+import, so a shared package the application imports is counted with it and a
+sibling application is not. Every count above the source lines is narrowed to
+the same files. The root `variance.config.json` declares the entry points, as
+paths relative to each directory, where `*` matches within one path segment and
+`**` matches any number of segments:
+
+```json
+{
+  "entrypoints": {
+    "packages/apps/main": ["src/main.tsx"],
+    "packages/apps/next": ["app/**"]
+  }
+}
+```
+
+A directory with no entry points declared starts from every file under it, and
+the first line says so. A pattern that matches no file is named.
+
+`--packages` gives every workspace the root `package.json` names a row of that
+table:
+
+```text
+                  own     before reach  with imports  before reach
+  packages/cli    81.9%   0.0%          85.7%         1.1%
+  packages/sense  59.5%   3.3%          65.3%         3.2%
+```
+
+*Own* counts the package's own files. *With imports* counts everything its
+files reach, including the other workspaces they import. Each is followed by
+how much of what ran is before reach.
 
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever
