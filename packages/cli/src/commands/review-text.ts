@@ -79,9 +79,11 @@ const MARK: Readonly<Record<Reach, string>> = {
 
 /**
  * The comment. GitHub draws every table at the width of its content, so the
- * body is one table the reviewer acts on, with a callout above it saying what
- * the table adds up to, and every list that grows with the change folded under
- * a summary that counts it.
+ * body is one table the reviewer acts on, with a callout above it, and every
+ * list that grows with the change folded under a summary that counts it. The
+ * table has no total row: its rows are answers that mean opposite things, and
+ * their sum is only the size of the change, which the callout states as the
+ * denominator of the count it leads with.
  */
 function markdown(review: Review): string {
   const code = (value: string): string => `\`${value}\``;
@@ -90,10 +92,8 @@ function markdown(review: Review): string {
   lines.push(...calloutMarkdown(review, regions), ...selectionMarkdown(review, code));
   const reach = reachRows(review.files);
   if (reach.length > 0) {
-    const holding = review.files.filter((file) => outermost(file).length > 0).length;
     lines.push('', '| Changed regions | All | New |', '| --- | ---: | ---: |');
     for (const [kind, all, written] of reach) lines.push(`| ${MARK[kind]} ${REACH_TEXT[kind]} | ${all} | ${written} |`);
-    lines.push(`| **in ${holding} file${holding === 1 ? '' : 's'}** | **${regions.length}** | **${regions.filter((region) => region.written).length}** |`);
   }
   const counts = review.motion?.moved?.counts;
   if (counts !== undefined) {
@@ -141,6 +141,8 @@ function calloutMarkdown(review: Review, regions: readonly ReviewRegion[]): read
     }.`];
   }
   const uncovered = regions.filter((region) => MARK[region.reach] === '🔴');
+  const files = review.files.filter((file) => outermost(file).length > 0).length;
+  const holding = ` in ${files} file${files === 1 ? '' : 's'}`;
   const far = regions.filter((region) => region.reach === 'far').length;
   const unplaced = regions.filter((region) => region.reach === 'unplaced').length;
   const loaded = regions.filter((region) => region.reach === 'loaded').length;
@@ -153,14 +155,14 @@ function calloutMarkdown(review: Review, regions: readonly ReviewRegion[]): read
     const written = uncovered.filter((region) => region.written).length;
     return [
       '> [!WARNING]',
-      `> **${uncovered.length} of ${regions.length} changed regions have no case that covers them**${
+      `> **${uncovered.length} of ${regions.length} changed regions${holding} have no case that covers them**${
         written === 0 ? '' : written === uncovered.length ? ', all of them new code' : `, ${written} of them new code`
       }.`,
       ...(further.length === 0 ? [] : ['>', `> ${further.join('; ')}.`]),
     ];
   }
-  if (further.length > 0) return ['> [!NOTE]', `> Every changed region has a case: ${further.join('; ')}.`];
-  return ['> [!TIP]', `> Every one of the ${regions.length} changed regions is covered by a test that imports its file.`];
+  if (further.length > 0) return ['> [!NOTE]', `> Every one of the ${regions.length} changed regions${holding} has a case: ${further.join('; ')}.`];
+  return ['> [!TIP]', `> Every one of the ${regions.length} changed regions${holding} is covered by a test that imports its file.`];
 }
 
 /**
