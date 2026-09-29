@@ -28,6 +28,7 @@ mod dependency_namespace;
 mod digest;
 mod emitted;
 mod external_dependencies;
+mod help_usage;
 mod source_tree;
 mod generation;
 mod git;

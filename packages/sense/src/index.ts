@@ -83,6 +83,7 @@ export {
   dependenciesAround,
   orientAround,
   sourceTreeBytes,
+  indexedUsage,
   recordedCases,
   type CasesEntered,
   type Orientation,

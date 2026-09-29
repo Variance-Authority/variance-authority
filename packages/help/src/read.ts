@@ -346,7 +346,7 @@ export async function refreshWorkspace(
   options: ReadingOptions = {},
 ): Promise<Help> {
   const read = await scanWorkspace(root, options);
-  if (!sameSurface(read, documented)) return documentWorkspace(read, options);
+  if (!sameSurface(read, read.scanned.usage.exported, documented)) return documentWorkspace(read, options);
   const help = joinUsage(documented, read.offerings, read.scanned.usage);
   if (options.save !== false) {
     if (options.saveIndex !== false) await read.scanned.save();
@@ -409,7 +409,7 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
   return help;
 }
 
-function sameSurface(read: WorkspaceScan, documented: Help): boolean {
+export function sameSurface(read: Pick<WorkspaceScan, 'root' | 'offerings' | 'changed'>, exported: Usage['exported'], documented: Help): boolean {
   const shape = read.offerings.map((offering) => ({
     name: offering.name,
     declared: offering.declared,
@@ -423,10 +423,10 @@ function sameSurface(read: WorkspaceScan, documented: Help): boolean {
     declared: published.declared,
     openings: published.openings.map(({ subpath, source }) => ({ subpath, source })),
   }));
-  return isDeepStrictEqual(shape, previous) && sameExportedSurface(read, documented);
+  return isDeepStrictEqual(shape, previous) && sameExportedSurface(read, exported, documented);
 }
 
-function sameExportedSurface(read: WorkspaceScan, documented: Help): boolean {
+function sameExportedSurface(read: Pick<WorkspaceScan, 'changed'>, exported: Usage['exported'], documented: Help): boolean {
   if (read.changed?.length === 0) return true;
   const changed = read.changed === undefined ? undefined : new Set(read.changed);
   const keys = (values: Help['exported']): Set<string> => new Set(
@@ -435,7 +435,7 @@ function sameExportedSurface(read: WorkspaceScan, documented: Help): boolean {
       .map((value) => `${value.at}\0${value.name}\0${value.kind}\0${Number(value.type)}`),
   );
   const before = keys(documented.exported);
-  const after = keys(read.scanned.usage.exported);
+  const after = keys(exported);
   return before.size === after.size && [...before].every((key) => after.has(key));
 }
 
@@ -452,7 +452,7 @@ function reachedFrom(usage: Usage, key: string, name: string, owner: string): {
   return { usedBy, uses: sites.length, sites };
 }
 
-function joinUsage(documented: Help, offerings: readonly Offering[], usage: Usage): Help {
+export function joinUsage(documented: Help, offerings: readonly Offering[], usage: Usage): Help {
   const packages = documented.packages.map((published) => ({
     ...published,
     openings: published.openings.map((opening) => ({

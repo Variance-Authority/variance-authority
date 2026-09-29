@@ -119,14 +119,14 @@ export async function tryPublishWorkspaceSnapshot(
   root: string,
   graphRoot: string,
   help: Help,
-  records: readonly FileRecord[],
+  records: readonly FileRecord[] | Uint8Array,
   index?: string,
 ): Promise<void> {
   try {
     const at = workspaceSnapshotPath(index ?? sourceIndexPath(root));
     const temporary = `${at}.${String(process.pid)}.tmp`;
     const generatedAt = new Date().toISOString();
-    const tree = encodeSourceTree(records);
+    const tree = records instanceof Uint8Array ? records : encodeSourceTree(records);
     const graphDigest = digest(tree);
     const treeAt = workspaceTreePath(index ?? sourceIndexPath(root), graphDigest);
     const treeTemporary = `${treeAt}.${String(process.pid)}.tmp`;

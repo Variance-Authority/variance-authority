@@ -306,7 +306,7 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
 
 /// The files the index holds, and every `package.json` in a directory above
 /// one of them, in code-unit order: what git would have listed of them.
-fn beside<'a>(root: &str, indexed: impl Iterator<Item = &'a str>) -> Vec<String> {
+pub(crate) fn beside<'a>(root: &str, indexed: impl Iterator<Item = &'a str>) -> Vec<String> {
     let mut paths: Vec<String> = Vec::new();
     let mut directories: HashSet<&str> = HashSet::new();
     for path in indexed {
