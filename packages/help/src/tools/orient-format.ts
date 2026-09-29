@@ -36,6 +36,14 @@ export interface OrientReading {
 
 const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
+/** Below this many uses in a denominator a percentage says less than the count does, so only the count is printed. */
+export const SHARE_FLOOR = 10;
+
+/** A share with the count it is over, or the bare count when the denominator is under the floor. */
+export function counted(share: number, uses: number, of: number): string {
+  return of < SHARE_FLOOR ? `${uses} of ${of}` : `${percent(share)} (${uses})`;
+}
+
 /** A share as a whole percent, and a share too small to round to one said as that. */
 export function percent(share: number): string {
   const whole = Math.round(share * 100);
@@ -72,16 +80,17 @@ function side(flows: OrientFlows, heading: string, indexed: number): readonly st
   }
   const others = flows.rows.length + flows.more;
   const rows = flows.rows.map((row) => {
-    const names = row.names.map((name) => `${nameOf(name.name)} ${percent(name.share)}`);
+    const names = row.names.map((name) => `${nameOf(name.name)} ${counted(name.share, name.uses, name.of)}`);
     if (row.moreNames > 0) names.push(`${plural(row.moreNames, 'more name')}`);
-    return { share: percent(row.share), party: row.package ?? `files in no package`, names: names.join(', ') };
+    return { share: counted(row.share, row.uses, flows.units), party: row.package ?? `files in no package`, names: names.join(', ') };
   });
-  if (flows.more > 0) rows.push({ share: percent(flows.moreShare), party: plural(flows.more, 'more package'), names: '' });
+  if (flows.more > 0) rows.push({ share: counted(flows.moreShare, Math.round(flows.moreShare * flows.units), flows.units), party: plural(flows.more, 'more package'), names: '' });
   // Only a row followed by names is padded; the count of the rest has nothing after it to align.
+  const wideShare = Math.max(4, ...rows.map((row) => row.share.length));
   const wide = Math.max(0, ...rows.filter((row) => row.names !== '').map((row) => row.party.length));
   return [
     `  ${heading}, ${plural(others, 'package')}, ${plural(flows.units, 'use')}${flows.unread === 0 ? '' : ` (the ${unread})`}:`,
-    ...rows.map((row) => `    ${row.share.padStart(4)}  ${row.names === '' ? row.party : `${row.party.padEnd(wide)}  ${row.names}`}`),
+    ...rows.map((row) => `    ${row.share.padStart(wideShare)}  ${row.names === '' ? row.party : `${row.party.padEnd(wide)}  ${row.names}`}`),
   ];
 }
 
@@ -99,8 +108,9 @@ function packages(reading: OrientReading): readonly string[] {
   ];
   const lines = [
     `Packages, from the source index at ${around.index} (${state.join('; ')}).`,
-    'A use is one file importing one name from another package. A package\'s share is of the uses on that side; ' +
-      'a name\'s share is of every use the package exporting it gets from outside.',
+    'Observed in source: a use is one file importing one name from another package. A package\'s share is of the uses on that side; ' +
+      'a name\'s share is of every use the package exporting it gets from outside. Each share has its count beside it, ' +
+      `and a denominator under ${SHARE_FLOOR} is given as the count alone.`,
   ];
   if (orientation.stale > 0) lines.push('`variance index` updates the index.');
   if (orientation.packages.length === 0) lines.push('', 'None of these files is in a package.');

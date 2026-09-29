@@ -34,6 +34,9 @@ pub struct OrientShare {
     /// This row's units of the name over every unit the package exporting it
     /// gets from outside.
     pub share: f64,
+    /// The units behind `share`, and the total they are over.
+    pub uses: u32,
+    pub of: u32,
 }
 
 #[napi(object)]
@@ -43,6 +46,8 @@ pub struct OrientFlow {
     pub directory: Option<String>,
     /// This package's units over the side's total.
     pub share: f64,
+    /// The units behind `share`; the side's total is `OrientFlows::units`.
+    pub uses: u32,
     pub names: Vec<OrientShare>,
     /// Names past the limit.
     pub more_names: u32,
@@ -94,7 +99,8 @@ pub(crate) fn flows<'p>(
                 package: named(other).map(|package| package.name.clone()),
                 directory: named(other).map(|package| package.directory.clone()),
                 share: share(units),
-                names: names[..kept].iter().map(|&(name, count)| OrientShare { name: name.to_owned(), share: over(count, exported) }).collect(),
+                uses: units,
+                names: names[..kept].iter().map(|&(name, count)| OrientShare { name: name.to_owned(), share: over(count, exported), uses: count, of: exported }).collect(),
                 more_names: (names.len() - kept) as u32,
             }
         })

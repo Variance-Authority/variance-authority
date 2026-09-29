@@ -85,11 +85,11 @@ function flows(flows: JourneysFlows, cases: number, indent: string): readonly st
   const party = flows.package ?? 'files in no package';
   if (flows.through === 0) return [`${indent}No recorded case entered ${party}.`];
   const share = cases === 0 ? '' : ` (${percent(flows.through, cases)})`;
-  const entered = `${indent}Package flows: ${flows.through} of ${plural(cases, 'case')}${share} entered ${party}, as recorded`;
-  if (flows.placed === 0 || flows.top.length === 0) return [`${entered}; no package flow passes through it.`];
+  const entered = `${indent}Observed: ${flows.through} of ${plural(cases, 'case')}${share} entered ${party}`;
+  if (flows.placed === 0 || flows.top.length === 0) return [`${entered}; no case entered it and another package.`];
   const wide = Math.max(...flows.top.map((flow) => String(flow.cases).length));
   return [
-    `${entered}; ${flows.placed} pass through it, a test file's own package counted, along ${plural(flows.distinct, 'package flow')}; ` +
+    `${entered}; ${flows.placed} entered it and other packages, a test file's own package counted, in ${plural(flows.distinct, 'combination')}, co-entry and not a crossing; ` +
       `the ${flows.top.length === 1 ? 'one' : `${flows.top.length} most`} taken, with an example case:`,
     ...flows.top.map((flow) => {
       const path = flow.packages.map((one) => one ?? 'no package').join(' → ');
@@ -129,7 +129,7 @@ function fileRows(file: JourneysFile, cases: number, said: Set<string>): readonl
   if (!file.recorded) return [`  ${file.file}${file.line == null ? '' : `:${file.line}`}  the recording has no function in this file.`];
   // Two asks in one package share its flows, which are printed under the first.
   const party = file.flows.package ?? '';
-  const flowed = said.has(party) ? [`${indent}Package flows: as above.`] : flows(file.flows, cases, indent);
+  const flowed = said.has(party) ? [`${indent}Observed: as above.`] : flows(file.flows, cases, indent);
   said.add(party);
   if (file.line != null) {
     return [lineHead(file, file.line), ...(file.focus == null ? [] : region(file.focus, indent)), ...flowed];

@@ -17,6 +17,9 @@
 export interface NativeOrientShare {
   readonly name: string;
   readonly share: number;
+  /** The uses behind `share`, and the total they are over. */
+  readonly uses: number;
+  readonly of: number;
 }
 
 /** One other package on one side of an asked package, largest share first. */
@@ -26,6 +29,8 @@ export interface NativeOrientFlow {
   readonly directory?: string | null;
   /** Of the side's uses. */
   readonly share: number;
+  /** The uses behind `share`. */
+  readonly uses: number;
   readonly names: readonly NativeOrientShare[];
   /** Names past the limit. */
   readonly moreNames: number;

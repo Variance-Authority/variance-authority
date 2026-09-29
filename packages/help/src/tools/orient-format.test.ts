@@ -23,7 +23,7 @@ const ORIENTATION: Orientation = {
       directory: 'packages/checkout',
       indexed: 10,
       takes: {
-        rows: [{ package: '@t/cart', directory: 'packages/cart', share: 0.75, names: [{ name: 'priceOf', share: 0.5 }, { name: 'currency', share: 0.25 }], moreNames: 0 }],
+        rows: [{ package: '@t/cart', directory: 'packages/cart', share: 0.75, uses: 3, names: [{ name: 'priceOf', share: 0.5, uses: 2, of: 4 }, { name: 'currency', share: 0.25, uses: 1, of: 4 }], moreNames: 0 }],
         more: 1,
         moreShare: 0.25,
         units: 4,
@@ -38,8 +38,8 @@ const ORIENTATION: Orientation = {
       takes: NONE,
       taken: {
         rows: [
-          { package: '@t/checkout', directory: 'packages/checkout', share: 0.996, names: [{ name: 'priceOf', share: 0.5 }, { name: '*', share: 0.004 }], moreNames: 3 },
-          { share: 0.004, names: [{ name: 'default', share: 0.004 }], moreNames: 0 },
+          { package: '@t/checkout', directory: 'packages/checkout', share: 0.996, uses: 249, names: [{ name: 'priceOf', share: 0.5, uses: 125, of: 250 }, { name: '*', share: 0.004, uses: 1, of: 250 }], moreNames: 3 },
+          { share: 0.004, uses: 1, names: [{ name: 'default', share: 0.004, uses: 1, of: 250 }], moreNames: 0 },
         ],
         more: 0,
         moreShare: 0,
@@ -97,21 +97,22 @@ describe('an orientation, said', () => {
         '  test/total.test.ts              not in the source index',
         '',
         'Packages, from the source index at /cache/source-index.bin (40 files indexed; 2 changed or removed since).',
-        "A use is one file importing one name from another package. A package's share is of the uses on that side; " +
-          "a name's share is of every use the package exporting it gets from outside.",
+        "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +
+          "a name's share is of every use the package exporting it gets from outside. Each share has its count beside it, " +
+          "and a denominator under 10 is given as the count alone.",
         '`variance index` updates the index.',
         '',
         '@t/checkout  packages/checkout',
         '  Takes from, 2 packages, 4 uses:',
-        '     75%  @t/cart  priceOf 50%, currency 25%',
-        '     25%  1 more package',
+        '    3 of 4  @t/cart  priceOf 2 of 4, currency 1 of 4',
+        '    1 of 4  1 more package',
         '  Used by: no package in this checkout.',
         '',
         '@t/cart  packages/cart',
         '  Takes from: no package in this checkout.',
         '  Used by, 2 packages, 250 uses (the imported names of 2 files were not read):',
-        '    100%  @t/checkout          priceOf 50%, the whole module <1%, 3 more names',
-        '     <1%  files in no package  default <1%',
+        '    100% (249)  @t/checkout          priceOf 50% (125), the whole module <1% (1), 3 more names',
+        '       <1% (1)  files in no package  default <1% (1)',
         '',
         'Recorded cases, suite unit, from /cache/suites/unit/coverage.bin.cases.bin:',
         '  packages/checkout/src/total.ts  5 cases ran it, 3 of them by importing it:',
