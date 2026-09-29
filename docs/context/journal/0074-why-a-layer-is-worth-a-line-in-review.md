@@ -46,6 +46,32 @@ opened. Every claim below names where it came from.
 - **Level numbers from 1 are our choice.** Secondary summaries of Lakos did not
   confirm his numbering, so it is not credited to him.
 
+## Prior art that declares the shape (verified against the tools' own docs)
+
+- Buck2: `visibility` limits who may depend on a target and `within_view` limits
+  what a target may depend on. Its docs give "reaching across" and "dependency
+  creep" as the reason (buck2.build/docs/concepts/visibility). The graph must be a
+  DAG, and graph size "affects build speed and memory usage greatly" (tutorial
+  page only).
+- Bazel: Google teams make a target public only when it is a widely used library
+  (bazel.build/basics/dependencies). `query` has `minrank`/`maxrank`, so depth is
+  computable but is not a product.
+- Pants: `__dependencies_rules__` and `__dependents_rules__` in BUILD files.
+- Nx: tags plus rules for which tags may depend on which; "chaos will ensue"
+  without them.
+- Fluid Framework: `pnpm layer-check` runs `flub check layers --info
+  layerInfo.json`, which declares layers, their packages and their allowed
+  dependencies. Closest to `layers`, but declared. The title of the generated
+  PACKAGES.md was not confirmed.
+- dependency-cruiser: instability, dependant counts, reachability and orphan
+  rules; no layer number.
+- None of the pages read reports a computed layer changing in a pull request.
+  That is absence in the pages read, not a search of each site. Lage's docs could
+  not be fetched (TLS error) and are unchecked.
+
+The distinction the page uses: they enforce a declaration, `layers` derives the
+shape first and leaves acceptance to the reviewer.
+
 ## Test selection is a separate question
 
 The static graph decides what Nx builds and schedules as affected. It does not

@@ -38,6 +38,27 @@ low in it invalidates more of it. This does not apply to test selection.
 recorded run, not which packages import it, so a tall graph does not make
 Variance run more tests.
 
+## Declared or derived
+
+Large repositories already treat the direction of dependencies as architecture.
+Bazel and Buck2 give every target a visibility list, and Buck2 adds
+`within_view` to limit what a target may depend on. Pants has
+`__dependencies_rules__` and `__dependents_rules__`. Nx tags projects and states
+which tags may depend on which. Fluid Framework keeps a `layerInfo.json` that
+names its layers, their packages and the layers each may depend on, and fails the
+build on a deviation.
+
+All of them start from a statement of what the architecture should be. That
+statement has to exist before it can be enforced, and it has to be kept true
+after.
+
+`variance layers` starts from the other side. With no rules written, the imports
+already give every package a layer, and a pull request that changes a layer is
+reported whether or not anyone thought to forbid it. `restrictions` is what you
+add when you do want to state an edge that must not exist; the two work
+independently. The search for a tool that reports a package's computed layer
+changing in a pull request found none among these.
+
 ## What a pull request shows
 
 A layer is a number, and a number alone changes nothing. `layers` compares the
