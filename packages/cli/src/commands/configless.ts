@@ -32,6 +32,7 @@ import { distillFiles, formatDistill } from './distill.js';
 import { indexOutput } from './index-command.js';
 import { reachOutput } from './reach-command.js';
 import { review } from './review.js';
+import { REVIEW_ARTIFACT, reviewFromRun } from './review-from-run.js';
 import { formatReview } from './review-text.js';
 import { selectOutput } from './select-command.js';
 import { formatStory, story } from './story.js';
@@ -163,6 +164,10 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
+      if (parsed.fromRun !== undefined) {
+        streams.out(formatReview(await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root }), parsed.format));
+        return EXIT_CLEAN;
+      }
       const answer = await review(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });

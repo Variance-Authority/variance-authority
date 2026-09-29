@@ -149,7 +149,7 @@ variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] 
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
-variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] [--root <path>] [--format text|markdown|json]
+variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -533,7 +533,7 @@ now is listed, and so is each region they entered for the first time:
 ```text
 Against the run before it: 1 lost.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
-src/checkout/total.test.ts now enters 0 regions it did not, and no longer enters 1.
+src/checkout/total.test.ts now enters nothing, and no longer enters applyDiscount in src/checkout/total.ts (1 region).
 ```
 
 The words are the ones `--against` uses below.
@@ -633,12 +633,15 @@ Against base/coverage.bin.cases.bin at 3f9e21c07a44: 1 lost, 1 hidden, 2 gained.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
   hidden   src/checkout/tax.ts 12-30 function taxFor — was tax.test.ts > rounds; stopped: tax.test.ts > rounds
   ...
-src/checkout/total.test.ts now enters 2 regions it did not, and no longer enters 1.
+src/checkout/total.test.ts now enters formatTotal in src/checkout/format.ts (2 regions), and no longer enters applyDiscount in src/checkout/total.ts (1 region).
 ```
 
 A region is matched across the two by its place in the module's tree, not by
 its lines, so a function your change moved down the file is still the same
-function. Each region whose cases moved is one of four:
+function. Siblings of one name, such as three `.filter` callbacks in one
+function, are told apart by their cases first, so deleting one of them does not
+read as the others losing and gaining theirs; the answer counts those it paired
+this way as renumbered. Each region whose cases moved is one of four:
 
 - **lost**: cases walked it at the base, none do now, and every case that could
   have reached it finished. This is a regression.
@@ -766,6 +769,26 @@ suite, and review after it:
     npx variance index
     npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
+
+In the markdown, the test files whose reach moved are also drawn as a Mermaid
+diagram: a test file on the left, a directory of the code it runs on the right,
+and each edge counts the functions it now enters or no longer enters. The same
+lines as the text follow it, folded.
+
+A comment shows part of the answer, and `review.json` holds all of it. Upload
+the `--out` directory as an artifact, and anyone with the GitHub CLI can print
+the whole review in their own terminal:
+
+```bash
+variance review --from-run https://github.com/acme/shop/actions/runs/36531792356
+```
+
+`--from-run` takes a run id or the URL of a run or one of its jobs. It runs
+`gh run download` for the artifact `variance-review`, or the one `--artifact`
+names, and prints the `review.json` inside in the format asked for. The review
+is the one the run made, so `--since`, `--against`, `--suite` and `--out` are
+refused beside it. When `gh` is not installed, or the artifact has expired, the
+message says which.
 
 A suite split over several invocations at one commit keeps the base's cases for
 every file any of them ran. Once an invocation runs a file a second time, that
