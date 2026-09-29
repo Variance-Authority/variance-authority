@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { journeysAmong, journeysAround, journeysPath, prepareJourneys } from './journeys.js';
+import { forksBetween, journeysAmong, journeysAround, journeysPath, pathsThrough, prepareJourneys } from './journeys.js';
 import { updateSourceIndex } from './published.js';
 import { keptRunnerAliases, runnerAliases, runnerConfigs, runnerDigest, unlistedRunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
@@ -150,6 +150,46 @@ describe('the calls some of the cases placed', () => {
     expect(call(peeks)).toEqual(['test>get 1/2']);
     expect(peeks?.outside).toEqual([9]);
     expect(journeysAmong(root, [0], 'no such suite')).toBeUndefined();
+  });
+});
+
+describe('journeys read as masks', () => {
+  /** `get` runs for all three cases; two take its branch and reach `put`. */
+  function branched(): Buffer {
+    const tests = ['finds', 'misses', 'finds again'].map((name) => ({ id: `api > ${name}`, file: 'test/api.test.ts', name }));
+    const sets = new CrossingSets(tests.length);
+    return encodeSetExecutionIndex({
+      tests,
+      modules: [
+        {
+          file: 'src/api.ts',
+          blocks: [region('module', '', 1, 6), region('function', 'get', 1, 3), region('branch', '', 2, 2), region('function', 'put', 4, 6)],
+          called: Uint32Array.of(sets.intern([]), sets.intern([0, 1, 2]), sets.intern([0, 2]), sets.intern([0, 2])),
+          loaded: Uint8Array.of(1, 0, 0, 0),
+        },
+      ],
+      sets: sets.pool(),
+    });
+  }
+
+  it('answers the paths through a function and the forks between two off the recording alone', () => {
+    const at = `${testCoverageFile(root)}.cases.bin`;
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, branched());
+
+    const paths = pathsThrough(root, { file: 'src/api.ts', line: 2 });
+    expect(paths?.function?.name).toBe('get');
+    expect(paths?.paths.map((path) => [path.cases, path.entered.map((block) => block.line), path.passage, path.smallest.name])).toEqual([
+      [2, [2], true, 'finds'],
+      [1, [], false, 'misses'],
+    ]);
+    expect(pathsThrough(root, { file: 'src/api.ts', line: 9 })?.notRecorded).toBe('no function the recording holds spans src/api.ts:9');
+
+    const forks = forksBetween(root, { file: 'src/api.ts', line: 1 }, { file: 'src/api.ts', line: 5 });
+    expect([forks?.reachedA, forks?.reachedB, forks?.both, forks?.connection?.alike, forks?.thin]).toEqual([3, 2, 2, 1, true]);
+    // The miss shares a third of the connecting journey: it arrives by another road, not nearly.
+    expect(forks?.sides?.map((side) => [side.end, side.only, side.near, side.best, side.forks ?? null])).toEqual([['a', 1, 0, 1 / 3, null]]);
+    expect(pathsThrough(root, { file: 'src/api.ts', line: 2 }, 'no such suite')).toBeUndefined();
   });
 });
 

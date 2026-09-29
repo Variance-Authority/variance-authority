@@ -177,6 +177,95 @@ export interface NativeJourneysAmong {
   readonly calls: readonly NativeJourneysPlaced[];
 }
 
+/** A recorded function. */
+export interface NativeJourneyFunction {
+  readonly name: string;
+  readonly file: string;
+  readonly line: number;
+  readonly end: number;
+}
+
+/** A region written in a function. */
+export interface NativeJourneyBlock {
+  readonly kind: string;
+  readonly file: string;
+  readonly line: number;
+  readonly end: number;
+  /** The name of the function it is written in, when one is recorded. */
+  readonly function?: string | null;
+}
+
+/** One case, numbered by its position in the recording. */
+export interface NativeJourneyCase {
+  readonly case: number;
+  readonly file: string;
+  readonly name: string;
+  /** The regions its journey entered. */
+  readonly blocks: number;
+  /** Other cases whose journey entered exactly the same regions. */
+  readonly alike: number;
+}
+
+/** One way through a function: the regions written in it that its cases entered. */
+export interface NativeJourneyPath {
+  readonly cases: number;
+  readonly files: number;
+  readonly entered: readonly NativeJourneyBlock[];
+  /** The median journey size of its cases. */
+  readonly median: number;
+  readonly smallest: NativeJourneyCase;
+  /** Whether more than half the function's cases take it. */
+  readonly passage: boolean;
+}
+
+/** Every path through one function, most cases first. */
+export interface NativePathsThrough {
+  /** Why the recording cannot answer; every other field is empty then. */
+  readonly notRecorded?: string | null;
+  readonly function?: NativeJourneyFunction | null;
+  readonly cases: number;
+  readonly paths: readonly NativeJourneyPath[];
+}
+
+/** One end of a connection, by a line its innermost function spans. */
+export interface NativeJourneyEnd {
+  readonly file: string;
+  readonly line: number;
+}
+
+/** A region that separates the connecting journeys from the near misses. */
+export interface NativeJourneyFork {
+  readonly block: NativeJourneyBlock;
+  /** Positive when it is the way through, negative when it turns away. */
+  readonly separation: number;
+}
+
+/** The journeys that reached one end and not the other. */
+export interface NativeJourneySide {
+  readonly end: 'a' | 'b';
+  readonly only: number;
+  readonly near: number;
+  /** The most any of them shares with a connecting journey, when none nearly connected. */
+  readonly best?: number | null;
+  /** Strongest first; absent when nothing nearly connected or the connection is thin. */
+  readonly forks?: readonly NativeJourneyFork[] | null;
+  readonly nearly?: NativeJourneyCase | null;
+}
+
+/** How one function is connected to another, read off the cases alone. */
+export interface NativeForksBetween {
+  readonly notRecorded?: string | null;
+  readonly a?: NativeJourneyFunction | null;
+  readonly b?: NativeJourneyFunction | null;
+  readonly reachedA: number;
+  readonly reachedB: number;
+  readonly both: number;
+  readonly journeys: number;
+  readonly connection?: NativeJourneyCase | null;
+  readonly thin: boolean;
+  readonly sides?: readonly NativeJourneySide[] | null;
+}
+
 /** The journey calls on a git listing the addon holds, carrying it rather than asking git again. */
 export interface NativeJourneysListing {
   /** The Vite and Vitest configs this listing holds, not counting ones a fixture, template or example ships. */
@@ -211,4 +300,8 @@ export interface NativeJourneys {
   journeysFor?(root: string, index: string, recording: string, out: string, asks: NativeJourneysAsk[]): NativeJourneysAnswer;
   /** Every call the cases numbered `cases`, by their position in the recording, placed in the journeys kept at `out`. */
   journeysAmong?(index: string, recording: string, out: string, cases: number[]): NativeJourneysAmong;
+  /** Every path through the innermost function the recording holds at `file:line`. */
+  pathsThrough?(recording: string, file: string, line: number): NativePathsThrough;
+  /** How the function at `a` is connected to the one at `b`. */
+  forksBetween?(recording: string, a: NativeJourneyEnd, b: NativeJourneyEnd): NativeForksBetween;
 }
