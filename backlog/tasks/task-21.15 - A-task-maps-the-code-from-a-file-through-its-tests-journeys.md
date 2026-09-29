@@ -4,7 +4,7 @@ title: A task maps the code from a file through its tests' journeys
 status: To Do
 assignee: []
 created_date: '2026-09-28 23:35'
-updated_date: '2026-09-29 03:35'
+updated_date: '2026-09-29 03:54'
 labels: []
 dependencies: []
 parent_task_id: TASK-21
@@ -68,4 +68,6 @@ Hubs and passage (scratchpad hubs.mjs, purpose.mjs, MUI recording):
 - The minority paths carry meaning, and their test names state the path. styleFunctionSx: 'using sx color as a function should not crash'. getThemeProps: 'respect custom default props', 'ownerState is used in styleOverrides'.
 - Meaning is not size and not solitary-versus-social. The meaningful tests are social component tests (median 62-139 functions), and the passage tests are no bigger (median 91, smallest 11). Size picks the story within a path cluster, never across clusters.
 - The codemap should collapse the majority path into one row ('N pass through, :line returns') and expand each minority path with its smallest test.
+
+Masks landed in Rust (TASK-21.16, ea8e8cf1). The sense addon has journey_masks.rs (every region is a bit and belongs to the smallest function holding it; sets are expanded once; journey sizes), pathsThrough(root, {file,line}) (majority path = passage, minority paths with their smallest case) and forksBetween(root, a, b) (connection, near misses, forks by separation, thin under 3). Results match the JS prototype on this repo and zod, at 4-7 ms per question. On MUI styleFunctionSx the passage is identical (4004 of 4043), with 3 paths instead of 6, because closure branches now belong to the closure. Next limb for this task: the codemap is composed from these calculations. From the file, the task keeps the tests that entered it. For each function in the file, pathsThrough collapses the majority path to one row and expands the minority paths. forksBetween joins the file to what the kept tests reach beyond it. The codemap needs no caller.
 <!-- SECTION:NOTES:END -->
