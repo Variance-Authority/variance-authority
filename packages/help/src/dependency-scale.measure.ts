@@ -1,0 +1,90 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, describe, expect, it } from 'vitest';
+import { readDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';
+
+// compass: variance-authority.report.agent-surface
+
+/**
+ * What the dependency catalogue costs on the two large corpora the orientation
+ * budget names: Kibana, and one checkout holding seven copies of Material UI.
+ * Neither lives in this repository. They are read from the paths in
+ * `VARIANCE_AUTHORITY_SCALE_KIBANA` and `VARIANCE_AUTHORITY_SCALE_MUI7`, or from
+ * `variance-authority-examples` beside this checkout, and a corpus that is not
+ * there is skipped and listed as a todo rather than passed.
+ *
+ * Each corpus is indexed once through the CLI into a cache of its own, so every
+ * question reads a published generation the way a user's does. The catalogue is
+ * then refreshed cold (no lexicon on disk) and again over the unchanged install.
+ * Three answers are timed end to end, node start included, and each must come in
+ * under a second warm. An unchanged install reuses every entry that has
+ * something to reuse: the ones that resolved to no declarations have no entrypoint
+ * to compare, are recomputed because there is nothing to skip, and are counted apart. `recomputed` is the
+ * ceiling on entries that had something to reuse and were read again anyway: 0 on Kibana; on the Material UI
+ * copies, whose installs symlink outside the checkout, a handful that varies by run.
+ */
+
+const EXAMPLES = join(homedir(), 'dev', 'variance-authority-examples');
+const CORPORA = [
+  { name: 'Kibana', root: process.env['VARIANCE_AUTHORITY_SCALE_KIBANA'] ?? join(EXAMPLES, 'kibana'), pick: 'x-pack/platform/plugins/shared/actions/server/plugin.ts', word: 'logger', symbol: 'useState', recomputed: 0 },
+  { name: 'Material UI x7', root: process.env['VARIANCE_AUTHORITY_SCALE_MUI7'] ?? join(EXAMPLES, 'mui7'), pick: 'copy3/packages/mui-material/src/Button/Button.js', word: 'button', symbol: 'useState', recomputed: 20 },
+] as const;
+
+const BIN = fileURLToPath(new URL('../../cli/dist/bin.js', import.meta.url));
+const WARM_BUDGET_MS = 1000;
+const RUNS = 3;
+const caches: string[] = [];
+afterAll(() => { for (const cache of caches) rmSync(cache, { recursive: true, force: true }); });
+
+const median = (values: readonly number[]): number => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] as number;
+const cli = (root: string, cache: string, args: readonly string[]): string =>
+  execFileSync(process.execPath, [BIN, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, VARIANCE_AUTHORITY_CACHE: cache }, maxBuffer: 1 << 28 });
+const timed = <T>(run: () => T): { value: T; ms: number } => { const start = performance.now(); const value = run(); return { value, ms: performance.now() - start }; };
+
+for (const corpus of CORPORA) {
+  const live = existsSync(join(corpus.root, '.git')) && existsSync(BIN) ? describe : describe.skip;
+  live(corpus.name, () => {
+    it('answers stack, search and symbol from a start point under a second warm, and refreshes an unchanged install by reuse', () => {
+      const cache = mkdtempSync(join(tmpdir(), 'va-scale-'));
+      caches.push(cache);
+      process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+      const index = timed(() => cli(corpus.root, cache, ['index']));
+      const { path } = readDependencyLexicon(corpus.root);
+      rmSync(path);
+      const cold = timed(() => refreshDependencyLexicon(corpus.root));
+      const warm = timed(() => refreshDependencyLexicon(corpus.root));
+      const lexicon = JSON.parse(readFileSync(path, 'utf8')) as { entries: readonly { api: { entrypoint?: string | null } }[] };
+      const unresolved = lexicon.entries.filter((entry) => entry.api.entrypoint === undefined || entry.api.entrypoint === null).length;
+      const asks: Record<string, readonly string[]> = {
+        stack: ['ask', 'stack', '--from', corpus.pick],
+        search: ['ask', 'search', '--query', corpus.word, '--from', corpus.pick],
+        symbol: ['ask', 'symbol', '--name', corpus.symbol, '--from', corpus.pick],
+      };
+      const answers = Object.entries(asks).map(([ask, args]) => {
+        const runs = Array.from({ length: RUNS }, () => timed(() => cli(corpus.root, cache, args)));
+        return { ask, ms: median(runs.map((run) => run.ms)), bytes: runs[0]?.value.length ?? 0 };
+      });
+      console.log(
+        `${corpus.name}: index ${(index.ms / 1000).toFixed(1)} s; catalogue ${cold.value.entrypoints} entries, ` +
+          `cold refresh ${(cold.ms / 1000).toFixed(1)} s, unchanged refresh ${(warm.ms / 1000).toFixed(1)} s ` +
+          `(${warm.value.reused} reused, ${unresolved} unresolved); warm answers ` +
+          answers.map((answer) => `${answer.ask} ${answer.ms.toFixed(0)} ms`).join(', '),
+      );
+      expect(cold.value.reused).toBe(0);
+      expect(warm.value.entrypoints - warm.value.reused - unresolved, 'entries recomputed on an unchanged install').toBeLessThanOrEqual(corpus.recomputed);
+      for (const answer of answers) {
+        expect(answer.bytes, `${answer.ask} answered`).toBeGreaterThan(200);
+        expect(answer.ms, `${answer.ask} warm`).toBeLessThan(WARM_BUDGET_MS);
+      }
+    }, 600_000);
+  });
+}
+
+for (const corpus of CORPORA) {
+  if (!(existsSync(join(corpus.root, '.git')) && existsSync(BIN))) {
+it.todo(`${corpus.name}: stack, search and symbol answer from a start point under a second warm, and an unchanged catalogue refresh reuses its entries — needs the corpus installed at ${corpus.root} or named in VARIANCE_AUTHORITY_SCALE_KIBANA / VARIANCE_AUTHORITY_SCALE_MUI7, and the CLI built`);
+  }
+}
