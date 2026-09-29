@@ -31,9 +31,9 @@ struct Manifest {
 }
 
 #[derive(Deserialize)]
-struct Reference {
-    digest: String,
-    length: u64,
+pub(crate) struct Reference {
+    pub(crate) digest: String,
+    pub(crate) length: u64,
 }
 
 /// The valid prefix of a committed chain, oldest segment first.
@@ -44,6 +44,9 @@ pub(crate) struct Chain {
     /// The manifest as read, when the file is one; a legacy file is its own
     /// single segment.
     manifest: Option<Vec<u8>>,
+    /// What the manifest names, whether or not each could be read: a writer
+    /// appending to the chain keeps all of it.
+    pub references: Vec<Reference>,
 }
 
 impl Chain {
@@ -62,7 +65,7 @@ pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
         Err(error) => return Err(format!("{path}: {error}")),
     };
     if !bytes.starts_with(MAGIC) {
-        return Ok(Some(Chain { segments: vec![bytes], dropped: 0, manifest: None }));
+        return Ok(Some(Chain { segments: vec![bytes], dropped: 0, manifest: None, references: Vec::new() }));
     }
     let references = manifest(&bytes).ok_or_else(|| format!("{path}: invalid immutable log manifest"))?;
     let directory = format!("{path}.segments");
@@ -79,7 +82,7 @@ pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
     let count = read.iter().position(Option::is_none).unwrap_or(read.len());
     let dropped = (references.len() - count) as u32;
     let segments = read.into_iter().take(count).map(Option::unwrap).collect();
-    Ok(Some(Chain { segments, dropped, manifest: Some(bytes) }))
+    Ok(Some(Chain { segments, dropped, manifest: Some(bytes), references }))
 }
 
 /// `decodeManifest` and `manifestIsValid`: the header's length is the rest of

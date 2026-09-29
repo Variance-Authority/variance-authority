@@ -30,6 +30,7 @@ import type { RecordCache } from './reuse.js';
 import { scanCount } from './scan.js';
 import { realPath } from './resolve.js';
 import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
+import { updateNatively } from './native-update.js';
 import { markCheckout } from './test-selection/cache-layers.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
 import { usesOf } from './uses.js';
@@ -152,6 +153,19 @@ export async function updateSourceIndex(
 ): Promise<SourceUpdate> {
   const where = resolve(root);
   const path = options.index ?? sourceIndexPath(where);
+  // The addon answers from the chain in place; only what it declines is decoded here.
+  const natively = await updateNatively(realPath(where), path);
+  if (natively !== undefined) {
+    if (options.index === undefined) markCheckout(realPath(where));
+    return {
+      path,
+      was: 'published',
+      ...(natively.refused === undefined ? {} : { refused: natively.refused }),
+      files: natively.files,
+      reread: natively.reread,
+      listing: natively.listing,
+    };
+  }
   // Opened once: the open decodes the whole chain, and the state is read off
   // that same open rather than off a second one.
   let source = await openSourceIndex(path);

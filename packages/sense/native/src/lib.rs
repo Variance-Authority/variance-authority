@@ -98,6 +98,7 @@ mod seed;
 mod segment;
 mod side_effects;
 mod source_size;
+mod source_update;
 mod specifier;
 mod stored;
 mod tree;
@@ -342,6 +343,22 @@ impl GitTree {
     #[napi(catch_unwind)]
     pub fn index_graph(&self, options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
         graph_index::index_graph(options, &self.at, &self.oids, self.listing())
+    }
+
+    /// Bring the source index at `options.index` up to this tree, on this
+    /// side, or `null` when the JavaScript update has to (`source_update.rs`).
+    #[napi(catch_unwind)]
+    pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
+        source_update::update(
+            options,
+            source_update::Tree {
+                paths: &self.paths,
+                at: &self.at,
+                oids: &self.oids,
+                seeds: &self.seeds,
+                listing: self.listing(),
+            },
+        )
     }
 
     /// Every path, sorted by code unit.

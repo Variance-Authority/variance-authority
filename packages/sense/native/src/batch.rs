@@ -200,6 +200,19 @@ pub(crate) fn walk(
     tree_oids: &[Oid],
     listing: Arc<Listing>,
 ) -> Walked {
+    walk_beyond(options, at, tree_oids, listing, &|_| false)
+}
+
+/// `walk`, not entering a target `held` names: the seeds are read whatever
+/// they are, and the files the caller already holds a record for are the
+/// boundary of what a warm update has to open (`source_update.rs`).
+pub(crate) fn walk_beyond(
+    options: GraphOptions,
+    at: &HashMap<String, u32>,
+    tree_oids: &[Oid],
+    listing: Arc<Listing>,
+    held: &dyn Fn(&str) -> bool,
+) -> Walked {
     let GraphOptions {
         root,
         seeds,
@@ -239,7 +252,7 @@ pub(crate) fn walk(
         // come out of the pack rather than off the disk. `read_git` falls back to
         // opening the file whenever a blob is missing or unreadable, which is what
         // answers for the dirty and untracked members of the wave.
-        let held = read_git(
+        let opened = read_git(
             root.clone(),
             wave.clone(),
             oids,
@@ -248,9 +261,9 @@ pub(crate) fn walk(
             Some(readers.unwrap_or(6).max(1)),
             false,
         );
-        let resolved = resolve_all(root_path, &wave, &held, &resolvers, Some(at));
+        let resolved = resolve_all(root_path, &wave, &opened, &resolvers, Some(at));
         for target in resolved.iter().flatten() {
-            if is_module(target) && seen.insert(target.clone()) {
+            if is_module(target) && !held(target) && seen.insert(target.clone()) {
                 queue.push(target.clone());
             }
         }
@@ -258,10 +271,10 @@ pub(crate) fn walk(
         identities.extend(
             wave_identities
                 .into_iter()
-                .zip(&held)
+                .zip(&opened)
                 .map(|(identity, (_, digest, _))| identity.unwrap_or_else(|| digest.clone())),
         );
-        read.extend(held);
+        read.extend(opened);
         targets.extend(resolved);
     }
     Walked { files, identities, read, targets }
@@ -325,7 +338,7 @@ fn scan_columns(
     }
 }
 
-fn is_module(file: &str) -> bool {
+pub(crate) fn is_module(file: &str) -> bool {
     matches!(
         Path::new(file).extension().and_then(|part| part.to_str()),
         Some("ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs")

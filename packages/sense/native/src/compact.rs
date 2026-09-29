@@ -115,10 +115,10 @@ fn joined(digest: &str, way: &str) -> String {
 /// them here rather than keeping a second list of what a segment holds.
 pub(crate) struct Layer<'a> {
     pub(crate) stored: Stored<'a>,
-    config: Option<&'a str>,
+    pub(crate) config: Option<&'a str>,
     pub(crate) parses: Parses<'a>,
     pub(crate) records: Records<'a>,
-    directories: Directories<'a>,
+    pub(crate) directories: Directories<'a>,
 }
 
 impl<'a> Layer<'a> {
@@ -133,10 +133,10 @@ impl<'a> Layer<'a> {
     }
 }
 
-struct Directories<'a> {
-    path: U32s<'a>,
-    digest: U32s<'a>,
-    deleted: U32s<'a>,
+pub(crate) struct Directories<'a> {
+    pub(crate) path: U32s<'a>,
+    pub(crate) digest: U32s<'a>,
+    pub(crate) deleted: U32s<'a>,
 }
 
 impl<'a> Directories<'a> {

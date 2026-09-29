@@ -19,7 +19,7 @@
 import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
 import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation } from './native-orient.js';
-import type { NativeIndexedUsage } from './native.js';
+import type { NativeIndexedUsage } from './native-orient.js';
 import { sourceIndexPath } from './source-index.js';
 import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js';
 import { recordPath } from './test-selection/record-location.js';

@@ -293,3 +293,11 @@ export interface NativeDependencyLexicon {
     exact: boolean, packageName: string | null, limit: number): string | null;
   dependencyStack(path: string, files: string[], offset: number, limit: number): string | null;
 }
+
+/** What the published index records of imports and exports, read by `readIndexedUsage`. */
+export interface NativeIndexedUsage {
+  exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source' }[];
+  deep: { specifier: string; by: string; at: string; line: number }[];
+  unreadable: string[];
+  names: { key: string; name: string; by: string; at: string; line: number; type: boolean; kind: 'story' | 'test' | 'source'; through?: 'dynamic' | 'namespace'; throughLine: number }[];
+}
