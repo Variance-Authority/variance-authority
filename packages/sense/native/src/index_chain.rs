@@ -105,3 +105,14 @@ pub(crate) fn manifest_digests(path: &str) -> Option<Vec<String>> {
     if !bytes.starts_with(MAGIC) { return None; }
     Some(manifest(&bytes)?.into_iter().map(|reference| reference.digest).collect())
 }
+
+/// The segments of `chain` past its first `known`, read and checked against the digests they are named by,
+/// for a reader that already holds the first `known`. Content addressing is the check: a segment is its
+/// digest or it is not used, and `None` says one was missing or did not match, so the caller reads it all.
+pub(crate) fn read_tail(path: &str, chain: &[String], known: usize) -> Option<Vec<Vec<u8>>> {
+    let directory = format!("{path}.segments");
+    chain.get(known..)?.par_iter().map(|digest| {
+        let segment = std::fs::read(format!("{directory}/{}.bin", digest.replacen(':', "-", 1))).ok()?;
+        (crate::digest::of_sha256(Sha256::digest(&segment).as_slice()) == *digest).then_some(segment)
+    }).collect()
+}

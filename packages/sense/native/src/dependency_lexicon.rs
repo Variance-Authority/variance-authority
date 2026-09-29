@@ -10,13 +10,15 @@ use dashmap::DashMap;
 use napi_derive::napi;
 use oxc_allocator::Allocator;
 use rayon::prelude::*;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use crate::read::read_module;
 use crate::resolve::Resolvers;
 #[path = "dependency_lexicon_boundary.rs"] mod boundary;
 #[path = "dependency_lexicon_built.rs"] mod built;
+#[path = "dependency_lexicon_clean.rs"] mod clean;
+#[path = "dependency_lexicon_merge.rs"] mod merge;
+#[path = "dependency_lexicon_wanted.rs"] mod wanted;
 #[path = "dependency_lexicon_query.rs"]
 mod query;
 #[path = "dependency_stack.rs"]
@@ -72,9 +74,9 @@ struct Api {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     purpose: Option<Purpose>,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Entry { id: String, api: Api }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Availability {
     owner: String,
@@ -168,53 +170,12 @@ fn unchanged(root: &Path, prior: &Api, runtime: &Option<Identity>, declarations:
             digest(&root.join(&source.at)).as_deref() == Some(source.digest.as_str())))
 }
 
-fn workspace_patterns(value: &serde_json::Value) -> Vec<Regex> {
-    let listed = value.get("workspaces").and_then(|value|
-        value.as_array().or_else(|| value.get("packages").and_then(serde_json::Value::as_array)));
-    listed.into_iter().flatten().filter_map(serde_json::Value::as_str).filter_map(|pattern| {
-        let mut regex = String::from("^");
-        let mut chars = pattern.chars().peekable();
-        while let Some(ch) = chars.next() {
-            match ch {
-                '*' if chars.peek() == Some(&'*') => { chars.next(); regex.push_str(".*"); }
-                '*' => regex.push_str("[^/]*"),
-                '?' => regex.push_str("[^/]"),
-                _ => regex.push_str(&regex::escape(&ch.to_string())),
-            }
-        }
-        regex.push('$');
-        Regex::new(&regex).ok()
-    }).collect()
-}
-
-fn owners(root: &Path, paths: &[String]) -> Vec<Owner> {
-    let root_value: serde_json::Value = fs::read(root.join("package.json")).ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or(serde_json::Value::Null);
-    let patterns = workspace_patterns(&root_value);
-    let mut found = Vec::new();
-    for manifest in paths.iter().filter(|path| path == &"package.json" || path.ends_with("/package.json")) {
-        let directory = manifest.strip_suffix("/package.json").unwrap_or("");
-        if manifest != "package.json" && !patterns.iter().any(|pattern| pattern.is_match(directory)) { continue; }
-        let value: serde_json::Value = match fs::read(root.join(manifest)).ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok()) { Some(value) => value, None => continue };
-        // A package in more than one field is reported under the strongest: what ships, then what a consumer must bring, then what only builds.
-        let mut kinds = BTreeMap::<String, &'static str>::new();
-        for (field, kind) in [("dependencies", "dependency"), ("optionalDependencies", "optional"), ("peerDependencies", "peer"), ("devDependencies", "dev")] {
-            for package in value.get(field).and_then(serde_json::Value::as_object).into_iter().flat_map(|map| map.keys()) {
-                kinds.entry(package.clone()).or_insert(kind);
-            }
-        }
-        let declared = kinds.keys().cloned().collect();
-        found.push(Owner { manifest: manifest.clone(), directory: directory.to_owned(),
-            name: value.get("name").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(), declared, kinds });
-    }
-    found.sort_by(|a, b| a.manifest.cmp(&b.manifest));
-    found
-}
-
-fn owner_for<'a>(path: &str, owners: &'a [Owner]) -> Option<&'a Owner> {
-    owners.iter().filter(|owner| owner.directory.is_empty() || path.starts_with(&format!("{}/", owner.directory)))
-        .max_by_key(|owner| owner.directory.len())
+/// The row a pair states for one specifier: what the checkout writes for it, and the entry it resolves to.
+fn availability(owner: &Owner, package: &str, wanted: &Wanted, specifier: &str, entry: String, indexed: bool) -> Availability {
+    Availability { owner: owner.manifest.clone(), package: package.to_owned(), specifier: specifier.to_owned(), entry, declared: wanted.declared,
+        imported: indexed.then(|| wanted.imported.contains(specifier)), declared_as: owner.kinds.get(package).map(|kind| (*kind).to_owned()),
+        imports: indexed.then(|| wanted.requests.get(specifier).map_or(0, |request| request.0)),
+        site: wanted.requests.get(specifier).map(|request| format!("{}:{}", request.1, request.2)) }
 }
 
 fn targets(value: &serde_json::Value, into: &mut Vec<String>) {
@@ -413,69 +374,61 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
     let lexicon_path = Path::new(&path);
     // Read before anything else, so a chain that moves during the refresh is never recorded as the one it read.
     let chain = crate::index_chain::manifest_digests(&index);
-    if let (Some(held), Some(chain)) = (built::read(lexicon_path, VERSION), chain.as_ref()) {
-        if built::holds(root_path, &held, chain) {
+    let held = built::read(lexicon_path, VERSION);
+    if let (Some(held), Some(chain)) = (held.as_ref(), chain.as_ref()) {
+        if built::holds(root_path, held, chain) {
             return Ok(LexiconRefresh { path, packages: held.packages, entrypoints: held.entrypoints, reused: held.reusable, unavailable: held.unavailable, unchanged: true });
         }
     }
-    let Some(snapshot) = crate::git::snapshot(&root) else {
-        return Err(napi::Error::from_reason(format!("git could not list the checkout at {root}")));
-    };
-    let owners = owners(root_path, &snapshot.paths);
-    let internal: HashSet<&str> = owners.iter().map(|owner| owner.name.as_str()).collect();
-    let mut wanted = BTreeMap::<(String, String), Wanted>::new();
-    for owner in &owners {
-        for package in owner.declared.iter().filter(|package| !internal.contains(package.as_str())) {
-            wanted.insert((owner.manifest.clone(), package.clone()), Wanted { declared: true, ..Wanted::default() });
-        }
-    }
-
-    // The source index is the owner's reading of requests. Its full Rust
-    // orientation stays native here; only this corpus crosses the boundary.
     let has_index = Path::new(&index).exists();
-    if has_index {
-        let source_files: Vec<String> = snapshot.paths.iter().filter(|path|
-            [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"].iter().any(|suffix| path.ends_with(suffix)))
-            .cloned().collect();
-        if !source_files.is_empty() {
-            let observed = crate::external_dependencies::external_dependencies(
-                root.clone(), index, source_files, u32::MAX, u32::MAX,
-            )?.ok_or_else(|| napi::Error::from_reason("the source index did not read"))?;
-            if observed.more > 0 || observed.dependencies.iter().any(|dependency| dependency.more_sites > 0) {
-                return Err(napi::Error::from_reason("the source index has more external requests than the lexicon reader can carry"));
-            }
-            for dependency in observed.dependencies {
-                if internal.contains(dependency.package.as_str()) { continue; }
-                for site in dependency.sites {
-                    let Some(owner) = owner_for(&site.file, &owners) else { continue };
-                    let held = wanted.entry((owner.manifest.clone(), dependency.package.clone())).or_default();
-                    held.declared |= owner.declared.contains(&dependency.package);
-                    let request = held.requests.entry(site.specifier.clone()).or_insert((0, site.file.clone(), site.line));
-                    request.0 += 1;
-                    if crate::order::code_unit(&site.file, &request.1).then(site.line.cmp(&request.2)).is_lt() {
-                        request.1 = site.file.clone();
-                        request.2 = site.line;
-                    }
-                    held.imported.insert(site.specifier);
-                }
-            }
+    let planned = held.as_ref().zip(chain.as_ref()).and_then(|(held, chain)| merge::plan(&root, &index, lexicon_path, chain, held));
+    let (owners, sites, internal_names, changed, listed_manifests) = match planned {
+        Some(plan) => (plan.owners, plan.files, plan.internal, Some(plan.changed), plan.manifests),
+        None => {
+            let (owners, sites, internal_names) = wanted::full(&root, &index, has_index)?;
+            (owners, sites, internal_names, None, merge::manifests(&root).unwrap_or_default())
         }
-    }
-
+    };
+    let wanted = wanted::of(&owners, &sites);
     let prior = previous(Path::new(&path));
     let prior_entries: HashMap<&str, &Api> = prior.as_ref().into_iter()
         .flat_map(|prior| prior.entries.iter().map(|entry| (entry.id.as_str(), &entry.api))).collect();
     let prior_availability: HashMap<(&str, &str), &str> = prior.as_ref().into_iter()
         .flat_map(|prior| prior.availability.iter().map(|entry|
             ((entry.owner.as_str(), entry.specifier.as_str()), entry.entry.as_str()))).collect();
+    let carried = prior.as_ref().zip(changed.as_ref()).map(|(prior, changed)| clean::Prior::new(prior, changed));
     let owner_by_manifest: HashMap<&str, &Owner> = owners.iter().map(|owner| (owner.manifest.as_str(), owner)).collect();
     let resolver = Resolvers::new(None, Some(vec!["types".to_owned(), "import".to_owned(), "default".to_owned()]));
     let parsed = DashMap::<String, Arc<OnceLock<(Api, bool)>>>::new();
-    let rows: Vec<_> = wanted.par_iter().map(|((manifest, package), wanted)| {
+    let importer_of = |manifest: &str| root_path.join(&owner_by_manifest[manifest].directory).join("__variance_dependency__.ts");
+    let resolve = |manifest: &str, package: &str| {
+        let importer = importer_of(manifest);
+        resolver.resolution(&importer, package).or_else(|| resolver.declaration_resolution(&importer, package))
+    };
+    // Pairs that resolve to one install share a reading, and the one they share is read from the first of them in
+    // key order, so which owner's neighbours (`@types/react` beside one, another copy beside the next) a
+    // reading names does not depend on which thread got there first.
+    let staged: Vec<_> = wanted.par_iter().map(|((manifest, package), wanted)| {
         let owner = owner_by_manifest[manifest.as_str()];
-        let importer = root_path.join(&owner.directory).join("__variance_dependency__.ts");
-        let resolution = resolver.resolution(&importer, package)
-            .or_else(|| resolver.declaration_resolution(&importer, package));
+        match carried.as_ref().and_then(|carried| carried.clean(owner, package, wanted)) {
+            Some(kept) => Ok(kept),
+            None => Err(wanted::install_key(manifest, resolve(manifest, package).as_ref())),
+        }
+    }).collect();
+    let mut home = HashMap::<&str, &str>::new();
+    for (((manifest, _), _), stage) in wanted.iter().zip(&staged) {
+        if let Err(key) = stage { home.entry(key.as_str()).or_insert(manifest.as_str()); }
+    }
+    let pairs: Vec<_> = wanted.iter().collect();
+    let rows: Vec<_> = pairs.par_iter().zip(staged.par_iter()).map(|(((manifest, package), wanted), stage)| {
+        let owner = owner_by_manifest[manifest.as_str()];
+        let installed_key = match stage {
+            Ok((outputs, issues)) => return (manifest.clone(), package.clone(), outputs.clone(), issues.clone()),
+            Err(key) => key,
+        };
+        let importer = importer_of(manifest);
+        let shared = importer_of(home[installed_key.as_str()]);
+        let resolution = resolve(manifest, package);
         let mut issues = Vec::new();
         let (mut offered, installed) = match resolution.as_ref().and_then(|answer| answer.package_json()) {
             Some(package_json) => {
@@ -492,25 +445,17 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
             issues.push(format!("the project resolver could not locate `{package}` from {}", relative(root_path, &importer)));
         }
         offered.extend(wanted.imported.iter().cloned());
-        let installed_key = resolution.as_ref().and_then(|answer| answer.package_json())
-            .map(|manifest| manifest.path().to_string_lossy().into_owned())
-            .unwrap_or_else(|| format!("unresolved:{manifest}"));
         let mut outputs = Vec::new();
         for specifier in offered {
             let prior = prior_availability.get(&(manifest.as_str(), specifier.as_str()))
                 .and_then(|id| prior_entries.get(id).copied());
             let cell = parsed.entry(format!("{installed_key}\0{specifier}"))
                 .or_insert_with(|| Arc::new(OnceLock::new())).clone();
-            let (api, reused) = cell.get_or_init(|| api(root_path, &importer, &specifier, &resolver, prior)).clone();
+            let (api, reused) = cell.get_or_init(|| api(root_path, &shared, &specifier, &resolver, prior)).clone();
             let id = format!("{}\0{}", api.runtime.as_ref().or(api.declarations.as_ref())
                 .map_or_else(|| format!("unresolved:{manifest}"), |identity| identity.manifest.clone()),
                 api.entrypoint.as_deref().unwrap_or(&specifier));
-            outputs.push((Availability { owner: manifest.clone(), package: package.clone(), specifier: specifier.clone(),
-                entry: id.clone(), declared: wanted.declared,
-                imported: has_index.then(|| wanted.imported.contains(&specifier)),
-                declared_as: owner.kinds.get(package).map(|kind| (*kind).to_owned()),
-                imports: has_index.then(|| wanted.requests.get(&specifier).map_or(0, |request| request.0)),
-                site: wanted.requests.get(&specifier).map(|request| format!("{}:{}", request.1, request.2)) }, Entry { id, api }, reused));
+            outputs.push((availability(owner, package, wanted, &specifier, id.clone(), has_index), Entry { id, api }, reused));
         }
         (manifest.clone(), package.clone(), outputs, issues)
     }).collect();
@@ -523,8 +468,6 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
         for (row, entry, retained) in outputs {
             // Specifiers that resolve to one entrypoint share an id. The first row's reading is kept, so the next
             // refresh compares that row with itself: the last one's runtime identity can differ and would fail `unchanged`.
-            // TODO: on the seven-copy Material UI corpus, whose installs symlink to declarations outside the checkout, the
-            // `react` entries of three copies are recomputed on an unchanged install (12 to 16 of ~9,300, varying by run); the cause is not found.
             if !entries.contains_key(&entry.id) {
                 if retained { reused += 1; }
                 entries.insert(entry.id.clone(), entry);
@@ -539,17 +482,16 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
     let corpus = Lexicon { version: VERSION, refreshed_at, entries: entries.into_values().collect(), availability, issues };
     let path_ref = Path::new(&path);
     let _ = fs::remove_file(built::file(path_ref));
-    if let Some(parent) = path_ref.parent() {
-        fs::create_dir_all(parent).map_err(|error| napi::Error::from_reason(error.to_string()))?;
-    }
-    let temporary = path_ref.with_extension(format!("{}.tmp", std::process::id()));
+    let _ = fs::remove_file(merge::file(path_ref));
     let bytes = serde_json::to_vec(&corpus).map_err(|error| napi::Error::from_reason(error.to_string()))?;
-    fs::write(&temporary, bytes).map_err(|error| napi::Error::from_reason(error.to_string()))?;
-    fs::rename(&temporary, path_ref).map_err(|error| napi::Error::from_reason(error.to_string()))?;
+    merge::publish(path_ref, bytes).map_err(|error| napi::Error::from_reason(error.to_string()))?;
     let unavailable = corpus.entries.iter().filter(|entry| entry.api.unavailable.is_some()).count() as u32 + corpus.issues.len() as u32;
     if let Some(chain) = chain {
-        let record = built::record(root_path, path_ref, chain, VERSION, &corpus.entries, &owners, wanted.len() as u32, unavailable);
+        let record = built::record(root_path, path_ref, chain.clone(), VERSION, &corpus.entries, &owners, &listed_manifests, held.as_ref().filter(|_| carried.is_some()), wanted.len() as u32, unavailable);
         let bytes = serde_json::to_vec(&record).map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        if has_index {
+            merge::write(path_ref, &chain, listed_manifests, &owners, internal_names, sites).map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        }
         fs::write(built::file(path_ref), bytes).map_err(|error| napi::Error::from_reason(error.to_string()))?;
     }
     Ok(LexiconRefresh { path, packages: wanted.len() as u32, entrypoints: corpus.entries.len() as u32, reused, unavailable, unchanged: false })

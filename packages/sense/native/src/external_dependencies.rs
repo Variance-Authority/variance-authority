@@ -168,61 +168,22 @@ fn inspect(
     let mut found: HashMap<String, Found> = HashMap::new();
     let mut declarations = HashSet::new();
     for crossing in &crossings {
-        let (record_layer, record_row) = crossing.at;
-        let (stored, records) = (&layers[record_layer].stored, &layers[record_layer].records);
-        let indexed = records.indexed(stored, record_row);
         let owner = owners.files.get(crossing.file).map(|&(owner, _)| owner).unwrap_or(NO_OWNER);
         let local = owners.packages.get(owner as usize);
         if let Some(local) = local {
             declarations.extend(local.depends.iter().chain(&local.develops).filter(|name| !internal.contains(name.as_str())).cloned());
         }
-        let packages: HashSet<&str> = indexed.record.packages.as_deref().unwrap_or(&[]).iter().map(|edge| edge.to.as_str()).collect();
-        if indexed.record.unknown.is_some() {
-            unread += 1;
-            continue;
-        }
-        if packages.is_empty() { continue; }
-        if indexed.targets.is_none() {
-            unread += 1;
-            continue;
-        }
-        let Some((parse_layer, parse_row)) = crossing.parse else {
+        let Ok(requests) = requests_of(&layers, crossing, &internal) else {
             unread += 1;
             continue;
         };
-        let (text, parses) = (&layers[parse_layer].stored, &layers[parse_layer].parses);
-        let requests = parses.requests.range(parse_row);
-        let targets = records.targets.range(record_row);
-        if requests.len() != targets.len() {
-            unread += 1;
-            continue;
-        }
-        for (request, target) in requests.zip(targets) {
-            if stored.optional(records.target_path.at(target)).is_some() { continue; }
-            let specifier = text.text(parses.request_value.at(request));
-            let Some(package) = request_of(specifier).and_then(|name| package_of(name, &HashSet::new())) else { continue };
-            if !packages.contains(package) || internal.contains(package) { continue; }
-            let entry = found.entry(package.to_owned()).or_insert_with(Found::new);
-            let line = parses.request_line.at(request);
-            let kind = text.text(parses.request_kind.at(request));
-            let mut names: HashSet<String> = parses.request_bindings.range(request)
-                .map(|binding| text.text(parses.binding_imported.at(binding)).to_owned())
-                .collect();
-            if names.is_empty() { names.insert("*".to_owned()); }
-            if names.contains("*") {
-                for member in parses.members.range(parse_row) {
-                    if parses.member_request.at(member) as usize == request - parses.requests.at(parse_row) as usize {
-                        names.insert(text.text(parses.member_name.at(member)).to_owned());
-                    }
-                }
-                if names.len() > 1 { names.remove("*"); }
-            }
+        for request in requests {
+            let package = request.package.as_str();
+            let entry = found.entry(request.package.clone()).or_insert_with(Found::new);
             entry.files.insert(crossing.file.to_owned());
-            let mut names: Vec<String> = names.into_iter().collect();
-            names.sort_unstable_by(|left, right| code_unit(left, right));
             entry.sites.push(ExternalSite {
-                file: crossing.file.to_owned(), line, specifier: specifier.to_owned(), kind: kind.to_owned(),
-                names, distance: distance[crossing.file],
+                file: crossing.file.to_owned(), line: request.line, specifier: request.specifier, kind: request.kind,
+                names: request.names, distance: distance[crossing.file],
             });
             if let Some(local) = local {
                 if local.depends.iter().any(|name| name == package) { entry.declared_in.insert(format!("{}/package.json", local.directory).trim_start_matches('/').to_owned()); }
@@ -269,4 +230,57 @@ fn inspect(
         dependencies, more, reached: distance.len() as u32, unread, stale, missing,
         declared_only, more_declared_only, dropped: chain.dropped,
     })
+}
+
+/// One written request for a package outside the checkout.
+pub(crate) struct Request {
+    pub package: String,
+    pub specifier: String,
+    pub kind: String,
+    pub line: u32,
+    pub names: Vec<String>,
+}
+
+/// The external requests one crossing's record and parse say the file writes, in source order. `Err` is a file the
+/// index holds but could not read, or whose parse is not among `layers`: the caller counts it unread, or reads
+/// more layers. Both the orientation and the lexicon's incremental refresh ask this, so the two never disagree.
+pub(crate) fn requests_of(layers: &[Layer], crossing: &Crossing, internal: &HashSet<&str>) -> Result<Vec<Request>, ()> {
+    let (record_layer, record_row) = crossing.at;
+    let (stored, records) = (&layers[record_layer].stored, &layers[record_layer].records);
+    let indexed = records.indexed(stored, record_row);
+    let packages: HashSet<&str> = indexed.record.packages.as_deref().unwrap_or(&[]).iter().map(|edge| edge.to.as_str()).collect();
+    if indexed.record.unknown.is_some() { return Err(()); }
+    if packages.is_empty() { return Ok(Vec::new()); }
+    if indexed.targets.is_none() { return Err(()); }
+    let Some((parse_layer, parse_row)) = crossing.parse else { return Err(()) };
+    let (text, parses) = (&layers[parse_layer].stored, &layers[parse_layer].parses);
+    let requests = parses.requests.range(parse_row);
+    let targets = records.targets.range(record_row);
+    if requests.len() != targets.len() { return Err(()); }
+    let mut found = Vec::new();
+    for (request, target) in requests.zip(targets) {
+        if stored.optional(records.target_path.at(target)).is_some() { continue; }
+        let specifier = text.text(parses.request_value.at(request));
+        let Some(package) = request_of(specifier).and_then(|name| package_of(name, &HashSet::new())) else { continue };
+        if !packages.contains(package) || internal.contains(package) { continue; }
+        let mut names: HashSet<String> = parses.request_bindings.range(request)
+            .map(|binding| text.text(parses.binding_imported.at(binding)).to_owned())
+            .collect();
+        if names.is_empty() { names.insert("*".to_owned()); }
+        if names.contains("*") {
+            for member in parses.members.range(parse_row) {
+                if parses.member_request.at(member) as usize == request - parses.requests.at(parse_row) as usize {
+                    names.insert(text.text(parses.member_name.at(member)).to_owned());
+                }
+            }
+            if names.len() > 1 { names.remove("*"); }
+        }
+        let mut names: Vec<String> = names.into_iter().collect();
+        names.sort_unstable_by(|left, right| code_unit(left, right));
+        found.push(Request {
+            package: package.to_owned(), specifier: specifier.to_owned(),
+            kind: text.text(parses.request_kind.at(request)).to_owned(), line: parses.request_line.at(request), names,
+        });
+    }
+    Ok(found)
 }

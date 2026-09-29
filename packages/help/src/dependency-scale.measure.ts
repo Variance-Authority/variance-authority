@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { readDependencyLexicon, refreshDependencyLexicon } from './dependency-lexicon.js';
 
 // compass: variance-authority.report.agent-surface
@@ -25,20 +27,20 @@ import { readDependencyLexicon, refreshDependencyLexicon } from './dependency-le
  * A refresh that finds the source index and the install where it left them does nothing. One that must
  * read again reuses every entry that has something to reuse: the ones that resolved to no declarations
  * have no entrypoint to compare, are recomputed because there is nothing to skip, and are counted apart.
- * `recomputed` is the ceiling on entries that had something to reuse and were read again anyway: 0 on
- * Kibana; on the Material UI copies, whose installs symlink outside the checkout, a handful that varies
- * by run.
+ * `recomputed` is the ceiling on entries that had something to reuse and were read again anyway: 0 on both.
+ * Owners whose installs resolve to one package share a reading, taken from the first of them in key order.
  */
 
 const EXAMPLES = join(homedir(), 'dev', 'variance-authority-examples');
 const CORPORA = [
   { name: 'Kibana', root: process.env['VARIANCE_AUTHORITY_SCALE_KIBANA'] ?? join(EXAMPLES, 'kibana'), pick: 'x-pack/platform/plugins/shared/actions/server/plugin.ts', word: 'logger', symbol: 'useState', recomputed: 0 },
-  { name: 'Material UI x7', root: process.env['VARIANCE_AUTHORITY_SCALE_MUI7'] ?? join(EXAMPLES, 'mui7'), pick: 'copy3/packages/mui-material/src/Button/Button.js', word: 'button', symbol: 'useState', recomputed: 20 },
+  { name: 'Material UI x7', root: process.env['VARIANCE_AUTHORITY_SCALE_MUI7'] ?? join(EXAMPLES, 'mui7'), pick: 'copy3/packages/mui-material/src/Button/Button.js', word: 'button', symbol: 'useState', recomputed: 0 },
 ] as const;
 
 const BIN = fileURLToPath(new URL('../../cli/dist/bin.js', import.meta.url));
 const WARM_BUDGET_MS = 1000;
 const UNCHANGED_BUDGET_MS = 500;
+const EDIT_BUDGET_MS = 1500;
 const RUNS = 3;
 const caches: string[] = [];
 afterAll(() => { for (const cache of caches) rmSync(cache, { recursive: true, force: true }); });
@@ -51,7 +53,7 @@ const timed = <T>(run: () => T): { value: T; ms: number } => { const start = per
 for (const corpus of CORPORA) {
   const live = existsSync(join(corpus.root, '.git')) && existsSync(BIN) ? describe : describe.skip;
   live(corpus.name, () => {
-    it('answers stack, search and symbol from a start point under a second warm, and refreshes an unchanged install by reuse', () => {
+    it('answers stack, search and symbol from a start point under a second warm, and refreshes an unchanged install by reuse', async () => {
       const cache = mkdtempSync(join(tmpdir(), 'va-scale-'));
       caches.push(cache);
       process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
@@ -64,6 +66,29 @@ for (const corpus of CORPORA) {
       // refresh reads everything again and reuses what it can, which is the path a changed install takes.
       rmSync(path.replace(/\.json$/, '.built.json'));
       const warm = timed(() => refreshDependencyLexicon(corpus.root));
+      // One source file gains an import. The index gains a segment, and the refresh merges that segment
+      // into what it kept; the answer must be the one a refresh from nothing gives.
+      const edited = join(corpus.root, corpus.pick);
+      const original = readFileSync(edited, 'utf8');
+      let edit: { ms: number; value: ReturnType<typeof refreshDependencyLexicon> };
+      let reindex: { ms: number };
+      let merged: string;
+      let full: string;
+      // The lexicon is over a hundred megabytes here: hashed from a buffer past its stamp, never held as a string.
+      const body = (file: string): string => { const bytes = readFileSync(file); return createHash('sha256').update(bytes.subarray(bytes.indexOf('"entries"'))).digest('hex'); };
+      try {
+        writeFileSync(edited, `${original}\nimport * as scaleProbe from 'react';\nvoid scaleProbe;\n`);
+        const start = performance.now();
+        await updateSourceIndex(corpus.root);
+        reindex = { ms: performance.now() - start };
+        edit = timed(() => refreshDependencyLexicon(corpus.root));
+        merged = body(path);
+        rmSync(path.replace(/\.json$/, '.built.json'));
+        refreshDependencyLexicon(corpus.root);
+        full = body(path);
+      } finally {
+        writeFileSync(edited, original);
+      }
       const lexicon = JSON.parse(readFileSync(path, 'utf8')) as { entries: readonly { api: { entrypoint?: string | null } }[] };
       const unresolved = lexicon.entries.filter((entry) => entry.api.entrypoint === undefined || entry.api.entrypoint === null).length;
       const asks: Record<string, readonly string[]> = {
@@ -77,13 +102,16 @@ for (const corpus of CORPORA) {
       });
       console.log(
         `${corpus.name}: index ${(index.ms / 1000).toFixed(1)} s; catalogue ${cold.value.entrypoints} entries, ` +
-          `cold refresh ${(cold.ms / 1000).toFixed(1)} s, re-read ${(warm.ms / 1000).toFixed(1)} s, unchanged ${nothing.ms.toFixed(0)} ms ` +
+          `cold refresh ${(cold.ms / 1000).toFixed(1)} s, re-read ${(warm.ms / 1000).toFixed(1)} s, unchanged ${nothing.ms.toFixed(0)} ms, one edited file ${edit.ms.toFixed(0)} ms (index ${(reindex.ms / 1000).toFixed(1)} s) ` +
           `(${warm.value.reused} reused, ${unresolved} unresolved); warm answers ` +
           answers.map((answer) => `${answer.ask} ${answer.ms.toFixed(0)} ms`).join(', '),
       );
       expect(cold.value.reused).toBe(0);
       expect(nothing.value.unchanged, 'the unchanged refresh read nothing').toBe(true);
       expect(nothing.ms, 'unchanged refresh').toBeLessThan(UNCHANGED_BUDGET_MS);
+      expect(edit.value.unchanged, 'an edit is not nothing').toBe(false);
+      expect(edit.ms, 'refresh after one edited file').toBeLessThan(EDIT_BUDGET_MS);
+      expect(merged, 'the merged lexicon is the one a full refresh gives').toBe(full);
       expect(warm.value.entrypoints - warm.value.reused - unresolved, 'entries recomputed on an unchanged install').toBeLessThanOrEqual(corpus.recomputed);
       for (const answer of answers) {
         expect(answer.bytes, `${answer.ask} answered`).toBeGreaterThan(200);

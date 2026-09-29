@@ -85,7 +85,7 @@ fn directories(root: &Path, owners: &[Owner]) -> BTreeSet<String> {
 }
 
 /// What one entry read: its digested sources, and the manifests and README its purpose came from.
-fn read_by(entry: &Entry) -> Vec<String> {
+pub(super) fn read_by(entry: &Entry) -> Vec<String> {
     let mut paths: Vec<String> = entry.api.sources.iter().flatten().map(|source| source.at.clone()).collect();
     for identity in [&entry.api.runtime, &entry.api.declarations].into_iter().flatten() {
         paths.push(identity.manifest.clone());
@@ -96,9 +96,15 @@ fn read_by(entry: &Entry) -> Vec<String> {
     paths
 }
 
-pub(super) fn record(root: &Path, lexicon: &Path, chain: Vec<String>, version: u8, entries: &[Entry], owners: &[Owner], packages: u32, unavailable: u32) -> Built {
+pub(super) fn record(root: &Path, lexicon: &Path, chain: Vec<String>, version: u8, entries: &[Entry], owners: &[Owner], manifests: &[String], carried: Option<&Built>, packages: u32, unavailable: u32) -> Built {
     let mut paths: BTreeSet<String> = entries.iter().flat_map(read_by).collect();
-    paths.extend(directories(root, owners));
+    // The directories an owner resolves through were listed by the refresh that made the record, and a refresh that
+    // merged did not move any of them, so they are carried; one that read everything lists them again.
+    match carried {
+        Some(held) => paths.extend(held.stamps.iter().map(|(at, _)| at.clone())),
+        None => paths.extend(directories(root, owners)),
+    }
+    paths.extend(manifests.iter().cloned());
     let paths: Vec<String> = paths.into_iter().collect();
     let stamps = paths.par_iter().map(|at| (at.clone(), stamp(&root.join(at)))).collect();
     Built {
@@ -117,4 +123,13 @@ pub(super) fn read(lexicon: &Path, version: u8) -> Option<Built> {
 /// Whether the chain and every stamp are what the record holds.
 pub(super) fn holds(root: &Path, built: &Built, chain: &[String]) -> bool {
     built.chain == chain && built.stamps.par_iter().all(|(at, held)| &stamp(&root.join(at)) == held)
+}
+
+impl Built {
+    pub(super) fn chain(&self) -> &[String] { &self.chain }
+
+    /// The recorded paths whose stamp is no longer what the record holds.
+    pub(super) fn changed(&self, root: &Path) -> std::collections::HashSet<String> {
+        self.stamps.par_iter().filter(|(at, held)| &stamp(&root.join(at)) != held).map(|(at, _)| at.clone()).collect()
+    }
 }
