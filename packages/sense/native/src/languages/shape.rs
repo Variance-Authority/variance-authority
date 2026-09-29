@@ -73,6 +73,10 @@ pub struct Export {
     pub line: u32,
 }
 
+// TODO: a tree-sitter read stores no size, so `variance coverage` leaves every
+// Python, Rust, Swift and JVM file out of the files no suite loaded; its bytes
+// and lines are the tree's to count, and its regions wait on a recorder that
+// cuts them.
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Read {
     pub requests: Vec<Request>,

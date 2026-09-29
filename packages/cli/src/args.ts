@@ -50,6 +50,7 @@ export const BOOLEAN = new Set([
   '--exit-zero-on-changes',
   '--embed-images',
   '--prune',
+  '--packages',
 ]);
 
 /**

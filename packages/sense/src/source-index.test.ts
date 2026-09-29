@@ -65,6 +65,9 @@ const PARSED: Parsed = {
   // mock columns writes some other string here.
   mocks: { minus: ['./api.js'], plus: ['./button.js'] },
   unknown: 'one dynamic request could not be read',
+  // Numbers no other column holds, so a round trip that read one column in
+  // place of another fails here.
+  size: { bytes: 4127, lines: 93, blocks: 11 },
 };
 const RECORD: FileRecord = {
   file: 'src/card.tsx',

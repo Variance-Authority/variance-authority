@@ -10,6 +10,10 @@ export interface ParsedCoverage {
   readonly against?: string;
   /** One declared suite, counted alone. Absent: every suite the root config declares. */
   readonly suite?: string;
+  /** `--from <dir>`: count only the source this directory's entry points reach. Absent: every file the index holds. */
+  readonly from?: string;
+  /** `--packages`: count each package the manifests name on its own, and with what it imports. */
+  readonly packages?: true;
   readonly root: string;
   readonly format: CoverageFormat;
 }
@@ -22,10 +26,16 @@ export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   }
   const against = flags.values.get('--against');
   const suite = flags.values.get('--suite');
+  const from = flags.values.get('--from');
+  if (from === '') throw new OperatorError('`--from` takes a directory, spelled from the repository root.');
+  const packages = flags.present.has('--packages');
+  if (packages && from !== undefined) throw new OperatorError('`--from` counts one directory and `--packages` counts every package; pass one of them.');
   return {
     command: 'coverage',
     ...(against === undefined ? {} : { against: resolve(against) }),
     ...(suite === undefined ? {} : { suite }),
+    ...(from === undefined ? {} : { from }),
+    ...(packages ? { packages: true as const } : {}),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format,
   };

@@ -16,6 +16,7 @@ import type { NativeScanner } from './native.js';
 import { openHarvest } from './source-index-harvest.js';
 import { openMembers } from './source-index-members.js';
 import { openMocks } from './source-index-mocks.js';
+import { openSize } from './source-index-size.js';
 import { packageOf } from './specifier.js';
 
 /**
@@ -31,7 +32,7 @@ import { packageOf } from './specifier.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 13;
+const VERSION = 14;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
 const ROWS = 4096;
@@ -156,6 +157,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const harvest = openHarvest(opened, text, parseKey.length, exportExported.length);
   const mocksOf = openMocks(opened, text, parseKey.length);
   const membersOf = openMembers(opened, text, parseKey.length);
+  const sizeOf = openSize(opened, parseKey.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
   validateOffset(parseExports, exportExported.length, parseKey.length);
   validateOffset(parseDeclares, declareName.length, parseKey.length);
@@ -212,6 +214,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       ...(mocks === undefined ? {} : { mocks }),
       ...membersOf(row, requests.length),
       ...(unknown === undefined ? {} : { unknown }),
+      ...sizeOf(row),
     });
   }
   const deletedParses = new Set<ParseKey>();

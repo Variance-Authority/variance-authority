@@ -84,6 +84,11 @@ describe('parseConfig', () => {
     expect(() => parseConfig({ ...VALID, $schema: 'nowhere.json' }, OPTIONS)).not.toThrow();
   });
 
+  it('refuses an entry point that climbs out of the directory it is declared under, by the field', () => {
+    expect(() => parseConfig({ ...VALID, entrypoints: { 'apps/main': ['src/main.tsx'] } }, OPTIONS)).not.toThrow();
+    expect(attempt({ ...VALID, entrypoints: { 'apps/main': ['../widget/main.tsx'] } }).field).toBe('entrypoints.apps/main');
+  });
+
   it('accepts a baseline layout that keeps images beside their subject', () => {
     // The layout decides where a baseline file lands, and the config is the only
     // place that decision can be made once for every command that reads the root.

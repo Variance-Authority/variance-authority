@@ -76,6 +76,20 @@ export interface Parsed {
    */
   readonly members?: readonly Member[];
   readonly unknown?: string;
+  /** How big the module is. Absent from a reader that does not measure, which is every reader but the JavaScript and TypeScript one. */
+  readonly size?: SourceSize;
+}
+
+/** How big one module is, as the scan read it (`native/src/source_size.rs`). */
+export interface SourceSize {
+  readonly bytes: number;
+  /** Lines holding something outside a comment and outside whitespace. */
+  readonly lines: number;
+  /**
+   * Regions with source of their own, cut by the instrument's `presence` walk.
+   * Absent for a module that did not parse, which the instrument does not cut.
+   */
+  readonly blocks?: number;
 }
 
 /** One name read through a request that took the module whole. */

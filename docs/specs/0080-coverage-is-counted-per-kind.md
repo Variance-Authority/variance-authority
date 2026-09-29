@@ -1,13 +1,14 @@
 # Spec 0080 — coverage is counted per kind, and a change in it is the regions that changed
 
-**Missing:** items 4 and 6, and the open decision. `variance coverage` counts
-every declared suite over the regions any suite loaded, prints the overlap by
-kind, compares each suite with its mainline's published record or with
-`--against`, and prints the parts that add up to each change, in text,
-markdown and JSON (`countCoverage` and `coverageChange` in
-`packages/sense/src/test-selection/coverage-count.ts`, the command in
-`packages/cli/src/commands/coverage.ts`). Nothing writes the markdown to a job
-summary, and nothing keeps a trend.
+**Missing:** items 4 and 6. `variance coverage` counts every declared suite
+over the regions any suite loaded, prints the overlap by kind, compares each
+suite with its mainline's published record or with `--against`, and prints the
+parts that add up to each change, in text, markdown and JSON (`countCoverage`
+and `coverageChange` in `packages/sense/src/test-selection/coverage-count.ts`,
+the command in `packages/cli/src/commands/coverage.ts`). The files no suite
+recorded are counted from the source index, within `--from`
+(`packages/cli/src/commands/coverage-source.ts`). Nothing writes the markdown
+to a job summary, and nothing keeps a trend.
 **Built on:** [ADR-0081](../context/adr/0081-a-coverage-ratio-is-reported-never-read.md)
 (what is counted, the join, and that nothing reads it back),
 `declaredSuites` and `testCoverageFile` in
@@ -42,8 +43,11 @@ coverage at 7556a03a — 4,812 regions in 311 files the suites loaded
   one kind alone      1,420   unit 380 · e2e 960 · visual 80
   no suite              482
   ran only at load      117
-not loaded by any suite: 27 files
 not joined across suites: 12 regions
+source: 338 files reached from the entry points of packages/apps/main
+  before reach              4 files    212 lines     61 regions
+  recorded by no suite      27 files   1,203 lines   388 regions
+  total coverage for 4,391 of the 5,261 regions: 83.5%, 1.4% before reach
 ```
 
 A declared suite with no record prints `unrecorded` in place of its numbers,
@@ -87,11 +91,15 @@ suite, kind, run, not run, ran only at load. `variance coverage --history <n>`
 prints the last `n` rows. With no history service configured, the command says
 it has no trend to show and prints the rest.
 
-## Open decision
+## Decided
 
-**Whether files no suite loaded are cut, to give them regions.** The instrument
-is a pure function over source, so it can cut a file that nothing ran, and those
-regions could join the denominator as regions no suite ran. The first version
-counts them as files (ADR-0081, item 3), because a region cut by a build no suite
-used may not match the cut a real build makes. Decide this before item 6 stores
-rows, because changing the denominator later breaks the trend.
+**Files no suite recorded are counted in regions, on a ratio of their own.** The
+scan stores each JavaScript and TypeScript file's size on its parse: bytes,
+lines of code, and the regions the instrument's walk cuts from it
+(`packages/sense/native/src/source_size.rs`). A file in scope that no record
+loaded adds those regions to a second ratio, *total coverage for X of the R
+regions*, where the regions before reach count as run and their share of the run
+is printed with it. The first ratio's denominator stays what the suites loaded, so
+a region cut from a parse, which may not match the cut a real build makes, never
+moves the numbers the change is decomposed into. Item 6 stores the first ratio's
+counts.

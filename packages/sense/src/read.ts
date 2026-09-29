@@ -68,6 +68,7 @@
 
 import type { EdgeKind } from '@variance-authority/core/relate';
 import { native, nativeRefusal } from './addon.js';
+import type { SourceSize } from './cache.js';
 import type { SourceSymbol, TextSpan } from './harvest.js';
 import type { ImportDiff } from './taint/index.js';
 
@@ -219,6 +220,9 @@ export interface Read {
 
   /** Why this file's requests are not the whole set, when they are not. */
   readonly unknown?: string;
+
+  /** How big the module is. */
+  readonly size?: SourceSize;
 }
 
 /** Extensions the module reader claims. Everything else is somebody else's. */

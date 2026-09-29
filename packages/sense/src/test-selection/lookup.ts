@@ -160,6 +160,37 @@ export function testsGovernedBy(
   };
 }
 
+/**
+ * The preconditions every test in the recording declares, other than its own
+ * file: what the harness loads before any test imports anything, such as the
+ * runner's config and the local modules it imports.
+ *
+ * Every test resting on a file is what makes it the harness's rather than one
+ * test's, so a name some test does not declare is not in the answer. A
+ * recording with no tests has no harness to name.
+ */
+export function sharedPreconditions(coverage: TestCoverageView): readonly string[] {
+  const tests = coverage.testPath.length;
+  if (tests === 0) return [];
+  const counts = new Map<number, number>();
+  const preconditions = coverage.testPreconditions;
+  const named = coverage.preconditionName;
+  let end = preconditions.at(0);
+  for (let test = 0; test < tests; test += 1) {
+    const start = end;
+    end = preconditions.at(test + 1);
+    const own = coverage.testPath.at(test);
+    for (let input = start; input < end; input += 1) {
+      const name = named.at(input);
+      if (name !== own) counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+  }
+  return [...counts]
+    .filter(([, count]) => count === tests)
+    .map(([name]) => coverage.string(name))
+    .sort(codeUnitOrder);
+}
+
 function codeUnitOrder(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }

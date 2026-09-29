@@ -18,10 +18,12 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
+  askCoverageFile,
   countCoverage,
   coverageChange,
   declaredSuites,
   recordedCommit,
+  sharedPreconditions,
   testCoverageFile,
   type CountedSuite,
   type CoverageCount,
@@ -33,6 +35,7 @@ import type { ParsedCoverage } from '../coverage-args.js';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { baseCommit } from './covering-motion.js';
+import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
 
@@ -60,9 +63,22 @@ export interface Coverage {
   readonly suites: readonly CoverageSuite[];
   /** The same count over every base. Absent unless every recorded suite has one. */
   readonly base?: CoverageCount;
+  /** The source in scope, with the files no suite recorded. Absent when the source index could not be read. */
+  readonly source?: CoverageSource;
+  /** Why `source` is absent. */
+  readonly sourceMissed?: string;
+  /** Each package with `--packages`, or each directory the root config declares entry points for, counted over its own files and over everything it reaches. Absent with `--from`. */
+  readonly entries?: readonly (CoverageEntry | MissedEntry)[];
 }
 
 /** Count the records the request names, and compare them with their bases. */
+/** One directory counted on its own. */
+export interface CoverageEntry {
+  readonly from: string;
+  readonly own: CoverageSource;
+  readonly uses: CoverageSource;
+}
+
 export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   const declared = asOperator(() => declaredSuites(request.root));
   const asked = request.suite === undefined ? declared : declared?.filter((one) => one.name === request.suite);
@@ -75,9 +91,16 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     );
   }
 
+  // Read first: `--from` narrows every record counted below to the files it reaches.
+  const reading = await readSource(request.root, request.from, request.packages === true);
+  if ('missed' in reading && request.from !== undefined) {
+    throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
+  }
+  const scope = 'missed' in reading ? undefined : reading.scope;
   const suites: CoverageSuite[] = [];
   const now: CountedSuite[] = [];
   const bases: CountedSuite[] = [];
+  const harness = new Set<string>();
   for (const one of counted) {
     const named = one === undefined ? {} : { suite: one.name, kind: one.kind };
     const from = await recordOf(request.root, one?.name);
@@ -85,15 +108,16 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       suites.push(named);
       continue;
     }
-    const index = await readExecutionIndex(from);
+    const index = within(await readExecutionIndex(from), scope);
     const recorded = await recordedCommit(testCoverageFile(request.root, { suite: one?.name }));
+    for (const entry of restsOn(testCoverageFile(request.root, { suite: one?.name }))) harness.add(entry);
     now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index });
     const found = await baseOf(request, one);
     if ('missed' in found) {
       suites.push({ ...named, from, ...(recorded === undefined ? {} : { recorded }), baseMissed: found.missed });
       continue;
     }
-    const base = await readExecutionIndex(found.from);
+    const base = within(await readExecutionIndex(found.from), scope);
     bases.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index: base });
     suites.push({
       ...named,
@@ -114,15 +138,46 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
     );
   }
   const at = await head(request.root);
+  const count = countCoverage(now);
+  const indexes = now.map((one) => one.index);
+  const reach = 'missed' in reading ? undefined : harnessReach(reading.records, [...harness].sort());
   return {
     ...(at === undefined ? {} : { at }),
-    count: countCoverage(now),
+    count,
     suites,
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
+    ...('missed' in reading
+      ? { sourceMissed: reading.missed }
+      : {
+          source: coverageSource(reading, indexes, count, reach),
+          ...(reading.entries === undefined ? {} : {
+            entries: reading.entries.map((entry) => {
+              if ('missed' in entry) return entry;
+              const counted = (part: Scoped) => {
+                const narrowed = now.map((one) => ({ ...one, index: within(one.index, part.scope) }));
+                return coverageSource(part, narrowed.map((one) => one.index), countCoverage(narrowed), reach);
+              };
+              return { from: entry.from, own: counted(entry.own), uses: counted(entry.uses) };
+            }),
+          }),
+        }),
   };
 }
 
 /** The per-case index a run left for a suite, or `undefined` when none did. */
+/**
+ * What every test in the recording rests on, or nothing when the recording
+ * cannot be opened: the count over the case index stands without it, and the
+ * files the harness loads are then listed with the files nothing loaded.
+ */
+function restsOn(file: string): readonly string[] {
+  try {
+    return askCoverageFile(file, sharedPreconditions);
+  } catch {
+    return [];
+  }
+}
+
 async function recordOf(root: string, suite: string | undefined): Promise<string | undefined> {
   try {
     return await recordedExecutionFile(root, suite);
