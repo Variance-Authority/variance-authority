@@ -16,7 +16,7 @@
 
 import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
-import type { NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
+import type { NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { keptRunnerAliases, runnerConfigs, unlistedRunnerAliases, type RunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
@@ -26,6 +26,7 @@ import { askCoverageFile } from './test-selection/coverage-file.js';
 import { declaredSuites } from './test-selection/suites.js';
 
 export type {
+  NativeJourneysAmong as JourneysAmong,
   NativeJourneysAnswer as JourneysAnswer,
   NativeJourneysAsk as JourneysAsk,
   NativeJourneysBlock as JourneysBlock,
@@ -33,11 +34,13 @@ export type {
   NativeJourneysFile as JourneysFile,
   NativeJourneysFlow as JourneysFlow,
   NativeJourneysFlows as JourneysFlows,
+  NativeJourneysPlace as JourneysPlace,
+  NativeJourneysPlaced as JourneysPlaced,
   NativeJourneysPrepared as JourneysPrepared,
   NativeJourneysRegion as JourneysRegion,
 } from './native-journeys.js';
 
-function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor'>(name: Name) {
+function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -144,4 +147,18 @@ export function journeysAround(root: string, asks: readonly NativeJourneysAsk[])
     const named = suite === undefined ? {} : { suite };
     return [{ ...named, answer: entry('journeysFor')(root, index, recording, journeysPath(index, suite), asks.map((ask) => ({ ...ask }))) }];
   });
+}
+
+/**
+ * Every call the cases numbered `cases` placed, counted among them: a question
+ * that kept some of a file's tests maps what those tests reach, not what every
+ * test does. A case is numbered by its position in `suite`'s recording, the
+ * numbering the recording's own reader hands out. `undefined` when the suite
+ * has nothing recorded.
+ */
+export function journeysAmong(root: string, cases: readonly number[], suite?: string): NativeJourneysAmong | undefined {
+  const index = sourceIndexPath(root);
+  const found = recordings(root).find((recorded) => recorded.suite === suite);
+  if (found?.recording === undefined) return undefined;
+  return entry('journeysAmong')(index, found.recording, journeysPath(index, suite), [...cases]);
 }

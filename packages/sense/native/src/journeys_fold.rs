@@ -17,8 +17,9 @@ use crate::journeys_walk::{Known, Tag, Walked};
 /// the best way it is known, and each distinct package flow — the packages in
 /// the order the walk placed calls into them, starting at the test file's.
 pub(crate) struct Folded {
-    /// (from region or TEST, to region) → (cases, tag, how).
-    pub calls: Vec<((u32, u32), (u32, Tag, Known))>,
+    /// (from region or TEST, to region) → (the cases that placed it, in case
+    /// order, tag, how).
+    pub calls: Vec<((u32, u32), (Vec<u32>, Tag, Known))>,
     /// Package order, cases, example case.
     pub flows: Vec<(Vec<u32>, u32, u32)>,
     pub case_flow: Vec<u32>,
@@ -27,7 +28,7 @@ pub(crate) struct Folded {
 }
 
 pub(crate) fn fold(record: &Record, walked: &[Walked], package: &[u32]) -> Folded {
-    let mut calls: HashMap<(u32, u32), (u32, Tag, Known)> = HashMap::new();
+    let mut calls: HashMap<(u32, u32), (Vec<u32>, Tag, Known)> = HashMap::new();
     let mut flows: HashMap<Vec<u32>, usize> = HashMap::new();
     let mut listed: Vec<(Vec<u32>, u32, u32)> = Vec::new();
     let mut case_flow = Vec::with_capacity(walked.len());
@@ -54,12 +55,12 @@ pub(crate) fn fold(record: &Record, walked: &[Walked], package: &[u32]) -> Folde
                 calls
                     .entry((from, to))
                     .and_modify(|held| {
-                        held.0 += 1;
+                        held.0.push(case as u32);
                         if step.tag > held.1 {
                             (held.1, held.2) = (step.tag, step.known);
                         }
                     })
-                    .or_insert((1, step.tag, step.known));
+                    .or_insert_with(|| (vec![case as u32], step.tag, step.known));
             }
         }
         let at = *flows.entry(seq.clone()).or_insert_with(|| {
@@ -137,6 +138,14 @@ pub(crate) fn columns<'a>(meta: &Meta, record: &'a Record, graph: &'a Graph, fol
         flow_packages.extend_from_slice(seq);
         flow_offsets.push(flow_packages.len() as u32);
     }
+    // Who placed each call, so a question about some of the cases counts the
+    // calls those cases placed rather than every case's.
+    let mut who = Vec::new();
+    let mut who_offsets = vec![0u32];
+    for (_, (cases, _, _)) in &folded.calls {
+        who.extend_from_slice(cases);
+        who_offsets.push(who.len() as u32);
+    }
     let meta = serde_json::to_vec(meta).map_err(|error| error.to_string())?;
     encode(
         vec![
@@ -152,7 +161,9 @@ pub(crate) fn columns<'a>(meta: &Meta, record: &'a Record, graph: &'a Graph, fol
             Column::Bytes("regions.loaded", record.regions.iter().map(|region| u8::from(region.loaded)).collect()),
             Column::Words("calls.from", folded.calls.iter().map(|((from, _), _)| *from).collect()),
             Column::Words("calls.to", folded.calls.iter().map(|((_, to), _)| *to).collect()),
-            Column::Words("calls.cases", folded.calls.iter().map(|(_, (cases, _, _))| *cases).collect()),
+            Column::Words("calls.cases", folded.calls.iter().map(|(_, (cases, _, _))| cases.len() as u32).collect()),
+            Column::Words("calls.who", who),
+            Column::Words("calls.who.off", who_offsets),
             Column::Bytes("calls.tag", folded.calls.iter().map(|(_, (_, tag, _))| *tag as u8).collect()),
             Column::Bytes("calls.how", folded.calls.iter().map(|(_, (_, _, known))| known.code()).collect()),
             Column::Words("flows.packages", flow_packages),

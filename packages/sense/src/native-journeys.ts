@@ -143,6 +143,40 @@ export interface NativeJourneysAnswer {
   readonly files: readonly NativeJourneysFile[];
 }
 
+/** A function at one end of a placed call. */
+export interface NativeJourneysPlace {
+  readonly name: string;
+  readonly file: string;
+  readonly line: number;
+  readonly end: number;
+}
+
+/** One call some of the cases placed, counted among them. */
+export interface NativeJourneysPlaced {
+  /** Absent when the test itself made the call. */
+  readonly from?: NativeJourneysPlace | null;
+  readonly to: NativeJourneysPlace;
+  /** Asked cases that placed it. */
+  readonly cases: number;
+  /** Every case that placed it, asked or not. */
+  readonly all: number;
+  /** `observed`, `static`, the way an inferred call was found, or `test`. */
+  readonly known: string;
+}
+
+/** Every call the asked cases placed, untruncated, most asked cases first. */
+export interface NativeJourneysAmong {
+  /** Why the prepared file cannot answer; every other field is empty then. */
+  readonly notPrepared?: string | null;
+  /** Cases the recording holds. */
+  readonly cases: number;
+  /** Asked cases the recording does not hold. */
+  readonly outside: readonly number[];
+  readonly commit?: string | null;
+  readonly tree?: string | null;
+  readonly calls: readonly NativeJourneysPlaced[];
+}
+
 /** The journey calls on a git listing the addon holds, carrying it rather than asking git again. */
 export interface NativeJourneysListing {
   /** The Vite and Vitest configs this listing holds, not counting ones a fixture, template or example ships. */
@@ -175,4 +209,6 @@ export interface NativeJourneys {
   ): NativeJourneysPrepared | null;
   /** Answer each ask from the journeys kept at `out`. */
   journeysFor?(root: string, index: string, recording: string, out: string, asks: NativeJourneysAsk[]): NativeJourneysAnswer;
+  /** Every call the cases numbered `cases`, by their position in the recording, placed in the journeys kept at `out`. */
+  journeysAmong?(index: string, recording: string, out: string, cases: number[]): NativeJourneysAmong;
 }

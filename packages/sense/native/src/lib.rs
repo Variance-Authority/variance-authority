@@ -54,6 +54,7 @@ mod journey_record;
 mod journey_select;
 mod journey_stitch;
 mod journeys;
+mod journeys_among;
 mod journeys_answer;
 mod journeys_fold;
 mod journeys_graph;

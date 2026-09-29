@@ -248,19 +248,31 @@ pub(crate) fn line_then(diff: &str, line: u32) -> Option<u32> {
 
 /// Answers each ask from the journeys prepared at `out` for the recording at
 /// `recording` and the index at `index`.
+/// The journeys prepared at `out`, while they are still the recording's and
+/// the index's; else why they cannot answer.
+pub(crate) fn opened(index: &str, recording: &str, out: &str) -> Result<(Meta, Decoded), &'static str> {
+    let Ok(bytes) = std::fs::read(out) else { return Err("none were prepared beside this index") };
+    let Ok(decoded) = decode(&bytes, FORMAT) else { return Err("they were prepared by another version") };
+    let Some(meta) = decoded.bytes("meta.json").ok().and_then(|json| serde_json::from_slice::<Meta>(&json).ok()).filter(|meta| meta.walk == WALK) else {
+        return Err("they were prepared by another version");
+    };
+    if !same(recording, meta.recording_stat.as_ref(), &meta.recording) {
+        return Err("the recording changed after they were prepared");
+    }
+    if !same(index, meta.index_stat.as_ref(), &meta.index) {
+        return Err("the index changed after they were prepared");
+    }
+    Ok((meta, decoded))
+}
+
+/// Answers each ask from the journeys prepared at `out` for the recording at
+/// `recording` and the index at `index`.
 #[napi(catch_unwind)]
 pub fn journeys_for(root: String, index: String, recording: String, out: String, asks: Vec<JourneysAsk>) -> JourneysAnswer {
-    let Ok(bytes) = std::fs::read(&out) else { return refused("none were prepared beside this index") };
-    let Ok(decoded) = decode(&bytes, FORMAT) else { return refused("they were prepared by another version") };
-    let Some(meta) = decoded.bytes("meta.json").ok().and_then(|json| serde_json::from_slice::<Meta>(&json).ok()).filter(|meta| meta.walk == WALK) else {
-        return refused("they were prepared by another version");
+    let (meta, decoded) = match opened(&index, &recording, &out) {
+        Ok(opened) => opened,
+        Err(reason) => return refused(reason),
     };
-    if !same(&recording, meta.recording_stat.as_ref(), &meta.recording) {
-        return refused("the recording changed after they were prepared");
-    }
-    if !same(&index, meta.index_stat.as_ref(), &meta.index) {
-        return refused("the index changed after they were prepared");
-    }
     let prepared = match Prepared::read(&decoded) {
         Ok(prepared) => prepared,
         Err(error) => return refused(&format!("they did not read ({error})")),

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { journeysAround, journeysPath, prepareJourneys } from './journeys.js';
+import { journeysAmong, journeysAround, journeysPath, prepareJourneys } from './journeys.js';
 import { updateSourceIndex } from './published.js';
 import { keptRunnerAliases, runnerAliases, runnerConfigs, runnerDigest, unlistedRunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
@@ -110,6 +110,46 @@ describe('the journeys prepared beside the index', () => {
     writeFileSync(at, recording(1));
     const [{ answer: stale }] = journeysAround(root, [{ file: 'src/api.ts' }]) as [{ answer: import('./journeys.js').JourneysAnswer }];
     expect(stale.notPrepared).toBe('the recording changed after they were prepared');
+  });
+});
+
+describe('the calls some of the cases placed', () => {
+  /** `gets` runs `get` and `put`; `peeks` runs `get` alone. */
+  function two(): Buffer {
+    const tests = [
+      { id: 'api > gets', file: 'test/api.test.ts', name: 'gets' },
+      { id: 'api > peeks', file: 'test/api.test.ts', name: 'peeks' },
+    ];
+    const sets = new CrossingSets(tests.length);
+    return encodeSetExecutionIndex({
+      tests,
+      modules: [
+        {
+          file: 'src/api.ts',
+          blocks: [region('module', '', 1, 6), region('function', 'get', 1, 3), region('function', 'put', 4, 6)],
+          called: Uint32Array.of(sets.intern([]), sets.intern([0, 1]), sets.intern([0])),
+          loaded: Uint8Array.of(1, 0, 0),
+        },
+      ],
+      sets: sets.pool(),
+    });
+  }
+
+  it('are counted among the asked cases alone, and a case the recording does not hold is named', async () => {
+    write('test/api.test.ts', "import { get } from '../src/api.js';\nit('gets', () => get('x'));\nit('peeks', () => get('y'));\n");
+    await updateSourceIndex(root);
+    const at = `${testCoverageFile(root)}.cases.bin`;
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, two());
+    await prepareJourneys(root);
+
+    const call = (among: import('./journeys.js').JourneysAmong | undefined) =>
+      among?.calls.map((placed) => `${placed.from?.name ?? 'test'}>${placed.to.name} ${placed.cases}/${placed.all}`);
+    expect(call(journeysAmong(root, [0, 1]))).toEqual(['test>get 2/2', 'get>put 1/1']);
+    const peeks = journeysAmong(root, [1, 9]);
+    expect(call(peeks)).toEqual(['test>get 1/2']);
+    expect(peeks?.outside).toEqual([9]);
+    expect(journeysAmong(root, [0], 'no such suite')).toBeUndefined();
   });
 });
 

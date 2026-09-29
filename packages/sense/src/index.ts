@@ -113,9 +113,11 @@ export {
   type PreparedCodeMap,
 } from './code-map.js';
 export {
+  journeysAmong,
   journeysAround,
   journeysPath,
   prepareJourneys,
+  type JourneysAmong,
   type JourneysAnswer,
   type JourneysAround,
   type JourneysAsk,
@@ -124,6 +126,8 @@ export {
   type JourneysFile,
   type JourneysFlow,
   type JourneysFlows,
+  type JourneysPlace,
+  type JourneysPlaced,
   type JourneysPrepared,
   type JourneysRegion,
   type PreparedJourneys,
