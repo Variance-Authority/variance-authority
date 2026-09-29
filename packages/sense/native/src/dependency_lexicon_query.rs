@@ -7,7 +7,7 @@ use std::path::Path;
 use napi_derive::napi;
 use serde::Serialize;
 
-use super::{Api, Lexicon};
+use super::{Api, Lexicon, Readme};
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,8 +34,23 @@ struct Match {
     declaration_provider: Option<String>,
 }
 
+/// A package the workspace can resolve that publishes no names to match against, and what it ships instead.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Silent {
+    package: String,
+    specifier: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    readme: Option<Readme>,
+    imported: bool,
+}
+
+/// `silent` is asked for by an exact name only: a search over words has no name to be silent about.
 #[derive(Serialize)]
-struct Matches { total: u32, shown: Vec<Match> }
+struct Matches { total: u32, shown: Vec<Match>, silent: Vec<Silent> }
 
 fn owners<'a>(lexicon: &'a Lexicon, files: &[String]) -> HashSet<&'a str> {
     let mut manifests: Vec<&str> = lexicon.availability.iter().map(|row| row.owner.as_str()).collect();
@@ -91,16 +106,28 @@ pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<S
     };
     let lexicon: Lexicon = serde_json::from_slice(&bytes)
         .map_err(|error| napi::Error::from_reason(format!("the dependency lexicon did not read: {error}")))?;
-    if lexicon.version != 4 { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
+    if !matches!(lexicon.version, 4 | 5) { return Err(napi::Error::from_reason("the dependency lexicon version is not supported")); }
     let allowed = files.as_ref().map(|files| owners(&lexicon, files));
     let entries: HashMap<&str, &Api> = lexicon.entries.iter().map(|entry| (entry.id.as_str(), &entry.api)).collect();
     let query = if exact { query } else { query.to_lowercase() };
     let mut found = BTreeMap::<(String, String, String, String), Match>::new();
     let mut searched = HashMap::<(&str, &str), Vec<Match>>::new();
+    let mut silent = BTreeMap::<(String, String), Silent>::new();
     for row in &lexicon.availability {
         if allowed.as_ref().is_some_and(|owners| !owners.contains(row.owner.as_str())) { continue; }
         if package.as_ref().is_some_and(|wanted| wanted != &row.package && wanted != &row.specifier) { continue; }
         let Some(api) = entries.get(row.entry.as_str()) else { continue };
+        if let (true, Some(reason)) = (exact, api.unavailable.as_ref()) {
+            let key = (row.entry.clone(), row.specifier.clone());
+            let imported = row.imported == Some(true);
+            if silent.get(&key).is_none_or(|prior| !prior.imported && imported) {
+                silent.insert(key, Silent {
+                    package: row.package.clone(), specifier: row.specifier.clone(),
+                    version: api.runtime.as_ref().map(|identity| identity.version.clone()),
+                    reason: reason.clone(), readme: api.readme.clone(), imported,
+                });
+            }
+        }
         let candidates = searched.entry((row.entry.as_str(), row.specifier.as_str()))
             .or_insert_with(|| matches(api, row, &query, exact));
         for mut hit in candidates.iter().cloned() {
@@ -115,7 +142,7 @@ pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<S
     shown.sort_by(|a, b| b.imported.cmp(&a.imported)
         .then_with(|| (&a.specifier, &a.name, &a.kind).cmp(&(&b.specifier, &b.name, &b.kind))));
     shown.truncate(limit as usize);
-    let answer = serde_json::to_string(&Matches { total, shown })
+    let answer = serde_json::to_string(&Matches { total, shown, silent: silent.into_values().collect() })
         .map_err(|error| napi::Error::from_reason(error.to_string()))?;
     Ok(Some(answer))
 }

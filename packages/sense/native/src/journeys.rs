@@ -33,7 +33,7 @@ pub(crate) const FORMAT: u8 = 2;
 /// The walk that prepared a file: the addon's version, and a revision moved
 /// whenever the walk or the fold changes what it writes within one version.
 /// A file another walk prepared is prepared again, never answered from.
-pub(crate) const WALK: &str = concat!(env!("CARGO_PKG_VERSION"), "/walk.2");
+pub(crate) const WALK: &str = concat!(env!("CARGO_PKG_VERSION"), "/walk.3");
 /// The caller of a case's first placed function: the test itself.
 pub(crate) const TEST: u32 = u32::MAX;
 /// The package of a file no named manifest sits above.

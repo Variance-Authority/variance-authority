@@ -34,6 +34,15 @@ struct Name {
 }
 #[derive(Clone, Serialize, Deserialize)]
 struct Source { at: String, digest: String }
+/// The `README.md` beside an installed package's manifest: where it is and how long, or why it did not read.
+#[derive(Clone, Serialize, Deserialize)]
+struct Readme {
+    at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lines: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    unreadable: Option<String>,
+}
 #[derive(Clone, Serialize, Deserialize)]
 struct Api {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -48,6 +57,9 @@ struct Api {
     sources: Option<Vec<Source>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     unavailable: Option<String>,
+    /// Only on an unavailable entry: the package's own prose may be all it ships.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    readme: Option<Readme>,
 }
 #[derive(Serialize, Deserialize)]
 struct Entry { id: String, api: Api }
@@ -106,9 +118,24 @@ fn identity(root: &Path, resolution: &oxc_resolver::Resolution) -> Option<Identi
     })
 }
 
+/// The README beside the runtime package's manifest — named by the resolver's answer, not found by a walk.
+fn readme(root: &Path, runtime: &Option<Identity>) -> Option<Readme> {
+    let manifest = root.join(&runtime.as_ref()?.manifest);
+    let path = manifest.parent()?.join("README.md");
+    if !path.exists() { return None; }
+    let at = relative(root, &path);
+    Some(match fs::read_to_string(&path) {
+        Ok(text) => Readme { at, lines: Some(text.lines().count() as u32), unreadable: None },
+        Err(error) => Readme { at, lines: None, unreadable: Some(error.to_string()) },
+    })
+}
+
+/// Version 5 added `readme`. A 4 still answers queries; a refresh rewrites it as a 5.
+const VERSION: u8 = 5;
+
 fn previous(path: &Path) -> Option<Lexicon> {
     let prior: Lexicon = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
-    if prior.version != 4 { return None; }
+    if prior.version != VERSION { return None; }
     Some(prior)
 }
 
@@ -179,59 +206,26 @@ fn code_opening(opening: &str) -> bool {
     extension.is_empty() || ["js", "mjs", "cjs", "ts", "mts", "cts", "tsx", "jsx"].contains(&extension)
 }
 
-fn descendants(directory: &Path) -> Vec<PathBuf> {
-    let mut pending = vec![directory.to_owned()];
-    let mut files = Vec::new();
-    while let Some(current) = pending.pop() {
-        let Ok(entries) = fs::read_dir(current) else { continue };
-        for entry in entries.flatten() {
-            if entry.file_type().is_ok_and(|kind| kind.is_symlink()) { continue; }
-            let path = entry.path();
-            if path.is_dir() && entry.file_name() != "node_modules" { pending.push(path); } else if path.is_file() { files.push(path); }
-        }
-    }
-    files
-}
-
-fn openings(directory: &Path, package: &str, manifest: &serde_json::Value) -> (BTreeSet<String>, Vec<String>) {
-    let Some(exports) = manifest.get("exports") else { return (BTreeSet::from([package.to_owned()]), Vec::new()) };
+/// The subpaths an installed manifest names one by one. A pattern such as
+/// `./*` opens every file under it, which is a permission and not an API
+/// surface, so it is never enumerated: a specifier through it is read when a
+/// source file imports it, and not before.
+fn openings(package: &str, manifest: &serde_json::Value) -> BTreeSet<String> {
+    let Some(exports) = manifest.get("exports") else { return BTreeSet::from([package.to_owned()]) };
     let paths: Vec<(&str, &serde_json::Value)> = match exports.as_object() {
         Some(map) if map.keys().any(|key| key.starts_with('.')) =>
             map.iter().filter(|(key, _)| key.starts_with('.')).map(|(key, value)| (key.as_str(), value)).collect(),
         _ => vec![(".", exports)],
     };
     let mut specifiers = BTreeSet::new();
-    let mut issues = Vec::new();
-    let mut files: Option<Vec<PathBuf>> = None;
     for (opening, value) in paths {
-        if !code_opening(opening) { continue; }
+        if opening.contains('*') || !code_opening(opening) { continue; }
         let mut offered = Vec::new();
         targets(value, &mut offered);
         if offered.is_empty() { continue; }
-        let mut concrete = BTreeSet::new();
-        if !opening.contains('*') { concrete.insert(opening.to_owned()); }
-        else if opening.matches('*').count() == 1 {
-            for target in offered.iter().filter(|target| target.starts_with("./") && target.contains('*')) {
-                let Some((before, after)) = target[2..].split_once('*') else { continue };
-                let available = files.get_or_insert_with(|| descendants(directory));
-                for path in available.iter() {
-                    let at = relative(directory, path);
-                    if let Some(part) = at.strip_prefix(before).and_then(|rest| rest.strip_suffix(after)) {
-                        if !part.is_empty() {
-                            let subpath = opening.replace('*', part);
-                            if code_opening(&subpath) { concrete.insert(subpath); }
-                        }
-                    }
-                }
-                if !concrete.is_empty() { break; }
-            }
-        }
-        if concrete.is_empty() { issues.push(format!("the installed exports map has an unexpanded subpath: {opening}")); }
-        for subpath in concrete {
-            specifiers.insert(if subpath == "." { package.to_owned() } else { format!("{package}/{}", subpath.trim_start_matches("./")) });
-        }
+        specifiers.insert(if opening == "." { package.to_owned() } else { format!("{package}/{}", opening.trim_start_matches("./")) });
     }
-    (specifiers, issues)
+    specifiers
 }
 
 struct Reader<'a> {
@@ -357,11 +351,14 @@ fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Resolvers, prev
         } else {
             format!("the project resolver could not resolve `{specifier}` from {}", relative(root, importer))
         };
-        return (Api { runtime, declarations, entrypoint: None, names: None, sources: None, unavailable: Some(reason) }, false);
+        let readme = readme(root, &runtime);
+        return (Api { runtime, declarations, entrypoint: None, names: None, sources: None, unavailable: Some(reason), readme }, false);
     };
     let entrypoint = relative(root, declaration.path());
     if let Some(prior) = previous.filter(|prior| unchanged(root, prior, &runtime, &declarations, &entrypoint)) {
-        return (prior.clone(), true);
+        // A README is not among the digested sources, so an entry that publishes no names reads it again.
+        let readme = prior.unavailable.is_some().then(|| readme(root, &runtime)).flatten();
+        return (Api { readme, ..prior.clone() }, true);
     }
     let mut reader = Reader { root, package: declaration.package_json().map(|manifest| manifest.path().to_owned()), resolver, cache: HashMap::new(), stack: HashSet::new(), sources: BTreeSet::new() };
     if let Some(resolution) = runtime_resolution.as_ref() {
@@ -372,7 +369,8 @@ fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Resolvers, prev
     let sources = reader.sources.iter().filter_map(|path|
         Some(Source { at: relative(root, path), digest: digest(path)? })).collect();
     let unavailable = names.is_empty().then(|| format!("the declarations for `{specifier}` publish no names this reader can enumerate"));
-    (Api { runtime, declarations, entrypoint: Some(entrypoint), names: Some(names), sources: Some(sources), unavailable }, false)
+    let readme = unavailable.is_some().then(|| readme(root, &runtime)).flatten();
+    (Api { runtime, declarations, entrypoint: Some(entrypoint), names: Some(names), sources: Some(sources), unavailable, readme }, false)
 }
 
 /// Refresh the complete installed lexicon from Git, the source index and the
@@ -437,11 +435,7 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
             Some(package_json) => {
                 let manifest_path = package_json.path();
                 match fs::read(manifest_path).ok().and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok()) {
-                    Some(value) => {
-                        let (offered, problems) = openings(manifest_path.parent().unwrap_or(root_path), package, &value);
-                        issues.extend(problems);
-                        (offered, true)
-                    }
+                    Some(value) => (openings(package, &value), true),
                     None => (BTreeSet::new(), false),
                 }
             }
@@ -486,7 +480,7 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
     availability.sort_by(|a, b| (a.owner.as_str(), a.specifier.as_str()).cmp(&(b.owner.as_str(), b.specifier.as_str())));
     issues.sort_by(|a, b| (&a.owner, &a.package, &a.reason).cmp(&(&b.owner, &b.package, &b.reason)));
     issues.dedup_by(|a, b| a.owner == b.owner && a.package == b.package && a.reason == b.reason);
-    let corpus = Lexicon { version: 4, refreshed_at, entries: entries.into_values().collect(), availability, issues };
+    let corpus = Lexicon { version: VERSION, refreshed_at, entries: entries.into_values().collect(), availability, issues };
     let path_ref = Path::new(&path);
     if let Some(parent) = path_ref.parent() {
         fs::create_dir_all(parent).map_err(|error| napi::Error::from_reason(error.to_string()))?;

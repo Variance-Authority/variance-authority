@@ -55,6 +55,11 @@ path limits them to packages available to the workspaces in that graph closure;
 the answer labels imports separately from availability. Ask
 `symbol --name <name> --package <package>` for the installed signature and full documentation.
 The declaration provider is named when it differs from the runtime package.
+A package the workspace resolves but that ships no declarations has no names to
+match, so `symbol` says so, gives the path and line count of the `README.md`
+beside its manifest, and quotes the README passage that names the symbol,
+labelled as that file's. Naming `--package` reports the README even when it does
+not mention the symbol; a package with no README is reported as shipping none.
 
 This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the
