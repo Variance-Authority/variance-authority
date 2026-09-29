@@ -3,9 +3,11 @@ id: TASK-21.9
 title: >-
   Third-party availability belongs to the owning workspace, not the graph
   closure
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@claude'
 created_date: '2026-09-28 03:54'
+updated_date: '2026-09-29 08:06'
 labels: []
 dependencies: []
 parent_task_id: TASK-21
@@ -20,8 +22,14 @@ Graph-scoped `ask search` offers every dependency declared by any workspace the 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A third-party name is listed as usable from a path only when the owning manifest of that path, or the root for root:* workspaces, declares it
-- [ ] #2 A name declared only by a reached workspace is reported separately as reached through that workspace, with the import path that reached it, or not at all
-- [ ] #3 Help -> MCP -> Eyes in this repository no longer offers Eyes-only test APIs as usable from packages/help/src/server.ts
-- [ ] #4 The FIXME at search-answer.ts is deleted by the change that fixes it
+- [x] #1 A third-party name is listed as usable from a path only when the owning manifest of that path, or the root for root:* workspaces, declares it
+- [x] #2 A name declared only by a reached workspace is reported separately as reached through that workspace, with the import path that reached it, or not at all
+- [x] #3 Help -> MCP -> Eyes in this repository no longer offers Eyes-only test APIs as usable from packages/help/src/server.ts
+- [x] #4 The FIXME at search-answer.ts is deleted by the change that fixes it
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Ownership is asked of the paths the question starts at (from and to), not of the import closure. A name only a reached workspace declares is not reported. Test: search-third-party.test.ts fails on the old closure and passes now. Live: Eyes-only @testing-library names appear from packages/eyes/src/index.ts and not from packages/help/src/server.ts.
+<!-- SECTION:FINAL_SUMMARY:END -->
