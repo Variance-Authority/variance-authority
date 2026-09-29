@@ -31,10 +31,31 @@ export interface RelationRule {
   readonly message?: string;
 }
 
+/** A ceiling on the layer of the packages `for` names, as written in a `.relations.json` file. */
+export interface LayerCap {
+  /** A folder or a glob holding the packages, written like `from` and `to`. */
+  readonly for: string;
+  readonly maxLayer: number;
+  /** Why, said to whoever crossed it. */
+  readonly message?: string;
+}
+
 /** The rules of one `.relations.json`, and the repository-relative directory it sits in (empty for the root). */
 export interface RuleFile {
   readonly directory: string;
   readonly rules: readonly RelationRule[];
+  /** The layer ceilings the file states. Absent: none. */
+  readonly caps?: readonly LayerCap[];
+}
+
+/** One package above the tightest ceiling that names it. */
+export interface CapViolation {
+  readonly package: string;
+  readonly layer: number;
+  readonly maxLayer: number;
+  readonly message?: string;
+  /** The directory of the rule file that states the ceiling. */
+  readonly directory: string;
 }
 
 /** The rule that decided one import, and the file it was written in. */
@@ -115,4 +136,38 @@ export function restrictedImports(records: readonly FileRecord[], files: readonl
     }
   }
   return found.sort((a, b) => byCodeUnit(a.from, b.from) || byCodeUnit(a.to, b.to));
+}
+
+// TODO: a floor on the layer of what a package may import (`toLayerBelow`) is not written; the layer of a
+// target moves when the target's own imports change, so it would fail a build for an edit elsewhere.
+
+/**
+ * Every package above a ceiling that names it, in code-unit order. Every file
+ * counts, wherever it sits: a ceiling names the packages it holds, not the
+ * imports that cross it. Where several ceilings hold one package the lowest
+ * decides, so a folder's cap cannot be loosened by a cap written below it.
+ */
+export function cappedLayers(
+  layers: readonly { readonly package: string; readonly directory: string; readonly layer: number }[],
+  files: readonly RuleFile[],
+): CapViolation[] {
+  const found: CapViolation[] = [];
+  for (const entry of layers) {
+    let tightest: CapViolation | undefined;
+    for (const file of files) {
+      for (const cap of file.caps ?? []) {
+        if (!holds(file.directory, cap.for, entry.directory)) continue;
+        if (tightest !== undefined && tightest.maxLayer <= cap.maxLayer) continue;
+        tightest = {
+          package: entry.package,
+          layer: entry.layer,
+          maxLayer: cap.maxLayer,
+          directory: file.directory,
+          ...(cap.message === undefined ? {} : { message: cap.message }),
+        };
+      }
+    }
+    if (tightest !== undefined && entry.layer > tightest.maxLayer) found.push(tightest);
+  }
+  return found.sort((a, b) => byCodeUnit(a.package, b.package));
 }

@@ -169,6 +169,38 @@ elsewhere under `src/houses` are not affected, because no rule matches them.
 
 Both shapes are run as tests over the rule engine (`restrictions.test.ts`).
 
+### A ceiling on the layer
+
+An import rule names an edge. To say that a package may not sit above a layer,
+write a rule with `for` and `maxLayer` in the same file:
+
+```json
+[
+  { "for": "packages", "maxLayer": 5, "message": "keep the tree shallow" },
+  { "for": "packages/postoffice-*", "maxLayer": 3 }
+]
+```
+
+`for` is a folder or a glob, written like `from` and `to` and relative to the
+file. The first rule caps every package under `packages`. The second caps the
+packages named `postoffice-…` lower. Where several ceilings hold a package the
+lowest decides, so a cap written in a subfolder can tighten a folder's ceiling
+and never loosen it. `maxLayer` is a whole number from 1.
+
+`variance restrictions` lists each package above its ceiling with its layer,
+the ceiling and the file that states it, and exits 1, like a restricted
+import. The layer is the same repository-wide number `variance layers` prints,
+not one counted inside the folder. A ceiling is checked against the source
+index's package layers; if the index holds none, the command says so instead of
+passing. The ceiling is a number you chose, so pick it after reading the layers
+you have: a cap below where the repository already sits fails on the first run.
+
+A ceiling on the packages a package may import, such as "nothing below layer 5",
+is not supported.
+
+Both the flat-directory cap and the folder cap are run as tests
+(`restrictions.test.ts`, `restrictions-caps.test.ts`).
+
 ## What the numbers do not say
 
 - **A high layer is not a defect.** An application package that imports the

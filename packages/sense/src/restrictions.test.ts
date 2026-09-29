@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { relationBetween, restrictedImports, type RuleFile } from './restrictions.js';
+import { cappedLayers, relationBetween, restrictedImports, type RuleFile } from './restrictions.js';
 
 const record = (file: string, ...targets: string[]) => ({ file, edges: targets.map((to) => ({ to, kind: 'value' as const })) });
 
@@ -110,6 +110,39 @@ describe('a public package inside a folder of internals', () => {
 
   it('leaves imports elsewhere in src/houses unrestricted', () => {
     expect(decide('src/app/table.ts', 'src/houses/other/hand.ts')).toBeUndefined();
+  });
+});
+
+describe('a ceiling on the layer of a package', () => {
+  const layer = (name: string, layer: number) => ({ package: name, directory: `packages/${name}`, layer });
+  const layers = [layer('ui', 6), layer('ui-forms', 4), layer('postoffice', 2), layer('postoffice-stamps', 4), layer('postoffice-routes', 3), layer('app', 9)];
+  const listed = (files: RuleFile[]) => cappedLayers(layers, files).map((v) => `${v.package} ${v.layer}>${v.maxLayer}`);
+
+  it('caps every package under a folder', () => {
+    const files: RuleFile[] = [{ directory: 'packages', rules: [], caps: [{ for: 'ui', maxLayer: 5 }] }];
+    expect(listed(files)).toEqual(['ui 6>5']);
+    expect(listed([{ directory: 'packages', rules: [], caps: [{ for: '.', maxLayer: 5 }] }])).toEqual(['app 9>5', 'ui 6>5']);
+  });
+
+  it('caps the packages a naming glob holds and none named otherwise', () => {
+    const files: RuleFile[] = [{ directory: 'packages', rules: [], caps: [{ for: 'postoffice-*', maxLayer: 3 }] }];
+    expect(listed(files)).toEqual(['postoffice-stamps 4>3']);
+  });
+
+  it('lets the lowest ceiling decide and reports the file that wrote it', () => {
+    const files: RuleFile[] = [
+      { directory: '', rules: [], caps: [{ for: 'packages', maxLayer: 8 }] },
+      { directory: 'packages', rules: [], caps: [{ for: 'ui*', maxLayer: 3, message: 'ui stays shallow' }] },
+    ];
+    expect(cappedLayers(layers, files)).toEqual([
+      { package: 'app', layer: 9, maxLayer: 8, directory: '' },
+      { package: 'ui', layer: 6, maxLayer: 3, directory: 'packages', message: 'ui stays shallow' },
+      { package: 'ui-forms', layer: 4, maxLayer: 3, directory: 'packages', message: 'ui stays shallow' },
+    ]);
+  });
+
+  it('finds nothing without ceilings', () => {
+    expect(listed([{ directory: '', rules: [] }])).toEqual([]);
   });
 });
 

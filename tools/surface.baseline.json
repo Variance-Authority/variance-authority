@@ -2382,6 +2382,7 @@
     },
     "names": {
       ".": {
+        "CapViolation": "interface",
         "CasesEntered": "interface",
         "CodeMapAnswer": "interface",
         "CodeMapMade": "interface",
@@ -2423,6 +2424,7 @@
         "JourneysRegion": "interface",
         "LANGUAGES": "const",
         "LanguageId": "type",
+        "LayerCap": "interface",
         "LayerCause": "interface",
         "LayerMoves": "interface",
         "MockTaintOptions": "interface",
@@ -2480,6 +2482,7 @@
         "TreeShape": "interface",
         "Violation": "interface",
         "auditTaints": "function",
+        "cappedLayers": "function",
         "codeMapPage": "function",
         "dependenciesAround": "function",
         "dependencyStackNative": "function",
