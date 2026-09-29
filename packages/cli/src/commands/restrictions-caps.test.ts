@@ -56,6 +56,7 @@ function checkout(rules: unknown): void {
   process.chdir(root);
 }
 
+/** Runs the CLI in process and collects what it wrote and how it exited. */
 async function run(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
   let out = '';
   let err = '';

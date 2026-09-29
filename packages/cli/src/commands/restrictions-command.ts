@@ -31,6 +31,7 @@ import type { ParsedRestrictions } from '../restrictions-args.js';
 /** The file a folder's rules are written in. */
 export const RULE_FILE = '.relations.json';
 
+/** One `for`/`maxLayer` entry, refused with the file and rule number when a field is the wrong shape. */
 function parseCap(path: string, at: number, entry: Record<string, unknown>): LayerCap {
   const { for: subject, maxLayer, message } = entry;
   if (typeof subject !== 'string') throw new OperatorError(`${path}, rule ${at + 1}: \`for\` is a folder or a glob, written as a string.`);
@@ -41,6 +42,7 @@ function parseCap(path: string, at: number, entry: Record<string, unknown>): Lay
   return { for: subject, maxLayer, ...(message === undefined ? {} : { message }) };
 }
 
+/** A rule file's text as import rules and layer ceilings; an entry that mixes the two is refused, not half read. */
 function parseRules(path: string, text: string): { rules: RelationRule[]; caps: LayerCap[] } {
   let value: unknown;
   try {
@@ -67,6 +69,7 @@ function parseRules(path: string, text: string): { rules: RelationRule[]; caps: 
   return { rules, caps };
 }
 
+/** One import rule, refused with the file and rule number when a field is the wrong shape. */
 function parseRule(path: string, at: number, entry: Record<string, unknown> | null): RelationRule {
   const type = entry?.['type'];
   if (type !== 'allowed' && type !== 'restricted') {
@@ -85,6 +88,7 @@ function parseRule(path: string, at: number, entry: Record<string, unknown> | nu
   };
 }
 
+/** Every tracked `.relations.json`, read as data, with the directory it governs. */
 function ruleFiles(root: string): RuleFile[] {
   const listed = execFileSync('git', ['ls-files', '-z', '--', RULE_FILE, `**/${RULE_FILE}`], { cwd: root, encoding: 'utf8' });
   return listed.split('\0').filter((path) => path !== '').map((path) => {
@@ -103,6 +107,7 @@ function cappedPackages(root: string, files: readonly RuleFile[]): CapViolation[
   return cappedLayers(layers.packages, files);
 }
 
+/** The prose report: one line per finding, then the counts, or the sentence that says nothing broke. */
 function text(found: readonly Violation[], capped: readonly CapViolation[], files: number, layersRead: boolean): string {
   if (files === 0) return `No ${RULE_FILE} is tracked in this checkout, so no import is restricted.\n`;
   if (found.length === 0 && capped.length === 0) return `No import${layersRead ? ' or layer' : ''} breaks the rules in ${files} ${RULE_FILE} file${files === 1 ? '' : 's'}.\n`;
@@ -117,6 +122,7 @@ function text(found: readonly Violation[], capped: readonly CapViolation[], file
   return `${lines.join('\n')}\n${counts.join(', ')}.\n`;
 }
 
+/** Runs the check over the published source index and returns the report with its exit code: 1 on any finding. */
 export async function restrictionsOutput(request: ParsedRestrictions): Promise<{ out: string; code: ExitCode }> {
   const files = ruleFiles(request.root);
   const published = await publishedSources(request.root, {

@@ -72,14 +72,17 @@ export interface Violation {
   readonly directory: string;
 }
 
+/** How many folders a rule file's directory sits below the root; the root is 0. */
 function depth(directory: string): number {
   return directory === '' ? 0 : directory.split('/').length;
 }
 
+/** Orders strings by code unit, so a committed listing does not depend on `LANG`. */
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/** Whether `path` is `directory` or under it; the root holds everything. */
 function inside(directory: string, path: string): boolean {
   return directory === '' || path === directory || path.startsWith(`${directory}/`);
 }

@@ -62,6 +62,11 @@ export const NAVIGATION = [
         label: "Reuse the source graph",
         cluster: "Orient in a codebase",
       },
+      {
+        href: "/docs/boundaries",
+        label: "See the structure your imports build",
+        cluster: "Orient in a codebase",
+      },
     ],
   },
   {
