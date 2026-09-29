@@ -243,7 +243,7 @@ jobs:
           node packages/cli/dist/bin.js index
           body="$RUNNER_TEMP/coverage.md"
           echo '<!-- variance-authority:coverage -->' > "$body"
-          echo '### Coverage' >> "$body"
+          echo '### 📊 Coverage' >> "$body"
           if [ -n "$AGAINST" ]; then
             node packages/cli/dist/bin.js coverage --suite unit --against "$AGAINST" --packages --format markdown >> "$body"
           else

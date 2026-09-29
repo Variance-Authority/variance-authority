@@ -148,7 +148,8 @@ describe('coverage of a repository that declares suites', () => {
 
     expect(answer.out).toContain('| Suite | Kind | Regions run | Share |');
     expect(answer.out).toContain('| checkout | e2e | unrecorded | |');
-    expect(answer.out).toContain('| run by unit alone | 1 |');
+    expect(answer.out).toContain('| 🟡 run by unit alone | 1 | 25.0% |');
+    expect(answer.out).toContain('📊 **');
     expect(answer.out).not.toContain('###');
   });
 
