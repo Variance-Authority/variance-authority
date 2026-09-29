@@ -510,7 +510,14 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
     let mut reused = 0;
     for (owner, package, outputs, problems) in rows {
         for (row, entry, retained) in outputs {
-            if entries.insert(entry.id.clone(), entry).is_none() && retained { reused += 1; }
+            // Specifiers that resolve to one entrypoint share an id. The first row's reading is kept, so the next
+            // refresh compares that row with itself: the last one's runtime identity can differ and would fail `unchanged`.
+            // TODO: on the seven-copy Material UI corpus, whose installs symlink to declarations outside the checkout, the
+            // `react` entries of three copies are recomputed on an unchanged install (12 to 16 of ~9,300, varying by run); the cause is not found.
+            if !entries.contains_key(&entry.id) {
+                if retained { reused += 1; }
+                entries.insert(entry.id.clone(), entry);
+            }
             availability.push(row);
         }
         issues.extend(problems.into_iter().map(|reason| Issue { owner: owner.clone(), package: package.clone(), reason }));
