@@ -206,59 +206,26 @@ fn code_opening(opening: &str) -> bool {
     extension.is_empty() || ["js", "mjs", "cjs", "ts", "mts", "cts", "tsx", "jsx"].contains(&extension)
 }
 
-fn descendants(directory: &Path) -> Vec<PathBuf> {
-    let mut pending = vec![directory.to_owned()];
-    let mut files = Vec::new();
-    while let Some(current) = pending.pop() {
-        let Ok(entries) = fs::read_dir(current) else { continue };
-        for entry in entries.flatten() {
-            if entry.file_type().is_ok_and(|kind| kind.is_symlink()) { continue; }
-            let path = entry.path();
-            if path.is_dir() && entry.file_name() != "node_modules" { pending.push(path); } else if path.is_file() { files.push(path); }
-        }
-    }
-    files
-}
-
-fn openings(directory: &Path, package: &str, manifest: &serde_json::Value) -> (BTreeSet<String>, Vec<String>) {
-    let Some(exports) = manifest.get("exports") else { return (BTreeSet::from([package.to_owned()]), Vec::new()) };
+/// The subpaths an installed manifest names one by one. A pattern such as
+/// `./*` opens every file under it, which is a permission and not an API
+/// surface, so it is never enumerated: a specifier through it is read when a
+/// source file imports it, and not before.
+fn openings(package: &str, manifest: &serde_json::Value) -> BTreeSet<String> {
+    let Some(exports) = manifest.get("exports") else { return BTreeSet::from([package.to_owned()]) };
     let paths: Vec<(&str, &serde_json::Value)> = match exports.as_object() {
         Some(map) if map.keys().any(|key| key.starts_with('.')) =>
             map.iter().filter(|(key, _)| key.starts_with('.')).map(|(key, value)| (key.as_str(), value)).collect(),
         _ => vec![(".", exports)],
     };
     let mut specifiers = BTreeSet::new();
-    let mut issues = Vec::new();
-    let mut files: Option<Vec<PathBuf>> = None;
     for (opening, value) in paths {
-        if !code_opening(opening) { continue; }
+        if opening.contains('*') || !code_opening(opening) { continue; }
         let mut offered = Vec::new();
         targets(value, &mut offered);
         if offered.is_empty() { continue; }
-        let mut concrete = BTreeSet::new();
-        if !opening.contains('*') { concrete.insert(opening.to_owned()); }
-        else if opening.matches('*').count() == 1 {
-            for target in offered.iter().filter(|target| target.starts_with("./") && target.contains('*')) {
-                let Some((before, after)) = target[2..].split_once('*') else { continue };
-                let available = files.get_or_insert_with(|| descendants(directory));
-                for path in available.iter() {
-                    let at = relative(directory, path);
-                    if let Some(part) = at.strip_prefix(before).and_then(|rest| rest.strip_suffix(after)) {
-                        if !part.is_empty() {
-                            let subpath = opening.replace('*', part);
-                            if code_opening(&subpath) { concrete.insert(subpath); }
-                        }
-                    }
-                }
-                if !concrete.is_empty() { break; }
-            }
-        }
-        if concrete.is_empty() { issues.push(format!("the installed exports map has an unexpanded subpath: {opening}")); }
-        for subpath in concrete {
-            specifiers.insert(if subpath == "." { package.to_owned() } else { format!("{package}/{}", subpath.trim_start_matches("./")) });
-        }
+        specifiers.insert(if opening == "." { package.to_owned() } else { format!("{package}/{}", opening.trim_start_matches("./")) });
     }
-    (specifiers, issues)
+    specifiers
 }
 
 struct Reader<'a> {
@@ -468,11 +435,7 @@ pub fn refresh_dependency_lexicon(root: String, index: String, path: String, ref
             Some(package_json) => {
                 let manifest_path = package_json.path();
                 match fs::read(manifest_path).ok().and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok()) {
-                    Some(value) => {
-                        let (offered, problems) = openings(manifest_path.parent().unwrap_or(root_path), package, &value);
-                        issues.extend(problems);
-                        (offered, true)
-                    }
+                    Some(value) => (openings(package, &value), true),
                     None => (BTreeSet::new(), false),
                 }
             }
