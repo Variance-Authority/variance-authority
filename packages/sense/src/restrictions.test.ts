@@ -39,6 +39,80 @@ describe('relationBetween', () => {
   });
 });
 
+describe('a family of packages named alike, in one flat directory', () => {
+  /** `postoffice` is the face; `postoffice-*` are its internals, open to the family and no one else. */
+  const family: RuleFile[] = [
+    {
+      directory: 'packages',
+      rules: [
+        { from: 'postoffice', to: 'postoffice-*', type: 'allowed' },
+        { from: 'postoffice-*', to: 'postoffice-*', type: 'allowed' },
+        { to: 'postoffice-*', type: 'restricted', message: 'postoffice-* is internal to postoffice' },
+      ],
+    },
+  ];
+  const violations = (...pairs: [string, string][]) =>
+    restrictedImports(pairs.map(([from, to]) => record(from, to)), family).map((v) => `${v.from} > ${v.to}`);
+
+  it('lets the face and every member use the members', () => {
+    expect(
+      violations(
+        ['packages/postoffice/index.ts', 'packages/postoffice-stamps/index.ts'],
+        ['packages/postoffice-stamps/index.ts', 'packages/postoffice-routes/graph.ts'],
+      ),
+    ).toEqual([]);
+  });
+
+  it('lets anyone use the face', () => {
+    expect(violations(['packages/checkout/pay.ts', 'packages/postoffice/index.ts'])).toEqual([]);
+  });
+
+  it('closes the members to every other package, whatever else it is named', () => {
+    expect(
+      violations(
+        ['packages/checkout/pay.ts', 'packages/postoffice-stamps/index.ts'],
+        ['packages/postofficer/a.ts', 'packages/postoffice-routes/graph.ts'],
+      ),
+    ).toEqual([
+      'packages/checkout/pay.ts > packages/postoffice-stamps/index.ts',
+      'packages/postofficer/a.ts > packages/postoffice-routes/graph.ts',
+    ]);
+  });
+});
+
+describe('a public package inside a folder of internals', () => {
+  /** `src/houses/cards` is closed to the outside except its `house-of-cards` entry. */
+  const cards: RuleFile[] = [
+    {
+      directory: 'src/houses/cards',
+      rules: [
+        { to: 'house-of-cards', type: 'allowed' },
+        { from: '.', to: '.', type: 'allowed' },
+        { to: '.', type: 'restricted', message: 'use house-of-cards; the rest of cards is internal' },
+      ],
+    },
+  ];
+  const decide = (from: string, to: string) => relationBetween(cards, from, to)?.rule.type;
+
+  it('opens house-of-cards to everyone', () => {
+    expect(decide('src/app/table.ts', 'src/houses/cards/house-of-cards/index.ts')).toBe('allowed');
+    expect(decide('src/houses/other/hand.ts', 'src/houses/cards/house-of-cards/index.ts')).toBe('allowed');
+  });
+
+  it('lets what is inside cards use the rest of cards', () => {
+    expect(decide('src/houses/cards/house-of-cards/index.ts', 'src/houses/cards/deck/shuffle.ts')).toBe('allowed');
+  });
+
+  it('closes the rest of cards to what is outside it', () => {
+    expect(decide('src/app/table.ts', 'src/houses/cards/deck/shuffle.ts')).toBe('restricted');
+    expect(decide('src/houses/other/hand.ts', 'src/houses/cards/deck/shuffle.ts')).toBe('restricted');
+  });
+
+  it('leaves imports elsewhere in src/houses unrestricted', () => {
+    expect(decide('src/app/table.ts', 'src/houses/other/hand.ts')).toBeUndefined();
+  });
+});
+
 describe('restrictedImports', () => {
   it('lists each restricted import once, in code-unit order, with the rule file that decided it', () => {
     const records = [

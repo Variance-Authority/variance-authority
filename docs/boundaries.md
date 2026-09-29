@@ -127,6 +127,48 @@ so its rules carry over. Two differences follow from what runs where:
 `.relations.json` it says so and exits 0. A fence that cannot fail is a comment,
 so the exit code is the gate; leave the command out of CI if you do not want one.
 
+### A family of packages named alike
+
+Packages sit in one flat directory, and a name marks the group: `postoffice` is
+the package other code uses, and `postoffice-stamps`, `postoffice-routes` and
+the rest are its internals. Put one file in `packages/`:
+
+```json
+[
+  { "from": "postoffice", "to": "postoffice-*", "type": "allowed" },
+  { "from": "postoffice-*", "to": "postoffice-*", "type": "allowed" },
+  { "to": "postoffice-*", "type": "restricted", "message": "postoffice-* is internal to postoffice" }
+]
+```
+
+`postoffice` and every `postoffice-*` may import the `postoffice-*` packages.
+Any other package that imports one is listed with the message, including a
+package named `postofficer`, because the glob needs the hyphen. Anyone may
+import `postoffice` itself, since no rule names it as a target. A new
+`postoffice-*` package is inside the group the day it is created; nothing is
+edited.
+
+### One public package inside a folder of internals
+
+The packages that make up a feature live together, and one of them is its
+entry. Put one file in `src/houses/cards/`, which holds `house-of-cards` and
+the internals around it:
+
+```json
+[
+  { "to": "house-of-cards", "type": "allowed" },
+  { "from": ".", "to": ".", "type": "allowed" },
+  { "to": ".", "type": "restricted", "message": "use house-of-cards; the rest of cards is internal" }
+]
+```
+
+Rules are read top to bottom and the first match decides. Everyone may import
+`house-of-cards`. What is inside `src/houses/cards` may import the rest of it.
+Everything else that imports into `src/houses/cards` is listed. Imports
+elsewhere under `src/houses` are not affected, because no rule matches them.
+
+Both shapes are run as tests over the rule engine (`restrictions.test.ts`).
+
 ## What the numbers do not say
 
 - **A high layer is not a defect.** An application package that imports the
