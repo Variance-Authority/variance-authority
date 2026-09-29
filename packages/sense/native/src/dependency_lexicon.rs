@@ -18,6 +18,8 @@ use crate::resolve::Resolvers;
 #[path = "dependency_lexicon_boundary.rs"] mod boundary;
 #[path = "dependency_lexicon_query.rs"]
 mod query;
+#[path = "dependency_stack.rs"]
+mod stack;
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Identity { name: String, version: String, manifest: String }

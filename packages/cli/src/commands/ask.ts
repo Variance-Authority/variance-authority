@@ -129,6 +129,8 @@ export interface AskRequest {
   /** Use the last published source generation without inspecting the checkout. */
   readonly justAnswer?: boolean;
   readonly limit?: number;
+  /** Rows a paged question skips. */
+  readonly offset?: number;
   /** `--at <address>`: a running watcher, instead of the last report. */
   readonly at?: string;
   /** `--format json`: the answer as data. Only `search` answers in it. */
@@ -153,7 +155,7 @@ type Flagged = Pick<
   | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'file' | 'files' | 'area'
   | 'name' | 'package' | 'subpath' | 'query'
   | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
-  | 'from' | 'to' | 'limit'
+  | 'from' | 'to' | 'limit' | 'offset'
 >;
 
 /**
@@ -410,6 +412,7 @@ function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     from: request.from,
     to: request.to,
     limit: request.limit,
+    offset: request.offset,
   };
 }
 

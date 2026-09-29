@@ -72,7 +72,7 @@ struct Scope {
     location: Option<Vec<String>>,
 }
 
-fn owners<'a>(lexicon: &'a Lexicon, files: &[String]) -> HashSet<&'a str> {
+pub(super) fn owners<'a>(lexicon: &'a Lexicon, files: &[String]) -> HashSet<&'a str> {
     let mut manifests: Vec<&str> = lexicon.availability.iter().map(|row| row.owner.as_str()).collect();
     manifests.sort_unstable();
     manifests.dedup();

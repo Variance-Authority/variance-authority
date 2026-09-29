@@ -260,4 +260,5 @@ export interface NativeDependencyLexicon {
   };
   queryDependencyLexicon(path: string, query: string, files: string[] | null,
     exact: boolean, packageName: string | null, limit: number): string | null;
+  dependencyStack(path: string, files: string[], offset: number, limit: number): string | null;
 }
