@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { answerSearch, grep, orient, slowestTests, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { answerSearch, grep, journeyMapTool, orient, slowestTests, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { readTree, startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -128,4 +128,9 @@ export async function readChanged(path: string): Promise<readonly string[]> {
     throw new OperatorError(`--changed-file ${path} could not be read: ${messageOf(error)}`, { cause: error });
   }
   return text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '');
+}
+
+/** `journey-map` opens the same recording `slowest-tests` does, and dates nothing for the same reason. */
+export function journeyMapSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
+  return { answer: () => journeyMapTool.run(undefined, input, { root }), at: undefined };
 }

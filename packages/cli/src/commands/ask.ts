@@ -7,12 +7,12 @@ import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, questionFor, questionOf, type Question } from './asking.js';
-import { grep, orient, search, slowestTests, type Help } from '@variance-authority/help/tools';
+import { grep, journeyMapTool, orient, search, slowestTests, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { readTree, type CostsSubject, type Tree } from '@variance-authority/mcp/tools';
 import { questions } from './ask-questions.js';
-import { grepSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, wholeSource } from './ask-source.js';
+import { grepSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -247,6 +247,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
     : tool.name === grep.name ? await grepSource(process.cwd(), input)
     : tool.name === orient.name ? orientSource(process.cwd(), input)
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
+    : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
     : await wholeSource(readSource, tool, input, reading);
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it

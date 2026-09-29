@@ -216,3 +216,23 @@ export function journeyMap(root: string, file: string, terms?: readonly string[]
   if (found?.recording === undefined) return undefined;
   return entry('journeyMap')(found.recording, file, terms === undefined ? null : [...terms]);
 }
+
+/** One suite's map of the code around a file, or why the suite has none. */
+export interface SuiteJourneyMap {
+  readonly suite?: string;
+  readonly map: NativeJourneyMap;
+}
+
+/**
+ * {@link journeyMap} asked of every declared suite that has a recording, so a
+ * task is not confined to the suite that happens to be unnamed. A suite with no
+ * recording is left out; one whose recording does not hold the file answers
+ * with the reason in `notRecorded`.
+ */
+export function journeyMaps(root: string, file: string, terms?: readonly string[]): readonly SuiteJourneyMap[] {
+  return recordings(root).flatMap(({ suite, recording }) =>
+    recording === undefined
+      ? []
+      : [{ ...(suite === undefined ? {} : { suite }), map: entry('journeyMap')(recording, file, terms === undefined ? null : [...terms]) }],
+  );
+}

@@ -4,6 +4,7 @@ import { workspaceGeneration } from './read.js';
 import { entrypoint } from './tools/entrypoint.js';
 import { gaps } from './tools/gaps.js';
 import { grep } from './tools/grep.js';
+import { journeyMapTool } from './tools/journey-map.js';
 import { orient } from './tools/orient.js';
 import { packages } from './tools/packages.js';
 import { search } from './tools/search.js';
@@ -61,7 +62,7 @@ function dated(tool: Tool<Help>): Tool<Help> {
 
 /** The source-orientation tools shared by shell dispatch and the server. */
 export const HELP_TOOLS: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, orient, slowestTests, gaps];
+  [packages, entrypoint, symbol, uses, search, grep, orient, slowestTests, journeyMapTool, gaps];
 
 const DATED_HELP_TOOLS = HELP_TOOLS.map(dated);
 
@@ -75,7 +76,7 @@ export const HELP: Served<Help> = {
   tools: DATED_HELP_TOOLS,
 };
 
-export { entrypoint, gaps, grep, orient, packages, search, slowestTests, symbol, uses };
+export { entrypoint, gaps, grep, journeyMapTool, orient, packages, search, slowestTests, symbol, uses };
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
 export { answerSearch, searchIndexOf } from './tools/search.js';
 export type {
