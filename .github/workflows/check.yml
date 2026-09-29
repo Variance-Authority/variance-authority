@@ -226,7 +226,8 @@ jobs:
 
       # How much the suite runs, against the record the mainline saved. The
       # parts of the change are printed beside each count: regions gained, lost,
-      # written and deleted, and the test files that moved them most. Printed to
+      # written and deleted, and the test files that moved them most, then the
+      # source no suite recorded, counted once per package. Printed to
       # the job summary on every run, and on a pull request also posted as its
       # own comment, under a marker this step writes, so it never overwrites the
       # review's. The source index is published first, because under CI a reader
@@ -244,9 +245,9 @@ jobs:
           echo '<!-- variance-authority:coverage -->' > "$body"
           echo '### Coverage' >> "$body"
           if [ -n "$AGAINST" ]; then
-            node packages/cli/dist/bin.js coverage --suite unit --against "$AGAINST" --format markdown >> "$body"
+            node packages/cli/dist/bin.js coverage --suite unit --against "$AGAINST" --packages --format markdown >> "$body"
           else
-            node packages/cli/dist/bin.js coverage --format markdown >> "$body"
+            node packages/cli/dist/bin.js coverage --packages --format markdown >> "$body"
           fi
           cat "$body" >> "$GITHUB_STEP_SUMMARY"
           echo "body=$body" >> "$GITHUB_OUTPUT"

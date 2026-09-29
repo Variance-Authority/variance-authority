@@ -9,7 +9,7 @@
  * code, code was deleted, or code the other suites run was written.
  */
 
-import type { CoverageCount, SuiteChange, SuiteCount, TestFileMotion } from '@variance-authority/sense/test-selection';
+import type { SuiteChange, SuiteCount, TestFileMotion } from '@variance-authority/sense/test-selection';
 import type { CoverageFormat } from '../coverage-args.js';
 import type { CoverageSource } from './coverage-source.js';
 import type { Coverage, CoverageSuite } from './coverage.js';
@@ -104,7 +104,7 @@ function parts(change: SuiteChange): readonly string[] {
   if (change.departed.files.length > 0) {
     said.push(`no longer loads ${files(change.departed.files.length)}, ${grouped(change.departed.run)} had run`);
   }
-  return said.length === 0 ? ['no change'] : said;
+  return said.length === 0 ? ['no region gained, lost, written or deleted'] : said;
 }
 
 /** The test files whose reach changed most, under the suite they belong to. */
@@ -121,10 +121,14 @@ function namedTestFiles(suite: CoverageSuite, testFiles: readonly TestFileMotion
   return lines;
 }
 
+/**
+ * The same answer as a pull-request comment: tables where the text aligns
+ * columns, because a comment renders pipes and does not keep padding.
+ */
 function markdown(answer: Coverage): string {
   const { count, base } = answer;
   const compared = base !== undefined;
-  const lines = [`### ${heading(answer)}`, ''];
+  const lines = [heading(answer), ''];
   lines.push(compared ? '| Suite | Kind | Regions run | Share | What changed it |' : '| Suite | Kind | Regions run | Share |');
   lines.push(compared ? '|---|---|--:|--:|---|' : '|---|---|--:|--:|');
   lines.push(`| any suite | | ${countCell(count.run, base?.run)} | ${ratioCell(count.run, count.regions, base?.run, base?.regions)} |${compared ? ' |' : ''}`);
@@ -140,28 +144,79 @@ function markdown(answer: Coverage): string {
     counted += 1;
     lines.push(
       `| ${name} | ${suite.kind ?? ''} | ${countCell(now.run, was?.run)} | ${ratioCell(now.run, count.regions, was?.run, base?.regions)} |` +
-        (compared && suite.base !== undefined ? ` ${parts(suite.base.change).join(' · ')} |` : ''),
+        (compared ? ` ${suite.base === undefined ? '' : parts(suite.base.change).join(' · ')} |` : ''),
     );
   }
-  lines.push('');
-  lines.push(...overlapLines(count).map((line) => `- ${line}`));
-  lines.push(...sourceLines(answer).map((line) => `- ${line.trim()}`));
+
+  lines.push('', '| Of the regions the suites loaded | Regions |', '|---|--:|');
+  if (count.overlap !== undefined) {
+    lines.push(`| run by more than one kind | ${grouped(count.overlap.several)} |`);
+    for (const [kind, regions] of Object.entries(count.overlap.alone)) lines.push(`| run by ${kind} alone | ${grouped(regions)} |`);
+  }
+  lines.push(`| run by no suite | ${grouped(count.none)} |`);
+  if (count.load > 0) lines.push(`| run only while their module loaded | ${grouped(count.load)} |`);
+  if (count.unjoined > 0) lines.push(`| not joined across suites | ${grouped(count.unjoined)} |`);
+
+  lines.push(...sourceMarkdown(answer));
+
+  if (base !== undefined) {
+    const named = answer.suites.flatMap((suite) => suite.base === undefined ? [] : namedTestFiles(suite, suite.base.change.testFiles));
+    if (named.length > 0) lines.push('', ...named.map((line) => `- ${line.trim()}`));
+    lines.push('', ...answer.suites.flatMap((suite) => suite.base === undefined ? [] : [
+      `${suite.suite ?? 'the record'} is compared with ${suite.base.commit === undefined ? suite.base.from : `the record made at ${short(suite.base.commit)}`}.`,
+    ]));
+  }
   for (const suite of answer.suites) {
-    if (suite.baseMissed !== undefined) lines.push(`- ${suite.suite ?? 'the record'}: ${suite.baseMissed}`);
+    if (suite.baseMissed !== undefined) lines.push('', `${suite.suite ?? 'the record'}: ${suite.baseMissed}`);
   }
   return `${lines.join('\n')}\n`;
+}
+
+/** The files no suite recorded, as a table with a column per measure. */
+function sourceMarkdown(answer: Coverage): readonly string[] {
+  const { source } = answer;
+  if (source === undefined) return answer.sourceMissed === undefined ? [] : ['', `Files no suite recorded: not counted, because ${answer.sourceMissed}.`];
+  const lines = ['', `Source: ${files(source.files)} ${sourceWhere(source)}.`];
+  for (const pattern of source.unmatched ?? []) lines.push(`- the entry point \`${pattern}\` matches no file`);
+  const { unloaded, before } = source;
+  const row = (label: string, size: { files: number; lines: number; regions: number }) =>
+    `| ${label} | ${grouped(size.files)} | ${grouped(size.lines)} | ${grouped(size.regions)} |`;
+  const rows: string[] = [];
+  if (before !== undefined && before.files > 0) rows.push(row('before reach', before));
+  if (unloaded.files > 0) {
+    rows.push(row('recorded by no suite', unloaded));
+    rows.push(...unloaded.directories.slice(0, NAMED_DIRECTORIES).map((size) => row(`&emsp;\`${size.directory}\``, size)));
+    if (unloaded.directories.length > NAMED_DIRECTORIES) {
+      rows.push(`| &emsp;and ${grouped(unloaded.directories.length - NAMED_DIRECTORIES)} more directories | | | |`);
+    }
+  }
+  if (rows.length === 0) {
+    lines.push('', "Every one is in a suite's record.");
+  } else {
+    lines.push('', '| | Files | Lines | Regions |', '|---|--:|--:|--:|', ...rows);
+    if (unloaded.uncut > 0) lines.push('', `${files(unloaded.uncut)} did not parse, so no regions are counted for them.`);
+    lines.push('', `Total coverage for ${grouped(source.ran)} of the ${regionCount(source.regions)}: **${sourceRatio(source)}**.`);
+  }
+  const entries = answer.entries ?? [];
+  if (entries.length > 0) {
+    const share = (scope: CoverageSource) => ratio(scope.before?.regions ?? 0, scope.ran);
+    lines.push('', `<details><summary>${grouped(entries.length)} directories: their own files, and everything each reaches</summary>`, '');
+    lines.push('| Directory | Own | Before reach | With imports | Before reach |', '|---|--:|--:|--:|--:|');
+    for (const entry of entries) {
+      lines.push('missed' in entry
+        ? `| \`${entry.from}\` | ${entry.missed} | | | |`
+        : `| \`${entry.from}\` | ${ratio(entry.own.ran, entry.own.regions)} | ${share(entry.own)} | ${ratio(entry.uses.ran, entry.uses.regions)} | ${share(entry.uses)} |`);
+    }
+    lines.push('', '</details>');
+  }
+  return lines;
 }
 
 /** The source in scope, what the harness loads and the files no suite recorded, or why the index could not say. */
 function sourceLines(answer: Coverage): readonly string[] {
   const { source } = answer;
   if (source === undefined) return answer.sourceMissed === undefined ? [] : [`files no suite recorded: not counted, because ${answer.sourceMissed}`];
-  const where = source.seeds === 'entrypoints'
-    ? source.from === undefined ? 'reached from the declared entry points' : `reached from the entry points of ${source.from}`
-    : source.seeds === 'directory'
-      ? `reached from every file under ${source.from}, which declares no entry points`
-      : 'in the source index';
-  const lines = [`source: ${files(source.files)} ${where}`];
+  const lines = [`source: ${files(source.files)} ${sourceWhere(source)}`];
   for (const pattern of source.unmatched ?? []) lines.push(`  the entry point ${pattern} matches no file`);
   const { unloaded, before } = source;
   const sized = (label: string, row: { files: number; lines: number; regions: number }) =>
@@ -179,6 +234,14 @@ function sourceLines(answer: Coverage): readonly string[] {
   if (unloaded.uncut > 0) lines.push(`  ${files(unloaded.uncut)} did not parse, so no regions are counted for them`);
   lines.push(`  total coverage for ${grouped(source.ran)} of the ${regionCount(source.regions)}: ${sourceRatio(source)}`);
   return [...lines, ...entryLines(answer.entries ?? [])];
+}
+
+/** Which files the source counts, as `--from` chose them. */
+function sourceWhere(source: CoverageSource): string {
+  if (source.seeds === 'entrypoints') {
+    return source.from === undefined ? 'reached from the declared entry points' : `reached from the entry points of ${source.from}`;
+  }
+  return source.seeds === 'directory' ? `reached from every file under ${source.from}, which declares no entry points` : 'in the source index';
 }
 
 /** One row per directory: its own files, then everything it reaches, each with its share before reach. */
@@ -200,25 +263,13 @@ function sourceRatio(source: CoverageSource): string {
   return before === 0 ? share : `${share}, ${ratio(before, source.ran)} before reach`;
 }
 
-function overlapLines(count: CoverageCount): readonly string[] {
-  const lines: string[] = [];
-  if (count.overlap !== undefined) {
-    lines.push(`more than one kind ran ${regionCount(count.overlap.several)}`);
-    for (const [kind, regions] of Object.entries(count.overlap.alone)) lines.push(`only ${kind} ran ${regionCount(regions)}`);
-  }
-  lines.push(`nothing ran ${regionCount(count.none)}`);
-  if (count.load > 0) lines.push(`${regionCount(count.load)} ran only while their module loaded`);
-  if (count.unjoined > 0) lines.push(`${regionCount(count.unjoined)} not joined across suites`);
-  return lines;
-}
-
 function countCell(now: number, was: number | undefined): string {
-  return was === undefined ? grouped(now) : `${grouped(was)} -> ${grouped(now)}`;
+  return was === undefined ? grouped(now) : `${grouped(was)} → ${grouped(now)}`;
 }
 
 function ratioCell(run: number, regions: number, wasRun: number | undefined, wasRegions: number | undefined): string {
   const now = ratio(run, regions);
-  return wasRun === undefined || wasRegions === undefined ? now : `${ratio(wasRun, wasRegions)} -> ${now}`;
+  return wasRun === undefined || wasRegions === undefined ? now : `${ratio(wasRun, wasRegions)} → ${now}`;
 }
 
 function ratio(run: number, regions: number): string {

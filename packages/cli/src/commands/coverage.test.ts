@@ -109,7 +109,7 @@ describe('coverage of a repository that declares suites', () => {
 
     expect(answer.code).toBe(0);
     expect(answer.out).toContain("against each suite's base — 3 regions (4 at the base) in 1 file the suites loaded");
-    expect(answer.out).toMatch(/unit\s+unit\s+3 -> 2\s+75\.0% -> 66\.7%\s+gained 1 · lost 1 · no longer loads 1 file, 1 had run/u);
+    expect(answer.out).toMatch(/unit\s+unit\s+3 → 2\s+75\.0% → 66\.7%\s+gained 1 · lost 1 · no longer loads 1 file, 1 had run/u);
     expect(answer.out).toContain('unit: src/pay.test.ts no longer runs 1 region it ran at the base');
     expect(answer.out).toContain(`unit compared with ${base}`);
   });
@@ -132,7 +132,8 @@ describe('coverage of a repository that declares suites', () => {
 
     expect(answer.out).toContain('| Suite | Kind | Regions run | Share |');
     expect(answer.out).toContain('| checkout | e2e | unrecorded | |');
-    expect(answer.out).toContain('- only unit ran 1 region');
+    expect(answer.out).toContain('| run by unit alone | 1 |');
+    expect(answer.out).not.toContain('###');
   });
 
   it.todo('prints each suite\'s count at the last mainline commits, so a trend has somewhere to be read from — needs `variance share` on a mainline to append one row per suite to the history service, and `--history <n>` to read them (spec 0080, item 6)');
