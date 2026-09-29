@@ -16,8 +16,8 @@ The one number worth keeping is ours: a process clamped to background QoS reads
 
 Corpus: one clone of Material UI `8f19b1009b`, 41,171 tracked paths, 27,792
 readable seeds under `.`. Machine: M4 Max (12 performance and 4 efficiency
-cores), 64 GB, Node v26.7.0, the prebuilt `packages/sense/npm/darwin-arm64/scan.node`.
-The load average was about 7 from other sessions. Every cell is the median of
+cores), 64 GB, Node v26.7.0, the addon prebuilt for `darwin-arm64`. The load
+average was about 7 from other sessions. Every cell is the median of
 five calls, and the ranges are over three processes.
 
 ## Bulk attributes are slower than the walk we already have

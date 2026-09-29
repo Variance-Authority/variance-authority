@@ -35,6 +35,7 @@ const CONCEPTS: readonly Concept[] = [
     owner: 'docs/orientation.md',
   },
   { name: 'source index', pattern: /\bsource index\b/i, owner: 'docs/source-index.md' },
+  { name: 'package flow', pattern: /\bpackage flows?\b/i, owner: 'docs/orientation.md' },
   { name: 'execution record', pattern: /\bexecution (?:record|index)\b/i, owner: 'docs/execution-record.md' },
   { name: 'lexicon', pattern: /\blexicon\b/i, owner: 'docs/lexicon.md' },
   { name: 'polyglot', pattern: /\bpolyglot\b/i, owner: 'docs/polyglot.md' },

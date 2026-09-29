@@ -10,9 +10,9 @@
  * two hundred thousand module repository hands the reporter sixteen million
  * module rows, and rendering those as text costs the workers time the suite is
  * charged for, the disk a gigabyte it has to find, and the reporter a parse into
- * sixteen million objects before the fold has begun. As frames it is a quarter
- * of the bytes and a quarter of the read, and the workers never build the
- * intermediate arrays at all — the counters go straight out as varints.
+ * sixteen million objects before the fold has begun. As frames it is under half
+ * the bytes — each row still names its module by path — and the workers never
+ * build the intermediate arrays at all: the counters go straight out as varints.
  *
  * CommonJS because of who loads it: Jest's setup file is evaluated inside the
  * sandbox from `node_modules`, where nothing is transformed and an ES `import`
@@ -43,8 +43,10 @@ const NOTHING = new Uint32Array(0);
  */
 const EVALUATING = 0x80000000;
 
-/** Numbered by the module table, or named by the path it was transformed under. */
-const NUMBERED = 0;
+/**
+ * A module row opens with this tag and then the path it was transformed under.
+ * Tag `0`, a numbered module, is refused as damage: nothing writes one.
+ */
 const NAMED = 1;
 
 /**
@@ -78,13 +80,8 @@ function encodeJournal(
   out.text(testFile);
   out.number(modules.size);
   for (const [id, counters] of modules) {
-    if (typeof id === 'number') {
-      out.byte(NUMBERED);
-      out.number(id);
-    } else {
-      out.byte(NAMED);
-      out.text(id);
-    }
+    out.byte(NAMED);
+    out.text(id);
     entered(out, counters, true);
     const before = loaded.get(id);
     entered(out, before !== undefined && before.length === counters.length ? before : NOTHING, false);
@@ -155,14 +152,8 @@ function encodeLog(name: string, log: LogRows): Buffer {
   out.number(log.rows.length);
   const { start, end, sorted } = log;
   for (const row of log.rows) {
-    const id = log.ids[row]!;
-    if (typeof id === 'number') {
-      out.byte(NUMBERED);
-      out.number(id);
-    } else {
-      out.byte(NAMED);
-      out.text(id);
-    }
+    out.byte(NAMED);
+    out.text(log.ids[row]!);
     const from = start[row]!;
     const to = end[row]!;
     out.number(to - from);
@@ -195,9 +186,8 @@ function decodeJournal(raw: Uint8Array): ReadJournal {
   const count = read.number();
   const modules: Array<{ id: ModuleId; hits: number[]; shared: number[]; loaded: number[] }> = [];
   for (let index = 0; index < count; index += 1) {
-    const tag = read.byte();
-    if (tag !== NUMBERED && tag !== NAMED) throw damaged();
-    const id = tag === NUMBERED ? read.number() : read.text();
+    if (read.byte() !== NAMED) throw damaged();
+    const id = read.text();
     modules.push({ id, hits: read.ordinals(), shared: read.ordinals(), loaded: read.ordinals() });
   }
   if (!read.spent()) throw damaged();
@@ -241,9 +231,8 @@ function scanJournal(raw: Uint8Array, visit: JournalVisitor): void {
   const wants = visit.wants;
   let scratch = new Uint32Array(64);
   for (let index = 0; index < count; index += 1) {
-    const tag = read.byte();
-    if (tag !== NUMBERED && tag !== NAMED) throw damaged();
-    const id = tag === NUMBERED ? read.number() : read.text();
+    if (read.byte() !== NAMED) throw damaged();
+    const id = read.text();
     if (wants !== undefined && !wants.call(visit, id)) {
       read.skip();
       read.skip();

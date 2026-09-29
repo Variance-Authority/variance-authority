@@ -29,7 +29,8 @@ import type {
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
-import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import { witnessesOf } from './witness.js';
 export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 export type {
@@ -43,7 +44,7 @@ export type {
   NativeJourneyStitchResult,
 } from './native-journey.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
-export interface NativeGitTree extends NativeOrientMapListing {
+export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
   readonly size: number;
   seeds(): string[];
   has(path: string): boolean;
@@ -112,14 +113,8 @@ export interface NativeLogSegment {
   readonly digest: string;
   readonly length: number;
 }
-export interface NativeScanner extends NativeOrientMaps {
-  /** Refresh all installed third-party public declarations on the Rust side. */
-  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string): {
-    readonly path: string; readonly packages: number; readonly entrypoints: number;
-    readonly reused: number; readonly unavailable: number;
-  };
-  queryDependencyLexicon(path: string, query: string, files: string[] | null,
-    exact: boolean, packageName: string | null, limit: number): string | null;
+
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
   /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
   gitTree(root: string): NativeGitTree | null;

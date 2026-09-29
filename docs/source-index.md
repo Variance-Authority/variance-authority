@@ -32,26 +32,41 @@ variance index
 ```
 
 It scans the whole checkout, reuses the record of every file whose bytes are
-unchanged, and appends what changed as a new layer. It prints two lines. The
-first says how many files the index holds, and how many it read again. The
-second describes the code map it builds from the index and writes beside it, as
-`source-index.bin.map`, for `variance ask orient` to read. When the index and
-the manifests are unchanged, the map it keeps stands and nothing is folded
-again. When there is nothing to fold, the line says why, as
-`code map: none, because no manifest names a package`, and the index is still
-published:
+unchanged, and appends what changed as a new layer. It prints a line for the index and one for
+the code map, one per test suite for its journeys, and two for what
+`variance ask` answers from:
 
 ```text
-source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin
-code map: 59 packages in 11 areas, 2 deep, over 8 dependency layers
+source index updated: 2215 files, 0 read again, at <cache>/test-selection/<digest>/source-index.bin
+code map: 71 packages in 16 areas, 2 deep, over 8 dependency layers
+journeys, suite unit: 5718 cases walked; a caller is found for 216327 of the 253543 functions they ran (85%); 8895 calls, 204 package flows; 2 imports the index did not resolve were resolved by the walk
 dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.json
 questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
 ```
 
-The last two lines are what `variance ask` answers from: the third-party
-dependencies the checkout declares, and the value `ask search` and the other
-source questions read without scanning. Either one says `not prepared` or
-`not published`, with the reason, when it could not be written.
+- **The index.** How many files it holds, how many it read again, and where it
+  is.
+- **The code map.** The map `variance ask orient` prints, built from the index
+  and written beside it as `source-index.bin.map`. With the index and the
+  manifests unchanged, the kept map stands. With nothing to fold, the line says
+  why, as `code map: none, because no manifest names a package`, and the index
+  is still published.
+- **The journeys, one line per test suite, or one `journeys:` line with none
+  declared.** Each case of the suite's latest recording is a
+  [journey](across-dimensions.md#what-crosses-the-fence), one execution of one
+  test, walked over the static call graph through the functions it ran and
+  written beside the index as `source-index.bin.<suite>.journeys`.
+  `variance ask orient --files` reads it for a file's callers, its callees and
+  the [package flows](orientation.md#choose-the-entrance-from-what-you-have)
+  its tests take. Unchanged inputs keep the journeys that are there. A suite
+  with no recording prints `not prepared: nothing is recorded at <path>`. The
+  line ends with what the walk resolved that the index did not, and anything it
+  could not read as the recording ran it, such as a runner config that did not
+  load.
+- **The last two lines.** What `variance ask` answers from: the third-party dependencies the checkout declares, and the
+  value `ask search` and the other source questions read without scanning.
+  Either one says `not prepared` or `not published`, with the reason, when it
+  could not be written.
 
 When the file system refuses the index itself, the command prints
 `source index not written: <reason>, at <path>` and exits `2`. Every reader of

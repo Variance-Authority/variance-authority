@@ -25,29 +25,16 @@ without anyone choosing between them:
   lock it does not wait for — it notes a busy index and drops the merge
   (`packages/sense/src/test-selection/selection-fold.ts:110-119`). The Jest
   reporter does the same (`jest-reporter.ts:140-149`).
-- `nameModules` — read-modify-write over the file that assigns every module its
-  id — reads at `packages/sense/src/module-names.ts:127` and publishes at `:140`
-  with no lock between them, and swallows its write errors at `:141`.
 
 Two Vitest projects, a Jest multi-project run, or a Vitest run beside a
 Playwright run each read the index, layer onto it, and rename. **The later rename
 discards the earlier run's whole contribution**, which is exactly the failure the
 lock exists to prevent, and nothing anywhere says it happened.
 
-The `nameModules` case is worse than a lost contribution and is the reason this
-spec is not only about tidiness. Two unlocked callers read the same count and
-hand the same id to two different paths. The id is baked into emitted code and
-joined against by every record store, so one module's crossings are attributed to
-another — silently, and **in the narrowing direction**.
-
 ## What would discharge it
 
 **1. One exclusion, named after what it protects.** The lock is taken by every
-writer of the index and of the names table, or by none. Today its name is derived
-from the coverage file path while it also protects `names.bin`, whose path is
-derived from the cache layers and the root; the two coincide only when the caller
-did not name its own `coverageFile`. A lock that does not cover the second
-artifact is not an exclusion, it is a habit.
+writer of the index, or by none.
 
 **2. A held lock proves liveness, and a broken one is broken once.**
 `index-lock.ts` writes a pid and never touches the file again, calls a lock stale
@@ -77,9 +64,7 @@ complete?* has no field to read. Nor is there a mechanism elsewhere to borrow:
 `immutable-log.ts:25-29` carries a `format`, a `version` pinned to 1 and a list
 of segments — a format version, not a generation — and publishes by the same
 read-modify-write-and-rename with no expected-prior check
-(`immutable-log.ts:122-140`). `names.bin` has the lost-update hazard this spec
-indicts `coverage.bin` for, one layer down, and its compaction discards segments
-a concurrently-published manifest may still name.
+(`immutable-log.ts:122-140`).
 
 **4. A demotion carries its reason.** Three sites write `{ ...test, complete:
 false }` and drop why: `test-selection/merge.ts:166`, `test-selection/merge.ts:357`, `format-layer.ts:266`. The
@@ -143,8 +128,7 @@ it waited — *both contributions in the index* while a run still writes the ind
 and *both contributions in the overlay, and in the index after the fold that
 follows* once [0043](0043-a-record-costs-what-the-run-cost.md) item 3 lands. The
 two are the same requirement against two write paths, and this spec's item 1
-follows the index writer wherever that item puts it. Then the same pair with `nameModules` racing, where
-no two paths hold one id. Then a fold of sixteen shards of the 200,000-module
+follows the index writer wherever that item puts it. Then a fold of sixteen shards of the 200,000-module
 fixture under `/usr/bin/time -l`, reporting a peak under the 600 MB ceiling. Then
 a landed fold over a local index whose carried modules have moved on disk, where
 every test whose ranges are no longer readable is demoted.

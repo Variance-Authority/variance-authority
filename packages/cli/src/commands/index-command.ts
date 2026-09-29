@@ -12,6 +12,10 @@
  * keeps it beside the index: the fold reads every record, so it is paid here
  * once rather than by every question.
  *
+ * It then walks each suite's latest recording over the index and keeps the
+ * journeys beside it, which `variance ask orient` reads for the calls into and
+ * out of a file.
+ *
  * Last it publishes the value `variance ask` answers from, the search beside it
  * included. `search` is a lookup that never scans, so without this a fresh
  * checkout — every agent's first session — ran `index`, asked `search`, and was
@@ -20,10 +24,18 @@
  * One line per artifact on stdout, because the step's output is read by the
  * person looking at a pipeline log: where the index is, how many files it holds
  * and how many this run had to read again; then what the code map holds, or why
- * there is none; then the lexicon and the published value, or why each is not.
+ * there is none; then per suite what the walk found, or why it was not made; then
+ * the lexicon and the published value, or why each is not.
  */
 
-import { prepareCodeMap, updateSourceIndex, type PreparedCodeMap, type SourceUpdate } from '@variance-authority/sense';
+import {
+  prepareCodeMap,
+  prepareJourneys,
+  updateSourceIndex,
+  type PreparedCodeMap,
+  type PreparedJourneys,
+  type SourceUpdate,
+} from '@variance-authority/sense';
 import { readWorkspace, readWorkspaceSnapshot, refreshDependencyLexicon, workspaceGeneration, workspaceSnapshotPath } from '@variance-authority/help';
 import { OperatorError } from '../exit.js';
 
@@ -41,7 +53,13 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
     const reason = update.refused.startsWith(`${update.path}: `) ? update.refused.slice(update.path.length + 2) : update.refused;
     throw new OperatorError(`source index not written: ${reason}, at ${update.path}`);
   }
-  return `${describe(update)}\n${codeMap(request.cwd, update)}\n${lexicon(request.cwd)}\n${await answerable(request.cwd, update.path, request.noGit === true)}\n`;
+  return `${[
+    describe(update),
+    codeMap(request.cwd, update),
+    ...(await journeys(request.cwd, update)),
+    lexicon(request.cwd),
+    await answerable(request.cwd, update.path, request.noGit === true),
+  ].join('\n')}\n`;
 }
 
 /**
@@ -70,6 +88,48 @@ function lexicon(root: string): string {
   } catch (error) {
     return `dependency lexicon: not prepared: ${error instanceof Error ? error.message : String(error)}`;
   }
+}
+
+/**
+ * Journeys are walked after the index and the map, from each suite's latest
+ * recording, so a walk that fails leaves both standing and says why. Walking is kept
+ * when the recording, the index, the runner's alias table and the walk are the
+ * ones the kept journeys were made from. They carry the update's listing of the
+ * checkout rather than asking git again.
+ */
+async function journeys(cwd: string, update: SourceUpdate): Promise<readonly string[]> {
+  try {
+    return (await prepareJourneys(cwd, update.path, update)).map(walked);
+  } catch (error) {
+    return [`journeys: not prepared: ${error instanceof Error ? error.message : String(error)}`];
+  }
+}
+
+/** A share as a whole percent; a share that rounds to nothing but is not nothing is `<1%`. */
+function percent(part: number, whole: number): string {
+  const share = (part / whole) * 100;
+  return part > 0 && share < 0.5 ? '<1%' : `${Math.round(share)}%`;
+}
+
+function walked(one: PreparedJourneys): string {
+  const named = one.suite === undefined ? 'journeys' : `journeys, suite ${one.suite}`;
+  if ('unprepared' in one) return `${named}: not prepared: ${one.unprepared}`;
+  const { prepared } = one;
+  const share = prepared.functionsEntered === 0 ? '' : ` (${percent(prepared.placed, prepared.functionsEntered)})`;
+  const notes = [
+    prepared.kept ? 'kept, because the recording, the index, the runner\'s aliases and the walk are the ones they were made from' : '',
+    prepared.tree === undefined || prepared.tree === null
+      ? ''
+      : `the files were parsed as the working tree has them, not as the recording ran them, because ${prepared.tree}`,
+    prepared.aliased > 0 ? `${prepared.aliased} imports resolved by the runner's aliases` : '',
+    prepared.fellBack > 0 ? `${prepared.fellBack} imports the index did not resolve were resolved by the walk` : '',
+    ...prepared.runnerUnread,
+  ].filter((note) => note !== '');
+  return [
+    `${named}: ${prepared.cases} cases walked; a caller is found for ${prepared.placed} of the ${prepared.functionsEntered} functions they ran${share}; ` +
+      `${prepared.calls} calls, ${prepared.flows} package flows`,
+    ...notes,
+  ].join('; ');
 }
 
 /**

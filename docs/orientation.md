@@ -125,12 +125,18 @@ tree is the answer. Both are exact and need no Variance index.
 | Nothing yet, in a repository you do not know | `variance ask orient` | The code map: the repository's packages in areas, each with its size, its dependency layers and the packages the rest of the repository imports most from it; `--area <id>` opens one area |
 | An exact string in the working tree | `rg -n <text> .` | Current files containing that text |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
-| Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[,...]` | Each file's package, the names crossing its package boundary, external packages requested along its local imports, and the recorded tests that ran it |
+| Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[:<line>][,...]` | Each file's package, the names crossing its package boundary, external packages requested along its local imports, the recorded tests that ran each file, the functions in other files that call into it and those it calls, and the package flows those tests take through it; a line narrows the calls to the function holding it |
 | Words for an exported source name | `variance ask search --query <words>` | Matching exported names |
 | Words plus a file or directory | Add `--from <path>` or `--to <path>` | Matching names inside the related module area |
 | An exact exported name | `variance ask symbol --name <name>` | Its declaration, signature, documentation and consumers |
 | A name whose examples you need | `variance ask uses --name <name> --from <path>` | Exact import sites, ordered near the path |
 | A description of a captured UI state | `variance ask locate --query <words>` | Subject ids and the observed fields that matched |
+
+A **package flow** is the ordered list of packages a recorded test passes
+through: the package its test file sits in, then each package its calls reach,
+in the order they reach it. Tests that pass through the same packages in the
+same order share one flow, so the few most taken flows through a file's package
+show how that package is reached under test.
 
 [Inspect the workspace public API](agent-workspace-api.md) is the source
 orientation how-to and contract. [Find the subject you mean](locate.md) is the

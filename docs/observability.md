@@ -157,9 +157,9 @@ The instrumented build writes more than an uninstrumented one, and the driver
 does one extra thing at teardown.
 
 - **Extra artifacts.** Each instrumenting build keeps a store of module records
-  under its own `<label>`, beside a module names table in `names.bin`. A run in
-  progress keeps a `.run-<pid>-<uuid>` directory next to them until the reporter
-  folds the journals into the snapshot and removes it. All of this sits in the
+  under its own `<label>`. A run in progress keeps a `.run-<pid>-<uuid>`
+  directory next to them until the reporter folds the journals into the
+  snapshot and removes it. All of this sits in the
   cache directory rather than your work tree.
 - **Extra wall clock, at teardown.** Nothing in a head or a page writes a file
   during the run; the driver merges every journal into one snapshot after the

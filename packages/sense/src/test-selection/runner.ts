@@ -33,14 +33,12 @@ import { registerHooks, type ModuleHooks } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { readModuleNames, type ModuleNames } from '../module-names.js';
 import collectors from './collectors.cjs';
 import { coverageBlock } from './coverage-rows.js';
 import journalFormat from './journal-format.cjs';
 import { recordFileFor } from './record-location.js';
 import {
   defaultInclude,
-  openModuleNames,
   openRecords,
   projectPath,
   recordStore,
@@ -197,9 +195,8 @@ function carried(): Carried | undefined {
   return value === undefined || value === '' ? undefined : (JSON.parse(value) as Carried);
 }
 
-/** One reading of the numbering and one store segment per process and recording. */
+/** One store segment per process and recording. */
 interface Writer {
-  readonly names: ModuleNames;
   readonly records: RecordWriter;
 }
 
@@ -210,7 +207,6 @@ function writerFor(recording: Carried): Writer {
   let writer = writers.get(key);
   if (writer === undefined) {
     writer = {
-      names: readModuleNames(openModuleNames(recording.root)),
       records: openRecords(recording.store, instrumentationId(recording.mode)),
     };
     writers.set(key, writer);
@@ -247,9 +243,9 @@ export function instrumentModule(code: string, file: string, options: Instrument
   const map = typeof options.map === 'string' ? (JSON.parse(options.map) as TransformSourceMap) : options.map;
   const { extentOf, sourceDigest, file: wrote } = recordedFrame(code, map, path, (at) =>
     at === path && options.source !== undefined ? options.source : readFileSync(at, 'utf8'));
-  const { names, records } = writerFor(recording);
+  const { records } = writerFor(recording);
   const name = projectPath(recording.root, wrote);
-  const id: ModuleId = names.idOf(name) ?? name;
+  const id: ModuleId = name;
   const done = instrument(code, name, id, { mode: recording.mode });
   writeRecord(records, done === undefined
     ? { file: name, id, sourceDigest, instrumented: false, blocks: [] }

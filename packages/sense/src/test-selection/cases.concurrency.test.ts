@@ -27,7 +27,7 @@ const nap = (ms: number): Promise<void> => new Promise((wake) => setTimeout(wake
  * imports do.
  */
 function probeIn(holder: object): Probe {
-  const runtime = PROBE_RUNTIME.replace('.r(0,0)', '.r("m",8)');
+  const runtime = PROBE_RUNTIME.replace('.r("",0)', '.r("m",8)');
   expect(runtime).not.toBe(PROBE_RUNTIME);
   return new Function('globalThis', `${runtime}__vaE();return __va;`)(holder) as Probe;
 }

@@ -13,14 +13,12 @@
 
 import { rm } from 'node:fs/promises';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
-import { nameModules } from '../module-names.js';
 import { commitOf } from './commit.js';
 import { landRun } from './commit-runs.js';
 import {
   codeUnitOrder,
   crossingsOf,
   loadedOf,
-  moduleNamesFile,
   projectPath,
   readRecords,
   type CapturedModule,
@@ -141,18 +139,8 @@ export function foldRun(
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run.
     await seedTestCoverage(coverageFile, root);
-    // Both writes are read-modify-write over one index and both happen under one
-    // lock, because a merge that landed while the numbering was still deciding
-    // would describe modules the table had not agreed on yet.
-    const merged = await withIndexLock(coverageFile, async (lock) => {
+    const merged = await withIndexLock(coverageFile, async () => {
       await landRun(coverageFile, current, root);
-      // Everything this run saw, numbered for the next one. A file first met
-      // today was instrumented under its path; from here on it has a number.
-      await nameModules(
-        moduleNamesFile(root),
-        [...modules.values()].map((module) => module.file),
-        lock,
-      );
       markCheckout(repositoryRoot(root));
     });
     if (!merged.held) noteABusyIndex(coverageFile);

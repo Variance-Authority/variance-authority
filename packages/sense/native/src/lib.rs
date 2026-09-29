@@ -46,12 +46,24 @@ mod journey_columns;
 mod journey_format;
 mod journey_graph;
 mod journey_journal;
+mod journey_lazy;
 mod journey_output;
 mod journey_query;
 mod journey_read;
 mod journey_record;
 mod journey_select;
 mod journey_stitch;
+mod journeys;
+mod journeys_answer;
+mod journeys_fold;
+mod journeys_graph;
+mod journeys_parse;
+mod journeys_read;
+mod journeys_record;
+mod journeys_roots;
+mod journeys_runner;
+mod journeys_steps;
+mod journeys_walk;
 mod log;
 mod louvain;
 mod members;
@@ -178,6 +190,11 @@ pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
 }
 
 impl GitTree {
+    /// Every tracked path, in code-unit order.
+    pub(crate) fn listed(&self) -> &[String] {
+        &self.paths
+    }
+
     fn listing(&self) -> Arc<emitted::Listing> {
         let made = || {
             let (at, regular) = (Arc::clone(&self.at), Arc::clone(&self.regular));

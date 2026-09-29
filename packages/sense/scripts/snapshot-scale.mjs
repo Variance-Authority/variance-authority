@@ -277,6 +277,7 @@ if (MODE === 'journals') {
   const directory = FILE === '/tmp/variance-scale-snapshot.bin' ? '/tmp/variance-scale-journals' : FILE;
   rmSync(directory, { recursive: true, force: true });
   mkdirSync(directory, { recursive: true });
+  const name = names(MODULES * BLOCKS);
   const closureOf = barrelGraph();
   const counters = new Uint32Array(BLOCKS).fill(1);
   const started = Date.now();
@@ -284,10 +285,10 @@ if (MODE === 'journals') {
   let bytes = 0;
   for (let test = 0; test < TESTS; test += 1) {
     const reached = closureOf(test);
-    // Numbered ids, which is what a run that has met these files before writes.
+    // By path, which is what every run writes.
     const frame = journalFormat.encodeJournal(
       `t/${pad(test, 7)}.test.ts`,
-      new Map(Array.from(reached, (module) => [module, counters])),
+      new Map(Array.from(reached, (module) => [name.modulePath(module), counters])),
     );
     rows += reached.length;
     bytes += frame.length;
@@ -336,7 +337,10 @@ if (MODE === 'fold') {
     const folded = foldCrossings({
       replay,
       testId,
-      rowOf: (id) => (typeof id === 'number' && id < MODULES ? id : undefined),
+      rowOf: (id) => {
+        const at = Number(id.slice(2, 9));
+        return at < MODULES ? at : undefined;
+      },
       moduleBlocks,
       budget,
     });

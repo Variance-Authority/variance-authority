@@ -125,3 +125,48 @@ A cross-process reading — the page's journey unchanged, a service's journey
 changed, pixels identical — is a backend regression that passed in silence, and
 it is reportable exactly where a head, a second instrumented process reporting
 under the same execution id, reported ([spec 0036](../../specs/0036-a-journey-crosses-processes.md)).
+
+## Amended 2026-09-28 — a module is named by its path
+
+A record of places needs a name for each place's module. The transform wrote a
+number looked up in `names.bin`, a table the selection fold appended to after a
+run, and the path when the table had no number yet. No ADR took that decision;
+it arrived with the columnar record path and was argued only in the
+`module-names.ts` docstring, on the size of the journals. Three things were
+already true against it:
+
+- **Every artifact names modules by path.** The fold turns each number back into
+  the path its module record gives. `coverage.bin` and `journeys.bin` each keep
+  one code-unit-sorted string table and integer columns into it, and so does
+  every source index segment. No reader downstream of a fold sees a number.
+- **Journey mode never numbered anything.** The Jest reporter stages journals
+  and returns before `nameModules`, so a CI run that records journeys only
+  instruments every module under its path. One shard's `journeys.bin`, read on
+  another machine with no cache, answered which tests ran which lines of which
+  file.
+- **A number means something only to the cache that assigned it.** Two jobs
+  restoring one base append different numbers past it (the open question
+  [ADR-0077](0077-the-config-says-where-an-artifact-lives.md) carried as
+  *suites carried apart share one names table*), and a number
+  emitted as a literal forced Jest's cache key to include it, so a file numbered
+  since the last run is transformed twice.
+
+**Decision.** A module is named by its repository-relative path, forward-slashed,
+everywhere: the literal the transform emits, the journal row, the module record,
+and every artifact. Each artifact carries its own code-unit-sorted string table.
+Two artifacts, or an artifact and the source index, join by path, which is a
+merge of two lists sorted in the same order and needs no shared id.
+
+**Forecloses.**
+
+- A numbering table shared across runs, checkouts or machines, including one the
+  source index would own. `names.bin` and its worktree seeding are deleted.
+- A number in any artifact, in any journal, or in emitted code.
+
+**Cost.** A journal row names its module by path rather than by a varint, so the
+journals a run leaves are larger until the fold removes them. Each artifact pays
+for the names it uses; in a journey file the string table is the largest single
+part. Finding one file's coverage fast is a reader's job and not a format's:
+strings are sorted, modules are sorted by path, and every column is compressed in
+independent runs, so a reader can binary-search a path and decompress only the
+runs it touches.

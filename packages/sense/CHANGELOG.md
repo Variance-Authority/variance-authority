@@ -1,5 +1,22 @@
 # @variance-authority/sense
 
+## 0.11.0
+
+### Minor Changes
+
+- c2c4a55: `variance coverage` counts how much of the code your suites load each declared suite runs, from the case index each suite already records: one share per suite, all over the same total, how many regions more than one kind of suite runs, and how many only one kind runs. With a base, which is each suite's mainline record in the share, or `--suite <name> --against <record>`, it prints each count at the base and now, and the regions gained, lost, written and deleted that add up to the change. `--format markdown` prints a table for a job summary. It exits `0` whatever the numbers are. `countCoverage` and `coverageChange` in `@variance-authority/sense/test-selection` are the counts it prints.
+- 7556a03: The cache is inside the checkout. Without `cacheRoot` in `variance.config.json`, it is `node_modules/.cache/variance-authority` at the repository root, so a coding agent whose sandbox allows writes only in the working tree records and reads the same cache as your terminal and CI. `XDG_CACHE_HOME` is no longer read; `VARIANCE_AUTHORITY_CACHE`, an absolute path, names the cache directory for a harness that keeps its runs apart. A recording under `~/.cache/variance-authority` is not read, so the first `yarn test` after upgrading records again. `variance index` also publishes the value `variance ask` answers from, so `ask search` answers in a fresh checkout, and prints a `questions:` line saying where it is or why it could not be written. [The cache](https://variance-authority.dev/docs/cache) page describes the order.
+
+  `readWorkspace` in `@variance-authority/help` takes `packs`, whether the scan reads bytes from Git's object store, and `saveIndex`, whether publishing also writes the scan's records back to the source index; `variance index` turns it off, because it has just published that index itself.
+
+### Patch Changes
+
+- 73d6aff: Reading a journey file for a change decompresses only the runs the question reads: the changed modules' regions, their test sets, and the strings they name. A module is found by a binary search of the file's sorted paths, and a file whose module rows are out of order is answered through a table of every path instead. Every journey file is now written with its module rows in code-unit order of path.
+- 2418e90: Instrumented code, worker journals and module records name every module by its repository-relative path, and the cache no longer keeps `names.bin`. Every record file already stores its paths in its own sorted table, so a `coverage.bin` or `journeys.bin` reads the same on any machine and needs no table from the one that wrote it. A Jest run no longer transforms a file a second time after its first recorded run, because the module's id is no longer part of the transform's cache key. The first run after upgrading transforms every file once, as Jest's cache key changes.
+
+  A worker journal whose module row carries a number, and a module record filed under one, are no longer read: nothing writes either. The native addon is now installed by renaming a copy over the old one, because macOS kills a process that loads a `.node` file rewritten in place.
+- 56282b1: `variance index` exits `2` with `source index not written: <reason>, at <path>` when the file system refuses the index, instead of reporting it built. `updateSourceIndex` returns the refusal as `refused`; a scan anywhere else still treats an unwritable cache as a cold next run. A `variance ask` question no longer narrows the source index it reads: a workspace whose path runs through a link, such as a checkout under macOS's `/var`, is scanned whole, and a scan of only some of a repository's directories publishes its answer without writing over the index of the whole. Before, either one could leave `variance select` unable to trace a lockfile bump to the tests it reaches.
+
 ## 0.10.0
 
 ### Minor Changes

@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 const ALIGNMENT: usize = 8;
 const PACK_ABOVE: usize = 1 << 16;
-const RUN: usize = 4096;
-const BLOB_RUN: usize = 512;
+pub(crate) const RUN: usize = 4096;
+pub(crate) const BLOB_RUN: usize = 512;
 const RAW: u8 = 0;
 const ZSTD: u8 = 2;
 
@@ -108,7 +108,17 @@ impl Decoded {
     }
 }
 
-pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
+/// One column as the header places it: where its stored bytes are, and how
+/// many rows they decode to — `None` for a column stored plain.
+pub(crate) struct Placed {
+    pub name: String,
+    pub width: u8,
+    pub rows: Option<usize>,
+    pub stored: std::ops::Range<usize>,
+}
+
+/// Every column the header names, placed in `bytes` and not decoded.
+pub(crate) fn place(bytes: &[u8], version: u8) -> Result<Vec<Placed>, String> {
     if bytes.len() < 4 {
         return Err("not a variance-authority journey artifact".to_owned());
     }
@@ -126,24 +136,36 @@ pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
         return Err(format!("unsupported journey artifact version: {}", header.version));
     }
     let base = 4 + header_length;
+    header
+        .sections
+        .into_iter()
+        .map(|section| {
+            let end = section
+                .offset
+                .checked_add(section.length)
+                .filter(|end| base + *end <= bytes.len())
+                .ok_or_else(|| "not a variance-authority journey artifact".to_owned())?;
+            Ok(Placed {
+                name: section.name,
+                width: section.width,
+                rows: section.rows,
+                stored: base + section.offset..base + end,
+            })
+        })
+        .collect()
+}
+
+pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
     let mut columns = HashMap::new();
-    for section in header.sections {
-        let end = section
-            .offset
-            .checked_add(section.length)
-            .filter(|end| base + *end <= bytes.len())
-            .ok_or_else(|| "not a variance-authority journey artifact".to_owned())?;
-        let stored = &bytes[base + section.offset..base + end];
-        let plain = match section.rows {
+    for column in place(bytes, version)? {
+        let stored = &bytes[column.stored];
+        let plain = match column.rows {
             None => stored.to_vec(),
-            Some(rows) if section.width == 4 => unpack_words(stored, rows)?,
-            Some(rows) if section.name.ends_with(".blob") => unpack_blob(stored, rows)?,
+            Some(rows) if column.width == 4 => unpack_words(stored, rows)?,
+            Some(rows) if column.name.ends_with(".blob") => unpack_blob(stored, rows)?,
             Some(rows) => unpack_bytes(stored, rows)?,
         };
-        if columns
-            .insert(section.name, (section.width, plain))
-            .is_some()
-        {
+        if columns.insert(column.name, (column.width, plain)).is_some() {
             return Err("journey artifact repeats a column".to_owned());
         }
     }
@@ -279,7 +301,7 @@ fn unpack_blob(stored: &[u8], rows: usize) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-fn runs(stored: &[u8], expected: usize) -> Result<Vec<&[u8]>, String> {
+pub(crate) fn runs(stored: &[u8], expected: usize) -> Result<Vec<&[u8]>, String> {
     if stored.len() < 4 {
         return Err("journey run column is truncated".to_owned());
     }
@@ -290,7 +312,7 @@ fn runs(stored: &[u8], expected: usize) -> Result<Vec<&[u8]>, String> {
     runs_any(stored)
 }
 
-fn runs_any(stored: &[u8]) -> Result<Vec<&[u8]>, String> {
+pub(crate) fn runs_any(stored: &[u8]) -> Result<Vec<&[u8]>, String> {
     if stored.len() < 4 {
         return Err("journey run column is truncated".to_owned());
     }
@@ -312,7 +334,7 @@ fn runs_any(stored: &[u8]) -> Result<Vec<&[u8]>, String> {
     Ok(out)
 }
 
-fn decompress(run: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn decompress(run: &[u8]) -> Result<Vec<u8>, String> {
     match run.split_first() {
         Some((tag, bytes)) if *tag == RAW => Ok(bytes.to_vec()),
         Some((tag, bytes)) if *tag == ZSTD => zstd::stream::decode_all(Cursor::new(bytes))
@@ -337,7 +359,7 @@ fn varints(values: &[u32]) -> Vec<u8> {
     out
 }
 
-fn unvarints(bytes: &[u8], rows: usize) -> Result<Vec<u32>, String> {
+pub(crate) fn unvarints(bytes: &[u8], rows: usize) -> Result<Vec<u32>, String> {
     let mut out = Vec::with_capacity(rows);
     let mut at = 0;
     let mut previous = 0_u32;

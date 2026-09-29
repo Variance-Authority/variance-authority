@@ -283,7 +283,7 @@ function selectionPlugin(
   declared: readonly string[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
 ): VitePlugin {
-  const { modules, names } = run;
+  const { modules } = run;
   let closing: Promise<void> | undefined;
   return {
     name: 'variance-authority:test-selection',
@@ -345,13 +345,13 @@ function selectionPlugin(
         (at) => readFileSync(at, 'utf8'),
       );
 
-      // Under its id, the same one every other seam instruments under, so a
+      // Under its path, the same one every other seam instruments under, so a
       // journal reads the same whoever produced it. Vitest re-transforms every
       // run in this process, so the records stay in this map rather than going
       // to the store a build needs — writing two hundred thousand files to read
       // them back a second later is ceremony, not durability.
       const name = projectPath(root, wrote);
-      const moduleId = names.idOf(name) ?? name;
+      const moduleId = name;
       const done = instrument(code, name, moduleId, { mode });
       if (done === undefined) {
         modules.set(moduleId, { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] });

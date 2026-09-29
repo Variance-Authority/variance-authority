@@ -10,7 +10,9 @@ use crate::order;
 const MAGIC: [u8; 8] = [0x56, 0x41, 0x52, 0x45, 0x43, 0x00, 0x00, 0x01];
 const FRAME_HEADER: usize = 8;
 const RECORD_HEADER: usize = 32;
-const UNNUMBERED: u32 = u32::MAX;
+/// The id field of a frame whose module is named by its path, which is every frame
+/// written; a frame holding anything else is filed under a number and skipped.
+const BY_PATH: u32 = u32::MAX;
 const KINDS: [&str; 8] = [
     "module",
     "function",
@@ -238,7 +240,9 @@ fn read_store(
         };
         for frame in frames(&raw, from) {
             let payload = &raw[frame.at..frame.at + frame.length];
-            let id = record_id(payload)?;
+            let Some(id) = record_id(payload)? else {
+                continue;
+            };
             if wanted.contains(&id) {
                 answers.insert(
                     id,
@@ -317,12 +321,13 @@ fn frames(raw: &[u8], mut at: usize) -> Vec<Frame> {
     found
 }
 
-fn record_id(payload: &[u8]) -> Result<ModuleId, String> {
-    let numbered = word(payload, 0)?;
-    if numbered != UNNUMBERED {
-        return Ok(ModuleId::Number(numbered));
+/// The path a frame names its module by, or none for a frame filed under a
+/// number, which no journal can ask for.
+fn record_id(payload: &[u8]) -> Result<Option<ModuleId>, String> {
+    if word(payload, 0)? != BY_PATH {
+        return Ok(None);
     }
-    Ok(ModuleId::Name(first_string(payload)?))
+    first_string(payload).map(Some)
 }
 
 fn first_string(payload: &[u8]) -> Result<String, String> {
@@ -384,13 +389,11 @@ fn decode_record(raw: &[u8], frame: Frame) -> Result<Option<Module>, String> {
         });
     }
     let file = strings.first().cloned().ok_or_else(damaged)?;
-    let numbered = word(payload, 0)?;
+    if word(payload, 0)? != BY_PATH {
+        return Ok(None);
+    }
     Ok(Some(Module {
-        id: if numbered == UNNUMBERED {
-            ModuleId::Name(file.clone())
-        } else {
-            ModuleId::Number(numbered)
-        },
+        id: file.clone(),
         file,
         digest,
         blocks,

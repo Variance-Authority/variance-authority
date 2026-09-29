@@ -45,7 +45,6 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import { nameModules } from '../module-names.js';
 import { executionIndexFrom } from './cases.js';
 import { executionIndexBytes } from './execution-format.js';
 import {
@@ -63,7 +62,6 @@ import { busyIndex, withIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
   isMissing,
-  moduleNamesFile,
   projectPath,
   readRecords,
   recordStores,
@@ -397,17 +395,8 @@ export async function recordExecution(
   // A worktree layers onto the repository's months of recording rather than
   // onto nothing. A no-op here and after the first run.
   await seedTestCoverage(coverageFile, root, options.cacheRoot);
-  const merged = await withIndexLock(coverageFile, async (lock) => {
+  const merged = await withIndexLock(coverageFile, async () => {
     await landRun(coverageFile, current, root);
-    // Every module this run could identify, numbered for the next one. A file
-    // first met today was instrumented under its path; from here on it has a
-    // number, and the transform that emits it needs to consult nothing. Under
-    // the same lock as the merge, which is what handing `lock` on says.
-    await nameModules(
-      moduleNamesFile(root, options.cacheRoot),
-      [...byId.values()].map((module) => module.file),
-      lock,
-    );
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {

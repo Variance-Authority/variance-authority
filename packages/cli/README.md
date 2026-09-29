@@ -1346,8 +1346,9 @@ variance select --format vitest
 ```
 
 ```
-source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin
-code map: 59 packages in 11 areas, 2 deep, over 8 dependency layers
+source index updated: 2215 files, 0 read again, at <cache>/test-selection/<digest>/source-index.bin
+code map: 71 packages in 16 areas, 2 deep, over 8 dependency layers
+journeys, suite unit: 5718 cases walked; a caller is found for 216327 of the 253543 functions they ran (85%); 8895 calls, 204 package flows; 2 imports the index did not resolve were resolved by the walk
 dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.json
 questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
 ```
@@ -1361,9 +1362,15 @@ line describes the code map it writes beside the index, which
 manifests keep the map that is there. A checkout with no packages to put on it
 prints `code map: none, because …` with the reason, and a map that could not be
 written prints `code map: not prepared: …`; in both cases the index is
-published. The last two lines are what `variance ask` answers from, and each
-says why when it could not be written. An index the file system refuses to
-write prints `source index not written: <reason>, at <path>` and exits `2`.
+published. Each line after those two describes one suite's journeys, which it walks from that suite's latest
+recording and writes beside the index, and which `variance ask orient --files`
+reads for the calls into and out of a file and the
+[package flows](../../docs/orientation.md#choose-the-entrance-from-what-you-have)
+its tests take. A checkout with no declared suites prints one `journeys:` line.
+A suite with no recording prints `not prepared: nothing is recorded at …`. The
+last two lines are what `variance ask` answers from, and each says why when it
+could not be written. An index the file system refuses
+to write prints `source index not written: <reason>, at <path>` and exits `2`.
 
 In CI, run it as its own step after you restore the cache. A reader that finds
 nothing published there exits `2` and names the missing step, because an index

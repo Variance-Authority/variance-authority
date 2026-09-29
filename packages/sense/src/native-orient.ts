@@ -250,3 +250,14 @@ export interface NativeOrientMaps {
   /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept, or one of a format this reader does not know. */
   orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
 }
+
+/** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */
+export interface NativeDependencyLexicon {
+  /** Refresh all installed third-party public declarations on the Rust side. */
+  refreshDependencyLexicon(root: string, index: string, path: string, refreshedAt: string): {
+    readonly path: string; readonly packages: number; readonly entrypoints: number;
+    readonly reused: number; readonly unavailable: number;
+  };
+  queryDependencyLexicon(path: string, query: string, files: string[] | null,
+    exact: boolean, packageName: string | null, limit: number): string | null;
+}

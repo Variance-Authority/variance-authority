@@ -83,7 +83,6 @@ over it, so a repository that names its cache keeps one answer for everyone.
     coverage.runs.json           the runs at the current commit, and the commit before them
     coverage.stories/            a test story for each test a run recorded, when you ask for them
     suites/<name>/               the same files for each suite you declare
-    names.bin                    the ids those records use for file paths
     source-index.bin             the source index, and its segments beside it
     source-index.bin.map         the code map `variance ask orient` reads
     <label>/                     one record store per runner or plugin

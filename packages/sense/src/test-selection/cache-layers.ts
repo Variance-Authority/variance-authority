@@ -20,9 +20,9 @@
  *
  * ```
  * <cache>/test-selection/<repository>/
- *   coverage.bin, names.bin, <label>/     the base: the primary checkout's own
+ *   coverage.bin, <label>/                the base: the primary checkout's own
  *   .work/<workspace>/                    one per worktree
- *     coverage.bin, names.bin, <label>/
+ *     coverage.bin, <label>/
  * ```
  *
  * A worktree reads both layers and writes only its own. That is the whole of the
@@ -46,7 +46,7 @@
 
 // compass: variance-authority.reach
 
-import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { repositoryRoot } from './repository-root.js';
@@ -306,44 +306,4 @@ function readPrimary(here: string): string {
   return basename(worktrees) === 'worktrees' && basename(dirname(worktrees)) === '.git'
     ? dirname(dirname(worktrees))
     : here;
-}
-
-/**
- * Give this checkout the base's copy of an artifact it has none of.
- *
- * For the artifacts a worktree may not merely read across: a numbering
- * authority. `names.bin` assigns each path an id counted up from the size of
- * the table, and that id is baked into the emitted code and joined against by
- * every record store. A worktree that read the base's table without taking it
- * over would number its own new paths from zero and mean, by id 7, a different
- * file than the base does — silently, and in the direction that makes a run
- * attribute one module's crossings to another. Taking the table over continues
- * its count, so every id the base assigned still means what it meant and no new
- * one repeats it.
- *
- * Copied through a temporary name and renamed into place, because the reader is
- * synchronous and forgiving: a chain it cannot parse is an empty table, and an
- * empty table is precisely the renumbering this exists to prevent. A reader must
- * see the whole chain or none of it, never half.
- *
- * Silent on every failure. An artifact that could not be seeded is an artifact
- * this checkout builds for itself, which is what it would have done anyway.
- */
-export function seedFromBase(layers: CacheLayers, names: readonly string[]): void {
-  if (layers.top === layers.base) return;
-  for (const name of names) {
-    const to = resolve(layers.top, name);
-    const from = resolve(layers.base, name);
-    if (existsSync(to) || !existsSync(from)) continue;
-    const staging = `${to}.${process.pid.toString(16)}.seed`;
-    try {
-      cpSync(from, staging, { recursive: true });
-      renameSync(staging, to);
-    } catch {
-      // Somebody else got there first, or there was nothing to take.
-      try {
-        rmSync(staging, { recursive: true, force: true });
-      } catch { /* the staging copy outlives this run at worst */ }
-    }
-  }
 }

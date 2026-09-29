@@ -112,114 +112,46 @@ The layout follows the question the record must answer:
 - columns are divided into independently readable runs; and
 - a query reads only the columns and runs that can answer it.
 
-## Small numbers need a shared names database
+## Every record names a module by its path
 
 Many tools avoid shared naming state by deriving identity from the thing itself:
 a stable hash of its content or path, or a deterministic filename. Two tools can
-meet the same input independently and compute the same name. The name is wider,
-but it travels inside the artifact and needs no earlier agreement.
+meet the same input independently and compute the same name. Variance Authority
+uses the plainest form of that. A module is named by its repository-relative
+path everywhere: the transform writes the path into the instrumented code as a
+literal, a worker journal names each module a test file ran by its path, and
+every record a run writes names the module the same way.
 
-Variance Authority makes the other trade at the busiest part of the record. Its
-instrumented modules and crossings use small assigned numbers, not hashes or
-paths. The number cannot be recomputed from the module: its meaning lives in the
-repository's **module names database**, a file called `names.bin` in your cache
-directory.
-
-```text
-derived identity              assigned identity
-
-path ──hash──▶ identity       names database: path ◀──▶ number
-any tool can recompute it                     │
-                                              └──▶ instrumenters, journals,
-                                                   records and queries
-```
-
-Every generation and tool using the compact form must therefore share one
-numbering lineage. Number `41` means nothing by itself; it means the path that
-this database assigned `41`. What that gives you is a small, compressible
-integer repeated across millions of crossings instead of a path or a uniformly
-distributed digest. A digest spends its full 64 bits at every crossing and
-cannot spend fewer; 200,000 modules need 17.6 bits of module, and a sorted run
-of exact numbers is a run of small gaps, which compresses.
-
-The database keeps one promise you can rely on: **adding a file never changes
-the number of a file that already has one.** Add a module in the middle of a
-directory, rename a sibling, grow the repository by a thousand paths — nothing
-already numbered is renumbered.
-
-Paths are stored in sorted order, so a lookup can binary-search them and so
-neighbouring paths share a prefix worth front-coding away; on 200,000 monorepo
-paths that is 22 bytes a path against 50 stored plainly. If the number were the
-position in that order, every insertion would shift every path after it, and an
-earlier run's record would describe modules by numbers that now mean different
-files. So the number is a column beside the sorted paths rather than the
-position of one:
+A path is wide, so a record file stores each one once. It keeps one table of
+every string it uses — module paths, test files, test names, region names —
+sorted by code unit, and every column refers to a string by its row in that
+table:
 
 ```text
-sorted order          id column
-  src/cart.ts            41
-  src/cart/total.ts     903   ← added later, appended
-  src/checkout.ts        42
+record file
+  strings   sorted, each once   "src/cart.ts", "src/cart/total.ts", …
+  modules   one string row per module
+  regions   module, lines, set id
 ```
 
-A new path takes the next unused number and is written into its own sorted
-place.
+The rows are small integers, so millions of crossings stay cheap, and they mean
+nothing outside the file that wrote them. That gives you three things:
 
-Only one direction is asked of the table. A build has a path and needs the
-number to emit, which is the binary search above. Going back — number to path —
-does not go through the table at all: the module record a build writes as it
-instruments a module pairs the path with the number, so whatever reads that
-record already has both.
+- **A record reads anywhere.** Copy one CI shard's `journeys.bin` to your
+  laptop and it answers which tests ran which lines of which file. It needs no
+  cache, no [source index](source-index.md) and no table from the machine that
+  wrote it.
+- **Two records join by path.** Two tables sorted in the same order join in one
+  pass over both lists, with no numbering to agree on first. A record and the
+  source index join the same way.
+- **Nothing is renumbered.** A record never depends on a number assigned
+  somewhere else, so no later run, second checkout or restored cache can make it
+  describe a different file.
 
-The failure a stable number prevents is not a crash. The coverage file is a set
-of crossings between test identities and module numbers, and nothing in it
-restates a path. If a number were silently reassigned, the file would still
-load, still answer, and answer about the wrong module — selecting the tests
-that covered `cart.ts` for a change in `checkout.ts`, and skipping the ones
-that matter. A stable number is what makes evidence from an earlier run usable
-by a later one.
-
-Growth keeps the property through a log-structured merge design. The database is
-a chain of immutable segments under one atomic manifest: an append adds a
-segment containing only new paths, and compaction merges the chain into one
-sorted run without disturbing a single number. Reads touch immutable files, so
-parallel transforms need nothing from one another; only the fold that assigns
-new numbers writes, under an exclusive lock.
-
-### Moving the numbering authority between checkouts
-
-`names.bin` can travel beside the execution record through a CI cache, a shared
-directory or an artifact transfer, and a consumer restoring both reads the same
-compact numbers the producer wrote. Two tables grown independently — on two
-machines, or in a checkout that never saw the first — number the same repository
-differently and have no way to agree, so a record travels with the table it was
-numbered against. Within one lineage the number is permanent for as long as the
-file exists.
-
-If you run tests from a second checkout of the same repository, a git worktree
-takes its copy of the table from the primary checkout's cache the first time it
-needs one, and continues that numbering in a writable layer of its own, so it
-neither renumbers the repository from zero nor writes into the checkout it was
-cut from. A checkout whose relationship to a primary checkout cannot be
-established keeps its own table instead, and that table is a separate lineage.
-
-Nothing moves the file for you. There is no service that hands out numbers and
-no sync that notices two caches have diverged: transporting `names.bin` with the
-record is a step you arrange, the same way you arrange the record's own
-transport. [Sharing evidence](sharing.md) covers the transport shapes, and the
-[execution-record reference](execution-record.md#the-module-names-table) owns
-the exact format and lookup costs.
-
-This dependency is about reuse, not availability. A missing, foreign or corrupt
-table is an empty table: every module is unnumbered for one run and numbered
-again by the fold, and you pay the cold cost. What you must not do is reuse
-compact numeric evidence while silently assigning those numbers a different
-meaning.
-
-A module the table has never seen — a file created since the last run — is
-instrumented under its path instead, because a transform cannot wait for an
-authority to hand it a number. The run is correct with one module costing
-path-length bytes at its crossings, and the next fold numbers it permanently.
+The price is the string table, which is the largest single part of a journey
+file. The worker journals a run leaves behind also name every module by its
+path, so they are larger than the record folded from them; the fold removes them
+when it finishes.
 
 ## One edit becomes one narrow read
 

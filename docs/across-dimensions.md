@@ -48,8 +48,8 @@ case's request reached *that* branch, and only the running system knows that.
 A **fence** here is any boundary a test's execution crosses that the graph
 does not: a network hop, a process, a runtime. To follow one execution past a
 fence you need a key the far side can read and the near side can later match.
-Variance Authority uses a **journey**: one opaque id per execution of one test.
-It is a random id and nothing else, minted by the process that runs the test,
+Variance Authority follows a **journey**: one execution of one test, named by
+one opaque id. The id is random and nothing else, minted by the process that runs the test,
 which this page calls the **driver**.
 
 The id crosses the fence, and the test's name does not. The processes on the far

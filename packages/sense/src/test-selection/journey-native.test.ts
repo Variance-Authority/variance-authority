@@ -199,6 +199,40 @@ describe('selecting off a journey file in the addon', () => {
   });
 });
 
+/**
+ * `file` with two module rows' paths exchanged, so its module ids no longer
+ * ascend: what a file written before rows were sorted by path looks like.
+ */
+function unsorted(file: string, first: number, second: number): string {
+  const bytes = Buffer.from(readFileSync(file));
+  const length = bytes.readUInt32LE(0);
+  const text = bytes.subarray(4, 4 + length).toString('utf8').replace(/\0+$/, '');
+  const header = JSON.parse(text) as { sections: { name: string; offset: number; rows?: number }[] };
+  const section = header.sections.find((held) => held.name === 'modules.file')!;
+  expect(section.rows).toBeUndefined();
+  const at = (row: number): number => 4 + length + section.offset + row * 4;
+  const held = bytes.readUInt32LE(at(first));
+  bytes.writeUInt32LE(bytes.readUInt32LE(at(second)), at(first));
+  bytes.writeUInt32LE(held, at(second));
+  const out = join(mkdtempSync(join(tmpdir(), 'journey-native-')), 'journeys.bin');
+  writeFileSync(out, bytes);
+  return out;
+}
+
+describe('finding a module in a journey file', () => {
+  it('writes module rows in code-unit order of path, whatever order they were handed in', () => {
+    expect(decodeExecutionIndex(readFileSync(FILE)).modules.map((module) => module.file))
+      .toEqual(['src/api.ts', 'src/card.ts', 'src/http.ts']);
+  });
+
+  it('finds a module by its path in a file whose rows are out of order', async () => {
+    // Rows are api, card, http; exchanging the first and last paths leaves the
+    // regions where they were, so the row now named `src/api.ts` holds `send`.
+    const projected = await projectJourneyFile(unsorted(FILE, 0, 2), new Map([['src/api.ts', []]]));
+    expect(projected?.index.modules[0]?.blocks.map((block) => block.name)).toEqual(['send']);
+  });
+});
+
 describe('projecting a journey file onto a change', () => {
   it('keeps every region of a changed module and expands only the ones the change lands on', async () => {
     const projected = await projectJourneyFile(FILE, new Map([['src/api.ts', lines(4)], ['src/solo.ts', []]]));

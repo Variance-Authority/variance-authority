@@ -30,6 +30,7 @@ export const NAVIGATION = [
       { href: "/docs/evidence-field", label: "Use the evidence you have" },
       { href: "/docs/great-data", label: "What one run leaves you" },
       { href: "/docs/adjacent-possible", label: "Why it does so many things" },
+      { href: "/docs/extend-what-you-use", label: "Extend what you already use" },
     ],
   },
   {

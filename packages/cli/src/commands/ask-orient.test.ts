@@ -191,11 +191,13 @@ describe('variance ask orient', () => {
     expect(both.out).toBe('');
   });
 
-  it('answers with the files, the names crossing each package, the absent recording, and what to ask next', async () => {
+  it('answers with the files, the names crossing each package, the absent recording, no journeys line, and what to ask next', async () => {
     const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const indexed = await run(['index']);
+    expect(indexed.code).toBe(EXIT_CLEAN);
+    expect(indexed.out.split('\n')[2]).toBe(`journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}.cases.bin`);
 
-    const answered = await run(['ask', 'orient', '--files', 'packages/checkout/src/total.ts,./packages/cart/src/price.ts,src/gone.ts']);
+    const answered = await run(['ask', 'orient', '--files', 'packages/checkout/src/total.ts:2,./packages/cart/src/price.ts,src/gone.ts']);
 
     expect(answered).toEqual({
       code: EXIT_CLEAN,

@@ -1,9 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
+import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
@@ -14,14 +15,12 @@ import { indexOutput } from './index-command.js';
  *
  * Its lines are what a pipeline log shows, so the assertions are on the lines:
  * built, then updated with nothing read again, then updated with one file read
- * again after an edit.
+ * again after an edit. These checkouts record nothing, so the code map and the
+ * journeys lines say why neither is prepared.
  */
 
 const cwd = process.cwd();
 const BIN = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
-const lexiconLine = (root: string): string =>
-  `dependency lexicon: 0 workspace-dependency pairs, 0 public entrypoints, 0 reused, 0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n` +
-  `questions: published at ${sourceIndexPath(root)}.help.json\n`;
 
 beforeEach(() => {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
@@ -31,6 +30,14 @@ afterEach(() => {
   process.chdir(cwd);
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
+
+/** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. */
+function unprepared(root: string): string {
+  return 'code map: none, because no manifest names a package\n' +
+    `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}.cases.bin\n` +
+    `dependency lexicon: 0 workspace-dependency pairs, 0 public entrypoints, 0 reused, 0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n` +
+    `questions: published at ${sourceIndexPath(root)}.help.json\n`;
+}
 
 function checkout(): string {
   const root = mkdtempSync(join(tmpdir(), 'va-index-'));
@@ -46,7 +53,8 @@ function checkout(): string {
   git(['add', '-A']);
   git(['commit', '--quiet', '-m', 'the checkout']);
   process.chdir(root);
-  return root;
+  // The path the process sees, which is the one a recording is keyed by: the temporary directory is a symlink on macOS.
+  return realpathSync(root);
 }
 
 async function run(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
@@ -63,15 +71,15 @@ describe('variance index', () => {
 
     expect(await run(['index'])).toEqual({
       code: EXIT_CLEAN,
-      out: `source index built: 2 files, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`,
+      out: `source index built: 2 files, at ${at}\n${unprepared(root)}`,
       err: '',
     });
     expect(await indexOutput({ cwd: root }))
-      .toBe(`source index updated: 2 files, 0 read again, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`);
+      .toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root)}`);
 
     writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 2;\n');
     expect(await indexOutput({ cwd: root }))
-      .toBe(`source index updated: 2 files, 1 read again, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`);
+      .toBe(`source index updated: 2 files, 1 read again, at ${at}\n${unprepared(root)}`);
   });
 
   it("carries the scan's listing to the code map, and a map prepared with no scan says git listed the checkout again", async () => {
@@ -86,8 +94,8 @@ describe('variance index', () => {
     const root = checkout();
     const at = sourceIndexPath(root);
 
-    expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`);
-    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\ncode map: none, because no manifest names a package\n${lexiconLine(root)}`);
+    expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\n${unprepared(root)}`);
+    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root)}`);
   });
 
   it('keeps the index it published when the code map cannot be written, and says why there is no map', async () => {
@@ -105,12 +113,12 @@ describe('variance index', () => {
   it("names the primary checkout's index a worktree's first update built on", async () => {
     const root = checkout();
     await indexOutput({ cwd: root });
-    const worktree = join(mkdtempSync(join(tmpdir(), 'va-index-worktree-')), 'worktree');
+    const worktree = join(realpathSync(mkdtempSync(join(tmpdir(), 'va-index-worktree-'))), 'worktree');
     execFileSync('git', ['worktree', 'add', '--quiet', '--detach', worktree], { cwd: root, stdio: 'pipe' });
     writeFileSync(join(worktree, 'src/unit.ts'), 'export const unit = 2;\n');
 
     expect(await indexOutput({ cwd: worktree })).toBe(
-      `source index built on ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree)}\ncode map: none, because no manifest names a package\n${lexiconLine(worktree)}`,
+      `source index built on ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree)}\n${unprepared(worktree)}`,
     );
   });
 
