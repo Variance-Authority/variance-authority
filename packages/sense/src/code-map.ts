@@ -11,11 +11,13 @@
 // compass: variance-authority.reach.relations
 
 import { native, nativeRefusal } from './native.js';
-import type { NativeOrientMapAnswer, NativeOrientMapPrepared } from './native-orient.js';
+import type { NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared } from './native-orient.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 
 export type {
+  NativeOrientLayers as PackageLayers,
+  NativeOrientPackageLayer as PackageLayer,
   NativeOrientMapAnswer as CodeMapAnswer,
   NativeOrientMapMade as CodeMapMade,
   NativeOrientMapPage as CodeMapPage,
@@ -24,7 +26,7 @@ export type {
   NativeOrientMapShare as CodeMapShare,
 } from './native-orient.js';
 
-function entry<Name extends 'prepareOrientMap' | 'orientMapPage'>(name: Name) {
+function entry<Name extends 'prepareOrientMap' | 'orientMapPage' | 'orientLayers'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -73,4 +75,14 @@ export function codeMapPage(root: string, area?: string): CodeMapRead {
   const index = sourceIndexPath(root);
   const answer = entry('orientMapPage')(index, area ?? null);
   return answer === null ? { index } : { index, answer };
+}
+
+/**
+ * Every package's dependency layer from the code map kept beside `index`,
+ * which is the checkout's own when none is named. Absent when no map is kept
+ * there, so a base that was never indexed is not read as a checkout in which
+ * nothing moved.
+ */
+export function packageLayers(root: string, index: string = sourceIndexPath(root)): NativeOrientLayers | undefined {
+  return entry('orientLayers')(index) ?? undefined;
 }

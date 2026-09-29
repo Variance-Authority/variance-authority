@@ -143,13 +143,32 @@ export interface NativeCasesEntered {
   readonly declaredNames: readonly string[];
 }
 
+/** One package's place in the dependency layers of a kept code map. */
+export interface NativeOrientPackageLayer {
+  readonly package: string;
+  readonly directory: string;
+  /** One more than the highest layer among the packages it takes; one that takes nothing is layer 1. */
+  readonly layer: number;
+  /** The packages it imports from, in code-unit order. */
+  readonly takes: readonly string[];
+}
+
+/** Every package's layer from the map kept beside an index. */
+export interface NativeOrientLayers {
+  /** Whether the map was folded from the index as it stands now. */
+  readonly current: boolean;
+  /** Absent when there was nothing to fold, and `unmade` says why. */
+  readonly packages?: readonly NativeOrientPackageLayer[] | null;
+  readonly unmade?: string | null;
+}
+
 /** The code map as folded, or as kept when nothing it is folded from moved. */
 export interface NativeOrientMapMade {
   readonly packages: number;
   readonly areas: number;
   /** How many areas deep the deepest package sits. */
   readonly levels: number;
-  /** Dependency layers: 0 takes nothing, and each layer takes only from those below it. */
+  /** Dependency layers: 1 takes nothing, and each layer takes only from those below it. */
   readonly layers: number;
   /**
    * Counted files whose requests could not be read against their parse. Their
@@ -249,6 +268,7 @@ export interface NativeOrientMaps {
   prepareOrientMap?(root: string, index: string, scanned?: boolean | null): NativeOrientMapPrepared | null;
   /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept, or one of a format this reader does not know. */
   orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
+  orientLayers?(index: string): NativeOrientLayers | null;
 }
 
 /** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */

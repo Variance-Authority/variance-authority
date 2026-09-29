@@ -92,9 +92,9 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
     let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), &HashSet::new());
-    let (made, pages) = fold(&read).ok().expect("named packages to fold");
+    let (made, pages, placed) = fold(&read).ok().expect("named packages to fold");
     let digest = super::manifest_digest(&index).unwrap();
-    let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, unmarked: false, made: Some(made), unmade: None, pages };
+    let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, unmarked: false, made: Some(made), unmade: None, pages, placed };
     (root, index, stored)
 }
 
@@ -104,7 +104,7 @@ fn four_families_fold_into_four_areas_and_the_road_between_them() {
     let top = &stored.pages[0];
     assert_eq!((top.id.as_str(), top.packages, top.files, top.alone), ("", 20, 20, 0));
     // Each member takes every member before it, and the server core takes the interface core.
-    assert_eq!((stored.made.unwrap().layers, top.low, top.high), (6, 0, 5));
+    assert_eq!((stored.made.unwrap().layers, top.low, top.high), (6, 1, 6));
     let rows: Vec<(&str, &str, u32)> = top.rows.iter().map(|row| (row.id.as_str(), row.name.as_str(), row.packages)).collect();
     assert_eq!(
         rows,
@@ -114,7 +114,7 @@ fn four_families_fold_into_four_areas_and_the_road_between_them() {
     let (server, ui) = (&top.rows[1], &top.rows[3]);
     assert_eq!((server.outgoing, &server.uses[..]), (1, &[("4".to_owned(), 1)][..]));
     assert_eq!((ui.incoming, &ui.front[..], ui.more), (1, &[("@t/ui-0".to_owned(), 1)][..], 0));
-    assert_eq!((server.low, server.high, server.median), (1, 5, 3));
+    assert_eq!((server.low, server.high, server.median), (2, 6, 4));
     // An area with no areas inside it lists its packages.
     let leaf = stored.pages.iter().find(|page| page.id == "4").unwrap();
     assert!(leaf.rows.is_empty());
@@ -177,6 +177,23 @@ fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside
     let map = prepared.map.expect("a folded map");
     assert_eq!((map.packages, map.areas, map.levels, map.layers, map.unread), (20, 4, 1, 6, 0));
     assert!(orient_map_page(index, None).unwrap().expect("a kept map").current);
+}
+
+#[test]
+fn every_package_reads_back_with_its_layer_and_what_it_takes() {
+    let (_root, root, index) = indexed("placed");
+    prepare_orient_map(root, index.clone(), Some(true)).unwrap().expect("an index");
+    let answer = crate::orient_map::orient_layers(index).unwrap().expect("a kept map");
+    assert!(answer.current && answer.unmade.is_none());
+    let packages = answer.packages.expect("a folded map");
+    let layer = |name: &str| packages.iter().find(|package| package.package == name).unwrap();
+    // A package that takes nothing is layer 1; each member takes every member before it.
+    assert_eq!((layer("@t/data-0").layer, layer("@t/data-0").takes.len()), (1, 0));
+    assert_eq!((layer("@t/data-4").layer, layer("@t/data-4").takes.len()), (5, 4));
+    // The server core also takes the interface core, whose own layer is 1.
+    assert_eq!(layer("@t/server-0").takes, ["@t/ui-0"]);
+    assert_eq!(layer("@t/server-0").layer, 2);
+    assert_eq!(packages.iter().map(|package| package.layer).max(), Some(6));
 }
 
 #[test]

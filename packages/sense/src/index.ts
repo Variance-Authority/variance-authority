@@ -103,9 +103,21 @@ export {
   type TimedTestCase,
   type TimedTestFile,
 } from './recorded-durations.js';
+export { layerMoves, type LayerCause, type LayerMoves } from './layer-moves.js';
+export {
+  relationBetween,
+  restrictedImports,
+  type Decision,
+  type RelationRule,
+  type RuleFile,
+  type Violation,
+} from './restrictions.js';
 export {
   codeMapPage,
+  packageLayers,
   prepareCodeMap,
+  type PackageLayer,
+  type PackageLayers,
   type CodeMapAnswer,
   type CodeMapMade,
   type CodeMapPage,

@@ -26,6 +26,8 @@ import { askSource, questions } from './ask.js';
 import { questionFor } from './asking.js';
 import { COMMENT_MARKER } from './comment.js';
 import { coverage } from './coverage.js';
+import { layersOutput } from './layers-command.js';
+import { restrictionsOutput } from './restrictions-command.js';
 import { formatCoverage } from './coverage-text.js';
 import { coveringAnswer, formatCoveringAnswer } from './covering-suites.js';
 import { distillFiles, formatDistill } from './distill.js';
@@ -41,7 +43,7 @@ import { watch, watching as watchingLines } from './watch.js';
 /** The nine commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'review' | 'story' | 'index' | 'select' | 'reach' }
+  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'reach' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -50,6 +52,8 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     || parsed.command === 'distill'
     || parsed.command === 'covering'
     || parsed.command === 'coverage'
+    || parsed.command === 'layers'
+    || parsed.command === 'restrictions'
     || parsed.command === 'review'
     || parsed.command === 'story'
     || parsed.command === 'index'
@@ -147,6 +151,19 @@ export async function answerConfigless(
     // records are where the runs put them, and a pull request's base is the
     // one its mainline published. The ratio decides nothing, so the exit is
     // clean whatever it says (ADR-0081).
+    // `layers` observes and never gates: the exit is clean whatever moved.
+    case 'layers': {
+      streams.out(layersOutput(parsed));
+      return EXIT_CLEAN;
+    }
+
+    // A fence: the exit is `1` when an import breaks a rule someone wrote.
+    case 'restrictions': {
+      const said = await restrictionsOutput(parsed);
+      streams.out(said.out);
+      return said.code;
+    }
+
     case 'coverage': {
       try {
         streams.out(formatCoverage(await coverage(parsed), parsed.format));

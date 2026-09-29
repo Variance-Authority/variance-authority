@@ -21,6 +21,8 @@ export const COMMANDS = [
   'reach',
   'covering',
   'coverage',
+  'layers',
+  'restrictions',
   'review',
   'report',
   'ask',
@@ -119,6 +121,8 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   changelog: ['--component', '--subject', '--limit', '--since'],
   journeys: ['--all', '--file', '--limit', '--into', '--suite'],
   coverage: ['--against', '--suite', '--from', '--packages', '--root', '--format'],
+  layers: ['--against', '--root', '--format'],
+  restrictions: ['--root', '--format'],
   review: ['--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
@@ -137,6 +141,8 @@ export const USAGE = [
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
   'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]',
+  'variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]',
+  'variance restrictions [--root <path>] [--format text|json]',
   'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]',
   'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]',
@@ -169,7 +175,7 @@ export const USAGE = [
  * for the same reason and names `--config` itself: the suites it carries are
  * the repository root's, and a project is read only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'review', 'story', 'index', 'select', 'reach', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'reach', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

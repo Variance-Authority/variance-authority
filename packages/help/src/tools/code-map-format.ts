@@ -31,7 +31,7 @@ export function unscoped(name: string): string {
 
 function heading(page: CodeMapPage, repository: string, layers: number): string {
   const what = page.id === ''
-    ? `${repository}: ${page.packages} packages in ${layers} dependency layers (0 takes nothing)`
+    ? `${repository}: ${page.packages} packages in ${layers} dependency layers (1 takes nothing)`
     : `${page.id} ${page.name}: ${page.packages} packages in dependency layers ${page.low}–${page.high} of ${layers}`;
   const loose = page.alone > 0 && page.rows.length > 0 ? ` + ${page.alone} packages in none` : '';
   return `# ${what}, ${thousands(page.files)} source files, ${page.rows.length} areas${loose}`;
