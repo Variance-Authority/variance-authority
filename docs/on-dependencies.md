@@ -3,10 +3,11 @@
 An import looks like one line of syntax. Added up, the imports of a repository
 are its "uses" relation, and the shape of that relation decides which parts of
 the system can be built, tested and understood without the rest. Software design
-has argued for a direction in that relation for fifty years. The argument was
-always made about a structure someone drew. [Variance Authority](README.md)
-reads the structure from the imports instead, and shows you in a pull request
-when an ordinary import changes it.
+has argued for a direction in that relation for fifty years, and
+dependency-analysis tools have long extracted it from code. [Variance
+Authority](README.md) uses that derived structure as a review signal: it shows
+when an ordinary import changes the dependency hierarchy before anyone has to
+declare what that hierarchy should be.
 
 This page follows that line of work and says where the product stops.
 [Layers, restrictions and ceilings](boundaries.md) is the page that says how to
@@ -37,8 +38,8 @@ Once the lower levels were trusted, a test of a higher level could ignore how
 they were built, which kept the number of relevant states small enough to test.
 
 The narrow claim is this: when dependencies have no cycle, there is an order in
-which lower pieces can be understood, tested and changed before the pieces that
-use them. The graph has a down. A layer number is that order, written as a
+which lower pieces can be understood and tested before the pieces that use
+them. The graph has a down. A layer number is that order, written as a
 number for every package.
 
 ## A level is derived, not assigned
@@ -50,11 +51,17 @@ with an acyclic physical hierarchy are cheaper to maintain, test and reuse.
 Levelization there is a technique for making the dependencies acyclic, and level
 numbers follow from the dependencies that result.
 
-That is the property `variance layers` keeps. You do not write "this is a layer 3
-package" anywhere. The dependencies of the package make it layer 3, and if they
-change, the layer changes with them. The event worth a line in review is
-therefore not that someone broke a label. It is that an import changed where a
-package sits.
+This is close to what `variance layers` reports. You do not write "this is a
+layer 3 package" anywhere. The dependencies of the package make it layer 3, and
+adding a dependency can leave the graph acyclic and still change the derived
+level numbers. The event worth a line in review is therefore not that someone
+broke a label. It is that an import changed where a package sits, and Variance
+makes that change a first-class observation of the pull request.
+
+The semantics differ in one place. Lakos levelizes a graph that is acyclic, and
+treats a cycle as something to remove first. Variance takes packages in a cycle
+as one strongly connected unit, then assigns a layer to the acyclic graph of
+those units.
 
 ## Cycles have no order
 
