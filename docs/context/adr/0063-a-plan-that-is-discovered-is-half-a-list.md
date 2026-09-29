@@ -15,8 +15,12 @@ adopt — it is the one that does not ask them to maintain the inventory twice.
 Discovery is asymmetric, and only one half of the asymmetry was ever handled.
 
 **An addition is loud.** A page that appears in the sitemap is planned, has no
-baseline, is reported `new`, and exits `1`. Nobody can add a watched surface by
-accident; the run insists somebody approve it.
+baseline, and is reported `new` — named NEW in the comment, apart from anything
+that needs review, and `new` on every run until somebody accepts it. It does not
+fail the gate, because nothing moved (amended 2026-09-29: it exited `1`, which
+told a reviewer a change needed review when the finding was an addition). Nobody
+can add a watched surface without it being said; the run lists it until somebody
+approves it.
 
 **A removal is silent in both directions.** The subject is not planned, so it is
 not collected; not collected, so not compared; not compared, so no verdict

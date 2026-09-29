@@ -216,6 +216,22 @@ describe('renderComment', () => {
     expect(renderComment({ report: noObservations })).toContain('story:chart');
   });
 
+  it('says NEW apart from review, and comments over a green check only for NEW', () => {
+    // No baseline is not a change. The heading must not call it one, and without
+    // a comment a subject nobody accepted would be visible nowhere on the pull request.
+    const fresh = (subject: string): ObservationRecord =>
+      ({ subject, verdict: 'new', because: 'no baseline', changedPixels: 0, regions: [] });
+    const onlyNew = reportOf([fresh('story:a'), fresh('story:b')]);
+
+    expect(exitFor(onlyNew)).toBe(EXIT_CLEAN);
+    const body = renderComment({ report: onlyNew });
+    expect(body).toContain('## Visual variance — 2 subject(s) NEW, nothing to review');
+    expect(body).not.toContain('need review');
+
+    const both = renderComment({ report: reportOf([...tokenChange(1).observations, fresh('story:a')]) });
+    expect(both).toContain('## Visual variance — 1 subject(s) need review, 1 subject(s) NEW');
+  });
+
   it('says coverage is unknown when the report never stated what it skipped', () => {
     // Absent is not empty. A clean-looking body over a report that never counted
     // its subjects is the tool inventing the reassurance.

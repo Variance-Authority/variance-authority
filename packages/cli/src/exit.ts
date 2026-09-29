@@ -179,13 +179,10 @@ const GREEN: readonly string[] = ['unchanged', 'ignored'];
 /**
  * The verdict code for a completed run: `0` or `1`, never `2`.
  *
- * Five things move it to `1`, and the last three are the ones a pixel-diff tool
+ * Four things move it to `1`, and the last three are the ones a pixel-diff tool
  * gets wrong:
  *
  * - `changed` — the obvious one.
- * - `new` — no baseline exists. Not a regression and not a pass; nobody has ever
- *   agreed what this subject should look like, and exiting `0` would let a
- *   subject enter the suite unreviewed forever.
  * - `incomparable` — a baseline exists on another machine. The comparison was
  *   *refused*, so nothing is known, and an unobservable difference is never
  *   reported as no difference.
@@ -207,7 +204,12 @@ const GREEN: readonly string[] = ['unchanged', 'ignored'];
  *   its styling missing. No verdict can express that, because the verdict is a
  *   statement about two images and this is a statement about what went into them.
  *
- * Four things deliberately do not move it. An **absorbed** instability: the
+ * Five things deliberately do not move it. A **`new`** subject: no baseline
+ * exists, so there is nothing it could have regressed from, and a gate that is
+ * red until somebody accepts is red for a reason that is not about the change —
+ * the intent of "nothing to compare with" is not the intent of "this moved". It
+ * is still not a pass: the comment names every one as NEW, the report lists it,
+ * and it stays `new` until a person accepts it. An **absorbed** instability: the
  * subject declared what it asserts on, every band that moved falls outside it,
  * and a route written to ignore what the page is painted with must not go red
  * over exactly that — the same decision `ignored` records about pixels, one level
@@ -227,7 +229,7 @@ const GREEN: readonly string[] = ['unchanged', 'ignored'];
 export function exitFor(report: ReviewableReport): typeof EXIT_CLEAN | typeof EXIT_REVIEW {
   const needsReview = report.observations.some(
     (observation) =>
-      !GREEN.includes(observation.verdict) ||
+      (!GREEN.includes(observation.verdict) && observation.verdict !== 'new') ||
       (observation.unstable !== undefined && observation.unstable.absorbed === undefined) ||
       (observation.diagnostics ?? []).some((diagnostic) => diagnostic.severity === 'error'),
   );

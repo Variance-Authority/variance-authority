@@ -208,9 +208,10 @@ painted in the same run. Everything else, missing fonts included, exits `0`.
 variance run --config variance.config.json
 ```
 
-Under `durable` retention the first successful run exits `1`, because every
-subject is `new`: the run captured it, and nobody has yet agreed what it should
-look like.
+Under `durable` retention the first successful run reports every subject
+`new`: the run captured it, and nobody has yet agreed what it should look like.
+It exits `0`, because nothing moved, and the subject stays `new` until you
+accept it.
 
 Render the report as a page and open it:
 

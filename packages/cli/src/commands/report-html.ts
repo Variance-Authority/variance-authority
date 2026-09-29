@@ -155,6 +155,7 @@ function statusOf(docket: Docket): 'incomplete' | 'review' | 'clean' {
 function title(docket: Docket): string {
   const parts: string[] = [];
   if (docket.reviewable > 0) parts.push(`${docket.reviewable} to review`);
+  if (docket.fresh > 0) parts.push(`${docket.fresh} new`);
   if (docket.failed.length > 0) parts.push(`${docket.failed.length} failed`);
   if (parts.length === 0) parts.push('clean');
   const [first] = docket.causes;
@@ -222,7 +223,7 @@ function headline(docket: Docket): string {
   if (status === 'incomplete' && docket.reviewable === 0) {
     return '<h1 class="bad">incomplete</h1>';
   }
-  if (status === 'clean') return '<h1 class="ok">clean</h1>';
+  if (status === 'clean') return docket.fresh === 0 ? '<h1 class="ok">clean</h1>' : `<h1>${docket.fresh} new</h1>`;
   const [first, ...rest] = docket.causes;
   const lead =
     first === undefined

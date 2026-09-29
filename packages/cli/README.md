@@ -113,8 +113,8 @@ variance accept --config variance.config.json story:checkout--empty
 variance run --config variance.config.json
 ```
 
-The first successful durable run exits `1` because its subjects are `new`.
-Review the generated candidates, accept the intended subject ids explicitly,
+The first successful durable run reports its subjects `new` and exits `0`:
+nothing moved, and nothing is approved either. Review the generated candidates, accept the intended subject ids explicitly,
 then rerun. An unchanged run exits `0`; a configuration, browser, collector, or
 store failure exits `2`.
 

@@ -118,8 +118,11 @@ three arrangements. This is what each one needs in your copy:
 
 ## Getting a first baseline
 
-The first run of any subject reports `new` and exits `1`. An image nobody has
-approved is not a pass, and nothing in these files promotes one on its own.
+The first run of any subject reports `new`, and the comment lists it as NEW,
+apart from anything that needs review. `new` does not turn the check red —
+nothing moved — but an image nobody has approved is not a pass either, and
+nothing in these files promotes one on its own: the subject stays `new` on
+every run until somebody accepts it.
 
 To end that state under `cache`: run `variance.yml` from the Actions tab on `main`, tick
 `accept: true`, and let it finish. That run executes
@@ -131,7 +134,7 @@ restores that store and compares against it.
 nobody has ever reviewed and the subjects whose component just changed. The CLI
 cannot yet tell those two apart, so a job that ran it on a schedule or a push
 would promote the regression it was added to catch. That is why every accept is
-a person's act. Read the report from the run that went red first.
+a person's act. Read the report from the run that listed them first.
 
 ## Accepting a change on a pull request
 

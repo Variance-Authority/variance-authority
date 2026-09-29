@@ -76,8 +76,14 @@ export interface Docket {
    * decision was made when the rule was written, and `exitFor`, `variance_summary`
    * and the review backend all treat it as green. A docket that counted it would
    * put a number in the pull-request comment that the exit code contradicts.
+   * `new` is excluded for the same reason, and counted in {@link Docket.fresh}.
    */
   readonly reviewable: number;
+  /**
+   * Subjects with no baseline. Not a change, so not counted as one to review:
+   * nothing moved, and nobody has yet said what the subject should look like.
+   */
+  readonly fresh: number;
   readonly failed: readonly NotObserved[];
   readonly excluded: number;
   /**
@@ -123,6 +129,7 @@ export function docketOf(report: CliRunReport): Docket {
   const collateralSubjects = new Set<string>();
 
   let reviewable = 0;
+  let fresh = 0;
   let collateralRegions = 0;
   let collateralPixels = 0;
   let unrecorded = 0;
@@ -134,7 +141,8 @@ export function docketOf(report: CliRunReport): Docket {
     }
 
     if (observation.verdict === 'unchanged' || observation.verdict === 'ignored') continue;
-    reviewable += 1;
+    if (observation.verdict === 'new') fresh += 1;
+    else reviewable += 1;
 
     const lead = observation.regions.find((region) => region.cause) ?? observation.regions[0];
 
@@ -223,6 +231,7 @@ export function docketOf(report: CliRunReport): Docket {
     },
     withoutCause: [...groups.values()],
     reviewable,
+    fresh,
     failed: notObserved.filter((entry) => entry.kind === 'failed'),
     excluded: notObserved.filter((entry) => entry.kind === 'excluded').length,
     unreached: notObserved.filter((entry) => entry.kind === 'unreached').length,

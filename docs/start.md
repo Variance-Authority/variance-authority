@@ -108,8 +108,8 @@ variance run --config variance.config.json
 ```
 
 `doctor` checks the environment your config selects, against the machine or CI
-image that will do the comparing. The first durable run exits `1`, because every
-subject without a baseline is `new`. Render its report, open it, and copy the id
+image that will do the comparing. The first durable run reports every
+subject without a baseline as `new`, and exits `0` because nothing moved. Render its report, open it, and copy the id
 of the candidate you want to keep:
 
 ```bash

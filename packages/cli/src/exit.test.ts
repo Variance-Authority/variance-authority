@@ -62,10 +62,11 @@ describe('exitFor', () => {
     ).toBe(EXIT_REVIEW);
   });
 
-  it('needs review on `new`, which is neither a regression nor a pass', () => {
-    // Nobody has ever agreed what this subject should look like. Exiting clean
-    // would let it enter the suite unreviewed and stay that way.
-    expect(exitFor({ observations: [{ verdict: 'new' }], notObserved: [] })).toBe(EXIT_REVIEW);
+  it('exits clean on `new`, because nothing moved that a change could have moved', () => {
+    // No baseline is a different reason from a change: the comment says NEW, and
+    // the subject stays `new` until a person accepts it.
+    expect(exitFor({ observations: [{ verdict: 'new' }], notObserved: [] })).toBe(EXIT_CLEAN);
+    expect(exitFor({ observations: [{ verdict: 'new' }, { verdict: 'changed' }], notObserved: [] })).toBe(EXIT_REVIEW);
   });
 
   it('needs review on `incomparable`, because the comparison was refused', () => {

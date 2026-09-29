@@ -199,8 +199,8 @@ browser opens or when the root has no images this machine could compare
 against, and `0` otherwise — a missing font is reported and does not change the
 exit code.
 
-The first successful durable run exits `1` and reports the stories as `new`. An
-image nobody approved is not a pass.
+The first successful durable run exits `0` and reports the stories as `new`.
+Nothing moved, and an image nobody approved is not a pass either.
 
 Render the HTML report beside the JSON report so its relative image links
 resolve:

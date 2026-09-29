@@ -37,15 +37,20 @@ export function leadBlocks(
   pictures: Pictures,
 ): readonly string[] {
   const needing = docket.reviewable + docket.failed.length;
+  // NEW is said apart from review, because it is a different reason to open the
+  // comment: nothing moved, and nobody has yet said what the subject should look like.
+  const fresh = docket.fresh === 0 ? '' : `${docket.fresh} subject(s) NEW`;
 
   const heading =
-    needing === 0
-      ? // Reachable, and the only way to reach it is the case worth naming: a run
-        // whose observations are all `unchanged` and whose report never stated
-        // what it skipped. `exitFor` calls that review, and a heading claiming
-        // zero findings over it would be the tool inventing the reassurance.
-        '## Visual variance — this run cannot claim a clean result'
-      : `## Visual variance — ${needing} subject(s) need review`;
+    needing > 0
+      ? `## Visual variance — ${needing} subject(s) need review${fresh === '' ? '' : `, ${fresh}`}`
+      : fresh !== ''
+        ? `## Visual variance — ${fresh}, nothing to review`
+        : // Reachable, and the only way to reach it is the case worth naming: a run
+          // whose observations are all `unchanged` and whose report never stated
+          // what it skipped. `exitFor` calls that review, and a heading claiming
+          // zero findings over it would be the tool inventing the reassurance.
+          '## Visual variance — this run cannot claim a clean result';
 
   const [first] = docket.causes;
   const picture =
@@ -305,9 +310,10 @@ function collateralBlocks(collateral: Collateral): readonly string[] {
  * Subjects with a verdict and nothing to point at.
  *
  * `new` and `incomparable` are the two that a reader — or an agent — will
- * otherwise treat as failures of the code, and neither is about the code. They
- * need review anyway: nobody has agreed what a new subject should look like, and
- * an incomparable one is a comparison that was *refused*, which is not the same
+ * otherwise treat as failures of the code, and neither is about the code. Both
+ * are listed anyway: nobody has agreed what a new subject should look like, which
+ * is why the heading names it NEW rather than counting it as a review, and an
+ * incomparable one is a comparison that was *refused*, which is not the same
  * sentence as "no difference".
  */
 export function withoutCauseBlocks(docket: Docket, limits: CommentLimits): readonly string[] {

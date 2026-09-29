@@ -465,8 +465,9 @@ comparison or retention path of its own.
 
 ## 3. Approve a change
 
-A first run reports every subject `new` and exits `1`, because no baseline has
-been approved for those ids yet. Nothing is accepted on your behalf. Write the
+A first run reports every subject `new`, because no baseline has been approved
+for those ids yet. It exits `0` — nothing moved — and the subjects stay `new`
+until you accept them. Nothing is accepted on your behalf. Write the
 report as HTML beside its JSON source, so the relative image links work, and
 look at the candidate:
 

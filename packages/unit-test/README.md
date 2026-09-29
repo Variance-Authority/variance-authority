@@ -292,10 +292,10 @@ from your machine or a CI artifact. Each subject gives you the approved image,
 the difference and the candidate, with a wipe, a blend and a blink between the
 two.
 
-A run whose observed subjects are all `unchanged` or `ignored`, with every
-planned subject accounted for, exits `0`. Anything else exits `1` — including
-the first run, where `button/save` is `new`: an image nobody has approved is not
-a pass.
+A run whose observed subjects are all `unchanged`, `ignored` or `new`, with
+every planned subject accounted for, exits `0`. Anything else exits `1`. The
+first run, where `button/save` is `new`, is `0` because nothing moved — and not
+a pass: it stays `new` until you accept it.
 
 When the change is the one you meant, approve it:
 

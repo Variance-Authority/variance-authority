@@ -213,7 +213,7 @@ export default captureCollector({ directory: CAPTURES });
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured, because rows written under a project nobody chose cannot be re-attributed later. |
 | `profile` | What the run is *capable* of observing. `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process contains; `chromium` adds computed style, layout and geometry, and belongs to a collector that observed inside a browser. It does not decide what paints — the configured browser paints either way — it decides what the report may claim about a change. Set it to match where the capture was taken. |
 | `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). Every capture records its own viewport and that is the one used for its subject; this value is the fallback for a subject that arrives without one. Keep it equal to the viewport your tests capture at. |
-| `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. That is why the first run exits `1`: nothing is stored yet, so there is nothing to compare against and the candidate is waiting for review. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
+| `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. That is why the first run reports `new`: nothing is stored yet, so there is nothing to compare against and the candidate is waiting for you to accept it. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
 | `subjects.kind` | Where the run gets its subject list. `collector` is a module like the one above. The alternatives are `storybook`, which reads a built story index, and `list`, where you write the ids down yourself. |
 | `baselines.kind` | Where approved images live: `directory` is files you commit, `lfs` is the same files through the Git LFS filter, `remote` is a deployment and a token with nothing in the repository. No default — see [baseline placement](placement.md). |
 | `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash`. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. Defaults to `[]`, which asserts nothing: two machines with different cuts of Inter then produce the same identity, compare, and report the difference as a component change. Naming them makes that a refused comparison instead. |
@@ -252,8 +252,8 @@ paint, measures the fonts you asserted inside it, and lists which identities the
 baseline root already has and whether this machine's is one of them.
 
 The unit suite passes as it did, having written one capture per subject. The
-first durable run exits `1` and reports `button/save` as `new` — an image nobody
-has approved is not a pass.
+first durable run exits `0` and reports `button/save` as `new` — nothing moved,
+and an image nobody has approved is not a pass either.
 
 ### Look at the candidate
 
