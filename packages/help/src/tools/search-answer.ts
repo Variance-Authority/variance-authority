@@ -327,7 +327,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
     exported: { total: rest.total, shown: rest.head(ELSEWHERE_CAP) },
     ...(thirdParty === undefined ? {} : { thirdParty }),
   };
-  if (hits.length > 0 || rest.total > 0 || (thirdParty?.total ?? 0) > 0) return { answer, area };
+  if (hits.length > 0 || rest.total > 0 || (thirdParty?.total ?? 0) > 0 || (thirdParty?.described?.length ?? 0) > 0) return { answer, area };
 
   // The loose pass — names the words reach when they are allowed apart and
   // allowed one character off — runs only on an empty answer. The names the

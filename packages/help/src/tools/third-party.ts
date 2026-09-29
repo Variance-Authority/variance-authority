@@ -7,7 +7,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { LexiconScope, ThirdPartyMatch } from '../dependency-lexicon.js';
+import type { DescribedPackage, LexiconScope, ThirdPartyMatch } from '../dependency-lexicon.js';
 
 /** Why a third-party name is offered: whose manifest, declared how, at what version, and whether the code already imports it. */
 export function provenance(match: ThirdPartyMatch): string {
@@ -31,4 +31,13 @@ export function thirdScope(scope: LexiconScope): string {
   if (scope.packages === 0) return 'No dependency was searched: no manifest in reach declares or imports one.';
   const at = scope.owners.length <= 3 ? scope.owners.join(', ') : `${scope.owners.slice(0, 3).join(', ')} and ${scope.owners.length - 3} more`;
   return `Third-party names searched: ${scope.packages} ${scope.packages === 1 ? 'package' : 'packages'} under ${at}.`;
+}
+
+/** One package that describes the job, on a line: what it says it is, and why it is offered. */
+export function describedLine(hit: DescribedPackage): string {
+  const version = hit.version === undefined ? 'version not resolved' : `@${hit.version}`;
+  const declared = hit.declaredAs === undefined ? `imported under ${hit.manifest}, not declared there` : `${hit.declaredAs} in ${hit.manifest}`;
+  const used = hit.imports === undefined ? 'imports not indexed' : hit.imports === 0 ? 'not imported' : `imported ${hit.imports}× (first ${hit.site ?? 'site not recorded'})`;
+  const says = hit.description === undefined ? 'no description published' : hit.description.length > 140 ? `${hit.description.slice(0, 137)}...` : hit.description;
+  return `${hit.specifier} ${version} · ${declared} · ${used} — ${says} [holds: ${hit.words.join(', ')}]`;
 }

@@ -20,6 +20,11 @@ use crate::resolve::Resolvers;
 mod query;
 #[path = "dependency_stack.rs"]
 mod stack;
+#[path = "dependency_described.rs"]
+mod describing;
+#[path = "dependency_purpose.rs"]
+mod purposes;
+use purposes::{purpose, Purpose};
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Identity { name: String, version: String, manifest: String }
@@ -62,6 +67,9 @@ struct Api {
     /// Only on an unavailable entry: the package's own prose may be all it ships.
     #[serde(skip_serializing_if = "Option::is_none")]
     readme: Option<Readme>,
+    /// What the package says it is for, read from the installed package at refresh.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    purpose: Option<Purpose>,
 }
 #[derive(Serialize, Deserialize)]
 struct Entry { id: String, api: Api }
@@ -142,8 +150,8 @@ fn readme(root: &Path, runtime: &Option<Identity>) -> Option<Readme> {
     })
 }
 
-/// Version 5 added `readme`. A 4 still answers queries; a refresh rewrites it as a 5.
-const VERSION: u8 = 6;
+/// Version 5 added `readme`, 7 added `purpose`. An older one still answers queries; a refresh rewrites it.
+const VERSION: u8 = 7;
 
 fn previous(path: &Path) -> Option<Lexicon> {
     let prior: Lexicon = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
@@ -369,13 +377,16 @@ fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Resolvers, prev
             format!("the project resolver could not resolve `{specifier}` from {}", relative(root, importer))
         };
         let readme = readme(root, &runtime);
-        return (Api { runtime, declarations, entrypoint: None, names: None, sources: None, unavailable: Some(reason), readme }, false);
+        let purpose = purpose(root, &runtime, &declarations, None);
+        return (Api { runtime, declarations, entrypoint: None, names: None, sources: None, unavailable: Some(reason), readme, purpose }, false);
     };
     let entrypoint = relative(root, declaration.path());
     if let Some(prior) = previous.filter(|prior| unchanged(root, prior, &runtime, &declarations, &entrypoint)) {
         // A README is not among the digested sources, so an entry that publishes no names reads it again.
         let readme = prior.unavailable.is_some().then(|| readme(root, &runtime)).flatten();
-        return (Api { readme, ..prior.clone() }, true);
+        // Nor is it: the words a package says about itself are read again, so a README edit reaches the next refresh.
+        let purpose = purpose(root, &runtime, &declarations, prior.names.as_deref());
+        return (Api { readme, purpose, ..prior.clone() }, true);
     }
     let mut reader = Reader { root, package: declaration.package_json().map(|manifest| manifest.path().to_owned()), resolver, cache: HashMap::new(), stack: HashSet::new(), sources: BTreeSet::new() };
     if let Some(resolution) = runtime_resolution.as_ref() {
@@ -387,7 +398,8 @@ fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Resolvers, prev
         Some(Source { at: relative(root, path), digest: digest(path)? })).collect();
     let unavailable = names.is_empty().then(|| format!("the declarations for `{specifier}` publish no names this reader can enumerate"));
     let readme = unavailable.is_some().then(|| readme(root, &runtime)).flatten();
-    (Api { runtime, declarations, entrypoint: Some(entrypoint), names: Some(names), sources: Some(sources), unavailable, readme }, false)
+    let purpose = purpose(root, &runtime, &declarations, Some(&names));
+    (Api { runtime, declarations, entrypoint: Some(entrypoint), names: Some(names), sources: Some(sources), unavailable, readme, purpose }, false)
 }
 
 /// Refresh the complete installed lexicon from Git, the source index and the
