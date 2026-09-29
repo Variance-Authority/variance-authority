@@ -85,6 +85,7 @@ import startRstest from "../../../docs/start-rstest.md?raw";
 import surface from "../../../docs/surface.md?raw";
 import changed from "../../../docs/changed.md?raw";
 import tests from "../../../docs/tests.md?raw";
+import onDependencies from "../../../docs/on-dependencies.md?raw";
 import onTesting from "../../../docs/on-testing.md?raw";
 import understandExecution from "../../../docs/understand-execution.md?raw";
 import understandInterface from "../../../docs/understand-interface.md?raw";
@@ -199,6 +200,7 @@ const documents = [
   ["performance", performance, "docs/performance.md"],
   ["sharing", sharing, "docs/sharing.md"],
   ["cache", cache, "docs/cache.md"],
+  ["on-dependencies", onDependencies, "docs/on-dependencies.md"],
   ["on-testing", onTesting, "docs/on-testing.md"],
 ] as const;
 

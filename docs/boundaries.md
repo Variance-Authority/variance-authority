@@ -10,6 +10,10 @@ depth limit that must hold. Neither asks you to tag packages.
 
 ## Why the number matters
 
+The idea that imports form a hierarchy, and not only a list, is older than package
+managers. [On dependencies](on-dependencies.md) follows it from Parnas and
+Dijkstra through levelization to architectural fitness functions.
+
 An import is cheap to write and lasting to own. The layer makes what it does
 to the depth of the graph visible. A package that imports nothing else in the repository is layer 1. Any
 other package is one layer above the highest layer among the packages it

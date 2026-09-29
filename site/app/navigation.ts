@@ -395,6 +395,7 @@ export const NAVIGATION = [
       { href: "/reference/compare-visual-review", label: "Compare visual review tools" },
       { href: "/docs/compare-coverage", label: "Compare coverage services" },
       { href: "/docs/on-testing", label: "On testing: decide what each test adds" },
+      { href: "/docs/on-dependencies", label: "On dependencies: why the graph has a direction" },
       {
         href: "/docs/coverage-test-selection",
         label: "Coverage-based test selection",
