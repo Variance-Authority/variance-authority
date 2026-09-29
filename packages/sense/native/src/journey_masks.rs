@@ -167,6 +167,12 @@ impl JourneyMasks {
             .min_by_key(|&at| (self.bits[at as usize].end - self.bits[at as usize].start, at)))
     }
 
+    /// Every recorded function of module `module`, in row order.
+    pub fn functions_in(&self, module: usize) -> Vec<u32> {
+        let (from, to) = self.rows[module];
+        (from..to).filter(|&at| self.bits[at as usize].shape == Shape::Function).collect()
+    }
+
     /// Function `function` and every function written inside it.
     pub fn within(&self, function: u32) -> Vec<u32> {
         let outer = self.bits[function as usize];

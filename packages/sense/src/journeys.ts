@@ -16,7 +16,7 @@
 
 import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { keptRunnerAliases, runnerConfigs, unlistedRunnerAliases, type RunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
@@ -32,6 +32,10 @@ export type {
   NativeJourneyEnd as JourneyEnd,
   NativeJourneyFork as JourneyFork,
   NativeJourneyFunction as JourneyFunction,
+  NativeJourneyMap as JourneyMap,
+  NativeJourneyMapBranch as JourneyMapBranch,
+  NativeJourneyMapFunction as JourneyMapFunction,
+  NativeJourneyMapPlace as JourneyMapPlace,
   NativeJourneyPath as JourneyPath,
   NativeJourneySide as JourneySide,
   NativePathsThrough as PathsThrough,
@@ -49,7 +53,7 @@ export type {
   NativeJourneysRegion as JourneysRegion,
 } from './native-journeys.js';
 
-function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween'>(name: Name) {
+function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -196,4 +200,19 @@ export function forksBetween(root: string, a: NativeJourneyEnd, b: NativeJourney
   const found = recordings(root).find((recorded) => recorded.suite === suite);
   if (found?.recording === undefined) return undefined;
   return entry('forksBetween')(found.recording, { ...a }, { ...b });
+}
+
+/**
+ * The map of the code around `file` in `suite`'s cases, kept to the tests whose
+ * file or name holds any of `terms`, ignoring case, or to every test that
+ * entered the file when none is given. Each function of the file is its paths
+ * among the kept tests; beyond it, what most of the suite enters is counted as
+ * structure, what most kept tests enter is the spine, nearest first, and the
+ * rest are branches, each told by its smallest test. `undefined` when the suite
+ * has nothing recorded.
+ */
+export function journeyMap(root: string, file: string, terms?: readonly string[], suite?: string): NativeJourneyMap | undefined {
+  const found = recordings(root).find((recorded) => recorded.suite === suite);
+  if (found?.recording === undefined) return undefined;
+  return entry('journeyMap')(found.recording, file, terms === undefined ? null : [...terms]);
 }

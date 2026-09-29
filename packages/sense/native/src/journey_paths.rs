@@ -40,8 +40,9 @@ pub struct JourneyCase {
     pub name: String,
     /// The regions its journey entered.
     pub blocks: u32,
-    /// Other cases whose journey entered exactly the same regions.
-    pub alike: u32,
+    /// Other cases whose journey entered exactly the same regions; absent
+    /// when the answer did not compare whole journeys.
+    pub alike: Option<u32>,
 }
 
 #[napi(object)]
@@ -87,8 +88,16 @@ pub fn paths_through(recording: String, file: String, line: u32) -> PathsThrough
 
 pub(crate) fn through(masks: &mut JourneyMasks, file: &str, line: u32) -> Result<Option<PathsThrough>, String> {
     let Some(function) = masks.function_at(file, line)? else { return Ok(None) };
+    let (cases, paths) = paths_of(masks, function, None)?;
+    Ok(Some(PathsThrough { not_recorded: None, function: Some(function_of(masks, function)?), cases, paths }))
+}
+
+/// The paths through `function` taken by the cases `among` marks, or by every
+/// case when it is absent, and how many cases entered it.
+pub(crate) fn paths_of(masks: &mut JourneyMasks, function: u32, among: Option<&[bool]>) -> Result<(u32, Vec<JourneyPath>), String> {
     let inner = masks.inside(function);
-    let cases = masks.entered(function)?;
+    let counted = |case: &u32| among.is_none_or(|kept| kept.get(*case as usize).copied().unwrap_or(false));
+    let cases: Vec<u32> = masks.entered(function)?.iter().copied().filter(counted).collect();
     let mut taken: HashMap<u32, Vec<u32>> = cases.iter().map(|&case| (case, Vec::new())).collect();
     for &bit in &inner {
         for &case in masks.entered(bit)?.iter() {
@@ -98,7 +107,7 @@ pub(crate) fn through(masks: &mut JourneyMasks, file: &str, line: u32) -> Result
         }
     }
     let mut by_path: HashMap<Vec<u32>, Vec<u32>> = HashMap::new();
-    for &case in cases.iter() {
+    for &case in &cases {
         by_path.entry(taken.remove(&case).unwrap_or_default()).or_default().push(case);
     }
     let mut paths: Vec<(Vec<u32>, Vec<u32>)> = by_path.into_iter().collect();
@@ -120,11 +129,11 @@ pub(crate) fn through(masks: &mut JourneyMasks, file: &str, line: u32) -> Result
             files: files.len() as u32,
             entered: took.iter().map(|&bit| block(masks, bit)).collect::<Result<_, _>>()?,
             median: by_size[by_size.len() / 2],
-            smallest: case_of(masks, smallest, sizes[smallest as usize], 0)?,
+            smallest: case_of(masks, smallest, sizes[smallest as usize], None)?,
             passage: members.len() * 2 > total,
         });
     }
-    Ok(Some(PathsThrough { not_recorded: None, function: Some(function_of(masks, function)?), cases: total as u32, paths: answered }))
+    Ok((total as u32, answered))
 }
 
 pub(crate) fn function_of(masks: &JourneyMasks, bit: u32) -> Result<JourneyFunction, String> {
@@ -138,7 +147,7 @@ pub(crate) fn block(masks: &JourneyMasks, bit: u32) -> Result<JourneyBlock, Stri
     Ok(JourneyBlock { kind: masks.journey.text(held.kind)?.to_owned(), file: masks.file(bit)?.to_owned(), line: held.start, end: held.end, function })
 }
 
-pub(crate) fn case_of(masks: &JourneyMasks, case: u32, blocks: u32, alike: u32) -> Result<JourneyCase, String> {
+pub(crate) fn case_of(masks: &JourneyMasks, case: u32, blocks: u32, alike: Option<u32>) -> Result<JourneyCase, String> {
     Ok(JourneyCase {
         case,
         file: masks.journey.test_file(case as usize)?.to_owned(),

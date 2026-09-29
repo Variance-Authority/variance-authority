@@ -1,10 +1,11 @@
 ---
 id: TASK-21.15
 title: A task maps the code from a file through its tests' journeys
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-28 23:35'
-updated_date: '2026-09-29 04:01'
+updated_date: '2026-09-29 04:11'
 labels: []
 dependencies: []
 parent_task_id: TASK-21
@@ -19,17 +20,17 @@ An agent in a file (the payment controller) with a task in words (how payment is
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 From a file and a task, the answer lists how many tests entered the file, how many the task kept, and names the kept ones
-- [ ] #2 Regions most of the whole suite enters are counted as structure and not drawn; the denominator is stated
-- [ ] #3 The spine (regions most kept tests enter and the suite does not) is drawn first, in the order the journeys pass through it, with branches beyond it named by the tests that take them
-- [ ] #4 Every place in the map is a file and declaration with the tests that reached it; nothing in it comes from reading source text or running a test
+- [x] #1 From a file and a task, the answer lists how many tests entered the file, how many the task kept, and names the kept ones
+- [x] #2 Regions most of the whole suite enters are counted as structure and not drawn; the denominator is stated
+- [x] #3 The spine (regions most kept tests enter and the suite does not) is drawn first, in the order the journeys pass through it, with branches beyond it named by the tests that take them
+- [x] #4 Every place in the map is a file and declaration with the tests that reached it; nothing in it comes from reading source text or running a test
 - [ ] #5 The owner judges one map on this repository and one on a corpus repository as useful before the answer ships
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Tracer bullet (scratchpad codemap.mjs, JS, 0.5 s) on VA, compose.ts + 'how composition is used in a run': 100 covering tests, 60 kept, 86 spine functions. Findings: (1) >50% structure finds 0 functions against the suite or the package's 1049 tests, and 66 against the 100 covering tests, which swallows the spine; the noise that remains is the test fixture (run-fixture.ts) and hashing (digestValue, canonicalize) at 98-100% of kept tests. (2) Crossings in this recording carry no call depth, so order must come from the prepared journeys. (3) The prepared journeys keep each call with a case count, not a case set, and journeysFor truncates callers/goes to the top few: observeAll packages/cli/src/commands/run.ts:169 -> composeReports is lost, and 53 of 86 spine functions are unplaced. Next limb: prepare keeps each call's case set (crossing-sets containers) so a walk can be restricted to the kept tests; the same sets answer journey containment/difference.
+Tracer bullet (scratchpad codemap.mjs, JS, 0.5 s) on VA, compose.ts + 'how composition is used in a run': 100 covering tests, 60 kept, 86 spine functions. Findings: (1) >50% structure finds 0 functions against the suite or the package's 1049 tests, and 66 against the 100 covering tests, which swallows the spine; the noise that remains is the test fixture (run-fixture.ts) and hashing (digestValue, canonicalize) at 98-100% of kept tests. (2) Crossings in this recording carry no call depth, so order must come from the prepared journeys. (3) The prepared journeys keep each call with a case count, not a case set, and journeysFor truncates callers/goes to the top few: observeAll packages/cli/src/commands/run.ts:170 -> composeReports is lost, and 53 of 86 spine functions are unplaced. Next limb: prepare keeps each call's case set (crossing-sets containers) so a walk can be restricted to the kept tests; the same sets answer journey containment/difference.
 
 dad30ec4: the fold now keeps which cases placed each call (walk.3), and journeysAmong(root, cases, suite) returns every call the kept cases placed, counted among them, untruncated. Prototype v3 (scratchpad codemap.mjs) drops the 50% rule. Bridged = on a call path from the test into the file, or onward from it. Trunk = bridged functions at or above the P75 of kept-case weight. On compose.ts with 60 of 100 tests kept: 413 calls, 216 functions, 46 bridged, 170 off the bridge (fixture, lanes, schedule, run-report). The way in is test → runWith → run → observeAll → composeReports ◀, which v2 could not place. Onward it reaches core/attribute (composition, divergence, movement, lexicon, landmark). The query takes 0.12 s. Order comes from call direction; the import graph is not needed yet.
 
@@ -70,4 +71,8 @@ Hubs and passage (scratchpad hubs.mjs, purpose.mjs, MUI recording):
 - The codemap should collapse the majority path into one row ('N pass through, :line returns') and expand each minority path with its smallest test.
 
 Masks landed in Rust (TASK-21.16, ea8e8cf1). The sense addon has journey_masks.rs (every region is a bit and belongs to the smallest function holding it; sets are expanded once; journey sizes), pathsThrough(root, {file,line}) (majority path = passage, minority paths with their smallest case) and forksBetween(root, a, b) (connection, near misses, forks by separation, thin under 3). Results match the JS prototype on this repo and zod, at 4-7 ms per question. On MUI styleFunctionSx the passage is identical (4004 of 4043), with 3 paths instead of 6, because closure branches now belong to the closure. Next limb for this task: the codemap is composed from these calculations. From the file, the task keeps the tests that entered it. For each function in the file, pathsThrough collapses the majority path to one row and expands the minority paths. forksBetween joins the file to what the kept tests reach beyond it. The codemap needs no caller.
+
+journeyMap landed in Rust (journey_map.rs, on the masks from TASK-21.16). journeyMap(root, file, terms?) returns: tests that entered the file; those kept (a case is kept when its test file or name holds any term, ignoring case, or every case when no terms are given), named smallest journey first with alike counts; each function of the file as its paths among the kept cases; beyond the file, structure (entered by at least half the suite) counted against the suite; the spine (entered by more than half the kept cases), nearest first, where nearest is the smallest kept journey that reached the place; and branches (functions entered by exactly the same fewer kept cases), each told by its smallest case. No caller is read. Self-check on journeys.ts in this repo: 65 of 5736 entered, spine 281, structure 0, 9 ms; the terms do the narrowing, as the prototype found. MUI InputBase/utils.js: 735 of 5832 entered, structure 31; the spine is useFormControlState -> InputBase2 -> FormControl, which is the caller the rods lost, found in 8 ms. pathsThrough's smallest.alike is now absent instead of 0, since that answer did not compare whole journeys.
+
+forksBetween also ranks no forks when a side has fewer than 3 near misses. Found by using it: isFilled <-> FormControl useCallback on MUI ranked six regions at 100% off a single near miss.
 <!-- SECTION:NOTES:END -->

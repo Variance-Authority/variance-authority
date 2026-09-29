@@ -19,7 +19,7 @@ use crate::journey_masks::{overlap, JourneyMasks, Shape};
 use crate::journey_paths::{block, case_of, function_of, JourneyBlock, JourneyCase, JourneyFunction};
 use crate::order;
 
-/// Fewer connecting cases than this are too thin to separate.
+/// Fewer connecting cases, or near misses on a side, than this are too thin to separate.
 const THIN: usize = 3;
 /// A near miss shares at least this much of a connecting journey.
 const NEAR: f64 = 0.5;
@@ -54,7 +54,8 @@ pub struct JourneySide {
     pub near: u32,
     /// The most any of them shares with a connecting journey, when none nearly connected.
     pub best: Option<f64>,
-    /// Strongest first; absent when nothing nearly connected or the connection is thin.
+    /// Strongest first; absent when nothing nearly connected, or when the
+    /// connecting cases or this side's near misses are too few to separate.
     pub forks: Option<Vec<JourneyFork>>,
     /// The smallest near miss, one the strongest turning fork turned away when there is one.
     pub nearly: Option<JourneyCase>,
@@ -160,7 +161,7 @@ pub(crate) fn between(masks: &mut JourneyMasks, a: &JourneyEnd, b: &JourneyEnd) 
     };
     let both: Vec<&Cluster> = clusters.iter().filter(|c| c.a && c.b).collect();
     let Some(core) = both.first() else { return Ok(answer) };
-    answer.connection = Some(case_of(masks, core.cases[0], core.mask.len() as u32, core.cases.len() as u32 - 1)?);
+    answer.connection = Some(case_of(masks, core.cases[0], core.mask.len() as u32, Some(core.cases.len() as u32 - 1))?);
     answer.thin = (answer.both as usize) < THIN;
     let mut sides = Vec::new();
     for (end, at_a) in [("a", true), ("b", false)] {
@@ -192,6 +193,7 @@ fn side(masks: &JourneyMasks, end: &str, both: &[&Cluster], alone: &[(&Cluster, 
         answer.best = Some(alone.iter().map(|(_, o)| *o).fold(0.0, f64::max));
         return Ok(answer);
     }
+    let thin = thin || (answer.near as usize) < THIN;
     let forks = if thin { Vec::new() } else { forks(masks, both, &near)? };
     let turn = forks.iter().find(|(_, separation)| *separation < 0.0).or(forks.first());
     let story = near
@@ -199,7 +201,7 @@ fn side(masks: &JourneyMasks, end: &str, both: &[&Cluster], alone: &[(&Cluster, 
         .filter(|c| turn.is_none_or(|(bit, separation)| c.mask.binary_search(bit).is_ok() == (*separation < 0.0)))
         .min_by_key(|c| (c.mask.len(), c.cases[0]));
     if let Some(c) = story {
-        answer.nearly = Some(case_of(masks, c.cases[0], c.mask.len() as u32, c.cases.len() as u32 - 1)?);
+        answer.nearly = Some(case_of(masks, c.cases[0], c.mask.len() as u32, Some(c.cases.len() as u32 - 1))?);
     }
     if !thin {
         answer.forks = Some(

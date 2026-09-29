@@ -202,8 +202,8 @@ export interface NativeJourneyCase {
   readonly name: string;
   /** The regions its journey entered. */
   readonly blocks: number;
-  /** Other cases whose journey entered exactly the same regions. */
-  readonly alike: number;
+  /** Other cases whose journey entered exactly the same regions; absent when the answer did not compare whole journeys. */
+  readonly alike?: number | null;
 }
 
 /** One way through a function: the regions written in it that its cases entered. */
@@ -247,7 +247,7 @@ export interface NativeJourneySide {
   readonly near: number;
   /** The most any of them shares with a connecting journey, when none nearly connected. */
   readonly best?: number | null;
-  /** Strongest first; absent when nothing nearly connected or the connection is thin. */
+  /** Strongest first; absent when nothing nearly connected, or the connecting cases or this side's near misses are too few to separate. */
   readonly forks?: readonly NativeJourneyFork[] | null;
   readonly nearly?: NativeJourneyCase | null;
 }
@@ -264,6 +264,47 @@ export interface NativeForksBetween {
   readonly connection?: NativeJourneyCase | null;
   readonly thin: boolean;
   readonly sides?: readonly NativeJourneySide[] | null;
+}
+
+/** A function of the mapped file, read through the kept cases. */
+export interface NativeJourneyMapFunction {
+  readonly function: NativeJourneyFunction;
+  readonly cases: number;
+  readonly paths: readonly NativeJourneyPath[];
+}
+
+/** A function beyond the file that most kept cases entered. */
+export interface NativeJourneyMapPlace {
+  readonly function: NativeJourneyFunction;
+  readonly cases: number;
+  /** The smallest kept journey that reached it. */
+  readonly nearest: NativeJourneyCase;
+}
+
+/** The functions beyond the file that exactly the same few kept cases entered. */
+export interface NativeJourneyMapBranch {
+  readonly cases: number;
+  readonly places: readonly NativeJourneyFunction[];
+  readonly smallest: NativeJourneyCase;
+}
+
+/** The map of the code around one file, drawn from the journeys of the tests kept. */
+export interface NativeJourneyMap {
+  readonly notRecorded?: string | null;
+  readonly file: string;
+  /** Cases in the recording: the denominator of structure. */
+  readonly suite: number;
+  readonly entered: number;
+  readonly kept: number;
+  /** The kept cases, smallest journey first. */
+  readonly tests: readonly NativeJourneyCase[];
+  readonly functions: readonly NativeJourneyMapFunction[];
+  /** Beyond the file, entered by most kept cases, nearest first. */
+  readonly spine: readonly NativeJourneyMapPlace[];
+  /** Beyond the file, entered by fewer, most cases first. */
+  readonly branches: readonly NativeJourneyMapBranch[];
+  /** Functions beyond the file the kept cases entered and at least half the suite did too. */
+  readonly structure: number;
 }
 
 /** The journey calls on a git listing the addon holds, carrying it rather than asking git again. */
@@ -304,4 +345,6 @@ export interface NativeJourneys {
   pathsThrough?(recording: string, file: string, line: number): NativePathsThrough;
   /** How the function at `a` is connected to the one at `b`. */
   forksBetween?(recording: string, a: NativeJourneyEnd, b: NativeJourneyEnd): NativeForksBetween;
+  /** The map around `file`, kept to the cases whose test file or name holds any of `terms`. */
+  journeyMap?(recording: string, file: string, terms?: string[] | null): NativeJourneyMap;
 }
