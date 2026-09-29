@@ -67,6 +67,9 @@ struct Scope {
     owners: Vec<String>,
     /// Distinct packages those manifests offered to the question.
     packages: u32,
+    /// The manifests that own the paths the question stood at; absent when it stood nowhere.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    location: Option<Vec<String>>,
 }
 
 fn owners<'a>(lexicon: &'a Lexicon, files: &[String]) -> HashSet<&'a str> {
@@ -79,7 +82,7 @@ fn owners<'a>(lexicon: &'a Lexicon, files: &[String]) -> HashSet<&'a str> {
         let owner = manifests.iter().copied().find(|manifest| {
             if *manifest == "package.json" { return false; }
             let Some(directory) = manifest.strip_suffix("package.json") else { return false };
-            file.starts_with(directory)
+            file.starts_with(directory) || format!("{file}/").starts_with(directory)
         });
         included.insert(owner.unwrap_or("package.json"));
     }
@@ -168,7 +171,8 @@ pub fn query_dependency_lexicon(path: String, query: String, files: Option<Vec<S
         .then_with(|| (&a.specifier, &a.name, &a.kind).cmp(&(&b.specifier, &b.name, &b.kind))));
     shown.truncate(limit as usize);
     let answer = serde_json::to_string(&Matches { total, shown, silent: silent.into_values().collect(),
-        scope: Scope { owners: looked.0.into_iter().map(str::to_owned).collect(), packages: looked.1.len() as u32 } })
+        scope: Scope { owners: looked.0.into_iter().map(str::to_owned).collect(), packages: looked.1.len() as u32,
+            location: allowed.map(|allowed| { let mut held: Vec<String> = allowed.into_iter().map(str::to_owned).collect(); held.sort_unstable(); held }) } })
         .map_err(|error| napi::Error::from_reason(error.to_string()))?;
     Ok(Some(answer))
 }

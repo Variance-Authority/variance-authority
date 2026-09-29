@@ -1,9 +1,9 @@
 import type { Tool } from '@variance-authority/mcp/tools';
-import { stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
-import { queryDependencyLexicon } from '../dependency-lexicon.js';
+import { queryDependencyLexicon, type LexiconMatches, type ThirdPartyMatch } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { provenance } from './third-party.js';
 
@@ -22,12 +22,20 @@ export const symbol: Tool<Help> = {
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
     'written above it, the README passage that names it — and which packages import it. Names are ' +
     'matched exactly, including installed third-party declarations when the API catalogue is ' +
-    'published; use docs_search when the exact name is not known, docs_uses for local import sites.',
+    'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
+    'when the exact name is not known, docs_uses for local import sites.',
   inputSchema: {
     type: 'object',
     properties: {
       name: { type: 'string', description: 'The exported name, matched exactly.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
+      from: {
+        ...START_POINT_SCHEMA.from,
+        description:
+          'Optional. A path in the source tree. An installed third-party name is answered as the manifest that owns ' +
+          'that path resolves it: its version and signature there, whether the code already imports it, and where ' +
+          'else it is declared when it is not usable there.',
+      },
     },
     required: ['name'],
     additionalProperties: false,
@@ -43,16 +51,30 @@ export const symbol: Tool<Help> = {
     );
 
     if (found.length === 0 && invocation?.root !== undefined) {
-      const matches = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
-      if (matches === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\``);
-      const silent = silentBlocks(invocation.root, name, matches.silent ?? [], wanted !== undefined);
-      if (matches.total > 0 || silent.length > 0) return [
-        ...silent,
-        ...matches.shown.map((entry) => `${entry.specifier} · ${entry.name} [${entry.kind}]${entry.version === undefined ? '' : ` · ${entry.package}@${entry.version}`}` +
-          `${entry.declarationProvider === undefined ? '' : ` · declarations: ${entry.declarationProvider}`}` +
-          `\n${provenance(entry)}\n${entry.at}:${entry.line}${entry.signature === undefined ? '' : `\n${entry.signature}`}${entry.doc === undefined ? '' : `\n${entry.doc}`}`),
-        ...(matches.total > matches.shown.length ? [`${matches.total - matches.shown.length} more matches not shown.`] : []),
-      ].join('\n\n');
+      const at = startPointArg(input, 'from');
+      const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
+      const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
+      if (everywhere === undefined) throw new Error(`the dependency lexicon is not published; run \`variance index\` before asking about \`${name}\``);
+      const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
+      const silent = silentBlocks(invocation.root, name, (here ?? everywhere).silent ?? [], wanted !== undefined);
+      const described = (entry: ThirdPartyMatch): string =>
+        `${entry.specifier} · ${entry.name} [${entry.kind}] · ${entry.package}${entry.version === undefined ? '' : `@${entry.version}`}` +
+        `${entry.declarationProvider === undefined ? '' : ` · declarations: ${entry.declarationProvider}`}` +
+        `\n${provenance(entry)}\n${entry.at}:${entry.line}${entry.signature === undefined ? '' : `\n${entry.signature}`}${entry.doc === undefined ? '' : `\n${entry.doc}`}`;
+      const cut = (matches: LexiconMatches): readonly string[] =>
+        matches.total > matches.shown.length ? [`${matches.total - matches.shown.length} more matches not shown.`] : [];
+      if (paths !== undefined && here !== undefined && here.total === 0 && everywhere.total > 0) {
+        // Not usable at the path is a fact with an answer: the workspaces that do offer it, each with its own version.
+        const owner = here.scope.location?.join(', ') ?? 'the manifest that owns it';
+        const where = paths.join(', ');
+        return [
+          `\`${name}\` is not usable from ${where}: ${owner} does not declare or import it. It is offered under:`,
+          ...everywhere.shown.map(described),
+          ...cut(everywhere),
+        ].join('\n\n');
+      }
+      const shown = here ?? everywhere;
+      if (shown.total > 0 || silent.length > 0) return [...silent, ...shown.shown.map(described), ...cut(shown)].join('\n\n');
     }
     if (found.length === 0) throw new Error(unfound(help, name, wanted));
 

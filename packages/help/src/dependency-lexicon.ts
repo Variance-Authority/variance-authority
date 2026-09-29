@@ -81,7 +81,11 @@ export interface SilentPackage {
   readonly reason: string; readonly readme?: DependencyReadme; readonly imported: boolean;
 }
 /** What a question searched: the manifests it read and how many distinct packages they offered. */
-export interface LexiconScope { readonly owners: readonly string[]; readonly packages: number }
+export interface LexiconScope {
+  readonly owners: readonly string[]; readonly packages: number;
+  /** The manifests that own the paths the question stood at; absent when it stood nowhere. */
+  readonly location?: readonly string[];
+}
 export interface LexiconMatches {
   readonly total: number; readonly shown: readonly ThirdPartyMatch[];
   readonly scope: LexiconScope;

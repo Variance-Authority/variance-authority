@@ -61,7 +61,7 @@ describe('what a question takes', () => {
 
   it('marks a required argument required and an optional one optional', () => {
     expect(takes(toolByName('variance_describe')!)).toBe('  --subject <id>');
-    expect(takes(symbol)).toBe('  --name <name> [--package <name>]');
+    expect(takes(symbol)).toBe('  --name <name> [--package <name>] [--from <path>]');
     expect(takes(vantageToolByName('variance_test_signals')!)).toBe('  --test <id>');
     expect(takes(vantageToolByName('variance_run_signals')!)).toContain('[--state <state>]');
   });
