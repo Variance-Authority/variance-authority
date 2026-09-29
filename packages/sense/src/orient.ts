@@ -47,7 +47,7 @@ export interface PackagesAround {
   readonly orientation?: NativeOrientation;
 }
 
-function entry<Name extends 'orientPackages' | 'externalDependencies' | 'casesEntered'>(name: Name) {
+function entry<Name extends 'orientPackages' | 'orientAround' | 'externalDependencies' | 'casesEntered'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -70,14 +70,30 @@ export function packagesAround(root: string, files: readonly string[], limits: O
   return orientation === null ? { index } : { index, orientation };
 }
 
-// TODO: `packagesAround` and this each ask git for the tree's `status`, so a question
-// asks twice what one answer holds; where the repository leaves `core.fsmonitor` off that is
-// 2.2 s a time on seven copies of Material UI, and one entry returning both readings would halve it.
-/** External packages requested by the indexed local import closure of `files`. */
-export function dependenciesAround(root: string, files: readonly string[], limits: OrientLimits): {
+/**
+ * `packagesAround` and `dependenciesAround` over one read of the chain and one listing of the tree, which is
+ * what either costs: where the repository leaves `core.fsmonitor` off, `git status` is 2.2 s on seven copies
+ * of Material UI, and a question that made it twice paid 4.4 s.
+ */
+export function orientAround(root: string, files: readonly string[], packages: OrientLimits, external: OrientLimits): {
+  readonly packages: PackagesAround;
+  readonly external: DependenciesAround;
+} {
+  const index = sourceIndexPath(root);
+  const both = entry('orientAround')(root, index, [...files], packages.rows, packages.names, external.rows, external.names);
+  return both === null
+    ? { packages: { index }, external: { index } }
+    : { packages: { index, orientation: both.packages }, external: { index, orientation: both.external } };
+}
+
+/** The external requests part of an answer. */
+export interface DependenciesAround {
   readonly index: string;
   readonly orientation?: NativeExternalOrientation;
-} {
+}
+
+/** External packages requested by the indexed local import closure of `files`. */
+export function dependenciesAround(root: string, files: readonly string[], limits: OrientLimits): DependenciesAround {
   const inspect = entry('externalDependencies');
   const index = sourceIndexPath(root);
   const orientation = inspect(root, index, [...files], limits.rows, limits.names);

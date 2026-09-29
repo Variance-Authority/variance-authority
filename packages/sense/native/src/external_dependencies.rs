@@ -15,7 +15,7 @@ use rayon::prelude::*;
 use crate::compact::Layer;
 use crate::index_chain::{read_chain, Chain};
 use crate::order::code_unit;
-use crate::package_graph::{fold, join_parses, names_object, Crossing, Listed};
+use crate::package_graph::{fold, join_parses, names_object, orientation, Crossing, Limits, Listed, Orientation};
 use crate::package_owners::{declared, owners, Manifest, NO_OWNER};
 use crate::specifier::{package_of, request_of};
 
@@ -73,6 +73,41 @@ pub fn external_dependencies(
     let snapshot = snapshot.ok_or_else(|| napi::Error::from_reason(format!("git could not list the tree at {root}")))?;
     let listed = Listed { paths: &snapshot.paths, oids: &snapshot.oids };
     inspect(&root, &chain, &listed, &files, rows as usize, sites as usize).map(Some).map_err(fail)
+}
+
+/// Both readings a question makes of the source index, from one read of the chain and one listing of
+/// the working tree: `git status` is the cost of either, and asking it twice charged a question twice.
+#[napi(object)]
+pub struct Around {
+    pub packages: Orientation,
+    pub external: ExternalOrientation,
+}
+
+#[napi(catch_unwind)]
+#[allow(clippy::too_many_arguments, reason = "one index reading and both outputs' bounds")]
+pub fn orient_around(
+    root: String,
+    index: String,
+    files: Vec<String>,
+    package_rows: u32,
+    package_names: u32,
+    external_rows: u32,
+    external_sites: u32,
+) -> napi::Result<Option<Around>> {
+    let (chain, snapshot) = std::thread::scope(|scope| {
+        let snapshot = scope.spawn(|| crate::git::snapshot(&root));
+        (read_chain(&index), snapshot.join().ok().flatten())
+    });
+    let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
+    let Some(chain) = chain.map_err(fail)? else { return Ok(None) };
+    let snapshot = snapshot.ok_or_else(|| napi::Error::from_reason(format!("git could not list the tree at {root}")))?;
+    let listed = Listed { paths: &snapshot.paths, oids: &snapshot.oids };
+    let limits = Limits { rows: package_rows as usize, names: package_names as usize };
+    let (packages, external) = rayon::join(
+        || orientation(&root, &chain, &listed, &files, limits),
+        || inspect(&root, &chain, &listed, &files, external_rows as usize, external_sites as usize),
+    );
+    Ok(Some(Around { packages: packages.map_err(fail)?, external: external.map_err(fail)? }))
 }
 
 struct Found {
