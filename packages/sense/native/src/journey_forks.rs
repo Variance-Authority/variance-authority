@@ -160,7 +160,7 @@ pub(crate) fn between(masks: &mut JourneyMasks, a: &JourneyEnd, b: &JourneyEnd) 
     };
     let both: Vec<&Cluster> = clusters.iter().filter(|c| c.a && c.b).collect();
     let Some(core) = both.first() else { return Ok(answer) };
-    answer.connection = Some(case_of(masks, core.cases[0], core.mask.len() as u32, core.cases.len() as u32 - 1)?);
+    answer.connection = Some(case_of(masks, core.cases[0], core.mask.len() as u32, Some(core.cases.len() as u32 - 1))?);
     answer.thin = (answer.both as usize) < THIN;
     let mut sides = Vec::new();
     for (end, at_a) in [("a", true), ("b", false)] {
@@ -199,7 +199,7 @@ fn side(masks: &JourneyMasks, end: &str, both: &[&Cluster], alone: &[(&Cluster, 
         .filter(|c| turn.is_none_or(|(bit, separation)| c.mask.binary_search(bit).is_ok() == (*separation < 0.0)))
         .min_by_key(|c| (c.mask.len(), c.cases[0]));
     if let Some(c) = story {
-        answer.nearly = Some(case_of(masks, c.cases[0], c.mask.len() as u32, c.cases.len() as u32 - 1)?);
+        answer.nearly = Some(case_of(masks, c.cases[0], c.mask.len() as u32, Some(c.cases.len() as u32 - 1))?);
     }
     if !thin {
         answer.forks = Some(

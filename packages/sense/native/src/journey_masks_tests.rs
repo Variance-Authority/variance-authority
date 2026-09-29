@@ -82,7 +82,7 @@ fn the_fork_is_the_region_that_separates_the_near_misses() {
     let answer = between(&mut masks, &at("src/route.ts", 2), &at("src/target.ts", 2)).unwrap();
     assert_eq!((answer.reached_a, answer.reached_b, answer.both, answer.journeys), (6, 5, 4, 4));
     let connection = answer.connection.unwrap();
-    assert_eq!((connection.case, connection.blocks, connection.alike), (0, 4, 1));
+    assert_eq!((connection.case, connection.blocks, connection.alike), (0, 4, Some(1)));
     assert!(!answer.thin);
     let sides = answer.sides.unwrap();
     assert_eq!(sides.len(), 2);
@@ -101,4 +101,22 @@ fn too_few_connecting_cases_are_not_ranked() {
     assert_eq!(answer.both, 2);
     assert!(answer.thin);
     assert!(answer.sides.unwrap().iter().all(|side| side.forks.is_none()));
+}
+
+#[test]
+fn a_journey_map_draws_what_the_kept_cases_ran_beyond_the_suite() {
+    let mut masks = recorded();
+    let answer = crate::journey_map::map(&mut masks, "src/route.ts", &[]).unwrap().unwrap();
+    assert_eq!((answer.suite, answer.entered, answer.kept, answer.structure), (7, 6, 6, 2));
+    assert_eq!((answer.tests[0].case, answer.tests[0].blocks, answer.tests[0].alike), (4, 3, Some(1)));
+    assert_eq!(answer.functions.len(), 1);
+    assert_eq!(answer.functions[0].paths.iter().map(|p| p.cases).collect::<Vec<_>>(), vec![4, 2]);
+    assert!(answer.spine.is_empty());
+    let branches: Vec<(u32, &str, u32)> = answer.branches.iter().map(|b| (b.cases, b.places[0].name.as_str(), b.smallest.case)).collect();
+    assert_eq!(branches, vec![(2, "other", 1)]);
+    let kept = crate::journey_map::map(&mut masks, "src/route.ts", &["CASE 4".to_owned()]).unwrap().unwrap();
+    assert_eq!((kept.entered, kept.kept, kept.tests[0].case, kept.tests[0].alike), (6, 1, 4, Some(0)));
+    assert_eq!(kept.functions[0].paths.len(), 1);
+    assert!(kept.branches.is_empty());
+    assert!(crate::journey_map::map(&mut masks, "src/absent.ts", &[]).unwrap().is_none());
 }

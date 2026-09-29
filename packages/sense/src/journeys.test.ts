@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { forksBetween, journeysAmong, journeysAround, journeysPath, pathsThrough, prepareJourneys } from './journeys.js';
+import { forksBetween, journeysAmong, journeysAround, journeyMap, journeysPath, pathsThrough, prepareJourneys } from './journeys.js';
 import { updateSourceIndex } from './published.js';
 import { keptRunnerAliases, runnerAliases, runnerConfigs, runnerDigest, unlistedRunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
@@ -190,6 +190,20 @@ describe('journeys read as masks', () => {
     // The miss shares a third of the connecting journey: it arrives by another road, not nearly.
     expect(forks?.sides?.map((side) => [side.end, side.only, side.near, side.best, side.forks ?? null])).toEqual([['a', 1, 0, 1 / 3, null]]);
     expect(pathsThrough(root, { file: 'src/api.ts', line: 2 }, 'no such suite')).toBeUndefined();
+
+    const map = journeyMap(root, 'src/api.ts');
+    expect([map?.suite, map?.entered, map?.kept, map?.structure, map?.spine, map?.branches]).toEqual([3, 3, 3, 0, [], []]);
+    expect(map?.tests.map((test) => [test.name, test.blocks, test.alike])).toEqual([
+      ['misses', 1, 0],
+      ['finds', 3, 1],
+      ['finds again', 3, 1],
+    ]);
+    expect(map?.functions.map((held) => [held.function.name, held.cases, held.paths.length])).toEqual([
+      ['get', 3, 2],
+      ['put', 2, 1],
+    ]);
+    expect(journeyMap(root, 'src/api.ts', ['AGAIN'])?.tests.map((test) => test.name)).toEqual(['finds again']);
+    expect(journeyMap(root, 'src/none.ts')?.notRecorded).toBe('the recording holds no src/none.ts');
   });
 });
 
