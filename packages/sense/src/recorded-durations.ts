@@ -20,7 +20,7 @@ import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
 import { NO_DURATION } from './test-selection/format-layout.js';
-import { recordPath } from './test-selection/record-location.js';
+import { recordPath, richestCaseIndex } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
 import {
   countScope,
@@ -120,9 +120,9 @@ export function recordedDurations(
   });
 }
 
-/** The slowest cases the nearest case index among `candidates` holds. */
+/** The slowest cases the fullest case index among `candidates` holds. */
 function caseDurations(candidates: readonly string[], limit: number, scope: DurationScope): RecordedCaseDurations {
-  const recording = candidates.find((candidate) => existsSync(candidate));
+  const recording = richestCaseIndex(candidates);
   if (recording === undefined) return { recording: candidates[0]!, unread: 'nothing is recorded there' };
   try {
     const bytes = readFileSync(recording);

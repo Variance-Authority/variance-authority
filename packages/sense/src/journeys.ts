@@ -14,14 +14,13 @@
 
 // compass: variance-authority.reach.relations
 
-import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { keptRunnerAliases, runnerConfigs, unlistedRunnerAliases, type RunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
 import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js';
-import { recordPath } from './test-selection/record-location.js';
+import { recordPath, richestCaseIndex } from './test-selection/record-location.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { declaredSuites } from './test-selection/suites.js';
 
@@ -69,13 +68,13 @@ export function journeysPath(index: string, suite?: string): string {
   return suite === undefined ? `${index}.journeys` : `${index}.${encodeURIComponent(suite)}.journeys`;
 }
 
-/** One suite's recording, found the way every reader of a recording finds one: the nearest layer that holds it. */
+/** One suite's recording, found the way every reader of one finds it: the layer that holds the most cases. */
 function recordings(root: string): readonly { readonly suite?: string; readonly recording?: string; readonly looked: string }[] {
   const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
   const layers = repositoryLayers(root);
   return suites.map((suite) => {
     const candidates = layeredFiles(layers, `${recordPath(root, suite)}.cases.bin`);
-    const recording = candidates.find((candidate) => existsSync(candidate));
+    const recording = richestCaseIndex(candidates);
     return { ...(suite === undefined ? {} : { suite }), ...(recording === undefined ? {} : { recording }), looked: candidates[0]! };
   });
 }

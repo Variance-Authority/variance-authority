@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -90,6 +90,30 @@ describe('the recorded cases around some files', () => {
         ],
       },
     ]);
+  });
+
+  it('reads the base layer when a worktree recorded fewer cases, so a partial index never hides the suite', () => {
+    const base = realpathSync(root);
+    const vcs = (...args: string[]): void => void execFileSync('git', ['-C', base, ...args], { stdio: 'pipe' });
+    writeFileSync(join(base, 'a.txt'), 'a\n');
+    vcs('add', '.');
+    vcs('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'one');
+    const tree = join(realpathSync(mkdtempSync(join(tmpdir(), 'va-orient-tree-'))), 'feature');
+    vcs('worktree', 'add', '--quiet', '--detach', tree);
+    const put = (checkout: string, bytes: Uint8Array): string => {
+      const at = `${testCoverageFile(checkout)}.cases.bin`;
+      mkdirSync(dirname(at), { recursive: true });
+      writeFileSync(at, bytes);
+      return at;
+    };
+    const whole = put(base, recording());
+    const sets = new CrossingSets(1);
+    put(tree, encodeSetExecutionIndex({ tests: [TESTS[0]!], modules: [], sets: sets.pool() }));
+
+    const [only] = recordedCases(tree, ['src/api.ts'], 2);
+
+    expect(only).toMatchObject({ recording: whole });
+    expect(only && 'files' in only ? only.files[0]?.cases : undefined).toBe(4);
   });
 
   it('answers a test file with the cases it declares, which no module row holds', () => {
