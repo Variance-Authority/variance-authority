@@ -14,6 +14,8 @@ import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
 import { parseReviewArgs, type ParsedReview } from './review-args.js';
 import { parseCoverageArgs, type ParsedCoverage } from './coverage-args.js';
+import { parseLayersArgs, type ParsedLayers } from './layers-args.js';
+import { parseRestrictionsArgs, type ParsedRestrictions } from './restrictions-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parseCarryArgs, type ParsedCarry } from './carry-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
@@ -113,7 +115,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare | ParsedCarry
+  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare | ParsedCarry
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -313,6 +315,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'review': return parseReviewArgs(flags);
     case 'covering': return parseCoveringArgs(flags);
     case 'coverage': return parseCoverageArgs(flags);
+    case 'layers': return parseLayersArgs(flags);
+    case 'restrictions': return parseRestrictionsArgs(flags);
     case 'index': return parseIndexArgs(flags);
     case 'select': return parseSelectArgs(flags);
     case 'reach': return parseReachArgs(flags);

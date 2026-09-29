@@ -4,8 +4,8 @@
 //! layers, its front — the packages imports from outside land on, as many as
 //! it takes to hold half of them — and the areas it uses most.
 //!
-//! A dependency layer is the longest path down to a package that takes
-//! nothing: such a package is layer 0, and a cycle is one step.
+//! A dependency layer is one more than the highest layer among the packages
+//! a package takes: one that takes nothing is layer 1, and a cycle is one step.
 
 // compass: variance-authority.reach.relations
 
@@ -117,13 +117,13 @@ pub(crate) fn layers(read: &Read) -> (Vec<u32>, u32) {
                     .filter(|&&j| component[j] != c)
                     .map(|&j| layer_of[component[j]] + 1)
                     .max()
-                    .unwrap_or(0);
+                    .unwrap_or(1);
                 layer_of.push(layer);
             }
         }
     }
     let layers: Vec<u32> = component.iter().map(|&c| layer_of[c]).collect();
-    let count = layers.iter().copied().max().map_or(0, |most| most + 1);
+    let count = layers.iter().copied().max().unwrap_or(0);
     (layers, count)
 }
 

@@ -25,7 +25,7 @@ use crate::orient_map_read::{read, Read};
 use crate::orient_map_signals::signals;
 use crate::orient_map_tree::tree;
 
-const FORMAT: u32 = 2;
+const FORMAT: u32 = 3;
 
 #[derive(Serialize, Deserialize)]
 struct Stored {
@@ -41,6 +41,18 @@ struct Stored {
     made: Option<Made>,
     unmade: Option<String>,
     pages: Vec<Page>,
+    /// Every package in code-unit order of name, with the layer it sits in and
+    /// the packages it takes, so two maps can be compared package by package.
+    placed: Vec<Placed>,
+}
+
+/// One package's place in the dependency layers.
+#[derive(Serialize, Deserialize)]
+struct Placed {
+    package: String,
+    directory: String,
+    layer: u32,
+    takes: Vec<String>,
 }
 
 /// What a kept map is, read without its pages.
@@ -237,8 +249,10 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool) ->
         .collect();
     let read = read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), &made);
     let stored = match fold(&read) {
-        Ok((made, pages)) => Stored { format: FORMAT, index: digest, listed, unmarked, made: Some(made), unmade: None, pages },
-        Err(unmade) => Stored { format: FORMAT, index: digest, listed, unmarked, made: None, unmade: Some(unmade.to_owned()), pages: Vec::new() },
+        Ok((made, pages, placed)) => Stored { format: FORMAT, index: digest, listed, unmarked, made: Some(made), unmade: None, pages, placed },
+        Err(unmade) => {
+            Stored { format: FORMAT, index: digest, listed, unmarked, made: None, unmade: Some(unmade.to_owned()), pages: Vec::new(), placed: Vec::new() }
+        }
     };
     let text = serde_json::to_vec(&stored).map_err(|error| fail(error.to_string()))?;
     let written = format!("{path}.{}", std::process::id());
@@ -249,7 +263,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool) ->
 }
 
 /// The map's pages and what they hold, or why there is nothing to fold.
-fn fold(read: &Read) -> Result<(Made, Vec<Page>), &'static str> {
+fn fold(read: &Read) -> Result<(Made, Vec<Page>, Vec<Placed>), &'static str> {
     if read.records == 0 {
         return Err("the source index holds no file records");
     }
@@ -271,7 +285,18 @@ fn fold(read: &Read) -> Result<(Made, Vec<Page>), &'static str> {
     let (layer, count) = layers(read);
     let pages = pages(read, &signals, &areas, &layer);
     let levels = areas.iter().map(|area| if area.id.is_empty() { 0 } else { area.id.split('.').count() as u32 }).max().unwrap_or(0);
-    Ok((Made { packages: pages[0].packages, areas: pages.len() as u32 - 1, levels, layers: count, unread: read.unread }, pages))
+    let mut takes: Vec<Vec<String>> = vec![Vec::new(); read.packages.len()];
+    for &(importer, provider, _) in &read.edges {
+        takes[importer as usize].push(read.packages[provider as usize].name.clone());
+    }
+    let placed = read
+        .packages
+        .iter()
+        .zip(&layer)
+        .zip(takes)
+        .map(|((named, &layer), takes)| Placed { package: named.name.clone(), directory: named.directory.clone(), layer, takes })
+        .collect();
+    Ok((Made { packages: pages[0].packages, areas: pages.len() as u32 - 1, levels, layers: count, unread: read.unread }, pages, placed))
 }
 
 /// One row of a page, as `variance ask orient` prints it.
@@ -370,6 +395,48 @@ pub fn orient_map_page(index: String, area: Option<String>) -> napi::Result<Opti
         list: page.list,
     });
     Ok(Some(OrientMapAnswer { current, layers: stored.made.map(|made| made.layers), page, unmade: stored.unmade }))
+}
+
+/// One package's place in the dependency layers of a kept map.
+#[napi(object)]
+pub struct OrientPackageLayer {
+    pub package: String,
+    pub directory: String,
+    /// One more than the highest layer among the packages it takes; a package
+    /// that takes nothing is layer 1.
+    pub layer: u32,
+    /// The packages it imports from, in code-unit order.
+    pub takes: Vec<String>,
+}
+
+#[napi(object)]
+pub struct OrientLayers {
+    /// Whether the map was folded from the index as it stands now.
+    pub current: bool,
+    /// Every package in code-unit order of name; `undefined` when there was
+    /// nothing to fold, and `unmade` says why.
+    pub packages: Option<Vec<OrientPackageLayer>>,
+    pub unmade: Option<String>,
+}
+
+/// Every package's layer from the map kept beside the index at `index`.
+/// `undefined` when no map is kept there, or one of a format this reader does
+/// not know.
+#[napi(catch_unwind)]
+pub fn orient_layers(index: String) -> napi::Result<Option<OrientLayers>> {
+    let path = map_path(&index);
+    let Some(bytes) = kept_bytes(&path).map_err(napi::Error::from_reason)? else { return Ok(None) };
+    let stored: Stored = serde_json::from_slice(&bytes)
+        .map_err(|error| napi::Error::from_reason(format!("the code map at {path} did not read: {error}")))?;
+    let current = manifest_digest(&index).as_deref() == Some(stored.index.as_str());
+    let packages = stored.made.map(|_| {
+        stored
+            .placed
+            .into_iter()
+            .map(|placed| OrientPackageLayer { package: placed.package, directory: placed.directory, layer: placed.layer, takes: placed.takes })
+            .collect()
+    });
+    Ok(Some(OrientLayers { current, packages, unmade: stored.unmade }))
 }
 
 #[cfg(all(test, unix))]

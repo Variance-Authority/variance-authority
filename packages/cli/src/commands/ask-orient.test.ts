@@ -142,11 +142,11 @@ describe('variance ask orient', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        `# ${basename(root)}: 20 packages in 6 dependency layers (0 takes nothing), 20 source files, 4 areas`,
-        '1 packages/admin/ admin · 5 pkg, 5 files · layers 0–4 (median 2)',
-        '2 packages/data/ data · 5 pkg, 5 files · layers 0–4 (median 2)',
-        '3 packages/shop/ shop · 5 pkg, 5 files · layers 1–5 (median 3) · uses 4 100%',
-        '4 packages/tools/ tools · 5 pkg, 5 files · layers 0–4 (median 2) · front: tools-0 100%',
+        `# ${basename(root)}: 20 packages in 6 dependency layers (1 takes nothing), 20 source files, 4 areas`,
+        '1 packages/admin/ admin · 5 pkg, 5 files · layers 1–5 (median 3)',
+        '2 packages/data/ data · 5 pkg, 5 files · layers 1–5 (median 3)',
+        '3 packages/shop/ shop · 5 pkg, 5 files · layers 2–6 (median 4) · uses 4 100%',
+        '4 packages/tools/ tools · 5 pkg, 5 files · layers 1–5 (median 3) · front: tools-0 100%',
         '',
       ].join('\n'),
     });
@@ -154,7 +154,7 @@ describe('variance ask orient', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        '# 3 packages/shop/ shop: 5 packages in dependency layers 1–5 of 6, 5 source files, 0 areas',
+        '# 3 packages/shop/ shop: 5 packages in dependency layers 2–6 of 6, 5 source files, 0 areas',
         '  packages: shop-0, shop-1, shop-2, shop-3, shop-4',
         '',
       ].join('\n'),
