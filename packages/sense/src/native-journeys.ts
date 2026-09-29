@@ -247,7 +247,7 @@ export interface NativeJourneySide {
   readonly near: number;
   /** The most any of them shares with a connecting journey, when none nearly connected. */
   readonly best?: number | null;
-  /** Strongest first; absent when nothing nearly connected or the connection is thin. */
+  /** Strongest first; absent when nothing nearly connected, or the connecting cases or this side's near misses are too few to separate. */
   readonly forks?: readonly NativeJourneyFork[] | null;
   readonly nearly?: NativeJourneyCase | null;
 }
