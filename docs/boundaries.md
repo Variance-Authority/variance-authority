@@ -2,20 +2,20 @@
 
 `variance layers` numbers every package by the longest chain of packages it
 imports beneath it, and tells you in a pull request which packages changed
-number.
-`variance restrictions` checks imports against rules you write down. Neither
-asks you to tag packages or declare an architecture first: both read the import
-graph in the [source index](source-index.md), so the layers are the ones your
-code has, not the ones a config says it should have.
+number. It needs no declaration of an architecture: it derives the depth from
+the imports already in the [source index](source-index.md), so the layers are
+the ones your code has, not the ones a config says it should have.
+`variance restrictions` adds policy when you want to state a relationship or a
+depth limit that must hold. Neither asks you to tag packages.
 
 ## Why the number matters
 
-An import is cheap to write and lasting to own. The layer makes its cost
-visible. A package that imports nothing else in the repository is layer 1. Any
+An import is cheap to write and lasting to own. The layer makes what it does
+to the depth of the graph visible. A package that imports nothing else in the repository is layer 1. Any
 other package is one layer above the highest layer among the packages it
 imports. Packages that import each other in a cycle count as one step.
 
-The number says three separate things.
+The number says two things, and a third that it does not.
 
 **How deep a package's longest chain goes.** A layer 1 package can be used,
 built and tested alone. A layer 7 package has a chain of six packages under it,
@@ -27,20 +27,23 @@ packages most of the repository imports sit in the lowest layers, so a change
 to one of them affects the most code. Layers count how long the chain a package
 needs is, not how many packages it needs and not what needs it.
 
-**Which way the graph points.** With layers, every import has a direction, and
-the direction is the same for the whole repository: a package may know about
-what is below it, and what is below it cannot know about it. The cycle that
+**Which way the graph points.** Outside cycles, every import points from a
+higher layer to a lower one, and that is the same for the whole repository: a
+package may know about what is below it, and what is below it cannot know about
+it. Packages in a cycle collapse into the same step. The cycle that
 nobody chose, where four reasonable imports add up to `core` importing
 `feature` importing `helper` importing `core`, shows up as one step instead of
 four layers, which is a change you can see in a review. Layers do not forbid an
 import. They give the graph a down.
 
-**What builds and checks have to redo.** Building, type checking, bundling and
-task scheduling in tools such as Nx follow the static package graph, so a change
-low in it invalidates more of it. This does not apply to test selection.
-[Selecting tests](selecting.md) uses which tests ran the changed code in a
-recorded run, not which packages import it, so a tall graph does not make
-Variance run more tests.
+**Affected work, which the number does not say.** Depth is separate from how
+much a change affects. Build tools such as Nx use the same package graph to
+decide what a change may invalidate, but that depends on what imports the
+changed package: a layer 1 package nobody imports affects nothing, and a layer 1
+package that 400 packages import affects all of them. Test selection is
+different again. [Selecting tests](selecting.md) uses which tests ran the
+changed code in a recorded run, not which packages import it, so a tall graph
+does not make Variance run more tests.
 
 ## Declared or derived
 
@@ -235,9 +238,9 @@ Both the flat-directory cap and the folder cap are run as tests
   is not a layer, and `restrictions` does not check it.
 - **The comment names packages, not files.** It says which package took a new
   dependency, not which file wrote the import.
-- **No measured effect is claimed.** The argument is structural: a layer count
-  is a cost you can see, and a direction is one you can reason from. Nothing
-  here says fewer layers build faster.
+- **No measured effect is claimed.** The argument is structural:
+  dependency depth is a consequence you can see, and dependency direction is
+  something you can reason from. Nothing here says fewer layers build faster.
 
 See [orientation](orientation.md#start-from-the-map) for the layers as they
 appear in the code map, and [the CLI](../packages/cli) for every flag.
