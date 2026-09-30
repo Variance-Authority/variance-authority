@@ -167,12 +167,12 @@ export async function review(request: ParsedReview): Promise<Review> {
   // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
   const recorded = await recordedSuite(root, request.suite);
   // The runs are always this checkout's own, never the primary's a worktree that has not run
-  // reads its recording from: the primary's runs describe the primary's change, not this one.
+  // reads its recording from, and a record seeded from the base (`runs: 0`) lists none of them.
   const own = await landingRecord(root, request.suite);
   const runs = await readCommitRuns(own).catch((error: unknown) => {
     const remedy = 'It says where this change starts: run the suite, which rewrites it; delete it first only if it is a directory';
     throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${remedy}.`, { cause: error });
-  });
+  }).then((listed) => (listed?.runs === 0 ? undefined : listed));
   const given = request.since ?? (await runsBase(root, runs, own));
   // Runs that name no start (`runsBase`), and no base named: a suite given to a
   // share starts from the record its mainline published, as a fresh CI checkout

@@ -13,12 +13,13 @@
 
 import { randomUUID } from 'node:crypto';
 import { statSync } from 'node:fs';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
+import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
-import { openTestCoverage } from './format-view.js';
+import { openTestCoverage, type TestCoverageView } from './format-view.js';
 import { declaredSuite } from './suites.js';
 
 export interface RecordLocationOptions {
@@ -107,6 +108,9 @@ export function recordFileFor(
  * must not be able to fail every worktree of the repository at once. The run
  * proceeds with no index and records one.
  *
+ * The snapshot is seeded with a runs record beside it, which says where each
+ * of its tests last ran: see {@link seedCommitRuns}.
+ *
  * Does nothing at all when the caller named its own file, or in the primary
  * checkout, where the two layers are one directory.
  */
@@ -121,7 +125,10 @@ export async function seedTestCoverage(
   // anything: there is no base beneath a path somebody passed in.
   const inside = relative(layers.top, file).split(sep).join('/');
   if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return;
-  const seeded = await seedFrom(layers.base, inside, file, (bytes) => void openTestCoverage(bytes));
+  let snapshot: TestCoverageView | undefined;
+  const seeded = await seedFrom(layers.base, inside, file, (bytes) => {
+    snapshot = openTestCoverage(bytes);
+  });
   // The case index is a second record beside the snapshot, and the run folds
   // into whatever it finds there, replacing the cases of the files it ran. With
   // nothing seeded the first run in a worktree would write a partial index that
@@ -131,10 +138,60 @@ export async function seedTestCoverage(
   // there and whose index is not has no recorded cases — a landing removed
   // them, or its runs recorded none — and the base's index is the cases of a
   // different snapshot.
-  if (!seeded) return;
+  if (!seeded || snapshot === undefined) return;
   await seedFrom(layers.base, `${inside}.cases.bin`, `${file}.cases.bin`, (bytes) => {
     if (openSetExecutionIndex(bytes) === undefined) decodeExecutionTests(bytes);
   });
+  await seedCommitRuns(file, resolve(layers.base, inside), snapshot);
+}
+
+/**
+ * Lay a runs record beside a snapshot just copied from the base, saying where
+ * each of its tests last ran.
+ *
+ * The primary checkout's record is the recording of `main` as of its last run,
+ * and it is what every worktree starts from, so a test the worktree has not run
+ * last ran where that record says it did. The runs record beside it says that
+ * per test, and it is carried rather than worked out again: `commit`, `over`,
+ * `files` and `standing` as the base wrote them. Without it the worktree's first
+ * partial run finds no record to carry `standing` forward from, and until a run
+ * observes every test, a test it did not run is read from the worktree's own
+ * first commit — which skips it after a change it never ran against.
+ *
+ * A copy, and nothing added to it: an entry the base marked assumed stays
+ * marked, and a test the base's record does not place is read from the base's
+ * `over`, as the base reads it. The worktree's first run lists that test at the
+ * copy's `over`, marked assumed, as the base's next run would (see `landRun`).
+ *
+ * Nothing is seeded when the base has no runs record, or one naming another
+ * commit than its snapshot — a landing replaced the snapshot and listed no
+ * run. A snapshot names the commit of its latest run, not of every test in it,
+ * so a seed built from it would record a guess. The worktree's reading then
+ * says, on the line under the one naming whose record it read, how many tests
+ * it could not place and where it read them from.
+ *
+ * `runs` is 0, so the worktree's first run at the same commit is not counted
+ * as another run of the base's — see `landRun` — and a review still finds that
+ * no run of this checkout has listed itself.
+ *
+ * The record is linked into place rather than renamed over it, so a runs record
+ * already beside the snapshot when the link is made is kept. That protects this
+ * file only: the snapshot and its case index are copied by {@link seedFrom}.
+ */
+async function seedCommitRuns(file: string, base: string, snapshot: TestCoverageView): Promise<void> {
+  const commit = snapshot.commit;
+  if (commit === undefined) return;
+  let held: CommitRuns | undefined;
+  try {
+    held = await readCommitRuns(base);
+  } catch {
+    // A record this build cannot parse says nothing about this snapshot.
+    return;
+  }
+  if (held?.commit !== commit) return;
+  const at = new Date().toISOString();
+  const record: CommitRuns = { ...held, first: at, latest: at, runs: 0 };
+  await writeCoverageOnce(commitRunsFile(file), Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
 }
 
 /**
@@ -148,6 +205,9 @@ async function seedFrom(
   target: string,
   opens: (bytes: Uint8Array) => void,
 ): Promise<boolean> {
+  // FIXME: the check and the copy are two steps, so two first writes in one
+  // worktree can both find `target` missing, and the later copy replaces a
+  // snapshot the earlier one already landed a run on.
   try {
     await stat(target);
     return false;
@@ -224,6 +284,23 @@ export async function writeCoverageBytes(file: string, bytes: Uint8Array): Promi
   const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
   await writeFile(temporary, bytes);
   await rename(temporary, file);
+}
+
+/**
+ * {@link writeCoverageBytes} for a file somebody else may be writing: the bytes
+ * are linked into place, never over it, so whoever wrote the path first keeps
+ * it and a reader still never sees a partial file.
+ *
+ * Only for a file that may go unwritten. A link that fails for any reason is
+ * not an error: the path is already somebody's, or the file system has no hard
+ * links (FAT, exFAT, SMB, some FUSE mounts). A reader finding no file says so.
+ */
+async function writeCoverageOnce(file: string, bytes: Uint8Array): Promise<void> {
+  await mkdir(dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
+  await writeFile(temporary, bytes);
+  await link(temporary, file).catch(() => {});
+  await unlink(temporary).catch(() => {});
 }
 
 function missing(error: unknown): boolean {
