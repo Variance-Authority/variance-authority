@@ -29,6 +29,13 @@
  * see the part of their diff this answer is not about. A diff that is *entirely*
  * such paths still refuses, because then there is nothing left to be about.
  *
+ * ## A path the diff deletes
+ *
+ * No scan holds a file that is gone, so a deletion is not the gap in the scan
+ * that [`reach.ts`](./reach.ts) refuses over. It is taken out before the walk
+ * and named on stderr, as a path no reader claims is, and a diff of nothing
+ * but deletions refuses for the same reason.
+ *
  * ## A change that runs nothing
  *
  * A changed file whose edit was a comment, a type or formatting is read from
@@ -44,8 +51,12 @@
  * made, so `quiet` and `exports` are absent from the JSON rather than empty.
  */
 
+import { execFile } from 'node:child_process';
+import { join, relative } from 'node:path';
+import { promisify } from 'node:util';
 import { OperatorError } from '../exit.js';
-import { affectedFiles, listed, refused } from './reach.js';
+import type { DiffPoint } from './installed.js';
+import { affectedFiles, listed, many, refused } from './reach.js';
 import { relationsFor } from './source-graph.js';
 import { changedSince, diffPoint, movedSince } from './since.js';
 
@@ -92,12 +103,23 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   }, request.noGit);
   const { READABLE } = await import('@variance-authority/sense');
 
-  const readable = changed.filter((file) => READABLE.has(suffixOf(file)));
-  const unread = changed.filter((file) => !READABLE.has(suffixOf(file)));
+  const point = await diffPoint(request.since);
+  const deleted = point === undefined ? [] : await deletedAt(point);
+  const gone = new Set(deleted);
+  const present = changed.filter((file) => !gone.has(file));
+  if (present.length === 0) {
+    throw new OperatorError(
+      `the diff since \`${request.since}\` deletes ${many(deleted.length, 'file')} and changes nothing that ` +
+        `exists (${listed(deleted)}): a deleted file is in no graph, so there is nothing to walk from`,
+    );
+  }
+
+  const readable = present.filter((file) => READABLE.has(suffixOf(file)));
+  const unread = present.filter((file) => !READABLE.has(suffixOf(file)));
 
   const movedExports = request.wholeFiles
     ? undefined
-    : ((await movedSince(await diffPoint(request.since), readable)) ?? new Map<string, readonly string[]>());
+    : ((await movedSince(point, readable)) ?? new Map<string, readonly string[]>());
   const quiet = movedExports && readable.filter((file) => movedExports.get(file)?.length === 0);
   const reach = affectedFiles(relations, readable, ['.'], [], movedExports);
   if (refused(reach)) {
@@ -116,6 +138,12 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
       ? []
       : [
           `${unread.length} left out of the walk, in no language this build reads: ${listed(unread)}`,
+        ]),
+    ...(deleted.length === 0
+      ? []
+      : [
+          `${deleted.length} deleted since \`${request.since}\`, and so in no graph; a file that imported one is reached ` +
+            `through its own edit, or through the file its import resolves to now: ${listed(deleted)}`,
         ]),
   ];
 
@@ -142,6 +170,48 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
         : `${reach.files.join('\n')}\n`,
     err: `${notes.join('\n')}\n`,
   };
+}
+
+/**
+ * The changed paths the diff deletes, in run coordinates, as git lists them
+ * from the same merge base `changedSince` measured from, with the same reading
+ * of renames: a renamed file is its new path, and is no deletion.
+ *
+ * A deleted file is not a gap in the scan: the tree the graph is read from no
+ * longer holds it, so no scan could. What it reached lives in the files that
+ * imported it, and each of those either changed with it, and seeds the walk,
+ * or asks for the same path and lands on the file that replaced it, which the
+ * walk reaches from the diff.
+ */
+// TODO: an unchanged importer whose relative request resolved to a deleted file
+// and now resolves to nothing is not reached; that needs the base's edges.
+export async function deletedAt(point: DiffPoint): Promise<readonly string[]> {
+  let stdout: string;
+  try {
+    ({ stdout } = await promisify(execFile)(
+      'git',
+      ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', '--diff-filter=D', point.base],
+      { cwd: point.repository, maxBuffer: 32 * 1024 * 1024 },
+    ));
+  } catch (error) {
+    // Refused rather than read as no deletions: a deleted file missing from
+    // this list is walked from as though it were still there.
+    throw new OperatorError(
+      `git could not list the files deleted since \`${point.base}\` in ${point.repository}: ${gitSaid(error)}`,
+    );
+  }
+  const here = process.cwd();
+  return stdout
+    .split('\0')
+    .filter((file) => file !== '')
+    .map((file) => relative(here, join(point.repository, file)));
+}
+
+/** What git wrote to stderr when it failed, or the error's own message when it wrote nothing. */
+function gitSaid(error: unknown): string {
+  const stderr = (error as { stderr?: unknown }).stderr;
+  const said = typeof stderr === 'string' ? stderr.trim() : '';
+  return said !== '' ? said : error instanceof Error ? error.message : String(error);
 }
 
 /** The whole suffix, in the spelling `languageOf` is keyed by. */

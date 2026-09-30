@@ -1,5 +1,7 @@
-import { existsSync, globSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, globSync, readFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
+import { parse as parseYaml } from 'yaml';
+import { members } from './members.js';
 
 /**
  * What a workspace publishes, read from the manifests rather than from a build.
@@ -73,12 +75,15 @@ export function requested(specifier: string): string {
   return `${name} .${specifier.slice(name.length)}`;
 }
 
+/** A manifest or a tsconfig, as the object it holds; a `package.yaml` member is YAML. */
 function read(path: string): Record<string, unknown> {
   const source = readFileSync(path, 'utf8');
+  const yaml = path.endsWith('.yaml');
   try {
-    return JSON.parse(path.endsWith('tsconfig.json') ? jsonc(source) : source) as Record<string, unknown>;
+    const held: unknown = yaml ? parseYaml(source) : JSON.parse(path.endsWith('tsconfig.json') ? jsonc(source) : source);
+    return (held ?? {}) as Record<string, unknown>;
   } catch (error) {
-    throw new Error(`${path} is not readable JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`${path} is not readable ${yaml ? 'YAML' : 'JSON'}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -130,55 +135,6 @@ function jsonc(source: string): string {
     cleaned += char;
   }
   return cleaned;
-}
-
-/**
- * Every manifest the root's `workspaces` field reaches.
- *
- * Only a literal path and a trailing `/*` are understood, because those are what
- * a workspace field almost always holds and a half-implemented glob that quietly
- * matches the wrong set is worse than one that says it cannot. A repository with
- * no `workspaces` at all is one package, and that is the interesting case for
- * anybody who is not a monorepo.
- *
- * A repository with no root manifest publishes nothing, and that is an answer
- * rather than an error. Plenty of checkouts are not npm projects at all — a
- * Swift application with a landing page under it, a service with a web client in
- * a subdirectory — and the question *where is the thing that does X* is asked of
- * those more often than of a monorepo. Nothing is published there, so nothing is
- * on the published half of an answer, and everything the source exports is still
- * read.
- */
-function members(root: string): readonly string[] {
-  if (!existsSync(join(root, 'package.json'))) return [];
-
-  const { workspaces } = read(join(root, 'package.json'));
-  const globs = Array.isArray(workspaces)
-    ? (workspaces as string[])
-    : (((workspaces as { packages?: string[] } | undefined)?.packages ?? []) as string[]);
-
-  if (globs.length === 0) return [join(root, 'package.json')];
-
-  const found: string[] = [];
-  for (const glob of globs) {
-    if (!glob.includes('*')) {
-      const manifest = join(root, glob, 'package.json');
-      if (existsSync(manifest)) found.push(manifest);
-      continue;
-    }
-
-    if (!glob.endsWith('/*')) {
-      throw new Error(`workspace glob \`${glob}\` is neither a path nor \`dir/*\`, which is all this reads`);
-    }
-
-    const parent = join(root, glob.slice(0, -2));
-    if (!existsSync(parent)) continue;
-    for (const name of readdirSync(parent).sort()) {
-      const manifest = join(parent, name, 'package.json');
-      if (existsSync(manifest)) found.push(manifest);
-    }
-  }
-  return found;
 }
 
 /**
@@ -295,6 +251,42 @@ function declarationsOf(condition: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * The declaration file written beside a bare JavaScript export, or `undefined`
+ * when there is none.
+ *
+ * `"./src/index.js"` with `src/index.d.ts` next to it is how a package whose
+ * source is JavaScript publishes hand-written types, and the sibling is what
+ * TypeScript itself resolves that path to. It is authored, not emitted, so it is
+ * the source: nothing is mapped back through a tsconfig. A wildcard is returned
+ * as a pattern and the glob in {@link openedBy} keeps only the files that exist.
+ *
+ * Only for JavaScript that is source. Under the package's `outDir` the file
+ * beside it was emitted, and exists only when the build ran; an answer read
+ * from it would change with whether somebody had built.
+ */
+// FIXME: a package with no tsconfig `outDir` that builds into `dist` beside a
+// bare `./dist/index.js` export opens the emitted `dist/index.d.ts` whenever a
+// build has run, so the answer changes with whether somebody built. Open the
+// sibling only when the repository tracks it; a condition object with no
+// `types` is not read this way at all.
+function besideOf(dir: string, condition: unknown): string | undefined {
+  if (typeof condition !== 'string') return undefined;
+  const found = /\.(m|c)?js$/.exec(condition);
+  if (found === null || emittedInto(dir, condition)) return undefined;
+  const declaration = `${condition.slice(0, found.index)}.d.${found[1] ?? ''}ts`;
+  if (declaration.includes('*')) return declaration;
+  return existsSync(join(dir, declaration)) ? declaration : undefined;
+}
+
+/** Whether `target` sits under the `outDir` the package's own tsconfig declares. */
+function emittedInto(dir: string, target: string): boolean {
+  const config = join(dir, 'tsconfig.json');
+  if (!existsSync(config)) return false;
+  const outDir = (read(config) as { compilerOptions?: { outDir?: unknown } }).compilerOptions?.outDir;
+  return typeof outDir === 'string' && posix.normalize(target).startsWith(posix.normalize(`${outDir}/`));
+}
+
 function openedBy(dir: string, subpath: string, types: string): readonly Entrypoint[] {
   if (!types.includes('*')) return [{ subpath, source: sourceOf(dir, types) }];
   if ((types.match(/\*/g)?.length ?? 0) !== 1 || (subpath.match(/\*/g)?.length ?? 0) !== 1) {
@@ -327,7 +319,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
   const offered = options.offered ?? OFFERED;
   const found: Offering[] = [];
 
-  for (const path of members(resolve(root))) {
+  for (const path of members(resolve(root), read)) {
     const manifest = read(path);
     if (manifest['private'] === true || typeof manifest['name'] !== 'string') continue;
 
@@ -339,7 +331,12 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
     const unreadable: string[] = [];
     const exports = (manifest['exports'] ?? {}) as Record<string, unknown>;
     for (const [subpath, condition] of Object.entries(exports)) {
-      const types = declarationsOf(condition);
+      const authored = besideOf(dir, condition);
+      if (authored !== undefined && !authored.includes('*')) {
+        entrypoints.push({ subpath, source: join(dir, authored) });
+        continue;
+      }
+      const types = authored ?? declarationsOf(condition);
       if (types === undefined) continue;
       try {
         entrypoints.push(...openedBy(dir, subpath, types));

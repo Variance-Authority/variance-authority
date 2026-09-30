@@ -1,7 +1,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { NO_ARGS } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { specifierOf } from './find.js';
+import { NOTHING_PUBLISHED, specifierOf } from './find.js';
 
 /**
  * `docs_packages` — every door this workspace opens.
@@ -21,7 +21,8 @@ export const packages: Tool<Help> = {
   inputSchema: NO_ARGS,
 
   run(help) {
-    const lines: string[] = [];
+    const lines: string[] =
+      help.packages.length === 0 ? [`${NOTHING_PUBLISHED.charAt(0).toUpperCase()}${NOTHING_PUBLISHED.slice(1)}.`] : [];
 
     for (const published of help.packages) {
       for (const held of published.openings) {

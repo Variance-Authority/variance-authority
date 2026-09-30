@@ -130,15 +130,35 @@ describe('reading a workspace', () => {
     });
     expect(readOfferings(root)[0]?.entrypoints[0]?.source).toBe(join(root, 'src/index.d.ts'));
   });
+
+  it('opens a JavaScript export by the declaration file written beside it', () => {
+    // What TypeScript resolves `./src/index.js` to, and how a package whose
+    // source is JavaScript with hand-written types publishes them.
+    const root = workspace({
+      'package.json': {
+        name: 'beside',
+        exports: { '.': './src/index.js', './*': './src/*/index.js', './raw': './raw.js', './tool': './dist/tool.cjs' },
+      },
+      // Emitted by a build, so present only when one ran: never an opening.
+      'tsconfig.json': { compilerOptions: { rootDir: './src', outDir: './dist' } },
+      'dist/tool.cjs': 'module.exports = {};\n',
+      'dist/tool.d.cts': 'export {};\n',
+      'src/index.js': 'export const value = 1;\n',
+      'src/index.d.ts': 'export declare const value: number;\n',
+      'src/Button/index.js': 'export const Button = 1;\n',
+      'src/Button/index.d.ts': 'export declare const Button: number;\n',
+      'raw.js': 'export const raw = 1;\n',
+    });
+    const [beside] = readOfferings(root);
+    expect(beside?.entrypoints.map((entry) => [entry.subpath, entry.source.slice(root.length)])).toEqual([
+      ['.', '/src/index.d.ts'],
+      ['./Button', '/src/Button/index.d.ts'],
+    ]);
+  });
 });
 
 describe('what it refuses rather than guesses', () => {
   const manifest = { name: 'one', exports: { '.': { types: './dist/index.d.ts' } } };
-
-  it('a workspace glob it does not understand', () => {
-    const root = workspace({ 'package.json': { workspaces: ['packages/**/deep'] } });
-    expect(() => readOfferings(root)).toThrow(/neither a path nor/);
-  });
 
   it('a published declaration with no tsconfig to say what produced it', () => {
     const root = workspace({ 'package.json': manifest });
@@ -212,3 +232,30 @@ describe('a repository that is not a monorepo', () => {
     expect(ownership(root)('landing/src/index.ts')).toBe('landing');
   });
 });
+
+describe('a pnpm workspace', () => {
+  // pnpm declares its members in `pnpm-workspace.yaml`, and its root manifest
+  // carries no `workspaces`: read as one package, the private root publishes
+  // nothing and every member goes missing.
+  const members = {
+    'package.json': { name: 'mono', private: true },
+    'packages/mui-alpha/package.json': { name: '@scope/alpha', exports: { '.': './src/index.ts' } },
+    'packages/mui-alpha/src/index.ts': 'export const alpha = 1;\n',
+    'docs/package.json': { name: 'docs' },
+  };
+
+  it('reads its members from the file pnpm reads them from', () => {
+    const root = workspace({
+      ...members,
+      'pnpm-workspace.yaml': "packages:\n  - packages/*\n  # the site\n  - 'docs'\n\nengineStrict: true\n",
+    });
+    expect(readOfferings(root).map((offering) => offering.name)).toEqual(['@scope/alpha', 'docs']);
+  });
+});
+
+it.todo(
+  'a condition object with no `types`, such as `{ "import": "./src/index.js" }`, opens by the `.d.ts` beside its first JavaScript target — needs `besideOf` to read condition objects',
+);
+it.todo(
+  'a `.d.ts` beside a bare `.js` export opens only when the repository tracks it, so a build output in `dist` opens nothing — needs `besideOf` to ask git which siblings are tracked',
+);
