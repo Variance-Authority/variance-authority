@@ -1,5 +1,9 @@
 # @variance-authority/tribunal
 
+## 0.13.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.12.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
