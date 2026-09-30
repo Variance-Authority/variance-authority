@@ -22,7 +22,7 @@ export type RangeState = 'walked' | 'alone' | 'loaded' | 'hole' | 'unwalked';
 /** The one state a range's cases and stopped cases add up to, or absent when the record cannot tell. */
 export function stateOf(range: SourceTestRange): RangeState | undefined {
   const called = range.tests.filter((test) => test.loaded !== true).length;
-  if (called >= 2) return 'walked';
+  if (called > 1) return 'walked';
   if (called === 1) {
     if (range.stopped === undefined) return undefined;
     return range.stopped.length === 0 ? 'alone' : 'walked';
