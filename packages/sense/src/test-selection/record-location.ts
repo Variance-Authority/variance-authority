@@ -16,9 +16,11 @@ import { statSync } from 'node:fs';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
+import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
-import { openTestCoverage } from './format-view.js';
+import { openTestCoverage, type TestCoverageView } from './format-view.js';
+import { codeUnitOrder } from './instrumented-modules.js';
 import { declaredSuite } from './suites.js';
 
 export interface RecordLocationOptions {
@@ -107,6 +109,9 @@ export function recordFileFor(
  * must not be able to fail every worktree of the repository at once. The run
  * proceeds with no index and records one.
  *
+ * The snapshot is seeded with a runs record beside it, which says where each
+ * of its tests last ran: see {@link seedCommitRuns}.
+ *
  * Does nothing at all when the caller named its own file, or in the primary
  * checkout, where the two layers are one directory.
  */
@@ -121,7 +126,10 @@ export async function seedTestCoverage(
   // anything: there is no base beneath a path somebody passed in.
   const inside = relative(layers.top, file).split(sep).join('/');
   if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return;
-  const seeded = await seedFrom(layers.base, inside, file, (bytes) => void openTestCoverage(bytes));
+  let snapshot: TestCoverageView | undefined;
+  const seeded = await seedFrom(layers.base, inside, file, (bytes) => {
+    snapshot = openTestCoverage(bytes);
+  });
   // The case index is a second record beside the snapshot, and the run folds
   // into whatever it finds there, replacing the cases of the files it ran. With
   // nothing seeded the first run in a worktree would write a partial index that
@@ -131,10 +139,72 @@ export async function seedTestCoverage(
   // there and whose index is not has no recorded cases — a landing removed
   // them, or its runs recorded none — and the base's index is the cases of a
   // different snapshot.
-  if (!seeded) return;
+  if (!seeded || snapshot === undefined) return;
   await seedFrom(layers.base, `${inside}.cases.bin`, `${file}.cases.bin`, (bytes) => {
     if (openSetExecutionIndex(bytes) === undefined) decodeExecutionTests(bytes);
   });
+  await seedCommitRuns(file, resolve(layers.base, inside), snapshot);
+}
+
+/**
+ * Lay a runs record beside a snapshot just copied from the base, saying where
+ * each of its tests last ran.
+ *
+ * The primary checkout's record is the recording of `main` as of its last run,
+ * and it is what every worktree starts from, so a test the worktree has not run
+ * last ran where that record says it did. The runs record beside it says that
+ * per test, and it is carried rather than worked out again: `commit`, `files`
+ * and `standing` as the base wrote them. Without it the worktree's first
+ * partial run finds no record to carry `standing` forward from, and until a run
+ * observes every test, a test it did not run is read from the worktree's own
+ * first commit — which skips it after a change it never ran against.
+ *
+ * A base with no runs record is read by the repository's own position rather
+ * than left unsaid: the primary checkout's record is a recording of its commit,
+ * so every test in it ran there, and the seeded record lists them all in
+ * `files`. That is assumed, not recorded — a base written before runs were
+ * listed beside it, or by a landing that listed none, is taken to have run
+ * every test at the commit it names.
+ *
+ * A base whose runs record names another commit than its snapshot — a landing
+ * replaced the snapshot and listed no run — speaks for a snapshot that is not
+ * this one, and nothing is seeded. The worktree's reading then says, on the
+ * line under the one naming whose record it read, which tests it could not
+ * place and where it read them from.
+ *
+ * `over` is never carried: it is where the base's change started, and a review
+ * in the worktree asks where the worktree's own change starts. `runs` is 0, so
+ * the worktree's first run at the same commit is not counted as another run of
+ * the base's — see `landRun` — and a review still finds that no run of this
+ * checkout has listed itself.
+ */
+async function seedCommitRuns(file: string, base: string, snapshot: TestCoverageView): Promise<void> {
+  const commit = snapshot.commit;
+  if (commit === undefined) return;
+  const target = commitRunsFile(file);
+  try {
+    await stat(target);
+    return;
+  } catch (error) {
+    if (!missing(error)) throw error;
+  }
+  let held: CommitRuns | undefined;
+  try {
+    held = await readCommitRuns(base);
+  } catch {
+    // A record this build cannot parse says nothing about this snapshot.
+    return;
+  }
+  if (held !== undefined && held.commit !== commit) return;
+  const at = new Date().toISOString();
+  const carried: Pick<CommitRuns, 'files' | 'standing'> = held === undefined
+    ? {
+        files: Array.from(snapshot.testPath.all(), (path) => snapshot.string(path)).sort(codeUnitOrder),
+        standing: [],
+      }
+    : { files: held.files, ...(held.standing === undefined ? {} : { standing: held.standing }) };
+  const record: CommitRuns = { commit, first: at, latest: at, runs: 0, ...carried };
+  await writeCoverageBytes(target, Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
 }
 
 /**

@@ -57,7 +57,11 @@ export interface CommitRuns {
   /** When the first and the latest of the runs landed. */
   readonly first: string;
   readonly latest: string;
-  /** How many runs landed at this commit. */
+  /**
+   * How many runs landed at this commit. 0 in a worktree's record before its
+   * first run: the record was seeded beside the primary checkout's snapshot and
+   * speaks for the base's runs, not for any of this checkout's.
+   */
   readonly runs: number;
   /** Every test file the runs observed, in code-unit order. */
   readonly files: readonly string[];
@@ -92,8 +96,11 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
   const at = new Date().toISOString();
   const files = current.tests.map((test) => test.file);
   // The snapshot already stands at this commit and the record says what it
-  // stood at before: this run is one more at the commit, not a new change.
-  const again = current.commit !== undefined && stood === current.commit && held?.commit === current.commit;
+  // stood at before: this run is one more at the commit, not a new change. A
+  // record of no runs was seeded from the base, and the first run over it
+  // starts this checkout's change.
+  const again =
+    current.commit !== undefined && stood === current.commit && held?.commit === current.commit && held.runs > 0;
   const over = again ? held.over : stood;
   const ran = again ? [...new Set([...held.files, ...files])].sort(codeUnitOrder) : files;
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, current.commit, ran);
@@ -122,9 +129,15 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
  * test the snapshot held, which needs no record at all.
  *
  * A worktree's first run is laid over a copy of the primary checkout's
- * snapshot, and the record beside it is the worktree's own, which does not
- * exist yet: the primary checkout's runs describe its change, not this one. So
- * a worktree's first partial run leaves `standing` absent too.
+ * snapshot, and the record beside it was seeded with that copy: the base's
+ * `files` and `standing`, or, where the base listed no runs, every test at the
+ * base's commit (see `seedTestCoverage`). So a worktree's first partial run
+ * carries `standing` forward like any other. Only a base whose runs record
+ * named another commit than its snapshot seeds nothing, and leaves it absent.
+ *
+ * A test can stand at `commit` itself without being in `ran`: a worktree's
+ * first run at the base's commit did not run it, and the base did. It is
+ * listed there, which is where it last ran.
  *
  * FIXME: `landJourneys` in `packages/cli/src/commands/land.ts` writes the
  * snapshot without calling `landRun`, so a landing of shard snapshots leaves
@@ -152,7 +165,6 @@ function standingAfter(
   for (const test of unobserved) {
     const stand = ranThere.has(test) ? stood : listed.get(test);
     if (stand === undefined) return undefined;
-    if (stand === commit) continue;
     grouped.set(stand, [...(grouped.get(stand) ?? []), test]);
   }
   // Oldest first: the record's own order, then the commit it named, which every

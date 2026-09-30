@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { prepareJourneys, recordedCases, recordedDurations, updateSourceIndex } from '@variance-authority/sense';
 import {
   commitRunsFile,
+  readCommitRuns,
   readTestCoverage,
   seedTestCoverage,
   testCoverageFile,
@@ -88,6 +89,31 @@ describe('a worktree that has not run', () => {
     const answer = await review(parseReview(['--since', first, '--root', worktree]));
     expect(answer).toMatchObject({ from: first, base: 'since' });
     expect(answer.runs).toBeUndefined();
+  });
+
+  it('is refused by `variance review` with no base named after its first `variance land`, whose seeded runs record lists no run of its own', async () => {
+    const { worktree, first } = await worktreeOf(true);
+    const shard = join(home, 'shard-1.bin');
+    await writeTestCoverage(shard, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: first,
+      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    });
+    await landJourneys(worktree, [shard]);
+    process.chdir(worktree);
+    await updateSourceIndex(worktree);
+
+    // The landing seeded the snapshot, and with it where the base's tests last
+    // ran; no run of this worktree is in it, and `over` is the base's to keep.
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    const seeded = await readCommitRuns(own);
+    expect(seeded).toMatchObject({ commit: first, runs: 0 });
+    expect(seeded?.over).toBeUndefined();
+    await expect(review(parseReview(['--root', worktree]))).rejects.toThrow(
+      `no run has listed itself beside \`${own}\`, so nothing says where this change starts.`,
+    );
   });
 
   it('lands shards over the primary checkout\'s record on its first `variance land`, and drops the copied case index a shard left no cases for', async () => {
