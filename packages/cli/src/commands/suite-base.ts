@@ -6,21 +6,22 @@
  *    mainline's record plus everything this branch ran, and the fresher of the
  *    two.
  * 2. **The mainline's**, as CI published it, for a suite the root config gives
- *    to the share. It is one full run at the commit it names, the same record
+ *    to the share. It is published only when the runs record it carries shows
+ *    the whole suite ran at the commit it names, and it is the same record
  *    every other checkout and every pull request measures from.
  * 3. **The primary checkout's**, in a worktree that has run nothing, and only
  *    when the mainline's could not be read: the remote was unreachable, the
  *    line holds no record, or its bytes do not read. It is an offline fallback,
  *    and the reader says which of these happened.
  *
- * `mainlineBase` owns the fetch and the read layer it keeps the bytes in, and
+ * `mainlineBase` owns the fetch and the read layer it keeps the bytes in, with
+ * the runs record the publishing run carried beside them, and
  * `readableTestCoverage` owns which layer holds a record. This decides only
- * the order, and lays the mainline's record into this checkout's own layer when
- * a run is about to land on it.
+ * the order; the reader reads the mainline's record where the read layer
+ * keeps it, and a run in this checkout records into its own layer above it.
  */
 
 import { stat } from 'node:fs/promises';
-import type { CommitRuns } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
 import { mainlineBase, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
 
@@ -70,32 +71,20 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
 }
 
 /**
- * The runs the mainline's record stands for: one full run at the commit it was
- * published at, which is what a push to the mainline records, so every test in
- * it last ran there and none stands anywhere older. `first` and `latest` are
- * when it reached this checkout, because the publish carries no time.
- */
-export async function mainlineRuns(record: MainlineRecord): Promise<CommitRuns> {
-  const selection = await import('@variance-authority/sense/test-selection');
-  const files = selection.askCoverageFile(record.coverage, (view) =>
-    Array.from(view.testPath.all(), (path) => view.string(path)),
-  );
-  const at = new Date().toISOString();
-  // Code-unit order, which is what the default comparison of two strings is.
-  return { commit: record.commit, first: at, latest: at, runs: 1, files: [...new Set(files)].sort(), standing: [] };
-}
-
-/**
- * Lay the mainline's record into this checkout's own layer, where the next run
- * lands on it: the coverage record, its per-case index when the mainline
- * published one, and the runs record {@link mainlineRuns} describes.
+ * Restore the mainline's record into a CI checkout's own layer, where the run
+ * the job makes lands on it: the coverage record, its per-case index when the
+ * mainline published one, and the runs record the publishing run wrote when
+ * the entry carried it. Nothing is made up in place of a runs record the entry
+ * did not carry, so a reader of the laid record says what it assumed.
  *
- * A run lays itself over whatever its own layer holds, so without this the
- * first run in a checkout would land on the primary checkout's record, which a
- * worktree copies up when it has none. The mainline's goes there first, and the
- * copy then finds a record and makes none. Nothing is laid over a record this
- * checkout already has: that one is the mainline's plus this branch's runs.
- * Returns the path laid, or `undefined` when there was already one there.
+ * It is the carrier's restore, the one a cache-carried suite gets from the
+ * Actions cache: a fresh CI checkout has no record, and a pull request's
+ * selected run has to land on the one it was selected from so its coverage
+ * counts every file. A developer's checkout, and a worktree above all, is never
+ * seeded this way: its own layer sits above the read layer and holds only what
+ * ran there, and `suiteBase` reads the mainline's where it lies. Nothing is laid
+ * over a record the checkout already has. Returns the path laid, or
+ * `undefined` when there was already one there.
  */
 export async function layMainline(
   root: string,
@@ -112,8 +101,7 @@ export async function layMainline(
   // The index first and the record last: a reader finds the record by its
   // path, and an index already beside it is the one it answers for.
   if (record.cases !== undefined) await selection.writeCoverageBytes(`${own}.cases.bin`, await readFile(record.cases));
-  const runs = await mainlineRuns(record);
-  await selection.writeCoverageBytes(selection.commitRunsFile(own), Buffer.from(`${JSON.stringify(runs, null, 2)}\n`));
+  if (record.runs !== undefined) await selection.writeCoverageBytes(selection.commitRunsFile(own), await readFile(record.runs));
   await selection.writeCoverageBytes(own, await readFile(record.coverage));
   return own;
 }

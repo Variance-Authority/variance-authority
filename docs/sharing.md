@@ -885,6 +885,19 @@ the record out when it was recorded at a commit other than `HEAD`:
 nothing published: suite-v1/unit is left out: its record at <path> was recorded at 5d0c…, not at 3f1c….
 ```
 
+Every checkout measures from the mainline's record, so a mainline takes only a
+record of the whole suite. The runs record beside the execution record is
+published with it, and it has to show that every test the record holds ran at
+`HEAD` or no longer exists there. A push that ran a selection is left out, and
+the line keeps the record it had:
+
+```text
+nothing published: suite-v1/unit is left out: its record at <path> is not a whole run: 3 test file(s) it holds last ran before 3f1c…, test/cart.test.ts among them.
+```
+
+A branch line takes the record whatever ran, because nothing measures from it
+but that branch.
+
 Without `--publish` it reads the mainline's record the way `select` does, and
 prints the [`record of "unit":` line](#a-suite-your-checkout-has-not-recorded).
 `--suite` takes no `--config`, `--mainline` or report, because those name the

@@ -1899,11 +1899,12 @@ owns its own collector, renderer, storage, or review surface:
   that has recorded nothing, the primary checkout's. The last is an offline
   fallback, and the answer carries `missed` to say why the mainline's was not
   read. `mainlineRead` and `mainlineMissed` print the same `record of
-  "<suite>":` line `select` does. Before your runner lands a run, `layMainline`
-  copies the mainline's record into the checkout's own layer, beside the runs
-  `mainlineRuns` describes: one full run at the published commit, so no test
-  is read as though it last ran anywhere else. `env` stands in for
-  `process.env` when the line is asked, and `cacheRoot` for the cache.
+  "<suite>":` line `select` does. The mainline's record is read with the runs
+  record the publishing run carried beside it, at `mainline.runs`. In a fresh
+  CI checkout, `layMainline` copies the record, its per-case index and that
+  runs record into the checkout's own layer, so the run the job makes lands on
+  them, as a cache restore would. `env` stands in for `process.env` when the
+  line is asked, and `cacheRoot` for the cache.
 - The executable's `config` path selects the source; `parseConfig` takes that
   value and `baseDir` through `ParseOptions`. Relative paths resolve against
   `baseDir`, not the process working directory, so a library caller can load

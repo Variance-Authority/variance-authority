@@ -233,16 +233,11 @@ async function main() {
    * The runs are read beside whichever snapshot is read. A worktree that has
    * not run reads the primary checkout's snapshot, and the runs beside it
    * describe that snapshot; the worktree's own would describe nothing it reads.
-   * The mainline's record has none beside it: it is one full run at the commit
-   * CI published it at, so every test in it stands there, and `mainlineRuns`
-   * says so rather than leaving `readingFrom` to assume it.
+   * The mainline's record has beside it the runs record the run that published
+   * it wrote, when the entry carried one; when it did not, `readingFrom` says
+   * what it assumed in its place.
    */
-  const runs =
-    coverage.commit === undefined
-      ? undefined
-      : base.from === 'mainline'
-        ? await (await import('@variance-authority/cli')).mainlineRuns(base.mainline)
-        : await readCommitRuns(snapshotFile);
+  const runs = coverage.commit === undefined ? undefined : await readCommitRuns(snapshotFile);
   let suite;
   try {
     suite = suiteFiles(ROOT);
@@ -293,7 +288,6 @@ async function main() {
       '',
     );
     if (dryRun) return 0;
-    await lay(base);
     return spawnSync('yarn', ['vitest', 'run'], { cwd: ROOT, stdio: 'inherit' }).status ?? 1;
   }
   const { selected } = decided;
@@ -371,25 +365,12 @@ async function main() {
     );
     return 0;
   }
-  await lay(base);
   const result = spawnSync('yarn', ['vitest', 'run', ...running], { cwd: ROOT, stdio: 'inherit' });
   if (left.length > 0) {
     const further = range.to === Number.MAX_SAFE_INTEGER ? '' : `; \`--at-distance ${range.to + 1}-\` runs those further out`;
     say('', `test:since: ${left.length} selected file(s) were not in this leg${further}.`);
   }
   return result.status ?? 1;
-}
-
-/**
- * Before a run lands, the mainline's record goes into this checkout's own
- * layer, so the run lays itself over the record it was selected from rather
- * than over whatever the primary checkout holds. Said, because it is a write
- * into a directory the operator did not name.
- */
-async function lay(base) {
-  if (base.from !== 'mainline') return;
-  const laid = await (await import('@variance-authority/cli')).layMainline(ROOT, base.mainline);
-  if (laid !== undefined) say(`test:since: the mainline's record is laid at ${laid}, this checkout's own, for the run to land on.`, '');
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

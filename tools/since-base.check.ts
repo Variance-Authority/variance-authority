@@ -1,11 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
-import { layMainline } from '@variance-authority/cli';
-import { commitRunsFile, landRun, readCommitRuns, readTestCoverage, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, landRun, readCommitRuns, readTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { readingFrom, wholeEntry, withoutFiles } from './since-base.mjs';
 import { readChange, selectedFiles } from './since-change.mjs';
@@ -356,37 +355,34 @@ describe('legs at two commits leave each test read from where it last ran', () =
     });
   });
 
-  it('assumes nothing of a record laid from the mainline, before a leg lands on it or after', async () => {
+  it('assumes nothing of a mainline record whose run carried its runs record, and says what it assumed of one that did not', async () => {
     const repo = await repository();
     const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-since-cache-'));
-    const config = { 'variance.config.json': JSON.stringify({ suites: { unit: { kind: 'unit' } } }) };
-    await repo.commit(Object.assign({}, config, ...NAMES.map((name) => source(name, 1))), 'M');
+    await repo.commit(Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'M');
     const P = await repo.commit(source('other', 2), 'P');
-    // What CI published after its full run at P, as `mainlineBase` keeps it.
-    const published = resolve(cacheRoot, 'published.bin');
-    await writeTestCoverage(published, run(repo.at, P, NAMES));
-    const file = await layMainline(repo.at, { suite: 'unit', mainline: 'main', commit: P, coverage: published }, { cacheRoot });
-    if (file === undefined) throw new Error('the checkout already held a record');
-    const read = async () =>
+    // CI's whole run at P, and the runs record it wrote beside the snapshot:
+    // the two parts `suite-v1` carries, as the read layer keeps them.
+    const published = resolve(cacheRoot, 'share', 'read', 'unit', P, 'coverage.bin');
+    await landRun(published, run(repo.at, P, NAMES), repo.at);
+    const bare = resolve(cacheRoot, 'bare', 'coverage.bin');
+    await mkdir(resolve(bare, '..'), { recursive: true });
+    await copyFile(published, bare);
+    const read = async (file: string) =>
       readChange({
         root: repo.at, git: repo.git, diffOfNew: () => '', snapshotFile: file,
         coverage: await readTestCoverage(file), runs: await readCommitRuns(file), ref: undefined, suite: tests,
         stemOf: (path: string) => path, graph: async () => ({}), say: () => {},
       });
 
-    const H = await repo.commit(source('far', 2), 'H');
-    const laid = await read();
-    expect(laid.start).toMatchObject({ base: P, stands: [] });
-    expect(laid.start.assumed).toBeUndefined();
-    expect(laid.decided).toEqual({ selected: ['test/far.test.ts'] });
+    await repo.commit(source('far', 2), 'H');
+    const carried = await read(published);
+    expect(carried.start).toMatchObject({ base: P, stands: [] });
+    expect(carried.start.assumed).toBeUndefined();
+    expect(carried.decided).toEqual({ selected: ['test/far.test.ts'] });
 
-    await landRun(file, run(repo.at, H, ['far']), repo.at);
-    await repo.commit(source('near', 2), 'C');
-    const after = await read();
-    expect(after.start.assumed).toBeUndefined();
-    expect(after.start.stands.map((stand: { commit: string; tests: string[] }) => [stand.commit, stand.tests])).toEqual([
-      [P, ['test/near.test.ts', 'test/other.test.ts']],
-    ]);
-    expect(after.decided).toEqual({ selected: ['test/near.test.ts'] });
+    const uncarried = await read(bare);
+    expect(uncarried.start.assumed).toBe(
+      `no runs record lies beside the snapshot, so every test is read as though it last ran at ${P.slice(0, 12)}`,
+    );
   });
 });

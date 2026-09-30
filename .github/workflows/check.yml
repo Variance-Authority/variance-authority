@@ -184,8 +184,10 @@ jobs:
 
       # The mainline's record, fetched from `refs/variance/mainline/main` on
       # `origin`, where the `publish` job below leaves it after every push to
-      # `main`. `suiteBase` reads it and `layMainline` lays it into this
-      # checkout's own layer, where the suite lands its run on top of it. When
+      # `main`. `suiteBase` reads it and `layMainline` lays it, with the runs
+      # record its publishing run carried, into this checkout's own layer, where
+      # the suite lands its run on top of it: the restore a cache-carried suite
+      # gets from the Actions cache, and nothing a developer's checkout does. When
       # the ref is missing or does not read, the line says why and the run has
       # no base; nothing older is put in its place.
       #
@@ -411,7 +413,10 @@ jobs:
 
       # `share --suite` reads the share from the root config, asks the line of
       # this run (`main`, on a push to it), and refuses a record that was not
-      # recorded at this commit. What it did goes to the job summary.
+      # recorded at this commit, or whose runs record does not show the whole
+      # suite ran here. The runs record travels with it, so a reader knows where
+      # each test last ran rather than assuming it. What it did goes to the job
+      # summary.
       - name: publish the record
         shell: bash
         run: node packages/cli/dist/bin.js share --suite unit --publish | tee -a "$GITHUB_STEP_SUMMARY"

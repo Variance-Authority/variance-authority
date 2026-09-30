@@ -194,7 +194,7 @@ export async function publishKept(
   if (!('none' in costs)) entries.push(costs);
   for (const suite of config.suites ?? []) {
     if (suite.carry !== 'share') continue;
-    const entry = await suiteEntryOf(cwd, suite.name, at);
+    const entry = await suiteEntryOf(cwd, suite.name, at, { whole: run.line.kind === 'mainline' });
     if (entry === undefined) continue;
     if ('unpublished' in entry) unpublished.push(`${suiteEntry(suite.name)}: ${entry.unpublished}`);
     else entries.push(entry);
@@ -289,10 +289,11 @@ export async function mainlineIndex(
   return { ...at, from: 'share', index };
 }
 
-/** One suite's record as the reader's mainline holds it: the coverage record, and its per-case index when it had one. */
+/** One suite's record as the reader's mainline holds it: the coverage record, its per-case index when it had one, and its runs record when the publisher carried it. */
 export interface MainlineSuite extends MainlineAt {
   readonly coverage: Uint8Array;
   readonly cases?: Uint8Array;
+  readonly runs?: Uint8Array;
 }
 
 /**

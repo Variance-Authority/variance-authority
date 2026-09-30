@@ -43,6 +43,8 @@ export interface MainlineRecord {
   readonly cases?: string;
   /** Why the per-case index it published is not kept, when it published one that does not read. */
   readonly casesUnread?: string;
+  /** The runs record the publishing run wrote, beside the record, when the entry carried one. */
+  readonly runs?: string;
 }
 
 /** Why the mainline gave no record: which mainline was asked, when one was known, and the share's answer. */
@@ -110,6 +112,14 @@ export async function mainlineBase(
       if (failed !== undefined) casesUnread = `its per-case index could not be kept at ${cases}: ${failed}`;
     }
   }
+  // The runs record, beside the record under the name every reader looks for
+  // it by, so a reader asks where each test last ran of the run that published
+  // it. An entry without one leaves none there, and the reader says what it
+  // assumed in its place.
+  const runsFile = selection.commitRunsFile(coverage);
+  let runs: string | undefined;
+  if (found.runs === undefined) await rm(runsFile, { force: true });
+  else if ((await keep(selection.writeCoverageBytes, runsFile, found.runs)) === undefined) runs = runsFile;
   return {
     suite,
     mainline: found.mainline,
@@ -118,6 +128,7 @@ export async function mainlineBase(
     coverage,
     ...(found.cases !== undefined && casesUnread === undefined ? { cases } : {}),
     ...(casesUnread !== undefined ? { casesUnread } : {}),
+    ...(runs === undefined ? {} : { runs }),
   };
 }
 

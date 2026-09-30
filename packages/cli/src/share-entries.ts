@@ -10,8 +10,8 @@
  *   image path the report names to that image's digest. The report names its
  *   images relative to itself and the line keeps them by digest, so the table is
  *   what lets a reader on another machine open the picture a record points at.
- * - **`suite-v1/<suite>`** is the suite's coverage record and, when it has one,
- *   its per-case index. Both name files repository-relative, so they read the
+ * - **`suite-v1/<suite>`** is the suite's coverage record and, when it has them,
+ *   its per-case index and its runs record. All name files repository-relative, so they read the
  *   same from any checkout. The module-name table is not in it: that table
  *   numbers the modules the *next* instrumented build emits, and a reader of a
  *   finished record never consults it.
@@ -24,12 +24,16 @@
  * so a part added later does not break it.
  */
 
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import type { ShareEntry } from '@variance-authority/core/share';
-import { askCoverageFile, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { askCoverageFile, commitRunsFile, testCoverageFile, type CommitRuns } from '@variance-authority/sense/test-selection';
 import { readCliRunReport } from './commands/run-report.js';
+
+const run = promisify(execFile);
 
 /** The entry a run report is published under. */
 export const REPORT_ENTRY = 'report-v1';
@@ -137,11 +141,20 @@ export function readReportEntry(
  * published under this run's commit, would place every region in the wrong
  * text. The base reader refuses such a record by the same test; refusing it
  * here keeps the bytes off the line.
+ *
+ * The runs record the suite's runs wrote beside it travels with it, as
+ * `coverage.runs.json`, because it is the only thing that says where each test
+ * in the record last ran, and once the record leaves this machine nothing else
+ * can. `whole` is set for a mainline, whose record every checkout measures from:
+ * then the record is published only when its runs record shows a run of the
+ * whole suite at this commit, which {@link wholeRunAt} tells from the runs record
+ * and from git, never from the caller's word.
  */
 export async function suiteEntryOf(
   root: string,
   suite: string,
   at: Derived,
+  options: { readonly whole?: boolean } = {},
 ): Promise<ShareEntry | { readonly unpublished: string } | undefined> {
   const coverage = testCoverageFile(root, { suite });
   const record = await held(coverage);
@@ -155,25 +168,68 @@ export async function suiteEntryOf(
   if (recorded === undefined) return { unpublished: `its record at ${coverage} names no commit` };
   if (recorded !== at.commit) return { unpublished: `its record at ${coverage} was recorded at ${recorded}, not at ${at.commit}` };
   const cases = await held(`${coverage}.cases.bin`);
+  const runs = await held(commitRunsFile(coverage));
+  if (options.whole === true) {
+    const partial = await wholeRunAt(root, runs, at.commit);
+    if (partial !== undefined) return { unpublished: `its record at ${coverage} is not a whole run: ${partial}` };
+  }
 
   return {
     name: suiteEntry(suite),
     ...at,
-    bytes: frame([['coverage.bin', record], ...(cases === undefined ? [] : [['coverage.bin.cases.bin', cases] as const])]),
+    bytes: frame([
+      ['coverage.bin', record],
+      ...(cases === undefined ? [] : [['coverage.bin.cases.bin', cases] as const]),
+      ...(runs === undefined ? [] : [[RUNS_PART, runs] as const]),
+    ]),
   };
 }
 
-/** A `suite-v1` entry's parts: the coverage record, and the per-case index when there was one. */
+/** The part of a `suite-v1` entry that holds the runs record, named as it lies beside the record. */
+const RUNS_PART = 'coverage.runs.json';
+
+/**
+ * Why the runs record `runs` does not show a run of the whole suite at
+ * `commit`, or `undefined` when it does.
+ *
+ * Whole means every test the record holds either ran at `commit` or is a test
+ * file `commit` no longer has. The runs record lists the tests that ran at its
+ * commit and, under `standing`, where every other test last ran; a record
+ * without `standing` does not know, and is not taken as whole. A deleted test
+ * file stays in the record, because its cases are what the base had, so a test
+ * standing at an older commit counts against the run only while git still has
+ * it at `commit`.
+ */
+export async function wholeRunAt(root: string, runs: Uint8Array | undefined, commit: string): Promise<string | undefined> {
+  if (runs === undefined) return 'no runs record lies beside it, so nothing says which tests ran at this commit';
+  let parsed: CommitRuns;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(runs)) as CommitRuns;
+  } catch {
+    return 'the runs record beside it is not JSON';
+  }
+  if (parsed.commit !== commit) return `the runs record beside it is ${parsed.commit ?? 'of no commit'}'s, not ${commit}'s`;
+  if (parsed.standing === undefined) return 'the runs record beside it does not say where every test it did not run last ran';
+  const older = parsed.standing.flatMap((entry) => entry.files);
+  if (older.length === 0) return undefined;
+  const { stdout } = await run('git', ['ls-tree', '-r', '--name-only', '-z', commit, '--', ...older], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+  const kept = stdout.split('\0').filter((path) => path !== '');
+  if (kept.length === 0) return undefined;
+  return `${kept.length} test file(s) it holds last ran before ${commit}, ${kept[0]} among them`;
+}
+
+/** A `suite-v1` entry's parts: the coverage record, the per-case index when there was one, and the runs record when the publisher carried it. */
 export function readSuiteEntry(
   bytes: Uint8Array,
-): { readonly coverage: Uint8Array; readonly cases?: Uint8Array } | string {
+): { readonly coverage: Uint8Array; readonly cases?: Uint8Array; readonly runs?: Uint8Array } | string {
   const parts = unframe(bytes);
   if (typeof parts === 'string') return parts;
   const coverage = parts.get('coverage.bin');
   if (coverage === undefined) return 'a suite-v1 entry holds coverage.bin';
   const cases = parts.get('coverage.bin.cases.bin');
+  const runs = parts.get(RUNS_PART);
 
-  return cases === undefined ? { coverage } : { coverage, cases };
+  return { coverage, ...(cases === undefined ? {} : { cases }), ...(runs === undefined ? {} : { runs }) };
 }
 
 async function held(path: string): Promise<Uint8Array | undefined> {
@@ -218,7 +274,10 @@ export function unframe(bytes: Uint8Array): ReadonlyMap<string, Uint8Array> | st
     }
     const size = part[1] as number;
     if (at + size > bytes.byteLength) return `the entry is shorter than its header says, at ${part[0]}`;
-    parts.set(part[0], bytes.subarray(at, at + size));
+    // A copy, not a view: a part's offset in the entry moves with the header's
+    // length, and a reader that lays typed arrays over a part, as the per-case
+    // index does, needs it to start at offset 0 of its own buffer.
+    parts.set(part[0], bytes.slice(at, at + size));
     at += size;
   }
   if (at !== bytes.byteLength) return 'the entry is longer than its header says';

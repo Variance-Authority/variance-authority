@@ -10,7 +10,8 @@
  * wants. This publishes only `suite-v1/<suite>`, read from the root config's
  * `share` section the way `select` and `review` read it back, and asks the same
  * owners every publish asks: `lineOfRun` for the line, git for descent, and
- * `suiteEntryOf` for whether the record here was recorded at this commit.
+ * `suiteEntryOf` for whether the record here was recorded at this commit and,
+ * for a mainline, whether its runs record shows a run of the whole suite there.
  */
 
 import { execFile } from 'node:child_process';
@@ -48,7 +49,8 @@ export async function publishSuite(root: string, suite: string, here: Here = {})
 
   const commit = await headOf(root);
   if (commit === undefined) return { none: 'this checkout has no commit' };
-  const entry = await suiteEntryOf(root, suite, { commit, ...(run.head !== undefined ? { head: run.head } : {}) });
+  const at = { commit, ...(run.head !== undefined ? { head: run.head } : {}) };
+  const entry = await suiteEntryOf(root, suite, at, { whole: run.line.kind === 'mainline' });
   if (entry === undefined) return { none: `this checkout holds no record of "${suite}"` };
   if ('unpublished' in entry) return { none: `${suiteEntry(suite)} is left out: ${entry.unpublished}` };
 

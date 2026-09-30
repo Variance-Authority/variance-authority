@@ -112,7 +112,6 @@
         "machineProbes": "function",
         "mainlineMissed": "function",
         "mainlineRead": "function",
-        "mainlineRuns": "function",
         "matchesGlob": "function",
         "mergeReports": "function",
         "openRenderer": "function",

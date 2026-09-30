@@ -115,8 +115,12 @@ export function shareConfig(home: string): Config {
   } as unknown as Config;
 }
 
-/** Publish what `dir` recorded at `commit`, and fail unless the suite's record reached `line`. */
+/**
+ * Publish what `dir` recorded at `commit`, as a run of the whole suite there
+ * would, and fail unless the suite's record reached `line`.
+ */
 export async function publishTo(home: string, dir: string, commit: string, env: Env, line: string): Promise<void> {
+  await ranWhole(testCoverageFile(dir, { suite: 'unit' }), commit);
   const done = await publishRun(shareConfig(home), await reportAt(home, commit), { env, cwd: dir });
   const reached = 'published' in done ? `${done.line.kind} ${done.line.name}: ${done.published.written.join(', ')}` : undefined;
   const wanted = `${line}: suite-index-v1, suite-v1/unit`;
@@ -194,13 +198,26 @@ export async function recordIn(
   await writeFile(`${record}.cases.bin`, encodeExecutionIndex(casesOf(cases)));
 }
 
+/**
+ * The runs record a run of both test files at `commit` leaves beside `record`
+ * when it lays itself over nothing: every test ran there, and none stands
+ * anywhere older. It is what a mainline publishes a record on, so it is
+ * written where a test publishes and never where a laptop records.
+ */
+export async function ranWhole(record: string, commit: string): Promise<void> {
+  const at = '2026-01-01T00:00:00.000Z';
+  const runs = { commit, first: at, latest: at, runs: 1, files: ['test/other.test.ts', 'test/total.test.ts'], standing: [] };
+  await writeFile(commitRunsFile(record), `${JSON.stringify(runs, null, 2)}\n`);
+}
+
 /** Both test files whole, and `src/total.ts` as one module block `total.test.ts` entered. */
 export async function wholeRecord(dir: string): Promise<void> {
   const record = testCoverageFile(dir, { suite: 'unit' });
+  const commit = await git(dir, 'rev-parse', 'HEAD');
   await writeTestCoverage(record, {
     version: 3,
     instrumentation: 'fixture',
-    commit: await git(dir, 'rev-parse', 'HEAD'),
+    commit,
     tests: [
       { file: 'test/other.test.ts', complete: true, preconditions: [] },
       { file: 'test/total.test.ts', complete: true, preconditions: [] },

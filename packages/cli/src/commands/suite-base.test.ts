@@ -2,22 +2,18 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
-import {
-  readCommitRuns,
-  seedTestCoverage,
-  testCoverageFile,
-} from '@variance-authority/sense/test-selection';
+import { commitRunsFile, readCommitRuns, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../bin.js';
 import type { Config } from '../config.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { mainlineMissed, mainlineRead } from './mainline-base.js';
-import { BEFORE, DISCOUNTS, PUSH, recordIn } from './mainline-fixture.js';
-import { layMainline, mainlineRuns, suiteBase } from './suite-base.js';
+import { BEFORE, DISCOUNTS, PUSH, ranWhole, recordIn } from './mainline-fixture.js';
+import { layMainline, suiteBase } from './suite-base.js';
 import { publishSuite, suiteShareLines } from './suite-share.js';
 
 /**
@@ -55,8 +51,9 @@ function cacheOf(name: string): string {
 
 /**
  * The CI checkout: `unit` given to a git share, one commit pushed to a bare
- * `origin`, and the record CI made there, in which only `total.test.ts` runs
- * `applyDiscount`. Published with a push's environment unless told not to.
+ * `origin`, and the record a run of the whole suite made there, in which only
+ * `total.test.ts` runs `applyDiscount`. Published with a push's environment
+ * unless told not to.
  */
 async function mainline(options: { readonly publish?: boolean } = {}): Promise<{ ci: string; origin: string; first: string; record: Buffer }> {
   const origin = join(home, 'origin.git');
@@ -80,6 +77,7 @@ async function mainline(options: { readonly publish?: boolean } = {}): Promise<{
 
   cacheOf('ci-cache');
   await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS]);
+  await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
   const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));
   if (options.publish !== false) {
     const done = await publishSuite(ci, 'unit', { env: PUSH });
@@ -115,6 +113,18 @@ describe('a published record reaches the remote', () => {
     await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'second');
     expect(await publishSuite(ci, 'unit', { env: PUSH })).toMatchObject({ none: expect.stringContaining('was recorded at') });
   });
+
+  it('is refused for a record whose run did not run the whole suite, rather than published as the base', async () => {
+    const { ci, origin, first } = await mainline({ publish: false });
+    const own = testCoverageFile(ci, { suite: 'unit' });
+    const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [{ commit: 'c'.repeat(40), files: ['test/other.test.ts'] }] };
+    await writeFile(commitRunsFile(own), JSON.stringify(runs));
+
+    expect(await publishSuite(ci, 'unit', { env: PUSH })).toEqual({
+      none: `suite-v1/unit is left out: its record at ${own} is not a whole run: 1 test file(s) it holds last ran before ${first}, test/other.test.ts among them`,
+    });
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe('');
+  });
 });
 
 describe('the record a worktree that has run nothing measures from', () => {
@@ -132,30 +142,28 @@ describe('the record a worktree that has run nothing measures from', () => {
     const said = `record of "unit": read from mainline main, published at ${first}, at the merge base with this checkout; kept at ${base.file}`;
     if (base.from === 'mainline') expect(mainlineRead(base.mainline)).toBe(said);
     expect(await suiteShareLines(worktree, { suite: 'unit', publish: false }, { env: LOCAL })).toEqual([`${said}.`]);
+    // The runs record the publishing run carried lies beside it, and the worktree's own layer is left empty.
+    expect(await readCommitRuns(base.file)).toMatchObject({ commit: first, standing: [] });
+    expect(existsSync(testCoverageFile(worktree, { suite: 'unit' }))).toBe(false);
   });
 
-  it('is laid into the worktree\'s own layer before a run, as one full run at the published commit, and the primary\'s is then not copied up', async () => {
-    const { origin, first } = await mainline();
-    const { worktree } = await laptop(origin, first);
-    const base = await suiteBase(worktree, { env: LOCAL });
+  it('is laid into a fresh CI checkout\'s own layer with the runs record the mainline carried, and never over a record it has', async () => {
+    const { origin } = await mainline();
+    const fresh = join(home, 'fresh');
+    await git(home, 'clone', '--quiet', origin, fresh);
+    cacheOf('fresh-cache');
+    const base = await suiteBase(fresh, { env: LOCAL });
     if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
 
-    const laid = await layMainline(worktree, base.mainline);
+    const laid = await layMainline(fresh, base.mainline);
 
-    const own = testCoverageFile(worktree, { suite: 'unit' });
+    const own = testCoverageFile(fresh, { suite: 'unit' });
     expect(laid).toBe(own);
     expect(await readFile(own)).toEqual(await readFile(base.file));
     expect(existsSync(`${own}.cases.bin`)).toBe(true);
-    const runs = { commit: first, runs: 1, files: ['test/other.test.ts', 'test/total.test.ts'], standing: [] };
-    expect(await readCommitRuns(own)).toMatchObject(runs);
-    expect(await mainlineRuns(base.mainline)).toMatchObject(runs);
-    // What the runner does before its first run in a worktree: a record is
-    // there now, so nothing is copied over it.
-    await seedTestCoverage(own, worktree);
-    expect(await readFile(own)).toEqual(await readFile(base.file));
-    expect(await suiteBase(worktree, { env: LOCAL })).toEqual({ from: 'own', suite: 'unit', file: own });
-    // A second lay finds this checkout's own record and leaves it.
-    expect(await layMainline(worktree, base.mainline)).toBeUndefined();
+    expect(await readFile(commitRunsFile(own))).toEqual(await readFile(join(dirname(base.file), 'coverage.runs.json')));
+    expect(await suiteBase(fresh, { env: LOCAL })).toEqual({ from: 'own', suite: 'unit', file: own });
+    expect(await layMainline(fresh, base.mainline)).toBeUndefined();
   });
 
   it('is the worktree\'s own once it has one, and the mainline is not asked', async () => {

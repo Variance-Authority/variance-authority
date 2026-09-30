@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RunReport } from '@variance-authority/report';
-import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { parseShare } from '../config-share.js';
 import type { Env } from '../share-lines.js';
@@ -107,6 +107,7 @@ describe('publishing a run', () => {
     await mkdir(dirname(record), { recursive: true });
     await writeTestCoverage(record, { version: 3, instrumentation: 'fixture', commit: repository.commits[0]!, tests: [], modules: [] });
     await writeFile(`${record}.cases.bin`, 'cases');
+    await writeFile(commitRunsFile(record), JSON.stringify({ commit: repository.commits[0], first: '', latest: '', runs: 1, files: [], standing: [] }));
 
     const done = await publishRun(config, await reportAt(repository.commits[0]!), { env: PUSH, cwd: repository.dir });
     expect(done).toMatchObject({ published: { written: ['suite-index-v1', 'suite-v1/unit'] } });
@@ -116,6 +117,7 @@ describe('publishing a run', () => {
     expect(found).toMatchObject({ mainline: 'main', commit: repository.commits[0], distance: 1 });
     expect('coverage' in found && Buffer.from(found.coverage).equals(await readFile(record))).toBe(true);
     expect('coverage' in found && new TextDecoder().decode(found.cases)).toBe('cases');
+    expect('coverage' in found && JSON.parse(new TextDecoder().decode(found.runs))).toMatchObject({ standing: [] });
     expect(await mainlineSuite(config, 'e2e', { env: LOCAL, cwd: repository.dir })).toEqual({ mainline: 'main', miss: { kind: 'absent' }, holds: ['suite-index-v1', 'suite-v1/unit'] });
   });
 
