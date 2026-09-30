@@ -182,15 +182,6 @@ export {
   type JourneysRegion,
   type PreparedJourneys,
 } from './journeys.js';
-export {
-  keptRunnerAliases,
-  runnerAliases,
-  runnerConfigs,
-  runnerDigest,
-  unlistedRunnerAliases,
-  type RunnerAlias,
-  type RunnerAliases,
-} from './runner-aliases.js';
 
 export { gitDigests } from './tree.js';
 export {

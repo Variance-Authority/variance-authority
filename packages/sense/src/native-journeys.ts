@@ -10,7 +10,7 @@
 
 /** What preparing the journeys walked and kept. */
 export interface NativeJourneysPrepared {
-  /** The file was already stamped with this recording, this index and this runner table. */
+  /** The file was already stamped with this recording and this index. */
   readonly kept: boolean;
   readonly cases: number;
   /** Functions outside the test files the cases entered, summed per case. */
@@ -21,10 +21,12 @@ export interface NativeJourneysPrepared {
   readonly flows: number;
   /** Specifiers the index did not answer, which the walk resolved itself. */
   readonly fellBack: number;
-  /** Specifiers the runner's alias table answered. */
-  readonly aliased: number;
-  /** Runner configs that did not load and aliases that were not read, each with why. */
-  readonly runnerUnread: readonly string[];
+  /** Call sites the static resolution missed that the recording placed, on the one entered function exported under the imported name. */
+  readonly recorded: number;
+  /** Call sites the static resolution missed where several entered functions are exported under the imported name and nothing else placed the call. */
+  readonly ambiguous: number;
+  /** The cases those ambiguous call sites were in. */
+  readonly ambiguousCases: number;
   /** The commit the recording ran at, when it names one. */
   readonly commit?: string | null;
   /** Why the call graph was parsed from the working tree rather than from the recorded commit. */
@@ -327,8 +329,6 @@ export interface NativeJourneyMap {
 
 /** The journey calls on a git listing the addon holds, carrying it rather than asking git again. */
 export interface NativeJourneysListing {
-  /** The Vite and Vitest configs this listing holds, not counting ones a fixture, template or example ships. */
-  runnerConfigs?(): string[];
   /** Walk every case of the recording and keep the journeys at `out`; `null` when there is no source index. */
   prepareJourneys?(
     root: string,
@@ -336,16 +336,15 @@ export interface NativeJourneysListing {
     recording: string,
     at: NativeJourneysCommit,
     out: string,
-    runner: string | null,
+    /** The runtime's own modules, which no function of the checkout answers. */
+    builtins: readonly string[],
   ): NativeJourneysPrepared | null;
 }
 
 /** The addon's layer-2 journey calls. */
 export interface NativeJourneys {
-  /** The Vite and Vitest configs git lists under `root`; `null` when git cannot list. */
-  runnerConfigs?(root: string): string[] | null;
-  /** The journeys kept at `out`, when this walk prepared them from this recording, this index and a runner table under `runnerDigest`. */
-  journeysKept?(index: string, recording: string, out: string, runnerDigest?: string | null): NativeJourneysPrepared | null;
+  /** The journeys kept at `out`, when this walk prepared them from this recording and this index. */
+  journeysKept?(index: string, recording: string, out: string): NativeJourneysPrepared | null;
   /** Walk every case of the recording and keep the journeys at `out`, with git listing the checkout; `null` when there is no source index. */
   prepareJourneys?(
     root: string,
@@ -353,7 +352,8 @@ export interface NativeJourneys {
     recording: string,
     at: NativeJourneysCommit,
     out: string,
-    runner: string | null,
+    /** The runtime's own modules, which no function of the checkout answers. */
+    builtins: readonly string[],
   ): NativeJourneysPrepared | null;
   /** Answer each ask from the journeys kept at `out`. */
   journeysFor?(root: string, index: string, recording: string, out: string, asks: NativeJourneysAsk[]): NativeJourneysAnswer;

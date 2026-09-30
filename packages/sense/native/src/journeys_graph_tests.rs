@@ -23,7 +23,6 @@ fn graph(files: &[(&str, &str)]) -> Graph {
         targets: Vec::new(),
         calls_from: Vec::new(),
         fell_back: 0,
-        aliased: 0,
         tree: None,
     };
     for (file, text) in files {

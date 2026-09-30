@@ -5,8 +5,8 @@
  *
  * The walk is the addon's and is paid before anyone asks: `variance index`
  * prepares the journeys beside the source index, one file per suite, stamped
- * with the recording, the index and the runner's alias table they were made
- * from, and with the walk that made them. Preparing again with none of them
+ * with the recording and the index they were made from, and with the walk that
+ * made them. Preparing again with none of them
  * changed keeps the file. A question reads only that file, and a file whose
  * recording, index or walk moved since answers with why it cannot, never with
  * a stale route.
@@ -19,9 +19,9 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { checkoutListing, checkoutPath, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './native.js';
+import { BUILTINS } from './native-index-graph.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
-import { keptRunnerAliases, runnerConfigs, unlistedRunnerAliases, type RunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
@@ -126,11 +126,6 @@ function gitLists(root: string, args: readonly string[]): boolean | { unread: st
   }
 }
 
-/** Where the runner's alias table is kept beside the index at `index`, shared by every suite. */
-function runnerPath(index: string): string {
-  return `${index}.runner-aliases.json`;
-}
-
 /** One suite's prepared journeys, or why none were prepared. */
 export type PreparedJourneys =
   | { readonly suite?: string; readonly out: string; readonly prepared: NativeJourneysPrepared }
@@ -139,7 +134,7 @@ export type PreparedJourneys =
 /**
  * Walk each suite's latest recording over the source index at `index` and keep
  * the journeys beside it, unless the kept ones were made from this recording,
- * this index, this runner table and this walk. `scanned` is the update that
+ * this index and this walk. `scanned` is the update that
  * published the index: its listing of the checkout is carried, and git is not
  * asked again; a scan that ran without one lists nothing, and says so.
  */
@@ -149,13 +144,6 @@ export async function prepareJourneys(
   scanned?: Pick<SourceUpdate, 'listing'>,
 ): Promise<readonly PreparedJourneys[]> {
   const listing = scanned?.listing;
-  const configs = scanned !== undefined && listing === undefined ? undefined : runnerConfigs(root, listing);
-  // One table for every suite, read at most once, and not at all when it is kept.
-  let table: RunnerAliases | undefined;
-  const runner = async () =>
-    (table ??= configs === undefined
-      ? unlistedRunnerAliases(root, scanned !== undefined ? 'the scan had no listing of the checkout' : 'git could not list the checkout')
-      : await keptRunnerAliases(root, configs, runnerPath(index)));
   const walk = listing?.prepareJourneys?.bind(listing) ?? entry('prepareJourneys');
   const prepared: PreparedJourneys[] = [];
   for (const { suite, recording, looked } of recordings(root)) {
@@ -165,14 +153,13 @@ export async function prepareJourneys(
       prepared.push({ ...named, out, unprepared: `nothing is recorded at ${looked}` });
       continue;
     }
-    const aliases = await runner();
-    const kept = entry('journeysKept')(index, recording, out, aliases.digest);
+    const kept = entry('journeysKept')(index, recording, out);
     if (kept !== null) {
       prepared.push({ ...named, out, prepared: kept });
       continue;
     }
     const at = commitOf(recording.slice(0, -'.cases.bin'.length));
-    const made = walk(root, index, recording, at, out, JSON.stringify(aliases));
+    const made = walk(root, index, recording, at, out, BUILTINS);
     prepared.push(made === null ? { ...named, out, unprepared: 'there is no source index' } : { ...named, out, prepared: made });
   }
   return prepared;
