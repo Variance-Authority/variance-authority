@@ -41,6 +41,7 @@ import { cacheRootFor, markCheckout } from './cache-layers.js';
 import { prunedLine, pruneWhenDue } from './prune.js';
 import { repositoryRoot } from './repository-root.js';
 import {
+  noteSeeded,
   seedTestCoverage,
   type CoverageModule,
   type TestCoverage,
@@ -137,7 +138,7 @@ export function foldRun(
     // The repository's snapshot becomes this checkout's before the first run
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run.
-    await seedTestCoverage(coverageFile, root);
+    noteSeeded(await seedTestCoverage(coverageFile, root));
     const merged = await withIndexLock(coverageFile, async () => {
       await landRun(coverageFile, current, root);
       markCheckout(repositoryRoot(root));

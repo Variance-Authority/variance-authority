@@ -14,6 +14,17 @@ export interface ParsedShare {
    * than one is the shards of one build, merged, and publishes their costs.
    */
   readonly reports: readonly string[];
+  /**
+   * The root config's suite whose record alone is read or published, with no
+   * project config and no report: `share --suite <name>`.
+   */
+  readonly suite?: string;
+  /**
+   * A file listing the test files the suite's runner collects at this commit,
+   * one per line, as `vitest list --filesOnly` prints them: what a mainline
+   * publish of `--suite` counts a whole run against.
+   */
+  readonly collected?: string;
 }
 
 /**
@@ -32,11 +43,35 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
     // not what the mainline is read from and never will be.
     throw new OperatorError('`share <report>` is for `--publish`; a lookup takes `--mainline`');
   }
+  const suite = flags.values.get('--suite');
+  if (suite !== undefined) {
+    // `--suite` reads the root config, which declares the suite and the share
+    // it is published to. A project config, a report and a mainline to read
+    // are the other form's inputs, and naming one beside it asks for both.
+    const other = [
+      ...(flags.values.has('--config') ? ['`--config`'] : []),
+      ...(mainline !== undefined ? ['`--mainline`'] : []),
+      ...(flags.positionals.length > 0 ? ['report'] : []),
+    ];
+    if (other.length > 0) {
+      throw new OperatorError(
+        `\`share --suite\` reads the suite and its share from the root variance.config.json, so it takes no ${other.join(' or ')}`,
+      );
+    }
+  }
+  const collected = flags.values.get('--collected');
+  if (collected !== undefined && (suite === undefined || !publish)) {
+    // The list is what a whole run is counted against, and only the suite's
+    // own publish counts one.
+    throw new OperatorError('`--collected` is for `share --suite <name> --publish`, which counts a whole run against it');
+  }
   return {
     command: 'share',
     config,
     publish,
     ...(mainline !== undefined ? { mainline } : {}),
     reports: flags.positionals,
+    ...(suite !== undefined ? { suite } : {}),
+    ...(collected !== undefined ? { collected } : {}),
   };
 }

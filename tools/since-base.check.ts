@@ -464,6 +464,23 @@ describe('legs at two commits leave each test read from where it last ran', () =
       ],
     });
   });
+
+  it('reads where each test last ran from the runs record a mainline entry carried, and says what it read in its place for one that did not', async () => {
+    const { read, file, commit, at } = await recorded();
+    await commit(Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'M');
+    const P = await commit(source('other', 2), 'P');
+    // CI's whole run at P with the runs record it wrote, as `suite-v1` carries both; then the snapshot alone.
+    await landRun(file, run(at, P, NAMES), at);
+    await commit(source('far', 2), 'H');
+    const carried = await read();
+    expect(carried.start).toMatchObject({ base: P, stands: [] });
+    expect(carried.start.assumed).toBeUndefined();
+    expect(carried.decided).toEqual({ selected: ['test/far.test.ts'] });
+    await rm(commitRunsFile(file));
+    expect((await read()).start.assumed).toBe(
+      `no runs record lies beside the snapshot, so every test is read as though it last ran at ${P.slice(0, 12)}`,
+    );
+  });
 });
 
 function npmLock(version: string): string {

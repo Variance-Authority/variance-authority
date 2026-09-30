@@ -280,7 +280,7 @@ const primaries = new Map<string, string>();
  * error here: a checkout whose lineage cannot be established is a checkout that
  * keeps its own cache, which is where it started.
  */
-function primaryCheckout(here: string): string {
+export function primaryCheckout(here: string): string {
   const held = primaries.get(here);
   if (held !== undefined) return held;
   const found = readPrimary(here);

@@ -48,7 +48,10 @@ describe('`variance select` in a checkout that recorded nothing', () => {
     await writeFile(join(ci.dir, 'src/total.ts'), change);
     const there = await selectedIn(ci.dir);
     expect(there.out).toBe('test/other.test.ts\n');
-    expect(there.err).toContain('record of "unit": read from this checkout; the mainline\'s is read only when this checkout has none.');
+    expect(there.err).toContain(
+      'record of "unit": read from this checkout\'s own, which its runs landed on the base the first of them was laid on; ' +
+        "the mainline's is read only when this checkout has recorded none.",
+    );
 
     const clone = await cloneOf(home, ci.origin);
     process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');

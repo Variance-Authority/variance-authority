@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { writeFetchedMainline } from '@variance-authority/sense/test-selection';
 import {
   CACHE_PRUNE_REASONS,
   COMMITS_BEHIND,
@@ -60,6 +61,21 @@ describe('planCachePrune', () => {
     const plan = await planCachePrune({ cacheRoot }, owners({ [commit(1)]: false, [commit(2)]: false, [commit(3)]: 0 }));
 
     expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[old, 'off-line']]);
+  });
+
+  test('the mainline record a suite\'s fetched.json names stays, however far out of reach its commit is', async () => {
+    const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
+    const read = join(cacheRoot, 'share', 'read', 'unit');
+    const named = await put(join(read, commit(1), 'coverage.bin'), 15 * DAY).then(dirname);
+    await utimes(named, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
+    const other = await put(join(read, commit(2), 'coverage.bin'), 15 * DAY).then(dirname);
+    await utimes(other, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
+    await put(join(read, commit(3), 'coverage.bin'), 0);
+    await writeFetchedMainline(cacheRoot, 'unit', { mainline: 'main', commit: commit(1), fetched: new Date(NOW).toISOString() });
+
+    const plan = await planCachePrune({ cacheRoot }, owners({ [commit(1)]: false, [commit(2)]: false, [commit(3)]: 0 }));
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[other, 'off-line']]);
   });
 
   test('a commit git cannot answer for is kept, and said, until it is 30 days old', async () => {

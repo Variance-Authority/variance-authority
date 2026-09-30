@@ -55,6 +55,7 @@ import {
   type SelectionReporterConfig,
 } from './jest.js';
 import {
+  noteSeeded,
   seedTestCoverage,
   type CoveragePrecondition,
   type CoverageTest,
@@ -211,7 +212,7 @@ class JestCoverageReporter {
     // The repository's snapshot becomes this checkout's before the first run
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run.
-    await seedTestCoverage(coverageFile, root);
+    noteSeeded(await seedTestCoverage(coverageFile, root));
     const merged = await withIndexLock(coverageFile, async () => {
       await landRun(coverageFile, current, root);
       markCheckout(repositoryRoot(root));

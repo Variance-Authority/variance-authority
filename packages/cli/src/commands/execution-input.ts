@@ -61,8 +61,8 @@ export async function readExecutionFor(
  * is not a reasonable price for a format change.
  *
  * With no record named, the index is the one beside the record a reader reads:
- * the nearest cache layer that holds it, which in a worktree that has not run
- * is the primary checkout's.
+ * the nearest that holds it, which in a checkout that has not run is the
+ * mainline's as last fetched here, else, in a worktree, the primary checkout's.
  */
 export async function defaultExecutionFile(
   root: string,
