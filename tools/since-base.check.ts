@@ -63,7 +63,7 @@ async function history() {
 }
 
 const tests = NAMES.map((name) => `test/${name}.test.ts`);
-const runsAt = (commit: string, over: string, files = ['test/near.test.ts'], standing?: { commit: string; files: string[] }[]) => ({
+const runsAt = (commit: string, over: string, files = ['test/near.test.ts'], standing?: { commit: string; files: string[]; assumed?: true }[]) => ({
   commit,
   over,
   first: '',
@@ -95,6 +95,25 @@ describe('a change is read from where each test last ran, not from where the las
     const assumed = `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from ${P.slice(0, 12)}, where its runs started`;
     expect(start.assumed).toBe(assumed);
     expect(start.says).toMatch(new RegExp(`; ${assumed.replace(/[()]/g, '\\$&')}$`));
+  });
+
+  it('reads a test `standing` lists as assumed from where it was assumed, and says so rather than reading it as fact', async () => {
+    const { git, P, H } = await history();
+    const M = git('rev-parse', 'mainline').trim();
+    const runs = runsAt(H, P, ['test/near.test.ts'], [
+      { commit: M, files: ['test/far.test.ts'], assumed: true },
+      { commit: P, files: ['test/other.test.ts'] },
+    ]);
+
+    const start = readingFrom({ commit: H, ref: undefined, runs, tests, git });
+
+    expect(start.stands).toEqual([
+      { commit: M, tests: ['test/far.test.ts'], whole: ['src/far.ts', 'src/other.ts'] },
+      { commit: P, tests: ['test/other.test.ts'], whole: ['src/far.ts'] },
+    ]);
+    expect(start.assumed).toBe(
+      `the runs record beside the snapshot does not say where 1 test(s) last ran, so they are read from the commits they were assumed at, ${M.slice(0, 12)}`,
+    );
   });
 
   it('reads from the snapshot\'s commit when the runs are another commit\'s or are absent, and says it assumed so', async () => {

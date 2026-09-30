@@ -730,8 +730,11 @@ run writes that commit, with the test files it ran, to `coverage.runs.json`
 beside the recording, so after a `yarn test` on a branch, `variance review`
 alone answers for everything since the previous run. When the recording
 already stood at the commit you ran at, as a worktree's first run at its base
-does, the start is that commit and the change is your working tree. A retry or a second shard at the same commit keeps the
-same starting commit and adds its test files to the list. Shards landed with
+does, the start is that commit and the change is your working tree. When the
+runs record beside it names another commit, as it does after a landing that
+stopped between the recording and the record, the start is the commit the
+record names. A retry or a second shard at the same commit keeps the same
+starting commit and adds its test files to the list. Shards landed with
 `variance journeys <shard>...` count as one run at the shards' commit.
 
 That commit is a start only when the one you ran at descends from it, and the

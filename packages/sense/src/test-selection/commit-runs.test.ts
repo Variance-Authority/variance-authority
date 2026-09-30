@@ -126,12 +126,11 @@ describe('the runs recorded at one commit', () => {
     });
   });
 
-  it('leaves `standing` absent, rather than guessed, when the record it replaces cannot say where a test last ran', async () => {
+  it('leaves `standing` absent, rather than guessed, when no record speaks for the snapshot it replaces', async () => {
     const records = {
       'none beside the snapshot': undefined,
-      'one written before `standing`': { commit: 'H', over: 'P', first: '', latest: '', runs: 1, files: ['a.test.ts'] },
       'one naming another commit': { commit: 'elsewhere', over: 'P', first: '', latest: '', runs: 1, files: ['a.test.ts'], standing: [] },
-      'one that does not list a test': { commit: 'H', over: 'P', first: '', latest: '', runs: 1, files: ['a.test.ts'], standing: [] },
+      'one with no start': { commit: 'H', first: '', latest: '', runs: 1, files: ['a.test.ts'], standing: [] },
     };
     for (const [name, held] of Object.entries(records)) {
       const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
@@ -142,12 +141,87 @@ describe('the runs recorded at one commit', () => {
       await landRun(coverageFile, run('C', ['c.test.ts']), root);
       expect((await readCommitRuns(coverageFile))?.standing, name).toBeUndefined();
 
-      // The absence is carried until a run observes every test, which needs no record.
-      await landRun(coverageFile, run('D', ['a.test.ts']), root);
-      expect((await readCommitRuns(coverageFile))?.standing, name).toBeUndefined();
-      await landRun(coverageFile, run('D', ['b.test.ts', 'c.test.ts']), root);
+      // A run observing every test needs no record to say where each stands.
+      await landRun(coverageFile, run('C', ['a.test.ts', 'b.test.ts']), root);
       expect((await readCommitRuns(coverageFile))?.standing, name).toEqual([]);
     }
+  });
+
+  it('lists a test the record it replaces cannot place at that record\'s start, as assumed', async () => {
+    const records = {
+      'one written before `standing`': { commit: 'H', over: 'P', first: '', latest: '', runs: 1, files: ['a.test.ts'] },
+      'one that does not list a test': { commit: 'H', over: 'P', first: '', latest: '', runs: 1, files: ['a.test.ts'], standing: [] },
+    };
+    for (const [name, held] of Object.entries(records)) {
+      const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
+      const coverageFile = join(root, 'coverage.bin');
+      await writeTestCoverage(coverageFile, run('H', ['a.test.ts', 'b.test.ts']));
+      await writeFile(commitRunsFile(coverageFile), JSON.stringify(held));
+
+      await landRun(coverageFile, run('C', ['c.test.ts']), root);
+
+      expect((await readCommitRuns(coverageFile))?.standing, name).toEqual([
+        { commit: 'P', files: ['b.test.ts'], assumed: true },
+        { commit: 'H', files: ['a.test.ts'] },
+      ]);
+    }
+  });
+
+  it('keeps an assumption where it was made when a later run moves `over`', async () => {
+    // A worktree's record copied from its primary checkout at M2, laid over M1,
+    // which never said where `b` ran.
+    const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
+    const coverageFile = join(root, 'coverage.bin');
+    await writeTestCoverage(coverageFile, run('M2', ['a.test.ts', 'b.test.ts']));
+    await writeFile(
+      commitRunsFile(coverageFile),
+      JSON.stringify({ commit: 'M2', over: 'M1', first: '', latest: '', runs: 1, files: ['a.test.ts'] }),
+    );
+
+    await landRun(coverageFile, run('M3', ['c.test.ts']), root);
+    await landRun(coverageFile, run('M4', ['a.test.ts']), root);
+
+    expect(await readCommitRuns(coverageFile)).toMatchObject({
+      commit: 'M4',
+      over: 'M3',
+      standing: [
+        { commit: 'M1', files: ['b.test.ts'], assumed: true },
+        { commit: 'M3', files: ['c.test.ts'] },
+      ],
+    });
+  });
+
+  it('lists a test at the commit it runs at when the test last ran there and this run did not', async () => {
+    const { root, coverageFile } = await recorded('O');
+    await landRun(coverageFile, run('P', ['a.test.ts', 'b.test.ts']), root);
+    await landRun(coverageFile, run('Q', ['a.test.ts']), root);
+
+    // Back at P, an older commit: `b` last ran on P's text, which is this one.
+    await landRun(coverageFile, run('P', ['a.test.ts']), root);
+
+    expect(await readCommitRuns(coverageFile)).toMatchObject({
+      commit: 'P',
+      over: 'Q',
+      files: ['a.test.ts'],
+      standing: [{ commit: 'P', files: ['b.test.ts'] }],
+    });
+  });
+
+  it('reads no retried landing outside a checkout, where neither the snapshot nor the run names a commit', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
+    const coverageFile = join(root, 'coverage.bin');
+    await writeTestCoverage(coverageFile, run(undefined, ['a.test.ts']));
+    await writeFile(
+      commitRunsFile(coverageFile),
+      JSON.stringify({ commit: 'H', over: 'P', first: '', latest: '', runs: 1, files: ['a.test.ts'], standing: [] }),
+    );
+
+    await landRun(coverageFile, run(undefined, ['b.test.ts']), root);
+
+    const runs = await readCommitRuns(coverageFile);
+    expect(runs).toMatchObject({ runs: 1, files: ['b.test.ts'] });
+    expect(runs).not.toHaveProperty('over');
+    expect(runs).not.toHaveProperty('commit');
   });
 
   it('lists no standing outside a checkout, where a run has no commit', async () => {

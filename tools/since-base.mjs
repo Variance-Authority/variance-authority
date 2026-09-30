@@ -51,11 +51,12 @@ function isAncestor(git, ancestor, commit) {
  *
  * A test the runs at the snapshot's commit observed stands there. Any other
  * stands where `standing` lists it. Where the record does not say, the reading
- * falls back, and `assumed` is the sentence that says how: a test the record
- * does not list is read from `over`, where the runs at the snapshot's commit
- * started, and with no record for this snapshot at all, from the snapshot's
- * commit. Runs recorded at another commit describe some other snapshot and say
- * nothing about this one.
+ * falls back, and `assumed` is the sentence that says how: a test `standing`
+ * lists as assumed is read from where an earlier record assumed it, a test the
+ * record does not list is read from `over`, where the runs at the snapshot's
+ * commit started, and with no record for this snapshot at all, from the
+ * snapshot's commit. Runs recorded at another commit describe some other
+ * snapshot and say nothing about this one.
  */
 export function standsOf({ commit, runs, tests }) {
   const stands = new Map(tests.map((test) => [test, commit]));
@@ -68,16 +69,31 @@ export function standsOf({ commit, runs, tests }) {
   }
   const ran = new Set(runs.files);
   const listed = new Map();
-  for (const entry of runs.standing ?? []) for (const file of entry.files) listed.set(file, entry.commit);
+  const guessed = new Set();
+  for (const entry of runs.standing ?? []) {
+    for (const file of entry.files) {
+      listed.set(file, entry.commit);
+      if (entry.assumed === true) guessed.add(file);
+    }
+  }
   const fallback = runs.over ?? commit;
   let unlisted = 0;
+  const from = new Set();
   for (const test of tests) {
     if (ran.has(test)) continue;
-    if (!listed.has(test)) unlisted += 1;
-    stands.set(test, listed.get(test) ?? fallback);
+    const stand = listed.get(test) ?? fallback;
+    stands.set(test, stand);
+    if (listed.has(test) && !guessed.has(test)) continue;
+    unlisted += 1;
+    from.add(stand);
   }
   if (unlisted === 0) return { stands, assumed: undefined };
-  const where = runs.over === undefined ? `${at}, where the snapshot was recorded` : `${runs.over.slice(0, 12)}, where its runs started`;
+  const where =
+    from.size === 1 && runs.over === undefined && from.has(commit)
+      ? `${at}, where the snapshot was recorded`
+      : from.size === 1 && from.has(runs.over)
+        ? `${runs.over.slice(0, 12)}, where its runs started`
+        : `the commits they were assumed at, ${[...from].map((stand) => stand.slice(0, 12)).join(', ')}`;
   return { stands, assumed: `the runs record beside the snapshot does not say where ${unlisted} test(s) last ran, so they are read from ${where}` };
 }
 

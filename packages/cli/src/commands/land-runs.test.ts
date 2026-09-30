@@ -177,7 +177,7 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     expect(await readFile(commitRunsFile(into), 'utf8')).toBe('{ not json');
   });
 
-  it('landed again after the record was not renamed, names the commit the interrupted landing was laid over', async () => {
+  it('landed again after the record was not renamed, names the commit the interrupted landing was laid over, and where each test stood there', async () => {
     await partial();
     interrupted.runs = true;
     await expect(land(run('C', ['other.test.ts']))).rejects.toThrow('EIO');
@@ -188,10 +188,18 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
 
     await land(run('C', ['other.test.ts']));
 
-    const runs = await readCommitRuns(into);
-    expect(runs).toMatchObject({ commit: 'C', over: 'H', runs: 1, files: ['other.test.ts'] });
-    // The record it would be carried from names the commit the snapshot left.
-    expect(runs).not.toHaveProperty('standing');
+    // The record the interrupted landing left still says where each test
+    // stood over H, and the retry carries it as a landing that finished would.
+    expect(await readCommitRuns(into)).toMatchObject({
+      commit: 'C',
+      over: 'H',
+      runs: 1,
+      files: ['other.test.ts'],
+      standing: [
+        { commit: 'P', files: ['far.test.ts'] },
+        { commit: 'H', files: ['near.test.ts'] },
+      ],
+    });
   });
 
   it('leaves no staged file beside the snapshot or the record', async () => {

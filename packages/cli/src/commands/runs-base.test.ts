@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commitRunsFile, type CommitRuns } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { runsBase } from './runs-base.js';
@@ -15,8 +15,25 @@ import { runsBase } from './runs-base.js';
  * answer, and the records refused before git is asked anything.
  */
 
+/** Once set, reading a clone's shallow list fails as a file it may not open does. */
+const denied = vi.hoisted(() => ({ shallow: false }));
+
+vi.mock('node:fs/promises', async (original) => {
+  const actual = await original<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    readFile: (async (...args: Parameters<typeof actual.readFile>) => {
+      if (denied.shallow && String(args[0]).endsWith('shallow')) {
+        throw Object.assign(new Error(`EACCES: permission denied, open '${String(args[0])}'`), { code: 'EACCES' });
+      }
+      return actual.readFile(...args);
+    }) as typeof actual.readFile,
+  };
+});
+
 let made: string[] = [];
 afterEach(async () => {
+  denied.shallow = false;
   await Promise.all(made.map((at) => rm(at, { recursive: true, force: true })));
   made = [];
 });
@@ -75,6 +92,15 @@ describe('where a review of the runs starts', () => {
     const refused = runsBase(shallow, runs(B, A), snapshot(shallow));
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow('this clone is shallow, and its history between them stops at the cut');
+  });
+
+  it('is refused after a "no" when the shallow list is there and cannot be read, which may hide a cut', async () => {
+    const { origin, A, B } = await history();
+    denied.shallow = true;
+
+    const refused = runsBase(origin, runs(A, B), snapshot(origin));
+    await expect(refused).rejects.toBeInstanceOf(OperatorError);
+    await expect(refused).rejects.toThrow('its shallow list could not be read: EACCES');
   });
 
   it('is none in a shallow clone when the walk between the two ends before the cut', async () => {

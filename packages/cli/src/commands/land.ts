@@ -100,12 +100,13 @@ export async function landJourneys(
   // and must report a removal it could not make without failing a landing that already landed.
   //
   // FIXME: the case index and the snapshot are two files, and nothing renames
-  // them together. A crash after `landCaseIndexes` and before the rename leaves
-  // the index ahead of the snapshot. Landing again then lays the same shards'
-  // cases a second time: the index comes out right, but each lay reads as one
-  // more run at the same commit, so `layerBefore` puts the first attempt's own
-  // cases into the before layer over the base they replaced, and review
-  // compares those files with themselves.
+  // them together. A crash after `landCaseIndexes` and before either rename,
+  // or the runs record's rename failing, leaves the index laid for a landing
+  // that did not finish. Landing again then lays the same shards' cases a
+  // second time: the index comes out right, but each lay reads as one more run
+  // at the same commit, so `layCaseRun` drops the before commit from the
+  // last-run layer, and review reports no case movement for those files and
+  // does not say why.
   const runsAt = selection.commitRunsFile(at);
   const stage = `${process.pid}-${randomUUID()}.tmp`;
   const staged = `${at}.${stage}`;
@@ -150,12 +151,13 @@ export async function landJourneys(
       // rename throwing, leaves the record as it was before the landing. The
       // snapshot goes first because the other order is worse: at the same
       // commit, a record renamed ahead of its snapshot says the shards ran on
-      // rows the snapshot does not hold yet. Landing again keeps the start,
-      // because `commitRunsAfter` takes a snapshot ahead of its record for this
-      // and names the record's commit as `over`. It loses `standing`: the record
-      // it would be carried from names a commit the snapshot has left, so the
-      // retry leaves it absent, and `test:since` reads every test the shards did
-      // not run from `over`, including one that last ran before it.
+      // rows the snapshot does not hold yet. Landing again repairs the record:
+      // `commitRunsAfter` takes a snapshot ahead of its record for this, and
+      // carries the start and `standing` from the record the landing was laid
+      // over. What it cannot carry is a test only the interrupted landing ran:
+      // when the retry lands other shards, that test is listed where it stood
+      // before, an older commit than the one it last ran at, so `test:since`
+      // reads more of the change for it rather than less.
       await rename(stagedRuns, runsAt);
       return { landed, cases };
     } finally {
