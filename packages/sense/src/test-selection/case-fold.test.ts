@@ -320,5 +320,15 @@ describe('the bounded case fold', () => {
     await run('shards', { 'a.test.ts': 1 });
     await run('shards', { 'b.test.ts': 1 });
     expect(await last()).toMatchObject({ files: ['test/a.test.ts', 'test/b.test.ts'], unbased: ['test/a.test.ts', 'test/b.test.ts'] });
+
+    // The index still began at this commit after every unbased file has run
+    // again, so a file a later run brings for the first time has no base.
+    await rm(index, { force: true });
+    await rm(caseLayerFiles(index).last, { force: true });
+    await run('rerun', { 'a.test.ts': 1 });
+    await run('rerun', { 'a.test.ts': 2 });
+    expect((await last()).unbased).toBeUndefined();
+    await run('rerun', { 'b.test.ts': 1 });
+    expect(await last()).toMatchObject({ unbased: ['test/b.test.ts'] });
   });
 });

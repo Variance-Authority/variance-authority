@@ -51,6 +51,12 @@ export interface LastCaseRun {
    * same as no case. Absent when every file has a base.
    */
   readonly unbased?: readonly string[];
+  /**
+   * True when the first run at this commit was laid over no index, so every
+   * case in it began at this commit and a file first run here has no base.
+   * Absent when an earlier commit's index was under it.
+   */
+  readonly began?: true;
   /** The cases the last run recorded, by id. */
   readonly cases: readonly string[];
 }
@@ -96,10 +102,10 @@ export async function layCaseRun(
   await writeCoverageBytes(file, merged);
   const files = [...ran].sort(codeUnitOrder);
   // A file laid over no index has no base; running it again at this commit
-  // retires this commit's own cases of it, which are then its base. While the
-  // commit's runs still hold such files, the index they lay over began at this
-  // commit, so a file none of them ran before — the next shard's — has none either.
-  const began = again && (prior.unbased?.length ?? 0) > 0;
+  // retires this commit's own cases of it, which are then its base. When the
+  // index began at this commit, a file none of its runs ran before — the next
+  // shard's — has none either, however many of the others have run again.
+  const began = again && prior.began === true;
   const unbased = [
     ...(again ? (prior.unbased ?? []).filter((test) => !ran.has(test)) : []),
     ...(retired === undefined ? files : began ? files.filter((test) => !prior.files.includes(test)) : []),
@@ -110,6 +116,7 @@ export async function layCaseRun(
     at: new Date().toISOString(),
     files: again ? [...new Set([...prior.files, ...files])].sort(codeUnitOrder) : files,
     ...(unbased.length === 0 ? {} : { unbased }),
+    ...(retired === undefined || began ? { began: true } : {}),
     cases: last,
   };
   await writeCoverageBytes(layers.last, Buffer.from(`${JSON.stringify(named, null, 2)}\n`));
