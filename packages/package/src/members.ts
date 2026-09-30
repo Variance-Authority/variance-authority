@@ -10,10 +10,10 @@ import { parse } from 'yaml';
  * A member list is written in YAML or JSON and read as globs, and neither of
  * those is a language this package defines. `yaml` says what a
  * `pnpm-workspace.yaml` holds — a list at its key's own indent, a flow list, a
- * quoted key, a byte-order mark — and `tinyglobby`, the matcher pnpm's own
- * workspace reader is built on, says what an entry matches, negated entries
- * included. Reading either by hand answers most files and misreads the rest,
- * and a misread member list is a workspace missing members with nothing said.
+ * quoted key, a byte-order mark — and `tinyglobby` says what an entry
+ * matches, negated entries included. Reading either by hand answers most files
+ * and misreads the rest, and a misread member list is a workspace missing
+ * members with nothing said.
  */
 
 /** Directories no member list reaches into, whatever its globs say. */
