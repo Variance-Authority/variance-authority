@@ -61,7 +61,7 @@ const CORPORA: readonly Corpus[] = [
     name: 'Docusaurus',
     root: process.env['VARIANCE_AUTHORITY_SHARE_DOCUSAURUS'] ?? join(EXAMPLES, 'docusaurus'),
     cache: process.env['VARIANCE_AUTHORITY_SHARE_DOCUSAURUS_CACHE'],
-    floor: 0.808,
+    floor: 0.807,
     needs: 'a Docusaurus checkout with a recording, at `VARIANCE_AUTHORITY_SHARE_DOCUSAURUS` or `~/dev/variance-authority-examples/docusaurus`',
   },
 ];

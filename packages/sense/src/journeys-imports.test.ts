@@ -32,10 +32,17 @@ const functions = (...names: readonly string[]): string => names.map((name) => `
 /** A test file with one case, `runs`, that calls `called` as `imports` brought it in. */
 const test = (imports: string, called: string): string => `${imports}\nit('runs', () => ${called}('x'));\n`;
 
+/** A function the recorder wrote where `functions` would not place it. */
+interface Block {
+  readonly name: string;
+  readonly start: number;
+  readonly end: number;
+}
+
 interface Ran {
   readonly file: string;
-  /** Every function the file holds, in order. */
-  readonly functions: readonly string[];
+  /** Every function the file holds, in order: a name is the `n`th of `functions`. */
+  readonly functions: readonly (string | Block)[];
   /** The ones the case entered. */
   readonly entered: readonly string[];
 }
@@ -82,15 +89,18 @@ function recording(testFile: string, ran: readonly Ran[]): Buffer {
   const sets = new CrossingSets(tests.length);
   return encodeSetExecutionIndex({
     tests,
-    modules: ran.map(({ file, functions: held, entered }) => ({
-      file,
-      blocks: [
-        { kind: 'module', name: '', path: '', startLine: 1, endLine: held.length * 3, source: true },
-        ...held.map((name, at) => ({ kind: 'function', name, path: name, startLine: at * 3 + 1, endLine: at * 3 + 3, source: true })),
-      ],
-      called: Uint32Array.from([sets.intern([]), ...held.map((name) => sets.intern(entered.includes(name) ? [0] : []))]),
-      loaded: Uint8Array.from([1, ...held.map(() => 0)]),
-    })),
+    modules: ran.map(({ file, functions: written, entered }) => {
+      const held = written.map((block, at) => (typeof block === 'string' ? { name: block, start: at * 3 + 1, end: at * 3 + 3 } : block));
+      return {
+        file,
+        blocks: [
+          { kind: 'module', name: '', path: '', startLine: 1, endLine: Math.max(...held.map(({ end }) => end)), source: true },
+          ...held.map(({ name, start, end }) => ({ kind: 'function', name, path: name, startLine: start, endLine: end, source: true })),
+        ],
+        called: Uint32Array.from([sets.intern([]), ...held.map(({ name }) => sets.intern(entered.includes(name) ? [0] : []))]),
+        loaded: Uint8Array.from([1, ...held.map(() => 0)]),
+      };
+    }),
     sets: sets.pool(),
   });
 }
@@ -128,7 +138,7 @@ describe('a call reaches the function its case ran', () => {
     ], 'packages/mui-utils/src/index.js')).toEqual({ entered: 1, placed: 1, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'recorded' }] });
   });
 
-  it('by a name the test runner maps to a file, from the recording', async () => {
+  it('by a name the test runner maps to a file path relative to its config, from the recording', async () => {
     installVite();
     checkout({
       'package.json': JSON.stringify({ name: 'app', private: true }),
@@ -204,18 +214,6 @@ describe('a call the source does not bring to the function its case ran', () => 
     expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'recorded' }] });
   });
 
-  it('when the import resolves to a file the case entered nothing in', async () => {
-    checkout({
-      'package.json': JSON.stringify({ name: 'app', private: true }),
-      'src/api.ts': functions('get'),
-      'lib/api.js': functions('get'),
-      'test/api.test.ts': test("import { get } from '../lib/api.js';", 'get'),
-    });
-
-    expect(await walk('test/api.test.ts', [...ranGet, { file: 'lib/api.js', functions: ['get'], entered: [] }], 'src/api.ts'))
-      .toEqual({ entered: 1, placed: 1, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'recorded' }] });
-  });
-
   it('when the case ran more than one function under the imported name', async () => {
     checkout({
       'package.json': JSON.stringify({ name: 'app', private: true }),
@@ -240,5 +238,111 @@ describe('a call the source does not bring to the function its case ran', () => 
 
     expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'static' }] });
     expect(existsSync(evaluated)).toBe(false);
+  });
+});
+
+describe('a call the recording does not place', () => {
+  it('when its import leads to a function the case did not enter, as a branch the case did not take, though another file it ran exports the name', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/api.ts': functions('get'),
+      'lib/api.js': functions('get'),
+      'test/api.test.ts': test("import { get } from '../lib/api.js';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', [...ranGet, { file: 'lib/api.js', functions: ['get'], entered: [] }], 'src/api.ts'))
+      .toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+  });
+
+  it('when it imports a Node builtin whose name a function the case ran is exported under', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/names.ts': functions('basename'),
+      'test/names.test.ts': test("import { basename } from 'path';", 'basename'),
+    });
+
+    expect(await walk('test/names.test.ts', [{ file: 'src/names.ts', functions: ['basename'], entered: ['basename'] }], 'src/names.ts'))
+      .toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+  });
+
+  it('when it imports an installed package no workspace holds, whose name a function the case ran is exported under', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true, dependencies: { lodash: '*' } }),
+      'src/text.ts': functions('capitalize'),
+      'test/text.test.ts': test("import { capitalize } from 'lodash';", 'capitalize'),
+    });
+
+    expect(await walk('test/text.test.ts', [{ file: 'src/text.ts', functions: ['capitalize'], entered: ['capitalize'] }], 'src/text.ts'))
+      .toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+  });
+
+  it('when the function the case ran under the imported name is not exported', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/api.ts': 'function get(value) {\n  return value;\n}\n',
+      'test/api.test.ts': test("import { get } from 'api';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+  });
+
+  it('when it names a workspace package, on a function another package exports', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'repo', private: true, workspaces: ['packages/*'] }),
+      'packages/lib/package.json': JSON.stringify({ name: '@t/lib', main: './build/index.js' }),
+      'packages/lib/src/index.ts': functions('get'),
+      'packages/other/package.json': JSON.stringify({ name: '@t/other' }),
+      'packages/other/src/index.ts': functions('get'),
+      'packages/app/package.json': JSON.stringify({ name: '@t/app', dependencies: { '@t/lib': '*' } }),
+      'packages/app/test/get.test.ts': test("import { get } from '@t/lib';", 'get'),
+    });
+
+    expect(await walk('packages/app/test/get.test.ts', [
+      { file: 'packages/lib/src/index.ts', functions: ['get'], entered: [] },
+      { file: 'packages/other/src/index.ts', functions: ['get'], entered: ['get'] },
+    ], 'packages/other/src/index.ts')).toEqual({ entered: 1, placed: 0, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [] });
+  });
+});
+
+describe('a call the recording places, and what it does not override', () => {
+  it('a default import, on the function its module exports as default under another name', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/class-names.ts': 'export default function classNames(value) {\n  return value;\n}\n',
+      'test/class-names.test.ts': test("import cx from 'class-names';", 'cx'),
+    });
+
+    expect(await walk('test/class-names.test.ts', [{ file: 'src/class-names.ts', functions: ['classNames'], entered: ['classNames'] }], 'src/class-names.ts'))
+      .toEqual({ entered: 1, placed: 1, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'recorded' }] });
+  });
+
+  it('`new Foo()`, on the constructor the case ran, when two functions it ran are exported as `Foo`', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/a.ts': functions('Foo'),
+      'src/b.ts': functions('Foo'),
+      'src/c.ts': 'class Foo {\n  constructor(value) {}\n}\n',
+      'test/foo.test.ts': test("import { Foo } from 'models';", 'new Foo'),
+    });
+
+    expect(await walk('test/foo.test.ts', [
+      { file: 'src/a.ts', functions: ['Foo'], entered: ['Foo'] },
+      { file: 'src/b.ts', functions: ['Foo'], entered: ['Foo'] },
+      { file: 'src/c.ts', functions: [{ name: 'Foo/constructor', start: 2, end: 2 }], entered: ['Foo/constructor'] },
+    ], 'src/c.ts')).toEqual({ entered: 3, placed: 1, recorded: 0, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, known: 'new' }] });
+  });
+
+  it('a call the relations also bring to the function, which keeps the caller they name', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/api.ts': functions('get'),
+      'src/run.ts': "import { get } from './api.js';\nexport function run(value) {\n  return get(value);\n}\n",
+      'test/api.test.ts': "import { get } from 'api';\nimport { run } from '../src/run.js';\nit('runs', () => {\n  get('x');\n  run('x');\n});\n",
+    });
+
+    expect(await walk('test/api.test.ts', [
+      ...ranGet,
+      { file: 'src/run.ts', functions: [{ name: 'run', start: 2, end: 4 }], entered: ['run'] },
+    ], 'src/api.ts')).toEqual({ entered: 2, placed: 2, recorded: 1, ambiguous: 0, ambiguousCases: 0, callers: [{ cases: 1, file: 'src/run.ts', known: 'observed', line: 2, name: 'run' }] });
   });
 });

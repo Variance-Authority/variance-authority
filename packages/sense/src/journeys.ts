@@ -16,6 +16,7 @@
 
 import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
+import { BUILTINS } from './native-index-graph.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
@@ -119,7 +120,7 @@ export async function prepareJourneys(
       continue;
     }
     const at = commitOf(recording.slice(0, -'.cases.bin'.length));
-    const made = walk(root, index, recording, at, out);
+    const made = walk(root, index, recording, at, out, BUILTINS);
     prepared.push(made === null ? { ...named, out, unprepared: 'there is no source index' } : { ...named, out, prepared: made });
   }
   return prepared;

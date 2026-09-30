@@ -236,10 +236,10 @@ export function journeysLine(one: PreparedJourneys): string {
       : `the files were parsed as the working tree has them, not as the recording ran them, because ${prepared.tree}`,
     prepared.fellBack > 0 ? `${prepared.fellBack} imports the index did not resolve were resolved by the walk` : '',
     prepared.recorded > 0
-      ? `${prepared.recorded} calls were placed from the recording, because their import led to no function the case ran and exactly one it ran has the imported name`
+      ? `${prepared.recorded} calls were placed from the recording, because their import resolved to no function and exactly one the case ran is exported under the imported name`
       : '',
     prepared.ambiguous > 0
-      ? `${prepared.ambiguous} calls have no place, because their import led to no function the case ran and several it ran have the imported name, ` +
+      ? `${prepared.ambiguous} calls have no place, because their import resolved to no function and several the case ran are exported under the imported name, ` +
         `in ${prepared.ambiguousCases} ${prepared.ambiguousCases === 1 ? 'case' : 'cases'}`
       : '',
   ].filter((note) => note !== '');

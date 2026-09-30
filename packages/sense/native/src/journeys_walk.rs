@@ -6,8 +6,9 @@
 //! - static: the site is in the test, in an unrecorded file, or no recorded
 //!   region decides it — resolved, not seen;
 //! - inferred: no static target, so a member call matched by name to the one
-//!   entered function of that name, an import the relations cannot bring to
-//!   an entered function placed from the recording (`journeys_recorded.rs`),
+//!   entered function of that name, an import the relations cannot resolve
+//!   placed on the one entered function exported under its name
+//!   (`journeys_recorded.rs`),
 //!   `new X` to X's constructor, a function written inside a value handed to a
 //!   call, a function a factory wrote, what a caller handed a parameter, or a
 //!   function no route reaches hung under the placed function it is written in;
@@ -15,9 +16,10 @@
 //!   route to an entered one;
 //! - test: a helper declared in the test file.
 //!
-//! A callee with several routes is placed on the one with the fewest guards,
-//! then the fewest hops, then the call found first. Nothing here says which
-//! route ran when the recording does not.
+//! A callee with several routes is placed on the one with the fewest steps
+//! placed from the recording, then the fewest guards, then the fewest hops,
+//! then the call found first. Nothing here says which route ran when the
+//! recording does not.
 
 // compass: variance-authority.reach.relations
 
@@ -33,6 +35,7 @@ pub(crate) use crate::journeys_steps::{Known, Tag, Walked};
 mod emit;
 #[path = "journeys_recorded.rs"]
 mod recorded;
+pub(crate) use recorded::Exported;
 
 const BUILTIN: &[&str] = &[
     "add", "get", "set", "has", "delete", "clear", "map", "filter", "reduce", "forEach", "find", "some", "every", "sort", "join", "slice",
@@ -90,7 +93,8 @@ struct Walk<'w, 'j> {
     entered: Vec<bool>,
     by_last: HashMap<&'j str, (u32, u32)>,
     constructors: HashMap<&'j str, u32>,
-    named: recorded::Named<'j>,
+    exported: &'w Exported,
+    named: recorded::Named,
     nodes: Vec<Node>,
     keys: HashMap<u64, u32>,
     edges: Vec<Edge>,
@@ -256,7 +260,6 @@ impl<'w, 'j> Walk<'w, 'j> {
                 continue;
             }
             let guard = if site == Site::Ran { 0 } else { call.guard };
-            let callee = &call.callee;
             match &graph.targets[file as usize][at as usize] {
                 Target::Fn { file: to_file, func: to_func, how } => {
                     let known = if call.by_ref { Known::Reference } else { Known::Call(*how) };
@@ -280,71 +283,90 @@ impl<'w, 'j> Walk<'w, 'j> {
                         let to = self.node(Kind::Region, to_file, to_func, Some(j));
                         self.link(node, to, guard, if site == Site::Ran { Tag::Observed } else { Tag::Static }, known);
                         self.explore(to, false);
-                    } else if !self.ran_in(to_file) {
-                        self.recorded(node, file, at, guard);
                     }
                 }
                 unresolved => {
-                    if matches!(unresolved, Target::External | Target::Member) && self.recorded(node, file, at, guard) {
+                    let answer = match unresolved {
+                        Target::External | Target::Member => self.recorded(node, file, at, guard),
+                        _ => recorded::Answer::Unanswered,
+                    };
+                    if answer == recorded::Answer::Placed {
                         continue;
                     }
-                    let declared = |name: &Option<String>| name.as_deref().filter(|id| parsed.decls.contains_key(*id)).map(str::to_owned);
-                    if call.by_ref {
-                        match unresolved {
-                            Target::NotFunction { file: at_file, local } => self.handed(node, *at_file, &local.clone(), guard, Known::Handed),
-                            Target::Free => {
-                                if let Some(id) = declared(&callee.id) {
-                                    self.handed(node, file, &id, guard, Known::Handed);
-                                }
-                            }
-                            _ => {}
-                        }
-                        continue;
-                    }
-                    if let Target::NotFunction { file: at_file, local } = unresolved {
-                        if self.made(node, *at_file, &local.clone(), guard, 0) > 0 {
-                            continue;
-                        }
-                    }
-                    let free = matches!(unresolved, Target::Free);
-                    if free {
-                        if let Some(id) = declared(&callee.id) {
-                            if self.made(node, file, &id, guard, 0) > 0 {
-                                continue;
-                            }
-                        }
-                    }
-                    let member = matches!(unresolved, Target::Member) || (matches!(unresolved, Target::NotFunction { .. }) && callee.prop.is_some());
-                    if let Some(prop) = callee.prop.as_deref().filter(|prop| member && !BUILTIN.contains(prop)) {
-                        if let Some(&(j, 1)) = self.by_last.get(prop) {
-                            let region = &self.record.regions[j as usize];
-                            self.reach(node, region.file, self.record.fn_for[j as usize], j, guard, Known::NameMatch);
-                            continue;
-                        }
-                    }
-                    let named = callee.id.as_deref().or(callee.prop.as_deref());
-                    let constructor = named
-                        .filter(|name| call.is_new || name.starts_with(|first: char| first.is_ascii_uppercase()))
-                        .and_then(|name| self.constructors.get(name).copied());
-                    if let Some(j) = constructor {
-                        let region = &self.record.regions[j as usize];
-                        self.reach(node, region.file, self.record.fn_for[j as usize], j, guard, Known::New);
-                        continue;
-                    }
-                    if free {
-                        if let Some(id) = callee.id.as_deref() {
-                            self.parameter(node, file, at, id, guard);
-                        }
+                    let before = self.edges.len();
+                    self.inferred(node, file, at, guard, unresolved);
+                    // Ambiguous only when no other inference placed the call.
+                    if answer == recorded::Answer::Ambiguous && self.edges.len() == before {
+                        self.named.ambiguous.push(fn_key(file, at));
                     }
                 }
             }
         }
     }
 
-    /// The best route to every node: fewest guards, then fewest hops, then the
-    /// edge found first. Returns each reached node's key and the edge it came by.
-    fn route(&self, roots: &[u32]) -> (Vec<Option<(u32, u32, i64)>>, Vec<u32>) {
-        let mut key: Vec<Option<(u32, u32, i64)>> = vec![None; self.nodes.len()];
+    /// A call with no static target to an entered function, placed by what
+    /// else the relations and the recording hold.
+    fn inferred(&mut self, node: u32, file: u32, at: u32, guard: u32, unresolved: &Target) {
+        let graph = self.graph;
+        let parsed = graph.parsed(file).expect("an explored file is parsed");
+        let call = &parsed.calls[at as usize];
+        let callee = &call.callee;
+        let declared = |name: &Option<String>| name.as_deref().filter(|id| parsed.decls.contains_key(*id)).map(str::to_owned);
+        if call.by_ref {
+            match unresolved {
+                Target::NotFunction { file: at_file, local } => self.handed(node, *at_file, &local.clone(), guard, Known::Handed),
+                Target::Free => {
+                    if let Some(id) = declared(&callee.id) {
+                        self.handed(node, file, &id, guard, Known::Handed);
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+        if let Target::NotFunction { file: at_file, local } = unresolved {
+            if self.made(node, *at_file, &local.clone(), guard, 0) > 0 {
+                return;
+            }
+        }
+        let free = matches!(unresolved, Target::Free);
+        if free {
+            if let Some(id) = declared(&callee.id) {
+                if self.made(node, file, &id, guard, 0) > 0 {
+                    return;
+                }
+            }
+        }
+        let member = matches!(unresolved, Target::Member) || (matches!(unresolved, Target::NotFunction { .. }) && callee.prop.is_some());
+        if let Some(prop) = callee.prop.as_deref().filter(|prop| member && !BUILTIN.contains(prop)) {
+            if let Some(&(j, 1)) = self.by_last.get(prop) {
+                let region = &self.record.regions[j as usize];
+                self.reach(node, region.file, self.record.fn_for[j as usize], j, guard, Known::NameMatch);
+                return;
+            }
+        }
+        let named = callee.id.as_deref().or(callee.prop.as_deref());
+        let constructor = named
+            .filter(|name| call.is_new || name.starts_with(|first: char| first.is_ascii_uppercase()))
+            .and_then(|name| self.constructors.get(name).copied());
+        if let Some(j) = constructor {
+            let region = &self.record.regions[j as usize];
+            self.reach(node, region.file, self.record.fn_for[j as usize], j, guard, Known::New);
+            return;
+        }
+        if free {
+            if let Some(id) = callee.id.as_deref() {
+                self.parameter(node, file, at, id, guard);
+            }
+        }
+    }
+
+    /// The best route to every node: fewest steps placed from the recording,
+    /// so a route the relations hold always beats one the recording guessed,
+    /// then fewest guards, then fewest hops, then the edge found first.
+    /// Returns each reached node's key and the edge it came by.
+    fn route(&self, roots: &[u32]) -> (Vec<Option<(u32, u32, u32, i64)>>, Vec<u32>) {
+        let mut key: Vec<Option<(u32, u32, u32, i64)>> = vec![None; self.nodes.len()];
         let mut parent = vec![NONE; self.nodes.len()];
         let mut out: Vec<Vec<u32>> = vec![Vec::new(); self.nodes.len()];
         for (rank, edge) in self.edges.iter().enumerate() {
@@ -354,7 +376,7 @@ impl<'w, 'j> Walk<'w, 'j> {
         let count = roots.len() as i64;
         for (at, &root) in roots.iter().enumerate() {
             if key[root as usize].is_none() {
-                let k = (0, 0, -1 - count + at as i64);
+                let k = (0, 0, 0, -1 - count + at as i64);
                 key[root as usize] = Some(k);
                 heap.push(Reverse((k, root)));
             }
@@ -367,7 +389,7 @@ impl<'w, 'j> Walk<'w, 'j> {
             done[node as usize] = true;
             for &rank in &out[node as usize] {
                 let edge = &self.edges[rank as usize];
-                let next = (k.0 + edge.guard, k.1 + 1, rank as i64);
+                let next = (k.0 + u32::from(edge.known == Known::Recorded), k.1 + edge.guard, k.2 + 1, rank as i64);
                 if key[edge.to as usize].is_none_or(|held| next < held) {
                     key[edge.to as usize] = Some(next);
                     parent[edge.to as usize] = rank;
@@ -379,7 +401,7 @@ impl<'w, 'j> Walk<'w, 'j> {
     }
 }
 
-pub(crate) fn walk(graph: &Graph, record: &Record, helpers: &Helpers, case: usize) -> Walked {
+pub(crate) fn walk(graph: &Graph, record: &Record, exported: &Exported, helpers: &Helpers, case: usize) -> Walked {
     let (test_file, name) = record.tests[case];
     let mut entered = vec![false; record.regions.len()];
     let mut by_last: HashMap<&str, (u32, u32)> = HashMap::new();
@@ -406,7 +428,8 @@ pub(crate) fn walk(graph: &Graph, record: &Record, helpers: &Helpers, case: usiz
         entered,
         by_last,
         constructors,
-        named: recorded::Named::of(record, case, test_file),
+        exported,
+        named: recorded::Named::default(),
         nodes: Vec::new(),
         keys: HashMap::new(),
         edges: Vec::new(),

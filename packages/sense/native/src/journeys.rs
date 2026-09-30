@@ -24,7 +24,7 @@ use crate::journeys_fold::{columns, fold, Packages};
 use crate::journeys_graph::Graph;
 use crate::journeys_record::{record, seeds};
 use crate::journeys_roots::Helpers;
-use crate::journeys_walk::{walk, Walked};
+use crate::journeys_walk::{walk, Exported, Walked};
 use crate::package_owners::{owner_of, owners, shown};
 use crate::GitTree;
 
@@ -32,7 +32,7 @@ pub(crate) const FORMAT: u8 = 2;
 /// The walk that prepared a file: the addon's version, and a revision moved
 /// whenever the walk or the fold changes what it writes within one version.
 /// A file another walk prepared is prepared again, never answered from.
-pub(crate) const WALK: &str = concat!(env!("CARGO_PKG_VERSION"), "/walk.4");
+pub(crate) const WALK: &str = concat!(env!("CARGO_PKG_VERSION"), "/walk.5");
 /// The caller of a case's first placed function: the test itself.
 pub(crate) const TEST: u32 = u32::MAX;
 /// The package of a file no named manifest sits above.
@@ -74,10 +74,11 @@ pub(crate) struct Meta {
     /// Specifiers the index did not answer, which the graph resolved itself.
     pub fell_back: u32,
     /// Call sites the static resolution missed that the recording placed, on
-    /// the one entered function carrying the imported name.
+    /// the one entered function exported under the imported name.
     pub recorded: u32,
-    /// Call sites whose imported name more than one entered function carried,
-    /// left unplaced, and the cases they were ambiguous in.
+    /// Call sites the static resolution missed where several entered functions
+    /// are exported under the imported name and nothing else placed the call,
+    /// and the cases they were ambiguous in.
     pub ambiguous: u32,
     pub ambiguous_cases: u32,
     /// The recording's and the index's size and modification time when they
@@ -137,8 +138,9 @@ pub struct JourneysPrepared {
     pub fell_back: u32,
     /// Call sites the static resolution missed that the recording placed.
     pub recorded: u32,
-    /// Call sites whose imported name several entered functions carried, left
-    /// unplaced, and the cases they were ambiguous in.
+    /// Call sites the static resolution missed where several entered functions
+    /// are exported under the imported name and nothing else placed the call,
+    /// and the cases they were ambiguous in.
     pub ambiguous: u32,
     pub ambiguous_cases: u32,
     /// The commit the recording ran at, when it names one.
@@ -192,7 +194,8 @@ pub struct JourneysCommit {
 
 /// Walks the recording at `recording` over the index at `index` and writes the
 /// journeys to `out`, with git listing the checkout. `None` when there is no
-/// source index.
+/// source index. `builtins` are the runtime's own modules, which no function
+/// of the checkout answers.
 #[napi(catch_unwind)]
 pub fn prepare_journeys(
     root: String,
@@ -200,9 +203,10 @@ pub fn prepare_journeys(
     recording: String,
     at: JourneysCommit,
     out: String,
+    builtins: Vec<String>,
 ) -> napi::Result<Option<JourneysPrepared>> {
     let listing = listed(&root);
-    prepare(&root, &index, &recording, at, &out, listing.as_deref())
+    prepare(&root, &index, &recording, at, &out, listing.as_deref(), builtins)
 }
 
 #[napi]
@@ -217,8 +221,9 @@ impl GitTree {
         recording: String,
         at: JourneysCommit,
         out: String,
+        builtins: Vec<String>,
     ) -> napi::Result<Option<JourneysPrepared>> {
-        prepare(&root, &index, &recording, at, &out, Some(self.listed()))
+        prepare(&root, &index, &recording, at, &out, Some(self.listed()), builtins)
     }
 }
 
@@ -229,6 +234,7 @@ fn prepare(
     at: JourneysCommit,
     out: &str,
     listing: Option<&[String]>,
+    builtins: Vec<String>,
 ) -> napi::Result<Option<JourneysPrepared>> {
     let fail = napi::Error::from_reason;
     // Stat before reading, so a file replaced while it is read is stamped as
@@ -253,15 +259,17 @@ fn prepare(
     let unnamed = at.unread.unwrap_or_else(|| "the recording names no commit".to_owned());
     let graph = Graph::build(root, &layers, at.commit.as_deref().ok_or(unnamed.as_str()), &seeds);
     let record = record(&journey, &graph).map_err(fail)?;
-    let pool = rayon::ThreadPoolBuilder::new().stack_size(STACK).build().map_err(|error| fail(error.to_string()))?;
-    let helpers = Helpers::default();
-    let walked: Vec<Walked> = pool.install(|| (0..record.tests.len()).into_par_iter().map(|case| walk(&graph, &record, &helpers, case)).collect());
-
     let owners = known.unwrap_or_else(|| owners(root, &graph.files));
-    let (_, names) = shown(&owners);
     let directories: HashMap<&str, u32> =
         owners.packages.iter().enumerate().map(|(at, package)| (package.directory.as_str(), at as u32)).collect();
     let package: Vec<u32> = graph.files.iter().map(|file| owner_of(&owners, &directories, file).unwrap_or(NO_PACKAGE)).collect();
+    let exported = Exported::of(&graph, &record, &owners, &package, builtins.into_iter().collect());
+    let pool = rayon::ThreadPoolBuilder::new().stack_size(STACK).build().map_err(|error| fail(error.to_string()))?;
+    let helpers = Helpers::default();
+    let walked: Vec<Walked> =
+        pool.install(|| (0..record.tests.len()).into_par_iter().map(|case| walk(&graph, &record, &exported, &helpers, case)).collect());
+
+    let (_, names) = shown(&owners);
     let directories: Vec<String> = owners.packages.iter().map(|package| package.directory.clone()).collect();
 
     let mut folded = fold(&record, &walked, &package);
