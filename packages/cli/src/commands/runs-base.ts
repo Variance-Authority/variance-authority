@@ -31,7 +31,7 @@ import { commitRunsFile, type CommitRuns } from '@variance-authority/sense/test-
 import { OperatorError } from '../exit.js';
 
 /** A full object name, SHA-1 or SHA-256: never an option, never a revision expression. */
-const OBJECT_NAME = /^[0-9a-f]{40,64}$/;
+const OBJECT_NAME = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
 /** How git answered one question: its exit code, what it printed, and the first line it wrote to stderr. */
 interface Answer {
@@ -40,21 +40,36 @@ interface Answer {
   readonly said: string;
 }
 
+/**
+ * Ask git one question in `root`. A partial clone would otherwise fetch a
+ * commit it does not hold from its promisor to answer, which is a network
+ * call a review never asked for; without it, git says it cannot.
+ */
 function ask(root: string, args: readonly string[]): Promise<Answer> {
+  const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
   return new Promise((done) => {
-    execFile('git', args, { cwd: root, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
+    execFile('git', args, { cwd: root, env, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
       const code = error === null ? 0 : typeof error.code === 'number' ? error.code : -1;
       done({ code, out: String(stdout).trim(), said: String(stderr).trim().split('\n')[0] ?? '' });
     });
   });
 }
 
-/** The commits a shallow clone's history was cut at, or none when it is not shallow. */
-async function cut(root: string): Promise<Set<string>> {
+/**
+ * The commits a shallow clone's history was cut at, none when it is not
+ * shallow, or why that cannot be said. Only a missing `shallow` file means the
+ * clone is whole; a file that cannot be found or read may hide a cut.
+ */
+async function cut(root: string): Promise<Set<string> | string> {
   const at = await ask(root, ['rev-parse', '--git-path', 'shallow']);
-  if (at.code !== 0) return new Set();
-  const text = await readFile(resolve(root, at.out), 'utf8').catch(() => '');
-  return new Set(text.split('\n').filter((line) => line !== ''));
+  if (at.code !== 0) return `git said: ${at.said}`;
+  try {
+    const text = await readFile(resolve(root, at.out), 'utf8');
+    return new Set(text.split('\n').filter((line) => line !== ''));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Set();
+    return `its shallow list could not be read: ${(error as Error).message}`;
+  }
 }
 
 /**
@@ -66,6 +81,7 @@ async function cut(root: string): Promise<Set<string>> {
  */
 async function cutShort(root: string, tip: string, over: string): Promise<string | undefined> {
   const shallow = await cut(root);
+  if (typeof shallow === 'string') return shallow;
   if (shallow.size === 0) return undefined;
   const walked = await ask(root, ['rev-list', tip, `^${over}`, '--']);
   if (walked.code !== 0) return `git said: ${walked.said}`;
@@ -77,8 +93,7 @@ async function cutShort(root: string, tip: string, over: string): Promise<string
 /**
  * The commit a review of `runs` starts from, or `undefined` when the runs name
  * none: no record, no `over`, or an `over` git says the runs' commit does not
- * descend from. Throws when git cannot say, when the record is malformed, and
- * when it names its own commit as the one it was laid over.
+ * descend from. Throws when git cannot say, and when the record is malformed.
  *
  * A record with no `commit` was written outside a checkout; the commit its
  * change reaches is then the one checked out, and `over` is asked of `HEAD`.
@@ -97,17 +112,6 @@ export async function runsBase(root: string, runs: CommitRuns | undefined, cover
     }
   }
   if (over === undefined) return undefined;
-  // Only a first run here laid over a snapshot already at this commit, with no
-  // record of the runs that put it there, writes this: a landing interrupted
-  // between its two renames and then retried (the FIXME in `land.ts`), or a
-  // record deleted beside its snapshot. Diffing from it would read nothing.
-  if (over === commit) {
-    throw new OperatorError(
-      `\`${file}\` says the runs at ${over.slice(0, 12)} were laid over that same commit, which is what a landing ` +
-        'interrupted between writing the snapshot and this record leaves, so nothing says where this change starts. ' +
-        'Name the base with `--since <ref>`.',
-    );
-  }
   const tip = commit ?? 'HEAD';
   const answer = await ask(root, ['merge-base', '--is-ancestor', over, tip]);
   if (answer.code === 0) return over;

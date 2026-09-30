@@ -78,22 +78,33 @@ describe('where a review of the runs starts', () => {
   });
 
   it('is none in a shallow clone when the walk between the two ends before the cut', async () => {
-    const { origin, A, B } = await history();
-    // C on a side branch from A, cloned two deep: the cut is at A, which B reaches.
-    git(origin, 'checkout', '-q', '-b', 'side', A);
-    git(origin, 'commit', '-q', '--allow-empty', '-m', 'C');
-    const C = git(origin, 'rev-parse', 'HEAD');
+    // p0 … p5 on `main` and s on `side` from p4, cloned three deep: the cut is
+    // at p3, below where s and p5 part, so the clone holds all of the answer.
+    const origin = await mkdtemp(join(tmpdir(), 'variance-runs-base-line-'));
     const deeper = await mkdtemp(join(tmpdir(), 'variance-runs-base-deeper-'));
-    made.push(deeper);
-    git(deeper, 'clone', '-q', '--depth', '2', '--no-single-branch', pathToFileURL(origin).href, '.');
+    made.push(origin, deeper);
+    git(origin, 'init', '-q', '-b', 'main');
+    const p: string[] = [];
+    for (let n = 0; n <= 5; n += 1) {
+      git(origin, 'commit', '-q', '--allow-empty', '-m', `p${n}`);
+      p.push(git(origin, 'rev-parse', 'HEAD'));
+    }
+    git(origin, 'checkout', '-q', '-b', 'side', p[4]!);
+    git(origin, 'commit', '-q', '--allow-empty', '-m', 's');
+    const s = git(origin, 'rev-parse', 'HEAD');
+    git(deeper, 'clone', '-q', '--depth', '3', '--no-single-branch', pathToFileURL(origin).href, '.');
     expect(git(deeper, 'rev-parse', '--is-shallow-repository')).toBe('true');
+    expect(git(deeper, 'rev-list', p[5]!).split('\n')).toEqual([p[5], p[4], p[3]]);
 
-    expect(await runsBase(deeper, runs(C, B), snapshot(deeper))).toBeUndefined();
+    expect(await runsBase(deeper, runs(s, p[5]!), snapshot(deeper))).toBeUndefined();
   });
 
   it('asks about the checked-out commit when the record names no commit of its own', async () => {
     const { origin, A } = await history();
     expect(await runsBase(origin, runs(undefined, A), snapshot(origin))).toBe(A);
+    // A commit off the checked-out line, which `HEAD` does not descend from.
+    const off = git(origin, 'commit-tree', `${A}^{tree}`, '-p', A, '-m', 'off');
+    expect(await runsBase(origin, runs(undefined, off), snapshot(origin))).toBeUndefined();
 
     const unknown = 'e'.repeat(40);
     const refused = runsBase(origin, runs(undefined, unknown), snapshot(origin));
@@ -103,13 +114,9 @@ describe('where a review of the runs starts', () => {
     );
   });
 
-  it('is refused when the runs were laid over their own commit, as a retried interrupted landing leaves them', async () => {
+  it('is their own commit when they were laid over it, as a first run at a snapshot already there is', async () => {
     const { origin, B } = await history();
-    const refused = runsBase(origin, runs(B, B), snapshot(origin));
-    await expect(refused).rejects.toBeInstanceOf(OperatorError);
-    await expect(refused).rejects.toThrow(`\`${commitRunsFile(snapshot(origin))}\` says the runs at ${B.slice(0, 12)} were laid over that same commit`);
-    await expect(refused).rejects.toThrow('a landing interrupted between writing the snapshot and this record');
-    await expect(refused).rejects.toThrow('`--since <ref>`');
+    expect(await runsBase(origin, runs(B, B), snapshot(origin))).toBe(B);
   });
 
   it('refuses a record whose commits are not object names, before git reads them as options', async () => {
@@ -119,6 +126,8 @@ describe('where a review of the runs starts', () => {
     await expect(refused).rejects.toThrow(`\`${commitRunsFile(snapshot(origin))}\` is malformed: its \`over\` is "--all"`);
 
     await expect(runsBase(origin, runs('HEAD', B), snapshot(origin))).rejects.toThrow('its `commit` is "HEAD"');
+    // Between the lengths of SHA-1 and SHA-256 names is neither.
+    await expect(runsBase(origin, runs(B, 'a'.repeat(41)), snapshot(origin))).rejects.toThrow('which is not a commit\'s full object name');
   });
 
   it('is none when there is no record, or it names nothing it was laid over', async () => {

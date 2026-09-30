@@ -725,10 +725,12 @@ Each part comes from the party that owns the answer:
   Workspace manifests whose entry points changed follow.
 
 The diff starts at the merge base with `<ref>`. Without `--since`, it starts at
-the last commit the suite ran at before this one. Every run writes that commit,
-with the test files it ran, to `coverage.runs.json` beside the recording, so
-after a `yarn test` on a branch, `variance review` alone answers for everything
-since the previous run. A retry or a second shard at the same commit keeps the
+the commit the recording stood at before the first run at this commit. Every
+run writes that commit, with the test files it ran, to `coverage.runs.json`
+beside the recording, so after a `yarn test` on a branch, `variance review`
+alone answers for everything since the previous run. When the recording
+already stood at the commit you ran at, as a worktree's first run at its base
+does, the start is that commit and the change is your working tree. A retry or a second shard at the same commit keeps the
 same starting commit and adds its test files to the list. Shards landed with
 `variance journeys <shard>...` count as one run at the shards' commit.
 
@@ -737,9 +739,7 @@ review asks git. A run after checking out an older commit, or mainline shards
 landed over your branch's runs, has no previous commit to start from, and is
 read like the run below. When git cannot tell, because your clone does not
 hold that commit or is shallow and cut between the two, the review is refused
-and names the commit to fetch. So is a record that names the commit it ran at
-as the one it started from, which a landing interrupted and landed again
-leaves: name the start with `--since <ref>`.
+and names the commit to fetch.
 
 A run in a checkout that had no recording before it, such as a fresh clone,
 has no previous commit to start from. When the root config gives that suite to

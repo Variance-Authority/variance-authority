@@ -52,7 +52,10 @@ export interface CommitRuns {
   /**
    * The commit of the snapshot the first of these runs was laid over. Absent
    * when there was no snapshot, when it named no commit, or when it was
-   * recorded by other probes and so was replaced rather than laid over.
+   * recorded by other probes and so was replaced rather than laid over. When a
+   * landing renamed its snapshot here and died before its record, the record
+   * it left names the commit that landing was laid over, and a run after it
+   * carries that commit rather than the one the snapshot stands at.
    *
    * A fact about the snapshot, written without asking git. It is where every
    * test the runs did not observe, and `standing` does not list, last ran, so
@@ -134,7 +137,11 @@ export function commitRunsAfter(
   // The snapshot already stands at this commit and the record says what it
   // stood at before: this run is one more at the commit, not a new change.
   const again = current.commit !== undefined && stood === current.commit && held?.commit === current.commit;
-  const over = again ? held.over : stood;
+  // The snapshot stands at this commit and the record at another: a landing
+  // renamed its snapshot and died before its record. The record still names
+  // the commit that landing was laid over, and it is this run's start too.
+  const retried = stood === current.commit && held?.commit !== undefined && held.commit !== current.commit;
+  const over = again ? held.over : retried ? held.commit : stood;
   const ran = again ? [...new Set([...held.files, ...files])].sort(codeUnitOrder) : files;
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, current.commit, ran);
   return {

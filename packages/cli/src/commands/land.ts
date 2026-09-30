@@ -146,23 +146,16 @@ export async function landJourneys(
       if ('busy' in cases) throw busy(cases.busy, at);
       await rename(staged, at);
       // FIXME: the snapshot and the runs record are two files, and nothing
-      // renames them together. A crash between these two renames leaves the
-      // record as it was before the landing. When the landing moved the
-      // snapshot to a new commit, a `test:since` reading then says the record
-      // is another commit's, and reads every test as though it last ran at the
-      // landed commit. The snapshot goes first because the other order is
-      // worse: at the same commit, a record renamed ahead of its snapshot says
-      // the shards ran on rows the snapshot does not hold yet, and says nothing.
-      // Landing the same shards again does not repair it: the snapshot already
-      // stands at their commit and the record still names the one before, so
-      // the retry is read as a new commit, not one more run at it, and names
-      // the landed commit itself as `over`. The commit the change started at is
-      // then lost: a review refuses that record (`runsBase`) and asks for
-      // `--since <ref>`, and a `test:since` reading takes every test the
-      // shards did not run to have last run at the landed commit. The same
-      // holds when this rename throws rather than the process dying: the
-      // snapshot has already landed, the command exits with the error, and the
-      // retry an operator makes next is that landing.
+      // renames them together. A crash between these two renames, or this
+      // rename throwing, leaves the record as it was before the landing. The
+      // snapshot goes first because the other order is worse: at the same
+      // commit, a record renamed ahead of its snapshot says the shards ran on
+      // rows the snapshot does not hold yet. Landing again keeps the start,
+      // because `commitRunsAfter` takes a snapshot ahead of its record for this
+      // and names the record's commit as `over`. It loses `standing`: the record
+      // it would be carried from names a commit the snapshot has left, so the
+      // retry leaves it absent, and `test:since` reads every test the shards did
+      // not run from `over`, including one that last ran before it.
       await rename(stagedRuns, runsAt);
       return { landed, cases };
     } finally {

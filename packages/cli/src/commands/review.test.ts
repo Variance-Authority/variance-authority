@@ -9,6 +9,7 @@ import {
   caseLayerFiles,
   commitRunsFile,
   encodeExecutionIndex,
+  landRun,
   testCoverageFile,
   writeTestCoverage,
   type ExecutionBlock,
@@ -212,6 +213,25 @@ describe('a review of what a change did, after the run that recorded it', () => 
     await runsOver(root, git(root, ['rev-parse', 'HEAD']), first);
 
     expect(await review(parse(['--root', root]))).toMatchObject({ from: first, base: 'recording' });
+  });
+
+  it('starts at the snapshot\'s own commit after a first run there with no runs record beside it', async () => {
+    // A worktree's first run at its base, a clone with a restored cache, or a
+    // run after the record was deleted: the run is laid over its own commit.
+    const { root, first } = await changed();
+    await landRun(testCoverageFile(root), {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: first,
+      tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    }, root);
+
+    const answer = await review(parse(['--root', root]));
+
+    expect(answer).toMatchObject({ from: first, base: 'recording', runs: { commit: first, over: first, runs: 1 } });
+    // From the commit it stands at, the change is the working tree's.
+    expect(formatReview(answer, 'text')).toContain('2 changed regions in 1 file');
   });
 
   it('names no start when git says the runs\' commit does not descend from the one they were laid over', async () => {

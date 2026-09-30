@@ -2,11 +2,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   commitRunsFile,
   landRun,
   readCommitRuns,
+  readTestCoverage,
   writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
@@ -22,6 +23,22 @@ import { landJourneys } from './land.js';
  * landing, so the two writers are held to one rule by what they wrote.
  */
 
+/** Once set, the landing's last rename, of its runs record over the one beside the snapshot, fails. */
+const interrupted = vi.hoisted(() => ({ runs: false }));
+
+vi.mock('node:fs/promises', async (original) => {
+  const actual = await original<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    rename: async (...args: Parameters<typeof actual.rename>) => {
+      if (interrupted.runs && String(args[1]).endsWith('.runs.json')) {
+        throw Object.assign(new Error('EIO: i/o error, rename'), { code: 'EIO' });
+      }
+      return actual.rename(...args);
+    },
+  };
+});
+
 let home: string;
 let into: string;
 
@@ -31,6 +48,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  interrupted.runs = false;
   await rm(home, { recursive: true, force: true });
 });
 
@@ -157,6 +175,23 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     await expect(landing).rejects.toThrow(`the runs record at ${commitRunsFile(into)} could not be read`);
     expect(await readFile(into)).toEqual(snapshot);
     expect(await readFile(commitRunsFile(into), 'utf8')).toBe('{ not json');
+  });
+
+  it('landed again after the record was not renamed, names the commit the interrupted landing was laid over', async () => {
+    await partial();
+    interrupted.runs = true;
+    await expect(land(run('C', ['other.test.ts']))).rejects.toThrow('EIO');
+    // The snapshot landed and the record beside it is still the one before.
+    expect((await readTestCoverage(into)).commit).toBe('C');
+    expect(await readCommitRuns(into)).toMatchObject({ commit: 'H', over: 'P' });
+    interrupted.runs = false;
+
+    await land(run('C', ['other.test.ts']));
+
+    const runs = await readCommitRuns(into);
+    expect(runs).toMatchObject({ commit: 'C', over: 'H', runs: 1, files: ['other.test.ts'] });
+    // The record it would be carried from names the commit the snapshot left.
+    expect(runs).not.toHaveProperty('standing');
   });
 
   it('leaves no staged file beside the snapshot or the record', async () => {
