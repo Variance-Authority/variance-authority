@@ -288,6 +288,24 @@ export interface NativeJourneyMapBranch {
   readonly smallest: NativeJourneyCase;
 }
 
+/** What the checkout says about a file the recording may keep no row for, read only when it keeps none. */
+export interface NativeJourneyMapFile {
+  /** Whether the default instrument filter takes the file. */
+  readonly module: boolean;
+  /** The commit the recording names. */
+  readonly commit?: string | null;
+  /** Whether git lists the file at `commit`; absent when git could not say. */
+  readonly existed?: boolean | null;
+  /** Why `existed` is absent. */
+  readonly unread?: string | null;
+  /** Whether git lists the file in the checkout, tracked or new and not ignored; absent when git could not say. */
+  readonly listed?: boolean | null;
+  /** Whether git lists files under the path, which makes it a directory. */
+  readonly directory?: boolean | null;
+  /** Whether the path is on disk and git ignores it. */
+  readonly ignored?: boolean | null;
+}
+
 /** The map of the code around one file, drawn from the journeys of the tests kept. */
 export interface NativeJourneyMap {
   readonly notRecorded?: string | null;
@@ -346,5 +364,5 @@ export interface NativeJourneys {
   /** How the function at `a` is connected to the one at `b`. */
   forksBetween?(recording: string, a: NativeJourneyEnd, b: NativeJourneyEnd): NativeForksBetween;
   /** The map around `file`, kept to the cases whose test file or name holds any of `terms`. */
-  journeyMap?(recording: string, file: string, terms?: string[] | null): NativeJourneyMap;
+  journeyMap?(recording: string, file: string, terms?: string[] | null, known?: NativeJourneyMapFile | null): NativeJourneyMap;
 }

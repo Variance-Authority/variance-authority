@@ -14,14 +14,18 @@
 
 // compass: variance-authority.reach.relations
 
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { checkoutListing, checkoutPath, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './native.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { keptRunnerAliases, runnerConfigs, unlistedRunnerAliases, type RunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
+import { defaultInclude } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
 
 export type {
@@ -84,6 +88,41 @@ function commitOf(coverage: string): NativeJourneysCommit {
     return commit === undefined ? { unread: 'the recording names no commit' } : { commit };
   } catch (error) {
     return { unread: `the recording's commit did not read (${(error instanceof Error ? error.message : String(error)).split('\n')[0]})` };
+  }
+}
+
+/**
+ * What the checkout's owners say about `file`, for the answer given when the
+ * recording keeps no row for it. The runner's default filter says whether a row
+ * could be kept for it — a type declaration passes the filter's extension test
+ * and has no function to run — `listing` is what git lists at the path in the
+ * checkout, and git says whether it existed at the commit the recording names,
+ * so a typo is not reported as a file, nor a file added since as one no test
+ * loaded.
+ */
+function knownOf(root: string, file: string, recording: string, listing: CheckoutListing): NativeJourneyMapFile {
+  const module = defaultInclude(resolve(root, file)) && !/\.d\.[cm]?ts$/.test(file);
+  const now = 'unread' in listing ? {} : { listed: listing.file, directory: listing.directory, ignored: listing.ignored };
+  // FIXME: the case index folds runs made at several commits, and the snapshot
+  // names only the latest run's, so a row laid by an older run is judged against
+  // a commit it was not made at. The commit each test file last ran at is in
+  // commit-runs' `standing`; carry that instead.
+  const at = commitOf(recording.slice(0, -'.cases.bin'.length));
+  if (at.commit == null) return { module, ...now, ...(at.unread == null ? {} : { unread: at.unread }) };
+  const then = gitLists(root, ['ls-tree', '--name-only', at.commit, '--', file]);
+  return typeof then === 'boolean'
+    ? { module, ...now, commit: at.commit, existed: then }
+    : { module, ...now, commit: at.commit, unread: then.unread || `git could not list ${at.commit}` };
+}
+
+/** Whether a git listing names anything, or the first line git gave for not answering. */
+function gitLists(root: string, args: readonly string[]): boolean | { unread: string } {
+  try {
+    const listed = execFileSync('git', ['--literal-pathspecs', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return listed.trim() !== '';
+  } catch (error) {
+    const said = error instanceof Error && 'stderr' in error ? String(error.stderr) : String(error);
+    return { unread: said.trim().split('\n')[0] ?? '' };
   }
 }
 
@@ -205,31 +244,68 @@ export function forksBetween(root: string, a: NativeJourneyEnd, b: NativeJourney
  * entered the file when none is given. Each function of the file is its paths
  * among the kept tests; beyond it, what most of the suite enters is counted as
  * structure, what most kept tests enter is the spine, nearest first, and the
- * rest are branches, each told by its smallest test. `undefined` when the suite
- * has nothing recorded.
+ * rest are branches, each told by its smallest test. `file` may be spelled
+ * through `..` or from the file system's root; the map names it from the
+ * checkout's root. `listing` is what git lists at the path, as
+ * {@link checkoutListing} answers it, for a caller that has already asked.
+ * `undefined` when the suite has nothing recorded.
  */
-export function journeyMap(root: string, file: string, terms?: readonly string[], suite?: string): NativeJourneyMap | undefined {
+export function journeyMap(
+  root: string,
+  file: string,
+  terms?: readonly string[],
+  suite?: string,
+  listing?: CheckoutListing,
+): NativeJourneyMap | undefined {
   const found = recordings(root).find((recorded) => recorded.suite === suite);
   if (found?.recording === undefined) return undefined;
-  return entry('journeyMap')(found.recording, file, terms === undefined ? null : [...terms]);
+  return mapOf(root, file, terms, found.recording, listing).map;
 }
 
-/** One suite's map of the code around a file, or why the suite has none. */
+/** One suite's map of the code around a file, or why the suite has none, with what the checkout said about the file. */
 export interface SuiteJourneyMap {
   readonly suite?: string;
   readonly map: NativeJourneyMap;
+  /** What git and the default filter said about the file; absent for a path outside the checkout. */
+  readonly known?: NativeJourneyMapFile;
 }
 
 /**
  * {@link journeyMap} asked of every declared suite that has a recording, so a
  * task is not confined to the suite that happens to be unnamed. A suite with no
  * recording is left out; one whose recording does not hold the file answers
- * with the reason in `notRecorded`.
+ * with the reason in `notRecorded`. Git is asked about the path once, unless
+ * the caller carries its `listing`, and every suite reads that answer.
  */
-export function journeyMaps(root: string, file: string, terms?: readonly string[]): readonly SuiteJourneyMap[] {
-  return recordings(root).flatMap(({ suite, recording }) =>
-    recording === undefined
-      ? []
-      : [{ ...(suite === undefined ? {} : { suite }), map: entry('journeyMap')(recording, file, terms === undefined ? null : [...terms]) }],
-  );
+export function journeyMaps(
+  root: string,
+  file: string,
+  terms?: readonly string[],
+  listing?: CheckoutListing,
+): readonly SuiteJourneyMap[] {
+  return recordings(root).flatMap(({ suite, recording }) => {
+    if (recording === undefined) return [];
+    const asked = checkoutPath(root, file);
+    if ('path' in asked) listing ??= checkoutListing(root, asked.path);
+    return [{ ...(suite === undefined ? {} : { suite }), ...mapOf(root, file, terms, recording, listing) }];
+  });
+}
+
+/** One recording's map around `file`, with what the checkout said about it. */
+function mapOf(
+  root: string,
+  file: string,
+  terms: readonly string[] | undefined,
+  recording: string,
+  listing?: CheckoutListing,
+): { readonly map: NativeJourneyMap; readonly known?: NativeJourneyMapFile } {
+  const asked = checkoutPath(root, file);
+  if ('outside' in asked) return { map: refused(file, asked.outside) };
+  const known = knownOf(root, asked.path, recording, listing ?? checkoutListing(root, asked.path));
+  return { map: entry('journeyMap')(recording, asked.path, terms === undefined ? null : [...terms], known), known };
+}
+
+/** A map with nothing on it, for a path the recording cannot hold. */
+function refused(file: string, notRecorded: string): NativeJourneyMap {
+  return { notRecorded, file, suite: 0, entered: 0, kept: 0, tests: [], functions: [], spine: [], branches: [], structure: 0 };
 }
