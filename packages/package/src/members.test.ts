@@ -120,6 +120,41 @@ describe('the members a root manifest lists', () => {
     const root = workspace({ ...tree, 'package.json': { private: true, workspaces: ['packages/*', '!packages/beta'] } });
     expect(names(root)).toEqual(['alpha']);
   });
+
+  it('reads a member whose dot-named directory an entry spells out', () => {
+    const root = workspace({
+      ...member('packages/.internal', 'dotted'),
+      'package.json': { private: true, workspaces: ['packages/.internal'] },
+    });
+    expect(names(root)).toEqual(['dotted']);
+  });
+
+  it('never reads a manifest under `node_modules`, even under `**`', () => {
+    const root = workspace({
+      ...member('packages/app', 'app'),
+      ...member('packages/app/node_modules/left-pad', 'left-pad'),
+      'package.json': { private: true, workspaces: ['packages/**'] },
+    });
+    expect(names(root)).toEqual(['app']);
+  });
+
+  it('reads a member nested in another under `**`, the outer one first', () => {
+    const root = workspace({
+      ...member('packages/c', 'c'),
+      ...member('packages/a/b', 'b'),
+      ...member('packages/a', 'a'),
+      'package.json': { private: true, workspaces: ['packages/**'] },
+    });
+    expect(names(root)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('reads a member listed above the root', () => {
+    const root = workspace({
+      ...member('lib', 'lib'),
+      'app/package.json': { private: true, workspaces: ['../lib'] },
+    });
+    expect(names(join(root, 'app'))).toEqual(['lib']);
+  });
 });
 
 describe('the members a `pnpm-workspace.yaml` lists', () => {
@@ -210,6 +245,13 @@ describe('the members a `pnpm-workspace.yaml` lists', () => {
       ...member('packages/alpha', 'alpha'),
     });
     expect(names(at)).toEqual(['mono']);
+  });
+
+  it('is one package when the file is empty, or `packages:` holds nothing', () => {
+    for (const yaml of ['', 'packages:\n']) {
+      const at = workspace({ 'package.json': { name: 'mono' }, 'pnpm-workspace.yaml': yaml, ...member('packages/alpha', 'alpha') });
+      expect(names(at)).toEqual(['mono']);
+    }
   });
 
   it('refuses a `packages:` that is not a list of strings, naming the file', () => {
