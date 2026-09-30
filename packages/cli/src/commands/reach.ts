@@ -222,6 +222,9 @@ function seedsOf(
   // Files only. A missing *package* name is an answer — nothing imports it — and
   // `within` would not tell the two apart, since a package may be named anything.
   const named = new Set(files);
+  // TODO: a file the diff deletes lands here as a gap in the scan, and widens the
+  // run's selector and the report to the whole suite. `reach-command.ts` takes
+  // deletions out before it calls; `affected.ts` and `reach-subjects.ts` do not.
   const unscanned = affected.missing.filter((file) => named.has(file) && within(file, roots));
 
   // What the answer was built from, for the sentence the selector prints. The
