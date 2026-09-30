@@ -150,7 +150,10 @@ const UNCOUNTED = 'Installed packages are not in the code map, so no closure cou
 
 /** The packages whose manifest names none of their files, which the listing says once, or nothing. */
 function undeclared(packages: readonly PackageLayer[]): string[] {
-  const names = packages.filter((entry) => entry.undeclared).map((entry) => entry.package);
+  const names = packages
+    .filter((entry) => entry.undeclared)
+    .map((entry) => entry.package)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   if (names.length === 0) return [];
   return ['', `No \`exports\`, \`main\`, \`module\` or \`bin\` names a file of these packages, so each one's closure starts at its files that nothing imports: ${names.join(', ')}.`];
 }
