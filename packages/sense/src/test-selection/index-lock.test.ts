@@ -23,6 +23,16 @@ const { encodeJournal } = journalFormat;
 const POLL_BOUND = (4 * LOCK_WAIT_MS) / LOCK_POLL_MS;
 
 /**
+ * The real time `pastTheWait` gives `work` that neither settles nor schedules
+ * a poll, and the timeout of every test that calls it: generous, because a
+ * loaded machine is slow and nothing here should fail for that, and below the
+ * test's own timeout, so a hang fails with the helper's sentence rather than
+ * vitest's.
+ */
+const REAL_CAP_MS = 30_000;
+const PUMP_TEST_TIMEOUT_MS = 3 * REAL_CAP_MS;
+
+/**
  * Run `work` across the whole waiting window of a lock it cannot take, in
  * milliseconds rather than ten seconds.
  *
@@ -36,7 +46,8 @@ const POLL_BOUND = (4 * LOCK_WAIT_MS) / LOCK_POLL_MS;
  * counts polls fired, not turns taken: a loaded machine that needs more turns
  * per `wx` spends more real time, never more of the window. `work` may do its
  * own I/O before it reaches the lock and after it gives up, which is why the
- * bound is {@link POLL_BOUND} rather than the window's own count.
+ * bound is {@link POLL_BOUND} rather than the window's own count. A `work` that
+ * stops scheduling polls without settling is stopped by {@link REAL_CAP_MS}.
  */
 async function pastTheWait<T>(work: () => Promise<T>): Promise<T> {
   const nextTurn = setTimeout;
@@ -46,8 +57,9 @@ async function pastTheWait<T>(work: () => Promise<T>): Promise<T> {
     const running = work().finally(() => {
       settled = true;
     });
+    const began = Date.now();
     let fired = 0;
-    while (!settled && fired < POLL_BOUND) {
+    while (!settled && fired < POLL_BOUND && Date.now() - began < REAL_CAP_MS) {
       if (vi.getTimerCount() > 0) {
         fired += 1;
         await vi.advanceTimersToNextTimerAsync();
@@ -56,8 +68,10 @@ async function pastTheWait<T>(work: () => Promise<T>): Promise<T> {
     }
     expect(
       settled,
-      `the lock waiter was still waiting after ${fired} polls (${fired * LOCK_POLL_MS} ms of fake time); ` +
-        `it gives up once its ${LOCK_WAIT_MS} ms window has passed`,
+      fired < POLL_BOUND
+        ? `the work did not settle in ${REAL_CAP_MS} ms of real time, after ${fired} of the ${POLL_BOUND} polls it may fire`
+        : `the lock waiter was still waiting after ${fired} polls (${fired * LOCK_POLL_MS} ms of fake time); ` +
+            `it gives up once its ${LOCK_WAIT_MS} ms window has passed`,
     ).toBe(true);
     return await running;
   } finally {
@@ -143,7 +157,7 @@ describe('who may grow the index', () => {
 
     finish();
     await held;
-  });
+  }, PUMP_TEST_TIMEOUT_MS);
 
   it('stops proving anything once the merge it was taken for has ended', async () => {
     const file = await index();
@@ -226,7 +240,7 @@ describe('a run the snapshot lock refuses', () => {
     expect(existsSync(coverageFile)).toBe(false);
     expect(existsSync(`${coverageFile}.cases.bin`)).toBe(false);
     expect(warned).toEqual([busyWarning(coverageFile)]);
-  });
+  }, PUMP_TEST_TIMEOUT_MS);
 
   async function report(busy: boolean): Promise<{ coverageFile: string }> {
     const { root, coverageFile, testFile } = await project(busy);
@@ -252,7 +266,7 @@ describe('a run the snapshot lock refuses', () => {
     expect(existsSync(coverageFile)).toBe(false);
     expect(existsSync(`${coverageFile}.cases.bin`)).toBe(false);
     expect(warned).toEqual([busyWarning(coverageFile)]);
-  });
+  }, PUMP_TEST_TIMEOUT_MS);
 
   async function record(busy: boolean): Promise<{ coverageFile: string; recorded: unknown }> {
     const { root, coverageFile } = await project(busy);
@@ -281,5 +295,5 @@ describe('a run the snapshot lock refuses', () => {
     });
     expect(existsSync(coverageFile)).toBe(false);
     expect(warned).toEqual([]);
-  });
+  }, PUMP_TEST_TIMEOUT_MS);
 });

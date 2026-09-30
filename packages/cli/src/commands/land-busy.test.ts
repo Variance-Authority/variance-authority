@@ -27,14 +27,24 @@ afterEach(async () => {
 });
 
 /**
- * The polls `pastTheWait` fires before it calls a waiter one that never gives
- * up: four times the window's, `4 * LOCK_WAIT_MS / LOCK_POLL_MS` in the sense
- * package's `index-lock.ts`, whose own test bounds its copy of this helper the
- * same way. Written out, because the package does not export those constants
- * and a test is no reason to.
+ * The lock's window and poll, `LOCK_WAIT_MS` and `LOCK_POLL_MS` in the sense
+ * package's `index-lock.ts`, written out because the package does not export
+ * them and a test is no reason to. `pastTheWait` fires four windows' worth of
+ * polls before it calls a waiter one that never gives up, the bound the sense
+ * package's own copy of this helper computes from those constants.
  */
-const POLL_BOUND = 1600;
+const WINDOW_MS = 10_000;
 const POLL_MS = 25;
+const POLL_BOUND = (4 * WINDOW_MS) / POLL_MS;
+
+/**
+ * The real time `pastTheWait` gives `work` that neither settles nor schedules
+ * a poll, and the timeout of the tests that call it: generous for a loaded
+ * machine, and below the test's own timeout, so a hang fails with the helper's
+ * sentence rather than vitest's.
+ */
+const REAL_CAP_MS = 30_000;
+const PUMP_TEST_TIMEOUT_MS = 3 * REAL_CAP_MS;
 
 /**
  * Settle `work` across the lock's whole waiting window in milliseconds.
@@ -44,7 +54,8 @@ const POLL_MS = 25;
  * real `wx` create, so the clock jumps to the next poll only when one is
  * pending, and otherwise the pump yields a real turn for the attempt to return.
  * The bound counts polls fired, not turns taken, so a loaded machine spends
- * more real time and never more of the window.
+ * more real time and never more of the window. A `work` that stops scheduling
+ * polls without settling is stopped by {@link REAL_CAP_MS}.
  */
 async function pastTheWait(work: () => Promise<unknown>): Promise<unknown> {
   const nextTurn = setTimeout;
@@ -56,8 +67,9 @@ async function pastTheWait(work: () => Promise<unknown>): Promise<unknown> {
   ).finally(() => {
     settled = true;
   });
+  const began = Date.now();
   let fired = 0;
-  while (!settled && fired < POLL_BOUND) {
+  while (!settled && fired < POLL_BOUND && Date.now() - began < REAL_CAP_MS) {
     if (vi.getTimerCount() > 0) {
       fired += 1;
       await vi.advanceTimersToNextTimerAsync();
@@ -67,8 +79,10 @@ async function pastTheWait(work: () => Promise<unknown>): Promise<unknown> {
   vi.useRealTimers();
   expect(
     settled,
-    `the landing was still waiting on a lock after ${fired} polls (${fired * POLL_MS} ms of fake time); ` +
-      'a lock gives up once its 10000 ms window has passed',
+    fired < POLL_BOUND
+      ? `the landing did not settle in ${REAL_CAP_MS} ms of real time, after ${fired} of the ${POLL_BOUND} polls it may fire`
+      : `the landing was still waiting on a lock after ${fired} polls (${fired * POLL_MS} ms of fake time); ` +
+          `a lock gives up once its ${WINDOW_MS} ms window has passed`,
   ).toBe(true);
   return await running;
 }
@@ -112,5 +126,5 @@ describe('landJourneys when another process holds a lock', () => {
     expect(await readFile(record)).toEqual(snapshot);
     expect(await readFile(`${record}.cases.bin`)).toEqual(cases);
     expect((await readdir(dirname(record))).filter((name) => name.endsWith('.tmp'))).toEqual([]);
-  });
+  }, PUMP_TEST_TIMEOUT_MS);
 });
