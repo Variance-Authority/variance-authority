@@ -164,7 +164,7 @@ variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shar
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--prune]
-variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...]
+variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish]
 variance carry   restore | save [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
 ```
@@ -184,7 +184,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one, and with `--prune` removes cache entries whose checkout, worktree, process or commit is gone |
-| `share` | says what the share holds for your mainline, or publishes this run, or every shard of one build, to its line |
+| `share` | says what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
@@ -1893,6 +1893,17 @@ owns its own collector, renderer, storage, or review surface:
   `imageRoot` for where the report's images are published, and `limits` when a
   caller needs smaller docket bounds. Limits merge
   over `DEFAULT_LIMITS`; the renderer still states what it omitted.
+- `suiteBase(root, { suite, cacheRoot, env })` answers which execution record a
+  runner of your own measures a change from: the checkout's own, else the
+  `suite-v1/<suite>` your mainline published to the share, else, in a worktree
+  that has recorded nothing, the primary checkout's. The last is an offline
+  fallback, and the answer carries `missed` to say why the mainline's was not
+  read. `mainlineRead` and `mainlineMissed` print the same `record of
+  "<suite>":` line `select` does. Before your runner lands a run, `layMainline`
+  copies the mainline's record into the checkout's own layer, beside the runs
+  `mainlineRuns` describes: one full run at the published commit, so no test
+  is read as though it last ran anywhere else. `env` stands in for
+  `process.env` when the line is asked, and `cacheRoot` for the cache.
 - The executable's `config` path selects the source; `parseConfig` takes that
   value and `baseDir` through `ParseOptions`. Relative paths resolve against
   `baseDir`, not the process working directory, so a library caller can load

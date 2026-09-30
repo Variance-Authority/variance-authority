@@ -71,7 +71,7 @@ export type MainlineBase = MainlineRecord | MainlineMissed;
 export async function mainlineBase(
   root: string,
   declared: DeclaredSuite | undefined,
-  here: { readonly env?: Env } = {},
+  here: { readonly env?: Env; readonly cacheRoot?: string } = {},
 ): Promise<MainlineBase | undefined> {
   if (declared?.carry !== 'share') return undefined;
   const suite = declared.name;
@@ -85,8 +85,8 @@ export async function mainlineBase(
     if (!(error instanceof ConfigError)) throw error;
     return { suite, miss: { kind: 'unconfigured', detail: error.message }, shareAsked: false };
   }
-  const place = { ...(share === undefined ? {} : { share }), cacheRoot: selection.cacheRootFor(root) };
-  const found = await mainlineSuite(place, suite, { ...here, cwd: root });
+  const place = { ...(share === undefined ? {} : { share }), cacheRoot: here.cacheRoot ?? selection.cacheRootFor(root) };
+  const found = await mainlineSuite(place, suite, { ...(here.env === undefined ? {} : { env: here.env }), cwd: root });
   if ('miss' in found) return { suite, ...found };
   const unread = (detail: string): MainlineMissed => ({ suite, mainline: found.mainline, miss: { kind: 'unreadable', detail } });
 
@@ -182,7 +182,7 @@ function decodes(bytes: Uint8Array): string | undefined {
  * Read from the root file because that is where the suites are declared: the
  * CLI refuses a suite given to a share in a file with no `share` section.
  */
-function rootShare(config: RootConfig | undefined) {
+export function rootShare(config: RootConfig | undefined) {
   const value = config?.value['share'];
   if (config === undefined || value === undefined) return undefined;
   return parseShare(value, { source: config.file, baseDir: dirname(config.file) });

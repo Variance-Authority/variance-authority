@@ -137,6 +137,16 @@ export type {
 } from './commands/doctor.js';
 
 /**
+ * The record a checkout measures a change from — its own, else its mainline's
+ * as CI published it, else the primary checkout's — for a runner outside this
+ * CLI that selects from it, as `yarn test:since` does in this repository.
+ */
+export { layMainline, mainlineRuns, suiteBase } from './commands/suite-base.js';
+export type { SuiteBase, SuiteBaseOptions } from './commands/suite-base.js';
+export { mainlineMissed, mainlineRead } from './commands/mainline-base.js';
+export type { MainlineMissed, MainlineRecord } from './commands/mainline-base.js';
+
+/**
  * The renderer the config asks for, from the package the config belongs to.
  *
  * Here rather than left to the caller so that composing a run needs one import

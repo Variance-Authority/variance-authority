@@ -146,6 +146,9 @@ jobs:
   suite:
     # `vitest run`, the unit suites and the corpus.
     runs-on: ubuntu-24.04
+    outputs:
+      recording: ${{ steps.base.outputs.recording }}
+      handed: ${{ steps.hand.outcome == 'success' }}
 
     steps:
       # Every commit, because the review below diffs from a base it does not
@@ -166,13 +169,10 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # What this job restores, and where the change starts, asked of `variance
-      # carry` rather than spelled here. The root `variance.config.json`
-      # declares the `unit` suite and its carrier; the command answers the
-      # recording's directory, which is a digest of the checkout's path, and the
-      # keys. The key is cut for the branch the run belongs to, a pull request's
-      # being its base, so a pull request restores what that branch saved at the
-      # base commit, and failing that the newest it saved.
+      # Where the change starts, asked of `variance carry` rather than spelled
+      # here. The root `variance.config.json` declares the `unit` suite and gives
+      # it to the share, so `carry` names no cache key for it: its record travels
+      # through `variance share`, on this repository's own git remote.
       #
       # The base: on a pull request the checkout is the merge of its head into
       # the base, and the merge's first parent is the base tip, so the change is
@@ -182,33 +182,40 @@ jobs:
         shell: bash
         run: node packages/cli/dist/bin.js carry restore --format github >> "$GITHUB_OUTPUT"
 
-      - name: restore the recording
-        if: ${{ steps.carry.outputs.suite-unit-key != '' }}
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.carry.outputs.suite-unit-path }}
-          key: ${{ steps.carry.outputs.suite-unit-key }}
-          restore-keys: ${{ steps.carry.outputs.suite-unit-restore-keys }}
-
-      # The mainline's record, as the restore left it, copied aside before the
-      # suite layers this change onto it. It is the base the coverage below is
-      # compared with. The recording's file is asked of `sense`, which owns
-      # where a suite records; the case index sits beside it as
-      # `<recording>.cases.bin`, and the whole directory is copied because the
-      # commit the index was recorded at is read from its neighbours.
+      # The mainline's record, fetched from `refs/variance/mainline/main` on
+      # `origin`, where the `publish` job below leaves it after every push to
+      # `main`. `suiteBase` reads it and `layMainline` lays it into this
+      # checkout's own layer, where the suite lands its run on top of it. When
+      # the ref is missing or does not read, the line says why and the run has
+      # no base; nothing older is put in its place.
+      #
+      # It is then copied aside, before the suite layers this change onto it,
+      # because it is the base the coverage below is compared with. The case
+      # index sits beside the record as `<recording>.cases.bin`, and the whole
+      # directory is copied because the commit the index was recorded at is read
+      # from its neighbours.
       - name: keep the base record
         id: base
         shell: bash
         run: |
           recording=$(node --input-type=module -e "
+            const cli = await import('@variance-authority/cli');
             const { testCoverageFile } = await import('@variance-authority/sense/test-selection');
+            const base = await cli.suiteBase(process.cwd(), { suite: 'unit' });
+            if (base.from === 'mainline') {
+              await cli.layMainline(process.cwd(), base.mainline);
+              console.error(cli.mainlineRead(base.mainline));
+            } else if ('missed' in base && base.missed !== undefined) {
+              console.error(cli.mainlineMissed(base.missed));
+            }
             process.stdout.write(testCoverageFile(process.cwd(), { suite: 'unit' }));
           ")
+          echo "recording=$(dirname "$recording")" >> "$GITHUB_OUTPUT"
           if [ -f "$recording.cases.bin" ]; then
             cp -R "$(dirname "$recording")" "$RUNNER_TEMP/base-unit"
             echo "cases=$RUNNER_TEMP/base-unit/$(basename "$recording").cases.bin" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::No recording was restored, so this run has no base: the whole suite runs, and coverage is printed without a comparison."
+            echo "::notice::The mainline's record was not read, so this run has no base: the whole suite runs, and coverage is printed without a comparison."
           fi
 
       # `vitest run` is the unit suites and the corpus. The package boundary
@@ -218,18 +225,19 @@ jobs:
       #
       # A pull request runs what its change reached, and nothing else: this
       # repository ships test selection, so its own pull requests are selected
-      # by it. `yarn test:since` reads the restored recording, diffs each test
-      # from the commit it last ran at, which for a recording the mainline made
-      # whole is the commit it was recorded at, and runs the files whose
-      # recorded regions the change entered. It runs the whole suite itself
-      # when the reading cannot be made, and says why. The selected run layers
-      # onto the restored recording, so the coverage below counts every file,
-      # and a file that did not run keeps the rows the mainline recorded for it.
+      # by it. `yarn test:since` reads the mainline's record the step above
+      # laid, diffs each test from the commit it last ran at, which for a
+      # record the mainline made whole is the commit it was published at, and
+      # runs the files whose recorded regions the change entered. It runs the
+      # whole suite itself when the reading cannot be made, and says why. The
+      # selected run layers onto the mainline's record, so the coverage below
+      # counts every file, and a file that did not run keeps the rows the
+      # mainline recorded for it.
       #
       # A push to `main`, and a dispatch, run the whole suite. That is the gate a
-      # selection is a smaller claim than, and it is what the recording `main`
-      # saves is cut from: every file observed at `main`'s own commit, so the next
-      # pull request selects from rows no older than its base.
+      # selection is a smaller claim than, and it is what the record `main`
+      # publishes is cut from: every file observed at `main`'s own commit, so the
+      # next pull request selects from rows no older than its base.
       - name: test
         id: test
         shell: bash
@@ -322,24 +330,19 @@ jobs:
           body="$REVIEW/review.md"
           node .github/actions/variance/post-comment.mjs --body-file "$body" --marker "$(head -n 1 "$body")"
 
-      # Only a push to a mainline saves, under the commit it recorded, which is
-      # the key a pull request based on that commit restores. `carry save` prints
-      # no key anywhere else and says why on stderr, so the branch is not
-      # spelled here. A red suite on a mainline still saves: the next change is
-      # reviewed against what the mainline ran, not against an older recording
-      # that no longer describes it.
-      - name: what to save
-        id: save
-        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
-        shell: bash
-        run: node packages/cli/dist/bin.js carry save --format github >> "$GITHUB_OUTPUT"
-
-      - name: save the recording
-        if: ${{ !cancelled() && steps.save.outputs.suite-unit-key != '' }}
-        uses: actions/cache/save@v4
+      # Only a push to `main` hands its record on, to the `publish` job, which
+      # is the one job holding a token that can write to the repository. A red
+      # suite on `main` still hands it on: the next change is reviewed against
+      # what `main` ran, not against an older record that no longer describes it.
+      - name: hand the record to publish
+        id: hand
+        if: ${{ !cancelled() && github.event_name == 'push' && steps.test.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
         with:
-          path: ${{ steps.save.outputs.suite-unit-path }}
-          key: ${{ steps.save.outputs.suite-unit-key }}
+          name: variance-record-unit
+          path: ${{ steps.base.outputs.recording }}
+          include-hidden-files: true
+          retention-days: 1
 
       # ## What this job does not do, stated rather than discovered
       #
@@ -367,6 +370,51 @@ jobs:
         shell: bash
         run: |
           echo "::notice::Browser suites skipped: no Chromium installed."
+
+  publish:
+    # The record a push to `main` made, published to `refs/variance/mainline/main`
+    # on this repository, which is where every pull request and every
+    # `yarn test:since` reads its base from. Its own job because it is the only
+    # one that writes to the repository: `contents: write` is granted here, on
+    # a push to `main`, and to no job a pull request runs. The ref is outside
+    # `refs/heads` and `refs/tags`, so no branch rule and no tag rule governs it,
+    # and nothing that lists branches shows it.
+    needs: suite
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.suite.outputs.handed == 'true' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      # Every commit, because the share asks git whether the record it holds
+      # descends from this one before replacing it.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      # Back where the suite job recorded it: the directory is a digest of the
+      # checkout's path, which is the same on every runner of this workflow.
+      - uses: actions/download-artifact@v4
+        with:
+          name: variance-record-unit
+          path: ${{ needs.suite.outputs.recording }}
+
+      # `share --suite` reads the share from the root config, asks the line of
+      # this run (`main`, on a push to it), and refuses a record that was not
+      # recorded at this commit. What it did goes to the job summary.
+      - name: publish the record
+        shell: bash
+        run: node packages/cli/dist/bin.js share --suite unit --publish | tee -a "$GITHUB_STEP_SUMMARY"
 
   cases:
     # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a

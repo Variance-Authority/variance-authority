@@ -5,14 +5,11 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   atDistance,
-  declaredSuites,
   distanceRange,
   groupByDistance,
   readCommitRuns,
   readTestCoverage,
-  readableTestCoverage,
   remaining,
-  testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
 import { readChange, suiteFiles } from './since-change.mjs';
@@ -97,15 +94,18 @@ const diffOfNew = (path) =>
   }).stdout;
 
 /**
- * The one declared suite's record, from the nearest cache layer holding it, and
- * whether that layer is this checkout's own. `readableTestCoverage` owns that
- * lookup, and `variance select` asks it too. Nothing here writes.
+ * The record to measure from, which `suiteBase` in `@variance-authority/cli`
+ * orders, and the note that says whose it is: this checkout's own, else the
+ * one CI published for the mainline, else the primary checkout's as an
+ * offline fallback, with the reason the mainline's was not read. `variance
+ * select` prints the same notes. Nothing here writes but the fetch, which
+ * keeps the mainline's bytes in the cache's read layer.
  */
-export async function recordToRead(root, cacheRoot) {
-  const declared = declaredSuites(root);
-  const options = { suite: declared?.length === 1 ? declared[0].name : undefined, cacheRoot };
-  const file = await readableTestCoverage(root, options);
-  return { file, own: file === testCoverageFile(root, options) };
+export async function recordToRead(root, cacheRoot, env) {
+  const { mainlineMissed, mainlineRead, suiteBase } = await import('@variance-authority/cli');
+  const base = await suiteBase(root, { ...(cacheRoot === undefined ? {} : { cacheRoot }), ...(env === undefined ? {} : { env }) });
+  if (base.from === 'mainline') return { ...base, note: mainlineRead(base.mainline) };
+  return base.missed === undefined ? base : { ...base, note: mainlineMissed(base.missed) };
 }
 
 const say = (...lines) => process.stdout.write(`${lines.join('\n')}\n`);
@@ -151,11 +151,13 @@ async function main() {
   const asked = distanceAt < 0 ? undefined : (argv[distanceAt + 1] ?? '');
   const ref = argv.find((argument, at) => !argument.startsWith('-') && at !== distanceAt + 1);
 
-  const { file: snapshotFile, own } = await recordToRead(ROOT);
-  if (!existsSync(snapshotFile)) {
+  const base = await recordToRead(ROOT);
+  const snapshotFile = base.file;
+  if (base.from === 'none' || !existsSync(snapshotFile)) {
     say(
       'test:since: no execution snapshot on disk, so nothing here has an opinion about anything.',
       `  looked in ${snapshotFile}`,
+      ...(base.note === undefined ? [] : [`  mainline ${base.note}`]),
       '  Run `yarn test` once — it records what each file entered — and ask again.',
     );
     return 1;
@@ -231,8 +233,16 @@ async function main() {
    * The runs are read beside whichever snapshot is read. A worktree that has
    * not run reads the primary checkout's snapshot, and the runs beside it
    * describe that snapshot; the worktree's own would describe nothing it reads.
+   * The mainline's record has none beside it: it is one full run at the commit
+   * CI published it at, so every test in it stands there, and `mainlineRuns`
+   * says so rather than leaving `readingFrom` to assume it.
    */
-  const runs = coverage.commit === undefined ? undefined : await readCommitRuns(snapshotFile);
+  const runs =
+    coverage.commit === undefined
+      ? undefined
+      : base.from === 'mainline'
+        ? await (await import('@variance-authority/cli')).mainlineRuns(base.mainline)
+        : await readCommitRuns(snapshotFile);
   let suite;
   try {
     suite = suiteFiles(ROOT);
@@ -277,12 +287,13 @@ async function main() {
   if (decided.widened !== undefined) {
     say(
       `test:since: running the whole suite — ${decided.widened}.`,
-      recordLine(snapshotFile, own),
+      ...recordLine(base),
       `  ${suite.length} files`,
       costLine(suite, recorded),
       '',
     );
     if (dryRun) return 0;
+    await lay(base);
     return spawnSync('yarn', ['vitest', 'run'], { cwd: ROOT, stdio: 'inherit' }).status ?? 1;
   }
   const { selected } = decided;
@@ -322,7 +333,7 @@ async function main() {
 
   say(
     `test:since: ${selected.length} of ${suite.length} files, at ${groups.length} distance(s).`,
-    recordLine(snapshotFile, own),
+    ...recordLine(base),
     `  base     ${from.slice(0, 12)} — ${start.says}`,
     `  changed  ${changed.length} path(s): ${touched.length} test file(s), ${changed.length - consequential.length} manifest(s), ${unentered.length} unlisted`,
     `  skipped  ${suite.length - selected.length} file(s): recorded whole, ran nothing that changed`,
@@ -360,12 +371,25 @@ async function main() {
     );
     return 0;
   }
+  await lay(base);
   const result = spawnSync('yarn', ['vitest', 'run', ...running], { cwd: ROOT, stdio: 'inherit' });
   if (left.length > 0) {
     const further = range.to === Number.MAX_SAFE_INTEGER ? '' : `; \`--at-distance ${range.to + 1}-\` runs those further out`;
     say('', `test:since: ${left.length} selected file(s) were not in this leg${further}.`);
   }
   return result.status ?? 1;
+}
+
+/**
+ * Before a run lands, the mainline's record goes into this checkout's own
+ * layer, so the run lays itself over the record it was selected from rather
+ * than over whatever the primary checkout holds. Said, because it is a write
+ * into a directory the operator did not name.
+ */
+async function lay(base) {
+  if (base.from !== 'mainline') return;
+  const laid = await (await import('@variance-authority/cli')).layMainline(ROOT, base.mainline);
+  if (laid !== undefined) say(`test:since: the mainline's record is laid at ${laid}, this checkout's own, for the run to land on.`, '');
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -2,8 +2,12 @@
   "suites": {
     "unit": {
       "kind": "unit",
-      "carry": "actions-cache"
+      "carry": "share"
     }
+  },
+  "share": {
+    "kind": "git",
+    "mainlines": ["main"]
   },
   "tiers": [200000, 50000, 20000, 6000, 1500],
   "entrypoints": {

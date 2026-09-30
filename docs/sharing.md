@@ -854,6 +854,47 @@ jobs:
   `suite-v1/<name>`, while `report-v1` and `suite-index-v1` are one per line,
   from the job that published last.
 
+### A suite with no run report
+
+`share --publish` publishes what a run report names, so a repository that runs
+only a unit suite has nothing for it to read. `share --suite <name>` takes the
+suite and the share from the root `variance.config.json` instead, and publishes
+that suite's execution record alone:
+
+```json
+{
+  "suites": { "unit": { "kind": "unit", "carry": "share" } },
+  "share": { "kind": "git", "mainlines": ["main"] }
+}
+```
+
+```yaml
+      - run: npx vitest run
+      - run: npx variance share --suite unit --publish
+        if: ${{ github.event_name == 'push' }}
+```
+
+```text
+wrote suite-v1/unit to mainline main in refs/variance on origin.
+```
+
+It publishes to the line the run belongs to, as `--publish` does, and leaves
+the record out when it was recorded at a commit other than `HEAD`:
+
+```text
+nothing published: suite-v1/unit is left out: its record at <path> was recorded at 5d0c…, not at 3f1c….
+```
+
+Without `--publish` it reads the mainline's record the way `select` does, and
+prints the [`record of "unit":` line](#a-suite-your-checkout-has-not-recorded).
+`--suite` takes no `--config`, `--mainline` or report, because those name the
+other form's inputs.
+
+Only the publishing job needs `contents: write`. When your pull request jobs run
+the suite in the same workflow, give the write to a job of its own that runs on
+a push to your mainline, and pass it the record as an artifact, so a pull
+request's code never runs with a token that can write to your repository.
+
 ## S3 and Google Cloud Storage
 
 A bucket in S3 or Google Cloud Storage needs signed requests, and an `http`

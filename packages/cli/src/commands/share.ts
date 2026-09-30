@@ -415,7 +415,7 @@ export async function shareLines(
 }
 
 /** What a publish did, in the lines `variance share --publish` prints. */
-export function describePublish(config: Config, done: RunPublish): readonly string[] {
+export function describePublish(config: Pick<Config, 'share'>, done: RunPublish): readonly string[] {
   const where = describeShare(config);
   if ('none' in done) return [`nothing published: ${done.none}.`];
   const line = `${done.line.kind} ${done.line.name}`;
@@ -447,7 +447,7 @@ export function describePublish(config: Config, done: RunPublish): readonly stri
   ];
 }
 
-function describeShare(config: Config): string {
+function describeShare(config: Pick<Config, 'share'>): string {
   const share = config.share;
   if (share === undefined) return 'no share';
   if (share.kind === 'directory') return `the directory ${share.root}`;
