@@ -7,7 +7,7 @@ import {
 import { landJourneys } from './land.js';
 import { recordedJourneys } from './resources.js';
 import { subjectsInReport } from './run-report.js';
-import { suiteRecord } from './suite-record.js';
+import { landingRecord, suiteRecord } from './suite-record.js';
 
 /** What `variance journeys` was asked for, once the flags are off the command line. */
 export interface JourneysRequest {
@@ -36,9 +36,13 @@ export interface JourneysRequest {
  * a filter over an answer somebody else's subjects had already shaped.
  */
 export async function journeysOutput(request: JourneysRequest): Promise<string> {
-  const record = request.into ?? (await suiteRecord(request.cwd, request.suite));
+  // Shards land on this checkout's own layer; with none to land, the reading
+  // is of the nearest layer that holds a record.
   const landed =
-    request.shards.length === 0 ? undefined : await landJourneys(request.cwd, request.shards, record);
+    request.shards.length === 0
+      ? undefined
+      : await landJourneys(request.cwd, request.shards, request.into ?? (await landingRecord(request.cwd, request.suite)));
+  const record = landed?.at ?? request.into ?? (await suiteRecord(request.cwd, request.suite));
 
   const named = request.all ? undefined : await subjectsInReport(request.report);
   const pool: JourneyPool = request.all
@@ -49,7 +53,7 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
 
   const reading = formatJourneys(
     journeysOf({
-      ...(await recordedJourneys(request.cwd, named, landed?.at ?? record)),
+      ...(await recordedJourneys(request.cwd, named, record)),
       pool,
       ...(request.file !== undefined ? { file: request.file } : {}),
       ...(request.limit !== undefined ? { limit: request.limit } : {}),

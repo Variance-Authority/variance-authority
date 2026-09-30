@@ -20,8 +20,8 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   placeInText,
+  readableTestCoverage,
   stateOf,
-  testCoverageFile,
   type CoveringRegion,
   type Placement,
   type RangeState,
@@ -43,7 +43,7 @@ export interface CoveringRange extends SourceTestRange {
  * frame it against.
  */
 export async function placementFor(request: CoveringAt, from: string): Promise<Placement | undefined> {
-  const snapshot = snapshotFor(request);
+  const snapshot = await snapshotFor(request);
   if (snapshot === undefined || !from.startsWith(snapshot) || !existsSync(snapshot)) return undefined;
   const text = await heldText(request);
   if (text === undefined) return undefined;
@@ -56,10 +56,13 @@ export async function placementFor(request: CoveringAt, from: string): Promise<P
  * Undefined for an index handed in by path in a repository that declares
  * suites and a question that names none: no declared record is that index's,
  * so there is no snapshot to frame it against or date it by.
+ *
+ * It is the snapshot in the nearest cache layer holding one, the layer the
+ * index beside it is read from.
  */
-export function snapshotFor(request: CoveringSource): string | undefined {
+export async function snapshotFor(request: CoveringSource): Promise<string | undefined> {
   try {
-    return testCoverageFile(request.root, { suite: request.suite });
+    return await readableTestCoverage(request.root, { suite: request.suite });
   } catch (error) {
     if (request.execution !== undefined) return undefined;
     throw error;

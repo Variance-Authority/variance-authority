@@ -22,6 +22,7 @@ import {
   countCoverage,
   coverageChange,
   declaredSuites,
+  readableTestCoverage,
   recordedCommit,
   sharedPreconditions,
   testCoverageFile,
@@ -103,14 +104,18 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   const harness = new Set<string>();
   for (const one of counted) {
     const named = one === undefined ? {} : { suite: one.name, kind: one.kind };
-    const from = await recordOf(request.root, one?.name);
+    // The record and everything read beside it come from one cache layer: the
+    // nearest that holds it, which in a worktree that has not run is the
+    // primary checkout's.
+    const record = await readableTestCoverage(request.root, { suite: one?.name });
+    const from = await recordOf(request.root, one?.name, record);
     if (from === undefined) {
       suites.push(named);
       continue;
     }
     const index = within(await readExecutionIndex(from), scope);
-    const recorded = await recordedCommit(testCoverageFile(request.root, { suite: one?.name }));
-    for (const entry of restsOn(testCoverageFile(request.root, { suite: one?.name }))) harness.add(entry);
+    const recorded = await recordedCommit(record);
+    for (const entry of restsOn(record)) harness.add(entry);
     now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index });
     const found = await baseOf(request, one);
     if ('missed' in found) {
@@ -178,9 +183,9 @@ function restsOn(file: string): readonly string[] {
   }
 }
 
-async function recordOf(root: string, suite: string | undefined): Promise<string | undefined> {
+async function recordOf(root: string, suite: string | undefined, record: string): Promise<string | undefined> {
   try {
-    return await recordedExecutionFile(root, suite);
+    return await recordedExecutionFile(root, suite, record);
   } catch (error) {
     if (error instanceof OperatorError && error.kind === 'unrecorded') return undefined;
     throw error;

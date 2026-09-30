@@ -10,8 +10,8 @@ import {
   distanceRange,
   groupByDistance,
   readTestCoverage,
+  readableTestCoverage,
   remaining,
-  testCoverageFile,
   textAtRecording,
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
@@ -116,6 +116,19 @@ export function selectedFiles({ suite, whole, entered, touched, moved, base }) {
   return { selected: suite.filter((file) => !whole.has(file) || entered.has(file) || touched.includes(file)) };
 }
 
+/**
+ * The one declared suite's record, from whichever cache layer holds it: a
+ * worktree that has not run reads the primary checkout's. `readableTestCoverage`
+ * owns that lookup, and `variance select` asks it too. Nothing here writes.
+ */
+export async function recordToRead(root, cacheRoot) {
+  const declared = declaredSuites(root);
+  return readableTestCoverage(root, {
+    suite: declared?.length === 1 ? declared[0].name : undefined,
+    ...(cacheRoot === undefined ? {} : { cacheRoot }),
+  });
+}
+
 const say = (...lines) => process.stdout.write(`${lines.join('\n')}\n`);
 
 const isTest = (path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
@@ -186,11 +199,7 @@ async function main() {
   const asked = distanceAt < 0 ? undefined : (argv[distanceAt + 1] ?? '');
   const ref = argv.find((argument, at) => !argument.startsWith('-') && at !== distanceAt + 1);
 
-  // The record of the one suite the root declares, which `vitest.config.mts`
-  // names as the suite it is. `variance select` reads the same record by the
-  // same rule.
-  const declared = declaredSuites(ROOT);
-  const snapshotFile = testCoverageFile(ROOT, { suite: declared?.length === 1 ? declared[0].name : undefined });
+  const snapshotFile = await recordToRead(ROOT);
   if (!existsSync(snapshotFile)) {
     say(
       'test:since: no execution snapshot on disk, so nothing here has an opinion about anything.',
