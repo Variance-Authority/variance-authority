@@ -166,7 +166,8 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
     const { root, coverage, commit } = await ranAt('partial', (at) => ran(at, [{ commit: 'c'.repeat(40), files: ['test/kept.test.ts'] }]));
 
     expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true })).toEqual({
-      unpublished: `its record at ${coverage} is not a whole run: 1 test file(s) it holds last ran before ${commit}, test/kept.test.ts among them`,
+      unpublished: `its record at ${coverage} is not a whole run: 1 test file(s) git holds at ${commit} last ran before it, test/kept.test.ts among them; ` +
+        'the runner was not asked which files it collects, so each one git holds counts: pass `--collected`',
     });
   });
 

@@ -355,7 +355,7 @@ describe('legs at two commits leave each test read from where it last ran', () =
     });
   });
 
-  it('assumes nothing of a mainline record whose run carried its runs record, and says what it assumed of one that did not', async () => {
+  it('reads where each test last ran from the runs record a mainline entry carried, and says what it read in its place for one that did not', async () => {
     const repo = await repository();
     const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-since-cache-'));
     await repo.commit(Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'M');

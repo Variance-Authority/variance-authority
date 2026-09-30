@@ -174,7 +174,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   const given = request.since ?? runs?.over;
   // Runs that were laid over no recording, and no base named: a suite given to
   // a share starts from the record its mainline published, which is the state
-  // a fresh CI checkout is always in (spec 0074, item 5). With no run here at
+  // a fresh CI checkout is always in (ADR-0084). With no run here at
   // all there is nothing to review, and nothing is fetched.
   const shared = given === undefined && runs !== undefined ? await mainlineBase(root, recorded.declared) : undefined;
   const mainline = shared === undefined || 'miss' in shared ? undefined : shared;

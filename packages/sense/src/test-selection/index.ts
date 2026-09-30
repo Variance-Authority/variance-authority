@@ -107,9 +107,21 @@ export {
   type RootConfig,
 } from './cache-layers.js';
 export {
+  FETCHED_MAINLINE,
+  lastFetchedMainline,
+  layFetchedMainline,
+  mainlineReadRoot,
+  readFetchedMainline,
+  writeFetchedMainline,
+  type FetchedMainline,
+  type LastFetched,
+} from './mainline-layer.js';
+export {
+  noteSeeded,
   readableTestCoverage,
   recordFileFor,
   seedTestCoverage,
+  type Seeded,
   testCoverageFile,
   writeCoverageBytes,
   type RecordLocationOptions,

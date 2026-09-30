@@ -216,6 +216,8 @@ jobs:
           if [ -f "$recording.cases.bin" ]; then
             cp -R "$(dirname "$recording")" "$RUNNER_TEMP/base-unit"
             echo "cases=$RUNNER_TEMP/base-unit/$(basename "$recording").cases.bin" >> "$GITHUB_OUTPUT"
+          elif [ -f "$recording" ]; then
+            echo "::notice::The base record was read without its case index, so this run has nothing to select from or compare with: the whole suite runs, and coverage is printed without a comparison."
           else
             echo "::notice::The mainline's record was not read, so this run has no base: the whole suite runs, and coverage is printed without a comparison."
           fi
@@ -381,18 +383,25 @@ jobs:
     # a push to `main`, and to no job a pull request runs. The ref is outside
     # `refs/heads` and `refs/tags`, so no branch rule and no tag rule governs it,
     # and nothing that lists branches shows it.
+    #
+    # `github.ref` is asked as well as the event, because `push` also fires for
+    # a tag and for every other branch this workflow may one day be given, and
+    # none of them may hold a token that writes the mainline's record.
     needs: suite
-    if: ${{ !cancelled() && github.event_name == 'push' && needs.suite.outputs.handed == 'true' }}
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.suite.outputs.handed == 'true' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
 
     steps:
       # Every commit, because the share asks git whether the record it holds
-      # descends from this one before replacing it.
+      # descends from this one before replacing it. The token that can write
+      # is not left in the clone's configuration, where install scripts and
+      # the build would run beside it; the publish step hands it to git itself.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -411,15 +420,36 @@ jobs:
           name: variance-record-unit
           path: ${{ needs.suite.outputs.recording }}
 
+      # The test files the runner collects at this commit, asked of the runner:
+      # a test file the suite stopped collecting keeps its rows in the record
+      # and last ran before this commit, and only the runner can say it no
+      # longer counts against a whole run.
+      - name: what the suite collects
+        shell: bash
+        run: yarn vitest list --filesOnly > "$RUNNER_TEMP/collected-unit.txt"
+
       # `share --suite` reads the share from the root config, asks the line of
       # this run (`main`, on a push to it), and refuses a record that was not
-      # recorded at this commit, or whose runs record does not show the whole
-      # suite ran here. The runs record travels with it, so a reader knows where
-      # each test last ran rather than assuming it. What it did goes to the job
-      # summary.
+      # recorded at this commit, or whose runs record does not show that every
+      # test file the runner collects ran here. The runs record travels with it,
+      # so a reader knows where each test last ran. What it did goes to the job
+      # summary, and a refusal fails the job: every pull request measures from
+      # this record, so an older one left in place must be seen.
+      #
+      # The token reaches git as `GIT_CONFIG_*` variables for this step alone,
+      # the same header `actions/checkout` would have written to the clone, and
+      # the share's own repository reads it the way it reads the clone's.
       - name: publish the record
         shell: bash
-        run: node packages/cli/dist/bin.js share --suite unit --publish | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          auth="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          node packages/cli/dist/bin.js share --suite unit --publish --collected "$RUNNER_TEMP/collected-unit.txt" | tee -a "$GITHUB_STEP_SUMMARY"
 
   cases:
     # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a

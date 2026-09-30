@@ -2,7 +2,7 @@
  * The report and a suite's record, as entries a share line holds.
  *
  * A line holds versioned entries, each derived at one commit, and images by
- * digest (spec 0074). This file is the one place that says what `report-v1` and
+ * digest (ADR-0077). This file is the one place that says what `report-v1` and
  * `suite-v1/<suite>` contain, both ways, so the publisher and every reader
  * agree on it without a second spelling.
  *
@@ -148,13 +148,14 @@ export function readReportEntry(
  * can. `whole` is set for a mainline, whose record every checkout measures from:
  * then the record is published only when its runs record shows a run of the
  * whole suite at this commit, which {@link wholeRunAt} tells from the runs record
- * and from git, never from the caller's word.
+ * and from what the runner collects (`collected`), else from git, never from
+ * the caller's word.
  */
 export async function suiteEntryOf(
   root: string,
   suite: string,
   at: Derived,
-  options: { readonly whole?: boolean } = {},
+  options: { readonly whole?: boolean; readonly collected?: ReadonlySet<string> } = {},
 ): Promise<ShareEntry | { readonly unpublished: string } | undefined> {
   const coverage = testCoverageFile(root, { suite });
   const record = await held(coverage);
@@ -170,7 +171,7 @@ export async function suiteEntryOf(
   const cases = await held(`${coverage}.cases.bin`);
   const runs = await held(commitRunsFile(coverage));
   if (options.whole === true) {
-    const partial = await wholeRunAt(root, runs, at.commit);
+    const partial = await wholeRunAt(root, runs, at.commit, options.collected);
     if (partial !== undefined) return { unpublished: `its record at ${coverage} is not a whole run: ${partial}` };
   }
 
@@ -193,14 +194,25 @@ const RUNS_PART = 'coverage.runs.json';
  * `commit`, or `undefined` when it does.
  *
  * Whole means every test the record holds either ran at `commit` or is a test
- * file `commit` no longer has. The runs record lists the tests that ran at its
- * commit and, under `standing`, where every other test last ran; a record
- * without `standing` does not know, and is not taken as whole. A deleted test
- * file stays in the record, because its cases are what the base had, so a test
- * standing at an older commit counts against the run only while git still has
- * it at `commit`.
+ * file the suite no longer collects there. The runs record lists the tests that
+ * ran at its commit and, under `standing`, where every other test last ran; a
+ * record without `standing` does not know, and is not taken as whole. A test
+ * file the suite stopped collecting stays in the record, because its cases are
+ * what the base had, so a test standing at an older commit counts against the
+ * run only while the suite still collects it.
+ *
+ * The runner owns what the suite collects, so `collected` is its answer: the
+ * repository-relative test files it lists at `commit`. Without it, git answers
+ * for which of those files `commit` still has, and a refusal says the runner
+ * was not asked, because a file git holds and the runner no longer collects
+ * would hold the gate shut on every run.
  */
-export async function wholeRunAt(root: string, runs: Uint8Array | undefined, commit: string): Promise<string | undefined> {
+export async function wholeRunAt(
+  root: string,
+  runs: Uint8Array | undefined,
+  commit: string,
+  collected?: ReadonlySet<string>,
+): Promise<string | undefined> {
   if (runs === undefined) return 'no runs record lies beside it, so nothing says which tests ran at this commit';
   let parsed: CommitRuns;
   try {
@@ -210,12 +222,41 @@ export async function wholeRunAt(root: string, runs: Uint8Array | undefined, com
   }
   if (parsed.commit !== commit) return `the runs record beside it is ${parsed.commit ?? 'of no commit'}'s, not ${commit}'s`;
   if (parsed.standing === undefined) return 'the runs record beside it does not say where every test it did not run last ran';
-  const older = parsed.standing.flatMap((entry) => entry.files);
+  // A test standing at this commit ran at it, in a run before the latest.
+  const older = parsed.standing.filter((entry) => entry.commit !== commit).flatMap((entry) => entry.files);
   if (older.length === 0) return undefined;
-  const { stdout } = await run('git', ['ls-tree', '-r', '--name-only', '-z', commit, '--', ...older], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
-  const kept = stdout.split('\0').filter((path) => path !== '');
+  const present = collected ?? (await trackedAt(root, commit));
+  if (typeof present === 'string') return present;
+  const kept = older.filter((path) => present.has(path));
   if (kept.length === 0) return undefined;
-  return `${kept.length} test file(s) it holds last ran before ${commit}, ${kept[0]} among them`;
+  if (collected !== undefined) return `${kept.length} test file(s) the suite collects last ran before ${commit}, ${kept[0]} among them`;
+  return (
+    `${kept.length} test file(s) git holds at ${commit} last ran before it, ${kept[0]} among them; ` +
+    'the runner was not asked which files it collects, so each one git holds counts: pass `--collected`'
+  );
+}
+
+/**
+ * Every file git holds at `commit`, repository-relative, listed once from the
+ * repository root whatever directory `root` is; or why git could not say.
+ */
+async function trackedAt(root: string, commit: string): Promise<ReadonlySet<string> | string> {
+  try {
+    const { stdout } = await run('git', ['ls-tree', '-r', '--name-only', '-z', '--full-tree', commit], {
+      cwd: root,
+      maxBuffer: 256 * 1024 * 1024,
+    });
+    return new Set(stdout.split('\0').filter((path) => path !== ''));
+  } catch (error) {
+    const held = await run('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: root }).then(
+      () => true,
+      () => false,
+    );
+    if (!held) {
+      return `git does not hold ${commit} in the checkout at ${root}, so which test files it still has cannot be asked: fetch it, or pass \`--collected\``;
+    }
+    return `git could not list the files at ${commit}: ${error instanceof Error ? error.message.trim() : String(error)}`;
+  }
 }
 
 /** A `suite-v1` entry's parts: the coverage record, the per-case index when there was one, and the runs record when the publisher carried it. */

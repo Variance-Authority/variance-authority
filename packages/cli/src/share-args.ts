@@ -19,6 +19,12 @@ export interface ParsedShare {
    * project config and no report: `share --suite <name>`.
    */
   readonly suite?: string;
+  /**
+   * A file listing the test files the suite's runner collects at this commit,
+   * one per line, as `vitest list --filesOnly` prints them: what a mainline
+   * publish of `--suite` counts a whole run against.
+   */
+  readonly collected?: string;
 }
 
 /**
@@ -53,6 +59,12 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
       );
     }
   }
+  const collected = flags.values.get('--collected');
+  if (collected !== undefined && (suite === undefined || !publish)) {
+    // The list is what a whole run is counted against, and only the suite's
+    // own publish counts one.
+    throw new OperatorError('`--collected` is for `share --suite <name> --publish`, which counts a whole run against it');
+  }
   return {
     command: 'share',
     config,
@@ -60,5 +72,6 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
     ...(mainline !== undefined ? { mainline } : {}),
     reports: flags.positionals,
     ...(suite !== undefined ? { suite } : {}),
+    ...(collected !== undefined ? { collected } : {}),
   };
 }

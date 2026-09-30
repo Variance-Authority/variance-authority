@@ -6,15 +6,22 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
-import { commitRunsFile, readCommitRuns, testCoverageFile } from '@variance-authority/sense/test-selection';
+import {
+  commitRunsFile,
+  declaredSuites,
+  readCommitRuns,
+  seedTestCoverage,
+  testCoverageFile,
+} from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../bin.js';
 import type { Config } from '../config.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
-import { mainlineMissed, mainlineRead } from './mainline-base.js';
-import { BEFORE, DISCOUNTS, PUSH, ranWhole, recordIn } from './mainline-fixture.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { MAINLINE_REUSE_MS, mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
+import { BEFORE, DISCOUNTS, PUSH, ranWhole, recordIn, selectedIn } from './mainline-fixture.js';
 import { layMainline, suiteBase } from './suite-base.js';
-import { publishSuite, suiteShareLines } from './suite-share.js';
+import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
 
 /**
  * The record a checkout measures from, in a real repository whose `origin` is
@@ -27,6 +34,7 @@ const run = promisify(execFile);
 const LOCAL: Env = {};
 const SHARE = { kind: 'git', mainlines: ['main'] } as const;
 let home: string;
+const cwd = process.cwd();
 
 beforeEach(async () => {
   // Real, because git records a worktree's primary checkout by its real path.
@@ -34,6 +42,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  process.chdir(cwd);
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
   await rm(home, { recursive: true, force: true });
 });
@@ -121,7 +130,7 @@ describe('a published record reaches the remote', () => {
     await writeFile(commitRunsFile(own), JSON.stringify(runs));
 
     expect(await publishSuite(ci, 'unit', { env: PUSH })).toEqual({
-      none: `suite-v1/unit is left out: its record at ${own} is not a whole run: 1 test file(s) it holds last ran before ${first}, test/other.test.ts among them`,
+      none: `suite-v1/unit is left out: its record at ${own} is not a whole run: 1 test file(s) git holds at ${first} last ran before it, test/other.test.ts among them; the runner was not asked which files it collects, so each one git holds counts: pass \`--collected\``,
     });
     expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe('');
   });
@@ -255,6 +264,87 @@ describe('`variance share --suite unit`', () => {
     );
     expect(() => parseArgs(['share', '--suite', 'unit', '--publish', 'report.json'])).toThrow(/so it takes no report$/u);
     expect(parseArgs(['share', '--suite', 'unit', '--publish'])).toMatchObject({ command: 'share', suite: 'unit', publish: true });
+  });
+});
+
+describe('every reader of a worktree that has run nothing starts from the same record', () => {
+  it('a runner seam lays the mainline record last fetched on this machine as the worktree\'s first, not the primary checkout\'s', async () => {
+    const ci = await mainline();
+    const { worktree, record } = await laptop(ci.origin, ci.first);
+    const base = await suiteBase(worktree, { env: LOCAL });
+    if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+
+    // What `yarn test`'s seam does before it lands the run it made.
+    const seeded = await seedTestCoverage(own, worktree);
+
+    expect(seeded).toMatchObject({ from: 'mainline', record: { mainline: 'main', commit: ci.first } });
+    expect(await readFile(own)).toEqual(ci.record);
+    expect(await readFile(own)).not.toEqual(record);
+    expect(await readFile(commitRunsFile(own))).toEqual(await readFile(commitRunsFile(base.file)));
+  });
+
+  it('`variance select` reads the mainline\'s record, and says so, where the primary checkout holds one too', async () => {
+    const { origin, first } = await mainline();
+    const { worktree } = await laptop(origin, first);
+    await writeFile(join(worktree, 'src/total.ts'), 'export const changed = true;\n');
+
+    const { err } = await selectedIn(worktree);
+
+    expect(err).toContain(`record of "unit": read from mainline main, published at ${first}`);
+  });
+
+  it('reuses the record it fetched for ten minutes, and past that keeps it when the remote does not answer', async () => {
+    const { origin, first } = await mainline();
+    const { worktree } = await laptop(origin, first);
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline' });
+    await git(worktree, 'remote', 'set-url', 'origin', join(home, 'nowhere.git'));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first, earlier: { reused: true } } });
+    const declared = declaredSuites(worktree)?.find((one) => one.name === 'unit');
+    const later = await mainlineBase(worktree, declared, { env: LOCAL, now: Date.now() + MAINLINE_REUSE_MS + 60_000 });
+    expect(later).toMatchObject({ commit: first, earlier: { unanswered: { kind: 'unreachable' } } });
+  });
+});
+
+describe('a mainline publish counts a whole run against what the runner collects', () => {
+  it('passes over a file that last ran at an older commit when the runner no longer collects it', async () => {
+    const { ci, origin, first } = await mainline({ publish: false });
+    const own = testCoverageFile(ci, { suite: 'unit' });
+    const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [{ commit: 'c'.repeat(40), files: ['test/other.test.ts'] }] };
+    await writeFile(commitRunsFile(own), JSON.stringify(runs));
+    const collected = join(home, 'collected.txt');
+    await writeFile(collected, 'test/total.test.ts\n');
+
+    expect(await publishSuite(ci, 'unit', { env: PUSH }, { collected })).toMatchObject({ published: { written: [suiteEntry('unit')] } });
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toMatch(/refs\/variance\/mainline\/main$/u);
+  });
+
+  it('counts a file standing at the publish commit itself as run there', async () => {
+    const { ci, first } = await mainline({ publish: false });
+    const own = testCoverageFile(ci, { suite: 'unit' });
+    const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [{ commit: first, files: ['test/other.test.ts'] }] };
+    await writeFile(commitRunsFile(own), JSON.stringify(runs));
+
+    expect(await publishSuite(ci, 'unit', { env: PUSH })).toMatchObject({ published: { written: [suiteEntry('unit')] } });
+  });
+
+  it('fails the command when a mainline publish writes nothing, and not when a branch\'s does', async () => {
+    const { ci } = await mainline({ publish: false });
+    await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'second');
+
+    const refused = await suiteShare(ci, { suite: 'unit', publish: true }, { env: PUSH });
+    expect(refused.exit).toBe(EXIT_OPERATOR);
+    expect(refused.lines.join('\n')).toContain('was recorded at');
+    const branch = { ...PUSH, GITHUB_REF_NAME: 'feature' };
+    expect((await suiteShare(ci, { suite: 'unit', publish: true }, { env: branch })).exit).toBe(EXIT_CLEAN);
+  });
+
+  it('refuses `--collected` anywhere but beside `--suite` and `--publish`', () => {
+    expect(() => parseArgs(['share', '--suite', 'unit', '--collected', 'files.txt'])).toThrow(
+      '`--collected` is for `share --suite <name> --publish`, which counts a whole run against it',
+    );
+    expect(parseArgs(['share', '--suite', 'unit', '--publish', '--collected', 'files.txt'])).toMatchObject({ collected: 'files.txt' });
   });
 });
 

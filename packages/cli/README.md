@@ -164,7 +164,7 @@ variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shar
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--prune]
-variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish]
+variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]
 variance carry   restore | save [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
 ```
@@ -1895,7 +1895,8 @@ owns its own collector, renderer, storage, or review surface:
   over `DEFAULT_LIMITS`; the renderer still states what it omitted.
 - `suiteBase(root, { suite, cacheRoot, env })` answers which execution record a
   runner of your own measures a change from: the checkout's own, else the
-  `suite-v1/<suite>` your mainline published to the share, else, in a worktree
+  `suite-v1/<suite>` your mainline published to the share, or the one fetched
+  on this machine earlier when the remote does not answer, else, in a worktree
   that has recorded nothing, the primary checkout's. The last is an offline
   fallback, and the answer carries `missed` to say why the mainline's was not
   read. `mainlineRead` and `mainlineMissed` print the same `record of

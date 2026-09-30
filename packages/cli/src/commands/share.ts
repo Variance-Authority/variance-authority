@@ -40,7 +40,7 @@ export { mainlinesOf, type Mainlines } from '../share-lines.js';
 
 /**
  * Publishing a run to its line, and reading a mainline's suite index back — the
- * CLI half of spec 0074.
+ * CLI half of ADR-0077.
  *
  * `@variance-authority/core/share` knows what a line holds and how a write
  * races another; `share-lines.ts` knows which line a run belongs to and which

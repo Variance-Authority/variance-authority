@@ -138,12 +138,13 @@ export type {
 
 /**
  * The record a checkout measures a change from — its own, else its mainline's
- * as CI published it, else the primary checkout's — for a runner outside this
- * CLI that selects from it, as `yarn test:since` does in this repository.
+ * as CI published it or as last fetched here, else the primary checkout's — for
+ * a runner outside this CLI that selects from it, as `yarn test:since` does in
+ * this repository.
  */
 export { layMainline, suiteBase } from './commands/suite-base.js';
 export type { SuiteBase, SuiteBaseOptions } from './commands/suite-base.js';
-export { mainlineMissed, mainlineRead } from './commands/mainline-base.js';
+export { mainlineMissed, mainlineRead, primaryRead } from './commands/mainline-base.js';
 export type { MainlineMissed, MainlineRecord } from './commands/mainline-base.js';
 
 /**

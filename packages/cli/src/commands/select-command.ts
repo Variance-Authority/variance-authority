@@ -53,9 +53,10 @@ import {
 } from './installed.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { diffPoint, diffSince } from './since.js';
-import { checkoutRead, mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
+import { checkoutRead, mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { relationsFor } from './source-graph.js';
-import { landingRecord, recordedSuite } from './suite-record.js';
+import { suiteBase } from './suite-base.js';
+import { recordedSuite } from './suite-record.js';
 import {
   formatSelection,
   selectionNotes,
@@ -192,33 +193,36 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
 }
 
 /**
- * This checkout's record of the suite — in a worktree that has not run, the
- * primary checkout's — or, when neither has one and the suite is given to a
- * share, the one its mainline published (spec 0074, item 5).
+ * The record of the suite this checkout measures from, in the order
+ * `suiteBase` gives every base reader: this checkout's own, else the mainline's
+ * (ADR-0084), else, in a worktree, the primary checkout's as the
+ * offline fallback.
  *
- * The local record wins whenever it is on disk, and nothing is fetched then.
- * For a suite given to a share, either way, the first note after the verdict
- * says whose record it read, because the two select differently and an
- * operator reading a skip list cannot tell them apart otherwise.
+ * A suite the root config does not give to a share has no mainline record, and
+ * reads the nearest layer that holds one. For a suite given to a share the
+ * first note after the verdict says whose record it read, because they select
+ * differently and an operator reading a skip list cannot tell them apart
+ * otherwise.
  */
 async function recordedOrMainline(
   request: SelectRequest,
 ): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource }> {
   const recorded = await recordedSuite(request.cwd, request.suite);
   const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
-  if (await exists(recorded.file)) {
-    if (suite === undefined) return { at: recorded.file, held: true };
-    const own = recorded.file === (await landingRecord(request.cwd, request.suite));
-    return { at: recorded.file, held: true, source: { from: 'checkout', says: checkoutRead(suite, own ? undefined : recorded.file) } };
+  if (suite === undefined) return { at: recorded.file, held: await exists(recorded.file) };
+  const base = await suiteBase(request.cwd, { suite });
+  if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: checkoutRead(suite) } };
+  if (base.from === 'mainline') {
+    const read = base.mainline;
+    const distance = read.distance === undefined ? {} : { distance: read.distance };
+    return { at: read.coverage, held: true, source: { from: 'mainline', mainline: read.mainline, ...distance, says: mainlineRead(read) } };
   }
-  const read = await mainlineBase(request.cwd, recorded.declared);
-  if (read === undefined) return { at: recorded.file, held: false };
-  if ('miss' in read) {
-    const mainline = read.mainline === undefined ? {} : { mainline: read.mainline };
-    return { at: recorded.file, held: false, source: { ...mainline, says: mainlineMissed(read) } };
+  const mainline = base.missed?.mainline === undefined ? {} : { mainline: base.missed.mainline };
+  if (base.from === 'primary') {
+    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) } };
   }
-  const distance = read.distance === undefined ? {} : { distance: read.distance };
-  return { at: read.coverage, held: true, source: { from: 'mainline', mainline: read.mainline, ...distance, says: mainlineRead(read) } };
+  if (base.missed === undefined) return { at: base.file, held: false };
+  return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) } };
 }
 
 /**

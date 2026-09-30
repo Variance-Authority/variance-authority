@@ -71,6 +71,7 @@ import {
 import { coverageModule } from './coverage-rows.js';
 import { recordFileFor } from './record-location.js';
 import {
+  noteSeeded,
   seedTestCoverage,
   writeCoverageBytes,
   type CoveragePrecondition,
@@ -396,7 +397,7 @@ export async function recordExecution(
   // earlier worker's whole contribution — silently, and in the unsafe direction.
   // A worktree layers onto the repository's months of recording rather than
   // onto nothing. A no-op here and after the first run.
-  await seedTestCoverage(coverageFile, root, options.cacheRoot);
+  noteSeeded(await seedTestCoverage(coverageFile, root, options.cacheRoot));
   const merged = await withIndexLock(coverageFile, async () => {
     await landRun(coverageFile, current, root);
     markCheckout(repositoryRoot(root), options.cacheRoot);

@@ -96,15 +96,18 @@ const diffOfNew = (path) =>
 /**
  * The record to measure from, which `suiteBase` in `@variance-authority/cli`
  * orders, and the note that says whose it is: this checkout's own, else the
- * one CI published for the mainline, else the primary checkout's as an
- * offline fallback, with the reason the mainline's was not read. `variance
- * select` prints the same notes. Nothing here writes but the fetch, which
- * keeps the mainline's bytes in the cache's read layer.
+ * mainline's, fetched now or as last fetched on this machine, else the primary
+ * checkout's as the offline fallback, with the reason no mainline record was
+ * read. `variance select` asks the same `suiteBase` and prints the same notes.
+ * Nothing here writes but the fetch, which keeps the mainline's bytes in the
+ * cache's read layer and names them in `fetched.json` there, where the run this
+ * selects lays them under its own record.
  */
 export async function recordToRead(root, cacheRoot, env) {
-  const { mainlineMissed, mainlineRead, suiteBase } = await import('@variance-authority/cli');
+  const { mainlineMissed, mainlineRead, primaryRead, suiteBase } = await import('@variance-authority/cli');
   const base = await suiteBase(root, { ...(cacheRoot === undefined ? {} : { cacheRoot }), ...(env === undefined ? {} : { env }) });
   if (base.from === 'mainline') return { ...base, note: mainlineRead(base.mainline) };
+  if (base.from === 'primary' && base.missed !== undefined) return { ...base, note: primaryRead(base.missed.suite, base.file, base.missed) };
   return base.missed === undefined ? base : { ...base, note: mainlineMissed(base.missed) };
 }
 
@@ -231,11 +234,13 @@ async function main() {
    * `packages/cli/src/commands/since.ts` does.
    *
    * The runs are read beside whichever snapshot is read. A worktree that has
-   * not run reads the primary checkout's snapshot, and the runs beside it
-   * describe that snapshot; the worktree's own would describe nothing it reads.
-   * The mainline's record has beside it the runs record the run that published
-   * it wrote, when the entry carried one; when it did not, `readingFrom` says
-   * what it assumed in its place.
+   * not run reads the mainline's snapshot, or the primary checkout's, and the
+   * runs beside it describe that snapshot; the worktree's own would describe
+   * nothing it reads. The mainline's record has beside it the runs record the
+   * run that published it wrote, when the entry carried one. `standsOf` in
+   * `since-base.mjs` says what it read in place of an answer whenever the runs
+   * beside the snapshot cannot give one: there are none, they are another
+   * commit's, or they do not list where a test in the snapshot last ran.
    */
   const runs = coverage.commit === undefined ? undefined : await readCommitRuns(snapshotFile);
   let suite;

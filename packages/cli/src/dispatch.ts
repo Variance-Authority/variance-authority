@@ -50,7 +50,7 @@ import { doctor, machineProbes } from './commands/doctor.js';
 import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
 import { runCarry } from './commands/carry.js';
-import { suiteShareLines } from './commands/suite-share.js';
+import { runSuiteShare } from './commands/suite-share.js';
 import { answerConfigless, constantAnswer, withoutConfig } from './commands/configless.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
@@ -89,10 +89,7 @@ export async function dispatch(
   if (parsed.command === 'carry') return runCarry(parsed, streams, mainlinesOf);
   // A suite's record alone: the root config declares the suite and its share,
   // and no project config is read.
-  if (parsed.command === 'share' && parsed.suite !== undefined) {
-    streams.out(`${(await suiteShareLines(process.cwd(), { suite: parsed.suite, publish: parsed.publish })).join('\n')}\n`);
-    return EXIT_CLEAN;
-  }
+  if (parsed.command === 'share' && parsed.suite !== undefined) return runSuiteShare({ ...parsed, suite: parsed.suite }, streams);
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {

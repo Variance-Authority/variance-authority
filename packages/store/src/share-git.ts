@@ -26,8 +26,9 @@ export interface GitLineOptions {
   /**
    * The `http.extraheader` your clone sends to `url`. `actions/checkout` writes
    * its token there, in the clone's own configuration, where this repository
-   * cannot see it. Given to every command through the environment, and never
-   * written to disk.
+   * cannot see it; a job that checks out with `persist-credentials: false`
+   * gives it to git for one step as `GIT_CONFIG_*` variables instead. Given to
+   * every command through the environment, and never written to disk.
    */
   readonly extraHeader?: string;
 }
@@ -49,10 +50,17 @@ function gitIn(options: GitLineOptions): Git {
   };
 }
 
-/** A configuration value git reads from the environment, after any the environment already names. */
+/**
+ * A configuration value git reads from the environment, after any the
+ * environment already names. A header the environment already gives git is
+ * not given again: a CI step that hands its token to git as `GIT_CONFIG_*`
+ * variables is where your clone's configuration found it, and git would send
+ * it twice.
+ */
 function headerEnv(value: string | undefined): Record<string, string> {
   if (value === undefined) return {};
   const at = Number(process.env['GIT_CONFIG_COUNT'] ?? '0') || 0;
+  for (let index = 0; index < at; index += 1) if (process.env[`GIT_CONFIG_VALUE_${String(index)}`] === value) return {};
   return {
     GIT_CONFIG_COUNT: String(at + 1),
     [`GIT_CONFIG_KEY_${String(at)}`]: 'http.extraheader',
