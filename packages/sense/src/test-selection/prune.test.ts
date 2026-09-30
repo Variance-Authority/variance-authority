@@ -149,8 +149,9 @@ describe('planPrune', () => {
   test('a landing that died leaves its staged snapshot where prune removes it', async () => {
     const root = await cache();
     const checkout = await mkdtemp(resolve(tmpdir(), 'va-prune-checkout-'));
-    // The file `variance land` writes when no `--into` names another: the
-    // checkout's own record, inside the cache. Its staged copy is named beside it.
+    // The file `variance journeys <shard.bin>...` lands on when no `--into`
+    // names another: the checkout's own record, inside the cache. Its staged
+    // copy is named beside it.
     const target = testCoverageFile(checkout, { cacheRoot: root });
     await marker(dirname(target), checkout, checkout, DAY);
     await put(target, DAY);

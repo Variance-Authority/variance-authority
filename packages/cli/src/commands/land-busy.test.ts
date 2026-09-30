@@ -27,13 +27,24 @@ afterEach(async () => {
 });
 
 /**
+ * The polls `pastTheWait` fires before it calls a waiter one that never gives
+ * up: four times the window's, `4 * LOCK_WAIT_MS / LOCK_POLL_MS` in the sense
+ * package's `index-lock.ts`, whose own test bounds its copy of this helper the
+ * same way. Written out, because the package does not export those constants
+ * and a test is no reason to.
+ */
+const POLL_BOUND = 1600;
+const POLL_MS = 25;
+
+/**
  * Settle `work` across the lock's whole waiting window in milliseconds.
  *
  * The waiter polls with `setTimeout`, so only the timers are faked: `Date` stays
  * real and a lock written a moment ago never reads as stale. Every attempt is a
- * real `wx` create, so the clock jumps to the next poll and then yields one real
- * turn for the attempt to return. A waiter that never gives up keeps scheduling
- * polls, and the test's timeout is the failure.
+ * real `wx` create, so the clock jumps to the next poll only when one is
+ * pending, and otherwise the pump yields a real turn for the attempt to return.
+ * The bound counts polls fired, not turns taken, so a loaded machine spends
+ * more real time and never more of the window.
  */
 async function pastTheWait(work: () => Promise<unknown>): Promise<unknown> {
   const nextTurn = setTimeout;
@@ -45,11 +56,20 @@ async function pastTheWait(work: () => Promise<unknown>): Promise<unknown> {
   ).finally(() => {
     settled = true;
   });
-  while (!settled) {
-    await vi.advanceTimersToNextTimerAsync();
+  let fired = 0;
+  while (!settled && fired < POLL_BOUND) {
+    if (vi.getTimerCount() > 0) {
+      fired += 1;
+      await vi.advanceTimersToNextTimerAsync();
+    }
     await new Promise<void>((wake) => nextTurn(wake, 0));
   }
   vi.useRealTimers();
+  expect(
+    settled,
+    `the landing was still waiting on a lock after ${fired} polls (${fired * POLL_MS} ms of fake time); ` +
+      'a lock gives up once its 10000 ms window has passed',
+  ).toBe(true);
   return await running;
 }
 

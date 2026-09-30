@@ -15,22 +15,28 @@ import { instrumentationId } from '../instrument/index.js';
 const { encodeJournal } = journalFormat;
 
 /**
+ * The polls `pastTheWait` fires before it calls a waiter one that never gives
+ * up: four times the window's. `land-busy.test.ts` in the cli package bounds
+ * its own copy by the same number, which it writes out because these constants
+ * are not exported from the package.
+ */
+const POLL_BOUND = (4 * LOCK_WAIT_MS) / LOCK_POLL_MS;
+
+/**
  * Run `work` across the whole waiting window of a lock it cannot take, in
  * milliseconds rather than ten seconds.
  *
  * The waiter polls with `setTimeout`, so only the timers are faked: `Date` stays
  * real, and a lock written a moment ago never reads as stale. The filesystem is
  * real too, so every attempt is a real `wx` create against a lock file that is
- * really there, and one handle to the real event loop is kept to yield to it:
- * advancing the clock without yielding can schedule all of the polls before the
- * first `wx` refusal has returned.
+ * really there, and one handle to the real event loop is kept to yield to it.
  *
- * One poll at a time, because a step that covered the whole window at once would
- * reach the end of the fake clock while the first attempt was still in the
- * kernel, and the waiter would be left mid-loop with no timer to wake it. `work`
- * may do its own I/O before it reaches the lock and after it gives up, so the
- * pump runs for four times the polls the window holds; a waiter still waiting
- * after that never gives up, which is the failure these tests are here to catch.
+ * The clock jumps to the next poll only when one is pending, and otherwise the
+ * pump yields a real turn for the attempt in the kernel to return. So the bound
+ * counts polls fired, not turns taken: a loaded machine that needs more turns
+ * per `wx` spends more real time, never more of the window. `work` may do its
+ * own I/O before it reaches the lock and after it gives up, which is why the
+ * bound is {@link POLL_BOUND} rather than the window's own count.
  */
 async function pastTheWait<T>(work: () => Promise<T>): Promise<T> {
   const nextTurn = setTimeout;
@@ -40,11 +46,19 @@ async function pastTheWait<T>(work: () => Promise<T>): Promise<T> {
     const running = work().finally(() => {
       settled = true;
     });
-    for (let step = 0; step < (4 * LOCK_WAIT_MS) / LOCK_POLL_MS && !settled; step += 1) {
-      await vi.advanceTimersByTimeAsync(LOCK_POLL_MS);
+    let fired = 0;
+    while (!settled && fired < POLL_BOUND) {
+      if (vi.getTimerCount() > 0) {
+        fired += 1;
+        await vi.advanceTimersToNextTimerAsync();
+      }
       await new Promise<void>((wake) => nextTurn(wake, 0));
     }
-    expect(settled).toBe(true);
+    expect(
+      settled,
+      `the lock waiter was still waiting after ${fired} polls (${fired * LOCK_POLL_MS} ms of fake time); ` +
+        `it gives up once its ${LOCK_WAIT_MS} ms window has passed`,
+    ).toBe(true);
     return await running;
   } finally {
     vi.useRealTimers();
@@ -158,10 +172,13 @@ describe('a run the snapshot lock refuses', () => {
   const made: string[] = [];
   let warned: string[] = [];
   const warn = console.warn;
+  const cache = process.env['VARIANCE_AUTHORITY_CACHE'];
 
   afterEach(async () => {
     console.warn = warn;
     delete process.env[RUN_DIRECTORY_VARIABLE];
+    if (cache === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
+    else process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
     for (const directory of made.splice(0)) await rm(directory, { recursive: true, force: true });
   });
 
@@ -176,6 +193,9 @@ describe('a run the snapshot lock refuses', () => {
     // Written a moment ago by somebody else, which is what a live holder in
     // another process looks like from here.
     if (busy) await writeFile(`${coverageFile}.lock`, '1\n');
+    // A cache of its own: a run marks its checkout and prunes the cache when a
+    // prune is due, and a prune that frees another test's layers warns too.
+    process.env['VARIANCE_AUTHORITY_CACHE'] = resolve(root, 'variance-cache');
     warned = [];
     console.warn = (message: string): void => void warned.push(message);
     return { root, coverageFile, testFile };
