@@ -66,6 +66,7 @@ const orient = (root: string, cache: string, file: string): string =>
     encoding: 'utf8', env: { ...process.env, ...ACCELERATED, VARIANCE_AUTHORITY_CACHE: cache }, maxBuffer: 1 << 28,
   });
 const timed = <T>(run: () => T): { value: T; ms: number } => { const start = performance.now(); const value = run(); return { value, ms: performance.now() - start }; };
+const awaited = async <T>(run: () => Promise<T>): Promise<{ value: T; ms: number }> => { const start = performance.now(); const value = await run(); return { value, ms: performance.now() - start }; };
 
 for (const corpus of CORPORA) {
   const live = existsSync(join(corpus.root, '.git')) && existsSync(BIN) && existsSync(HELP) ? describe : describe.skip;
@@ -74,20 +75,20 @@ for (const corpus of CORPORA) {
       const cache = mkdtempSync(join(tmpdir(), 'va-scale-'));
       caches.push(cache);
       process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
-      const index = timed(() => cli(corpus.root, cache, ['index']));
+      const index = timed(() => cli(corpus.root, cache, ['index', '--wait']));
       const { path } = readDependencyLexicon(corpus.root);
       rmSync(path);
-      const cold = timed(() => refreshDependencyLexicon(corpus.root));
-      const nothing = timed(() => refreshDependencyLexicon(corpus.root));
+      const cold = await awaited(() => refreshDependencyLexicon(corpus.root));
+      const nothing = await awaited(() => refreshDependencyLexicon(corpus.root));
       // The record of what the lexicon was built from is what lets a refresh do nothing; without it the
       // refresh reads everything again and reuses what it can, which is the path a changed install takes.
       rmSync(path.replace(/\.json$/, '.built.json'));
-      const warm = timed(() => refreshDependencyLexicon(corpus.root));
+      const warm = await awaited(() => refreshDependencyLexicon(corpus.root));
       // One source file gains an import. The index gains a segment, and the refresh merges that segment
       // into what it kept; the answer must be the one a refresh from nothing gives.
       const edited = join(corpus.root, corpus.pick);
       const original = readFileSync(edited, 'utf8');
-      let edit: { ms: number; value: ReturnType<typeof refreshDependencyLexicon> };
+      let edit: { ms: number; value: Awaited<ReturnType<typeof refreshDependencyLexicon>> };
       let reindex: { ms: number };
       let merged: string;
       let full: string;
@@ -98,10 +99,10 @@ for (const corpus of CORPORA) {
         const start = performance.now();
         await updateSourceIndex(corpus.root);
         reindex = { ms: performance.now() - start };
-        edit = timed(() => refreshDependencyLexicon(corpus.root));
+        edit = await awaited(() => refreshDependencyLexicon(corpus.root));
         merged = body(path);
         rmSync(path.replace(/\.json$/, '.built.json'));
-        refreshDependencyLexicon(corpus.root);
+        await refreshDependencyLexicon(corpus.root);
         full = body(path);
       } finally {
         writeFileSync(edited, original);

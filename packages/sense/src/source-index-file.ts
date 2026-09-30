@@ -1,16 +1,10 @@
 import { isDeepStrictEqual } from 'node:util';
 import type { Digest } from '@variance-authority/core/format';
 import type { Parsed, ParseKey } from './cache.js';
-import {
-  BadLogPath,
-  emptyImmutableLog,
-  LogNotWritten,
-  openImmutableLog,
-  type ImmutableLog,
-} from './immutable-log.js';
+import { native as addon, nativeRefusal } from './addon.js';
+import { BadLogPath, emptyImmutableLog, openImmutableLog, type ImmutableLog } from './immutable-log.js';
 import { differenceLayer, orderedMap, type MapLayer } from './ordered-map.js';
 import {
-  compactSourceIndex,
   decodeSourceIndex,
   encodeSourceIndex,
   sourceIndexDocuments,
@@ -18,6 +12,7 @@ import {
   type StoredSourceIndex,
 } from './source-index-format.js';
 import type { NativeIndexGraph } from './native-index-graph.js';
+import type { NativeScanner } from './native.js';
 
 export type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
 
@@ -170,34 +165,40 @@ async function append(
   // the chain already held, and the encoder drops those deletes.
   const written = segment(stored.config, parseLayer, records, directories);
   const delta = graph === undefined ? encodeSourceIndex(written) : graph.encode(sourceIndexDocuments(written));
-  // A compaction folds the chain it read and the layers this save adds, on the
-  // addon's side: the fold of those is `stored`, which is why the delta is
-  // what it is, so the whole index is never handed across again to be written.
-  const whole = (layers: readonly Uint8Array[]): Uint8Array =>
-    compactSourceIndex([...current.log.segments, ...layers]);
 
+  // The addon decides what the chain names next and writes it
+  // (`native/src/append_index.rs`): the layers become the working layer over
+  // the base the chain was readied with, and nothing is compacted here.
+  //
   // Persistence is a saving, never a new failure mode for the scan: a cache
   // that cannot be written costs the next run a full scan, which is what a run
-  // without one pays anyway.
-  //
-  // Only the file system's refusal is that. A delta this file computed
-  // wrongly, or an encode that failed, is a defect, and swallowed here it would
-  // be indistinguishable from a full disk — the cache would simply never warm,
-  // which is the hardest failure in this file to notice.
-  try {
-    if (native === undefined) {
-      await current.log.publish(delta, () => whole([delta]));
-    } else {
-      // Read once: the addon encodes the layer on each read of `bytes`.
-      const bytes = native.bytes;
-      await current.log.publishAll([bytes, delta], () => [whole([bytes, delta])]);
-    }
-    return undefined;
-  } catch (error) {
-    // Not written. The next scan is cold and this run's graph is unchanged.
-    if (!(error instanceof LogNotWritten)) throw error;
-    return error.message;
+  // without one pays anyway. So a refusal is answered, not thrown — and only a
+  // refusal: a delta this file computed wrongly, or an encode that failed, is
+  // a defect and throws before this.
+  return appended(current.log, native === undefined ? [delta] : [native.bytes, delta]) ?? undefined;
+}
+
+function appended(log: ImmutableLog, layers: readonly Uint8Array[]): string | null {
+  return writer().appendSourceIndex(log.path, [...log.digests], log.legacy && log.segments.length > 0, [...layers]);
+}
+
+/**
+ * Start the index at `path` as a copy of the one at `from`, when `path` has
+ * none: a worktree's first update then pays only for what differs between the
+ * two checkouts. The addon copies it (`native/src/append_index.rs`), checking
+ * each segment against its digest; anything that stops the copy leaves `path`
+ * as it was and answers `false`.
+ */
+export function seedSourceIndex(path: string, from: string): boolean {
+  return addon()?.seedSourceIndex(path, from) ?? false;
+}
+
+function writer(): NativeScanner {
+  const loaded = addon();
+  if (loaded === undefined) {
+    throw new Error(`the source index is written by the native addon, which did not load: ${nativeRefusal()}`);
   }
+  return loaded;
 }
 
 /**
@@ -207,9 +208,8 @@ async function append(
  * save's path; otherwise what the file system refused, or `null` when written —
  * a refusal is the cache not written, as in `append`.
  *
- * Only the empty chain. A committed one decides for itself whether to compact,
- * and that decision stays with [`immutable-log.ts`](./immutable-log.ts); a save
- * onto one has `append` write the delta, and the closure encodes it.
+ * Only the empty chain. A save onto a committed one has `append` hand the
+ * delta to the addon, and the closure encodes it.
  */
 async function published(
   path: string,

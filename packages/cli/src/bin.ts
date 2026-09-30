@@ -1,9 +1,12 @@
 #!/usr/bin/env node
-import { realpathSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { closeSync, openSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { isCI } from 'ci-info';
 import { messageOf } from './config-values.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exit.js';
 import { dispatch } from './dispatch.js';
+import { settleFollowUps, type Detach } from './commands/index-command.js';
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
 import { helpFor } from './usage.js';
@@ -34,7 +37,7 @@ export { USAGE, parseArgs, type Parsed } from './parse.js';
  */
 export async function main(
   argv: readonly string[],
-  streams: { out(text: string): void; err(text: string): void },
+  streams: { out(text: string): void; err(text: string): void; detach?: Detach },
 ): Promise<ExitCode> {
   let parsed: Parsed;
   try {
@@ -58,6 +61,7 @@ export async function main(
   }
 
   try {
+    await settleFollowUps(parsed, streams);
     return await dispatch(parsed, streams);
   } catch (error) {
     if (isOperatorError(error)) {
@@ -104,5 +108,30 @@ if (entry !== undefined && isProgram(entry)) {
   process.exitCode = await main(process.argv.slice(2), {
     out: (text) => process.stdout.write(text),
     err: (text) => process.stderr.write(text),
+    // A CI job ends with its last step and saves its cache after it, so there
+    // nothing is left running: the step is the log, and the log is whole.
+    ...(isCI ? {} : { detach: relaunch }),
   });
+}
+
+/**
+ * This program again, as a process of its own that outlives this one, writing to
+ * `log`. Only the program can hand this over, because only it knows what to run:
+ * `main` called by a library has no process to relaunch, and does the work itself.
+ */
+function relaunch(argv: readonly string[], log: string): number | undefined {
+  const out = openSync(log, 'w');
+  try {
+    const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), ...argv], {
+      detached: true,
+      stdio: ['ignore', out, out],
+    });
+    // A refused spawn has no id and reports it as an event: unheard, that event
+    // ends this process before `index` makes the follow-ups itself.
+    child.once('error', () => undefined);
+    child.unref();
+    return child.pid;
+  } finally {
+    closeSync(out);
+  }
 }

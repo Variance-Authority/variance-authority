@@ -42,8 +42,8 @@ struct Section {
 }
 
 #[derive(Serialize)]
-struct Header {
-    format: &'static str,
+struct Header<'f> {
+    format: &'f str,
     version: u8,
     sections: Vec<Section>,
 }
@@ -67,6 +67,11 @@ fn aligned(value: usize) -> usize {
 /// The segment bytes: a little-endian header length, the header, then every
 /// column in the order given.
 pub fn encode(columns: Vec<Column>) -> Vec<u8> {
+    encode_as(FORMAT, VERSION, columns)
+}
+
+/// The same framing under another format's name, for a file that is not a source-index segment.
+pub fn encode_as(format: &str, version: u8, columns: Vec<Column>) -> Vec<u8> {
     let mut offset = 0;
     let sections = columns
         .iter()
@@ -82,8 +87,8 @@ pub fn encode(columns: Vec<Column>) -> Vec<u8> {
         })
         .collect();
     let header = serde_json::to_vec(&Header {
-        format: FORMAT,
-        version: VERSION,
+        format,
+        version,
         sections,
     })
     .unwrap_or_default();

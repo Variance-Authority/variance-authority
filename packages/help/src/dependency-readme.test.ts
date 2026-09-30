@@ -31,7 +31,7 @@ beforeAll(async () => {
   }
   execFileSync('git', ['add', '.'], { cwd: root });
   await updateSourceIndex(root);
-  refreshDependencyLexicon(root);
+  await refreshDependencyLexicon(root);
 });
 
 afterAll(() => {

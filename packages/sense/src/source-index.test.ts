@@ -7,8 +7,10 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed, ParseKey } from './cache.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
 import { materializeLayers } from './ordered-map.js';
-import { compactSourceIndex, decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { native } from './addon.js';
 import { readPublishedSources } from './published.js';
+import { readySourceIndex } from './ready-index.js';
 import { adoptNativeParses, openSourceIndex, readSourceRecords } from './source-index.js';
 import type { EncodedParseLayer } from './source-index-file.js';
 import type { TreeShape } from './reuse.js';
@@ -211,20 +213,24 @@ describe('the binary source index', () => {
     expect(third.cache.get(OTHER)).toEqual({ requests: [] });
   });
 
-  it('folds the chain and a native parse layer into one generation when the save compacts', async () => {
+  it('rewrites one working layer over the base, a native parse layer included, and readying folds it in', async () => {
     const file = await path();
     for (let at = 0; at < 7; at += 1) {
       const opened = await openSourceIndex(file);
       opened.cache.set(`git:${String(at).repeat(40)}` as Digest, { requests: [] });
       await opened.save();
     }
-    expect((await openImmutableLog(file)).digests).toHaveLength(7);
+    const [base] = (await openImmutableLog(file)).digests;
+    expect((await openImmutableLog(file)).digests).toHaveLength(2);
 
     const cold = await openSourceIndex(file);
     adoptNativeParses(cold.cache, nativeLayer([[DIGEST, PARSED]]));
     cold.cache.set(OTHER, { requests: [] });
     await cold.save();
 
+    expect((await openImmutableLog(file)).digests).toEqual([base, expect.any(String)]);
+    expect((await openSourceIndex(file)).cache.get(DIGEST)).toEqual(PARSED);
+    expect(await readySourceIndex(file)).toBe(true);
     expect((await openImmutableLog(file)).digests).toHaveLength(1);
     const after = await openSourceIndex(file);
     expect(after.cache.get(DIGEST)).toEqual(PARSED);
@@ -343,7 +349,7 @@ describe('the binary source index', () => {
     expect(decoded.parses.get(OTHER)).toEqual({ requests: [] });
   });
 
-  it('compacts a chain into the generation its layers read as, oldest first', () => {
+  it('readies a chain into the generation its layers read as, oldest first', async () => {
     const styled = `${OTHER}\0.css\0+` as ParseKey;
     const first = encodeSourceIndex({
       config: CONFIG,
@@ -362,9 +368,14 @@ describe('the binary source index', () => {
       records: new Map([['src/button.tsx', { record: { file: 'src/button.tsx', edges: [] }, witnesses: [] }]]),
     });
     const layers = [first, second].map(decodeSourceIndex);
+    const file = await path();
+    expect(native()!.appendSourceIndex(file, [], false, [first])).toBeNull();
+    expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [second])).toBeNull();
+    expect(await readySourceIndex(file)).toBe(true);
 
     // The later layer names no configuration, and the fold keeps its absence.
-    expect(decodeSourceIndex(compactSourceIndex([first, second]))).toEqual({
+    const [whole] = (await openImmutableLog(file)).segments;
+    expect(decodeSourceIndex(whole!)).toEqual({
       parses: materializeLayers(layers.map((layer) => ({ puts: layer.parses, deletes: layer.deletedParses ?? new Set() }))),
       directories: materializeLayers(layers.map((layer) => ({
         puts: layer.directories,

@@ -86,6 +86,24 @@ impl<'a> Records<'a> {
         Ok(records)
     }
 
+    /// The edges of `row` as borrowed `(target, kind)` pairs; `None` when the record holds no edge list.
+    pub fn edges_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> Option<impl Iterator<Item = (&'s str, &'s str)> + use<'s, 'a>> {
+        if !flag(self.edges_present, row) { return None; }
+        let (offsets, to, kind) = (self.edges, self.edge_to, self.edge_kind);
+        Some(offsets.range(row).map(move |at| (stored.text(to.at(at)), stored.text(kind.at(at)))))
+    }
+
+    /// The directories the record at `row` was answered from.
+    pub fn witnesses_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> impl Iterator<Item = &'s str> + use<'s, 'a> {
+        let (offsets, directory) = (self.witnesses, self.witness_directory);
+        offsets.range(row).map(move |at| stored.text(directory.at(at)))
+    }
+
+    /// Why the file at `row` could not be read, when it could not.
+    pub fn unknown_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> Option<&'s str> {
+        stored.optional(self.unknown.at(row))
+    }
+
     /// The record at `row`, its absent lists absent.
     pub fn indexed(&self, stored: &Stored<'a>, row: usize) -> Indexed {
         let text = |column: U32s, at: usize| stored.text(column.at(at)).to_owned();

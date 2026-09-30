@@ -79,11 +79,11 @@ export interface IndexGraphRequest {
  * Every name `isBuiltin` accepts, with and without its scheme: `packageOf`'s
  * test, as a set the other side can hold.
  */
-const BUILTINS = [...new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)])]
+export const BUILTINS = [...new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)])]
   .filter((name) => isBuiltin(name));
 
 /** Every extension `kindFor` keeps a request's kind for: the ones whose language is code. */
-const CODE_EXTENSIONS = [...READABLE].filter((suffix) => {
+export const CODE_EXTENSIONS = [...READABLE].filter((suffix) => {
   const language = languageOf(suffix);
   return language !== undefined && carriesCode(language);
 });

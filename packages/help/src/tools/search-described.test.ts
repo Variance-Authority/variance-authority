@@ -40,6 +40,6 @@ it('reaches react from "state management", answers an undescribed job empty with
   const manifest = join(root, 'node_modules/react/package.json');
   writeFileSync(manifest, JSON.stringify({ name: 'react', version: '1.0.0', description: 'Image resizing for components', types: 'index.d.ts' }));
   expect(said('resize images')).not.toContain('describes');
-  refreshDependencyLexicon(root);
+  await refreshDependencyLexicon(root);
   expect(said('resize images')).toContain('1 package describes `resize images`');
 });

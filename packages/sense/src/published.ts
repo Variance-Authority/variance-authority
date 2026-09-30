@@ -24,14 +24,14 @@ import type { FileRecord, Uses } from '@variance-authority/core/relate';
 import type { Digest } from '@variance-authority/core/format';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { seedPaths } from './files.js';
-import { seedImmutableLog } from './immutable-log.js';
 import type { NativeGitTree } from './native.js';
 import type { RecordCache } from './reuse.js';
 import { scanCount } from './scan.js';
 import { realPath } from './resolve.js';
 import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
+import { updateNatively } from './native-update.js';
 import { markCheckout } from './test-selection/cache-layers.js';
-import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
+import { openSourceIndexFile, seedSourceIndex, type SourceIndexState } from './source-index-file.js';
 import { usesOf } from './uses.js';
 
 /** One published generation, opened for reading. */
@@ -152,6 +152,20 @@ export async function updateSourceIndex(
 ): Promise<SourceUpdate> {
   const where = resolve(root);
   const path = options.index ?? sourceIndexPath(where);
+  // The addon answers from the chain in place; only what it declines is decoded here.
+  // It reads Git's object store, so a caller that asked for the working tree is not its to answer.
+  const natively = options.packs === false ? undefined : await updateNatively(realPath(where), path);
+  if (natively !== undefined) {
+    if (options.index === undefined) markCheckout(realPath(where));
+    return {
+      path,
+      was: 'published',
+      ...(natively.refused === undefined ? {} : { refused: natively.refused }),
+      files: natively.files,
+      reread: natively.reread,
+      listing: natively.listing,
+    };
+  }
   // Opened once: the open decodes the whole chain, and the state is read off
   // that same open rather than off a second one.
   let source = await openSourceIndex(path);
@@ -161,7 +175,7 @@ export async function updateSourceIndex(
   const primary = options.index === undefined && was === 'missing'
     ? primarySourceIndexPath(where)
     : undefined;
-  const from = primary !== undefined && await seedImmutableLog(path, primary) ? primary : undefined;
+  const from = primary !== undefined && seedSourceIndex(path, primary) ? primary : undefined;
   if (from !== undefined) source = await openSourceIndex(path);
   // Counted on the record cache, not the parse cache: a cold scan attaches its
   // native parse layer to the parse cache object itself, and a wrapper there

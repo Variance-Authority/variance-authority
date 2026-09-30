@@ -47,35 +47,35 @@ it('merges each kind of change into the lexicon a refresh from nothing gives', a
     ...kit('beta', '1.0.0', 'export declare function bee(): void;\n'),
   });
   await updateSourceIndex(root);
-  refreshDependencyLexicon(root);
+  await refreshDependencyLexicon(root);
   const { path } = readDependencyLexicon(root);
   const built = path.replace(/\.json$/, '.built.json');
 
-  const agrees = (label: string): void => {
+  const agrees = async (label: string): Promise<void> => {
     const merged = unstamped(readFileSync(path, 'utf8'));
     rmSync(built);
-    refreshDependencyLexicon(root);
+    await refreshDependencyLexicon(root);
     expect(merged, label).toBe(unstamped(readFileSync(path, 'utf8')));
   };
 
   put(root, { 'packages/app/src/z.ts': "import { one } from 'alpha';\nimport 'beta';\n" });
   await updateSourceIndex(root);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(false);
-  agrees('a file written');
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(false);
+  await agrees('a file written');
 
   execFileSync('git', ['rm', '-q', '-f', 'packages/app/src/y.ts'], { cwd: root });
   await updateSourceIndex(root);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(false);
-  agrees('a file deleted');
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(false);
+  await agrees('a file deleted');
 
   put(root, kit('alpha', '2.0.0', 'export declare function one(): void;\nexport declare function three(): void;\n'));
   const later = new Date(Date.now() + 5000);
   utimesSync(join(root, 'packages/app/node_modules/alpha/package.json'), later, later);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(false);
-  agrees('an installed version changed');
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(false);
+  await agrees('an installed version changed');
 
   put(root, { 'packages/app/package.json': manifest({ alpha: '2.0.0' }) });
   await updateSourceIndex(root);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(false);
-  agrees('a manifest changed');
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(false);
+  await agrees('a manifest changed');
 });

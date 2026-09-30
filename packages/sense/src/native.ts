@@ -19,7 +19,7 @@ import type { NativeInstrumented } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import { type ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
-import type { Aliases } from './witness.js';
+import type { Aliases, AliasTable } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
@@ -43,6 +43,9 @@ export type {
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
+import type { NativeModuleReaders, NativeModuleVerdict } from './native-module-reads.js';
+export type { NativeModuleReaders, NativeModuleVerdict };
+import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
   readonly size: number;
@@ -70,6 +73,8 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
   ): NativeScanBatch;
   /** A cold closure held on the native side ([`native-index-graph.ts`](./native-index-graph.ts)). */
   indexGraph(options: NativeIndexGraphOptions): NativeIndexGraph;
+  /** A warm update of the source index on the native side; `null` when the JavaScript update has to ([`native-update.ts`](./native-update.ts)). */
+  updateIndex?(options: NativeUpdateOptions): NativeUpdated | null;
   paths(): string[];
   digests(): string[];
   named(names: string[]): string[];
@@ -108,37 +113,31 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-/** A segment an immutable-log manifest names: `LogSegment` in `native/src/log.rs`. */
-export interface NativeLogSegment {
-  readonly digest: string;
-  readonly length: number;
-}
-
 export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
   /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
   gitTree(root: string): NativeGitTree | null;
+  /**
+   * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,
+   * read from `root`: `native/src/witness_aliases.rs`. `null` when one of them
+   * cannot be read.
+   */
+  aliasesIn(root: string, paths: string[]): AliasTable | null;
   /**
    * A source-index generation as bytes, from the JSON documents
    * `sourceIndexDocuments` writes of it. The only encoder of the format.
    */
   encodeSourceIndex(documents: string[]): Buffer;
   /**
-   * One source-index generation from a chain's segments, oldest first: each
-   * layer's deletes and then its puts, the last layer's configuration.
+   * Write a save's `layers` over the source-index chain at `path`, as the save
+   * read it: the first `read.length` segments its manifest names, or the legacy
+   * single-segment file when `legacy`. The addon decides what the next manifest
+   * names (`native/src/append_index.rs`) and is the only writer of the chain.
+   * Why the layers were not written, or `null` when they are.
    */
-  compactSourceIndex(layers: Uint8Array[]): Buffer;
-  /**
-   * Write `segments` after `kept`, then the manifest naming them, then remove
-   * whichever of `replaced` it no longer names: the only writer of an
-   * immutable log. What the file system refused, or `null` when it is written.
-   */
-  publishLog(
-    path: string,
-    kept: NativeLogSegment[],
-    segments: Uint8Array[],
-    replaced: NativeLogSegment[],
-  ): string | null;
+  appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
+  /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
+  seedSourceIndex(path: string, from: string): boolean;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
   seedFiles(root: string, dirs: string[]): string[];
@@ -244,42 +243,6 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   externalDependencies?(root: string, index: string, files: string[], rows: number, sites: number): NativeExternalOrientation | null;
   /** For each of `files`, the cases in the journey file at `file` that ran it. */
   casesEntered?(file: string, files: string[], titles: number, index?: string | null): NativeCasesEntered[];
-}
-
-/** `Relations`, flattened to the columns the addon walks. */
-export interface NativeModuleVerdict {
-  readonly kind: 'none' | 'bodies' | 'values' | 'load';
-  /** Top-level bindings whose value moved. */
-  readonly names: string[];
-  /** Exported names whose binding moved or went. */
-  readonly exports: string[];
-  /** Exported names the new text no longer has. */
-  readonly gone: string[];
-  /** Sources an import binds names from on one side only. */
-  readonly imported: string[];
-  /**
-   * Exports an importer sees behave differently, function bodies included.
-   * Absent when every export may: the load moved, or a statement that binds
-   * nothing hands a moved binding on.
-   */
-  readonly moved?: string[];
-}
-
-export interface NativeModuleReaders {
-  /** Reads inside functions: the 1-based line and the changed name the read traces to. */
-  readonly reads: Array<{ readonly line: number; readonly name: string }>;
-  /** The changed names the module reads while it loads. */
-  readonly load: string[];
-  /** Names this file exports whose value moved, with the changed name each carries. */
-  readonly exported: Array<{ readonly name: string; readonly origin: string }>;
-  /** A `require`, an `import()` or an `import x = require()` no name reaches. */
-  readonly untraced: boolean;
-  /** Every name this file imports by name. */
-  readonly imports: string[];
-  /** Names this file re-exports from a source, among those that moved. */
-  readonly passed: Array<{ readonly name: string; readonly origin: string }>;
-  /** Every name this file exports. */
-  readonly interface: string[];
 }
 
 export interface NativeFrontierOptions extends ResolveOptions {

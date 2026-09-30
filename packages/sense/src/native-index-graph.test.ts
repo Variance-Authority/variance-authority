@@ -87,7 +87,7 @@ describe('a cold closure held by the addon', () => {
 
     const directory = await mkdtemp(join(tmpdir(), 'sense-index-graph-'));
     try {
-      for (const [name, baseline, count] of [['empty', undefined, 2], ['committed', committed, 3]] as const) {
+      for (const [name, baseline, count] of [['empty', undefined, 2], ['committed', committed, 2]] as const) {
         const expected = join(directory, `${name}-expected.bin`);
         const actual = join(directory, `${name}-actual.bin`);
         if (baseline !== undefined) {

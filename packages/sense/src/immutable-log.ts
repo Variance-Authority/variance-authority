@@ -7,20 +7,21 @@
  * that cannot be used costs the segments from it onward and never the ones
  * before it — the reader keeps the prefix and says how much it dropped.
  *
- * The writer is the addon's (`native/src/log.rs`), and it is the only one:
- * this file decides what the next manifest names, and the addon writes it.
+ * This file reads. The writer is the addon's (`native/src/log.rs`), and it
+ * is the only one: it decides what the next manifest names as well as writing
+ * it — a save's or an update's layers become the working layer over the base
+ * the chain was readied with (`native/src/append_index.rs`), and readying folds
+ * that layer into the base before work (`native/src/ready_index.rs`).
  */
 
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { native, nativeRefusal } from './addon.js';
 import { digestBytes, type Digest } from './digest.js';
 
 const MAGIC = Buffer.from('VAIDXLSM');
 const VERSION = 1;
 const HEADER_BYTES = MAGIC.length + 4;
-const MAX_SEGMENTS = 8;
 
 interface SegmentReference {
   readonly digest: Digest;
@@ -34,6 +35,8 @@ interface Manifest {
 }
 
 export interface ImmutableLog {
+  /** Where the manifest is: the path the chain was opened at. */
+  readonly path: string;
   readonly segments: readonly Buffer[];
   /** The committed chain's segment digests, in order: the identity of what was read. */
   readonly digests: readonly Digest[];
@@ -47,24 +50,6 @@ export interface ImmutableLog {
   readonly dropped: number;
   /** The same chain cut to its first `count` segments, for a caller that rejects one further on. */
   keep(count: number): ImmutableLog;
-  /**
-   * Append `delta`, or replace the chain with the whole of it when the chain has
-   * grown past {@link MAX_SEGMENTS} or was written by the shape before this one.
-   *
-   * `compacted` is a thunk because the compaction is the expensive half and is
-   * not wanted most of the time — for the source index it is a several-megabyte
-   * encode beside a delta of a few kilobytes, and the chain asks for it on one
-   * publish in eight. Only this function knows which publish that is.
-   */
-  publish(delta: Uint8Array, compacted: () => Uint8Array): Promise<void>;
-  /**
-   * Publish several ordered layers under one atomic manifest commit.
-   *
-   * A compaction answers with the layers that replace the whole chain, in
-   * order — for the source index, one generation folded from the chain and
-   * `deltas` together.
-   */
-  publishAll(deltas: readonly Uint8Array[], compacted: () => readonly Uint8Array[]): Promise<void>;
 }
 
 /**
@@ -116,7 +101,7 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
  * A transform hook is the caller: it is handed a module, it must return the
  * transformed text, and there is no point in it at which anything may be
  * awaited. Reading is the half of the log that can answer under that
- * constraint — a chain of at most {@link MAX_SEGMENTS} immutable files, each
+ * constraint — a base and at most one working layer over it, each file
  * checked against the length and digest the manifest published for it, and none
  * of them held open by a writer.
  */
@@ -141,43 +126,7 @@ export function readImmutableLog(path: string): readonly Buffer[] {
   });
 }
 
-/**
- * Start the chain at `path` from the committed chain at `from`, when `path` has
- * none of its own.
- *
- * A copy, not a reference: the owner of `from` compacts its chain and deletes
- * the segments it dropped, so a manifest naming them would break the day it
- * did. The segments are read through {@link openImmutableLog}, so each one is
- * checked against its digest, and they are published under one manifest commit,
- * so a reader of `path` sees the whole copy or nothing. Anything that stops the
- * copy leaves `path` as it was and answers `false`.
- */
-export async function seedImmutableLog(path: string, from: string): Promise<boolean> {
-  named(path);
-  named(from);
-  let target: ImmutableLog;
-  let source: ImmutableLog;
-  try {
-    target = await openImmutableLog(path);
-    if (target.committed) return false;
-    source = await openImmutableLog(from);
-    if (!source.committed || source.legacy || source.segments.length === 0) return false;
-  } catch {
-    // A chain that does not read is not copied.
-    return false;
-  }
-  try {
-    await target.publishAll(source.segments, () => {
-      throw new Error('a copied chain is never longer than the chain it copies');
-    });
-    return true;
-  } catch (error) {
-    if (error instanceof LogNotWritten) return false;
-    throw error;
-  }
-}
-
-/** A new writer used to replace state that could not be opened. */
+/** No chain at `path`: what a save writes over state that could not be opened. */
 export function emptyImmutableLog(path: string): ImmutableLog {
   named(path);
   return logAt(path, [], [], false, false);
@@ -191,20 +140,8 @@ function logAt(
   committed: boolean,
   dropped = 0,
 ): ImmutableLog {
-  const publishAll = async (
-    deltas: readonly Uint8Array[],
-    compacted: () => readonly Uint8Array[],
-  ): Promise<void> => {
-    const compact = legacy || references.length + deltas.length > MAX_SEGMENTS;
-    const contents = (compact ? compacted() : deltas).map(asBuffer);
-    const addon = native();
-    if (addon === undefined) {
-      throw new Error(`${path}: the immutable log is written by the native addon, which did not load: ${nativeRefusal()}`);
-    }
-    const refused = addon.publishLog(path, compact ? [] : [...references], contents, compact ? [...references] : []);
-    if (refused !== null) throw new LogNotWritten(refused);
-  };
   return {
+    path,
     segments,
     digests: references.map((reference) => reference.digest),
     legacy,
@@ -220,8 +157,6 @@ function logAt(
           committed,
           dropped + segments.length - count,
         ),
-    publish: (delta, compacted) => publishAll([delta], () => [compacted()]),
-    publishAll,
   };
 }
 
@@ -246,22 +181,6 @@ function manifestIsValid(value: unknown): value is Manifest {
     typeof segment === 'object' && segment !== null &&
     typeof segment.digest === 'string' && /^v1:[0-9a-f]{32}$/.test(segment.digest) &&
     Number.isSafeInteger(segment.length) && segment.length >= 0);
-}
-
-/** A segment as the addon takes it: the same bytes, never a copy. */
-function asBuffer(bytes: Uint8Array): Buffer {
-  return Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-}
-
-/**
- * A publish the file system refused: a full disk, a directory that is not
- * writable, a manifest name that is taken by something else. The log is as it
- * was, and a cache that could not be written is one the next run rebuilds —
- * so this is the one failure a caller may treat as "not written". Anything
- * else a publish throws is a defect.
- */
-export class LogNotWritten extends Error {
-  override readonly name = 'LogNotWritten';
 }
 
 /**

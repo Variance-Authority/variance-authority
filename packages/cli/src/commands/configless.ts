@@ -31,7 +31,8 @@ import { restrictionsOutput } from './restrictions-command.js';
 import { formatCoverage } from './coverage-text.js';
 import { coveringAnswer, formatCoveringAnswer } from './covering-suites.js';
 import { distillFiles, formatDistill } from './distill.js';
-import { indexOutput } from './index-command.js';
+import { followUpsOutput, indexOutput } from './index-command.js';
+import type { Detach } from './index-follow-ups.js';
 import { reachOutput } from './reach-command.js';
 import { review } from './review.js';
 import { REVIEW_ARTIFACT, reviewFromRun } from './review-from-run.js';
@@ -105,7 +106,7 @@ export async function constantAnswer(
 /** Run one of them, each of which is about a suite rather than a project. */
 export async function answerConfigless(
   parsed: Configless,
-  streams: { out(text: string): void; err(text: string): void },
+  streams: { out(text: string): void; err(text: string): void; detach?: Detach },
 ): Promise<ExitCode> {
   switch (parsed.command) {
     // A watcher is about a suite, not about a project: it listens, holds what a
@@ -208,7 +209,9 @@ export async function answerConfigless(
     // same reason: it publishes what they read, and a pipeline that runs them
     // may have configured this tool for nothing else.
     case 'index': {
-      streams.out(await indexOutput({ cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) }));
+      const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) };
+      if (parsed.followUps) streams.out(await followUpsOutput(request));
+      else streams.out(await indexOutput({ ...request, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach, waiting: (text: string) => streams.err(text) }) }));
       return EXIT_CLEAN;
     }
 

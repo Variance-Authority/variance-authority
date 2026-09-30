@@ -74,6 +74,7 @@ export {
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
+export { readySourceIndex } from './ready-index.js';
 export type { SourceIndexState } from './source-index-file.js';
 
 export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } from './source-scope.js';
@@ -180,6 +181,16 @@ export {
 } from './runner-aliases.js';
 
 export { gitDigests } from './tree.js';
+export {
+  encodeSearch,
+  exportedDigest,
+  readHelp,
+  type EncodedSearch,
+  type HelpPublish,
+  type HelpReading,
+  type PublishedRows,
+  type SearchGeneration,
+} from './help-reading.js';
 
 export {
   taintFile,

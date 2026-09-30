@@ -71,7 +71,7 @@ it('indexes every declared available package, including one no source file impor
   writeFileSync(join(transitive, 'index.js'), 'export const unused = true;\n');
   writeFileSync(join(transitive, 'index.d.ts'), 'export declare const unused: true;\n');
   await updateSourceIndex(root);
-  const first = refreshDependencyLexicon(root);
+  const first = await refreshDependencyLexicon(root);
   expect(first).toMatchObject({ packages: 7, entrypoints: 6, reused: 0, unavailable: 0 });
   const read = readDependencyLexicon(root).lexicon;
   expect(read?.version).toBe(7);
@@ -99,10 +99,10 @@ it('indexes every declared available package, including one no source file impor
   expect(queryDependencyLexicon(root, 'useState', undefined, true, 'react')?.shown[0]?.declarationProvider).toBe('@types/react@19.0.1');
   expect(queryDependencyLexicon(root, 'globbing', undefined, true, 'globbing')?.shown[0]?.signature).toContain('value: string');
   writeFileSync(readDependencyLexicon(root).path, JSON.stringify({ ...read, version: 3 }));
-  expect(refreshDependencyLexicon(root).reused).toBe(0);
-  expect(refreshDependencyLexicon(root).reused).toBe(6);
+  expect((await refreshDependencyLexicon(root)).reused).toBe(0);
+  expect((await refreshDependencyLexicon(root)).reused).toBe(6);
   writeFileSync(join(installed, 'index.d.ts'), '/** Use local state. */\nexport declare function makeStore<T>(value: T, id: string): T;\n');
-  expect(refreshDependencyLexicon(root).reused).toBe(5);
+  expect((await refreshDependencyLexicon(root)).reused).toBe(5);
   expect(readDependencyLexicon(root).lexicon?.entries.find((entry) => entry.api.runtime?.name === 'state-kit')?.api.names?.[0]?.signature).toContain('id: string');
 });
 
@@ -123,7 +123,7 @@ it('reads a subpath a package wildcard opens only when a source file imports it'
   writeFileSync(join(installed, 'node_modules', 'nested', 'package.json'), JSON.stringify({ name: 'nested', version: '1.0.0', types: 'private.d.ts' }));
   writeFileSync(join(installed, 'node_modules', 'nested', 'private.d.ts'), 'export declare const privateName: true;\n');
   await updateSourceIndex(root);
-  refreshDependencyLexicon(root);
+  await refreshDependencyLexicon(root);
   const specifiers = readDependencyLexicon(root).lexicon?.availability.map((entry) => entry.specifier).sort();
   expect(specifiers).toEqual(['wildcard', 'wildcard/deep.d.ts']);
   expect(queryDependencyLexicon(root, 'deepName')?.total).toBe(1);

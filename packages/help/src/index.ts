@@ -29,6 +29,7 @@
  */
 
 export {
+  publishedGeneration,
   readWorkspace,
   readWorkspaceForAnswer,
   readWorkspaceSnapshot,
@@ -37,6 +38,7 @@ export {
   workspaceSnapshotPath,
 } from './read.js';
 export type { AnsweringOptions, ReadingOptions, SnapshotOptions } from './read.js';
+export { refreshWorkspaceFromIndex } from './refresh-native.js';
 export { readSearchForAnswer } from './search-read.js';
 export type { SearchIndex } from './search-index.js';
 export { serveWorkspace } from './server.js';

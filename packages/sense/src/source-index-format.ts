@@ -68,15 +68,6 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   return encoder().encodeSourceIndex(sourceIndexDocuments(stored));
 }
 
-/**
- * A chain's segments folded into one generation, on the addon's side
- * (`native/src/compact.rs`): the segments are already bytes in the layout it
- * wrote, so the whole index never crosses back as objects to be written again.
- */
-export function compactSourceIndex(layers: readonly Uint8Array[]): Buffer {
-  return encoder().compactSourceIndex([...layers]);
-}
-
 function encoder(): NativeScanner {
   const addon = native();
   if (addon === undefined) {

@@ -51,15 +51,15 @@ export interface PreparedCodeMap {
  * checkout is carried, and when git could not give it one, git is not asked
  * again. Without it, git lists the checkout for the map, and the result says so.
  */
-export function prepareCodeMap(
+export async function prepareCodeMap(
   root: string,
   index: string = sourceIndexPath(root),
   scanned?: Pick<SourceUpdate, 'listing'>,
-): PreparedCodeMap {
+): Promise<PreparedCodeMap> {
   const carried = scanned?.listing?.prepareOrientMap?.bind(scanned.listing);
-  const prepared = carried !== undefined
+  const prepared = await (carried !== undefined
     ? carried(root, index)
-    : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null);
+    : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null));
   return prepared === null ? { index } : { index, prepared };
 }
 

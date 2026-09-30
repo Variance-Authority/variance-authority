@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 mod acquire;
+mod append_index;
 mod batch;
 mod compact;
 mod conditions;
@@ -28,6 +29,10 @@ mod dependency_namespace;
 mod digest;
 mod emitted;
 mod external_dependencies;
+mod help_publish;
+mod help_search;
+mod help_usage;
+mod source_tree;
 mod generation;
 mod git;
 mod graph_index;
@@ -79,6 +84,7 @@ mod module_readers;
 mod module_shape;
 mod module_verdict;
 mod order;
+mod off_thread;
 mod orient_map;
 mod orient_map_pages;
 mod orient_map_read;
@@ -90,16 +96,19 @@ mod package_owners;
 mod parse_columns;
 mod path;
 mod read;
+mod ready_index;
 mod record;
 mod resolve;
 mod seed;
 mod segment;
 mod side_effects;
 mod source_size;
+mod source_update;
 mod specifier;
 mod stored;
 mod tree;
 mod witness;
+mod witness_aliases;
 
 pub use seed::seed_files;
 
@@ -340,6 +349,22 @@ impl GitTree {
     #[napi(catch_unwind)]
     pub fn index_graph(&self, options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
         graph_index::index_graph(options, &self.at, &self.oids, self.listing())
+    }
+
+    /// Bring the source index at `options.index` up to this tree, on this
+    /// side, or `null` when the JavaScript update has to (`source_update.rs`).
+    #[napi(catch_unwind)]
+    pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
+        source_update::update(
+            options,
+            source_update::Tree {
+                paths: &self.paths,
+                at: &self.at,
+                oids: &self.oids,
+                seeds: &self.seeds,
+                listing: self.listing(),
+            },
+        )
     }
 
     /// Every path, sorted by code unit.

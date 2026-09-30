@@ -43,35 +43,35 @@ it('does nothing when nothing moved, and something exactly when one of its input
   });
   await updateSourceIndex(root);
 
-  const first = refreshDependencyLexicon(root);
+  const first = await refreshDependencyLexicon(root);
   expect(first.unchanged).toBe(false);
   const { path } = readDependencyLexicon(root);
   const written = statSync(path).mtimeMs;
 
-  const second = refreshDependencyLexicon(root);
+  const second = await refreshDependencyLexicon(root);
   expect(second).toMatchObject({ unchanged: true, entrypoints: first.entrypoints, unavailable: first.unavailable, packages: first.packages });
   expect(statSync(path).mtimeMs).toBe(written);
 
   // A record outliving the lexicon it described is not a reason to skip writing it again.
   rmSync(path);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(false);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(true);
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(false);
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(true);
 
   put(root, { 'packages/app/src/y.ts': "import { one } from 'alpha';\none();\n" });
   await updateSourceIndex(root);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(false);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(true);
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(false);
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(true);
 
   const index = join(root, 'packages/app/node_modules/alpha/index.d.ts');
   writeFileSync(index, 'export declare function one(): void;\nexport declare function two(): void;\n');
   utimesSync(index, new Date(Date.now() + 5000), new Date(Date.now() + 5000));
-  expect(refreshDependencyLexicon(root).unchanged).toBe(false);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(true);
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(false);
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(true);
 
   // `beta` is declared and was never installed; installing it adds a directory, not a file the lexicon read.
   put(root, kit('beta', 'export declare function bee(): void;\n'));
-  const installed = refreshDependencyLexicon(root);
+  const installed = await refreshDependencyLexicon(root);
   expect(installed.unchanged).toBe(false);
   expect(installed.unavailable).toBeLessThan(first.unavailable);
-  expect(refreshDependencyLexicon(root).unchanged).toBe(true);
+  expect((await refreshDependencyLexicon(root)).unchanged).toBe(true);
 });
