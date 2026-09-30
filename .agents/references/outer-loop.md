@@ -31,8 +31,8 @@ has finished, and the report says why.
 Nothing tells you when the last check turns green. A failure, a comment or a
 conflict reaches you; a PR that simply finishes passing does not, and one left
 labelled `agent:debugging` then says somebody is working on a PR that is ready.
-So every cycle, including one that was woken by a comment with nothing to fix,
-ends by watching the checks until each has finished:
+So every cycle that is not stopping blocked, including one woken by a comment
+with nothing to fix, ends by watching the checks until each has finished:
 
 ```bash
 gh pr checks <n> --watch
@@ -41,7 +41,8 @@ gh pr checks <n> --watch
 CodeRabbit is one of those checks, so the watch ends only after its review is
 complete. Then read what it found, classify it, and either go round again or
 hand over. A cycle you had to start by fixing something ends the same way, after
-the push.
+the push. A cycle that stops blocked does not wait for the checks: it takes the
+label off and says why, and the next cycle watches them.
 
 ## 6. Validate
 
