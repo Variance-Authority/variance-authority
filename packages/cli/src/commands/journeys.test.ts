@@ -249,9 +249,6 @@ describe('formatLanding', () => {
         'there is no case index this build can read at /ci/shard-1.bin.cases.bin, so no index can say which of ' +
         "that file's cases run a line. Record cases in the runs that write the shards, or run the suite here, to write one.",
     ]);
-    expect(lines({ busy: '/tmp/coverage.bin.cases.bin', reason: 'another run holds it' })).toEqual([
-      "  cases not landed: another run holds it, and /tmp/coverage.bin.cases.bin does not have these snapshots' cases",
-    ]);
   });
 
   it('leaves the position out when the shards had none', () => {

@@ -60,7 +60,7 @@ import { noteAnEmptyRecord } from './finished-files.js';
 import { landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
-import { busyIndex, noteABusyIndex, withIndexLock } from './index-lock.js';
+import { busyIndex, noteABusyCaseIndex, withIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
   isMissing,
@@ -439,11 +439,15 @@ export async function recordExecution(
     // rest of the suite's cases stay. A Storybook row is a story, not a file,
     // so its cases are laid over by id and never replaced by file.
     const fresh = encodeAsSetExecutionIndex(index);
+    // FIXME: the snapshot's lock was released above, and a landing can run
+    // before this one is taken: the snapshot then holds this run under the
+    // fold, and the index holds the fold under this run. Take this lock inside
+    // the snapshot's, as a landing does.
     const laid = await withIndexLock(executionFile, (lock) =>
       layCaseRun(lock, fresh, root, { tests, ...(commit === undefined ? {} : { commit }) }),
     );
     if (!laid.held) {
-      noteABusyIndex(executionFile);
+      noteABusyCaseIndex(executionFile);
       return { recorded: true, coverageFile, subjects: subjects.length };
     }
   }

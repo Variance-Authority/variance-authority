@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { layCaseRun, type LaidRun } from './case-landing.js';
-import { noteABusyIndex, withIndexLock } from './index-lock.js';
+import { noteABusyCaseIndex, withIndexLock } from './index-lock.js';
 import type { ModuleId } from '../instrument/index.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
@@ -187,8 +187,13 @@ export async function writeCaseIndex(
   const inspected = await inspectCaseRun(directory, root, run.durations);
   if (inspected.tests.length === 0 && !finished) return;
   const fresh = (await foldCaseRun(inspected, modules)).bytes;
+  // FIXME: the seam released the snapshot's lock before this takes the case
+  // index's, and a landing can run in between: the snapshot then holds this run
+  // under the fold, and the index holds the fold under this run, so for a file
+  // both finished the two answer from different runs. Take this lock inside the
+  // snapshot's, as a landing does.
   const written = await withIndexLock(file, (lock) => layCaseRun(lock, fresh, root, run));
-  if (!written.held) noteABusyIndex(file);
+  if (!written.held) noteABusyCaseIndex(file);
 }
 
 /** What a run tells the case index about itself. */

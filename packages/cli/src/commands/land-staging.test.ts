@@ -63,6 +63,6 @@ describe('landJourneys when the snapshot cannot be written', () => {
 
     expect(await readFile(record)).toEqual(snapshot);
     expect(await readFile(`${record}.cases.bin`)).toEqual(cases);
-    expect((await readdir(dirname(record))).filter((name) => name.endsWith('.landing'))).toEqual([]);
+    expect((await readdir(dirname(record))).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   });
 });

@@ -1482,6 +1482,8 @@ they share. Every question is about the suite, and no shard can answer it.
 the same union in any order:
 
 ```ts
+import { randomUUID } from 'node:crypto';
+import { rename, rm } from 'node:fs/promises';
 import {
   foldTestCoverage,
   landCaseIndexes,
@@ -1502,11 +1504,22 @@ const shards = await Promise.all(
 const suite = foldTestCoverage(shards);
 
 const file = testCoverageFile(process.cwd());
+const staged = `${file}.${process.pid}-${randomUUID()}.tmp`;
 const landed = await withIndexLock(file, async () => {
-  const previous = await readTestCoverage(file).catch(() => undefined);
-  const cases = await landCaseIndexes(file, process.cwd(), shards);
-  if ('busy' in cases) throw new Error(cases.reason);
-  await writeTestCoverage(file, mergeCoverage(previous, suite));
+  let previous;
+  try {
+    previous = await readTestCoverage(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  try {
+    await writeTestCoverage(staged, mergeCoverage(previous, suite));
+    const cases = await landCaseIndexes(file, process.cwd(), shards);
+    if ('busy' in cases) throw new Error(cases.reason);
+    await rename(staged, file);
+  } finally {
+    await rm(staged, { force: true });
+  }
 });
 if (!landed.held) throw new Error(`another process is writing ${file}`);
 ```
@@ -1517,9 +1530,24 @@ and fold the artifacts in a job of their own. `landCaseIndexes` merges each
 shard's cases into the index beside `file`, in the order the shards are named.
 If a shard ran a test file to the end and has no case index, it removes the
 index instead, because nothing can then say which of that file's cases ran a
-line. `withIndexLock` takes the lock every seam takes before it writes the
-snapshot, so a run finishing in the same checkout cannot write between the
-snapshot and its cases.
+line.
+
+The order is what keeps the snapshot and its cases describing the same runs.
+Only a missing snapshot starts the fold from nothing; one that cannot be read
+stops the landing, because a fold written over it would replace evidence you
+never saw. The merged snapshot is written to a staged file first, so a full disk
+leaves both files as they were. The cases land next, so a busy index stops the
+landing before the snapshot is replaced. The rename comes last, and `finally`
+removes the staged file if anything before it threw; the pid in its name lets
+the cache's pruning remove it if the process dies first.
+
+`withIndexLock` on `file` is the lock every seam takes to write the snapshot,
+so no run writes the snapshot while you land. `landCaseIndexes` takes the case
+index's own lock inside it. A seam takes the two one after the other, not one
+inside the other, so a landing can still run between a seam's snapshot and its
+cases. The snapshot then has the fold over that run and the index has the run
+over the fold, and for a test file both of them ran to the end, the two answer
+from different runs.
 
 Folding refuses by name, on one rule: the result must not be able to say
 anything one run could not. Shards recorded under different probe recipes or at

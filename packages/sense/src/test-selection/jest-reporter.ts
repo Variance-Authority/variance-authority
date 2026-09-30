@@ -223,10 +223,12 @@ class JestCoverageReporter {
     // those files may be skipped. Said once, where the run ends.
     noteAnEmptyRecord(results.testResults.length, modules.size);
     // Beside the snapshot, never inside it. The snapshot answers *which files
-    // must run*, and its readers are unchanged.
+    // must run*, and its readers are unchanged. A run the snapshot did not take
+    // lays no cases either, or the index would answer for a run the snapshot
+    // beside it never saw.
     if (caseDirectory !== undefined) {
       const executionFile = this.#config.executionFile ?? `${coverageFile}.cases.bin`;
-      await writeCaseIndex(executionFile, caseDirectory, root, modules, {
+      if (merged.held) await writeCaseIndex(executionFile, caseDirectory, root, modules, {
         tests,
         ...(commit === undefined ? {} : { commit }),
         durations: caseDurations(results.testResults.map((result) => ({

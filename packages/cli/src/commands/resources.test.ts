@@ -205,7 +205,7 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
     expect(writeTestCoverage).toHaveBeenCalledTimes(1);
     const [staged, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
     expect(dirname(staged)).toBe(dirname(target));
-    expect(staged.startsWith(`${target}.`) && staged.endsWith('.landing')).toBe(true);
+    expect(staged.startsWith(`${target}.`) && staged.endsWith('.tmp')).toBe(true);
     expect(existsSync(staged)).toBe(false);
     expect(existsSync(target)).toBe(true);
     return written;

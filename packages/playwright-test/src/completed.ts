@@ -94,6 +94,11 @@ export const varianceCompletedFixtures: Fixtures<
  * file undercounts its own reach and the undercount is invisible. An expected
  * failure spoils it too, and deliberately — `test.fail()` means the body
  * throws on purpose, which is still a body that stopped part-way.
+ *
+ * FIXME: a test `--grep` left out never reaches this fixture, so a narrowed
+ * spec reads as finished. The case index then retires every case of that spec
+ * the run did not reach, and the snapshot records the spec whole from the
+ * tests that ran.
  */
 function usableOutcome(status: TestInfo['status']): boolean {
   return status === 'passed' || status === 'skipped';

@@ -82,8 +82,17 @@ export async function landJourneys(
   // target first, so a write that fails leaves both as they were; then the
   // index lands, so a busy index refuses before the snapshot is replaced; and
   // the staged file is renamed over the target last, which does not fail on a
-  // full disk the way a write does.
-  const staged = `${at}.${process.pid}-${randomUUID()}.landing`;
+  // full disk the way a write does. The staged name ends in the pid and `.tmp`,
+  // so prune removes it if this process dies before the `finally` does.
+  //
+  // FIXME: the case index and the snapshot are two files, and nothing renames
+  // them together. A crash after `landCaseIndexes` and before the rename leaves
+  // the index ahead of the snapshot. Landing again then lays the same shards'
+  // cases a second time: the index comes out right, but each lay reads as one
+  // more run at the same commit, so `layerBefore` puts the first attempt's own
+  // cases into the before layer over the base they replaced, and review
+  // compares those files with themselves.
+  const staged = `${at}.${process.pid}-${randomUUID()}.tmp`;
   const locked = await selection.withIndexLock(at, async () => {
     let previous;
     try {

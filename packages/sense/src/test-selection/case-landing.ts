@@ -139,7 +139,7 @@ export type CaseLanding =
  *
  * Everything is done under the index's lock, and nothing at all when another
  * process has it. A landing writes the snapshot under that snapshot's own lock
- * and calls this inside it, so the snapshot and the index change together.
+ * and calls this inside it, so no run writes the snapshot between the two.
  */
 export async function landCaseIndexes(
   record: string,
