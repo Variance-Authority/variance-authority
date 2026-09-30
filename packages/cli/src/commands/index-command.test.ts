@@ -182,8 +182,10 @@ describe('variance index', () => {
     const index = join(mkdtempSync(join(tmpdir(), 'va-follow-ups-')), 'source-index.bin');
     const lock = followUpsLockPath(index);
     writeFileSync(lock, '');
-    const holder = spawn(process.execPath, ['-e', `setTimeout(() => require('node:fs').rmSync(${JSON.stringify(lock)}), 200)`]);
+    // The holder's clock starts once the lock names it, so a slow spawn cannot release the lock before it is held.
+    const holder = spawn(process.execPath, ['-e', `process.stdin.once('data', () => setTimeout(() => require('node:fs').rmSync(${JSON.stringify(lock)}), 200))`]);
     holdFollowUps(index, { pid: holder.pid!, log: followUpsLogPath(index) });
+    holder.stdin.write('\n');
     const told: number[] = [];
 
     const waited = await awaitFollowUps(index, ({ pid }) => told.push(pid));
@@ -196,8 +198,10 @@ describe('variance index', () => {
   it('takes the follow-ups only once a live holder lets them go, so a second `index` never writes over the first one\'s process', async () => {
     const index = join(mkdtempSync(join(tmpdir(), 'va-follow-ups-')), 'source-index.bin');
     const lock = followUpsLockPath(index);
-    const holder = spawn(process.execPath, ['-e', `setTimeout(() => require('node:fs').rmSync(${JSON.stringify(lock)}), 200)`]);
+    // The holder's clock starts once the lock names it, so a slow spawn cannot release the lock before it is held.
+    const holder = spawn(process.execPath, ['-e', `process.stdin.once('data', () => setTimeout(() => require('node:fs').rmSync(${JSON.stringify(lock)}), 200))`]);
     holdFollowUps(index, { pid: holder.pid!, log: followUpsLogPath(index) });
+    holder.stdin.write('\n');
     const told: number[] = [];
 
     await reserveFollowUps(index, followUpsLogPath(index), ({ pid }) => told.push(pid));

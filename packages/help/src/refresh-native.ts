@@ -73,7 +73,7 @@ export async function refreshWorkspaceFromIndex(
     held.set(use.name, uses);
     uses.push({
       by: use.by, at: use.at, line: use.line, type: use.type, kind: use.kind,
-      ...(use.through === undefined ? {} : { through: { kind: use.through, line: use.throughLine } }),
+      ...(use.through === undefined || use.through === null ? {} : { through: { kind: use.through, line: use.throughLine } }),
     });
   }
   // The export list is the reading's; the value joined here carries none of it.
