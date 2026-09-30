@@ -14,57 +14,115 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { isCI } from 'ci-info';
-import { publishedSources, restrictedImports, type RelationRule, type RuleFile, type Violation } from '@variance-authority/sense';
+import {
+  cappedLayers,
+  packageLayers,
+  publishedSources,
+  restrictedImports,
+  type CapViolation,
+  type LayerCap,
+  type RelationRule,
+  type RuleFile,
+  type Violation,
+} from '@variance-authority/sense';
 import { EXIT_CLEAN, EXIT_REVIEW, OperatorError, type ExitCode } from '../exit.js';
 import type { ParsedRestrictions } from '../restrictions-args.js';
 
 /** The file a folder's rules are written in. */
 export const RULE_FILE = '.relations.json';
 
-function parseRules(path: string, text: string): RelationRule[] {
+/** One `for`/`maxLayer` entry, refused with the file and rule number when a field is the wrong shape. */
+function parseCap(path: string, at: number, entry: Record<string, unknown>): LayerCap {
+  const { for: subject, maxLayer, message } = entry;
+  if (typeof subject !== 'string') throw new OperatorError(`${path}, rule ${at + 1}: \`for\` is a folder or a glob, written as a string.`);
+  if (typeof maxLayer !== 'number' || !Number.isInteger(maxLayer) || maxLayer < 1) {
+    throw new OperatorError(`${path}, rule ${at + 1}: \`maxLayer\` is a whole number from 1; layers start at 1.`);
+  }
+  if (message !== undefined && typeof message !== 'string') throw new OperatorError(`${path}, rule ${at + 1}: \`message\` is a string.`);
+  return { for: subject, maxLayer, ...(message === undefined ? {} : { message }) };
+}
+
+/** A rule file's text as import rules and layer ceilings; an entry that mixes the two is refused, not half read. */
+function parseRules(path: string, text: string): { rules: RelationRule[]; caps: LayerCap[] } {
   let value: unknown;
   try {
     value = JSON.parse(text);
   } catch (error) {
     throw new OperatorError(`${path} is not JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
-  const rules = Array.isArray(value) ? value : (value as { rules?: unknown } | null)?.rules;
-  if (!Array.isArray(rules)) throw new OperatorError(`${path} holds a list of rules, or an object whose \`rules\` is one.`);
-  return rules.map((rule, at): RelationRule => {
+  const listed = Array.isArray(value) ? value : (value as { rules?: unknown } | null)?.rules;
+  if (!Array.isArray(listed)) throw new OperatorError(`${path} holds a list of rules, or an object whose \`rules\` is one.`);
+  const caps: LayerCap[] = [];
+  const rules: RelationRule[] = [];
+  listed.forEach((rule, at) => {
     const entry = rule as Record<string, unknown> | null;
-    const type = entry?.['type'];
-    if (type !== 'allowed' && type !== 'restricted') {
-      throw new OperatorError(`${path}, rule ${at + 1}: \`type\` is \`allowed\` or \`restricted\`.`);
-    }
-    for (const side of ['from', 'to', 'message'] as const) {
-      if (entry?.[side] !== undefined && typeof entry[side] !== 'string') {
-        throw new OperatorError(`${path}, rule ${at + 1}: \`${side}\` is a string; a RegExp is not JSON, so write a glob.`);
+    if (entry !== null && (entry['maxLayer'] !== undefined || entry['for'] !== undefined)) {
+      const mixed = ['from', 'to', 'type'].filter((key) => entry[key] !== undefined);
+      if (mixed.length > 0) {
+        throw new OperatorError(`${path}, rule ${at + 1}: a layer ceiling (\`for\`, \`maxLayer\`) does not take ${mixed.map((key) => `\`${key}\``).join(', ')}; write the import rule as its own entry.`);
       }
+      caps.push(parseCap(path, at, entry));
+    } else {
+      rules.push(parseRule(path, at, entry));
     }
-    return {
-      type,
-      ...(entry?.['from'] === undefined ? {} : { from: entry['from'] as string }),
-      ...(entry?.['to'] === undefined ? {} : { to: entry['to'] as string }),
-      ...(entry?.['message'] === undefined ? {} : { message: entry['message'] as string }),
-    };
   });
+  return { rules, caps };
 }
 
+/** One import rule, refused with the file and rule number when a field is the wrong shape. */
+function parseRule(path: string, at: number, entry: Record<string, unknown> | null): RelationRule {
+  const type = entry?.['type'];
+  if (type !== 'allowed' && type !== 'restricted') {
+    throw new OperatorError(`${path}, rule ${at + 1}: \`type\` is \`allowed\` or \`restricted\`.`);
+  }
+  for (const side of ['from', 'to', 'message'] as const) {
+    if (entry?.[side] !== undefined && typeof entry[side] !== 'string') {
+      throw new OperatorError(`${path}, rule ${at + 1}: \`${side}\` is a string; a RegExp is not JSON, so write a glob.`);
+    }
+  }
+  return {
+    type,
+    ...(entry?.['from'] === undefined ? {} : { from: entry['from'] as string }),
+    ...(entry?.['to'] === undefined ? {} : { to: entry['to'] as string }),
+    ...(entry?.['message'] === undefined ? {} : { message: entry['message'] as string }),
+  };
+}
+
+/** Every tracked `.relations.json`, read as data, with the directory it governs. */
 function ruleFiles(root: string): RuleFile[] {
   const listed = execFileSync('git', ['ls-files', '-z', '--', RULE_FILE, `**/${RULE_FILE}`], { cwd: root, encoding: 'utf8' });
   return listed.split('\0').filter((path) => path !== '').map((path) => {
     const directory = dirname(path);
-    return { directory: directory === '.' ? '' : directory, rules: parseRules(path, readFileSync(join(root, path), 'utf8')) };
+    return { directory: directory === '.' ? '' : directory, ...parseRules(path, readFileSync(join(root, path), 'utf8')) };
   });
 }
 
-function text(found: readonly Violation[], files: number): string {
-  if (files === 0) return `No ${RULE_FILE} is tracked in this checkout, so no import is restricted.\n`;
-  if (found.length === 0) return `No import breaks the rules in ${files} ${RULE_FILE} file${files === 1 ? '' : 's'}.\n`;
-  const lines = found.map((v) => `${v.from} → ${v.to}${v.message === undefined ? '' : `: ${v.message}`} (${join(v.directory, RULE_FILE)})`);
-  return `${lines.join('\n')}\n${found.length} restricted import${found.length === 1 ? '' : 's'}.\n`;
+/** Layers are read only when a file states a ceiling, and a map that holds none is an error, not a pass. */
+function cappedPackages(root: string, files: readonly RuleFile[]): CapViolation[] {
+  if (!files.some((file) => (file.caps?.length ?? 0) > 0)) return [];
+  const layers = packageLayers(root);
+  if (layers?.packages == null) {
+    throw new OperatorError('A `maxLayer` is written, but the source index holds no package layers to check it against; `variance index` folds them.');
+  }
+  return cappedLayers(layers.packages, files);
 }
 
+/** The prose report: one line per finding, then the counts, or the sentence that says nothing broke. */
+function text(found: readonly Violation[], capped: readonly CapViolation[], files: number, layersRead: boolean): string {
+  if (files === 0) return `No ${RULE_FILE} is tracked in this checkout, so no import is restricted.\n`;
+  if (found.length === 0 && capped.length === 0) return `No import${layersRead ? ' or layer' : ''} breaks the rules in ${files} ${RULE_FILE} file${files === 1 ? '' : 's'}.\n`;
+  const lines = [
+    ...found.map((v) => `${v.from} → ${v.to}${v.message === undefined ? '' : `: ${v.message}`} (${join(v.directory, RULE_FILE)})`),
+    ...capped.map((v) => `${v.package} is layer ${v.layer}, above the ceiling of ${v.maxLayer}${v.message === undefined ? '' : `: ${v.message}`} (${join(v.directory, RULE_FILE)})`),
+  ];
+  const counts = [
+    found.length > 0 ? `${found.length} restricted import${found.length === 1 ? '' : 's'}` : '',
+    capped.length > 0 ? `${capped.length} package${capped.length === 1 ? '' : 's'} above a layer ceiling` : '',
+  ].filter((part) => part !== '');
+  return `${lines.join('\n')}\n${counts.join(', ')}.\n`;
+}
+
+/** Runs the check over the published source index and returns the report with its exit code: 1 on any finding. */
 export async function restrictionsOutput(request: ParsedRestrictions): Promise<{ out: string; code: ExitCode }> {
   const files = ruleFiles(request.root);
   const published = await publishedSources(request.root, {
@@ -73,6 +131,7 @@ export async function restrictionsOutput(request: ParsedRestrictions): Promise<{
     announce: (line) => process.stderr.write(`variance: ${line}\n`),
   });
   const found = restrictedImports(published.records, files);
-  const out = request.format === 'json' ? `${JSON.stringify({ violations: found })}\n` : text(found, files.length);
-  return { out, code: found.length > 0 ? EXIT_REVIEW : EXIT_CLEAN };
+  const capped = cappedPackages(request.root, files);
+  const out = request.format === 'json' ? `${JSON.stringify({ violations: found, capped })}\n` : text(found, capped, files.length, files.some((file) => (file.caps?.length ?? 0) > 0));
+  return { out, code: found.length > 0 || capped.length > 0 ? EXIT_REVIEW : EXIT_CLEAN };
 }

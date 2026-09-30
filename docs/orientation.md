@@ -163,8 +163,8 @@ after the rows, so every package is on some page. An area page lists smaller
 areas until an area is a short list of packages. Each row gives:
 
 - how many packages and source files the area has;
-- its dependency layers, where layer 0 imports no other package and each layer
-  above imports only from the layers below it;
+- its [dependency layers](boundaries.md), where layer 1 imports no other
+  package and each layer above imports only from the layers below it;
 - its front, the packages in it that the rest of the repository imports most,
   with their share of those imports;
 - the other areas it imports from, with their share of its imports.

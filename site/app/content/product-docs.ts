@@ -46,6 +46,7 @@ import locate from "../../../docs/locate.md?raw";
 import metrics from "../../../docs/metrics.md?raw";
 import nativeCode from "../../../docs/native-code.md?raw";
 import observability from "../../../docs/observability.md?raw";
+import boundaries from "../../../docs/boundaries.md?raw";
 import orientation from "../../../docs/orientation.md?raw";
 import ownFewerTests from "../../../docs/own-fewer-tests.md?raw";
 import optimizeATest from "../../../docs/optimize-a-test.md?raw";
@@ -84,6 +85,7 @@ import startRstest from "../../../docs/start-rstest.md?raw";
 import surface from "../../../docs/surface.md?raw";
 import changed from "../../../docs/changed.md?raw";
 import tests from "../../../docs/tests.md?raw";
+import onDependencies from "../../../docs/on-dependencies.md?raw";
 import onTesting from "../../../docs/on-testing.md?raw";
 import understandExecution from "../../../docs/understand-execution.md?raw";
 import understandInterface from "../../../docs/understand-interface.md?raw";
@@ -100,6 +102,7 @@ export interface ProductDocument {
 const documents = [
   ["overview", index, "docs/README.md"],
   ["orientation", orientation, "docs/orientation.md"],
+  ["boundaries", boundaries, "docs/boundaries.md"],
   ["tests", tests, "docs/tests.md"],
   ["changed", changed, "docs/changed.md"],
   ["reasoning", reasoning, "docs/reasoning.md"],
@@ -197,6 +200,7 @@ const documents = [
   ["performance", performance, "docs/performance.md"],
   ["sharing", sharing, "docs/sharing.md"],
   ["cache", cache, "docs/cache.md"],
+  ["on-dependencies", onDependencies, "docs/on-dependencies.md"],
   ["on-testing", onTesting, "docs/on-testing.md"],
 ] as const;
 

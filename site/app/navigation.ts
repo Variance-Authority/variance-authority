@@ -62,6 +62,11 @@ export const NAVIGATION = [
         label: "Reuse the source graph",
         cluster: "Orient in a codebase",
       },
+      {
+        href: "/docs/boundaries",
+        label: "See the structure your imports build",
+        cluster: "Orient in a codebase",
+      },
     ],
   },
   {
@@ -395,6 +400,7 @@ export const NAVIGATION = [
       { href: "/reference/compare-visual-review", label: "Compare visual review tools" },
       { href: "/docs/compare-coverage", label: "Compare coverage services" },
       { href: "/docs/on-testing", label: "On testing: decide what each test adds" },
+      { href: "/docs/on-dependencies", label: "On dependencies: why the graph has a direction" },
       {
         href: "/docs/coverage-test-selection",
         label: "Coverage-based test selection",

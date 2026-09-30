@@ -106,9 +106,12 @@ export {
 } from './recorded-durations.js';
 export { layerMoves, type LayerCause, type LayerMoves } from './layer-moves.js';
 export {
+  cappedLayers,
   relationBetween,
   restrictedImports,
+  type CapViolation,
   type Decision,
+  type LayerCap,
   type RelationRule,
   type RuleFile,
   type Violation,

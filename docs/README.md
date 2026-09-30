@@ -19,6 +19,12 @@ depend on.
 <p>Choose exact text search, indexed source relations, or observed subject search from the evidence you already have.</p>
 <em>Orient before you change code →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="boundaries.md">
+<span>Structure</span>
+<strong>See what your imports build</strong>
+<p>Number every package by the layers beneath it, see in a pull request which packages changed layer, and check imports against rules you write.</p>
+<em>Read the layers →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="agent-interrogate.md">
 <span>Live test</span>
 <strong>Find out why this test is stuck</strong>
@@ -112,7 +118,9 @@ keeps the beginning, middle, and end of a change available. [The reasoning
 loop](reasoning.md) shows how to choose the smallest reading that can answer a
 question, and [the evidence field](evidence-field.md) maps the readings a run
 can leave behind. [On testing](on-testing.md) connects those readings to test
-cost, scope, selection and lifetime. [Why Variance Authority does so many
+cost, scope, selection and lifetime. [On dependencies](on-dependencies.md)
+does the same for the import graph: why it has a direction, and why a layer
+number is evidence and not a verdict. [Why Variance Authority does so many
 things](adjacent-possible.md) explains why one project answers all of these
 questions. [Extend what you already use](extend-what-you-use.md) explains how
 each reading works beside the tools you already trust.
