@@ -291,7 +291,7 @@ async function main() {
    * is not checked.
    */
   const runs = own && coverage.commit !== undefined ? await readCommitRuns(snapshotFile) : undefined;
-  const start = readingFrom({ commit: coverage.commit, ref, runs, git });
+  const start = readingFrom({ commit: coverage.commit, ref, runs, tests: coverage.tests.map((test) => test.file), git });
   const { base, from, whole: before } = start;
 
   const byStem = new Map();

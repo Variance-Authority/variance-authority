@@ -318,7 +318,8 @@ describe('a change is read from where it started, not from where the last leg le
     return { at, git, P, H };
   }
 
-  const runsAt = (commit: string, over: string) => ({ commit, over, first: '', latest: '', runs: 1, files: ['test/far.test.ts'] });
+  const tests = ['test/far.test.ts', 'test/near.test.ts', 'test/other.test.ts'];
+  const runsAt = (commit: string, over: string, files = ['test/near.test.ts']) => ({ commit, over, first: '', latest: '', runs: 1, files });
 
   const snapshot = (commit: string): TestCoverage => ({
     version: 3,
@@ -351,7 +352,7 @@ describe('a change is read from where it started, not from where the last leg le
     const file = resolve(at, 'coverage.bin');
     await writeTestCoverage(file, snapshot(H));
 
-    const start = readingFrom({ commit: H, ref: undefined, runs: runsAt(H, P), git });
+    const start = readingFrom({ commit: H, ref: undefined, runs: runsAt(H, P), tests, git });
     const hunks = git('diff', '--no-renames', start.base, ...excluding(start.whole));
     expect(hunks).toContain('+++ b/src/near.ts');
     const diff = [hunks, ...start.whole.map(wholeEntry)].join('\n');
@@ -378,8 +379,19 @@ describe('a change is read from where it started, not from where the last leg le
   it('reads from the snapshot\'s commit when the runs are another commit\'s, or absent', async () => {
     const { git, P, H } = await history();
     const fromCommit = { base: H, from: H, whole: [], says: 'where the snapshot was recorded' };
-    expect(readingFrom({ commit: H, ref: undefined, runs: runsAt(P, P), git })).toEqual(fromCommit);
-    expect(readingFrom({ commit: H, ref: undefined, runs: undefined, git })).toEqual(fromCommit);
+    expect(readingFrom({ commit: H, ref: undefined, runs: runsAt(P, P), tests, git })).toEqual(fromCommit);
+    expect(readingFrom({ commit: H, ref: undefined, runs: undefined, tests, git })).toEqual(fromCommit);
+  });
+
+  it('reads from the snapshot\'s commit once every test has run there, since none stands on the older text', async () => {
+    const { git, P, H } = await history();
+    expect(readingFrom({ commit: H, ref: undefined, runs: runsAt(H, P, tests), tests, git })).toEqual({
+      base: H,
+      from: H,
+      whole: [],
+      says: 'where the snapshot was recorded',
+    });
+    expect(readingFrom({ commit: H, ref: undefined, runs: runsAt(H, P, tests), git }).from).toBe(P);
   });
 
   it('honours a ref: from its merge base, whatever the runs say', async () => {
@@ -419,7 +431,7 @@ describe('a change is read from where it started, not from where the last leg le
   it('runs the whole suite when the start the runs name is not in this checkout', async () => {
     const { git, H } = await history();
     const gone = 'e'.repeat(40);
-    const start = readingFrom({ commit: H, ref: undefined, runs: runsAt(H, gone), git });
+    const start = readingFrom({ commit: H, ref: undefined, runs: runsAt(H, gone), tests, git });
     expect(start.widened).toBe(`${gone.slice(0, 12)}, where the snapshot stood before the runs at ${H.slice(0, 12)}, is not in this checkout`);
     const decided = selectedFiles({
       suite: ['a.test.ts'],

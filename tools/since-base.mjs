@@ -41,9 +41,16 @@ function isAncestor(git, ancestor, commit) {
   }
 }
 
-/** The start the runs at this commit recorded, when they are the snapshot's own runs. */
-function fromRuns(commit, runs) {
+/**
+ * The start the runs at this commit recorded, when they are the snapshot's own
+ * runs and some test in it did not run among them. Once every test has run at
+ * the snapshot's commit, none stands on the older text, and the snapshot's
+ * commit is the whole answer.
+ */
+function fromRuns(commit, runs, tests) {
   if (runs?.commit !== commit || runs.over === undefined || runs.over === commit) return undefined;
+  const ran = new Set(runs.files);
+  if (tests !== undefined && tests.every((file) => ran.has(file))) return undefined;
   return { from: runs.over, says: `where the snapshot stood before the runs at ${commit.slice(0, 12)}` };
 }
 
@@ -55,17 +62,18 @@ function fromRuns(commit, runs) {
  *
  * `runs` is `coverage.runs.json` of the layer being read, and only of this
  * checkout's own layer: a worktree reading the primary checkout's record would
- * be handed the primary's change. `widened` is set when the start is named and
+ * be handed the primary's change. `tests` is the snapshot's test files; left
+ * out, some test is taken to stand on the older text. `widened` is set when the start is named and
  * git cannot read it — a start rewritten away by a rebase and collected — and
  * the caller runs the whole suite rather than narrowing on half a change.
  */
-export function readingFrom({ commit, ref, runs, git }) {
+export function readingFrom({ commit, ref, runs, tests, git }) {
   if (commit === undefined) {
     const merged = git('merge-base', ref, 'HEAD').trim();
     return { base: merged, from: merged, whole: [], says: `the merge base with ${ref}` };
   }
   let start;
-  if (ref === undefined) start = fromRuns(commit, runs);
+  if (ref === undefined) start = fromRuns(commit, runs, tests);
   else {
     const merged = git('merge-base', ref, 'HEAD').trim();
     if (merged !== commit && isAncestor(git, merged, commit)) start = { from: merged, says: `the merge base with ${ref}` };
