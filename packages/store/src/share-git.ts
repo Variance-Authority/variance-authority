@@ -41,7 +41,7 @@ type Git = (args: readonly string[], input?: Uint8Array, env?: Record<string, st
 /** Git in the cell's own repository, prepared on first use. */
 function gitIn(options: GitLineOptions): Git {
   const timeout = options.timeoutMs ?? 60_000;
-  const header = headerEnv(options.extraHeader);
+  const header = headerEnv(options.extraHeader, options.url);
   let ready: Promise<void> | undefined;
   return async (args, input, env = {}) => {
     ready ??= prepare(options, timeout);
@@ -52,20 +52,42 @@ function gitIn(options: GitLineOptions): Git {
 
 /**
  * A configuration value git reads from the environment, after any the
- * environment already names. A header the environment already gives git is
- * not given again: a CI step that hands its token to git as `GIT_CONFIG_*`
- * variables is where your clone's configuration found it, and git would send
- * it twice.
+ * environment already names. A header the environment already gives git for
+ * `url` is not given again: a CI step that hands its token to git as
+ * `GIT_CONFIG_*` variables is where your clone's configuration found it, and
+ * git would send it twice. The same value under another key, or under a URL
+ * that `url` does not start with, does not reach `url`, and the header is given.
  */
-function headerEnv(value: string | undefined): Record<string, string> {
+export function headerEnv(
+  value: string | undefined,
+  url: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, string> {
   if (value === undefined) return {};
-  const at = Number(process.env['GIT_CONFIG_COUNT'] ?? '0') || 0;
-  for (let index = 0; index < at; index += 1) if (process.env[`GIT_CONFIG_VALUE_${String(index)}`] === value) return {};
+  const at = Number(env['GIT_CONFIG_COUNT'] ?? '0') || 0;
+  for (let index = 0; index < at; index += 1) {
+    const key = env[`GIT_CONFIG_KEY_${String(index)}`];
+    if (env[`GIT_CONFIG_VALUE_${String(index)}`] === value && key !== undefined && headerReaches(key, url)) return {};
+  }
   return {
     GIT_CONFIG_COUNT: String(at + 1),
     [`GIT_CONFIG_KEY_${String(at)}`]: 'http.extraheader',
     [`GIT_CONFIG_VALUE_${String(at)}`]: value,
   };
+}
+
+/**
+ * Whether `key` is `http.extraheader`, or `http.<prefix>.extraheader` for a
+ * prefix of `url` that ends at a path segment. Git also folds the host's case
+ * and default ports, and matches user names and wildcards; a key this does not
+ * place is read as not reaching `url`, so the header is given, and at worst
+ * sent twice rather than not at all.
+ */
+function headerReaches(key: string, url: string): boolean {
+  const named = /^http\.(?:(.+)\.)?extraheader$/iu.exec(key);
+  if (named === null) return false;
+  const prefix = named[1]?.replace(/\/+$/u, '');
+  return prefix === undefined || url === prefix || url.startsWith(`${prefix}/`);
 }
 
 /**

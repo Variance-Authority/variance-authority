@@ -171,6 +171,18 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
     });
   });
 
+  it('is not published for a mainline when a test file the runner collects is in no run the record lists, and names it', async () => {
+    const { root, coverage, commit } = await ranAt('unlisted', (at) => ran(at, []));
+    const collected = new Set(['test/kept.test.ts', 'test/new.test.ts']);
+
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected })).toEqual({
+      unpublished: `its record at ${coverage} is not a whole run: 1 test file(s) the suite collects are listed nowhere in the runs record: test/new.test.ts`,
+    });
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/kept.test.ts']) })).toMatchObject({
+      name: 'suite-v1/unit',
+    });
+  });
+
   it('is not published for a mainline when nothing says the whole suite ran, and says what was missing', async () => {
     const bare = await ranAt('runless');
     const vague = await ranAt('vague', (at) => ran(at));

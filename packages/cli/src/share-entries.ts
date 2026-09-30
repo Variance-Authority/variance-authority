@@ -202,7 +202,8 @@ const RUNS_PART = 'coverage.runs.json';
  * run only while the suite still collects it.
  *
  * The runner owns what the suite collects, so `collected` is its answer: the
- * repository-relative test files it lists at `commit`. Without it, git answers
+ * repository-relative test files it lists at `commit`, each of which the runs
+ * record must list as run or standing somewhere. Without it, git answers
  * for which of those files `commit` still has, and a refusal says the runner
  * was not asked, because a file git holds and the runner no longer collects
  * would hold the gate shut on every run.
@@ -222,6 +223,14 @@ export async function wholeRunAt(
   }
   if (parsed.commit !== commit) return `the runs record beside it is ${parsed.commit ?? 'of no commit'}'s, not ${commit}'s`;
   if (parsed.standing === undefined) return 'the runs record beside it does not say where every test it did not run last ran';
+  if (collected !== undefined) {
+    const listed = new Set([...parsed.files, ...parsed.standing.flatMap((entry) => entry.files)]);
+    const unlisted = [...collected].filter((path) => !listed.has(path)).sort();
+    if (unlisted.length > 0) {
+      const named = unlisted.length > 5 ? `${unlisted.slice(0, 5).join(', ')} and ${unlisted.length - 5} more` : unlisted.join(', ');
+      return `${unlisted.length} test file(s) the suite collects are listed nowhere in the runs record: ${named}`;
+    }
+  }
   // A test standing at this commit ran at it, in a run before the latest.
   const older = parsed.standing.filter((entry) => entry.commit !== commit).flatMap((entry) => entry.files);
   if (older.length === 0) return undefined;
