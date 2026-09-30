@@ -380,6 +380,17 @@ jobs:
         with:
           node-version: 24
 
+      # The image carries browsers and Node but no compiler, and the native
+      # scanner is compiled on this machine: without it every case that reads
+      # source fails to load by name. The hosted runners carry rustup and a C
+      # compiler, so the other jobs need no such step.
+      - name: toolchain
+        shell: bash
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends build-essential curl ca-certificates
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
       - name: install
         shell: bash
         run: corepack enable && yarn install --immutable
