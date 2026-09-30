@@ -58,7 +58,8 @@ export interface CoveringMotion {
   /**
    * Test files the runs at this commit ran that no case index written at this
    * commit names, so the base layer holds no cases they replaced and they are
-   * not compared. Empty when every one is named; absent when this was not
+   * not compared. Only a file the index holds a case of is one: a file with no
+   * case anywhere had nothing to compare. Empty when every one is named; absent when this was not
    * asked, as against a record `--against` names, or when no run named itself
    * beside the case index.
    */
@@ -192,7 +193,13 @@ export async function motionOfRuns(
 ): Promise<CoveringMotion> {
   const base: MotionBase = { from: caseLayerFiles(from).before, kind: 'before' };
   if ('lastRunUnread' in wrote) return { base, lastRunUnread: wrote.lastRunUnread };
-  const said = wrote.unwritten === undefined ? {} : { unwritten: wrote.unwritten };
+  // A file the index holds no case of had nothing to compare: its run wrote no
+  // case because it recorded none, and no earlier run left one either. A suite
+  // whose every case skips on this machine, as a browser suite does where no
+  // browser is installed, is that file on every run, and saying it was not
+  // compared would name a comparison that was never there to make.
+  const cased = new Set(full.tests.map((test) => test.file));
+  const said = wrote.unwritten === undefined ? {} : { unwritten: wrote.unwritten.filter((test) => cased.has(test)) };
   if (wrote.compared.size === 0) return { base, ...said };
   const cases = full.tests.filter((test) => wrote.compared.has(test.file)).map((test) => test.id);
   return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared })), ...said };
@@ -249,7 +256,10 @@ export function motionText(
     return ['', `Not compared: ${motion.lastRunUnread} could not be read, so which test files a run at this commit wrote to the case index is not known.`];
   }
   if (moved === undefined) {
-    return unwritten.length > 0 ? ['', ...unwritten] : ['', `Nothing to compare: ${base.from} holds none of these cases.`];
+    if (unwritten.length > 0) return ['', ...unwritten];
+    // The runs at this commit were asked, and every file they ran either wrote
+    // nothing to compare or has no case at all: there is no motion to report.
+    return motion.unwritten === undefined ? ['', `Nothing to compare: ${base.from} holds none of these cases.`] : [];
   }
   const lines = [''];
   if (base.kind === 'record' && base.at === undefined) {
