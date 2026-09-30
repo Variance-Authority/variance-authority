@@ -76,6 +76,17 @@ oxc_resolver = { path = "vendor/oxc_resolver" }
 [build-dependencies]
 napi-build = "2"
 
+# The unit tests link a test executable, not the addon, and no Node process is
+# there to supply the `napi_*` symbols: the addon's link leaves them undefined
+# for the host to fill at `dlopen` (`napi-build` says so to the linker on macOS),
+# and an executable cannot. `dyn-symbols` is napi's own default, which this crate
+# turns off for the addon: with it the bindings are function pointers the module
+# fills from the host when Node registers it, so the executable references no
+# symbol it cannot resolve. A feature named here is enabled for the test targets
+# only (resolver 2), so the released binary is built as it was.
+[dev-dependencies]
+napi = { version = "3", default-features = false, features = ["napi8", "dyn-symbols"] }
+
 [profile.release]
 lto = true
 codegen-units = 1

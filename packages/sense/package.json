@@ -105,6 +105,7 @@
   ],
   "scripts": {
     "build": "tsc --build && node native/build.mjs",
+    "test:native": "cargo test --manifest-path native/Cargo.toml --lib --locked",
     "storage": "node scripts/storage.mjs",
     "overhead": "node scripts/overhead.mjs",
     "probe-write": "node scripts/probe-write.mjs",
