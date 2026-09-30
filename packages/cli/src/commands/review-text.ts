@@ -14,7 +14,7 @@
 import type { ReviewFormat } from '../review-args.js';
 import { motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
-import { outermost, scopeMarkdown, uncoveredCallout } from './review-scope.js';
+import { caseTree, functionsMarkdown, outermost, uncoveredCallout } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
 
@@ -80,30 +80,27 @@ const MARK: Readonly<Record<Reach, string>> = {
 };
 
 /**
- * The comment. GitHub draws every table at the width of its content, so the
- * body is one table the reviewer acts on, with a callout above it, and every
- * list that grows with the change folded under a summary that counts it. The
- * table has no total row: its rows are answers that mean opposite things, and
- * their sum is only the size of the change, which the callout states as the
- * denominator of the count it leads with.
+ * The comment. A callout names the changed code no case ran, then one line
+ * per changed function with the cases that ran it folded under it by title:
+ * the answer an agent or a reviewer asks the record for, which the diff cannot
+ * give. Before the change has run the same lines say what it might move. Every
+ * list that grows with the change is folded under a summary that counts it.
  */
 function markdown(review: Review): string {
   const code = (value: string): string => `\`${value}\``;
-  const lines = [REVIEW_MARKER, '### 🧭 What this change did', '', `<sub>${header(review, code, false)}</sub>`, ''];
+  const ran = review.record === 'ran';
+  const lines = [REVIEW_MARKER, `### 🧭 What this change ${ran ? 'did' : 'might do'}`, '', `<sub>${header(review, code, false)}${
+    ran ? '' : ' The record was made before this change, so it names the cases that stood on the changed lines.'
+  }</sub>`, ''];
   const regions = review.files.flatMap(outermost);
-  lines.push(...calloutMarkdown(review, regions), ...selectionMarkdown(review, code));
-  const reach = reachRows(review.files);
-  if (reach.length > 0) {
-    lines.push('', '| Changed regions | All | New |', '| --- | ---: | ---: |');
-    for (const [kind, all, written] of reach) lines.push(`| ${MARK[kind]} ${REACH_TEXT[kind]} | ${all} | ${written} |`);
-  }
-  lines.push(...scopeMarkdown(review, (region) => MARK[region.reach]));
+  lines.push(...calloutMarkdown(review, regions), ...(ran ? selectionMarkdown(review, code) : []));
   const counts = review.motion?.moved?.counts;
-  if (counts !== undefined) {
-    lines.push('', `Against the base: ▲ ${counts.gained} region${counts.gained === 1 ? '' : 's'} gained cases · ▼ ${
-      counts.lost + counts.hidden
-    } lost every case · ▽ ${counts.thinned} kept fewer.`);
+  if (counts !== undefined && counts.lost + counts.hidden + counts.thinned > 0) {
+    lines.push('', `▼ ${counts.lost + counts.hidden} changed region${counts.lost + counts.hidden === 1 ? '' : 's'} lost every case against the base · ▽ ${
+      counts.thinned
+    } kept fewer — which, under 🔀 below.`);
   }
+  lines.push(...functionsMarkdown(review, (region) => MARK[region.reach]));
   if (review.before !== undefined && review.before.length > 0) {
     lines.push('', ...review.before.map((file) => `⚙️ ${code(file.file)} changed, and ${
       file.tests !== review.suite ? `${file.tests} of ${review.suite} test files load` : file.tests === 1 ? 'the one test file loads' : `all ${file.tests} test files load`
@@ -157,10 +154,12 @@ function calloutMarkdown(review: Review, regions: readonly ReviewRegion[]): read
   ];
   if (uncovered.length > 0) {
     const written = uncovered.filter((region) => region.written).length;
+    const ran = review.record === 'ran';
     return [
-      '> [!WARNING]',
-      `> **${uncovered.length} of ${regions.length} changed regions${holding} have no case that covers them**${
-        written === 0 ? '' : written === uncovered.length ? ', all of them new code' : `, ${written} of them new code`
+      ran || written < uncovered.length ? '> [!WARNING]' : '> [!NOTE]',
+      `> **${uncovered.length} of ${regions.length} changed regions${holding} ${ran ? 'have no case that covers them' : 'have no case in the record'}**${
+        written === 0 ? '' : ran ? (written === uncovered.length ? ', all of them new code' : `, ${written} of them new code`)
+          : `, ${written === uncovered.length ? 'all' : `${written}`} of them written since it was made, so not run yet`
       }.`,
       ...uncoveredCallout(review),
       ...(further.length === 0 ? [] : ['>', `> ${further.join('; ')}.`]),
@@ -327,19 +326,10 @@ function casesMarkdown(files: readonly ReviewFile[], code: (value: string) => st
   const removed = changed.reduce((sum, file) => sum + file.cases!.removed.length, 0);
   const lines = ['', `<details><summary>🧪 Cases: +${added} −${removed} in ${changed.length} test file${changed.length === 1 ? '' : 's'}</summary>`, ''];
   for (const file of changed) {
-    lines.push(`- ${code(file.file)}`);
-    const titled = [
+    lines.push(`- ${code(file.file)}`, ...caseTree([
       ...file.cases!.added.map((name) => ({ path: name.split(' > '), mark: '+' })),
       ...file.cases!.removed.map((name) => ({ path: name.split(' > '), mark: '−' })),
-    ];
-    let open: readonly string[] = [];
-    for (const { path, mark } of titled) {
-      let shared = 0;
-      while (shared < open.length && shared < path.length - 1 && open[shared] === path[shared]) shared += 1;
-      for (let depth = shared; depth < path.length - 1; depth += 1) lines.push(`${'  '.repeat(depth + 1)}- ${path[depth]}`);
-      lines.push(`${'  '.repeat(path.length)}- ${mark} ${path[path.length - 1]}`);
-      open = path.slice(0, -1);
-    }
+    ]));
   }
   return [...lines, '', '</details>'];
 }

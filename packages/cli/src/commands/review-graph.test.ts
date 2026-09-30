@@ -11,6 +11,7 @@ const region = (name: string, startLine: number, reach: ReviewRegion['reach'], t
   written,
   cases: tests.length,
   tests,
+  called: [],
 });
 
 const review = (regions: readonly ReviewRegion[]): Review =>
