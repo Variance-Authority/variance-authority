@@ -1,0 +1,17 @@
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files: 100%|██████████| 5/5 [00:00<00:00, 3581.81it/s]
+queries 285 readmes 95 unmatched []
+train units 2527 val units 259 steps 471 val0 0.337
+ ep1 step50 loss 2.676 0.69s/step
+ ep1 step100 loss 2.454 0.69s/step
+ ep1 step150 loss 2.314 0.68s/step
+epoch 1 loss 2.292 val 0.217
+ ep2 step50 loss 1.961 0.64s/step
+ ep2 step100 loss 2.000 0.65s/step
+ ep2 step150 loss 1.997 0.68s/step
+epoch 2 loss 2.001 val 0.190
+ ep3 step50 loss 1.999 0.76s/step
+ ep3 step100 loss 1.998 0.80s/step
+ ep3 step150 loss 2.000 0.76s/step
+epoch 3 loss 1.996 val 0.207
+selected epoch 1
+pairs 35 julia 31 bm25 29
