@@ -125,13 +125,16 @@ export function restrictedChains(records: readonly FileRecord[], files: readonly
     const { offset, target } = relations.depends;
     for (const at of walk.nodes) {
       const arrived = new Set<NodeId>();
+      // Both depend on `at` alone, so an importer reaching several restricted files walks back once.
+      let seeds: number | undefined;
+      let chain: string[] | undefined;
       for (let edge = offset[at]!; edge < offset[at + 1]!; edge += 1) {
         const to = target[edge]!;
         const decision = restricted.get(to);
         if (decision === undefined || arrived.has(to)) continue;
         arrived.add(to);
-        const seeds = seedsBehind(relations, group, restricted, at);
-        const chain = trailOf(walk, at).map((id) => relations.names[id]!);
+        seeds ??= seedsBehind(relations, group, restricted, at);
+        chain ??= trailOf(walk, at).map((id) => relations.names[id]!);
         const key = `${relations.names[at]}\0${relations.names[to]}`;
         const held = found.get(key);
         if (held !== undefined) {
