@@ -12,7 +12,7 @@ use crate::module_shape::{plain_class, pure, Lines};
 
 use super::{declared, Read, Reading, Where};
 
-pub fn reading_of(program: &Program, lines: &Lines) -> Reading {
+pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
     let mut walker = Walker {
         lines,
         reading: Reading {

@@ -35,7 +35,7 @@ use crate::module_shape::Lines;
 
 #[path = "module_readers_walk.rs"]
 mod walker;
-pub use walker::reading_of;
+use walker::reading_of;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Where {
