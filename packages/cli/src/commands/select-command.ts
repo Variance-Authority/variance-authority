@@ -165,8 +165,8 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // in is the whole change, so it is read for every test alike, and a note says
   // when some test last ran before the journal's commit.
   const handed = request.diff !== undefined;
-  // The stands, the diff and the installs are named from the top of the checkout
-  // `cwd` is in, as git spells it, because that is how the journal names its files.
+  // The stands, the diff, the installs and the import graph are named from the top
+  // of the checkout `cwd` is in, as git spells it, which is how the journal names files.
   const top = await topLevel(request.cwd);
   const here = top ?? request.cwd;
   const own = at === (await landingRecord(request.cwd, request.suite));
@@ -215,7 +215,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     }
   }
 
-  const relations = await relationsFor(request.cwd, ['.'], [], [], {
+  const relations = await relationsFor(here, ['.'], [], [], {
     why: 'a mocked module is ruled out by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
@@ -225,7 +225,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // its hunks, and each group is charged the packages that moved since it ran.
   const ask = (whole: readonly string[], stand: string | undefined) =>
     journeyAgainst(
-      request.cwd,
+      here,
       withMovedPackages([selection.withoutFiles(diff, whole), ...whole.map(selection.wholeEntry)].join('\n'), moved.get(stand)!.files),
       relations,
       compared(installs.get(stand))?.packages,
