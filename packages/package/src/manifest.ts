@@ -394,6 +394,21 @@ function followed(dir: string, condition: unknown, custom: ReadonlySet<string>):
 }
 
 /**
+ * The `"."` a manifest with no `exports` opens: `types`, then `typings`, then
+ * `main`, the order TypeScript reads them in.
+ *
+ * Without `exports`, Node loads `main` for the bare name and TypeScript takes
+ * its declarations from these keys, so the bare name is published exactly as if
+ * `exports` had written `"."`. The package's other files stay importable by path
+ * and are not listed: {@link publishes} reads `exports` alone, so an import of
+ * one is reported as reaching past the front door, which is what it does.
+ */
+function legacyEntry(manifest: Record<string, unknown>): readonly (readonly [string, unknown])[] {
+  const written = [manifest['types'], manifest['typings'], manifest['main']].find((key) => typeof key === 'string');
+  return written === undefined ? [] : [['.', written]];
+}
+
+/**
  * Every published package of a workspace, and the source each entrypoint opens.
  *
  * `private: true` is the only filter, and it is the manifest's own word for *do
@@ -418,7 +433,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
     const unreadable: string[] = [];
     let subpaths: readonly (readonly [string, unknown])[] = [];
     try {
-      subpaths = subpathsOf(path, manifest['exports']);
+      subpaths = manifest['exports'] === undefined ? legacyEntry(manifest) : subpathsOf(path, manifest['exports']);
     } catch (error) {
       if (options.tolerant !== true) throw error;
       unreadable.push(`${manifest['name']} — ${error instanceof Error ? error.message : String(error)}`);

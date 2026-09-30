@@ -391,6 +391,40 @@ describe('a pnpm workspace', () => {
   });
 });
 
+describe('a package with no `exports`', () => {
+  // Without `exports`, Node loads `main` for the bare name and any file of the
+  // package by its path, and TypeScript reads `types`, then `typings`, then
+  // `main`. A monorepo's internal library is very often written this way.
+  const opened = (manifest: Record<string, unknown>, files: Readonly<Record<string, string>> = {}) =>
+    readOfferings(workspace({ 'package.json': manifest, 'src/index.ts': 'export const one = 1;\n', ...files })).map(
+      (offering) => offering.entrypoints.map((entry) => [entry.subpath, entry.source.slice(entry.source.indexOf('src/'))]),
+    );
+
+  it('opens `.` at the source `main` names', () => {
+    expect(opened({ name: 'lib', main: 'src/index.ts' })).toEqual([[['.', 'src/index.ts']]]);
+  });
+
+  it('opens `.` at `types` before `main`, mapping an emitted declaration back to its source', () => {
+    const tsconfig = JSON.stringify({ compilerOptions: { rootDir: 'src', outDir: 'dist' } });
+    const manifest = { name: 'lib', main: './dist/index.js', types: './dist/index.d.ts' };
+    expect(opened(manifest, { 'tsconfig.json': tsconfig })).toEqual([[['.', 'src/index.ts']]]);
+  });
+
+  it('opens `.` at `typings` when that is the key a manifest writes', () => {
+    expect(opened({ name: 'lib', main: './index.js', typings: './src/index.ts' })).toEqual([[['.', 'src/index.ts']]]);
+  });
+
+  it('still leaves out a private package', () => {
+    expect(opened({ name: 'app', private: true, main: 'src/index.ts' })).toEqual([]);
+  });
+
+  it('is not what a package with `exports` opens: `main` is then only the legacy entry', () => {
+    const manifest = { name: 'lib', main: 'src/other.ts', exports: { '.': './src/index.ts' } };
+    expect(opened(manifest, { 'src/other.ts': 'export const two = 2;\n' })).toEqual([[['.', 'src/index.ts']]]);
+    expect(opened({ name: 'lib', main: 'src/index.ts', exports: {} })).toEqual([[]]);
+  });
+});
+
 it.todo(
   'a condition object with no `types`, such as `{ "import": "./src/index.js" }`, opens by the `.d.ts` beside its first JavaScript target — needs `besideOf` to read condition objects',
 );

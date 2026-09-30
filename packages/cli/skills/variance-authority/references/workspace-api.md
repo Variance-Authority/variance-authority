@@ -120,8 +120,11 @@ Every import specifier the workspace publishes, with how much each is used and
 how well documented. It takes no argument and returns the argument every other
 verb wants, so start here unless you already have an exact specifier.
 
-A published specifier comes from a `package.json` `exports` field, so this verb
-and `entrypoint` answer for the JavaScript half of a mixed repository. The other
+A published specifier comes from a `package.json`: each subpath its `exports`
+field opens, or, when it has no `exports`, the bare name its `types` or `main`
+opens. An import of any other file of the package is listed as reaching past a
+published entrypoint. So this verb and `entrypoint` answer for the JavaScript
+half of a mixed repository. The other
 four read the source and answer for every language: ask `search` or `symbol` for
 a Python, Rust, Java, Kotlin or Swift name.
 
