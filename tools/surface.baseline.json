@@ -1415,6 +1415,7 @@
         "kindOf": "function",
         "opening": "function",
         "ownership": "function",
+        "publishes": "function",
         "readHelp": "function",
         "readMention": "function",
         "readOfferings": "function",

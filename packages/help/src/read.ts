@@ -48,6 +48,7 @@ import {
   assembleHelp,
   kindOf,
   ownership,
+  publishes,
   readOfferings,
   requested,
   type Deep,
@@ -477,7 +478,7 @@ export function joinUsage(documented: Help, offerings: readonly Offering[], usag
   }));
   return {
     packages,
-    deep: usage.deep,
+    deep: usage.deep.filter((held) => !publishes(offerings, held.specifier)),
     exported: usage.exported,
     unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
   };
