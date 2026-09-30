@@ -145,9 +145,6 @@ describe('nothing grows into a monster', () => {
     // points, its replay visitors and its bit-set helpers in one file. Moving one
     // of those groups into a module of its own closes this.
     ['packages/sense/native/src/journey.rs', 538],
-    // FIXME: `read.rs` is 6 lines over the limit. Bringing it to 500 lines or
-    // fewer closes this, and the entry is deleted then, not raised.
-    ['packages/sense/native/src/read.rs', 506],
   ]);
 
   /** Lines as `wc -l` counts them, plus a last line that has no newline after it. */
