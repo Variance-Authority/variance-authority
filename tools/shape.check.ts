@@ -104,7 +104,7 @@ describe('every published package carries the licence it claims', () => {
  * filed in the wrong place.
  */
 describe('nothing grows into a monster', () => {
-  const SOURCE = execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.mjs', '*.js', '*.jsx'], {
+  const SOURCE = execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.mjs', '*.js', '*.jsx', '*.rs'], {
     cwd: ROOT,
     encoding: 'utf8',
   })
@@ -115,35 +115,88 @@ describe('nothing grows into a monster', () => {
   const LIMIT = 500;
 
   /**
-   * Files over the limit, and there are none.
+   * Files over the limit, each held at the length it had when it was listed.
    *
-   * This was a list of twenty-two on the day the rule landed — a debt list
-   * rather than an exemption list, on the argument that a file may leave it and
-   * may not join it. It emptied on 2026-08-04, which is the only outcome that
-   * makes the argument true rather than merely stated.
+   * This is a debt list rather than an exemption list, on the argument that a
+   * file may leave it and may not join it. It held twenty-two TypeScript files
+   * on the day the rule landed and emptied on 2026-08-04. It filled again when
+   * the rule reached Rust, with what the addon had grown while nothing counted
+   * it.
    *
-   * Kept as an empty set rather than deleted along with the tests below,
-   * because the next long file will want somewhere to go, and re-deriving the
-   * rules for it — a name, not a pattern; leaving is allowed, joining is not —
-   * is how an exemption list gets born instead.
+   * Each entry carries its own ceiling, because a listed file that could grow
+   * without bound would make the list an exemption after all. A file may shrink
+   * below its ceiling, and the ceiling comes down with it, so a line given back
+   * stays given back. Why an entry is still here is a marker on the entry.
    */
-  const OVERSIZE = new Set<string>([]);
+  const OVERSIZE = new Map<string, number>([
+    // FIXME: `journey.rs` and `journeys_walk.rs` are being reshaped by the journeys
+    // work in flight, and are split there rather than under it.
+    ['packages/sense/native/src/journey.rs', 539],
+    ['packages/sense/native/src/journeys_walk.rs', 501],
+    // FIXME: `read.rs` is being changed by the pull request on the index's reads
+    // (#58), and is split after it lands rather than under it.
+    ['packages/sense/native/src/read.rs', 507],
+    // FIXME: upstream's resolver, patched rather than owned. These leave together
+    // when the patch is dropped (the `TODO` in `packages/sense/native/Cargo.toml`);
+    // splitting them here would make that harder.
+    ['packages/sense/native/vendor/oxc_resolver/src/dts_resolver.rs', 757],
+    ['packages/sense/native/vendor/oxc_resolver/src/lib.rs', 2000],
+    ['packages/sense/native/vendor/oxc_resolver/src/options.rs', 746],
+    ['packages/sense/native/vendor/oxc_resolver/src/tsconfig.rs', 930],
+  ]);
 
   const lines = (file: string): number => readFileSync(join(ROOT, file), 'utf8').split('\n').length;
 
-  it.each(SOURCE.filter((file) => !OVERSIZE.has(file)))(`%s is under ${LIMIT} lines`, (file) => {
-    expect(lines(file)).toBeLessThanOrEqual(LIMIT);
+  /** Why a file at this length breaks the rule, or nothing when it keeps it. */
+  const refusal = (file: string, length: number, ceilings: ReadonlyMap<string, number>): string | undefined => {
+    const ceiling = ceilings.get(file);
+    if (ceiling === undefined) {
+      return length > LIMIT ? `${file} has ${length} lines, over the limit of ${LIMIT}` : undefined;
+    }
+    return length > ceiling ? `${file} has ${length} lines, and the debt list holds it at ${ceiling}` : undefined;
+  };
+
+  it(`refuses a Rust file over ${LIMIT} lines that is not on the debt list`, () => {
+    expect(refusal('native/src/grown.rs', LIMIT + 1, new Map())).toBe(
+      `native/src/grown.rs has ${LIMIT + 1} lines, over the limit of ${LIMIT}`,
+    );
+    expect(refusal('native/src/kept.rs', LIMIT, new Map())).toBeUndefined();
+  });
+
+  it('lets a file on the debt list shrink, and refuses it growing past its ceiling', () => {
+    const ceilings = new Map([['native/src/listed.rs', 539]]);
+
+    expect(refusal('native/src/listed.rs', 520, ceilings)).toBeUndefined();
+    expect(refusal('native/src/listed.rs', 539, ceilings)).toBeUndefined();
+    expect(refusal('native/src/listed.rs', 540, ceilings)).toBe(
+      'native/src/listed.rs has 540 lines, and the debt list holds it at 539',
+    );
+  });
+
+  it('counts Rust, so the rule cannot pass by never reading the addon', () => {
+    expect(SOURCE).toContain('packages/sense/native/src/lib.rs');
+  });
+
+  it.each(SOURCE)(`%s is under ${LIMIT} lines, or under its ceiling on the debt list`, (file) => {
+    expect(refusal(file, lines(file), OVERSIZE)).toBeUndefined();
   });
 
   it('has no entry on the debt list that is already under the limit', () => {
     // The list shortens by deleting a name once the file is split, and this is
     // what makes anyone bother: a fixed file that stays listed fails here.
-    const fixed = [...OVERSIZE].filter((file) => existsSync(join(ROOT, file)) && lines(file) <= LIMIT);
+    const fixed = [...OVERSIZE.keys()].filter((file) => existsSync(join(ROOT, file)) && lines(file) <= LIMIT);
     expect(fixed).toEqual([]);
   });
 
+  it('holds each entry on the debt list at the length the file has, so a shrink is kept', () => {
+    const slack = [...OVERSIZE]
+      .filter(([file, ceiling]) => existsSync(join(ROOT, file)) && lines(file) < ceiling)
+      .map(([file, ceiling]) => `${file}: ${lines(file)} lines, held at ${ceiling}`);
+    expect(slack).toEqual([]);
+  });
+
   it('has no entry on the debt list that no longer exists', () => {
-    expect([...OVERSIZE].filter((file) => !existsSync(join(ROOT, file)))).toEqual([]);
+    expect([...OVERSIZE.keys()].filter((file) => !existsSync(join(ROOT, file)))).toEqual([]);
   });
 
   it.each(SOURCE.filter((file) => /\.(test|spec|check)\.(ts|tsx)$/.test(file)))(

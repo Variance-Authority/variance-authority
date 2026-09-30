@@ -14,6 +14,10 @@
 //! that visits the same nodes in another order is a different recording, not a
 //! faster one.
 //!
+//! What each decision opens is in `instrument_decisions.rs`, and how a region is
+//! named — its step label, its scope, and the name it takes from where it is
+//! written — is in `instrument_names.rs`.
+//!
 //! ## Nothing is re-printed
 //!
 //! Every emission is an insertion at an offset in the original source. A region
@@ -38,12 +42,7 @@
 //! ownership and digests are the ordinary walk's, computed over the regions that
 //! are left, so a function keeps the address it has under the full walk.
 //!
-//! ## Names
-//!
-//! A name is spelled as JavaScript would print the key: a regular expression as
-//! `String(regex)`, a string as its value. A string holding a lone surrogate has
-//! no UTF-8 spelling, so each one is written as `\uXXXX`; a real U+FFFD stays
-//! itself.
+//! ## Offsets
 //!
 //! Offsets are UTF-8 bytes throughout. Every offset is a node boundary, so the
 //! mapping to the JavaScript side's UTF-16 offsets is monotone and every
@@ -55,9 +54,12 @@ use std::fmt::Write;
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
 use oxc_span::GetSpan;
-use oxc_syntax::number::ToJsString;
 use oxc_syntax::scope::ScopeFlags;
 
+#[path = "instrument_decisions.rs"]
+mod decisions;
+#[path = "instrument_names.rs"]
+mod names;
 #[path = "instrument_params.rs"]
 mod params;
 
@@ -233,125 +235,6 @@ impl Walker {
         self.close(closer);
     }
 
-    fn branch(&mut self, it: &IfStatement) -> String {
-        let label = self.step("if");
-        self.visit_expression(&it.test);
-        self.region(&it.consequent, Kind::Branch, &format!("{label}/then"));
-
-        match &it.alternate {
-            None => {
-                let end = it.consequent.span().end;
-                let owner = self.owner;
-                let ordinal = self.open(Kind::Branch, &format!("{label}/else"), end, end, Some(owner));
-                self.push(end, format_args!(" else{{__va({ordinal});}}"));
-            }
-            Some(alternate) => self.region(alternate, Kind::Branch, &format!("{label}/else")),
-        }
-        label
-    }
-
-    fn switched(&mut self, it: &SwitchStatement) -> String {
-        let label = self.step("switch");
-        let owner = self.owner;
-        let path = self.path.clone();
-        let mut written = false;
-
-        self.visit_expression(&it.discriminant);
-
-        for (index, clause) in it.cases.iter().enumerate() {
-            let step = match clause.test {
-                None => format!("{label}/default"),
-                Some(_) => format!("{label}/case#{index}"),
-            };
-            written |= clause.test.is_none();
-
-            let head = clause.consequent.first().map_or(clause.span.end, |s| s.span().start);
-            let ordinal = self.open(Kind::Case, &step, head, clause.span.end, Some(owner));
-            self.hit(head, ordinal);
-
-            if let Some(test) = &clause.test {
-                self.at(&path, owner, |w| w.visit_expression(test));
-            }
-            self.list(&clause.consequent, &step, ordinal);
-        }
-
-        if !written {
-            let at = it.span.end - 1;
-            let ordinal = self.open(Kind::Case, &format!("{label}/default"), at, at, Some(owner));
-            // The last case's last statement may end at the `}` with no
-            // semicolon, as minified code writes it: `return 1default:` is not
-            // a program. With no case there is no statement to end, and a bare
-            // `;` is not a clause.
-            let separator = if it.cases.is_empty() { "" } else { ";" };
-            self.push(at, format_args!("{separator}default:__va({ordinal});"));
-        }
-        label
-    }
-
-    fn guarded(&mut self, it: &TryStatement) -> String {
-        let label = self.step("try");
-        let owner = self.owner;
-
-        self.list(&it.block.body, &format!("{label}/try"), owner);
-
-        if let Some(handler) = &it.handler {
-            if let Some(param) = &handler.param {
-                self.visit_catch_parameter(param);
-            }
-            let path = format!("{label}/catch");
-            let (caught, _) = self.enter((handler.body.span.start, handler.body.span.end), true, Kind::Handler, &path);
-            self.list(&handler.body.body, &path, caught);
-        }
-
-        if let Some(finalizer) = &it.finalizer {
-            let path = format!("{label}/finally");
-            let (finished, _) = self.enter((finalizer.span.start, finalizer.span.end), true, Kind::Handler, &path);
-            self.list(&finalizer.body, &path, finished);
-        }
-        label
-    }
-
-    /// `init`, `test`, `update`, `left`, `right`, in that order, then the body.
-    fn looped(&mut self, statement: &Statement) -> String {
-        let (word, body) = match statement {
-            Statement::ForStatement(it) => ("for", &it.body),
-            Statement::ForInStatement(it) => ("for", &it.body),
-            Statement::ForOfStatement(it) => ("for", &it.body),
-            Statement::WhileStatement(it) => ("while", &it.body),
-            Statement::DoWhileStatement(it) => ("while", &it.body),
-            _ => unreachable!("only loops reach here"),
-        };
-        let label = self.step(word);
-
-        match statement {
-            Statement::ForStatement(it) => {
-                if let Some(init) = &it.init {
-                    self.visit_for_statement_init(init);
-                }
-                if let Some(test) = &it.test {
-                    self.visit_expression(test);
-                }
-                if let Some(update) = &it.update {
-                    self.visit_expression(update);
-                }
-            }
-            Statement::ForInStatement(it) => {
-                self.visit_for_statement_left(&it.left);
-                self.visit_expression(&it.right);
-            }
-            Statement::ForOfStatement(it) => {
-                self.visit_for_statement_left(&it.left);
-                self.visit_expression(&it.right);
-            }
-            Statement::WhileStatement(it) => self.visit_expression(&it.test),
-            Statement::DoWhileStatement(it) => self.visit_expression(&it.test),
-            _ => {}
-        }
-
-        self.region(body, Kind::Loop, &format!("{label}/body"));
-        label
-    }
-
     /// A function: a new name scope, a fresh path, and a region from its parameters to its end.
     ///
     /// A parameter is the function's, not the scope's that declares it: its
@@ -410,95 +293,6 @@ impl Walker {
         });
 
         self.scopes.pop();
-    }
-
-    /// `if#0`, `if#1`, `for#0` — numbered within the path that contains them.
-    fn step(&mut self, kind: &str) -> String {
-        let key = format!("{} {kind}", self.path);
-        let scope = self.scopes.last_mut().expect("the module scope is never popped");
-        let counter = scope.counts.entry(key).or_insert(0);
-        let index = *counter;
-        *counter += 1;
-        if self.path.is_empty() {
-            format!("{kind}#{index}")
-        } else {
-            format!("{}/{kind}#{index}", self.path)
-        }
-    }
-
-    /// Push the scope a declaration opens: its own name, or the next `anon#i`.
-    fn named(&mut self, own: Option<String>) {
-        let outer = self.scope();
-        let own = own.unwrap_or_else(|| {
-            let at = outer.anon;
-            outer.anon += 1;
-            format!("anon#{at}")
-        });
-        let name = if outer.name.is_empty() { own } else { format!("{}/{own}", outer.name) };
-        self.scopes.push(Scope::new(name));
-    }
-
-    /// Hand `name` to the child about to be visited, when that child can take one.
-    fn hint_for(&mut self, child: &Expression, name: impl FnOnce(&mut Self) -> Option<String>) {
-        if matches!(
-            child,
-            Expression::FunctionExpression(_) | Expression::ArrowFunctionExpression(_) | Expression::ClassExpression(_)
-        ) {
-            self.hint = name(self);
-        }
-    }
-
-    fn name_of(&mut self, expression: &Expression) -> Option<String> {
-        match expression {
-            Expression::Identifier(it) => Some(it.name.to_string()),
-            Expression::StringLiteral(it) => Some(if it.lone_surrogates {
-                spelled(&it.value)
-            } else {
-                it.value.to_string()
-            }),
-            Expression::NumericLiteral(it) => Some(it.value.to_js_string()),
-            Expression::BigIntLiteral(it) => Some(it.value.to_string()),
-            Expression::BooleanLiteral(it) => Some(it.value.to_string()),
-            Expression::NullLiteral(_) => Some("null".to_string()),
-            // `String(regex)`: the pattern as written and the flags in alphabetical
-            // order, which is the order oxc prints them in.
-            Expression::RegExpLiteral(it) => Some(it.regex.to_string()),
-            Expression::StaticMemberExpression(it) => Some(it.property.name.to_string()),
-            Expression::ComputedMemberExpression(it) => self.name_of(&it.expression),
-            Expression::PrivateFieldExpression(it) => Some(it.field.name.to_string()),
-            _ => None,
-        }
-    }
-
-    fn name_of_key(&mut self, key: &PropertyKey) -> Option<String> {
-        match key {
-            PropertyKey::StaticIdentifier(it) => Some(it.name.to_string()),
-            PropertyKey::PrivateIdentifier(it) => Some(it.name.to_string()),
-            _ => self.name_of(key.to_expression()),
-        }
-    }
-
-    fn name_of_target(&mut self, target: &AssignmentTarget) -> Option<String> {
-        match target {
-            AssignmentTarget::AssignmentTargetIdentifier(it) => Some(it.name.to_string()),
-            AssignmentTarget::StaticMemberExpression(it) => Some(it.property.name.to_string()),
-            AssignmentTarget::ComputedMemberExpression(it) => self.name_of(&it.expression),
-            AssignmentTarget::PrivateFieldExpression(it) => Some(it.field.name.to_string()),
-            _ => None,
-        }
-    }
-
-    fn arguments(&mut self, callee: &Expression, arguments: &[Argument]) {
-        self.visit_expression(callee);
-        for (index, argument) in arguments.iter().enumerate() {
-            if let Some(child) = argument.as_expression() {
-                self.hint_for(child, |w| {
-                    let callee = w.name_of(callee).unwrap_or_else(|| "call".to_string());
-                    Some(format!("{callee}.arg{index}"))
-                });
-            }
-            self.visit_argument(argument);
-        }
     }
 }
 
@@ -620,29 +414,4 @@ impl<'a> Visit<'a> for Walker {
     fn visit_ts_type_alias_declaration(&mut self, _: &TSTypeAliasDeclaration<'a>) {}
     fn visit_ts_interface_declaration(&mut self, _: &TSInterfaceDeclaration<'a>) {}
     fn visit_ts_this_parameter(&mut self, _: &TSThisParameter<'a>) {}
-}
-
-/// A string holding a lone surrogate, with each one written `\uXXXX`.
-///
-/// No JavaScript string can come back from Rust holding a lone surrogate, so
-/// `String(value)` cannot be matched and the name is spelled as it would be
-/// escaped instead. oxc encodes a lone surrogate as U+FFFD followed by its code
-/// unit in hex, and U+FFFD itself as U+FFFD followed by `fffd`.
-fn spelled(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    let mut chars = value.chars();
-    while let Some(ch) = chars.next() {
-        if ch != '\u{FFFD}' {
-            out.push(ch);
-            continue;
-        }
-        let unit: String = chars.by_ref().take(4).collect();
-        if unit == "fffd" {
-            out.push('\u{FFFD}');
-        } else {
-            out.push_str("\\u");
-            out.push_str(&unit.to_ascii_uppercase());
-        }
-    }
-    out
 }
