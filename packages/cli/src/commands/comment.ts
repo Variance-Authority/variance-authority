@@ -14,6 +14,7 @@ import {
   withoutCauseBlocks,
 } from './comment-blocks.js';
 import { picturesOf } from './comment-images.js';
+import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 
 /**
  * The run report as a pull-request comment — the docket, put where acting on it
@@ -140,7 +141,7 @@ export const DEFAULT_LIMITS: CommentLimits = {
   subjects: 3,
   notObserved: 20,
   drift: 10,
-  characters: 65_536,
+  characters: COMMENT_CHARACTERS,
 };
 
 export interface CommentOptions {
@@ -214,31 +215,9 @@ export function renderComment(options: CommentOptions): string {
   return clamp(blocks.join('\n\n'), limits.characters);
 }
 
-/**
- * Cut the body to fit, and say by how much.
- *
- * GitHub does not truncate an over-long comment, it rejects the request — so the
- * real choice is between a body that states what it dropped and no comment at
- * all. The marker is the first line, so head-truncation always leaves the poster
- * able to find and update this comment on the next run; a tail-truncating
- * implementation would strand it and start duplicating.
- *
- * The room reserved for the notice is computed against the largest number it
- * could ever state, so the notice can only get shorter than the space kept for
- * it. Slightly wasteful and provably safe, which is the correct trade for a
- * length check whose failure mode is a rejected API call nobody sees.
- */
+/** The docket cut to fit, saying that the run report itself is whole. */
 function clamp(body: string, characters: number): string {
-  if (body.length <= characters) return body;
-
-  const notice = (dropped: number): string =>
+  return clampComment(body, characters, (dropped) =>
     `\n\n> ${dropped} character(s) of this docket are not shown: the body exceeded the ` +
-    `${characters}-character comment limit. Nothing was dropped from the run report itself.`;
-
-  const room = Math.max(0, characters - notice(body.length).length);
-  const cut = body.slice(0, room);
-  const lastBreak = cut.lastIndexOf('\n');
-  const head = lastBreak > 0 ? cut.slice(0, lastBreak) : cut;
-
-  return head + notice(body.length - head.length);
+    `${characters}-character comment limit. Nothing was dropped from the run report itself.`);
 }
