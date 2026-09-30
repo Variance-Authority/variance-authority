@@ -1,5 +1,6 @@
 import { existsSync, globSync, readFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { members } from './members.js';
 
 /**
@@ -74,12 +75,15 @@ export function requested(specifier: string): string {
   return `${name} .${specifier.slice(name.length)}`;
 }
 
+/** A manifest or a tsconfig, as the object it holds; a `package.yaml` member is YAML. */
 function read(path: string): Record<string, unknown> {
   const source = readFileSync(path, 'utf8');
+  const yaml = path.endsWith('.yaml');
   try {
-    return JSON.parse(path.endsWith('tsconfig.json') ? jsonc(source) : source) as Record<string, unknown>;
+    const held: unknown = yaml ? parseYaml(source) : JSON.parse(path.endsWith('tsconfig.json') ? jsonc(source) : source);
+    return (held ?? {}) as Record<string, unknown>;
   } catch (error) {
-    throw new Error(`${path} is not readable JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`${path} is not readable ${yaml ? 'YAML' : 'JSON'}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

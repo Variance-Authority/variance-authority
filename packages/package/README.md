@@ -42,13 +42,14 @@ What it reads to find your packages:
 
 | Question | Answer |
 | --- | --- |
-| Which packages are in the workspace | The root `package.json` `workspaces` field, as an array or as `{ "packages": [...] }`, in the order it is written. Entries are globs, and an entry starting with `!` excludes what it matches. |
-| A `pnpm-workspace.yaml` | Its `packages:` list, read when the root `package.json` lists no `workspaces`. A file that is not YAML, or a `packages:` that is not a list, throws an error naming the file. |
+| Which packages are in the workspace | The root package, then the root `package.json` `workspaces` field, as an array or as `{ "packages": [...] }`, in the order it is written. Each entry is a glob for directories, read as pnpm reads it: the package is the `package.json` inside a matched directory. So a symbolic link to a package directory is a package, a wildcard does not match a directory name that starts with a dot, and an entry starting with `!` leaves out the package in each directory it matches but not the packages nested below it. |
+| A `pnpm-workspace.yaml` | Its `packages:` list, read the same way when the root `package.json` lists no `workspaces`. A directory whose manifest is a `package.yaml` is a package too. |
+| A member list that is not a list of globs | Throws an error naming the file: a `pnpm-workspace.yaml` that is not YAML or not a mapping, and a `workspaces` or `packages:` entry that is empty or is not a string. |
 | A repository with one package and no `workspaces` | Read as a single package. This is a supported case, not a degenerate one. |
 | A repository with no root `package.json` | Publishes nothing, which is an answer rather than an error. `readHelp` still reads every name the source exports. |
 | `private: true` | The only filter. A private package is skipped. |
 | TypeScript `paths` aliases | Not followed. A re-export through an alias records the name with the kind `foreign` rather than the kind behind it. |
-| A built `dist` | Never opened. A `types` target of `./dist/index.d.ts` is mapped back through that package's own `rootDir` and `outDir` to `src/index.ts`. |
+| A built `dist` | Opened only when nothing maps it back to source. A `types` target of `./dist/index.d.ts` is mapped back through that package's own `rootDir` and `outDir` to `src/index.ts`. A declaration file with no such pair to map it through is read from disk, and so is the `dist/index.d.ts` beside a bare `./dist/index.js` export in a package whose tsconfig names no `outDir`. For those subpaths, the answer depends on whether the package was built. |
 
 ```bash
 npm install --save-dev @variance-authority/package
@@ -337,11 +338,13 @@ A site is an import, not a call. `readHelp` records the line a name was brought
 into a file on, and where it is used inside that file is a question for a
 language server.
 
-What neither reads is `dist`. An emitted `.d.ts` states what a compiler
+Both read source before `dist`. An emitted `.d.ts` states what a compiler
 inferred; source states what somebody wrote, so `export const jsxDEV =
 runtime.jsxDEV` reads as a `const` where the emitted declaration would state a
-full type. Reading the other one costs a build as a precondition and pays in
-stale output.
+full type. Reading the emitted file costs a build as a precondition and pays in
+stale output, so a `.d.ts` in `dist` is read only when the package's tsconfig
+gives no way back to the source, as the table under
+[Requirements](#requirements) lists.
 
 ## What it refuses
 
@@ -361,9 +364,10 @@ silently producing a smaller surface:
 
 - `export default` an identifier, a call or a literal — `export default thing`
   throws ``src/index.ts default-exports a `Identifier`, which nothing here names``.
-- A workspace glob more elaborate than a path or `dir/*`.
-- A `types` target that maps to no file, or that sits under a package with no
-  `rootDir`/`outDir` pair to map it back through.
+- A member list that is not a list of globs, as the table under
+  [Requirements](#requirements) lists.
+- A `types` declaration file in a package with no `tsconfig.json`, or one that
+  neither maps back to a source file nor is on disk.
 - A name re-exported from a module that does not publish it.
 - A file that does not parse.
 

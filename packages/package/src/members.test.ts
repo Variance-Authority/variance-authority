@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,12 +75,13 @@ describe('the members a root manifest lists', () => {
     expect(names(root)).toEqual(['alpha', 'beta']);
   });
 
-  it('reads a member whose directory name starts with a dot', () => {
+  it('leaves a directory whose name starts with a dot out of a wildcard, as pnpm does', () => {
     const root = workspace({
       ...member('packages/.internal', 'dotted'),
+      ...member('packages/alpha', 'alpha'),
       'package.json': { private: true, workspaces: ['packages/*'] },
     });
-    expect(names(root)).toEqual(['dotted']);
+    expect(names(root)).toEqual(['alpha']);
   });
 
   it('is one package when the root lists no workspaces at all', () => {
@@ -257,6 +258,123 @@ describe('the members a `pnpm-workspace.yaml` lists', () => {
   it('refuses a `packages:` that is not a list of strings, naming the file', () => {
     const at = root('packages:\n  first: packages/*\n', member('packages/alpha', 'alpha'));
     expect(() => readOfferings(at)).toThrow(/pnpm-workspace\.yaml/);
+  });
+});
+
+describe('the members pnpm reads, where a glob alone reads differently', () => {
+  const listing = (workspaces: readonly string[]) => ({ 'package.json': { private: true, workspaces } });
+
+  it('reads a member that is a symbolic link to a directory elsewhere', () => {
+    const root = workspace({ ...member('other/real', 'real'), ...member('packages/alpha', 'alpha'), ...listing(['packages/*']) });
+    symlinkSync('../other/real', join(root, 'packages/link'));
+    expect(names(root)).toEqual(['alpha', 'real']);
+  });
+
+  it('reads a member once when a symbolic link under `**` loops back above it', () => {
+    const root = workspace({ ...member('packages/x', 'x'), ...member('packages/y', 'y'), ...listing(['packages/**']) });
+    symlinkSync('..', join(root, 'packages/x/loop'));
+    expect(names(root)).toEqual(['x', 'y']);
+  });
+
+  it("leaves a build's dot directory out of a `**` glob", () => {
+    const root = workspace({
+      ...member('packages/app', 'app'),
+      ...member('packages/app/.next/standalone', 'next-standalone'),
+      ...member('packages/app/.turbo/cache', 'turbo-cache'),
+      ...member('packages/app/.svelte-kit/output', 'svelte-kit-output'),
+      ...member('packages/app/.output/server', 'nitro-output'),
+      ...member('packages/app/.vercel/output/functions', 'vercel-output'),
+      ...listing(['packages/**']),
+    });
+    expect(names(root)).toEqual(['app']);
+  });
+
+  it('excludes only the directory a negated entry names, not the members nested under it', () => {
+    const root = workspace({
+      ...member('packages/a', 'a'),
+      ...member('packages/a/b', 'b'),
+      ...member('packages/c', 'c'),
+      ...listing(['packages/**', '!packages/a']),
+    });
+    expect(names(root)).toEqual(['b', 'c']);
+  });
+
+  it("excludes what TanStack Query's negated wildcard matches and keeps what is nested under it", () => {
+    const root = workspace({
+      ...member('examples/vue/2x', 'vue-2x'),
+      ...member('examples/vue/2x/sub', 'vue-2x-sub'),
+      ...member('examples/vue/basic', 'vue-basic'),
+      ...listing(['examples/**', '!examples/vue/2*']),
+    });
+    expect(names(root)).toEqual(['vue-2x-sub', 'vue-basic']);
+  });
+
+  it('reads the root of a pnpm workspace as a member beside the ones it lists', () => {
+    const root = workspace({
+      'package.json': { name: 'lib' },
+      'pnpm-workspace.yaml': 'packages:\n  - examples/*\n',
+      ...member('examples/demo', 'demo'),
+    });
+    expect(names(root)).toEqual(['lib', 'demo']);
+  });
+
+  it('reads the published root of an npm workspace beside the members it lists', () => {
+    const root = workspace({ 'package.json': { name: 'lib', workspaces: ['examples/*'] }, ...member('examples/demo', 'demo') });
+    expect(names(root)).toEqual(['lib', 'demo']);
+  });
+
+  it('orders siblings by name, a name before the longer names it starts', () => {
+    const root = workspace({
+      ...member('packages/b', 'b'),
+      ...member('packages/a.b', 'a.b'),
+      ...member('packages/a-b', 'a-b'),
+      ...member('packages/a', 'a'),
+      ...listing(['packages/*']),
+    });
+    expect(names(root)).toEqual(['a', 'a-b', 'a.b', 'b']);
+  });
+
+  it("orders Material UI's `mui-material` before `mui-material-nextjs`", () => {
+    const root = workspace({
+      'package.json': { name: 'mono', private: true },
+      'pnpm-workspace.yaml': listed('material-ui.yaml'),
+      ...member('packages/mui-material-nextjs', '@mui/material-nextjs'),
+      ...member('packages/mui-material', '@mui/material'),
+    });
+    expect(names(root)).toEqual(['@mui/material', '@mui/material-nextjs']);
+  });
+
+  it('reads a member whose manifest is a `package.yaml`', () => {
+    const root = workspace({
+      'package.json': { name: 'mono', private: true },
+      'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+      ...member('packages/alpha', 'alpha'),
+      'packages/yamled/package.yaml': 'name: yamled\n',
+    });
+    expect(names(root)).toEqual(['alpha', 'yamled']);
+  });
+});
+
+describe('a member list it refuses, naming the file', () => {
+  const pnpm = (yaml: string) =>
+    workspace({ 'package.json': { name: 'mono', private: true }, 'pnpm-workspace.yaml': yaml, ...member('packages/alpha', 'alpha') });
+  const npm = (workspaces: unknown) =>
+    workspace({ 'package.json': { name: 'mono', private: true, workspaces }, ...member('packages/alpha', 'alpha') });
+
+  it('an empty entry in `packages:`', () => {
+    expect(() => readOfferings(pnpm("packages:\n  - packages/*\n  - ''\n"))).toThrow(/pnpm-workspace\.yaml.*empty/);
+  });
+
+  it('an empty entry in `workspaces`', () => {
+    expect(() => readOfferings(npm(['packages/*', '']))).toThrow(/package\.json.*empty/);
+  });
+
+  it('a `pnpm-workspace.yaml` that is a list rather than a mapping', () => {
+    expect(() => readOfferings(pnpm('- packages/*\n'))).toThrow(/pnpm-workspace\.yaml/);
+  });
+
+  it('a `workspaces` entry that is not a string', () => {
+    expect(() => readOfferings(npm(['packages/*', 7]))).toThrow(/package\.json/);
   });
 });
 
