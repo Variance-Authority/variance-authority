@@ -14,6 +14,7 @@ import type { ReviewFormat } from '../review-args.js';
 import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 import { functionsIn, motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
+import { installLines } from './review-install.js';
 import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
@@ -56,7 +57,7 @@ function text(review: Review): string {
     for (const [kind, all, written] of reach) lines.push(`  ${`${all}`.padStart(5)} (${written})  ${REACH_TEXT[kind]}`);
   }
   lines.push(...casesText(review.files, (code) => code));
-  lines.push(...beforeText(review, (code) => code), ...beyondText(review, (code) => code));
+  lines.push(...beforeText(review, (code) => code), ...installLines(review, (code) => code, false));
   lines.push(...motionText(review.motion));
   const detail = review.files.flatMap((file) =>
     outermost(file).filter(worthNaming).map((region) => `  ${file.file}:${region.startLine}-${region.endLine} ${
@@ -107,7 +108,7 @@ function markdown(review: Review): string {
       file.tests !== review.suite ? `${file.tests} of ${review.suite} test files load` : file.tests === 1 ? 'the one test file loads' : `all ${file.tests} test files load`
     } it before any import.`));
   }
-  lines.push(...beyondText(review, code));
+  lines.push(...installLines(review, code, true));
   lines.push(...uncoveredMarkdown(review, mark), ...functionsMarkdown(review, mark), ...casesMarkdown(review.files, code));
   const more: string[] = [];
   const said: string[] = [];
@@ -361,21 +362,6 @@ function beforeText(review: Review, code: (value: string) => string): readonly s
     `Before any import: ${review.before.length} changed file${review.before.length === 1 ? '' : 's'} the tests declare as a precondition.`,
     ...review.before.map((file) => `- ${code(file.file)}: ${file.tests} of ${review.suite} test files`),
   ];
-}
-
-/** What the install changed, which no import in this repository shows. */
-function beyondText(review: Review, code: (value: string) => string): readonly string[] {
-  const beyond = review.beyond;
-  if (beyond === undefined) return [];
-  if ('whole' in beyond) return ['', `Installed packages: could not be compared (${beyond.whole}).`];
-  const lines: string[] = [];
-  if (beyond.packages.length > 0) {
-    lines.push('', `Installed packages changed: ${beyond.packages.map(code).join(', ')}.`);
-  }
-  if (beyond.moved.length > 0) {
-    lines.push('', `Manifests whose entry points changed: ${beyond.moved.map(code).join(', ')}.`);
-  }
-  return lines;
 }
 
 function editOf(file: ReviewFile, code: (value: string) => string): string {
