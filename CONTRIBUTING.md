@@ -208,10 +208,13 @@ yarn vitest run examples/kitchen-sink/src/measure.chromium.test.tsx
 
 ## Releasing
 
-A change that reaches the registry arrives carrying a changeset:
+A change that reaches the registry arrives carrying a changeset, and the
+`changeset` step of `check.yml` refuses a pull request that changes a published
+package without one:
 
 ```bash
-yarn changeset
+yarn changeset          # what the change does, and the bump
+yarn changeset --empty  # the change ships nothing worth a changelog line
 ```
 
 Pick the bump the *product* deserves. The packages are one `fixed` group — every

@@ -24,7 +24,12 @@ import { landingRecord } from './suite-record.js';
  * stands at the fold's commit, retires every observation the fold re-recorded
  * whole, and keeps the ones it did not. That is how a fetched baseline lands
  * under local evidence rather than deleting it, and how a full run on the
- * default branch becomes the floor every local run stands on.
+ * default branch becomes the floor every local run stands on. The runs record
+ * beside it names the local snapshot's commit as the one the fold was laid
+ * over, whatever the history between the two: a fetched baseline is usually
+ * older than the local runs, and whether that commit is where a change starts
+ * is asked of git by the review that reads it, not here, where the landing may
+ * run outside the checkout or before the other commit was fetched.
  *
  * The case index beside the target is part of the same record: `recordings()`
  * and `recordedExecutionFile` read it as the cases of the snapshot beside it.
@@ -78,27 +83,34 @@ export async function landJourneys(
   // The snapshot is read, merged and written under the lock every runner seam
   // takes on it, and the case index is laid inside that, under its own: the
   // two answer for the same runs, and a run landing between them would leave
-  // each one describing a different suite. The snapshot is staged beside the
-  // target first, so a write that fails leaves both as they were; then the
-  // index lands, so a busy index refuses before the snapshot is replaced; and
-  // the staged file is renamed over the target last, which does not fail on a
-  // full disk the way a write does. It is staged beside the target because a
-  // rename to another file system fails. The staged name ends in the pid and
-  // `.tmp`, so beside the default target prune removes it if this process dies
-  // before the `finally` does.
+  // each one describing a different suite. The runs record beside the snapshot
+  // answers for them too, and is written by `commitRunsAfter`, the rules every
+  // runner's `landRun` writes it by: the fold is one run at the shards' commit,
+  // and its test files are the ones the shards recorded. The snapshot and the
+  // record are staged beside their targets first, so a write that fails leaves
+  // everything as it was; then the index lands, so a busy index refuses before
+  // the snapshot is replaced; and the staged files are renamed over their
+  // targets last, which does not fail on a full disk the way a write does. They
+  // are staged beside the targets because a rename to another file system
+  // fails. The staged names end in the pid and `.tmp`, so beside the default
+  // target prune removes them if this process dies before the `finally` does.
   //
-  // FIXME: prune reads only `test-selection/<key>`, its `suites/<suite>` and `.work/<key>`, so beside an `--into` target elsewhere a crash leaves this file and the `<target>.<pid>-<uuid>.tmp.<pid>-<uuid>.tmp` `writeCoverageBytes` writes it through.
+  // FIXME: prune reads only `test-selection/<key>`, its `suites/<suite>` and `.work/<key>`, so beside an `--into` target elsewhere a crash leaves these files and the `<staged>.<pid>-<uuid>.tmp` `writeCoverageBytes` writes each through.
   // A fix that removes them needs a floor like prune's `RUN_FLOOR_MS`, since a pid from another host, pid namespace or skewed file-system clock reads as dead,
   // and must report a removal it could not make without failing a landing that already landed.
   //
   // FIXME: the case index and the snapshot are two files, and nothing renames
-  // them together. A crash after `landCaseIndexes` and before the rename leaves
-  // the index ahead of the snapshot. Landing again then lays the same shards'
-  // cases a second time: the index comes out right, but each lay reads as one
-  // more run at the same commit, so `layerBefore` puts the first attempt's own
-  // cases into the before layer over the base they replaced, and review
-  // compares those files with themselves.
-  const staged = `${at}.${process.pid}-${randomUUID()}.tmp`;
+  // them together. A crash after `landCaseIndexes` and before either rename,
+  // or the runs record's rename failing, leaves the index laid for a landing
+  // that did not finish. Landing again then lays the same shards' cases a
+  // second time: the index comes out right, but each lay reads as one more run
+  // at the same commit, so `layCaseRun` drops the before commit from the
+  // last-run layer, and review reports no case movement for those files and
+  // does not say why.
+  const runsAt = selection.commitRunsFile(at);
+  const stage = `${process.pid}-${randomUUID()}.tmp`;
+  const staged = `${at}.${stage}`;
+  const stagedRuns = `${runsAt}.${stage}`;
   const locked = await selection.withIndexLock(at, async () => {
     let previous;
     try {
@@ -114,15 +126,35 @@ export async function landJourneys(
       }
     }
 
+    // A runs record that cannot be read is written afresh, and said so, as a
+    // runner's `landRun` does: refusing would leave the operator to delete it
+    // and land again, which writes the same record.
+    const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const landed = selection.mergeCoverage(previous, folded);
+    const runs = selection.commitRunsAfter(previous, held, folded);
     try {
       await selection.writeTestCoverage(staged, landed);
+      await selection.writeCommitRuns(stagedRuns, runs);
       const cases = await selection.landCaseIndexes(at, root, read);
       if ('busy' in cases) throw busy(cases.busy, at);
       await rename(staged, at);
+      // FIXME: the snapshot and the runs record are two files, and nothing
+      // renames them together. A crash between these two renames, or this
+      // rename throwing, leaves the record as it was before the landing. The
+      // snapshot goes first because the other order is worse: at the same
+      // commit, a record renamed ahead of its snapshot says the shards ran on
+      // rows the snapshot does not hold yet. Landing again repairs the record:
+      // `commitRunsAfter` takes a snapshot ahead of its record for this, and
+      // carries the start and `standing` from the record the landing was laid
+      // over. What it cannot carry is a test only the interrupted landing ran:
+      // when the retry lands other shards, that test is listed where it stood
+      // before, an older commit than the one it last ran at, so `test:since`
+      // reads more of the change for it rather than less.
+      await rename(stagedRuns, runsAt);
       return { landed, cases };
     } finally {
       await rm(staged, { force: true });
+      await rm(stagedRuns, { force: true });
     }
   });
   if (!locked.held) throw busy(at, at);

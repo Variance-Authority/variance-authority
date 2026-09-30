@@ -22,6 +22,10 @@ resolves later without the context.
 mean to change, or a finding outside the task, comes out and goes to its own
 change.
 
+**Does it carry its changeset?** `yarn changeset status --since=origin/main`
+fails the same way CI does when a published package changed and no changeset
+came with it. See [change](change.md).
+
 ## Opening it
 
 Never push to `main`. The branch was cut from `origin/main` at setup, not from

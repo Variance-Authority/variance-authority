@@ -38,7 +38,7 @@ import type { ExecutionNarrowing } from './select.js';
 /** One git invocation, answering its stdout and throwing when git fails. */
 export type Git = (...args: string[]) => string;
 
-/** The tests that last ran at one commit older than the snapshot's, and what changed after. */
+/** The tests that last ran at one commit other than the snapshot's, and what changed from it. */
 export interface Stand {
   readonly commit: string;
   /** In code-unit order. */
@@ -55,9 +55,9 @@ export interface Stand {
 export interface StandReading {
   /** The commit the hunk diff and the recorded text are read from. */
   readonly base?: string;
-  /** The oldest stand, where the change starts; with `widened`, the stand git could not read. */
+  /** The stand landed earliest, the oldest along one line of history; with `widened`, the stand git could not read. */
   readonly from?: string;
-  /** Oldest first. A test in no stand is read from `base`. */
+  /** In the order they were landed. A test in no stand is read from `base`. */
   readonly stands: readonly Stand[];
   /** Why `from` is where it is, in words that follow the commit. */
   readonly says?: string;
@@ -94,12 +94,12 @@ function isAncestor(git: Git, ancestor: string, commit: string): boolean {
  *
  * A test the runs at the snapshot's commit observed stands there. Any other
  * stands where `standing` lists it. Where the record does not say, the reading
- * falls back, and `assumed` is the sentence that says how: a test the record
- * does not list is read from `over`, where the runs at the snapshot's commit
- * started, and with no record for this snapshot at all, from the snapshot's
- * commit. Runs recorded at another commit describe some other snapshot and say
- * nothing about this one; a landing that writes the snapshot without listing
- * its run leaves the record behind like that.
+ * falls back, and `assumed` is the sentence that says how: a test `standing`
+ * lists as assumed is read from where an earlier record assumed it, a test the
+ * record does not list is read from `over`, where the runs at the snapshot's
+ * commit started, and with no record for this snapshot at all, from the
+ * snapshot's commit. Runs recorded at another commit describe some other
+ * snapshot and say nothing about this one.
  */
 function standsOf({ commit, runs, tests }: { readonly commit: string; readonly runs: CommitRuns | undefined; readonly tests: readonly string[] }): {
   readonly stands: Map<string, string>;
@@ -115,16 +115,31 @@ function standsOf({ commit, runs, tests }: { readonly commit: string; readonly r
   }
   const ran = new Set(runs.files);
   const listed = new Map<string, string>();
-  for (const entry of runs.standing ?? []) for (const file of entry.files) listed.set(file, entry.commit);
+  const guessed = new Set<string>();
+  for (const entry of runs.standing ?? []) {
+    for (const file of entry.files) {
+      listed.set(file, entry.commit);
+      if (entry.assumed === true) guessed.add(file);
+    }
+  }
   const fallback = runs.over ?? commit;
   let unlisted = 0;
+  const from = new Set<string>();
   for (const test of tests) {
     if (ran.has(test)) continue;
-    if (!listed.has(test)) unlisted += 1;
-    stands.set(test, listed.get(test) ?? fallback);
+    const stand = listed.get(test) ?? fallback;
+    stands.set(test, stand);
+    if (listed.has(test) && !guessed.has(test)) continue;
+    unlisted += 1;
+    from.add(stand);
   }
   if (unlisted === 0) return { stands, assumed: undefined };
-  const where = runs.over === undefined ? `${at}, where the snapshot was recorded` : `${runs.over.slice(0, 12)}, where its runs started`;
+  const where =
+    from.size === 1 && runs.over === undefined && from.has(commit)
+      ? `${at}, where the snapshot was recorded`
+      : from.size === 1 && runs.over !== undefined && from.has(runs.over)
+        ? `${runs.over.slice(0, 12)}, where its runs started`
+        : `the commits they were assumed at, ${[...from].map((stand) => stand.slice(0, 12)).join(', ')}`;
   return { stands, assumed: `the runs record beside the snapshot does not say where ${unlisted} test(s) last ran, so they are read from ${where}` };
 }
 
@@ -187,10 +202,14 @@ export function readingFrom({
     } else note = `; the merge base with ${ref} is not before it`;
   }
 
-  // Oldest first: `standing` is in the record's own order, and `over` is where
-  // the snapshot stood before the runs at its commit, which no test in
-  // `standing` ran after. The merge base comes last: every stand descending
-  // from it was lowered onto it above, so a stand still held is older.
+  // Landing order, earliest first: `standing` is in the order its commits were
+  // landed, and `over` is the snapshot the runs at this commit were laid over,
+  // the last landed before them. Along one line of history that is oldest
+  // first; a run landed over a newer commit (a suite run after checking out an
+  // older one, or the main line's shards landed over a branch's runs) puts a
+  // newer stand ahead of an older one, and ordering by ancestry would cost a
+  // git call per stand. The merge base comes last: every stand descending from
+  // it was lowered onto it above, so no stand still held is after it.
   const order = [
     ...new Set([
       ...(runs?.commit === commit ? [...(runs.standing ?? []).map((entry) => entry.commit), ...(runs.over === undefined ? [] : [runs.over])] : []),
@@ -201,16 +220,16 @@ export function readingFrom({
   for (const [test, stand] of stands) {
     if (stand !== commit) grouped.set(stand, [...(grouped.get(stand) ?? []), test]);
   }
-  const older = [...grouped.keys()].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  const landed = [...grouped.keys()].sort((a, b) => order.indexOf(a) - order.indexOf(b));
   const said = assumed === undefined ? '' : `; ${assumed}`;
-  if (older.length === 0) return { base: commit, from: commit, stands: [], says: `where the snapshot was recorded${note}${said}`, ...also };
+  if (landed.length === 0) return { base: commit, from: commit, stands: [], says: `where the snapshot was recorded${note}${said}`, ...also };
 
   const at = commit.slice(0, 12);
-  const from = older[0]!;
+  const first = landed[0]!;
   const reason =
-    from === merged ? `the merge base with ${ref}` : `where ${grouped.get(from)!.length} test(s) the runs at ${at} did not run last ran`;
+    first === merged ? `the merge base with ${ref}` : `where ${grouped.get(first)!.length} test(s) the runs at ${at} did not run last ran`;
   const read: Stand[] = [];
-  for (const stand of older) {
+  for (const stand of landed) {
     const standing = grouped.get(stand)!.sort();
     try {
       // FIXME: a submodule's change lists only its gitlink path here, so neither a
@@ -231,9 +250,9 @@ export function readingFrom({
   const count = read.reduce((sum, stand) => sum + stand.tests.length, 0);
   return {
     base: commit,
-    from,
+    from: first,
     stands: read,
-    says: `${reason}${note}; ${whole.size} file(s) changed up to ${at}, where the snapshot was recorded, are read whole for the ${count} test(s) that last ran before it${said}`,
+    says: `${reason}${note}; ${whole.size} file(s) changed between the commits ${count} test(s) last ran at and ${at}, where the snapshot was recorded, are read whole for them${said}`,
     ...also,
   };
 }

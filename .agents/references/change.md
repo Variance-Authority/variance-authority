@@ -26,6 +26,20 @@ file that does two jobs is split, not extended.
 | `docs/context/checkpoint.md` | Current state of the whole. | Present, dated |
 | `README.md`, `packages/*/README.md`, `cases/*/README.md` | Entry points. Route the reader; do not restate a doc. | Present |
 | Source docstrings | Why this code is shaped this way. | Present |
+| `.changeset/*.md` | What this change does to a published package, for someone upgrading. | Present |
+
+**Does it ship?** A change to a published package's code, manifest, schema or
+skills carries a changeset: `yarn changeset`, the product's bump, and a body
+saying what the user sees and runs. It is written with the change, because only
+its author knows what the change does; at release time it is reconstructed from
+diffs, or it is missing and the changelog says only that the version moved.
+[`.changeset/README.md`](../../.changeset/README.md) shows one. A change that
+touches a package and ships nothing worth naming — a build script, an internal
+rename — carries `yarn changeset --empty`, which says so. The `changeset` step
+in [`check.yml`](../../.github/workflows/check.yml) runs `yarn changeset status`
+against the base and refuses a pull request with neither. Tests, fixtures and a
+package's README do not count as a change; `changedFilePatterns` in
+[`.changeset/config.json`](../../.changeset/config.json) lists what does not.
 
 **Who reads the sentence?** [`docs/AGENTS.md`](../../docs/AGENTS.md) holds who
 the reader is, what to read before writing, the editorial direction, and the

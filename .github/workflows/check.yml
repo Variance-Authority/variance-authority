@@ -69,6 +69,29 @@ jobs:
         shell: bash
         run: corepack enable && yarn install --immutable
 
+      # A pull request that changes a published package carries a changeset, or
+      # an empty one saying the change ships nothing a changelog should name.
+      # Most of the pull requests merged after 0.12.0 had none, and the release
+      # they were headed for described two of them. Which files
+      # count as a change to a package is `changedFilePatterns` in
+      # `.changeset/config.json`: tests, fixtures and a package's own README and
+      # changelog do not.
+      #
+      # The version pull request is the one change that removes changesets
+      # rather than adding them, so it is not asked. It is recognised by its
+      # branch and by coming from this repository: a fork can name a branch
+      # `changeset-release/main` too, and is asked like any other. The history is fetched
+      # because the question is asked from where the branch left its base, and
+      # this checkout holds one commit.
+      - name: changeset
+        if: ${{ github.event_name == 'pull_request' && !(github.head_ref == 'changeset-release/main' && github.event.pull_request.head.repo.full_name == github.repository) }}
+        shell: bash
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --quiet --unshallow origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"
+          yarn changeset status --since="origin/$BASE"
+
       # Build first, and not only to catch type errors: the documentation check
       # compiles each README example against each package's built `.d.ts`,
       # because that is the file a consumer's editor resolves (ADR-0014). A
