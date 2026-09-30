@@ -74,9 +74,12 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   if (read === undefined) {
     const size = await sized(absolute);
     if (size !== undefined && size > largestFile) {
+      // Declined for its bytes, so the record names them when git already
+      // has: an unchanged file is kept, not opened to be declined again.
       return {
         record: {
           file,
+          ...(digest === undefined ? {} : { digest }),
           unknown:
             `${file} is ${size} bytes, over the ${largestFile} this scan opens: ` +
             'parsing it costs about fifty times that in memory, and it is almost ' +

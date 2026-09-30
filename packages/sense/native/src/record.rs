@@ -74,9 +74,14 @@ pub struct Settling<'a> {
 pub fn built(file: &str, identity: &str, read: &Read, parsed: bool, targets: &[String], settling: &Settling) -> Indexed {
     let unknown = read.unknown.as_deref().filter(|reason| !reason.is_empty());
     if !parsed {
+        // A file declined for its size is declined for its bytes, so the record
+        // names them and the next update keeps it rather than opening the file
+        // to decline it again. A read that failed names nothing: it is tried
+        // again, because what failed it may not hold next time.
         return Indexed {
             record: FileRecord {
                 file: file.to_owned(),
+                digest: (read.oversized && !identity.is_empty()).then(|| identity.to_owned()),
                 unknown: unknown.map(str::to_owned),
                 ..FileRecord::default()
             },

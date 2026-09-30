@@ -86,6 +86,22 @@ describe('variance index', () => {
       .toBe(`source index updated: 2 files, 1 read again, at ${at}\n${unprepared(root)}`);
   });
 
+  it('keeps a file it declined for its size until the file changes, rather than opening it on every update', async () => {
+    const root = checkout();
+    const at = sourceIndexPath(root);
+    // Past the megabyte the scan opens, which is where a built bundle sits.
+    const bundle = (size: string): string => `export const bundle = '${size.repeat(1024 * 1024 + 1)}';\n`;
+    writeFileSync(join(root, 'src/bundle.js'), bundle('a'));
+    execFileSync('git', ['add', '-A'], { cwd: root, stdio: 'pipe' });
+    execFileSync('git', ['commit', '--quiet', '-m', 'a bundle'], { cwd: root, stdio: 'pipe' });
+
+    expect((await run(['index'])).out.split('\n')[0]).toBe(`source index built: 3 files, at ${at}`);
+    expect((await indexOutput({ cwd: root })).split('\n')[0]).toBe(`source index updated: 3 files, 0 read again, at ${at}`);
+
+    writeFileSync(join(root, 'src/bundle.js'), bundle('b'));
+    expect((await indexOutput({ cwd: root })).split('\n')[0]).toBe(`source index updated: 3 files, 1 read again, at ${at}`);
+  });
+
   it("waits while another checkout's index holds the machine's index turn, and names that process and its checkout once", async () => {
     const root = checkout();
     // The holder says so from inside its turn, and lets go on the first line it reads.

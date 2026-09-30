@@ -30,6 +30,8 @@ pub struct ReadBatch {
     pub parses: Vec<String>,
     /// One when bytes were parsed, including when JSON was not requested.
     pub parsed: Buffer,
+    /// One when the file was declined for its size rather than failed.
+    pub oversized: Buffer,
     pub declare_counts: Uint32Array,
     pub declares: Vec<String>,
 }
@@ -47,6 +49,7 @@ pub struct ScanBatch {
     pub kinds: Buffer,
     pub parses: Vec<String>,
     pub parsed: Buffer,
+    pub oversized: Buffer,
     pub declare_counts: Uint32Array,
     pub declares: Vec<String>,
     /// Repository-relative target per request, or empty when unresolved.
@@ -332,6 +335,7 @@ fn scan_columns(
         kinds: columns.kinds,
         parses: columns.parses,
         parsed: columns.parsed,
+        oversized: columns.oversized,
         declare_counts: columns.declare_counts,
         declares: columns.declares,
         targets: targets.into_iter().flatten().collect(),
@@ -354,11 +358,13 @@ fn columns(read: Vec<(Read, String, bool)>, include_parses: bool) -> ReadBatch {
     let mut kinds = Vec::with_capacity(total);
     let mut parses = Vec::with_capacity(read.len());
     let mut parsed_flags = Vec::with_capacity(read.len());
+    let mut oversized = Vec::with_capacity(read.len());
     let mut declare_counts = Vec::with_capacity(read.len());
     let mut declares = Vec::new();
 
     for (held, digest, parsed) in read {
         parsed_flags.push(u8::from(parsed));
+        oversized.push(u8::from(held.oversized));
         parses.push(if parsed && include_parses {
             serde_json::to_string(&held).unwrap_or_default()
         } else {
@@ -383,6 +389,7 @@ fn columns(read: Vec<(Read, String, bool)>, include_parses: bool) -> ReadBatch {
         kinds: kinds.into(),
         parses,
         parsed: parsed_flags.into(),
+        oversized: oversized.into(),
         declare_counts: Uint32Array::new(declare_counts),
         declares,
     }

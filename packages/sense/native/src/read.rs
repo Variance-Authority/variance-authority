@@ -96,6 +96,9 @@ pub struct Read {
     pub unknown: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) size: Option<Size>,
+    /// Declined for its size, which the bytes decide, so the record names them.
+    #[serde(skip)]
+    pub(crate) oversized: bool,
 }
 
 pub(crate) struct Lines(Vec<usize>);
@@ -322,6 +325,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         members,
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
+        oversized: false,
     }
 }
 

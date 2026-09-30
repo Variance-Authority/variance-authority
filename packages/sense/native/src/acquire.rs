@@ -165,6 +165,7 @@ fn read_blob<R: BufRead>(
         return (
             Read {
                 unknown: Some(too_large(file, size, largest)),
+                oversized: true,
                 ..Read::default()
             },
             String::new(),
@@ -307,11 +308,12 @@ fn parse_all(
 }
 
 fn open<'a>(root: &Path, file: &'a str, largest: u64, digests: bool) -> (&'a str, Opened, String) {
-    let settled = |unknown| {
+    let settled = |unknown, oversized| {
         (
             file,
             Opened::Settled(Read {
                 unknown: Some(unknown),
+                oversized,
                 ..Read::default()
             }),
             String::new(),
@@ -319,18 +321,18 @@ fn open<'a>(root: &Path, file: &'a str, largest: u64, digests: bool) -> (&'a str
     };
     let mut held = match fs::File::open(root.join(file)) {
         Ok(held) => held,
-        Err(error) => return settled(format!("{file} could not be read: {error}")),
+        Err(error) => return settled(format!("{file} could not be read: {error}"), false),
     };
     let size = match held.metadata() {
         Ok(held) => held.len(),
-        Err(error) => return settled(format!("{file} could not be read: {error}")),
+        Err(error) => return settled(format!("{file} could not be read: {error}"), false),
     };
     if size > largest {
-        return settled(too_large(file, size, largest));
+        return settled(too_large(file, size, largest), true);
     }
     let mut source = String::with_capacity(size as usize);
     if let Err(error) = held.read_to_string(&mut source) {
-        return settled(format!("{file} could not be read: {error}"));
+        return settled(format!("{file} could not be read: {error}"), false);
     }
     let digest = if digests {
         digest::of_string(&source)

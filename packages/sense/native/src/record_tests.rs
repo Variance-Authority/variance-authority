@@ -17,11 +17,27 @@ fn request(value: &str, kind: Kind) -> Request {
 fn an_unread_file_is_its_reason_alone() {
     let (builtins, code, directories) = (set(&[]), set(&[]), set(&[]));
     let settling = Settling { builtins: &builtins, code: &code, remembering: true, directories: &directories, aliases: None };
-    let read = Read { unknown: Some("too large".to_owned()), ..Read::default() };
+    let read = Read { unknown: Some("a.ts could not be read: EMFILE".to_owned()), ..Read::default() };
     let held = built("a.ts", "git:x", &read, false, &[], &settling);
-    assert_eq!(serde_json::to_string(&held.record).unwrap(), r#"{"file":"a.ts","unknown":"too large"}"#);
+    assert_eq!(
+        serde_json::to_string(&held.record).unwrap(),
+        r#"{"file":"a.ts","unknown":"a.ts could not be read: EMFILE"}"#
+    );
     assert!(held.witnesses.is_empty());
     assert!(held.targets.is_none());
+}
+
+#[test]
+fn a_file_declined_for_its_size_names_the_bytes_it_declined() {
+    let (builtins, code, directories) = (set(&[]), set(&[]), set(&[]));
+    let settling = Settling { builtins: &builtins, code: &code, remembering: true, directories: &directories, aliases: None };
+    let read = Read { unknown: Some("too large".to_owned()), oversized: true, ..Read::default() };
+    let held = built("a.ts", "git:x", &read, false, &[], &settling);
+    assert_eq!(
+        serde_json::to_string(&held.record).unwrap(),
+        r#"{"file":"a.ts","digest":"git:x","unknown":"too large"}"#
+    );
+    assert!(held.witnesses.is_empty());
 }
 
 #[test]

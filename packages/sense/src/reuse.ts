@@ -58,6 +58,13 @@ import type { NativeIndexGraph } from './native-index-graph.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
 import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
 import { treeOf, type Tree } from './tree.js';
+
+/**
+ * What decides a record besides the files: how specifiers resolve, and the
+ * size past which a file is declined. A declined record names the bytes it
+ * declined, so a raised limit has to move the digest or it would keep them.
+ */
+export type ShapeOptions = ResolveOptions & { readonly largestFile?: number };
 import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
 
 /** The tree as reuse sees it: one digest for the configuration, one per directory. */
@@ -144,7 +151,7 @@ const LAYOUT_FILES = [
 export async function treeShapeOf(input: {
   readonly root: string;
   readonly digests: ReadonlyMap<string, Digest>;
-  readonly options?: ResolveOptions;
+  readonly options?: ShapeOptions;
 }): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases | undefined }> {
   const { digests, ...rest } = input;
 
@@ -161,7 +168,7 @@ export async function treeShapeOf(input: {
 export async function shapeOf(input: {
   readonly root: string;
   readonly tree: Tree;
-  readonly options?: ResolveOptions;
+  readonly options?: ShapeOptions;
 }): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases | undefined }> {
   const { config, aliases } = await configOf(input);
   return { shape: { config, directories: input.tree.directories() }, aliases };
@@ -175,7 +182,7 @@ export async function shapeOf(input: {
 export async function configOf(input: {
   readonly root: string;
   readonly tree: Tree;
-  readonly options?: ResolveOptions;
+  readonly options?: ShapeOptions;
 }): Promise<{ readonly config: Digest; readonly aliases: Aliases | undefined }> {
   const { root, tree, options } = input;
   // `aliasesIn` reads configuration files, so it wants the configuration files —
@@ -194,6 +201,9 @@ export async function configOf(input: {
     options?.conditionNames === undefined
       ? `conditions ${DEFAULT_CONDITIONS.join(',')} + tsconfig customConditions`
       : `conditions ${options.conditionNames.join(',')}`,
+    // Named only when a caller names it, so every run at the default keeps
+    // the digest it had before a limit was part of it.
+    ...(options?.largestFile === undefined ? [] : [`largest ${options.largestFile}`]),
   ];
 
   return {
