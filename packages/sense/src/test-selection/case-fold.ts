@@ -1,8 +1,7 @@
-import { existsSync } from 'node:fs';
-import { readFile, readdir, rm } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { layerBefore, layerCaseIndex } from './case-layer.js';
-import { noteABusyIndex, withIndexLock } from './index-lock.js';
+import { layCaseRun, type LaidRun } from './case-landing.js';
+import { noteABusyCaseIndex, withIndexLock } from './index-lock.js';
 import type { ModuleId } from '../instrument/index.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
@@ -16,7 +15,7 @@ import {
 import { AMBIENT, executionIndexFrom, readCaseJournals, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { executionIndexBytes } from './execution-format.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
-import { writeCoverageBytes, type CoverageTest } from './index.js';
+import { writeCoverageBytes } from './index.js';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 
@@ -188,95 +187,19 @@ export async function writeCaseIndex(
   const inspected = await inspectCaseRun(directory, root, run.durations);
   if (inspected.tests.length === 0 && !finished) return;
   const fresh = (await foldCaseRun(inspected, modules)).bytes;
-  const layers = caseLayerFiles(file);
-  const written = await withIndexLock(file, async () => {
-    const ran = new Set(run.tests.map((test) => test.file));
-    const { merged, last, before: retired } = layerCaseIndex(await readIfThere(file), fresh, {
-      ran,
-      finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
-      present: (test) => existsSync(resolve(root, test)),
-    });
-    const prior = await readLastRun(layers.last);
-    // One more run at the commit the last one was made at: an invocation of
-    // the same suite, not a new change, so what the runs before it retired
-    // stays under what this one retired.
-    const again = run.commit !== undefined && prior?.commit === run.commit;
-    const before = again ? layerBefore(await readIfThere(layers.before), retired, ran) : retired;
-    const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior?.commit;
-    await writeCoverageBytes(file, merged);
-    const files = [...ran].sort(codeUnitOrder);
-    const named: LastCaseRun = {
-      ...(run.commit === undefined ? {} : { commit: run.commit }),
-      ...(before === undefined || at === undefined ? {} : { before: at }),
-      at: new Date().toISOString(),
-      files: again ? [...new Set([...prior.files, ...files])].sort(codeUnitOrder) : files,
-      cases: last,
-    };
-    await writeCoverageBytes(layers.last, Buffer.from(`${JSON.stringify(named, null, 2)}\n`));
-    // Absent is not empty: with no index to take them from, there is no before.
-    if (before === undefined) await rm(layers.before, { force: true });
-    else await writeCoverageBytes(layers.before, before);
-  });
-  if (!written.held) noteABusyIndex(file);
+  // FIXME: the seam released the snapshot's lock before this takes the case
+  // index's, and a landing can run in between: the snapshot then holds this run
+  // under the fold, and the index holds the fold under this run, so for a file
+  // both finished the two answer from different runs. Take this lock inside the
+  // snapshot's, as a landing does.
+  const written = await withIndexLock(file, (lock) => layCaseRun(lock, fresh, root, run));
+  if (!written.held) noteABusyCaseIndex(file);
 }
 
 /** What a run tells the case index about itself. */
-export interface CaseRunTests {
-  /** Every test file the run was handed, and whether it ran to the end. */
-  readonly tests: readonly Pick<CoverageTest, 'file' | 'complete'>[];
-  /** The commit the run was made at, as the snapshot carries it. */
-  readonly commit?: string;
+export interface CaseRunTests extends LaidRun {
   /** Each case's duration as the runner reported it; absent, no case is timed. */
   readonly durations?: CaseDurations;
-}
-
-/**
- * The run that wrote the case index last. Its cases are in the index itself,
- * as that run left them, so this names them and holds nothing else.
- */
-export interface LastCaseRun {
-  readonly commit?: string;
-  /**
-   * The commit the cases in the before layer were recorded at: the commit of
-   * the run that wrote the index before the first run at this one. Absent
-   * when that run named none, and when a run at this commit ran a file again,
-   * because that file's before is then this commit's own.
-   */
-  readonly before?: string;
-  readonly at: string;
-  /** Every test file the runs at this commit announced, so a run can tell whether it ran one again. */
-  readonly files: readonly string[];
-  /** The cases the last run recorded, by id. */
-  readonly cases: readonly string[];
-}
-
-/**
- * The two layers kept beside a case index: the run that wrote it last, and what
- * the index held for that run's files before it landed.
- */
-export function caseLayerFiles(file: string): { readonly last: string; readonly before: string } {
-  const stem = file.endsWith('.bin') ? file.slice(0, -'.bin'.length) : file;
-  return { last: `${stem}.last.json`, before: `${stem}.before.bin` };
-}
-
-/** The run that wrote the index last, or `undefined` when none named itself or its name cannot be read. */
-async function readLastRun(file: string): Promise<LastCaseRun | undefined> {
-  const bytes = await readIfThere(file);
-  if (bytes === undefined) return undefined;
-  try {
-    return JSON.parse(bytes.toString('utf8')) as LastCaseRun;
-  } catch {
-    return undefined;
-  }
-}
-
-async function readIfThere(file: string): Promise<Buffer | undefined> {
-  try {
-    return await readFile(file);
-  } catch (error) {
-    if (isMissing(error)) return undefined;
-    throw error;
-  }
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { JourneyParting, JourneyRegionRecord, JourneysReport } from '@variance-authority/report';
+import type { CaseLanding } from '@variance-authority/sense/test-selection';
 import { many } from './reach.js';
 
 /**
@@ -113,7 +114,15 @@ export interface LandedJourneys {
   /** Whole and truncated observations the landed snapshot now holds. */
   readonly observations: number;
   readonly modules: number;
+  /**
+   * What the landing did to the case index beside the file written. Never a
+   * busy index: that refuses the landing, and nothing is written to report on.
+   */
+  readonly cases?: LandedCases;
 }
+
+/** A case landing that wrote, or removed, what it came to. */
+export type LandedCases = Exclude<CaseLanding, { readonly busy: string }>;
 
 export interface JourneysInput extends JourneyReading {
   readonly pool: JourneyPool;
@@ -319,7 +328,21 @@ export function formatLanding(landed: LandedJourneys): string {
     `folded ${many(landed.shards, 'snapshot')} into ${landed.at}`,
     `  ${many(landed.observations, 'observation')} over ${many(landed.modules, 'module')}` +
       (landed.commit === undefined ? '' : `, recorded at ${landed.commit.slice(0, 12)}`),
+    ...(landed.cases === undefined ? [] : [casesLine(landed.cases)]),
   ].join('\n');
+}
+
+function casesLine(cases: LandedCases): string {
+  if ('laid' in cases) {
+    return cases.shards === 0
+      ? `  case index at ${cases.laid} left as it was: no snapshot finished a test file`
+      : `  cases of ${many(cases.shards, 'snapshot')} laid over ${cases.laid}`;
+  }
+  const why = `${cases.shard} ran a test file to the end, and there is no case index this build can read at ${cases.shard}.cases.bin`;
+  return cases.removed
+    ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of that file's cases run a line. ` +
+        'Record cases in the runs that write the shards, or run the suite here, to write one.'
+    : `  no case index at ${cases.unanswered}: ${why}`;
 }
 
 export function formatJourneys(result: Journeys): string {

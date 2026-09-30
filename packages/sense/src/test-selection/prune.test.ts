@@ -215,6 +215,8 @@ test('a running process is the writer only of what was written after it started'
 test('scratchPid reads the process a scratch name belongs to', () => {
   expect(scratchPid('.run-4242-9f')).toBe(4242);
   expect(scratchPid('coverage.bin.4242-x.tmp')).toBe(4242);
+  // The snapshot a landing stages before it renames it over the target.
+  expect(scratchPid('coverage.bin.4242-3f0c9a52-7d1e-4b6a-9c2f-5e8d1a0b4c77.tmp')).toBe(4242);
   expect(scratchPid('coverage.bin.4242.3.tmp')).toBe(4242);
   expect(scratchPid('coverage.bin.1092.seed')).toBe(0x1092);
   expect(scratchPid('orphan.tmp')).toBeUndefined();

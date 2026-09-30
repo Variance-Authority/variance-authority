@@ -149,8 +149,9 @@ export function foldRun(
     // could record a case: one whose files ran in a page could not. One that
     // could, and recorded no case and finished no file — no worker loaded this
     // seam's modules — is declined by the writer, which leaves the index there
-    // as it was.
-    if (run.cases) {
+    // as it was. A run the snapshot did not take lays no cases either, or the
+    // index would answer for a run the snapshot beside it never saw.
+    if (run.cases && merged.held) {
       await writeCaseIndex(executionFile, caseDirectory, root, modules, {
         tests,
         ...(commit === undefined ? {} : { commit }),

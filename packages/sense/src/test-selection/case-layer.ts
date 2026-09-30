@@ -69,6 +69,12 @@ export function layerCaseIndex(
   if (run === undefined) throw new Error('a case fold wrote an index it cannot open');
   const last = run.tests.map((test) => test.id);
   const held = openPrevious(previous);
+  // FIXME: no index is read as no other cases, and a landing that removed the
+  // index leaves exactly that. The next local run then writes its own files'
+  // cases alone, and that partial index stands for the whole suite beside a
+  // snapshot that still holds every file — the state `seedTestCoverage` keeps a
+  // worktree's first run out of. An index that is absent beside a snapshot that
+  // is not should be laid only over what it can answer for.
   if (held === undefined) return { merged: Buffer.from(fresh), last };
 
   const gone = (file: string): boolean => files.finished.has(file) || !files.present(file);

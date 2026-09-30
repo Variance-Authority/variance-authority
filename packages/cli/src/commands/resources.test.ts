@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { existsSync } from 'node:fs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type { TestCoverage } from '@variance-authority/sense/test-selection';
 import { landJourneys } from './land.js';
 import { recordedJourneys } from './resources.js';
@@ -19,7 +23,10 @@ const { readTestCoverage, writeTestCoverage } = vi.hoisted(() => ({
   writeTestCoverage: vi.fn(),
 }));
 
-const CACHED = '/cache/variance-authority/test-selection/abc/coverage.bin';
+// A real directory: the snapshots are stood in for, and the lock a landing
+// takes on the record, and the case index it keeps beside it, are on disk.
+const DISK = join(tmpdir(), `variance-resources-${process.pid}`);
+const CACHED = join(DISK, 'cache/variance-authority/test-selection/abc/coverage.bin');
 
 vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => ({
   // The fold and the layer are the package's own; only the disk is stood in for.
@@ -34,6 +41,10 @@ vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => ({
 afterEach(() => {
   readTestCoverage.mockReset();
   writeTestCoverage.mockReset();
+});
+
+afterAll(async () => {
+  await rm(DISK, { recursive: true, force: true });
 });
 
 const COVERAGE: TestCoverage = {
@@ -172,13 +183,32 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
     };
   }
 
-  /** The disk: shards where they were named, and whatever is at the target. */
+  /**
+   * The disk: shards where they were named, and whatever is at the target. A
+   * write leaves a file where it was aimed, because a landing stages the
+   * snapshot beside the target and renames it over.
+   */
   function disk(files: Record<string, TestCoverage>) {
     readTestCoverage.mockImplementation(async (path: string) => {
       const found = files[path];
       if (found === undefined) throw missing();
       return found;
     });
+    writeTestCoverage.mockImplementation(async (path: string) => {
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, '');
+    });
+  }
+
+  /** The snapshot a landing wrote, staged beside `target` and now in its place. */
+  function landedAt(target: string): TestCoverage {
+    expect(writeTestCoverage).toHaveBeenCalledTimes(1);
+    const [staged, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
+    expect(dirname(staged)).toBe(dirname(target));
+    expect(staged.startsWith(`${target}.`) && staged.endsWith('.tmp')).toBe(true);
+    expect(existsSync(staged)).toBe(false);
+    expect(existsSync(target)).toBe(true);
+    return written;
   }
 
   it('folds the shards and lands the union in the cache, saying where it stands', async () => {
@@ -186,10 +216,12 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
 
     const landed = await landJourneys('/repo', ['/ci/shard-1.bin', '/ci/shard-2.bin']);
 
-    expect(landed).toEqual({ at: CACHED, shards: 2, commit: 'c0ffee', observations: 2, modules: 1 });
-    expect(writeTestCoverage).toHaveBeenCalledTimes(1);
-    const [at, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
-    expect(at).toBe(CACHED);
+    // No shard left cases beside it, and there is no index here to drop.
+    expect(landed).toEqual({
+      at: CACHED, shards: 2, commit: 'c0ffee', observations: 2, modules: 1,
+      cases: { unanswered: `${CACHED}.cases.bin`, shard: '/ci/shard-1.bin', removed: false },
+    });
+    const written = landedAt(CACHED);
     expect(written.tests.map((test) => test.file)).toEqual(['story:a', 'story:b']);
     expect(written.modules[0]?.blocks[0]?.testFiles).toEqual(['story:a', 'story:b']);
   });
@@ -197,10 +229,11 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
   it('lands where --into says instead, and the reading is pointed there', async () => {
     disk({ '/ci/shard-1.bin': shardOf('story:a') });
 
-    const landed = await landJourneys('/repo', ['/ci/shard-1.bin'], '/tmp/folded.bin');
+    const into = join(DISK, 'folded.bin');
+    const landed = await landJourneys('/repo', ['/ci/shard-1.bin'], into);
 
-    expect(landed.at).toBe('/tmp/folded.bin');
-    expect(writeTestCoverage.mock.calls[0]?.[0]).toBe('/tmp/folded.bin');
+    expect(landed.at).toBe(into);
+    landedAt(into);
   });
 
   it('layers the fold over what was already there, so a baseline lands under local evidence', async () => {
@@ -216,7 +249,7 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
     const landed = await landJourneys('/repo', ['/ci/shard-1.bin', '/ci/shard-2.bin']);
 
     expect(landed).toMatchObject({ commit: 'c0ffee', observations: 3 });
-    const [, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
+    const written = landedAt(CACHED);
     expect(written.tests.map((test) => test.file)).toEqual(['story:a', 'story:b', 'story:local']);
   });
 
