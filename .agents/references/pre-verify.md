@@ -76,12 +76,17 @@ recording: a worktree that has not run reads the primary checkout's, and a
 checkout where `yarn test` has never run has nothing to read.
 
 ```bash
-yarn test:since                    # since the commit the snapshot was recorded at
+yarn test:since                    # since the commit each test last ran at
 yarn test:since main               # since the merge base with main
 yarn test:since --dry-run          # decide, explain, run nothing
 yarn test:since --at-distance 0-2  # only the tests within two imports of the change
 yarn test:since --help             # every flag
 ```
+
+Each test is read from the commit it last ran at, so a leg that landed leaves
+the next leg the tests it did not run. Once every test has run at the
+snapshot's commit, the reading starts there. A ref reads every test from no
+later than the merge base with it.
 
 It selects on what the recording measured, and on nothing else. Each changed
 file is read from both of its texts first, and prints a `read` line saying what
