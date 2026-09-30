@@ -224,6 +224,16 @@ describe('which subpaths an `exports` field opens', () => {
     ]);
   });
 
+  it('finds the declarations of a subpath under conditions nested two deep', () => {
+    expect(
+      opened({
+        'package.json': { name: 'deep', exports: { '.': { node: { import: { types: './dist/index.d.ts' } } } } },
+        'tsconfig.json': { compilerOptions: { rootDir: './src', outDir: './dist' } },
+        'src/index.ts': 'export const one = 1;\n',
+      }),
+    ).toEqual([['.', '/src/index.ts']]);
+  });
+
   it('reads an object with no `.` key as the conditions of `.`, a custom condition included', () => {
     // `@tanstack/solid-query`'s shape. Read as subpaths, it published
     // `@tanstack/solid-querytanstack/custom-condition` and no `.` at all.
