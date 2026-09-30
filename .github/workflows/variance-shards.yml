@@ -128,8 +128,7 @@ jobs:
       - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       # The subject has to exist before a shard can slice it. Every shard builds
       # its own copy: `storybook-static/` is ignored and a build artifact passed
@@ -232,8 +231,7 @@ jobs:
       - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       - uses: actions/download-artifact@v4
         with:

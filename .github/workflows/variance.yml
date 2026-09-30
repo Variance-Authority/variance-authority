@@ -252,8 +252,7 @@ jobs:
       - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       # The subject has to exist before it can be observed, and Storybook's own
       # build is what produces the `index.json` the collector reads. `yarn build`
