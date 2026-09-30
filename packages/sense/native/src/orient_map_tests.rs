@@ -78,7 +78,9 @@ fn publish(index: &str) {
                 format!(r#"{{"value": "{value}", "kind": "imports", "line": 1, "bindings": [{{"imported": "make", "local": "make", "type": false, "line": 1}}]}}"#)
             })
             .collect();
-        parses.push(format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [{}]}}]"#, requests.join(", ")));
+        // Every file holds ten lines of code but the tools family's, whose parses stored no size.
+        let size = if family == "tools" { String::new() } else { r#", "size": {"bytes": 200, "lines": 10}"#.to_owned() };
+        parses.push(format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [{}]{size}}}]"#, requests.join(", ")));
     }
     let document = format!(r#"{{"records": [{}], "parses": [{}], "deletedRecords": [], "deletedParses": []}}"#, records.join(", "), parses.join(", "));
     let segment = merged(&[], &Delta::of(vec![document]).unwrap());
@@ -183,7 +185,7 @@ fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside
 fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     let (_root, root, index) = indexed("placed");
     prepare_orient_map(&root, &index, Some(true)).unwrap().expect("an index");
-    let answer = crate::orient_map::orient_layers(index).unwrap().expect("a kept map");
+    let answer = crate::orient_map_layers::orient_layers(index).unwrap().expect("a kept map");
     assert!(answer.current && answer.unmade.is_none());
     let packages = answer.packages.expect("a folded map");
     let layer = |name: &str| packages.iter().find(|package| package.package == name).unwrap();
@@ -194,6 +196,26 @@ fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     assert_eq!(layer("@t/server-0").takes, ["@t/ui-0"]);
     assert_eq!(layer("@t/server-0").layer, 2);
     assert_eq!(packages.iter().map(|package| package.layer).max(), Some(6));
+}
+
+#[test]
+fn every_package_reads_back_with_the_lines_its_shipped_files_pull_in() {
+    let (_root, root, index) = indexed("closures");
+    prepare_orient_map(&root, &index, Some(true)).unwrap().expect("an index");
+    let packages = crate::orient_map_layers::orient_layers(index.clone()).unwrap().unwrap().packages.unwrap();
+    let size = |name: &str| {
+        let package = packages.iter().find(|package| package.package == name).unwrap();
+        (package.lines, package.own, package.files, package.unsized_files)
+    };
+    assert_eq!(size("@t/data-0"), (10.0, 10.0, 1, 0));
+    // Each member takes every member before it, so the last pulls in the family.
+    assert_eq!(size("@t/data-4"), (50.0, 10.0, 5, 0));
+    assert_eq!(size("@t/server-1"), (30.0, 10.0, 3, 0));
+    // A file with no stored size is counted as unsized, never as empty.
+    assert_eq!(size("@t/tools-2"), (0.0, 0.0, 0, 3));
+    let shipped = crate::orient_map_shipped::orient_shipped(index).unwrap().expect("the shipped list, kept beside the map");
+    assert!(shipped.current);
+    assert_eq!(shipped.files.len(), 20);
 }
 
 #[test]

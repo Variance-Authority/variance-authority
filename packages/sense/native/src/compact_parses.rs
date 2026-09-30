@@ -128,6 +128,13 @@ impl<'a> Parses<'a> {
         Ok(parses)
     }
 
+    /// The lines of `row` that hold code, as its parse stored them; absent
+    /// when the parse stored no size, which is not a size of nothing.
+    pub fn code_lines(&self, row: usize) -> Option<u32> {
+        let (bytes, lines) = (self.bytes.at(row), self.lines.at(row));
+        (bytes != crate::segment::NONE && lines != crate::segment::NONE).then_some(lines)
+    }
+
     fn lengths(&self) -> Result<(), String> {
         let rows = self.key.len();
         same_length(rows, &[

@@ -88,12 +88,14 @@ changes. Thomas Much's [Fitness Functions for Your
 Architecture](https://www.infoq.com/articles/fitness-functions-architecture/)
 uses downward-only dependencies in a layered system as its example.
 
-The product has three parts, and they are different kinds of statement:
+The product has four parts, and they are different kinds of statement:
 
 - **`variance layers` is an observation.** It says what structure the imports
   produced, and which packages changed layer in this pull request.
 - **`variance restrictions` states a relationship** that must not exist.
 - **`maxLayer` states a limit over a derived fact:** how deep a package may become.
+- **`maxTier` states the same kind of limit over size:** how much code a
+  package may pull in.
 
 You do not need to know your target architecture before you can see that the
 architecture changed. A team can read `3 → 5` in a review, decide it is fine,

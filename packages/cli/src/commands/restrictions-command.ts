@@ -1,137 +1,140 @@
 /**
- * `variance restrictions`: the imports the `.relations.json` rules forbid.
+ * `variance restrictions`: the imports, chains, layers and code sizes the
+ * `.relations.json` rules forbid.
  *
- * Git owns which rule files exist, so they are listed from the index rather
- * than found by walking the tree, and the source index owns the imports. A
- * rule file is data: nothing here runs a file to learn its rules. The exit is
- * `1` when an import is restricted and `0` when none is, because a fence that
- * cannot fail is a comment; whoever does not want the gate does not run it.
+ * The rule files are read by `relations-file.ts`, and the source index owns
+ * the imports. A transitive rule is walked from the files packages ship, which
+ * the code map lists, so a test that reaches outside is not a finding. The
+ * exit is `1` when anything is restricted and `0` when nothing is, because a
+ * fence that cannot fail is a comment; whoever does not want the gate does not
+ * run it. A package whose known lines fit its budget while part of its closure
+ * could not be sized is printed as undecided and does not fail the gate: the
+ * rule cannot say it broke.
  */
 
 // compass: variance-authority.reach.relations
 
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { isCI } from 'ci-info';
 import {
   cappedLayers,
+  cappedTiers,
   packageLayers,
   publishedSources,
+  restrictedChains,
   restrictedImports,
+  shippedFiles,
   type CapViolation,
-  type LayerCap,
-  type RelationRule,
+  type ChainViolation,
   type RuleFile,
+  type TierCapFinding,
+  type TierCapReport,
+  type Tiers,
   type Violation,
 } from '@variance-authority/sense';
+import { readTiers } from '../config-declared.js';
 import { EXIT_CLEAN, EXIT_REVIEW, OperatorError, type ExitCode } from '../exit.js';
 import type { ParsedRestrictions } from '../restrictions-args.js';
+import { RULE_FILE, ruleFiles } from './relations-file.js';
 
-/** The file a folder's rules are written in. */
-export const RULE_FILE = '.relations.json';
+export { RULE_FILE } from './relations-file.js';
 
-/** One `for`/`maxLayer` entry, refused with the file and rule number when a field is the wrong shape. */
-function parseCap(path: string, at: number, entry: Record<string, unknown>): LayerCap {
-  const { for: subject, maxLayer, message } = entry;
-  if (typeof subject !== 'string') throw new OperatorError(`${path}, rule ${at + 1}: \`for\` is a folder or a glob, written as a string.`);
-  if (typeof maxLayer !== 'number' || !Number.isInteger(maxLayer) || maxLayer < 1) {
-    throw new OperatorError(`${path}, rule ${at + 1}: \`maxLayer\` is a whole number from 1; layers start at 1.`);
-  }
-  if (message !== undefined && typeof message !== 'string') throw new OperatorError(`${path}, rule ${at + 1}: \`message\` is a string.`);
-  return { for: subject, maxLayer, ...(message === undefined ? {} : { message }) };
-}
+type PackageLayers = NonNullable<NonNullable<ReturnType<typeof packageLayers>>['packages']>;
 
-/** A rule file's text as import rules and layer ceilings; an entry that mixes the two is refused, not half read. */
-function parseRules(path: string, text: string): { rules: RelationRule[]; caps: LayerCap[] } {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch (error) {
-    throw new OperatorError(`${path} is not JSON: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  const listed = Array.isArray(value) ? value : (value as { rules?: unknown } | null)?.rules;
-  if (!Array.isArray(listed)) throw new OperatorError(`${path} holds a list of rules, or an object whose \`rules\` is one.`);
-  const caps: LayerCap[] = [];
-  const rules: RelationRule[] = [];
-  listed.forEach((rule, at) => {
-    const entry = rule as Record<string, unknown> | null;
-    if (entry !== null && (entry['maxLayer'] !== undefined || entry['for'] !== undefined)) {
-      const mixed = ['from', 'to', 'type'].filter((key) => entry[key] !== undefined);
-      if (mixed.length > 0) {
-        throw new OperatorError(`${path}, rule ${at + 1}: a layer ceiling (\`for\`, \`maxLayer\`) does not take ${mixed.map((key) => `\`${key}\``).join(', ')}; write the import rule as its own entry.`);
-      }
-      caps.push(parseCap(path, at, entry));
-    } else {
-      rules.push(parseRule(path, at, entry));
-    }
-  });
-  return { rules, caps };
-}
-
-/** One import rule, refused with the file and rule number when a field is the wrong shape. */
-function parseRule(path: string, at: number, entry: Record<string, unknown> | null): RelationRule {
-  const type = entry?.['type'];
-  if (type !== 'allowed' && type !== 'restricted') {
-    throw new OperatorError(`${path}, rule ${at + 1}: \`type\` is \`allowed\` or \`restricted\`.`);
-  }
-  for (const side of ['from', 'to', 'message'] as const) {
-    if (entry?.[side] !== undefined && typeof entry[side] !== 'string') {
-      throw new OperatorError(`${path}, rule ${at + 1}: \`${side}\` is a string; a RegExp is not JSON, so write a glob.`);
-    }
-  }
-  return {
-    type,
-    ...(entry?.['from'] === undefined ? {} : { from: entry['from'] as string }),
-    ...(entry?.['to'] === undefined ? {} : { to: entry['to'] as string }),
-    ...(entry?.['message'] === undefined ? {} : { message: entry['message'] as string }),
-  };
-}
-
-/** Every tracked `.relations.json`, read as data, with the directory it governs. */
-function ruleFiles(root: string): RuleFile[] {
-  const listed = execFileSync('git', ['ls-files', '-z', '--', RULE_FILE, `**/${RULE_FILE}`], { cwd: root, encoding: 'utf8' });
-  return listed.split('\0').filter((path) => path !== '').map((path) => {
-    const directory = dirname(path);
-    return { directory: directory === '.' ? '' : directory, ...parseRules(path, readFileSync(join(root, path), 'utf8')) };
-  });
-}
-
-/** Layers are read only when a file states a ceiling, and a map that holds none is an error, not a pass. */
-function cappedPackages(root: string, files: readonly RuleFile[]): CapViolation[] {
-  if (!files.some((file) => (file.caps?.length ?? 0) > 0)) return [];
+/** The code map's packages, read once and only when a ceiling needs them; a map that holds none is an error, not a pass. */
+function mapped(root: string, what: string, needsCurrent: boolean): PackageLayers {
   const layers = packageLayers(root);
   if (layers?.packages == null) {
-    throw new OperatorError('A `maxLayer` is written, but the source index holds no package layers to check it against; `variance index` folds them.');
+    throw new OperatorError(`A \`${what}\` is written, but the source index holds no package layers to check it against; \`variance index\` folds them.`);
   }
-  return cappedLayers(layers.packages, files);
+  if (needsCurrent && !layers.current) {
+    throw new OperatorError(`A \`${what}\` is written, but the code map was folded from an older source index; \`variance index\` folds it again.`);
+  }
+  return layers.packages;
+}
+
+function cappedPackages(root: string, files: readonly RuleFile[]): CapViolation[] {
+  if (!files.some((file) => (file.caps?.length ?? 0) > 0)) return [];
+  return cappedLayers(mapped(root, 'maxLayer', false), files);
+}
+
+function budgeted(root: string, files: readonly RuleFile[], tiers: Tiers | undefined): TierCapReport {
+  if (tiers === undefined || !files.some((file) => (file.tierCaps?.length ?? 0) > 0)) return { violated: [], undecided: [] };
+  return cappedTiers(mapped(root, 'maxTier', true), files, tiers);
+}
+
+/** The shipped files a transitive rule is walked from, read only when one is written. */
+function seeds(root: string, files: readonly RuleFile[]): readonly string[] {
+  if (!files.some((file) => file.rules.some((rule) => rule.transitive === true))) return [];
+  const shipped = shippedFiles(root);
+  if (shipped === undefined) {
+    throw new OperatorError('A transitive rule is written, but no code map is kept beside the source index to say which files packages ship; `variance index` folds one.');
+  }
+  if (!shipped.current) {
+    throw new OperatorError('A transitive rule is written, but the code map was folded from an older source index; `variance index` folds it again.');
+  }
+  return shipped.files;
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+function because(message: string | undefined, directory: string): string {
+  return `${message === undefined ? '' : `: ${message}`} (${join(directory, RULE_FILE)})`;
+}
+
+interface Found {
+  readonly imports: readonly Violation[];
+  readonly chains: readonly ChainViolation[];
+  readonly capped: readonly CapViolation[];
+  readonly tiers: TierCapReport;
+}
+
+function budgetLine(v: TierCapFinding, verdict: string): string {
+  const unsized = v.unsizedFiles > 0 ? ` and ${plural(v.unsizedFiles, 'file')} it could not size` : '';
+  return `${v.package} pulls in ${v.lines} lines${unsized}, ${verdict} the ${v.budget} of tier ${v.maxTier}${because(v.message, v.directory)}`;
 }
 
 /** The prose report: one line per finding, then the counts, or the sentence that says nothing broke. */
-function text(found: readonly Violation[], capped: readonly CapViolation[], files: number, layersRead: boolean): string {
-  if (files === 0) return `No ${RULE_FILE} is tracked in this checkout, so no import is restricted.\n`;
-  if (found.length === 0 && capped.length === 0) return `No import${layersRead ? ' or layer' : ''} breaks the rules in ${files} ${RULE_FILE} file${files === 1 ? '' : 's'}.\n`;
+function text(found: Found, files: number): string {
+  if (files === 0) return `No ${RULE_FILE} is tracked in this checkout, so nothing is restricted.\n`;
   const lines = [
-    ...found.map((v) => `${v.from} → ${v.to}${v.message === undefined ? '' : `: ${v.message}`} (${join(v.directory, RULE_FILE)})`),
-    ...capped.map((v) => `${v.package} is layer ${v.layer}, above the ceiling of ${v.maxLayer}${v.message === undefined ? '' : `: ${v.message}`} (${join(v.directory, RULE_FILE)})`),
+    ...found.imports.map((v) => `${v.from} → ${v.to}${because(v.message, v.directory)}`),
+    ...found.chains.map((v) => `${[...v.chain, v.to].join(' → ')}${because(v.message, v.directory)}; ${plural(v.seeds, 'shipped file')} reach${v.seeds === 1 ? 'es' : ''} ${v.from}`),
+    ...found.capped.map((v) => `${v.package} is layer ${v.layer}, above the ceiling of ${v.maxLayer}${because(v.message, v.directory)}`),
+    ...found.tiers.violated.map((v) => budgetLine(v, 'over')),
+    ...found.tiers.undecided.map((v) => `${budgetLine(v, 'within')}; undecided`),
   ];
   const counts = [
-    found.length > 0 ? `${found.length} restricted import${found.length === 1 ? '' : 's'}` : '',
-    capped.length > 0 ? `${capped.length} package${capped.length === 1 ? '' : 's'} above a layer ceiling` : '',
+    found.imports.length > 0 ? `${plural(found.imports.length, 'restricted import')}` : '',
+    found.chains.length > 0 ? `${plural(found.chains.length, 'restricted chain')}` : '',
+    found.capped.length > 0 ? `${plural(found.capped.length, 'package')} above a layer ceiling` : '',
+    found.tiers.violated.length > 0 ? `${plural(found.tiers.violated.length, 'package')} over a tier budget` : '',
+    found.tiers.undecided.length > 0 ? `${plural(found.tiers.undecided.length, 'package')} undecided` : '',
   ].filter((part) => part !== '');
+  if (lines.length === 0) return `Nothing breaks the rules in ${plural(files, `${RULE_FILE} file`)}.\n`;
   return `${lines.join('\n')}\n${counts.join(', ')}.\n`;
 }
 
-/** Runs the check over the published source index and returns the report with its exit code: 1 on any finding. */
+/** Runs the check over the published source index and returns the report with its exit code: 1 on any violation. */
 export async function restrictionsOutput(request: ParsedRestrictions): Promise<{ out: string; code: ExitCode }> {
-  const files = ruleFiles(request.root);
+  const tiers = readTiers(request.root);
+  const files = ruleFiles(request.root, tiers);
   const published = await publishedSources(request.root, {
     ci: isCI,
     step: 'variance index',
     announce: (line) => process.stderr.write(`variance: ${line}\n`),
   });
-  const found = restrictedImports(published.records, files);
-  const capped = cappedPackages(request.root, files);
-  const out = request.format === 'json' ? `${JSON.stringify({ violations: found, capped })}\n` : text(found, capped, files.length, files.some((file) => (file.caps?.length ?? 0) > 0));
-  return { out, code: found.length > 0 || capped.length > 0 ? EXIT_REVIEW : EXIT_CLEAN };
+  const found: Found = {
+    imports: restrictedImports(published.records, files),
+    chains: restrictedChains(published.records, files, seeds(request.root, files)),
+    capped: cappedPackages(request.root, files),
+    tiers: budgeted(request.root, files, tiers),
+  };
+  const out = request.format === 'json'
+    ? `${JSON.stringify({ violations: found.imports, chains: found.chains, capped: found.capped, tiers: found.tiers })}\n`
+    : text(found, files.length);
+  const failed = found.imports.length + found.chains.length + found.capped.length + found.tiers.violated.length > 0;
+  return { out, code: failed ? EXIT_REVIEW : EXIT_CLEAN };
 }

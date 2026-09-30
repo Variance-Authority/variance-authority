@@ -27,6 +27,13 @@ export interface RelationRule {
   /** Where it points. Absent: anywhere. */
   readonly to?: string;
   readonly type: 'allowed' | 'restricted';
+  /**
+   * Decides a chain rather than an import: `from` is where the chain starts
+   * and `to` any file it reaches. Transitive rules are an ordered list of
+   * their own, judged apart from the rules for single imports
+   * (`restrictions-transitive.ts`).
+   */
+  readonly transitive?: boolean;
   /** Why, said to whoever broke the rule. */
   readonly message?: string;
 }
@@ -40,12 +47,22 @@ export interface LayerCap {
   readonly message?: string;
 }
 
+/** A budget on the code the packages `for` names pull in, as a tier declared in the root config. */
+export interface TierCap {
+  readonly for: string;
+  /** The tier whose budget each package must fit; never 0, which is unbounded. */
+  readonly maxTier: number;
+  readonly message?: string;
+}
+
 /** The rules of one `.relations.json`, and the repository-relative directory it sits in (empty for the root). */
 export interface RuleFile {
   readonly directory: string;
   readonly rules: readonly RelationRule[];
   /** The layer ceilings the file states. Absent: none. */
   readonly caps?: readonly LayerCap[];
+  /** The tier budgets the file states. Absent: none. */
+  readonly tierCaps?: readonly TierCap[];
 }
 
 /** One package above the tightest ceiling that names it. */
@@ -83,12 +100,12 @@ function byCodeUnit(a: string, b: string): number {
 }
 
 /** Whether `path` is `directory` or under it; the root holds everything. */
-function inside(directory: string, path: string): boolean {
+export function inside(directory: string, path: string): boolean {
   return directory === '' || path === directory || path.startsWith(`${directory}/`);
 }
 
 /** Whether `pattern`, written in `directory`, holds `path`: a folder holds what is under it, a glob holds a path or any folder above it. */
-function holds(directory: string, pattern: string | undefined, path: string): boolean {
+export function holds(directory: string, pattern: string | undefined, path: string): boolean {
   if (pattern === undefined || pattern === '*') return true;
   const written = pattern === '.' ? '' : pattern.replace(/^\.\//u, '').replace(/\/+$/u, '');
   const resolved = directory === '' ? written : written === '' ? directory : `${directory}/${written}`;
@@ -107,10 +124,20 @@ function applying(files: readonly RuleFile[], from: string, to: string): RuleFil
     .sort((a, b) => depth(b.directory) - depth(a.directory) || byCodeUnit(a.directory, b.directory));
 }
 
-/** The first rule that matches an import, or nothing when it is unrestricted. */
+/** The first rule that matches an import, or nothing when it is unrestricted. Transitive rules are not consulted. */
 export function relationBetween(files: readonly RuleFile[], from: string, to: string): Decision | undefined {
+  return decide(files, from, to, false);
+}
+
+/** The first transitive rule that matches a chain from `from` arriving at `to`, or nothing when none does. */
+export function chainBetween(files: readonly RuleFile[], from: string, to: string): Decision | undefined {
+  return decide(files, from, to, true);
+}
+
+function decide(files: readonly RuleFile[], from: string, to: string, transitive: boolean): Decision | undefined {
   for (const file of applying(files, from, to)) {
     for (const rule of file.rules) {
+      if ((rule.transitive === true) !== transitive) continue;
       if (holds(file.directory, rule.from, from) && holds(file.directory, rule.to, to)) {
         return { rule, directory: file.directory };
       }
@@ -176,4 +203,70 @@ export function cappedLayers(
     if (tightest !== undefined && entry.layer > tightest.maxLayer) found.push(tightest);
   }
   return found.sort((a, b) => byCodeUnit(a.package, b.package));
+}
+
+/** One package measured against the tightest tier budget that names it. */
+export interface TierCapFinding {
+  readonly package: string;
+  /** Effective lines its closure is known to hold. */
+  readonly lines: number;
+  /** Files and requests its closure reached and could not size. */
+  readonly unsizedFiles: number;
+  readonly maxTier: number;
+  /** The budget of `maxTier`, in effective lines. */
+  readonly budget: number;
+  readonly message?: string;
+  readonly directory: string;
+}
+
+/** What the tier budgets decide: packages already over, and packages whose known lines fit a closure that is only partly sized. */
+export interface TierCapReport {
+  readonly violated: readonly TierCapFinding[];
+  readonly undecided: readonly TierCapFinding[];
+}
+
+/**
+ * Every package measured against the tier budgets that name it, in code-unit
+ * order. Where several hold one package the highest tier decides, because its
+ * budget is the smallest. A package over the budget on its known lines alone
+ * is violated whatever it could not size; one within it that reached unsized
+ * code is undecided, never passing.
+ */
+export function cappedTiers(
+  packages: readonly {
+    readonly package: string;
+    readonly directory: string;
+    readonly lines: number;
+    readonly unsizedFiles: number;
+  }[],
+  files: readonly RuleFile[],
+  tiers: readonly number[],
+): TierCapReport {
+  const violated: TierCapFinding[] = [];
+  const undecided: TierCapFinding[] = [];
+  for (const entry of packages) {
+    let tightest: TierCapFinding | undefined;
+    for (const file of files) {
+      for (const cap of file.tierCaps ?? []) {
+        if (!holds(file.directory, cap.for, entry.directory)) continue;
+        if (tightest !== undefined && tightest.maxTier >= cap.maxTier) continue;
+        const budget = tiers[cap.maxTier];
+        if (budget === undefined) continue;
+        tightest = {
+          package: entry.package,
+          lines: entry.lines,
+          unsizedFiles: entry.unsizedFiles,
+          maxTier: cap.maxTier,
+          budget,
+          directory: file.directory,
+          ...(cap.message === undefined ? {} : { message: cap.message }),
+        };
+      }
+    }
+    if (tightest === undefined) continue;
+    if (entry.lines > tightest.budget) violated.push(tightest);
+    else if (entry.unsizedFiles > 0) undecided.push(tightest);
+  }
+  const order = (a: TierCapFinding, b: TierCapFinding): number => byCodeUnit(a.package, b.package);
+  return { violated: violated.sort(order), undecided: undecided.sort(order) };
 }

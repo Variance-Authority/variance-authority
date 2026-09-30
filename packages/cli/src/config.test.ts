@@ -89,6 +89,11 @@ describe('parseConfig', () => {
     expect(attempt({ ...VALID, entrypoints: { 'apps/main': ['../widget/main.tsx'] } }).field).toBe('entrypoints.apps/main');
   });
 
+  it('refuses `tiers` that do not decrease, by the field', () => {
+    expect(() => parseConfig({ ...VALID, tiers: [200000, 5000, 1000] }, OPTIONS)).not.toThrow();
+    expect(attempt({ ...VALID, tiers: [1000, 5000] }).field).toBe('tiers');
+  });
+
   it('accepts a baseline layout that keeps images beside their subject', () => {
     // The layout decides where a baseline file lands, and the config is the only
     // place that decision can be made once for every command that reads the root.
