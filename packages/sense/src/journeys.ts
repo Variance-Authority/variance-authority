@@ -14,14 +14,17 @@
 
 // compass: variance-authority.reach.relations
 
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { native, nativeRefusal } from './native.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile,NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { keptRunnerAliases, runnerConfigs, unlistedRunnerAliases, type RunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
+import { defaultInclude } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
 
 export type {
@@ -84,6 +87,30 @@ function commitOf(coverage: string): NativeJourneysCommit {
     return commit === undefined ? { unread: 'the recording names no commit' } : { commit };
   } catch (error) {
     return { unread: `the recording's commit did not read (${(error instanceof Error ? error.message : String(error)).split('\n')[0]})` };
+  }
+}
+
+/**
+ * What the checkout's owners say about `file`, for the answer given when the
+ * recording keeps no row for it. The runner's default filter says whether a row
+ * could be kept for it — a type declaration passes the filter's extension test
+ * and has no function to run — and git says whether it existed at the commit
+ * the recording names, so a file added since is not reported as one no test loaded.
+ */
+function knownOf(root: string, file: string, recording: string): NativeJourneyMapFile {
+  const module = defaultInclude(resolve(root, file)) && !/\.d\.[cm]?ts$/.test(file);
+  const at = commitOf(recording.slice(0, -'.cases.bin'.length));
+  if (at.commit == null) return { module, ...(at.unread == null ? {} : { unread: at.unread }) };
+  try {
+    const listed = execFileSync('git', ['ls-tree', '--name-only', at.commit, '--', file], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { module, commit: at.commit, existed: listed.trim() !== '' };
+  } catch (error) {
+    const said = error instanceof Error && 'stderr' in error ? String(error.stderr) : String(error);
+    return { module, commit: at.commit, unread: said.trim().split('\n')[0] || `git could not list ${at.commit}` };
   }
 }
 
@@ -211,7 +238,7 @@ export function forksBetween(root: string, a: NativeJourneyEnd, b: NativeJourney
 export function journeyMap(root: string, file: string, terms?: readonly string[], suite?: string): NativeJourneyMap | undefined {
   const found = recordings(root).find((recorded) => recorded.suite === suite);
   if (found?.recording === undefined) return undefined;
-  return entry('journeyMap')(found.recording, file, terms === undefined ? null : [...terms]);
+  return entry('journeyMap')(found.recording, file, terms === undefined ? null : [...terms], knownOf(root, file, found.recording));
 }
 
 /** One suite's map of the code around a file, or why the suite has none. */
@@ -230,6 +257,9 @@ export function journeyMaps(root: string, file: string, terms?: readonly string[
   return recordings(root).flatMap(({ suite, recording }) =>
     recording === undefined
       ? []
-      : [{ ...(suite === undefined ? {} : { suite }), map: entry('journeyMap')(recording, file, terms === undefined ? null : [...terms]) }],
+      : [{
+          ...(suite === undefined ? {} : { suite }),
+          map: entry('journeyMap')(recording, file, terms === undefined ? null : [...terms], knownOf(root, file, recording)),
+        }],
   );
 }

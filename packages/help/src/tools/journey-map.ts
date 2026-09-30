@@ -13,6 +13,7 @@
 import { journeyMaps } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { formatJourneyMap } from './journey-map-format.js';
+import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
 /** The words of a task, from a string or a list, lowercase-insensitive and without blanks. */
 export function termsOf(input: Readonly<Record<string, unknown>>): readonly string[] {
@@ -61,7 +62,11 @@ export const journeyMapTool: Tool<unknown> = {
       if (map.notRecorded === undefined || map.notRecorded === null) answers.push(`${of}${formatJourneyMap(map, terms)}`);
       else refused.push(`${of}${map.notRecorded}`);
     }
-    if (answers.length === 0) throw new Error(refused.join('\n'));
+    if (answers.length === 0) {
+      // A path the checkout does not hold is a typo, not a file no test ran.
+      refuseUnknownPath(root, file, recordedOnce(root));
+      throw new Error(refused.join('\n'));
+    }
     return [...answers, ...refused].join('\n\n');
   },
 };

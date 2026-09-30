@@ -86,14 +86,32 @@ fn refused(file: String, reason: String) -> JourneyMap {
     }
 }
 
+/// What the checkout says about a file the recording may keep no row for,
+/// asked by the caller before the recording is opened: git owns what existed
+/// at the recording's commit, and the runner's instrument filter owns what a
+/// row could be kept for.
+#[napi(object)]
+pub struct JourneyMapFile {
+    /// Whether the default instrument filter takes the file: a JavaScript or
+    /// TypeScript module that is not a test, a config or a type declaration.
+    pub module: bool,
+    /// The commit the recording names.
+    pub commit: Option<String>,
+    /// Whether git lists the file at `commit`; absent when git could not say.
+    pub existed: Option<bool>,
+    /// Why `existed` is absent.
+    pub unread: Option<String>,
+}
+
 /// The map around `file`, kept to the cases whose test file or name holds any
 /// of `terms`, ignoring case, or to every case that entered it when none is given.
+/// `known` is read only when the recording keeps no row for `file`.
 #[napi(catch_unwind)]
-pub fn journey_map(recording: String, file: String, terms: Option<Vec<String>>) -> JourneyMap {
+pub fn journey_map(recording: String, file: String, terms: Option<Vec<String>>, known: Option<JourneyMapFile>) -> JourneyMap {
     let terms = terms.unwrap_or_default();
     let answered = JourneyMasks::open(&recording).and_then(|mut masks| match map(&mut masks, &file, &terms)? {
         Some(answer) => Ok(answer),
-        None => Ok(refused(file.clone(), unmapped(&mut masks, &file)?)),
+        None => Ok(refused(file.clone(), unmapped(&mut masks, &file, known.as_ref())?)),
     });
     answered.unwrap_or_else(|error| refused(file, format!("the recording did not read ({error})")))
 }
@@ -101,37 +119,66 @@ pub fn journey_map(recording: String, file: String, terms: Option<Vec<String>>) 
 /// Modules named when the file asked about is a test file.
 const INSTEAD: usize = 3;
 
-/// Why there is no map around `file`, which the recording keeps no module row
-/// for, said so the reader knows what to ask next.
+/// The digits of a commit a reader needs to find it.
+const SHORT: usize = 12;
+
+/// Why there is no map around `file`, which the recording keeps no row for.
 ///
 /// A test file is not a module the probe records, so it is answered with the
-/// modules its own cases ran most. Any other file is judged by its directory:
-/// the recording keeps a row for each instrumented file some test loaded, so a
-/// directory it keeps rows in is one it covers, and a missing row there means
-/// no test loaded the file. A directory with no row at all is one the
-/// recording says nothing about — it does not state its own scope — so that
-/// answer says it cannot tell rather than reporting the file as untested.
-pub(crate) fn unmapped(masks: &mut JourneyMasks, file: &str) -> Result<String, String> {
+/// modules its own cases ran most. Any other file is a finding only when every
+/// owner agrees it could have had a row: the default filter instruments it, git
+/// lists it at the recording's commit, and the recording keeps rows for other
+/// files beside it. Short of any of those, the answer says the recording cannot
+/// tell, and why.
+pub(crate) fn unmapped(masks: &mut JourneyMasks, file: &str, known: Option<&JourneyMapFile>) -> Result<String, String> {
     let own: Vec<bool> = masks.journey.test_file_names()?.iter().map(|name| *name == file).collect();
     let declared = own.iter().filter(|&&is| is).count();
     if declared > 0 {
         return instead(masks, file, &own, declared);
     }
-    let dir = file.rfind('/').map_or("", |at| &file[..=at]);
-    let place = if dir.is_empty() { "the repository root" } else { dir };
-    let rows = masks.journey.files()?.iter().filter(|path| path.starts_with(dir)).count();
-    Ok(if rows > 0 {
-        format!(
-            "No recorded test ran {file}. This is a finding about the tests, not a gap in the recording: the recording lists {rows} {} under {place} that its {} {} loaded, and this file is not one of them.",
-            plural(rows, "file", "files"),
-            own.len(),
-            plural(own.len(), "test", "tests"),
-        )
-    } else {
-        format!(
-            "The recording lists no file under {place}, so it cannot say whether a test ran {file}. A directory with no listed file is either one that no recorded test loaded or one that the test run does not instrument, and the recording does not say which."
-        )
-    })
+    let cannot = format!("The recording cannot say whether a test loaded {file}");
+    let Some(known) = known else {
+        return Ok(format!("{cannot}: the caller did not say whether the file existed when the recording was made."));
+    };
+    if !known.module {
+        return Ok(format!(
+            "{cannot}: it keeps rows for the source modules a test run instruments, and by default a run leaves out tests, configs, type declarations and files that are not JavaScript or TypeScript."
+        ));
+    }
+    let at = known.commit.as_deref().map(|commit| &commit[..commit.len().min(SHORT)]);
+    let at = match (known.existed, at) {
+        (Some(true), Some(at)) => at,
+        (Some(false), Some(at)) => {
+            return Ok(format!("{file} is new since the recording, which was made at {at}, so the recording cannot say whether a test loads it."));
+        }
+        _ => {
+            let why = known.unread.as_deref().unwrap_or("the recording names no commit");
+            return Ok(format!("{cannot}: git cannot say whether the file existed when the recording was made ({why})."));
+        }
+    };
+    // A root-level file is judged by the root's own files, not by every row.
+    let (dir, place) = match file.rfind('/') {
+        Some(end) => (&file[..=end], format!("under {}", &file[..=end])),
+        None => ("", "at the repository root".to_owned()),
+    };
+    let rows = masks
+        .journey
+        .files()?
+        .iter()
+        .filter(|path| if dir.is_empty() { !path.contains('/') } else { path.starts_with(dir) })
+        .count();
+    if rows == 0 {
+        return Ok(format!(
+            "{cannot}: it lists no file {place}. A directory with no listed file is either one that no recorded test loaded or one that the test run does not instrument, and the recording does not say which."
+        ));
+    }
+    // TODO: keep a row for each module a run loads and leaves uninstrumented, so this answer can tell one from a module no test loaded.
+    Ok(format!(
+        "No recorded test loaded {file}, unless the test run leaves it uninstrumented, as it must for a module whose functions are sent to a browser page. The file existed at {at}, where the recording was made, and the recording lists {rows} {} {place} that its {} {} loaded, but not this one.",
+        plural(rows, "file", "files"),
+        own.len(),
+        plural(own.len(), "test", "tests"),
+    ))
 }
 
 /// A test file's answer: the modules its cases ran most, and among those the
@@ -170,16 +217,17 @@ fn instead(masks: &mut JourneyMasks, file: &str, own: &[bool], declared: usize) 
     let its = format!("its {declared} recorded {}", plural(declared, "test", "tests"));
     if ran.is_empty() {
         return Ok(format!(
-            "{file} is a test file, and a journey map is drawn around code that tests run. None of {its} ran a function the recording lists, so there is no module to ask about instead."
+            "{file} is a test file, and journey-map draws its map around the code that tests run. None of {its} ran a function the recording lists, so there is no module to ask about instead."
         ));
     }
     let mut lines = vec![format!(
-        "{file} is a test file, and a journey map is drawn around code that tests run. Ask about one of the modules {its} ran most:"
+        "{file} is a test file, and journey-map draws its map around the code that tests run. Ask about one of the modules {its} ran most:"
     )];
     for &(module, mine, all) in ran.iter().take(INSTEAD) {
         lines.push(format!(
-            "  {}  run by {mine} of its {declared} and {all} of all {} recorded tests",
+            "  {}  run by {mine} of its {declared} {} and {all} of all {} recorded tests",
             journey.module_file(module as usize)?,
+            plural(declared, "test", "tests"),
             own.len()
         ));
     }

@@ -10,6 +10,7 @@ import { keptRunnerAliases, runnerAliases, runnerConfigs, runnerDigest, unlisted
 import { sourceIndexPath } from './source-index.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
+import { encodeTestCoverage } from './test-selection/format.js';
 import { testCoverageFile } from './test-selection/record-location.js';
 
 /**
@@ -205,24 +206,99 @@ describe('journeys read as masks', () => {
     expect(journeyMap(root, 'src/api.ts', ['AGAIN'])?.tests.map((test) => test.name)).toEqual(['finds again']);
   });
 
-  it('says why a file has no map: a test file names the modules its tests ran, and no row is a finding only where the recording lists files', () => {
+});
+
+describe('a file the recording keeps no row for', () => {
+  /**
+   * `test/a.test.ts`'s two cases run `src/a.ts`, `src/m.ts` and `src/z.ts`, and
+   * one of them `src/y.ts`; `test/b.test.ts` runs `src/a.ts` and `src/m.ts`, and
+   * `test/idle.test.ts` runs nothing.
+   */
+  function shared(): Buffer {
+    const tests = [
+      { id: 'a > one', file: 'test/a.test.ts', name: 'one' },
+      { id: 'a > two', file: 'test/a.test.ts', name: 'two' },
+      { id: 'b > one', file: 'test/b.test.ts', name: 'one' },
+      { id: 'idle > one', file: 'test/idle.test.ts', name: 'one' },
+    ];
+    const sets = new CrossingSets(tests.length);
+    const module = (file: string, cases: readonly number[]) => ({
+      file,
+      blocks: [region('module', '', 1, 3), region('function', 'run', 1, 3)],
+      called: Uint32Array.of(sets.intern([]), sets.intern([...cases])),
+      loaded: Uint8Array.of(1, 0),
+    });
+    return encodeSetExecutionIndex({
+      tests,
+      modules: [module('src/a.ts', [0, 1, 2]), module('src/m.ts', [0, 1, 2]), module('src/y.ts', [0]), module('src/z.ts', [0, 1])],
+      sets: sets.pool(),
+    });
+  }
+
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: 'pipe' });
+
+  /** Record `shared()` at the commit that adds `files`, and return that commit. */
+  function recordedAt(files: readonly string[]): string {
+    for (const file of files) write(file, 'export const held = 1;\n');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'recorded');
+    const commit = git('rev-parse', 'HEAD').trim();
+    const at = testCoverageFile(root);
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [], commit }));
+    writeFileSync(`${at}.cases.bin`, shared());
+    return commit;
+  }
+
+  it('answers a test file with the modules its tests ran most, fewer of the whole suite first and then by path', () => {
+    recordedAt([]);
+
+    expect(journeyMap(root, 'test/a.test.ts')?.notRecorded).toBe(
+      'test/a.test.ts is a test file, and journey-map draws its map around the code that tests run. ' +
+        'Ask about one of the modules its 2 recorded tests ran most:\n' +
+        '  src/z.ts  run by 2 of its 2 tests and 2 of all 4 recorded tests\n' +
+        '  src/a.ts  run by 2 of its 2 tests and 3 of all 4 recorded tests\n' +
+        '  src/m.ts  run by 2 of its 2 tests and 3 of all 4 recorded tests',
+    );
+    expect(journeyMap(root, 'test/idle.test.ts')?.notRecorded).toBe(
+      'test/idle.test.ts is a test file, and journey-map draws its map around the code that tests run. ' +
+        'None of its 1 recorded test ran a function the recording lists, so there is no module to ask about instead.',
+    );
+  });
+
+  it('says no recorded test loaded a file only when git lists it at the recording commit and the recording lists files beside it', () => {
+    const commit = (recordedAt(['src/old.ts', 'src/types.d.ts', 'lib/old.ts', 'old.ts'])).slice(0, 12);
+    write('src/new.ts', 'export const added = 1;\n');
+    const cannot = (file: string) => `The recording cannot say whether a test loaded ${file}: `;
+
+    expect(journeyMap(root, 'src/old.ts')?.notRecorded).toBe(
+      'No recorded test loaded src/old.ts, unless the test run leaves it uninstrumented, ' +
+        'as it must for a module whose functions are sent to a browser page. ' +
+        `The file existed at ${commit}, where the recording was made, and the recording lists 4 files under src/ ` +
+        'that its 4 tests loaded, but not this one.',
+    );
+    expect(journeyMap(root, 'src/new.ts')?.notRecorded).toBe(
+      `src/new.ts is new since the recording, which was made at ${commit}, so the recording cannot say whether a test loads it.`,
+    );
+    expect(journeyMap(root, 'src/types.d.ts')?.notRecorded).toBe(
+      `${cannot('src/types.d.ts')}it keeps rows for the source modules a test run instruments, and by default a run leaves out ` +
+        'tests, configs, type declarations and files that are not JavaScript or TypeScript.',
+    );
+    expect(journeyMap(root, 'lib/old.ts')?.notRecorded).toBe(
+      `${cannot('lib/old.ts')}it lists no file under lib/. A directory with no listed file is either one that no recorded test loaded ` +
+        'or one that the test run does not instrument, and the recording does not say which.',
+    );
+    // Every path starts with the root's empty prefix; the root is judged by its own files, and the recording lists none.
+    expect(journeyMap(root, 'old.ts')?.notRecorded).toMatch(/^The recording cannot say whether a test loaded old\.ts: it lists no file at the repository root\./u);
+  });
+
+  it('cannot say when the recording names no commit to ask git about', () => {
     const at = `${testCoverageFile(root)}.cases.bin`;
     mkdirSync(dirname(at), { recursive: true });
-    writeFileSync(at, branched());
+    writeFileSync(at, shared());
 
-    expect(journeyMap(root, 'test/api.test.ts')?.notRecorded).toBe(
-      'test/api.test.ts is a test file, and a journey map is drawn around code that tests run. ' +
-        'Ask about one of the modules its 3 recorded tests ran most:\n' +
-        '  src/api.ts  run by 3 of its 3 and 3 of all 3 recorded tests',
-    );
-    expect(journeyMap(root, 'src/none.ts')?.notRecorded).toBe(
-      'No recorded test ran src/none.ts. This is a finding about the tests, not a gap in the recording: ' +
-        'the recording lists 1 file under src/ that its 3 tests loaded, and this file is not one of them.',
-    );
-    expect(journeyMap(root, 'lib/none.ts')?.notRecorded).toBe(
-      'The recording lists no file under lib/, so it cannot say whether a test ran lib/none.ts. ' +
-        'A directory with no listed file is either one that no recorded test loaded or one that the test run does not instrument, ' +
-        'and the recording does not say which.',
+    expect(journeyMap(root, 'src/old.ts')?.notRecorded).toMatch(
+      /^The recording cannot say whether a test loaded src\/old\.ts: git cannot say whether the file existed when the recording was made \(the recording's commit did not read/u,
     );
   });
 });
