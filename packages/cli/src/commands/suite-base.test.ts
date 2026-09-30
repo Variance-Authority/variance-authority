@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -19,7 +19,7 @@ import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { MAINLINE_REUSE_MS, mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
-import { BEFORE, DISCOUNTS, PUSH, ranWhole, recordIn, selectedIn } from './mainline-fixture.js';
+import { DISCOUNTS, GIT_SHARE, PUSH, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
 import { layMainline, suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
 
@@ -32,7 +32,6 @@ import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
 
 const run = promisify(execFile);
 const LOCAL: Env = {};
-const SHARE = { kind: 'git', mainlines: ['main'] } as const;
 let home: string;
 const cwd = process.cwd();
 
@@ -58,42 +57,8 @@ function cacheOf(name: string): string {
   return cache;
 }
 
-/**
- * The CI checkout: `unit` given to a git share, one commit pushed to a bare
- * `origin`, and the record a run of the whole suite made there, in which only
- * `total.test.ts` runs `applyDiscount`. Published with a push's environment
- * unless told not to.
- */
-async function mainline(options: { readonly publish?: boolean } = {}): Promise<{ ci: string; origin: string; first: string; record: Buffer }> {
-  const origin = join(home, 'origin.git');
-  const ci = join(home, 'ci');
-  await git(home, 'init', '--quiet', '--bare', '--initial-branch', 'main', origin);
-  await git(home, 'init', '--quiet', '--initial-branch', 'main', ci);
-  await git(ci, 'config', 'user.email', 'fixture@example.test');
-  await git(ci, 'config', 'user.name', 'Fixture');
-  await mkdir(join(ci, 'src'));
-  await mkdir(join(ci, 'test'));
-  await writeFile(join(ci, 'src/total.ts'), BEFORE);
-  await writeFile(join(ci, 'test/total.test.ts'), "it('discounts', () => {});\n");
-  await writeFile(join(ci, 'test/other.test.ts'), "it('stands alone', () => {});\n");
-  await writeFile(join(ci, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share: SHARE }));
-  await git(ci, 'add', '-A');
-  await git(ci, 'commit', '--quiet', '-m', 'first');
-  const first = await git(ci, 'rev-parse', 'HEAD');
-  await git(ci, 'remote', 'add', 'origin', origin);
-  await git(ci, 'push', '--quiet', 'origin', 'main');
-  await git(ci, 'fetch', '--quiet', 'origin');
-
-  cacheOf('ci-cache');
-  await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS]);
-  await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
-  const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));
-  if (options.publish !== false) {
-    const done = await publishSuite(ci, 'unit', { env: PUSH });
-    expect(done).toMatchObject({ line: { kind: 'mainline', name: 'main' }, published: { written: [suiteEntry('unit')] } });
-  }
-  return { ci, origin, first, record };
-}
+/** The CI checkout, with its cache at `ci-cache`: see `gitPublished`. */
+const mainline = (options: { readonly publish?: boolean } = {}) => gitPublished(home, options);
 
 /**
  * A laptop: a clone of `origin` whose primary checkout recorded at `first` a
@@ -217,7 +182,7 @@ describe('the primary checkout\'s record is the offline fallback, and says why',
 
   it('when the entry the mainline holds does not read', async () => {
     const { ci, origin, first } = await mainline({ publish: false });
-    const cell = await lineCellOf({ share: SHARE, cacheRoot: join(home, 'ci-cache') } as unknown as Config, { cwd: ci });
+    const cell = await lineCellOf({ share: GIT_SHARE, cacheRoot: join(home, 'ci-cache') } as unknown as Config, { cwd: ci });
     if (cell === undefined || !('load' in cell)) throw new Error(`no line cell: ${JSON.stringify(cell)}`);
     await publishLine(cell, { kind: 'mainline', name: 'main' }, [
       { name: suiteEntry('unit'), commit: first, bytes: frame([['coverage.bin', new Uint8Array([1, 2, 3, 4])]]) },

@@ -58,6 +58,16 @@ function recording(): Buffer {
   return encodeSetExecutionIndex({ tests, modules, sets: sets.pool() });
 }
 
+describe('the modules orientation reaches', () => {
+  it('load under the measure config, the CommonJS TypeScript source the selection entry point imports among them', async () => {
+    const selection = await import('./test-selection/index.js');
+    const journals = await import('./test-selection/journal-format.cjs');
+
+    expect(typeof selection.writeCoverageBytes).toBe('function');
+    expect(typeof journals.default.decodeJournal).toBe('function');
+  });
+});
+
 describe('orientation in a process that keeps answering', () => {
   it('holds no more memory in the last third of many questions than in the first', async () => {
     const root = mkdtempSync(join(tmpdir(), 'va-orient-memory-'));

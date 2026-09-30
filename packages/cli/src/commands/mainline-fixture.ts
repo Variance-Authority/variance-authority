@@ -23,6 +23,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
 import { publishRun } from './share.js';
+import { publishSuite } from './suite-share.js';
 
 /**
  * A mainline that published a record of `unit`, and a clone that recorded none.
@@ -96,6 +97,50 @@ export async function published(
   await options.record?.(dir);
   if (options.publish !== false) await publishTo(home, dir, first, PUSH, 'mainline main');
   return { dir, origin, first };
+}
+
+/** A share on the checkout's own `origin`, whose mainline is `main`, as GitHub carries it. */
+export const GIT_SHARE = { kind: 'git', mainlines: ['main'] } as const;
+
+/**
+ * The CI checkout for {@link GIT_SHARE}: `unit` given to it, one commit pushed
+ * to a bare `origin`, and the record a run of the whole suite made there, in
+ * which only `total.test.ts` runs `applyDiscount`. Published with a push's
+ * environment unless told not to, from a cache at `ci-cache` under `home`.
+ */
+export async function gitPublished(
+  home: string,
+  options: { readonly publish?: boolean } = {},
+): Promise<{ ci: string; origin: string; first: string; record: Buffer }> {
+  const origin = join(home, 'origin.git');
+  const ci = join(home, 'ci');
+  await git(home, 'init', '--quiet', '--bare', '--initial-branch', 'main', origin);
+  await git(home, 'init', '--quiet', '--initial-branch', 'main', ci);
+  await git(ci, 'config', 'user.email', 'fixture@example.test');
+  await git(ci, 'config', 'user.name', 'Fixture');
+  await mkdir(join(ci, 'src'));
+  await mkdir(join(ci, 'test'));
+  await writeFile(join(ci, 'src/total.ts'), BEFORE);
+  await writeFile(join(ci, 'test/total.test.ts'), "it('discounts', () => {});\n");
+  await writeFile(join(ci, 'test/other.test.ts'), "it('stands alone', () => {});\n");
+  await writeFile(join(ci, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share: GIT_SHARE }));
+  await git(ci, 'add', '-A');
+  await git(ci, 'commit', '--quiet', '-m', 'first');
+  const first = await git(ci, 'rev-parse', 'HEAD');
+  await git(ci, 'remote', 'add', 'origin', origin);
+  await git(ci, 'push', '--quiet', 'origin', 'main');
+  await git(ci, 'fetch', '--quiet', 'origin');
+
+  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS]);
+  await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
+  const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));
+  if (options.publish !== false) {
+    const done = await publishSuite(ci, 'unit', { env: PUSH });
+    const written = 'published' in done && done.line.kind === 'mainline' ? done.published.written : [];
+    if (!written.includes(suiteEntry('unit'))) throw new Error(`the record was to reach mainline main, and the share answered ${JSON.stringify(done)}`);
+  }
+  return { ci, origin, first, record };
 }
 
 /** A clone of `origin` at another path, as a fresh CI checkout or a laptop has it, on `branch` when one is named. */
