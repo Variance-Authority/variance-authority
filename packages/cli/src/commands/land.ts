@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { rename, rm } from 'node:fs/promises';
 import { OperatorError } from '../exit.js';
 import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
@@ -76,8 +78,12 @@ export async function landJourneys(
   // The snapshot is read, merged and written under the lock every runner seam
   // takes on it, and the case index is laid inside that, under its own: the
   // two answer for the same runs, and a run landing between them would leave
-  // each one describing a different suite. The index goes first, so a busy
-  // index refuses the landing before the snapshot is written.
+  // each one describing a different suite. The snapshot is staged beside the
+  // target first, so a write that fails leaves both as they were; then the
+  // index lands, so a busy index refuses before the snapshot is replaced; and
+  // the staged file is renamed over the target last, which does not fail on a
+  // full disk the way a write does.
+  const staged = `${at}.${process.pid}-${randomUUID()}.landing`;
   const locked = await selection.withIndexLock(at, async () => {
     let previous;
     try {
@@ -94,10 +100,15 @@ export async function landJourneys(
     }
 
     const landed = selection.mergeCoverage(previous, folded);
-    const cases = await selection.landCaseIndexes(at, root, read);
-    if ('busy' in cases) throw busy(cases.busy, at);
-    await selection.writeTestCoverage(at, landed);
-    return { landed, cases };
+    try {
+      await selection.writeTestCoverage(staged, landed);
+      const cases = await selection.landCaseIndexes(at, root, read);
+      if ('busy' in cases) throw busy(cases.busy, at);
+      await rename(staged, at);
+      return { landed, cases };
+    } finally {
+      await rm(staged, { force: true });
+    }
   });
   if (!locked.held) throw busy(at, at);
   const { landed, cases } = locked.value;

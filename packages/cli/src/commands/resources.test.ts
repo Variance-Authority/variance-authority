@@ -1,6 +1,7 @@
-import { rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type { TestCoverage } from '@variance-authority/sense/test-selection';
 import { landJourneys } from './land.js';
@@ -182,13 +183,32 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
     };
   }
 
-  /** The disk: shards where they were named, and whatever is at the target. */
+  /**
+   * The disk: shards where they were named, and whatever is at the target. A
+   * write leaves a file where it was aimed, because a landing stages the
+   * snapshot beside the target and renames it over.
+   */
   function disk(files: Record<string, TestCoverage>) {
     readTestCoverage.mockImplementation(async (path: string) => {
       const found = files[path];
       if (found === undefined) throw missing();
       return found;
     });
+    writeTestCoverage.mockImplementation(async (path: string) => {
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, '');
+    });
+  }
+
+  /** The snapshot a landing wrote, staged beside `target` and now in its place. */
+  function landedAt(target: string): TestCoverage {
+    expect(writeTestCoverage).toHaveBeenCalledTimes(1);
+    const [staged, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
+    expect(dirname(staged)).toBe(dirname(target));
+    expect(staged.startsWith(`${target}.`) && staged.endsWith('.landing')).toBe(true);
+    expect(existsSync(staged)).toBe(false);
+    expect(existsSync(target)).toBe(true);
+    return written;
   }
 
   it('folds the shards and lands the union in the cache, saying where it stands', async () => {
@@ -201,9 +221,7 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
       at: CACHED, shards: 2, commit: 'c0ffee', observations: 2, modules: 1,
       cases: { unanswered: `${CACHED}.cases.bin`, shard: '/ci/shard-1.bin', removed: false },
     });
-    expect(writeTestCoverage).toHaveBeenCalledTimes(1);
-    const [at, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
-    expect(at).toBe(CACHED);
+    const written = landedAt(CACHED);
     expect(written.tests.map((test) => test.file)).toEqual(['story:a', 'story:b']);
     expect(written.modules[0]?.blocks[0]?.testFiles).toEqual(['story:a', 'story:b']);
   });
@@ -215,7 +233,7 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
     const landed = await landJourneys('/repo', ['/ci/shard-1.bin'], into);
 
     expect(landed.at).toBe(into);
-    expect(writeTestCoverage.mock.calls[0]?.[0]).toBe(into);
+    landedAt(into);
   });
 
   it('layers the fold over what was already there, so a baseline lands under local evidence', async () => {
@@ -231,7 +249,7 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
     const landed = await landJourneys('/repo', ['/ci/shard-1.bin', '/ci/shard-2.bin']);
 
     expect(landed).toMatchObject({ commit: 'c0ffee', observations: 3 });
-    const [, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
+    const written = landedAt(CACHED);
     expect(written.tests.map((test) => test.file)).toEqual(['story:a', 'story:b', 'story:local']);
   });
 
