@@ -119,6 +119,11 @@ export interface LandedJourneys {
    * busy index: that refuses the landing, and nothing is written to report on.
    */
   readonly cases?: LandedCases;
+  /**
+   * Staged snapshots beside `at` that earlier landings left when their process
+   * died before removing them, and this one removed.
+   */
+  readonly removed: readonly string[];
 }
 
 /** A case landing that wrote, or removed, what it came to. */
@@ -329,6 +334,7 @@ export function formatLanding(landed: LandedJourneys): string {
     `  ${many(landed.observations, 'observation')} over ${many(landed.modules, 'module')}` +
       (landed.commit === undefined ? '' : `, recorded at ${landed.commit.slice(0, 12)}`),
     ...(landed.cases === undefined ? [] : [casesLine(landed.cases)]),
+    ...landed.removed.map((path) => `  removed ${path}: a landing staged it and stopped before removing it`),
   ].join('\n');
 }
 

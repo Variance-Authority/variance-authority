@@ -1374,7 +1374,10 @@ the index, because no index can say which of that file's cases run a line.
 Those commands then say nothing is recorded until a run writes one. A shard
 has no index when its seam recorded no cases, or when you did not upload the
 file. If another run is writing the record when you land, nothing is written
-and `journeys` exits non-zero; land again once that run ends.
+and `journeys` exits non-zero; land again once that run ends. A landing
+stopped between writing its staged copy and renaming it leaves that copy beside
+the target, and the next landing there removes it and names it on a `removed`
+line.
 
 That is the whole of the recipe for a laptop:
 

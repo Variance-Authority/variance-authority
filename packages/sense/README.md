@@ -1546,9 +1546,11 @@ never saw. The merged snapshot is written to a staged file first, so a full disk
 leaves both files as they were. The cases land next, so a busy index stops the
 landing before the snapshot is replaced. The rename comes last, and `finally`
 removes the staged file if anything before it threw. If the process dies
-first, the pid in the staged name lets the cache's pruning remove it, but only
-when `file` is inside the cache: a file anywhere else is in no directory the
-pruning reads.
+first, the staged file stays. The cache's pruning reads the pid in its name and
+removes it, but only in the directories that hold a checkout's record:
+`test-selection/<key>`, its `suites/<suite>` and its `.work/<key>`. Beside a
+`file` anywhere else, removing it is yours to do; `variance journeys` does it
+for the files a dead landing left beside its own target, and names each one.
 
 `withIndexLock` on `file` is the lock every seam takes to write the snapshot,
 so no run writes the snapshot while you land. `landCaseIndexes` takes the case

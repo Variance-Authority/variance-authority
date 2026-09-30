@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { rename, rm } from 'node:fs/promises';
+import { readdir, rename, rm, stat } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { OperatorError } from '../exit.js';
 import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
@@ -82,14 +83,10 @@ export async function landJourneys(
   // target first, so a write that fails leaves both as they were; then the
   // index lands, so a busy index refuses before the snapshot is replaced; and
   // the staged file is renamed over the target last, which does not fail on a
-  // full disk the way a write does. The staged name ends in the pid and `.tmp`,
-  // so when the target is inside the cache, prune removes the staged file if
-  // this process dies before the `finally` does.
-  //
-  // FIXME: an `--into` target outside the cache is in no directory prune walks,
-  // so a crash between the write and the `finally` leaves the staged `.tmp`
-  // beside it until somebody deletes it by hand. Staging inside the cache
-  // instead would make the rename cross file systems, where it fails.
+  // full disk the way a write does. The file is staged beside the target
+  // because a rename to another file system fails; its name carries the pid, so
+  // the next landing at the same target removes it if this process dies before
+  // the `finally` does, once it has landed. See `sweepStaged`.
   //
   // FIXME: the case index and the snapshot are two files, and nothing renames
   // them together. A crash after `landCaseIndexes` and before the rename leaves
@@ -98,7 +95,7 @@ export async function landJourneys(
   // more run at the same commit, so `layerBefore` puts the first attempt's own
   // cases into the before layer over the base they replaced, and review
   // compares those files with themselves.
-  const staged = `${at}.${process.pid}-${randomUUID()}.tmp`;
+  const staged = stagedFile(at, process.pid);
   const locked = await selection.withIndexLock(at, async () => {
     let previous;
     try {
@@ -120,13 +117,13 @@ export async function landJourneys(
       const cases = await selection.landCaseIndexes(at, root, read);
       if ('busy' in cases) throw busy(cases.busy, at);
       await rename(staged, at);
-      return { landed, cases };
+      return { landed, cases, removed: await sweepStaged(at, selection.machineOwners()) };
     } finally {
       await rm(staged, { force: true });
     }
   });
   if (!locked.held) throw busy(at, at);
-  const { landed, cases } = locked.value;
+  const { landed, cases, removed } = locked.value;
 
   return {
     at,
@@ -135,7 +132,67 @@ export async function landJourneys(
     observations: landed.tests.length,
     modules: landed.modules.length,
     cases,
+    removed,
   };
+}
+
+/** Where a landing at `at` by process `pid` stages its snapshot. */
+function stagedFile(at: string, pid: number): string {
+  return `${at}.${pid}-${randomUUID()}.tmp`;
+}
+
+/** The process that staged `name` beside `at`, or undefined when `name` is not a landing's staged file. */
+function stagedBy(at: string, name: string): number | undefined {
+  const prefix = `${basename(at)}.`;
+  if (!name.startsWith(prefix)) return undefined;
+  const staged = /^(\d+)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.tmp$/u.exec(
+    name.slice(prefix.length),
+  );
+  return staged === null ? undefined : Number(staged[1]);
+}
+
+/**
+ * The staged files that landings at `at` left when their process died between
+ * the write and the `finally`, removed, so the landing can say which. Swept
+ * once this landing has renamed its own over the target: a landing that
+ * refuses or fails removes nothing it could not then report.
+ *
+ * Done here rather than left to the cache's pruning, because `--into` names a
+ * file anywhere and pruning reads only the cache's own layer directories. Only
+ * this module's own staged names are touched, and only when the process table
+ * says the process that wrote one is gone — as the pruning asks it, so a pid
+ * reused by a process started after the write reads as gone too. Called under
+ * the snapshot lock, so no landing at `at` is between its write and its rename
+ * while this reads.
+ */
+async function sweepStaged(
+  at: string,
+  owners: { alive(pid: number, written: number): Promise<boolean> },
+): Promise<readonly string[]> {
+  let names: string[];
+  try {
+    names = await readdir(dirname(at));
+  } catch (error) {
+    if (isMissing(error)) return [];
+    throw error;
+  }
+  const removed: string[] = [];
+  for (const name of names.sort()) {
+    const pid = stagedBy(at, name);
+    if (pid === undefined) continue;
+    const path = join(dirname(at), name);
+    let written;
+    try {
+      written = (await stat(path)).mtimeMs;
+    } catch (error) {
+      if (isMissing(error)) continue;
+      throw error;
+    }
+    if (await owners.alive(pid, written)) continue;
+    await rm(path, { force: true });
+    removed.push(path);
+  }
+  return removed;
 }
 
 /**

@@ -220,6 +220,7 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
     expect(landed).toEqual({
       at: CACHED, shards: 2, commit: 'c0ffee', observations: 2, modules: 1,
       cases: { unanswered: `${CACHED}.cases.bin`, shard: '/ci/shard-1.bin', removed: false },
+      removed: [],
     });
     const written = landedAt(CACHED);
     expect(written.tests.map((test) => test.file)).toEqual(['story:a', 'story:b']);
