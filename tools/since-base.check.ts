@@ -1,12 +1,20 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
-import { commitRunsFile, landRun, readCommitRuns, readTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  commitRunsFile,
+  landRun,
+  readCommitRuns,
+  readingFrom,
+  readTestCoverage,
+  writeTestCoverage,
+  type TestCoverage,
+} from '@variance-authority/sense/test-selection';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
-import { readingFrom, wholeEntry, withoutFiles } from './since-base.mjs';
 import { readChange, selectedFiles } from './since-change.mjs';
 
 /**
@@ -56,7 +64,7 @@ async function history() {
 }
 
 const tests = NAMES.map((name) => `test/${name}.test.ts`);
-const runsAt = (commit: string, over: string, files = ['test/near.test.ts'], standing?: { commit: string; files: string[] }[]) => ({
+const runsAt = (commit: string, over: string, files = ['test/near.test.ts'], standing?: { commit: string; files: string[]; assumed?: true }[]) => ({
   commit,
   over,
   first: '',
@@ -77,7 +85,7 @@ describe('a change is read from where each test last ran, not from where the las
       base: H,
       from: P,
       stands: [{ commit: P, tests: ['test/far.test.ts', 'test/other.test.ts'], whole: ['src/far.ts'] }],
-      says: `where 2 test(s) the runs at ${H.slice(0, 12)} did not run last ran; 1 file(s) changed up to ${H.slice(0, 12)}, where the snapshot was recorded, are read whole for the 2 test(s) that last ran before it`,
+      says: `where 2 test(s) the runs at ${H.slice(0, 12)} did not run last ran; 1 file(s) changed between the commits 2 test(s) last ran at and ${H.slice(0, 12)}, where the snapshot was recorded, are read whole for them`,
     });
   });
 
@@ -88,6 +96,25 @@ describe('a change is read from where each test last ran, not from where the las
     const assumed = `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from ${P.slice(0, 12)}, where its runs started`;
     expect(start.assumed).toBe(assumed);
     expect(start.says).toMatch(new RegExp(`; ${assumed.replace(/[()]/g, '\\$&')}$`));
+  });
+
+  it('reads a test `standing` lists as assumed from where it was assumed, and says so rather than reading it as fact', async () => {
+    const { git, P, H } = await history();
+    const M = git('rev-parse', 'mainline').trim();
+    const runs = runsAt(H, P, ['test/near.test.ts'], [
+      { commit: M, files: ['test/far.test.ts'], assumed: true },
+      { commit: P, files: ['test/other.test.ts'] },
+    ]);
+
+    const start = readingFrom({ commit: H, ref: undefined, runs, tests, git });
+
+    expect(start.stands).toEqual([
+      { commit: M, tests: ['test/far.test.ts'], whole: ['src/far.ts', 'src/other.ts'] },
+      { commit: P, tests: ['test/other.test.ts'], whole: ['src/far.ts'] },
+    ]);
+    expect(start.assumed).toBe(
+      `the runs record beside the snapshot does not say where 1 test(s) last ran, so they are read from the commits they were assumed at, ${M.slice(0, 12)}`,
+    );
   });
 
   it('reads from the snapshot\'s commit when the runs are another commit\'s or are absent, and says it assumed so', async () => {
@@ -134,7 +161,7 @@ describe('a change is read from where each test last ran, not from where the las
     const merged = git('rev-parse', 'mainline').trim();
     const start = readingFrom({ commit: H, ref: 'mainline', runs: runsAt(H, P, tests), tests, git });
     expect(start).toMatchObject({ base: H, from: merged, stands: [{ commit: merged, tests, whole: ['src/far.ts', 'src/other.ts'] }] });
-    expect(start.says).toMatch(/^the merge base with mainline; 2 file\(s\) changed up to /);
+    expect(start.says).toMatch(/^the merge base with mainline; 2 file\(s\) changed between the commits /);
   });
 
   it('starts at a stand older than the ref\'s merge base, which the merge base does not replace', async () => {
@@ -187,51 +214,55 @@ describe('a change is read from where each test last ran, not from where the las
   it('refuses a ref git cannot read, by name', async () => {
     const { git, H } = await history();
     expect(readingFrom({ commit: H, ref: 'no-such-branch', runs: undefined, tests, git })).toEqual({
+      stands: [],
       refused: '`no-such-branch` is not a commit this checkout knows',
     });
   });
 
-  it('runs the whole suite when a stand the runs name is not in this checkout', async () => {
+  it('runs the whole suite when git cannot diff a stand the runs name', async () => {
     const { git, H } = await history();
     const gone = 'e'.repeat(40);
     const start = readingFrom({ commit: H, ref: undefined, runs: runsAt(H, gone), tests, git });
-    expect(start.widened).toBe(`${gone.slice(0, 12)}, where 2 test(s) last ran, is not in this checkout`);
+    expect(start.widened).toBe(`git could not diff ${gone.slice(0, 12)}, where 2 test(s) last ran, against ${H.slice(0, 12)}`);
     const decided = selectedFiles({ suite: ['a.test.ts'], whole: new Set(['a.test.ts']), entered: new Set(), touched: [], moved: [], base: H, unstarted: start.widened });
     expect(decided).toEqual({ widened: `${start.widened}, so the change cannot be read from where it started` });
   });
 });
 
-describe('a file charged whole is cut out of the hunk diff by its header, however git spells it', () => {
-  it('drops every section of a named file and keeps the rest', async () => {
-    const { at, git, H } = await history();
-    await writeFile(resolve(at, 'src/far.ts'), 'export const far = 3;\n');
-    await writeFile(resolve(at, 'src/near.ts'), 'export const near = 2;\n');
-    const diff = git('diff', '--no-renames', H);
+/** The `variance` executable, where the CLI's manifest says it is. */
+const CLI = resolve(import.meta.dirname, '../packages/cli');
+const VARIANCE = resolve(CLI, (JSON.parse(readFileSync(resolve(CLI, 'package.json'), 'utf8')) as { bin: { variance: string } }).bin.variance);
 
-    const cut = withoutFiles(diff, ['src/far.ts', 'src/*.ts']);
-    expect(cut).toContain('+++ b/src/near.ts');
-    expect(cut).not.toContain('src/far.ts');
-    expect(withoutFiles(diff, [])).toBe(diff);
-  });
-
-  it('reads a quoted header back to the path, whether git quoted it or not', async () => {
-    const { at, git, H } = await history();
-    await writeFile(resolve(at, 'src/été "x".ts'), '1\n');
-    await writeFile(resolve(at, 'src/a b.ts'), '1\n');
-    await writeFile(resolve(at, 'src/tab\tname.ts'), '1\n');
-    await writeFile(resolve(at, 'src/back\\slash.ts'), '1\n');
-    git('add', '.');
-    const quoted = git('diff', '--cached', H);
-    expect(quoted).toContain('"a/src/\\303\\251t\\303\\251 \\"x\\".ts"');
-    expect(quoted).toContain('"a/src/tab\\tname.ts"');
-
-    for (const diff of [quoted, git('-c', 'core.quotePath=false', 'diff', '--cached', H)]) {
-      const cut = withoutFiles(diff, ['src/été "x".ts', 'src/a b.ts', 'src/tab\tname.ts', 'src/back\\slash.ts']);
-      expect(cut.trim()).toBe('');
-    }
-    expect(wholeEntry('src/a.ts')).toBe('diff --git a/src/a.ts b/src/a.ts');
-  });
-});
+/**
+ * Land `shard` on the snapshot at `file` the way a pipeline does, with
+ * `variance journeys <shard> --into <file>` run from a directory of its own:
+ * the command reads a project config, and one inside the checkout would read as
+ * a change.
+ */
+async function land(file: string, shard: TestCoverage): Promise<void> {
+  const cwd = await mkdtemp(resolve(tmpdir(), 'va-since-land-'));
+  const config = {
+    project: 'since',
+    profile: 'chromium',
+    viewport: { width: 1280, height: 800 },
+    retention: 'durable',
+    subjects: { kind: 'list', ids: ['unused'], collector: './collector.mjs' },
+    baselines: { kind: 'directory', root: 'baselines' },
+    fonts: [],
+    report: 'report.json',
+  };
+  try {
+    await writeFile(resolve(cwd, 'variance.config.json'), JSON.stringify(config));
+    await writeTestCoverage(resolve(cwd, 'shard.bin'), shard);
+    execFileSync(process.execPath, [VARIANCE, 'journeys', resolve(cwd, 'shard.bin'), '--into', file], {
+      cwd,
+      env: { ...process.env, VARIANCE_AUTHORITY_CACHE: resolve(cwd, 'cache') },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
 
 /**
  * Snapshots laid down the way `yarn test` lays them, through `landRun`, and
@@ -257,19 +288,11 @@ describe('legs at two commits leave each test read from where it last ran', () =
       })),
   });
 
-  /** P runs everything, H runs `near`, C runs `other`; M → P → H → C change `other`, `far` and `near`. */
-  async function legs() {
+  /** A repository, and a snapshot for it outside the checkout, where it does not read as a change. */
+  async function recorded() {
     const repo = await repository();
-    // The cache sits outside the checkout, where it does not read as a change.
     const file = resolve(await mkdtemp(resolve(tmpdir(), 'va-since-cache-')), 'coverage.bin');
-    await repo.commit(Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'M');
-    const P = await repo.commit(source('other', 2), 'P');
-    await landRun(file, run(repo.at, P, [...NAMES, 'gone']), repo.at);
-    const H = await repo.commit(source('far', 2), 'H');
-    await landRun(file, run(repo.at, H, ['near']), repo.at);
-    const C = await repo.commit(source('near', 2), 'C');
-    await landRun(file, run(repo.at, C, ['other']), repo.at);
-    const read = async (suite = tests) =>
+    const read = async (suite = tests, relations?: ReturnType<typeof relationsOfFiles>) =>
       readChange({
         root: repo.at,
         git: repo.git,
@@ -280,10 +303,23 @@ describe('legs at two commits leave each test read from where it last ran', () =
         ref: undefined,
         suite,
         stemOf: (path: string) => path,
-        graph: async () => ({}),
+        graph: async () => (relations === undefined ? {} : { relations }),
         say: () => {},
       });
-    return { ...repo, file, P, H, C, read };
+    return { ...repo, file, read };
+  }
+
+  /** P runs everything, H runs `near`, C runs `other`; M → P → H → C change `other`, `far` and `near`. */
+  async function legs() {
+    const repo = await recorded();
+    await repo.commit(Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'M');
+    const P = await repo.commit(source('other', 2), 'P');
+    await landRun(repo.file, run(repo.at, P, [...NAMES, 'gone']), repo.at);
+    const H = await repo.commit(source('far', 2), 'H');
+    await landRun(repo.file, run(repo.at, H, ['near']), repo.at);
+    const C = await repo.commit(source('near', 2), 'C');
+    await landRun(repo.file, run(repo.at, C, ['other']), repo.at);
+    return { ...repo, P, H, C };
   }
 
   it('selects a test that last ran two commits back, for a file changed after it ran', async () => {
@@ -340,6 +376,80 @@ describe('legs at two commits leave each test read from where it last ran', () =
     expect(reading.decided).toEqual({ selected: ['test/new.test.ts'] });
   });
 
+  it('compares the install from where each test last ran, so a bump the tree undid still reaches the tests that ran on it', async () => {
+    // P installs left-pad 1.3.0 and runs everything; C bumps it to 1.4.0 and
+    // runs `near`; the tree goes back to 1.3.0. `far` and `near` both import
+    // it. Compared from P alone, where `far` and `other` stand, the install did
+    // not move and `near` would be settled; compared from C alone, `far` would
+    // be charged a bump it never ran on.
+    const { read, file, commit, at } = await recorded();
+    const P = await commit({ ...Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'package-lock.json': npmLock('1.3.0') }, 'P');
+    await landRun(file, run(at, P, NAMES), at);
+    const C = await commit({ 'package-lock.json': npmLock('1.4.0') }, 'C');
+    await landRun(file, run(at, C, ['near']), at);
+    await writeFile(resolve(at, 'package-lock.json'), npmLock('1.3.0'));
+
+    const pad = [{ to: 'left-pad', kind: 'imports' as const }];
+    const reading = await read(tests, relationsOfFiles(NAMES.map((name) => ({ file: `src/${name}.ts`, ...(name === 'other' ? {} : { packages: pad }) }))));
+
+    expect(reading.start.stands.map((stand: { commit: string }) => stand.commit)).toEqual([P]);
+    expect(reading.decided).toEqual({ selected: ['test/near.test.ts'] });
+  });
+
+  it('reads a landing of shards as a run at its commit, so the tests it did not run are read from where they last ran', async () => {
+    const { read, file, commit, at, C } = await legs();
+    const D = await commit(source('other', 3), 'D');
+    await land(file, run(at, D, ['far']));
+
+    const reading = await read();
+
+    // `near` last ran at H and `other` at C, and each module changed after.
+    expect(reading.decided).toEqual({ selected: ['test/near.test.ts', 'test/other.test.ts'] });
+    expect(reading.start.base).toBe(D);
+    expect(reading.start.assumed).toBeUndefined();
+    expect(await readCommitRuns(file)).toMatchObject({ commit: D, over: C, files: ['test/far.test.ts'] });
+  });
+
+  it('selects a test for a precondition changed since it ran, when the first run at an older commit is laid over a newer one', async () => {
+    // A worktree at W, behind the primary checkout at P. The primary ran `far`,
+    // which declares `fixture.json`, and `near`; W holds another `fixture.json`.
+    // The worktree's first run lands `near` over a copy of P's snapshot, with
+    // no record of its own. `far` last ran on P's fixture, so the edit back to
+    // W's is a change for it, and nothing but `over` says where it ran.
+    const repo = await repository();
+    const cache = await mkdtemp(resolve(tmpdir(), 'va-since-cache-'));
+    try {
+      const file = resolve(cache, 'coverage.bin');
+      const W = await repo.commit({ ...source('far', 1), ...source('near', 1), 'fixture.json': '{"v":1}\n' }, 'W');
+      const P = await repo.commit({ 'fixture.json': '{"v":2}\n' }, 'P');
+      const fixture = { name: 'fixture.json', digest: digestString('{"v":2}\n') };
+      const atP = run(repo.at, P, ['far', 'near']);
+      await landRun(file, { ...atP, tests: atP.tests.map((test) => (test.file === 'test/far.test.ts' ? { ...test, preconditions: [fixture] } : test)) }, repo.at);
+      await rm(commitRunsFile(file));
+      repo.git('checkout', '-q', W);
+      await landRun(file, run(repo.at, W, ['near']), repo.at);
+
+      const reading = await readChange({
+        root: repo.at,
+        git: repo.git,
+        diffOfNew: () => '',
+        snapshotFile: file,
+        coverage: await readTestCoverage(file),
+        runs: await readCommitRuns(file),
+        ref: undefined,
+        suite: ['test/far.test.ts', 'test/near.test.ts'],
+        stemOf: (path: string) => path,
+        graph: async () => ({}),
+        say: () => {},
+      });
+      expect(reading.decided).toEqual({ selected: ['test/far.test.ts'] });
+      expect(await readCommitRuns(file)).toMatchObject({ commit: W, over: P, files: ['test/near.test.ts'] });
+    } finally {
+      await rm(repo.at, { recursive: true, force: true });
+      await rm(cache, { recursive: true, force: true });
+    }
+  });
+
   it('says what it assumed when it finds nothing to run without the runs record', async () => {
     const { read, file, C, at } = await legs();
     await landRun(file, run(at, C, ['far', 'near']), at);
@@ -356,33 +466,34 @@ describe('legs at two commits leave each test read from where it last ran', () =
   });
 
   it('reads where each test last ran from the runs record a mainline entry carried, and says what it read in its place for one that did not', async () => {
-    const repo = await repository();
-    const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-since-cache-'));
-    await repo.commit(Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'M');
-    const P = await repo.commit(source('other', 2), 'P');
-    // CI's whole run at P, and the runs record it wrote beside the snapshot:
-    // the two parts `suite-v1` carries, as the read layer keeps them.
-    const published = resolve(cacheRoot, 'share', 'read', 'unit', P, 'coverage.bin');
-    await landRun(published, run(repo.at, P, NAMES), repo.at);
-    const bare = resolve(cacheRoot, 'bare', 'coverage.bin');
-    await mkdir(resolve(bare, '..'), { recursive: true });
-    await copyFile(published, bare);
-    const read = async (file: string) =>
-      readChange({
-        root: repo.at, git: repo.git, diffOfNew: () => '', snapshotFile: file,
-        coverage: await readTestCoverage(file), runs: await readCommitRuns(file), ref: undefined, suite: tests,
-        stemOf: (path: string) => path, graph: async () => ({}), say: () => {},
-      });
-
-    await repo.commit(source('far', 2), 'H');
-    const carried = await read(published);
+    const { read, file, commit, at } = await recorded();
+    await commit(Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'M');
+    const P = await commit(source('other', 2), 'P');
+    // CI's whole run at P with the runs record it wrote, as `suite-v1` carries both; then the snapshot alone.
+    await landRun(file, run(at, P, NAMES), at);
+    await commit(source('far', 2), 'H');
+    const carried = await read();
     expect(carried.start).toMatchObject({ base: P, stands: [] });
     expect(carried.start.assumed).toBeUndefined();
     expect(carried.decided).toEqual({ selected: ['test/far.test.ts'] });
-
-    const uncarried = await read(bare);
-    expect(uncarried.start.assumed).toBe(
+    await rm(commitRunsFile(file));
+    expect((await read()).start.assumed).toBe(
       `no runs record lies beside the snapshot, so every test is read as though it last ran at ${P.slice(0, 12)}`,
     );
   });
 });
+
+function npmLock(version: string): string {
+  return JSON.stringify(
+    {
+      name: 'fixture',
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'fixture', dependencies: { 'left-pad': '^1.0.0' } },
+        'node_modules/left-pad': { version, resolved: `https://registry.npmjs.org/left-pad/-/left-pad-${version}.tgz`, integrity: `sha512-${version}==` },
+      },
+    },
+    null,
+    2,
+  );
+}

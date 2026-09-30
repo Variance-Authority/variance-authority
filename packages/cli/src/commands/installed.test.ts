@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { installDiff, installedDepends, type DiffPoint } from './installed.js';
+import { installDiff, installDiffs, installedDepends, type DiffPoint } from './installed.js';
 
 /**
  * Reading the install at two revisions.
@@ -92,9 +92,34 @@ describe('what a diff did to the install', () => {
     expect(await installDiff(pointAt(at, BEFORE), [], at)).toBeUndefined();
   });
 
-  it('answers nothing when the revision could not be resolved', async () => {
+  it('refuses when the revision could not be resolved, because a lockfile is here and nothing says what it was', async () => {
     const at = await repository(BEFORE);
-    expect(await installDiff(undefined, [], at)).toBeUndefined();
+    const diff = await installDiff(undefined, [], at);
+
+    expect(diff && 'whole' in diff && diff.whole).toContain('from a commit git could not resolve here');
+  });
+
+  it('names the commit the lockfile was missing at', async () => {
+    const at = await repository(BEFORE);
+    const diff = await installDiff(pointAt(at, undefined), [], at);
+
+    expect(diff && 'whole' in diff && diff.whole).toContain('not in the tree at abc1234, where this install is compared from');
+  });
+
+  it('reads the working tree once, however many commits it is compared from', async () => {
+    const at = await repository(BUMPED);
+    const [bumped, same, missing] = await installDiffs(
+      [
+        { point: pointAt(at, BEFORE), changed: [] },
+        { point: pointAt(at, BUMPED), changed: [] },
+        { point: undefined, changed: [] },
+      ],
+      at,
+    );
+
+    expect(bumped).toEqual({ packages: ['lodash'], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(same).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(missing && 'whole' in missing).toBe(true);
   });
 });
 

@@ -179,7 +179,18 @@ export {
   type LandedShard,
   type LastCaseRun,
 } from './case-landing.js';
-export { commitRunsFile, landRun, readCommitRuns, type CommitRuns } from './commit-runs.js';
+export {
+  commitRunsAfter,
+  commitRunsFile,
+  heldCommitRuns,
+  landRun,
+  readCommitRuns,
+  writeCommitRuns,
+  type CommitRuns,
+  type RecordedTests,
+  type StandingEntry,
+} from './commit-runs.js';
+export { askPerStand, readingFrom, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandReading } from './stands.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {
   countCoverage,

@@ -56,15 +56,14 @@ import { suiteRecord } from './suite-record.js';
  * *this diff touched nothing*, and answering a broken `git` with it would narrow
  * a run to nothing while reporting success.
  */
-export async function changedSince(
-  ref: string,
-  roots: readonly string[] = [],
-): Promise<readonly string[]> {
+export async function changedSince(ref: string, roots: readonly string[] = []): Promise<readonly string[]> {
   const run = promisify(execFile);
   const here = process.cwd();
-  const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
 
   try {
+    const asked = roots[0] === undefined ? here : join(here, roots[0]);
+    const repository = await topLevel(asked, run);
+    if (repository === undefined) throw new Error(`${asked} is not in a git checkout`);
     const base = await mergeBase(run, ref, repository);
     return [...(await changedFiles(run, repository, base)), ...(await untrackedFiles(run, repository))].map(
       (file) => relative(here, join(repository, file)),
@@ -78,7 +77,6 @@ export async function changedSince(
     );
   }
 }
-
 
 /**
  * The same diff again, as text — because the second ground reads lines.
@@ -115,14 +113,17 @@ export async function diffSince(
   ref: string,
   roots: readonly string[] = [],
   from?: string,
-  options: { readonly reverse?: boolean } = {},
+  options: { readonly reverse?: boolean; readonly cwd?: string } = {},
 ): Promise<string | undefined> {
   const run = promisify(execFile);
-  const here = process.cwd();
-  const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
+  const here = options.cwd ?? process.cwd();
+  const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]), run);
+  if (repository === undefined) return undefined;
   const side = options.reverse === true ? REVERSED : [];
 
   try {
+    // FIXME: a changed submodule is one `Subproject commit` hunk under its gitlink
+    // path, so no test under it, or that entered a file inside it, is charged.
     const { stdout } = await run('git', [...PLAIN, 'diff', ...NO_DECORATION, ...side, '--no-renames', from ?? (await mergeBase(run, ref, repository))], {
       cwd: repository,
       maxBuffer: 64 * 1024 * 1024,
@@ -191,7 +192,6 @@ async function diffOfNew(run: Run, repository: string, file: string, side: reado
   }
 }
 
-
 /**
  * Where `ref` and `HEAD` part: the commit a two-dot diff from it measures the
  * same distance as `ref...HEAD`, with the working tree included.
@@ -241,7 +241,6 @@ function inCoordinates(diff: string, here: string, repository: string): string {
     .join('\n');
 }
 
-
 /**
  * Where the recorded execution index stands, and how far the tree is from it.
  *
@@ -267,7 +266,8 @@ export async function indexPosition(
   const selection = await import('@variance-authority/sense/test-selection');
 
   try {
-    const repository = await topLevel(run, roots[0] === undefined ? root : join(root, roots[0]));
+    const repository = await topLevel(roots[0] === undefined ? root : join(root, roots[0]), run);
+    if (repository === undefined) return undefined;
     // The position, and nothing else decoded to reach it: a snapshot of a
     // repository holds hundreds of thousands of regions and this asks it for
     // forty characters.
@@ -279,7 +279,6 @@ export async function indexPosition(
     return undefined;
   }
 }
-
 
 /**
  * Where a diff against `ref` is measured from, for a reader that needs a file's
@@ -294,30 +293,37 @@ export async function indexPosition(
  * `undefined` rather than a throw. The file list is resolved first and has
  * already refused with a sentence naming the ref the operator typed.
  */
-export async function diffPoint(
-  ref: string,
-  roots: readonly string[] = [],
-): Promise<DiffPoint | undefined> {
-  const run = promisify(execFile);
-  const here = process.cwd();
+export async function diffPoint(ref: string, roots: readonly string[] = [], here = process.cwd()): Promise<DiffPoint | undefined> {
+  return await pointAt(roots, (run, repository) => mergeBase(run, ref, repository), here);
+}
 
+/**
+ * The point at `commit` itself, with no merge base taken — for a record that
+ * says a test ran *at* that commit, whatever line it is on. A test that last
+ * ran on another branch ran against that branch's install, and the merge base
+ * with this one is an install it never saw. `undefined` when git cannot
+ * resolve the commit here.
+ */
+export async function commitPoint(commit: string, roots: readonly string[] = [], here = process.cwd()): Promise<DiffPoint | undefined> {
+  return await pointAt(roots, async (run, repository) => {
+    const { stdout } = await run('git', ['rev-parse', '--verify', '--quiet', `${commit}^{commit}`], { cwd: repository });
+    return stdout.trim();
+  }, here);
+}
+
+/** The point `baseOf` names in the checkout `here` (or `roots[0]` under it) belongs to. */
+async function pointAt(roots: readonly string[], baseOf: (run: Run, at: string) => Promise<string>, here: string): Promise<DiffPoint | undefined> {
+  const run = promisify(execFile);
   try {
-    const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
-    const base = await mergeBase(run, ref, repository);
+    const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]), run);
+    if (repository === undefined) return undefined;
+    const base = await baseOf(run, repository);
     return { repository, base, at: (path) => fileAt(repository, base, path) };
   } catch {
     return undefined;
   }
 }
 
-/**
- * One file's contents at a revision, or `undefined` when that revision has no
- * such file.
- *
- * The two are told apart by the caller and mean different things: a lockfile
- * that was not there before is an install this cannot compare, and one that is
- * there at both ends is one it can.
- */
 /**
  * What each changed file moved for its importers, in run coordinates.
  *
@@ -333,10 +339,7 @@ export async function diffPoint(
  * — a path outside the checkout, one added, one whose load moved — is absent
  * from the map, and seeds the walk whole.
  */
-export async function movedSince(
-  point: DiffPoint | undefined,
-  changed: readonly string[],
-): Promise<MovedExports | undefined> {
+export async function movedSince(point: DiffPoint | undefined, changed: readonly string[]): Promise<MovedExports | undefined> {
   if (point === undefined) return undefined;
   const here = process.cwd();
   const named = new Map<string, string>();
@@ -350,13 +353,16 @@ export async function movedSince(
   return new Map([...read.moved].map(([file, exports]) => [named.get(file)!, exports]));
 }
 
-async function fileAt(
-  repository: string,
-  revision: string,
-  path: string,
-): Promise<string | undefined> {
+/**
+ * One file's contents at a revision, or `undefined` when that revision has no
+ * such file.
+ *
+ * The two are told apart by the caller and mean different things: a lockfile
+ * that was not there before is an install this cannot compare, and one that is
+ * there at both ends is one it can.
+ */
+async function fileAt(repository: string, revision: string, path: string): Promise<string | undefined> {
   const run = promisify(execFile);
-
   try {
     const { stdout } = await run('git', [...PLAIN, 'show', `${revision}:${path}`], {
       cwd: repository,
@@ -368,28 +374,23 @@ async function fileAt(
   }
 }
 
-
 /**
- * The checkout a directory belongs to, or the run's own directory when none does.
+ * The top level of the checkout a directory belongs to, as git spells it, or
+ * `undefined` when it belongs to none.
  *
- * A failure here is deliberately not raised. `rev-parse` fails for one uninteresting
- * reason — this is not a git checkout — and the diff that follows is about to fail
- * with a sentence naming the ref the operator actually typed, which is the more
- * useful of the two.
+ * Never the run's own directory in its place: that is another repository's
+ * answer, and a diff read there names changes this directory never made. A
+ * caller with no checkout has no diff, which skips nothing; `changedSince`
+ * refuses instead, with a sentence naming the ref the operator typed.
  */
-async function topLevel(
-  run: (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>,
-  from: string,
-): Promise<string> {
+export async function topLevel(from: string, run: Run = promisify(execFile)): Promise<string | undefined> {
   try {
     const { stdout } = await run('git', ['rev-parse', '--show-toplevel'], { cwd: from });
-    const found = stdout.trim();
-    return found === '' ? process.cwd() : found;
+    return stdout.trim() || undefined;
   } catch {
-    return process.cwd();
+    return undefined;
   }
 }
-
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

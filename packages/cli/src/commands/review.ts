@@ -12,11 +12,11 @@
  *
  * It runs after the suite, so the record it reads already describes the change.
  * That fixes two coordinates. The change starts where the recording stood
- * before the first run at this commit: {@link readCommitRuns} keeps that
- * commit, because the snapshot itself now names this one. And the line numbers
- * the record holds are the working tree's, so coverage reads the diff reversed,
- * while the reading of each edit reads it forward, against the text it
- * replaced.
+ * before the first run at this commit, when git says it is an ancestor: the
+ * runs record keeps that commit, since the snapshot names this one. And the line
+ * numbers the record holds are the working tree's, so coverage reads the diff
+ * reversed, while the reading of each edit reads it forward, against the text
+ * it replaced.
  */
 
 import { existsSync } from 'node:fs';
@@ -49,6 +49,7 @@ import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { diffPoint, diffSince } from './since.js';
+import { runsBase } from './runs-base.js';
 import { relationsFor } from './source-graph.js';
 
 /**
@@ -165,18 +166,17 @@ export async function review(request: ParsedReview): Promise<Review> {
   const { root } = request;
   // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
   const recorded = await recordedSuite(root, request.suite);
-  const coverageFile = recorded.file;
-  // The runs are this checkout's: where its change starts and which files it
-  // ran. A checkout that has not run reads a base it did not record, the
-  // mainline's or the primary checkout's, and the runs beside that base
-  // describe another change, not this one.
+  // The runs are always this checkout's own. One that has not run reads a base it did not record,
+  // the mainline's or the primary's, and the runs beside that base describe another change.
   const own = await landingRecord(root, request.suite);
-  const runs = await readCommitRuns(own);
-  const given = request.since ?? runs?.over;
-  // Runs that were laid over no recording, and no base named: a suite given to
-  // a share starts from the record its mainline published, which is the state
-  // a fresh CI checkout is always in (ADR-0084). With no run here at
-  // all there is nothing to review, and nothing is fetched.
+  const runs = await readCommitRuns(own).catch((error: unknown) => {
+    const remedy = 'It says where this change starts: run the suite, which rewrites it; delete it first only if it is a directory';
+    throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${remedy}.`, { cause: error });
+  });
+  const given = request.since ?? (await runsBase(root, runs, own));
+  // Runs that name no start (`runsBase`), and no base named: a suite given to a
+  // share starts from the record its mainline published, as a fresh CI checkout
+  // always does (ADR-0084). With no run here at all, nothing is fetched.
   const shared = given === undefined && runs !== undefined ? await mainlineBase(root, recorded.declared) : undefined;
   const mainline = shared === undefined || 'miss' in shared ? undefined : shared;
   const ref = given ?? mainline?.commit;
@@ -185,8 +185,8 @@ export async function review(request: ParsedReview): Promise<Review> {
       (runs === undefined
         ? `no run has listed itself beside \`${own}\`, so nothing says where this change starts. ` +
             'Run the suite with `withTestSelection` first, or name the base with `--since <ref>`.'
-        : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} were not laid over a recording of ` +
-            'the same instrumentation, so nothing says where this change starts. Name the base with `--since <ref>`.') +
+        : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} name no start ` +
+            'they descend from, so nothing says where this change starts. Name the base with `--since <ref>`.') +
         (shared !== undefined && 'miss' in shared ? `\n${mainlineMissed(shared)}.` : ''),
       { kind: 'unrecorded' },
     );
@@ -208,8 +208,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   // later cases, and comparing with them would report its changes as this one's.
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
-  const here = process.cwd();
-  const named = (file: string): string => relative(point.repository, resolve(here, file));
+  const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
   const relations = await relationsFor(root, ['.'], [], [], {
     why: 'a review reads which tests import each changed file, and which cases ran against a mock of it',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
@@ -222,7 +221,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   });
   const readings = new Map(reading.readings.map((read) => [read.file, read]));
 
-  const from = await recordedExecutionFile(root, request.suite, coverageFile);
+  const from = await recordedExecutionFile(root, request.suite, recorded.file);
   const now = inTreeLines(changedLines(backward), root, readings);
   const { index } = await readExecutionFor(from, now);
   const covered = new Map(
@@ -235,7 +234,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   // case index; for any other file it holds an earlier commit's cases.
   const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
   const comparable = (file: string): boolean => wrote === undefined || ('compared' in wrote && wrote.compared.has(file));
-  const near = await nearTests(coverageFile, [...covered.values()].filter((file) => file.recorded).map((file) => file.file), relations);
+  const near = await nearTests(recorded.file, [...covered.values()].filter((file) => file.recorded).map((file) => file.file), relations);
 
   const files: ReviewFile[] = [];
   for (const file of [...changed.keys()].sort()) {
@@ -256,7 +255,7 @@ export async function review(request: ParsedReview): Promise<Review> {
     });
   }
 
-  const suite = await preconditionsOf(coverageFile, [...changed.keys()].map(named));
+  const suite = await preconditionsOf(recorded.file, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = against !== undefined
@@ -265,7 +264,7 @@ export async function review(request: ParsedReview): Promise<Review> {
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);
 
-  const record = await ranAsTree(coverageFile, root, files.filter((file) => file.recorded === true).map((file) => file.file));
+  const record = await ranAsTree(recorded.file, root, files.filter((file) => file.recorded === true).map((file) => file.file));
   return {
     from: point.base,
     record,

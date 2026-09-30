@@ -36,27 +36,36 @@
  * The install is compared at the same point the diff is measured from, for
  * the reason `variance run --since` compares it: a bumped package changes no
  * line a test covered, so a diff that touched only the lockfile reaches nobody
- * the journal can see. The graph answers a bumped name by the measured files
- * that import it, and a lockfile that cannot be compared declines to narrow.
+ * the journal can see. A test that last ran before the journal's commit ran on
+ * the install at that commit, so its install is compared from there. The graph
+ * answers a bumped name by the measured files that import it, and a lockfile
+ * that cannot be compared declines to narrow.
  */
 
-import { readFile, stat } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { readFile, realpath, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { CommitRuns, ExecutionNarrowing, Stand, StandReading } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor } from './execution-input.js';
 import {
   installDiff,
+  installDiffs,
   installDiffOfPatch,
   movedPackages,
   patchPreimages,
   withMovedPackages,
   withoutManifests,
+  type InstallDiff,
 } from './installed.js';
 import { isMissing, journeyAgainst } from './resources.js';
-import { diffPoint, diffSince } from './since.js';
+import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead, mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
+import { many } from './reach.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
-import { recordedSuite } from './suite-record.js';
+import { landingRecord, recordedSuite } from './suite-record.js';
 import {
   formatSelection,
   selectionNotes,
@@ -148,36 +157,86 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // to other tests. `--since` names the base only when the journal cannot. A
   // patch handed in with `--diff` is the change as given.
   const base = from ?? 'HEAD';
+  // The journal's commit is the commit of its latest run, and a partial run —
+  // a runner handed the last skip list — leaves every test it did not run on the
+  // text it last ran on. The runs recorded beside the journal say where each
+  // one stands, and what changed from there to the journal's commit is read
+  // whole for it. A test the runs do not place is read from the journal's
+  // commit, or from where its runs started, and a note says so. A patch handed
+  // in is the whole change, so it is read for every test alike, and a note says
+  // when some test last ran before the journal's commit.
+  const handed = request.diff !== undefined;
+  // The stands, the diff, the installs and the import graph are named from the top
+  // of the checkout `cwd` is in, as git spells it, which is how the journal names files.
+  const top = await topLevel(request.cwd);
+  const here = top ?? request.cwd;
+  const own = at === (await landingRecord(request.cwd, request.suite));
+  const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, own);
+  const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
+  const standing =
+    stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!);
+  const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
+  const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
+  if (!handed && reading?.widened !== undefined) {
+    return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } });
+  }
   const diff = request.diff === undefined
-    ? await diffSince(request.since ?? base, [], commit)
+    ? await diffSince(request.since ?? base, [], commit, { cwd: here })
     : await handedDiff(request.diff);
   if (diff === undefined) {
     const ground: SelectGround = { kind: 'no-diff', from: base };
-    return said({ at, ...(commit === undefined ? {} : { commit }), ground });
+    return said({ ...recorded, ground });
   }
 
-  // Read at the base the diff was measured from — the journal's own commit, or
-  // the merge base with `--since` — so a bump is one this diff made and not one
-  // `main` made since. `undefined` is no lockfile to compare, which moves
-  // nothing; a comparison that could not be made declines before the graph is
-  // scanned for an answer nobody will read.
-  const installed = request.diff === undefined
-    ? await installDiff(await diffPoint(base), [...selection.changedLines(diff).keys()])
-    : await installDiffOfPatch(diff);
-  if (installed !== undefined && 'whole' in installed) {
-    const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
-    return said({ at, ...(commit === undefined ? {} : { commit }), ground });
+  // Read at the commit each group of tests last ran at — the journal's own, or
+  // a stand's, exactly, on whatever line it is — or at the merge base with
+  // `--since` when the journal names none, so a bump is one made after those
+  // tests ran and not one `main` made since, and a bump made and undone after a
+  // test ran is no bump for it. Keyed by the stand's commit, `undefined` for
+  // the journal's own. `undefined` is no lockfile to compare, which moves
+  // nothing; a comparison that could not be made — from a commit git could not
+  // resolve here — declines before the graph is scanned for an answer
+  // nobody will read. The lockfile on disk is parsed once for every group.
+  const changed = [...selection.changedLines(diff).keys()];
+  const installs = new Map<string | undefined, InstallDiff | undefined>();
+  if (request.diff !== undefined) installs.set(undefined, await installDiffOfPatch(diff, here));
+  else {
+    const groups = [undefined, ...stands];
+    const asked = await Promise.all(groups.map(async (stand) => ({
+      point: commit === undefined ? await diffPoint(base, [], here) : await commitPoint(stand?.commit ?? commit, [], here),
+      changed: stand === undefined ? changed : [...new Set([...changed, ...stand.whole])],
+    })));
+    const answers = await installDiffs(asked, here);
+    groups.forEach((stand, index) => installs.set(stand?.commit, answers[index]));
+  }
+  for (const installed of installs.values()) {
+    if (installed !== undefined && 'whole' in installed) {
+      const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
+      return said({ ...recorded, ground });
+    }
   }
 
-  const relations = await relationsFor(request.cwd, ['.'], [], [], {
+  const relations = await relationsFor(here, ['.'], [], [], {
     why: 'a mocked module is ruled out by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
   // A package whose manifest moved is every file of it, changed whole.
-  const moved = movedPackages(relations, installed);
-  const narrowing = await journeyAgainst(request.cwd, withMovedPackages(diff, moved.files), relations, installed?.packages, at);
+  const moved = new Map([...installs].map(([stand, installed]) => [stand, movedPackages(relations, installed)] as const));
+  // The files a stand reads whole leave the hunk diff, so none is also read by
+  // its hunks, and each group is charged the packages that moved since it ran.
+  const ask = (whole: readonly string[], stand: string | undefined) =>
+    journeyAgainst(
+      here,
+      withMovedPackages([selection.withoutFiles(diff, whole), ...whole.map(selection.wholeEntry)].join('\n'), moved.get(stand)!.files),
+      relations,
+      compared(installs.get(stand))?.packages,
+      at,
+    );
+  const narrowing = stands.length === 0 ? await ask([], undefined) : await perStand(stands, ask);
   // The lockfile and the manifests beside it are unread by the journal and
-  // answered by the comparison above, which has already said what moved.
+  // answered by the comparisons above, which have already said what moved.
+  const manifests = [...installs.values()].flatMap((installed) => compared(installed)?.manifests ?? []);
+  const unplaced = [...moved.values()].flatMap((one) => one.unplaced);
   const ground: SelectGround =
     narrowing === undefined
       ? { kind: 'no-journal' }
@@ -185,24 +244,118 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
           kind: 'read',
           narrowing: {
             ...narrowing,
-            unread: [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...moved.unplaced].sort(),
+            unread: [...new Set([...withoutManifests(narrowing.unread, manifests), ...unplaced])].sort(),
           },
         };
 
-  return said({ at, ...(commit === undefined ? {} : { commit }), ground });
+  return said({ ...recorded, ground });
+}
+
+/** An install comparison that was made, or `undefined` for one there was nothing to make. */
+function compared(installed: InstallDiff | undefined): Exclude<InstallDiff, { readonly whole: string }> | undefined {
+  return installed === undefined || 'whole' in installed ? undefined : installed;
 }
 
 /**
- * The record of the suite this checkout measures from, in the order
- * `suiteBase` gives every base reader: this checkout's own, else the mainline's
- * (ADR-0084), else, in a worktree, the primary checkout's as the
- * offline fallback.
+ * Where each test in the journal at `at` last ran, as the runs recorded beside
+ * it say, with the files read whole for each stand named from the top of
+ * `repository`, as the journal names them. `undefined` for a journal
+ * that names no commit. A runs record that cannot be read is refused, with the reader's sentence
+ * naming the file: every test would otherwise be read from a guess, and a guess
+ * can skip a test that should run. Under `--diff` the record feeds only a note,
+ * so the note says it could not be read and nothing is refused.
+ */
+async function standsOf(
+  at: string,
+  repository: string,
+  handed: boolean,
+  own: boolean,
+): Promise<{ readonly reading: StandReading; readonly stands: readonly Stand[] } | { readonly unread: string } | undefined> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  let runs: CommitRuns | undefined;
+  try {
+    runs = await selection.readCommitRuns(at);
+  } catch (error) {
+    const why = error instanceof Error ? error.message : String(error);
+    if (handed) {
+      return { unread: `${why}, so whether a test file last ran before the journal's commit is not said; a patch handed in with \`--diff\` is read as the whole change either way` };
+    }
+    // One case per place a journal is read from: this checkout's own, or another's it reads until it has run.
+    const remedy = own
+      ? 'Run the suite, which rewrites it; delete it first only if it is a directory.'
+      : "It is another checkout's record: run the suite here, which writes this checkout's own.";
+    throw new OperatorError(
+      `${why}. It says where each test in the journal last ran, and a selection that guessed would skip ` +
+        `tests that should run. ${remedy}`,
+      { cause: error },
+    );
+  }
+  const git = (...args: string[]): string =>
+    execFileSync('git', args, { cwd: repository, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+  const reading = selection.standsAt(at, runs, git, (test) => existsSync(join(repository, test)));
+  return reading === undefined ? undefined : { reading, stands: reading.stands };
+}
+
+/** What the journal says about where its tests last ran, as notes after the verdict. */
+function standingNotes(reading: StandReading, commit: string): readonly string[] {
+  const notes = reading.stands.map(
+    (stand) =>
+      `${many(stand.tests.length, 'test file')} last ran at ${stand.commit.slice(0, 12)}, before the journal's commit ` +
+      `${commit.slice(0, 12)}, so the ${many(stand.whole.length, 'file')} changed between the two ` +
+      `${stand.whole.length === 1 ? 'is' : 'are'} read whole for ${stand.tests.length === 1 ? 'it' : 'them'}`,
+  );
+  if (reading.widened !== undefined) notes.push(reading.widened);
+  if (reading.assumed !== undefined) notes.push(reading.assumed);
+  const gone = reading.gone ?? [];
+  const [is, it, more] = gone.length === 1 ? ['is', 'it', ''] : ['are', 'them', gone.length > 5 ? `, and ${gone.length - 5} more` : ''];
+  if (gone.length > 0) notes.push(`${many(gone.length, 'test file')} the runs record places before the journal's commit ${commit.slice(0, 12)} ${is} not on disk, so no stand is read for ${it}: ${gone.slice(0, 5).join(', ')}${more}`);
+  return notes;
+}
+
+/**
+ * What a patch handed in leaves unread: the tests that last ran before the
+ * journal's commit are read against the patch alone, not against what changed
+ * before it.
+ */
+function handedNotes(reading: StandReading, commit: string): readonly string[] {
+  const count = reading.stands.reduce((sum, stand) => sum + stand.tests.length, 0);
+  if (count === 0 && reading.widened === undefined) return [];
+  const which = count === 0 ? 'some test files' : many(count, 'test file');
+  const at = commit.slice(0, 12);
+  return [
+    `${which} last ran before the journal's commit ${at}, and a patch handed in with \`--diff\` is read as the ` +
+      `whole change, so what changed before ${at} is not read for ${count === 1 ? 'it' : 'them'}. Leave out ` +
+      '`--diff` to read the working tree against where each test last ran',
+  ];
+}
+
+/**
+ * The journal asked once per stand, each answer kept for the tests standing
+ * there. A journal that is gone by the time it is asked again answers
+ * `undefined`, the way a journal that was never there does.
+ */
+async function perStand(
+  stands: readonly Stand[],
+  ask: (whole: readonly string[], stand: string | undefined) => Promise<ExecutionNarrowing | undefined>,
+): Promise<ExecutionNarrowing | undefined> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  let missing = false;
+  const { narrowing } = await selection.askPerStand(stands, async (whole, stand) => {
+    const answer = await ask(whole, stand);
+    if (answer === undefined) missing = true;
+    return { narrowing: answer ?? { whole: [], entered: [], unread: [], stale: [], because: [] } };
+  });
+  return missing ? undefined : narrowing;
+}
+
+/**
+ * The record of the suite this checkout measures from, in the order `suiteBase` gives every base
+ * reader: this checkout's own, else the mainline's (ADR-0084), else, in a worktree, the primary
+ * checkout's as the offline fallback.
  *
- * A suite the root config does not give to a share has no mainline record, and
- * reads the nearest layer that holds one. For a suite given to a share the
- * first note after the verdict says whose record it read, because they select
- * differently and an operator reading a skip list cannot tell them apart
- * otherwise.
+ * A suite the root config does not give to a share has no mainline record, and reads the nearest
+ * layer that holds one. For a suite given to a share the first note after the verdict says whose
+ * record it read, because they select differently and a skip list alone does not say which.
  */
 async function recordedOrMainline(
   request: SelectRequest,
@@ -250,7 +403,9 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     );
   }
   const from = request.since ?? 'HEAD';
-  const text = request.diff === undefined ? await diffSince(from) : await handedDiff(request.diff);
+  // The diff is named from `cwd`, as the relations and the preimages below are, and git spells it through symlinks.
+  const here = await realpath(request.cwd).catch(() => request.cwd);
+  const text = request.diff === undefined ? await diffSince(from, [], undefined, { cwd: here }) : await handedDiff(request.diff);
   if (text === undefined) {
     return saidOf({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request);
   }
@@ -270,8 +425,8 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     );
   }
   const installed = request.diff === undefined
-    ? await installDiff(await diffPoint(from), [...selection.changedLines(text).keys()])
-    : await installDiffOfPatch(text);
+    ? await installDiff(await diffPoint(from, [], here), [...selection.changedLines(text).keys()])
+    : await installDiffOfPatch(text, here);
   if (installed !== undefined && 'whole' in installed) {
     return saidOf({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request);
   }

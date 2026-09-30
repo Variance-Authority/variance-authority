@@ -228,7 +228,8 @@ async function main() {
    * are read from the snapshot's own commit whenever it names one: its line
    * ranges are in that commit's coordinates and no other's. A test the runs at
    * that commit did not observe stands where it last ran, and `readingFrom` in
-   * `since-base.mjs` says what is charged whole for it. A ref is a lower bound,
+   * `@variance-authority/sense/test-selection` says what is charged whole for
+   * it. A ref is a lower bound,
    * resolved to its merge base so a branch behind `main` is not told that
    * everything anybody else merged has changed here — the same reason
    * `packages/cli/src/commands/since.ts` does.
@@ -237,12 +238,30 @@ async function main() {
    * not run reads the mainline's snapshot, or the primary checkout's, and the
    * runs beside it describe that snapshot; the worktree's own would describe
    * nothing it reads. The mainline's record has beside it the runs record the
-   * run that published it wrote, when the entry carried one. `standsOf` in
-   * `since-base.mjs` says what it read in place of an answer whenever the runs
-   * beside the snapshot cannot give one: there are none, they are another
-   * commit's, or they do not list where a test in the snapshot last ran.
+   * run that published it wrote, when the entry carried one. `readingFrom` says
+   * what it read in place of an answer whenever the runs beside the snapshot
+   * cannot give one: there are none, they are another commit's, or they do not
+   * list where a test in the snapshot last ran.
    */
-  const runs = coverage.commit === undefined ? undefined : await readCommitRuns(snapshotFile);
+  let runs;
+  try {
+    runs = coverage.commit === undefined ? undefined : await readCommitRuns(snapshotFile);
+  } catch (error) {
+    // It says where each test last ran, and a selection that guessed would
+    // skip tests that should run, so nothing is narrowed on it. What to do
+    // depends on whose record it is, one case per place a record is read from.
+    const remedy = {
+      own: '  Run `yarn test`, which rewrites it; delete it first only if it is a directory.',
+      mainline: "  It is the mainline's record, as last fetched: run `yarn test` here, which writes this checkout's own.",
+      primary: "  It is the primary checkout's record: run `yarn test` here, which writes this worktree's own.",
+    }[base.from];
+    say(
+      `test:since: ${error?.message ?? error}.`,
+      '  It says where each test in the snapshot last ran, so nothing is selected without it.',
+      remedy,
+    );
+    return 1;
+  }
   let suite;
   try {
     suite = suiteFiles(ROOT);

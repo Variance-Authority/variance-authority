@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/pro
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, testCoverageFile, writeCommitRuns, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { EXIT_OPERATOR } from '../exit.js';
 import { landJourneys } from './land.js';
 import { published, wholeRecord } from './mainline-fixture.js';
@@ -111,6 +111,9 @@ describe('landJourneys when another process holds a lock', () => {
     const { dir, record, shard } = await landing();
     const snapshot = await readFile(record);
     const cases = await readFile(`${record}.cases.bin`);
+    // The fixture leaves no runs record beside the snapshot. One is written here, so a landing that changed it would show.
+    await writeCommitRuns(commitRunsFile(record), { first: '', latest: '', runs: 1, files: ['test/total.test.ts'] });
+    const runs = await readFile(commitRunsFile(record));
     const lock = `${locked(record)}.lock`;
     // Written a moment ago by somebody else, which is what a live holder in
     // another process looks like from here.
@@ -125,6 +128,7 @@ describe('landJourneys when another process holds a lock', () => {
     expect(refused).toMatchObject({ exitCode: EXIT_OPERATOR });
     expect(await readFile(record)).toEqual(snapshot);
     expect(await readFile(`${record}.cases.bin`)).toEqual(cases);
+    expect(await readFile(commitRunsFile(record))).toEqual(runs);
     expect((await readdir(dirname(record))).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   }, PUMP_TEST_TIMEOUT_MS);
 });
