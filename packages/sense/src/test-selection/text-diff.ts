@@ -28,9 +28,10 @@ export function diffTexts(before: string, after: string): string {
         { cwd: directory, encoding: 'utf8', maxBuffer: 1 << 28 },
       );
     } catch (error) {
-      // `diff --no-index` exits 1 when the texts differ, which is the case here.
-      const stdout = (error as { stdout?: unknown }).stdout;
-      if (typeof stdout !== 'string') throw error;
+      // `diff --no-index` exits 1 when the texts differ, which is the case
+      // here. Any other status is git failing, and its output is not a diff.
+      const { status, stdout } = error as { status?: unknown; stdout?: unknown };
+      if (status !== 1 || typeof stdout !== 'string') throw error;
       output = stdout;
     }
     const first = output.search(/^@@ /mu);
@@ -53,8 +54,9 @@ export interface Rebased {
  * The diff's new side is its old side — `base`, the text at the commit, or
  * nothing for a file the commit does not hold — with its hunks applied. The
  * change from the recorded text to that is what the tests have not run. Absent
- * when the hunks do not apply to `base`: the diff was written against some
- * other text, and there is no new side to read.
+ * when the hunks do not apply to `base`, because the diff was written against
+ * some other text and there is no new side to read, and when git could not diff
+ * the two texts. The caller charges the module whole either way.
  */
 export function rebasedChange(
   file: string,
@@ -64,7 +66,12 @@ export function rebasedChange(
 ): Rebased | undefined {
   const after = applied(base ?? '', hunks)?.after;
   if (after === undefined) return undefined;
-  const body = diffTexts(recorded, after);
+  let body: string;
+  try {
+    body = diffTexts(recorded, after);
+  } catch {
+    return undefined;
+  }
   if (body === '') return { ranges: [], hunks: [] };
   const diff = `--- a/${file}\n+++ b/${file}\n${body}`;
   return { ranges: changedLines(diff).get(file) ?? [], hunks: hunksOf(diff).get(file) ?? [] };

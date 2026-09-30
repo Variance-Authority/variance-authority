@@ -68,13 +68,14 @@ export async function keepRecordedTexts(
   if (record.commit === undefined) return [];
   let repository: string;
   let dirty: readonly string[];
+  let top: string;
   try {
     repository = repositoryRoot(root);
     dirty = dirtyFiles(repository);
+    ({ top } = repositoryLayers(repository, cacheRoot));
   } catch {
     return [];
   }
-  const { top } = repositoryLayers(repository, cacheRoot);
   const kept: string[] = [];
   for (const file of dirty) {
     const rows = findModules(record, file).filter((module) => record.moduleInstrumented.at(module) === 1);
