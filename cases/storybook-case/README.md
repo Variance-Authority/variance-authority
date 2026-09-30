@@ -118,8 +118,11 @@ two are exercised separately.
 | `Suspense — never resolves` | a boundary that never resolves, which is a flake source and is refused unless declared in `collector/index.mjs` |
 | `Card — receipt at two widths` | declares `widths: [375, 800]` in its own parameters, which the index does not carry, so it becomes two subjects, `@375` and `@800`, only if the collector asks the running preview |
 
-The first five rows are the five a `Button` edit moves. The nine subjects below
-them — `Spinner` down to both widths of the receipt — are the nine that hold.
+The first five rows are the five a `Button` edit moves. Of the nine subjects below
+them, eight read the same way every time. `Clock — ticking` does not: nothing
+freezes its clock, so two readings agree only when both land in the same 50 ms
+step. It carries `tags: ['unstable']` for any run that asserts `unchanged` to
+exclude.
 
 `Card — receipt not read` declares `exclude: true` in the same place. The report
 lists it as excluded by its own parameters rather than leaving it out.
@@ -136,9 +139,12 @@ contaminating a page. They are run, never recorded.
 
 ## A flake is diagnosed, not retried away
 
-`Clock — ticking` agrees with its baseline but changes between two readings of
-the same built story. A normal run settles at the baseline before it needs a
-second read; the diagnostic sweep asks the other question.
+`Clock — ticking` renders new text every 50 ms, and stabilization leaves timers
+running, because freezing the clock is the story author's job. So one reading
+matches its baseline only when both land in the same 50 ms step, and a normal
+run calls the story `unchanged` or `changed` depending on when it looked. That
+verdict is not the finding. The diagnostic sweep asks whether two readings of the
+same built story agree, and they do not.
 
 From the repository root:
 
@@ -149,9 +155,13 @@ yarn workspace @variance-authority/case-storybook build-storybook:changed
 yarn vitest run cases/storybook-case/src/cli.chromium.test.js
 ```
 
-The case drives `variance run --flakes` for that one story and asserts that an
-`unchanged` verdict can still carry an `unstable` diagnosis for the named ticking
-story. The run exits **1** — something needs a decision. A following
+The case reads the clock with a config and baseline of its own, and leaves it out
+of the cycle below. It records a baseline for the story, then drives
+`variance run --flakes` for it. Whatever the verdict, the run reports the story
+`[unstable]`. When both readings complete, the diagnosis names `Clock` in
+`src/ds.jsx` as the component that wrote the text. When the second reading never
+settles, the diagnosis says the subject cannot be taken twice. The run exits
+**1** — something needs a decision. A following
 `variance accept` refuses the candidate, because there are two readings and
 neither may become the baseline, and prints:
 
@@ -259,16 +269,18 @@ yarn vitest run cases/storybook-case/src/cli.chromium.test.js
 one baseline directory, so the second is a branch judged against its trunk rather
 than two independent runs compared afterwards.
 
-Four steps, which is the workflow a team actually runs:
+Four steps, which is the workflow a team actually runs. The cycle's config also
+excludes the `unstable` tag, so it reads thirteen subjects and leaves
+`Clock — ticking` to [its own sweep](#a-flake-is-diagnosed-not-retried-away):
 
 | step | verdicts | exit |
 |---|---|---|
-| `variance run` on a fresh checkout | 14 new | **1** |
-| `variance accept --all` | 14 accepted | 0 |
-| `variance run` again | 14 unchanged, *nothing to review* | 0 |
-| `variance run` on the changed build | 9 unchanged, **5 changed** | **1** |
+| `variance run` on a fresh checkout | 13 new | 0 |
+| `variance accept --all` | 13 accepted | 0 |
+| `variance run` again | 13 unchanged, *nothing to review* | 0 |
+| `variance run` on the changed build | 8 unchanged, **5 changed** | **1** |
 
-The last row is the one worth reading. `Button` appears in five of the fourteen
+The last row is the one worth reading. `Button` appears in five of the thirteen
 subjects, and the run finds exactly those five. The report resolves to source:
 
 ```

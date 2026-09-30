@@ -441,10 +441,8 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     };
 
     if (scope.__STORYBOOK_PREVIEW__?.currentSelection?.storyId === request.storyId) {
-      // The first story of a session arrives selected by the URL, so its
-      // `storyRendered` may have fired before this function was injected.
-      // Waiting for it alone would burn the whole timeout and then report a
-      // story that is sitting fully rendered on the screen as a timeout.
+      // The first story of a session arrives selected by the URL, and its
+      // `storyRendered` may have fired already: waiting for it would time out.
       if (marker !== undefined) {
         // The framework's half is already spent — the story was selected and
         // rendered before this ran — so the marker is all that is outstanding.
@@ -454,6 +452,8 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
         ]).then(finish, failed);
         return;
       }
+      // FIXME: a re-read of a still-selected story waits on markup, not `storyRendered`,
+      // so a subject that never stops changing spends all of `timeoutMs` to say so.
       settleByMarkup('already-rendered', request.timeoutMs, []).then(finish, failed);
       return;
     }

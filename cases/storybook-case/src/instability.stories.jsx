@@ -24,9 +24,18 @@ export const Loading = {
   ),
 };
 
-/** Content instability. The correct answer is the text node, not the box. */
+/**
+ * Content instability. The correct answer is the text node, not the box.
+ *
+ * Nothing freezes the clock, because freezing it is the author's job. So two
+ * readings agree only when both land in the same 50 ms step, and a comparison
+ * against a baseline is a coin flip. `unstable` is the tag a config excludes to
+ * leave it out of a run that asserts `unchanged`: `cli.chromium.test.js` does
+ * that for its cycle, and reads this story in a sweep of its own.
+ */
 export const Ticking = {
   name: 'Clock — ticking',
+  tags: ['unstable'],
   render: () => (
     <Tokens>
       <Clock />
