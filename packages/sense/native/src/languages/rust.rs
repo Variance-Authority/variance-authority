@@ -41,6 +41,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
         unknown: held.broken.then(|| {
             format!("{file} did not parse cleanly as Rust, so what it imports may be incomplete.")
         }),
+        ..Read::default()
     }
 }
 

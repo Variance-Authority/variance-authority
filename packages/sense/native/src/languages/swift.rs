@@ -62,6 +62,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
         unknown: broken.then(|| {
             format!("{file} did not parse cleanly as Swift, so what it imports may be incomplete.")
         }),
+        ..Read::default()
     }
 }
 

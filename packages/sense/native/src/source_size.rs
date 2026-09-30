@@ -9,10 +9,14 @@
 //! nothing anybody wrote. A parse with a diagnostic has no region count: the
 //! instrument does not cut a module it cannot parse, and a count it would never
 //! make is absent rather than zero.
+//!
+//! A file read through a tree-sitter grammar is sized by
+//! [`languages/size.rs`](./languages/size.rs), with this file's line rule over
+//! the grammar's comments and no region count.
 
 // compass: variance-authority.reach.source-index
 
-use oxc_ast::ast::{Comment, Program};
+use oxc_ast::ast::Program;
 use serde::{Deserialize, Serialize};
 
 use crate::instrument::typescript_start;
@@ -31,7 +35,7 @@ pub struct Size {
 pub fn size_of(source: &str, program: &Program, typescript: bool, parsed: bool) -> Size {
     Size {
         bytes: u32::try_from(source.len()).unwrap_or(u32::MAX),
-        lines: code_lines(source, &program.comments),
+        lines: code_lines(source, program.comments.iter().map(|comment| (comment.span.start as usize, comment.span.end as usize))),
         blocks: parsed.then(|| blocks(program, typescript)),
     }
 }
@@ -45,10 +49,11 @@ fn blocks(program: &Program, typescript: bool) -> u32 {
 }
 
 /// Lines with a byte that is neither whitespace nor inside a comment. `comments`
-/// are in source order, which is how oxc collects them.
-fn code_lines(source: &str, comments: &[Comment]) -> u32 {
+/// are byte ranges in source order, none inside another — how oxc collects them,
+/// and how a walk over a tree-sitter tree that stops at a comment finds them.
+pub(crate) fn code_lines(source: &str, comments: impl IntoIterator<Item = (usize, usize)>) -> u32 {
     let bytes = source.as_bytes();
-    let mut comments = comments.iter().map(|comment| (comment.span.start as usize, comment.span.end as usize)).peekable();
+    let mut comments = comments.into_iter().peekable();
     let mut count = 0u32;
     let mut counted = false;
     let mut at = 0usize;
