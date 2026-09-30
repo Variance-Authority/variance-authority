@@ -414,6 +414,13 @@ describe('a package with no `exports`', () => {
     expect(opened({ name: 'lib', main: './index.js', typings: './src/index.ts' })).toEqual([[['.', 'src/index.ts']]]);
   });
 
+  it('opens `.` at the TypeScript source a `.js` `main` is compiled from, when nothing declares it', () => {
+    expect(opened({ name: 'lib', main: './src/index.js' })).toEqual([[['.', 'src/index.ts']]]);
+    const component = { 'src/view.tsx': 'export const View = 1;\n' };
+    expect(opened({ name: 'lib', main: 'src/view.js' }, component)).toEqual([[['.', 'src/view.tsx']]]);
+    expect(opened({ name: 'lib', main: './src/index.mjs' }, { 'src/index.mts': 'export const one = 1;\n' })).toEqual([[['.', 'src/index.mts']]]);
+  });
+
   it('still leaves out a private package', () => {
     expect(opened({ name: 'app', private: true, main: 'src/index.ts' })).toEqual([]);
   });

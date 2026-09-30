@@ -36,7 +36,7 @@ describe('the first question', () => {
   it('reports a specifier that reaches past a published entrypoint', () => {
     const reaching = {
       ...READING,
-      deep: [{ specifier: 'alpha/values', by: 'beta', at: 'packages/beta/src/index.ts', line: 2 }],
+      deep: [{ specifier: 'alpha/values', by: 'beta', at: 'packages/beta/src/index.ts', line: 2, names: [] }],
     };
     const tool = HELP_TOOLS.find((candidate) => candidate.name === 'docs_packages')!;
     expect(tool.run(reaching, {})).toContain('alpha/values — beta at packages/beta/src/index.ts:2');

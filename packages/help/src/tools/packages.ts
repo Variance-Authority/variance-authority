@@ -1,6 +1,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { NO_ARGS } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { counted, surfaceByPath, unenteredImported } from './by-path.js';
 import { NOTHING_PUBLISHED, specifierOf } from './find.js';
 
 /**
@@ -17,7 +18,8 @@ export const packages: Tool<Help> = {
     'Every import specifier this workspace publishes, with how many names each opens, how many ' +
     'of those names anything actually imports, and how many carry documentation. Call this ' +
     'first: the specifiers it returns are the arguments every other tool here takes. Also ' +
-    'reports specifiers that reach into a package past what its exports map opens.',
+    'reports specifiers that reach into a package past what its exports map opens, and, for a ' +
+    'package that declares no entry, which of its files and names other packages import by path.',
   inputSchema: NO_ARGS,
 
   run(help) {
@@ -33,6 +35,13 @@ export const packages: Tool<Help> = {
             `elsewhere, ${written} documented`,
         );
       }
+    }
+
+    // A package that declares no entry opens nothing to list. What other
+    // packages import from it is its surface, and nothing else is.
+    for (const owner of unenteredImported(help)) {
+      const surface = surfaceByPath(help, owner);
+      lines.push('', `${owner} declares no entry. Other packages import ${counted(surface)} by path:`, ...surface.lines);
     }
 
     if (help.deep.length > 0) {

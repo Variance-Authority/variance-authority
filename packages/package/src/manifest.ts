@@ -1,6 +1,7 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import { legacyEntry, unentered } from './entry.js';
 import { subpathsOf } from './exports.js';
 import { members } from './members.js';
 
@@ -254,6 +255,10 @@ function declarationsOf(condition: unknown): string | undefined {
  * TypeScript itself resolves that path to. It is authored, not emitted, so it is
  * the source: nothing is mapped back through a tsconfig. A wildcard is returned
  * as a pattern and the glob in {@link openedBy} keeps only the files that exist.
+ * With no declaration beside it, the TypeScript source of the same stem —
+ * `src/index.ts`, then `src/index.tsx` — is the file TypeScript resolves a `.js`
+ * path to, which is how a package whose `main` names the file its source compiles
+ * to is read without a build.
  *
  * Only for JavaScript that is source. Under the package's `outDir` the file
  * beside it was emitted, and exists only when the build ran; an answer read
@@ -268,9 +273,11 @@ function besideOf(dir: string, condition: unknown): string | undefined {
   if (typeof condition !== 'string') return undefined;
   const found = /\.(m|c)?js$/.exec(condition);
   if (found === null || emittedInto(dir, condition)) return undefined;
-  const declaration = `${condition.slice(0, found.index)}.d.${found[1] ?? ''}ts`;
+  const stem = condition.slice(0, found.index);
+  const declaration = `${stem}.d.${found[1] ?? ''}ts`;
   if (declaration.includes('*')) return declaration;
-  return existsSync(join(dir, declaration)) ? declaration : undefined;
+  const sources = found[1] === undefined ? [`${stem}.ts`, `${stem}.tsx`] : [`${stem}.${found[1]}ts`];
+  return [declaration, ...sources].find((candidate) => existsSync(join(dir, candidate)));
 }
 
 /** Whether `target` sits under the `outDir` the package's own tsconfig declares. */
@@ -394,18 +401,11 @@ function followed(dir: string, condition: unknown, custom: ReadonlySet<string>):
 }
 
 /**
- * The `"."` a manifest with no `exports` opens: `types`, then `typings`, then
- * `main`, the order TypeScript reads them in.
- *
- * Without `exports`, Node loads `main` for the bare name and TypeScript takes
- * its declarations from these keys, so the bare name is published exactly as if
- * `exports` had written `"."`. The package's other files stay importable by path
- * and are not listed: {@link publishes} reads `exports` alone, so an import of
- * one is reported as reaching past the front door, which is what it does.
+ * The workspace packages that declare no entry, private or not, as
+ * {@link unentered} reads them.
  */
-function legacyEntry(manifest: Record<string, unknown>): readonly (readonly [string, unknown])[] {
-  const written = [manifest['types'], manifest['typings'], manifest['main']].find((key) => typeof key === 'string');
-  return written === undefined ? [] : [['.', written]];
+export function readUnentered(root: string): ReadonlySet<string> {
+  return unentered(members(resolve(root), read).map((path) => read(path)));
 }
 
 /**

@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 import { type Parses, parseFile } from './declare.js';
 import { lineAt } from './doc.js';
-import { requested } from './manifest.js';
+import { readUnentered, requested } from './manifest.js';
 
 /**
  * Which published names anything in this repository actually imports.
@@ -90,21 +90,47 @@ export interface Through {
   readonly line: number;
 }
 
-/** A specifier that reaches into a package past what its `exports` map opens. */
+/** One name an import by path takes, and the place that takes it. */
+export interface Taken extends Use {
+  /** The name as the other module exports it. `default` for a default import. */
+  readonly name: string;
+}
+
+/**
+ * A specifier naming a file of a workspace package, rather than an entry the
+ * package's manifest opens.
+ */
 export interface Deep {
   /** As written. */
   readonly specifier: string;
   readonly by: string;
   readonly at: string;
   readonly line: number;
+  /**
+   * The file the specifier resolves to, relative to the workspace root, as the
+   * index recorded it. Absent when the reading that made this had no resolver,
+   * or the resolver could not answer.
+   */
+  readonly to?: string;
+  /**
+   * Every name the import takes. Empty for a side-effect import, and for a
+   * module held whole that nothing reads a member of.
+   */
+  readonly names: readonly Taken[];
 }
 
 /** What a repository does with what it publishes. */
 export interface Usage {
   /** `<package> <subpath>` to imported name to every place that imports it. */
   readonly names: ReadonlyMap<string, ReadonlyMap<string, readonly Use[]>>;
-  /** Specifiers naming a workspace package at a subpath it does not open. */
+  /** Specifiers naming a file of a package that declares an entry, past what that entry opens. */
   readonly deep: readonly Deep[];
+  /**
+   * Specifiers naming a file of a package that declares no entry: no `exports`,
+   * `main`, `types` or `typings`. Every import of such a package is by path, and
+   * none of them is deep.
+   */
+  readonly byPath: readonly Deep[];
   /**
    * Every place a name is exported, published or not.
    *
@@ -229,10 +255,11 @@ export interface Exported {
  * the reading for the reason `Recorded` exists: two callers arrive here holding
  * the same facts read two different ways, and only one of them had to walk.
  */
-export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>): Usage {
-  const packages = new Set([...opened].map((key) => key.slice(0, key.indexOf(' '))));
+export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>, unentered: ReadonlySet<string>): Usage {
+  const packages = new Set([...[...opened].map((key) => key.slice(0, key.indexOf(' '))), ...unentered]);
   const names = new Map<string, Map<string, Use[]>>();
   const deep: Deep[] = [];
+  const byPath: Deep[] = [];
   const exported: Named[] = [];
   const unreadable: string[] = [];
 
@@ -252,10 +279,12 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
 
     for (const asked of file.requests) {
       const key = requested(asked.specifier);
-      if (!packages.has(key.slice(0, key.indexOf(' ')))) continue;
+      const named = key.slice(0, key.indexOf(' '));
+      if (!packages.has(named)) continue;
 
       if (!opened.has(key)) {
-        deep.push({ specifier: asked.specifier, by, at, line: asked.line });
+        const taken = asked.names.map((bound) => ({ name: bound.imported, by, at, line: bound.line, type: bound.type, kind }));
+        (unentered.has(named) ? byPath : deep).push({ specifier: asked.specifier, by, at, line: asked.line, names: taken });
         continue;
       }
 
@@ -269,7 +298,7 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
     }
   }
 
-  return { names, deep, exported, unreadable };
+  return { names, deep, byPath, exported, unreadable };
 }
 
 /**
@@ -346,7 +375,9 @@ function walk(
  *
  * `opened` is every `<package> <subpath>` a manifest answers, and it does double
  * duty: the package half says which specifiers are worth following at all, and
- * the whole key says which of them came through a published door.
+ * the whole key says which of them came through a published door. A package the
+ * manifests declare no entry for is followed as well, and every import of it is
+ * listed under `byPath`.
  */
 export function readUsage(
   root: string,
@@ -418,5 +449,5 @@ export function readUsage(
     });
   });
 
-  return usageFrom(opened, files);
+  return usageFrom(opened, files, readUnentered(root));
 }

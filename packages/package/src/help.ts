@@ -89,8 +89,18 @@ export interface Documented {
 /** A workspace, read three ways and joined. */
 export interface Help {
   readonly packages: readonly Documented[];
-  /** Specifiers reaching into a package past what its `exports` map opens. */
+  /** Specifiers naming a file of a package past the entry its manifest declares: deep imports. */
   readonly deep: readonly Deep[];
+  /**
+   * Specifiers naming a file of a package that declares no entry — no
+   * `exports`, `main`, `types` or `typings` — private or not.
+   *
+   * Such a package is a folder and a boundary, and these imports are its whole
+   * surface: which of its files other packages import, and which names they
+   * take. Nothing is listed from its files that nobody imports, because nothing
+   * is declared to list.
+   */
+  readonly byPath: readonly Deep[];
   /**
    * Every name the repository's own files export, published or not.
    *
@@ -233,6 +243,7 @@ export function assembleHelp(
   return {
     packages,
     deep: usage.deep.filter((held) => !publishes(offerings, held.specifier)),
+    byPath: usage.byPath,
     exported: usage.exported,
     unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
   };
@@ -282,13 +293,14 @@ export type {
   Exported,
   Recorded,
   Requested,
+  Taken,
   Through,
   Usage,
   UsageOptions,
   Use,
   UseKind,
 } from './use.js';
-export { ownership, publishes, readOfferings, requested } from './manifest.js';
+export { ownership, publishes, readOfferings, readUnentered, requested } from './manifest.js';
 export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';

@@ -52,13 +52,14 @@ describe('what a workspace imports from what it publishes', () => {
     expect(usage.names.get('alpha .')?.get('everything')).toBeUndefined();
   });
 
-  it('records a subpath the manifest does not open, rather than dropping it', () => {
+  it('records a subpath the manifest does not open, and the names it takes, rather than dropping it', () => {
     expect(usage.deep).toEqual([
       {
         specifier: 'alpha/values',
         by: 'beta',
         at: 'packages/beta/src/deep.ts',
         line: 4,
+        names: [{ name: 'Level', by: 'beta', at: 'packages/beta/src/deep.ts', line: 4, type: false, kind: 'source' }],
       },
     ]);
   });

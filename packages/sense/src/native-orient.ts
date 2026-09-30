@@ -324,7 +324,33 @@ export interface NativeDependencyLexicon {
 /** What the published index records of imports and exports, read by `readHelp`. */
 export interface NativeIndexedUsage {
   exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source' }[];
-  deep: { specifier: string; by: string; at: string; line: number }[];
+  /** Imports of a file past the entry its package declares. */
+  deep: NativeByPath[];
+  /** Imports of a file of a package that declares no entry. */
+  byPath: NativeByPath[];
   unreadable: string[];
-  names: { key: string; name: string; by: string; at: string; line: number; type: boolean; kind: 'story' | 'test' | 'source'; through?: 'dynamic' | 'namespace'; throughLine: number }[];
+  names: NativeNameUse[];
+}
+
+/** One name taken through an import, keyed by the requested `<package> <subpath>`. */
+export interface NativeNameUse {
+  key: string;
+  name: string;
+  by: string;
+  at: string;
+  line: number;
+  type: boolean;
+  kind: 'story' | 'test' | 'source';
+  through?: 'dynamic' | 'namespace' | null;
+  throughLine: number;
+}
+
+/** An import of a file rather than an entry, with the file it resolved to when the index recorded one. */
+export interface NativeByPath {
+  specifier: string;
+  by: string;
+  at: string;
+  line: number;
+  to?: string | null;
+  names: NativeNameUse[];
 }
