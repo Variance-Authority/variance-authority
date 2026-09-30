@@ -193,6 +193,11 @@ export interface ScanOptions extends ResolveOptions {
  * scan that looked like a scale problem. At the cap a single file costs about a
  * hundred megabytes of arena, which is a budget a scan can hold; at ten times it
  * the same file costs eight hundred.
+ *
+ * A record declined at this limit names the bytes it declined and is kept, and
+ * a run at the default names no limit in its configuration digest (`configOf`
+ * in [`reuse.ts`](./reuse.ts)). So a change to this value bumps `VERSION`
+ * there, or every index keeps the records the old limit declined.
  */
 export const LARGEST_FILE = 1024 * 1024;
 

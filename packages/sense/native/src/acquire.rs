@@ -1,7 +1,7 @@
 //! Bounded acquisition of worktree files and committed Git blobs.
 
 use std::fs;
-use std::io::{BufRead, BufReader, Read as _, Write as _};
+use std::io::{BufRead, BufReader, ErrorKind, Read as _, Write as _};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
@@ -14,7 +14,24 @@ use crate::digest;
 use crate::git::{self, Oid};
 use crate::read::{read_module, Read};
 
-pub(crate) type Answer = (Read, String, bool);
+/// What became of a file's bytes. `Declined` is a refusal the bytes decide —
+/// over the size this scan opens, or not UTF-8 — so the record may name them
+/// and is kept until they change. `Failed` is one they do not decide, and the
+/// file is tried again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Outcome {
+    Parsed,
+    Declined,
+    Failed,
+}
+
+impl Outcome {
+    pub(crate) fn parsed(self) -> bool {
+        self == Outcome::Parsed
+    }
+}
+
+pub(crate) type Answer = (Read, String, Outcome);
 type Numbered = (usize, Answer);
 type Requested = (usize, String, Option<Oid>);
 
@@ -165,11 +182,10 @@ fn read_blob<R: BufRead>(
         return (
             Read {
                 unknown: Some(too_large(file, size, largest)),
-                oversized: true,
                 ..Read::default()
             },
             String::new(),
-            false,
+            Outcome::Declined,
         );
     }
     let mut bytes = vec![0; size as usize];
@@ -194,7 +210,7 @@ fn open_and_parse(
 ) -> Answer {
     let (_, opened, digest) = open(root, file, largest, digests);
     match opened {
-        Opened::Settled(read) => (read, digest, false),
+        Opened::Settled(read, outcome) => (read, digest, outcome),
         Opened::Source(source) => parsed(file, source, digests, arenas, symbols),
     }
 }
@@ -214,7 +230,7 @@ fn parsed(
     (
         read_module(file, &source, &arenas.get(), symbols),
         digest,
-        true,
+        Outcome::Parsed,
     )
 }
 
@@ -258,7 +274,7 @@ pub(crate) fn read_all(
 
 enum Opened {
     Source(String),
-    Settled(Read),
+    Settled(Read, Outcome),
 }
 
 fn open_all<'a>(
@@ -297,42 +313,49 @@ fn parse_all(
     opened
         .into_par_iter()
         .map(|(file, held, digest)| match held {
-            Opened::Settled(read) => (read, digest, false),
+            Opened::Settled(read, outcome) => (read, digest, outcome),
             Opened::Source(source) => (
                 read_module(file, &source, &arenas.get(), symbols),
                 digest,
-                true,
+                Outcome::Parsed,
             ),
         })
         .collect()
 }
 
 fn open<'a>(root: &Path, file: &'a str, largest: u64, digests: bool) -> (&'a str, Opened, String) {
-    let settled = |unknown, oversized| {
+    let settled = |unknown, outcome| {
         (
             file,
-            Opened::Settled(Read {
-                unknown: Some(unknown),
-                oversized,
-                ..Read::default()
-            }),
+            Opened::Settled(
+                Read {
+                    unknown: Some(unknown),
+                    ..Read::default()
+                },
+                outcome,
+            ),
             String::new(),
         )
     };
+    let failed = |error: std::io::Error| settled(format!("{file} could not be read: {error}"), Outcome::Failed);
     let mut held = match fs::File::open(root.join(file)) {
         Ok(held) => held,
-        Err(error) => return settled(format!("{file} could not be read: {error}"), false),
+        Err(error) => return failed(error),
     };
     let size = match held.metadata() {
         Ok(held) => held.len(),
-        Err(error) => return settled(format!("{file} could not be read: {error}"), false),
+        Err(error) => return failed(error),
     };
     if size > largest {
-        return settled(too_large(file, size, largest), true);
+        return settled(too_large(file, size, largest), Outcome::Declined);
     }
     let mut source = String::with_capacity(size as usize);
     if let Err(error) = held.read_to_string(&mut source) {
-        return settled(format!("{file} could not be read: {error}"), false);
+        // Bytes that are not UTF-8 are refused by the same bytes every time.
+        return match error.kind() {
+            ErrorKind::InvalidData => settled(format!("{file} could not be read: {error}"), Outcome::Declined),
+            _ => failed(error),
+        };
     }
     let digest = if digests {
         digest::of_string(&source)
@@ -361,37 +384,39 @@ fn too_large(file: &str, size: u64, largest: u64) -> String {
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
+    use std::path::Path;
 
     use oxc_allocator::AllocatorPool;
 
-    use super::read_blob;
+    use super::{open, read_blob, Opened, Outcome};
 
     #[test]
-    fn an_oversized_blob_is_drained_without_losing_the_next_answer() {
+    fn an_oversized_blob_is_declined_and_drained_without_losing_the_next_answer() {
         let mut stream = Cursor::new(b"one blob 4\nxxxx\ntwo blob 19\nexport const y = 1\n\n");
         let arenas = AllocatorPool::new(1);
 
-        let (oversized, _, parsed) = read_blob(
-            std::path::Path::new("."),
-            "large.ts",
-            &mut stream,
-            1,
-            false,
-            &arenas,
-            true,
-        );
-        let (_, _, next_parsed) = read_blob(
-            std::path::Path::new("."),
-            "next.ts",
-            &mut stream,
-            1024,
-            false,
-            &arenas,
-            true,
-        );
+        let (oversized, _, outcome) = read_blob(Path::new("."), "large.ts", &mut stream, 1, false, &arenas, true);
+        let (_, _, next) = read_blob(Path::new("."), "next.ts", &mut stream, 1024, false, &arenas, true);
 
-        assert!(!parsed);
+        assert_eq!(outcome, Outcome::Declined);
         assert!(oversized.unknown.is_some());
-        assert!(next_parsed);
+        assert_eq!(next, Outcome::Parsed);
+    }
+
+    #[test]
+    fn bytes_that_are_not_utf8_are_declined_and_a_missing_file_failed() {
+        let root = std::env::temp_dir().join(format!("sense-acquire-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("latin1.js"), b"export const e = '\xe9';\n").unwrap();
+
+        let outcome = |file| match open(&root, file, 1024, false).1 {
+            Opened::Settled(_, outcome) => outcome,
+            Opened::Source(_) => Outcome::Parsed,
+        };
+        let (latin1, missing) = (outcome("latin1.js"), outcome("missing.js"));
+        std::fs::remove_dir_all(&root).unwrap();
+
+        assert_eq!(latin1, Outcome::Declined);
+        assert_eq!(missing, Outcome::Failed);
     }
 }

@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 
 use super::{built, Edge, Settling};
+use crate::acquire::Outcome;
 use crate::read::{Kind, Read, Request};
 
 fn set(values: &[&str]) -> HashSet<String> {
@@ -18,7 +19,7 @@ fn an_unread_file_is_its_reason_alone() {
     let (builtins, code, directories) = (set(&[]), set(&[]), set(&[]));
     let settling = Settling { builtins: &builtins, code: &code, remembering: true, directories: &directories, aliases: None };
     let read = Read { unknown: Some("a.ts could not be read: EMFILE".to_owned()), ..Read::default() };
-    let held = built("a.ts", "git:x", &read, false, &[], &settling);
+    let held = built("a.ts", "git:x", &read, Outcome::Failed, &[], &settling);
     assert_eq!(
         serde_json::to_string(&held.record).unwrap(),
         r#"{"file":"a.ts","unknown":"a.ts could not be read: EMFILE"}"#
@@ -28,11 +29,11 @@ fn an_unread_file_is_its_reason_alone() {
 }
 
 #[test]
-fn a_file_declined_for_its_size_names_the_bytes_it_declined() {
+fn a_file_declined_by_its_bytes_names_the_bytes_it_declined() {
     let (builtins, code, directories) = (set(&[]), set(&[]), set(&[]));
     let settling = Settling { builtins: &builtins, code: &code, remembering: true, directories: &directories, aliases: None };
-    let read = Read { unknown: Some("too large".to_owned()), oversized: true, ..Read::default() };
-    let held = built("a.ts", "git:x", &read, false, &[], &settling);
+    let read = Read { unknown: Some("too large".to_owned()), ..Read::default() };
+    let held = built("a.ts", "git:x", &read, Outcome::Declined, &[], &settling);
     assert_eq!(
         serde_json::to_string(&held.record).unwrap(),
         r#"{"file":"a.ts","digest":"git:x","unknown":"too large"}"#
@@ -58,7 +59,7 @@ fn a_read_file_settles_edges_packages_and_holes() {
     };
     let targets: Vec<String> =
         ["src/b.ts", "src/b.ts", "src/style.css", "", "", "", ""].iter().map(|value| (*value).to_owned()).collect();
-    let held = built("src/a.ts", "git:x", &read, true, &targets, &settling);
+    let held = built("src/a.ts", "git:x", &read, Outcome::Parsed, &targets, &settling);
     let record = &held.record;
     assert_eq!(record.digest.as_deref(), Some("git:x"));
     let edges = record.edges.as_ref().unwrap();

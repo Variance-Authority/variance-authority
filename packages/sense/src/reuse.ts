@@ -58,6 +58,7 @@ import type { NativeIndexGraph } from './native-index-graph.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
 import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
 import { treeOf, type Tree } from './tree.js';
+import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
 
 /**
  * What decides a record besides the files: how specifiers resolve, and the
@@ -65,7 +66,6 @@ import { treeOf, type Tree } from './tree.js';
  * declined, so a raised limit has to move the digest or it would keep them.
  */
 export type ShapeOptions = ResolveOptions & { readonly largestFile?: number };
-import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
 
 /** The tree as reuse sees it: one digest for the configuration, one per directory. */
 export interface TreeShape {
@@ -92,10 +92,11 @@ export interface RecordCache {
    * Remember a record and the directories that answered it.
    *
    * Every record is held, and only one with a digest is ever handed back: a
-   * record the scan could not read — past the size cap, in a language with no
+   * record the scan could not read — a read that failed, a language with no
    * reader — is still the scan's answer for that file, and a reader of what was
    * saved must find it `unknown` rather than not find it. Without a digest it
-   * names no bytes, so the next scan builds it again.
+   * names no bytes, so the next scan builds it again. A file declined past the
+   * size cap names the bytes it declined when Git named them, and is kept.
    */
   set(record: FileRecord, witnesses: readonly string[], targets?: readonly (string | undefined)[]): void;
   /**

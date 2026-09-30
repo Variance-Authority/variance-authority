@@ -273,9 +273,9 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             .zip(identities.into_par_iter())
             .zip(read.into_par_iter())
             .zip(targets.par_iter())
-            .map(|(((file, identity), (read, _, parsed)), targets)| {
-                let indexed = built(file, &identity, &read, parsed, targets, &settling);
-                Row { indexed, identity, read, parsed }
+            .map(|(((file, identity), (read, _, outcome)), targets)| {
+                let indexed = built(file, &identity, &read, outcome, targets, &settling);
+                Row { indexed, identity, read, parsed: outcome.parsed() }
             })
             .collect();
         walked.extend(files.into_iter().zip(rows));
