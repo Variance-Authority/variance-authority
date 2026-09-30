@@ -51,6 +51,23 @@ describe('a diff that moved the install', () => {
     expect(said.err).not.toContain('package-lock.json');
   });
 
+  it('compares a pnpm lockfile that opens on its environment document', async () => {
+    // pnpm 11 and later write the package manager they pinned as a first YAML
+    // document; the install is the second. TanStack Query's lockfile is this
+    // shape, and a bump in it is answered like any other.
+    const { root, head } = checkout({ 'pnpm-lock.yaml': pnpmLock('1.3.0') });
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+
+    writeFileSync(join(root, 'pnpm-lock.yaml'), pnpmLock('1.4.0'));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).not.toContain('skipping nothing');
+  });
+
   it('skips nothing when the install cannot be compared', async () => {
     // No lockfile at the base, one in the tree: any package in it may have
     // moved, and nothing here can say which.
@@ -95,6 +112,53 @@ function npmLock(version: string): string {
     null,
     2,
   );
+}
+
+/** Two documents: the pinned package manager, then the install. */
+function pnpmLock(version: string): string {
+  return [
+    '---',
+    "lockfileVersion: '9.0'",
+    '',
+    'importers:',
+    '',
+    '  .:',
+    '    configDependencies: {}',
+    '    packageManagerDependencies:',
+    '      pnpm:',
+    '        specifier: 12.4.2',
+    '        version: 12.4.2',
+    '',
+    'packages:',
+    '',
+    '  pnpm@12.4.2:',
+    '    resolution: {integrity: sha512-CK3GYTGAJ1x8ntraOdzwjJxhrU5==}',
+    '',
+    'snapshots:',
+    '',
+    '  pnpm@12.4.2: {}',
+    '',
+    '---',
+    "lockfileVersion: '9.0'",
+    '',
+    'importers:',
+    '',
+    '  .:',
+    '    dependencies:',
+    '      left-pad:',
+    '        specifier: ^1.0.0',
+    `        version: ${version}`,
+    '',
+    'packages:',
+    '',
+    `  left-pad@${version}:`,
+    `    resolution: {integrity: sha512-${version}==}`,
+    '',
+    'snapshots:',
+    '',
+    `  left-pad@${version}: {}`,
+    '',
+  ].join('\n');
 }
 
 /** A checkout holding exactly the text the snapshot below is recorded against. */
