@@ -397,6 +397,17 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
+      # `actions/checkout` trusts the workspace only in a throwaway HOME it
+      # removes afterwards, and the cases run their own child processes under
+      # the job's HOME. Git refuses a directory it does not trust, and the
+      # cases would then fall back to naming files from their own directory.
+      # The last line prints the answer they will get.
+      - name: trust the workspace
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git -C cases/journey-tracing-case rev-parse --show-cdup
+
       - name: install
         shell: bash
         run: corepack enable && yarn install --immutable
