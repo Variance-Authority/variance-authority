@@ -166,12 +166,13 @@ export async function review(request: ParsedReview): Promise<Review> {
   const { root } = request;
   // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
   const recorded = await recordedSuite(root, request.suite);
-  const coverageFile = recorded.file;
-  // The runs are this checkout's own. A worktree reads the primary checkout's
-  // record, whose runs are the primary's change, and a seeded record (`runs: 0`)
-  // says where the base's tests last ran and lists no run of this checkout's.
+  // The runs are always this checkout's own, never the primary's a worktree that has not run
+  // reads its recording from, and a record seeded from the base (`runs: 0`) lists none of them.
   const own = await landingRecord(root, request.suite);
-  const runs = await readCommitRuns(own).then((listed) => (listed?.runs === 0 ? undefined : listed));
+  const runs = await readCommitRuns(own).catch((error: unknown) => {
+    const remedy = 'It says where this change starts: run the suite, which rewrites it; delete it first only if it is a directory';
+    throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${remedy}.`, { cause: error });
+  }).then((listed) => (listed?.runs === 0 ? undefined : listed));
   const given = request.since ?? (await runsBase(root, runs, own));
   // Runs that name no start (`runsBase`), and no base named: a suite given to a
   // share starts from the record its mainline published, as a fresh CI checkout
@@ -207,8 +208,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   // later cases, and comparing with them would report its changes as this one's.
   const against = request.against ?? (mainline !== undefined && point.base === mainline.commit ? mainline.cases : undefined);
 
-  const here = process.cwd();
-  const named = (file: string): string => relative(point.repository, resolve(here, file));
+  const named = (file: string): string => relative(point.repository, resolve(process.cwd(), file));
   const relations = await relationsFor(root, ['.'], [], [], {
     why: 'a review reads which tests import each changed file, and which cases ran against a mock of it',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
@@ -221,7 +221,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   });
   const readings = new Map(reading.readings.map((read) => [read.file, read]));
 
-  const from = await recordedExecutionFile(root, request.suite, coverageFile);
+  const from = await recordedExecutionFile(root, request.suite, recorded.file);
   const now = inTreeLines(changedLines(backward), root, readings);
   const { index } = await readExecutionFor(from, now);
   const covered = new Map(
@@ -234,7 +234,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   // case index; for any other file it holds an earlier commit's cases.
   const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
   const comparable = (file: string): boolean => wrote === undefined || ('compared' in wrote && wrote.compared.has(file));
-  const near = await nearTests(coverageFile, [...covered.values()].filter((file) => file.recorded).map((file) => file.file), relations);
+  const near = await nearTests(recorded.file, [...covered.values()].filter((file) => file.recorded).map((file) => file.file), relations);
 
   const files: ReviewFile[] = [];
   for (const file of [...changed.keys()].sort()) {
@@ -255,7 +255,7 @@ export async function review(request: ParsedReview): Promise<Review> {
     });
   }
 
-  const suite = await preconditionsOf(coverageFile, [...changed.keys()].map(named));
+  const suite = await preconditionsOf(recorded.file, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
   const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = against !== undefined
@@ -264,7 +264,7 @@ export async function review(request: ParsedReview): Promise<Review> {
       ? undefined
       : await motionOfRuns(full, from, wrote, root, ref);
 
-  const record = await ranAsTree(coverageFile, root, files.filter((file) => file.recorded === true).map((file) => file.file));
+  const record = await ranAsTree(recorded.file, root, files.filter((file) => file.recorded === true).map((file) => file.file));
   return {
     from: point.base,
     record,

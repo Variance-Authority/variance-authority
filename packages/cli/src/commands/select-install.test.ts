@@ -65,7 +65,7 @@ describe('a diff that moved the install', () => {
 
     expect(said.out).toBe('');
     expect(said.err).toContain('skipping nothing');
-    expect(said.err).toContain('package-lock.json is not in the tree at the base of this diff');
+    expect(said.err).toContain(`package-lock.json is not in the tree at ${head.slice(0, 12)}, where this install is compared from`);
   });
 });
 

@@ -95,11 +95,11 @@ export interface CommitRuns {
    * speak for the snapshot the run was laid over. A reader that falls back, to
    * `over` or to `commit`, says it did.
    */
-  readonly standing?: readonly Stand[];
+  readonly standing?: readonly StandingEntry[];
 }
 
 /** Tests that last ran at one commit, or were assumed to have when no record could say. */
-export interface Stand {
+export interface StandingEntry {
   readonly commit: string;
   readonly files: readonly string[];
   readonly assumed?: true;
@@ -129,7 +129,7 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
  */
 export async function landRun(coverageFile: string, current: TestCoverage, root: string): Promise<void> {
   const before = await recordedSnapshot(coverageFile);
-  const held = await readCommitRuns(coverageFile);
+  const held = await heldCommitRuns(coverageFile);
   await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
   // FIXME: two writes, and nothing makes them one. A failed record write, or a
   // process killed between them, leaves the snapshot at this run's commit
@@ -232,7 +232,7 @@ function standingAfter(
   if (base === undefined || held?.commit !== base) return undefined;
   // A stand is a commit and whether it was assumed there; the key is both.
   const key = (commit: string, assumed: boolean): string => `${assumed ? 'assumed' : 'observed'} ${commit}`;
-  const stands = new Map<string, Stand>();
+  const stands = new Map<string, StandingEntry>();
   const listed = new Map<string, string>();
   for (const entry of held.standing ?? []) {
     const at = key(entry.commit, entry.assumed === true);
@@ -257,15 +257,62 @@ function standingAfter(
     .map(([at, stand]) => ({ ...stand, files: [...new Set(grouped.get(at))].sort(codeUnitOrder) }));
 }
 
-/** The runs recorded into the snapshot at `coverageFile`, or `undefined` when no run has listed itself. */
+/**
+ * The runs recorded into the snapshot at `coverageFile`, or `undefined` when no
+ * run has listed itself: when there is no file at all.
+ *
+ * A record that is there and cannot be read, or is not a JSON object, throws,
+ * naming the file: it says where each test last ran, and a reader that took it
+ * for *no record* would place every test at the journal's commit, which can
+ * skip a test that should run. Each caller says what the record was for and
+ * what to do. A writer need not refuse: {@link heldCommitRuns} lets it write a
+ * record that says less, and says so.
+ */
 export async function readCommitRuns(coverageFile: string): Promise<CommitRuns | undefined> {
+  const file = commitRunsFile(coverageFile);
   let text: string;
   try {
-    text = await readFile(commitRunsFile(coverageFile), 'utf8');
-  } catch {
+    text = await readFile(file, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw new Error(`the runs record at ${file} could not be read: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    });
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`the runs record at ${file} is not JSON: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    });
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`the runs record at ${file} is not a JSON object`);
+  }
+  return parsed as CommitRuns;
+}
+
+/**
+ * The record a writer lays its run over: {@link readCommitRuns}, except that a
+ * record this cannot read is no record to carry forward. The writer then
+ * writes a fresh one, which places no test it did not run, and `warn` is told
+ * so, naming the file. Refusing would leave the same fresh record to be
+ * written by hand, after deleting this one, and would fail every run until then.
+ */
+export async function heldCommitRuns(
+  coverageFile: string,
+  warn: (line: string) => void = (line) => console.warn(`variance-authority: ${line}`),
+): Promise<CommitRuns | undefined> {
+  try {
+    return await readCommitRuns(coverageFile);
+  } catch (error) {
+    warn(
+      `${error instanceof Error ? error.message : String(error)}; this run writes it afresh, so it says ` +
+        'where each test last ran only as an assumption until the runs at one commit together observe every test.',
+    );
     return undefined;
   }
-  return JSON.parse(text) as CommitRuns;
 }
 
 /** The snapshot at `coverageFile` as the runs record reads it, or `undefined` when there is none to read. */
