@@ -38,7 +38,8 @@ import { readFile } from 'node:fs/promises';
 import { askCoverageFile } from './coverage-file.js';
 import { layeredCoverage } from './format-layer.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { writeCoverageBytes, type TestCoverage } from './index.js';
+import type { TestCoverage } from './index.js';
+import { writeCoverageBytes } from './record-location.js';
 
 /**
  * One commit's runs, as `coverage.runs.json` holds them: what a review reads to
