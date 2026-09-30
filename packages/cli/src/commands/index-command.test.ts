@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
-import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { indexOutput } from './index-command.js';
@@ -93,16 +93,29 @@ describe('variance index', () => {
       "const { inIndexTurn } = await import('@variance-authority/sense');",
       "await inIndexTurn('/elsewhere', () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));",
     ].join('\n')], { cwd: PACKAGE, env: process.env });
+    let stderr = '';
+    holder.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+    onTestFailed(() => { console.error(`the holder's stderr:\n${stderr}`); });
     onTestFinished(() => { holder.kill(); });
     await new Promise<void>((resolve, reject) => {
       holder.stdout.once('data', () => resolve());
-      holder.once('exit', (code) => reject(new Error(`the holder exited with ${code}`)));
+      holder.once('exit', (code) => reject(new Error(`the holder exited with ${code}: ${stderr}`)));
     });
     const told: string[] = [];
+    const release = (): void => { holder.stdin.write('\n'); };
+    // Let go if nothing says it is waiting, so that silence fails the assertion
+    // below rather than running into the test's timeout.
+    const unheard = setTimeout(release, 2_000);
+    onTestFinished(() => { clearTimeout(unheard); });
 
     const output = await indexOutput({ cwd: root, waiting: (text) => {
       told.push(text);
-      holder.stdin.write('\n');
+      // Hold on for eight of the waiter's 25 ms pauses, so a message said on
+      // every try would be said eight times.
+      if (told.length === 1) {
+        clearTimeout(unheard);
+        setTimeout(release, 200);
+      }
     } });
 
     expect(told).toEqual([`waiting for process ${holder.pid}, which is indexing /elsewhere: one index at a time uses this machine's cores\n`]);
