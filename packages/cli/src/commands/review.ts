@@ -47,6 +47,7 @@ import { motionAgainst, motionOfRuns, type CoveringMotion } from './covering-mot
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
+import { packagesReached, type PackageReach } from './review-install.js';
 import { diffPoint, diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
 
@@ -155,6 +156,8 @@ export interface Review {
   readonly before?: readonly BeforeReach[];
   /** Absent when there is no install to compare. */
   readonly beyond?: InstallDiff;
+  /** Each package `beyond` names, followed to the files here that depend on it. Absent with `beyond`, or when it could not be compared. */
+  readonly packages?: readonly PackageReach[];
   readonly motion?: CoveringMotion;
 }
 
@@ -244,6 +247,7 @@ export async function review(request: ParsedReview): Promise<Review> {
 
   const suite = await preconditionsOf(coverageFile, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
+  const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = against !== undefined
     ? await motionAgainst(from, against, ref, root)
     : runs === undefined
@@ -263,6 +267,7 @@ export async function review(request: ParsedReview): Promise<Review> {
       before: beforeReach([...changed.keys()].map(named), suite.declared),
     }),
     ...(beyond === undefined ? {} : { beyond }),
+    ...(packages === undefined ? {} : { packages }),
     ...(motion === undefined ? {} : { motion }),
   };
 }

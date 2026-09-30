@@ -716,9 +716,13 @@ Each part comes from the party that owns the answer:
 - **Before any import** names changed files the test runner loads before any
   test, such as its config, or declares in `preconditions`, and how many test
   files depend on each. No import graph shows them.
-- Installed packages the lockfile changed, and workspace manifests whose entry
-  points changed, are listed last, because nothing in your own source shows
-  them either.
+- Installed packages the lockfile changed come last, because nothing in your
+  own source shows them either. Each one your code depends on is followed to
+  your files: the chain of packages from the one that changed to the one you
+  import, the files that import it, and how many test files run them. A bump
+  you never import directly reads `picomatch` → `micromatch` →
+  `src/glob.ts`. Packages nothing of yours depends on are named on one line.
+  Workspace manifests whose entry points changed follow.
 
 The diff starts at the merge base with `<ref>`. Without `--since`, it starts at
 the last commit the suite ran at before this one. Every run writes that commit,
