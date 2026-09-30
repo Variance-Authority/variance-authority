@@ -25,10 +25,13 @@ describe('what a selector prints about each changed file', () => {
     ]);
   });
 
-  it('names the declared files behind a `load` verdict, and prints nothing for no readings', () => {
+  it('names the declared files behind a `load` verdict', () => {
     expect(readingLines([{ file: 'src/wrap.ts', verdict: 'load', names: [], effects: ['src/polyfill.ts'] }])).toEqual([
       'read src/wrap.ts: load (`sideEffects` declares src/polyfill.ts) — every test that loaded it is charged',
     ]);
+  });
+
+  it('prints nothing for no readings', () => {
     expect(readingLines([])).toEqual([]);
   });
 });
