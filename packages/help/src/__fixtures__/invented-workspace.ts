@@ -33,6 +33,6 @@ export async function inventedWorkspace(packages: readonly FixturePackage[], dec
   }
   execFileSync('git', ['add', '-f', '.'], { cwd: root });
   await updateSourceIndex(root);
-  refreshDependencyLexicon(root);
+  await refreshDependencyLexicon(root);
   return root;
 }

@@ -86,8 +86,8 @@ describe('variance index', () => {
     const root = checkout();
     const update = await updateSourceIndex(root);
     expect(update.listing).toBeDefined();
-    expect(prepareCodeMap(root, update.path, update).prepared).toMatchObject({ relisted: false, walked: false });
-    expect(prepareCodeMap(root, update.path).prepared).toMatchObject({ relisted: true, walked: false });
+    expect((await prepareCodeMap(root, update.path, update)).prepared).toMatchObject({ relisted: false, walked: false });
+    expect((await prepareCodeMap(root, update.path)).prepared).toMatchObject({ relisted: true, walked: false });
   });
 
   it('reads from the working tree under `--no-git`, into the same index', async () => {

@@ -9,7 +9,10 @@ import { publishedRows } from './search-index.js';
 import {
   SNAPSHOT_FORMAT,
   SNAPSHOT_VERSION,
+  indexManifestDigest,
   workspaceExportedDigest,
+  workspaceGeneration,
+  workspaceIndexDigest,
   workspaceSearchPath,
   workspaceSnapshotPath,
   workspaceTreePrefix,
@@ -32,6 +35,10 @@ import {
  * refresh: the offerings or the exported set changed, the scope is not the
  * whole checkout, or there is no native scanner. The caller then reads the way
  * it always did.
+ *
+ * A value refreshed from this very manifest, over the same packages, is the
+ * value this refresh would write, so it is kept and its generation answered:
+ * an index that did not move costs its value nothing.
  */
 export async function refreshWorkspaceFromIndex(
   root: string,
@@ -45,9 +52,13 @@ export async function refreshWorkspaceFromIndex(
   if (!samePackages({ root: scope.root, offerings }, documented)) return undefined;
   const opened = offerings.flatMap((offering) => offering.entrypoints.map((entry) => `${offering.name} ${entry.subpath}`));
   const index = options.index ?? sourceIndexPath(scope.root);
-  let reading: ReturnType<typeof readHelp>;
+  const indexDigest = await indexManifestDigest(index);
+  if (indexDigest === undefined) return undefined;
+  const kept = workspaceGeneration(documented);
+  if (kept !== undefined && workspaceIndexDigest(documented) === indexDigest) return kept;
+  let reading: Awaited<ReturnType<typeof readHelp>>;
   try {
-    reading = readHelp(scope.root, opened, index);
+    reading = await readHelp(scope.root, opened, index);
   } catch {
     return undefined;
   }
@@ -70,7 +81,7 @@ export async function refreshWorkspaceFromIndex(
   const help: Help = joinUsage(documented, offerings, usage);
   const generatedAt = new Date().toISOString();
   try {
-    reading.publish({
+    await reading.publish({
       snapshot: workspaceSnapshotPath(index),
       search: workspaceSearchPath(index),
       graph: workspaceTreePrefix(index),
@@ -79,6 +90,7 @@ export async function refreshWorkspaceFromIndex(
       root: realpathSync(where),
       graphRoot: realpathSync(scope.root),
       generatedAt,
+      indexDigest,
       packages: JSON.stringify(help.packages),
       deep: JSON.stringify(help.deep),
       unreadable: JSON.stringify(help.unreadable),

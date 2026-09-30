@@ -83,6 +83,7 @@ mod module_readers;
 mod module_shape;
 mod module_verdict;
 mod order;
+mod off_thread;
 mod orient_map;
 mod orient_map_pages;
 mod orient_map_read;
@@ -105,6 +106,7 @@ mod specifier;
 mod stored;
 mod tree;
 mod witness;
+mod witness_aliases;
 
 pub use seed::seed_files;
 

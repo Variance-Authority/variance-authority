@@ -53,13 +53,15 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
     const reason = update.refused.startsWith(`${update.path}: `) ? update.refused.slice(update.path.length + 2) : update.refused;
     throw new OperatorError(`source index not written: ${reason}, at ${update.path}`);
   }
-  return `${[
-    describe(update),
+  // The map, the journeys, the lexicon and the published value each read the index
+  // the update wrote and nothing another writes, so they are made at once.
+  const [map, walks, names, questions] = await Promise.all([
     codeMap(request.cwd, update),
-    ...(await journeys(request.cwd, update)),
+    journeys(request.cwd, update),
     lexicon(request.cwd),
-    await answerable(request.cwd, update.path, request.noGit === true),
-  ].join('\n')}\n`;
+    answerable(request.cwd, update.path, request.noGit === true),
+  ]);
+  return `${[describe(update), map, ...walks, names, questions].join('\n')}\n`;
 }
 
 /**
@@ -85,9 +87,9 @@ async function answerable(root: string, index: string, noGit: boolean): Promise<
   }
 }
 
-function lexicon(root: string): string {
+async function lexicon(root: string): Promise<string> {
   try {
-    const { path, packages, entrypoints, reused, unavailable, unchanged } = refreshDependencyLexicon(root);
+    const { path, packages, entrypoints, reused, unavailable, unchanged } = await refreshDependencyLexicon(root);
     if (unchanged) return `dependency lexicon: unchanged, nothing read: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${unavailable} unavailable, at ${path}`;
     return `dependency lexicon: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;
   } catch (error) {
@@ -142,9 +144,9 @@ function walked(one: PreparedJourneys): string {
  * the index standing and says why. It carries the update's listing of the
  * checkout rather than asking git again.
  */
-function codeMap(cwd: string, update: SourceUpdate): string {
+async function codeMap(cwd: string, update: SourceUpdate): Promise<string> {
   try {
-    return mapped(prepareCodeMap(cwd, update.path, update));
+    return mapped(await prepareCodeMap(cwd, update.path, update));
   } catch (error) {
     return `code map: not prepared: ${error instanceof Error ? error.message : String(error)}`;
   }

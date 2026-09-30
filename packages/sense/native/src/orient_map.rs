@@ -13,7 +13,10 @@
 
 use std::collections::HashSet;
 
+use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
+
+use crate::off_thread::{off_thread, OffThread};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -182,13 +185,24 @@ impl From<Made> for OrientMapMade {
 /// with no scan's listing to carry: git lists the checkout for the map, and
 /// the result says so. `scanned` is a scan that ran and could not list with
 /// git, so none is asked for. `undefined` when there is no index.
-#[napi(catch_unwind)]
-pub fn prepare_orient_map(root: String, index: String, scanned: Option<bool>) -> napi::Result<Option<OrientMapPrepared>> {
+#[napi(ts_return_type = "Promise<OrientMapPrepared | null>")]
+pub fn prepare_orient_map(root: String, index: String, scanned: Option<bool>) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
+    off_thread(move || uncarried(&root, &index, scanned))
+}
+
+/// `prepare_orient_map`, on the calling thread.
+pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>) -> napi::Result<Option<OrientMapPrepared>> {
     if scanned == Some(true) {
-        return prepare(&root, &index, None, false);
+        return prepare(root, index, None, false);
     }
-    let snapshot = crate::git::snapshot(&root);
-    prepare(&root, &index, snapshot.as_ref().map(Listed::from), snapshot.is_some())
+    let snapshot = crate::git::snapshot(root);
+    prepare(root, index, snapshot.as_ref().map(Listed::from), snapshot.is_some())
+}
+
+/// `GitTree::prepare_orient_map`, on the calling thread.
+#[cfg(test)]
+pub(crate) fn carried(tree: &GitTree, root: &str, index: &str) -> napi::Result<Option<OrientMapPrepared>> {
+    prepare(root, index, Some(Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed }), false)
 }
 
 #[napi]
@@ -196,10 +210,15 @@ impl GitTree {
     /// Fold the index at `index` into the code map, carrying this listing of
     /// the checkout — the one the scan that published the index took — rather
     /// than asking git again. `undefined` when there is no index.
-    #[napi(catch_unwind)]
-    pub fn prepare_orient_map(&self, root: String, index: String) -> napi::Result<Option<OrientMapPrepared>> {
-        let listed = Listed { paths: &self.paths, oids: &self.oids, unhashed: &self.unhashed };
-        prepare(&root, &index, Some(listed), false)
+    /// The listing is copied, because the fold runs off the JavaScript thread
+    /// while this tree stays JavaScript's.
+    #[napi(ts_return_type = "Promise<OrientMapPrepared | null>")]
+    pub fn prepare_orient_map(&self, root: String, index: String) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
+        let (paths, oids, unhashed) = (self.paths.clone(), self.oids.clone(), self.unhashed.clone());
+        off_thread(move || {
+            let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed };
+            prepare(&root, &index, Some(listed), false)
+        })
     }
 }
 

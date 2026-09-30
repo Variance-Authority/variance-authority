@@ -58,6 +58,8 @@ export interface HelpPublish {
   readonly root: string;
   readonly graphRoot: string;
   readonly generatedAt: string;
+  /** The digest of the index manifest the reading was made from. */
+  readonly indexDigest: string;
   /** JSON of the value's `packages`, `deep` and `unreadable`. */
   readonly packages: string;
   readonly deep: string;
@@ -72,11 +74,11 @@ export interface HelpReading {
   /** The uses, deep requests and unreadable files, handed over once; `exported` is empty. */
   usage(): NativeIndexedUsage;
   /** Write the graph, the value and its search; a graph already written under its digest is kept. */
-  publish(options: HelpPublish): { readonly graphDigest: string };
+  publish(options: HelpPublish): Promise<{ readonly graphDigest: string }>;
 }
 
 export interface NativeHelp {
-  readHelp?(root: string, index: string, opened: string[]): HelpReading | null;
+  readHelp?(root: string, index: string, opened: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
 }
@@ -91,7 +93,7 @@ function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHel
 }
 
 /** The reading of the index at `index` for the entrypoints in `opened`; `null` when none was published. */
-export function readHelp(root: string, opened: readonly string[], index: string = sourceIndexPath(root)): HelpReading | null {
+export function readHelp(root: string, opened: readonly string[], index: string = sourceIndexPath(root)): Promise<HelpReading | null> {
   return entry('readHelp')(root, index, [...opened]);
 }
 

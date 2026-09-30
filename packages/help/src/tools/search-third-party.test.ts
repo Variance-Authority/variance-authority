@@ -49,7 +49,7 @@ it('offers a name only from the workspace whose manifest declares it, not from o
   }
   execFileSync('git', ['add', '-f', '.'], { cwd: root });
   await updateSourceIndex(root);
-  refreshDependencyLexicon(root);
+  await refreshDependencyLexicon(root);
 
   const tree = treeOf([reads('packages/alpha/src/index.ts'), reads('packages/beta/src/index.ts', 'packages/alpha/src/index.ts')], root);
   const index = searchIndexOf(readHelp(root));

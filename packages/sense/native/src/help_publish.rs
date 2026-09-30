@@ -11,12 +11,15 @@
 // compass: variance-authority.report.agent-surface
 
 use std::io::Write;
+use std::sync::Arc;
 
+use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
+use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{encode, exported_digest, PublishedRows, SearchGeneration};
 use crate::help_usage::{usage, DeepRequest, IndexedUsage, NameUse, NamedExport};
 use crate::index_chain::read_chain;
@@ -25,10 +28,15 @@ use crate::source_tree::tree;
 /// What the chain says for a Help value, held on this side.
 #[napi]
 pub struct HelpReading {
+    held: Arc<Held>,
+    usage: Option<(Vec<NameUse>, Vec<DeepRequest>, Vec<String>)>,
+}
+
+/// What publishing reads, shared with the thread that writes it.
+struct Held {
     exported: Vec<NamedExport>,
     tree: Vec<u8>,
     digest: String,
-    usage: Option<(Vec<NameUse>, Vec<DeepRequest>, Vec<String>)>,
 }
 
 /// The value's own fields, printed by JavaScript: they are the documented
@@ -45,6 +53,9 @@ pub struct HelpPublish {
     pub root: String,
     pub graph_root: String,
     pub generated_at: String,
+    /// The digest of the index manifest the reading was made from, which a
+    /// later refresh over the same manifest keeps the value by.
+    pub index_digest: String,
     /// JSON of the value's `packages`, `deep` and `unreadable`.
     pub packages: String,
     pub deep: String,
@@ -59,18 +70,22 @@ pub struct HelpPublished {
 
 /// The reading of the chain at `index` for the entrypoints in `opened`; `None`
 /// when there is no index.
-#[napi(catch_unwind)]
-pub fn read_help(root: String, index: String, opened: Vec<String>) -> napi::Result<Option<HelpReading>> {
+#[napi(ts_return_type = "Promise<HelpReading | null>")]
+pub fn read_help(root: String, index: String, opened: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
+    off_thread(move || reading(&root, &index, &opened))
+}
+
+fn reading(root: &str, index: &str, opened: &[String]) -> napi::Result<Option<HelpReading>> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
-    let Some(chain) = read_chain(&index).map_err(fail)? else { return Ok(None) };
+    let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
     let layers = chain.segments.par_iter().enumerate()
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<Vec<_>, _>>()
         .map_err(fail)?;
-    let (read, tree) = rayon::join(|| usage(&root, &layers, &opened), || tree(&layers));
+    let (read, tree) = rayon::join(|| usage(root, &layers, opened), || tree(&layers));
     let IndexedUsage { exported, deep, unreadable, names } = read;
     let digest = exported_digest(&exported);
-    Ok(Some(HelpReading { exported, tree, digest, usage: Some((names, deep, unreadable)) }))
+    Ok(Some(HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some((names, deep, unreadable)) }))
 }
 
 /// `exportedDigest` of a list JavaScript holds: a value published before the
@@ -85,7 +100,7 @@ impl HelpReading {
     /// The export list as a set, as `EncodedSearch.exported` states it.
     #[napi(getter)]
     pub fn exported_digest(&self) -> String {
-        self.digest.clone()
+        self.held.digest.clone()
     }
 
     /// The uses, deep requests and unreadable files, handed over once: the
@@ -98,8 +113,15 @@ impl HelpReading {
 
     /// Write the graph, the value and its search. A graph already written
     /// under its digest is the same bytes, and is not written again.
-    #[napi(catch_unwind)]
-    pub fn publish(&self, o: HelpPublish) -> napi::Result<HelpPublished> {
+    #[napi(ts_return_type = "Promise<HelpPublished>")]
+    pub fn publish(&self, o: HelpPublish) -> AsyncTask<OffThread<HelpPublished>> {
+        let held = Arc::clone(&self.held);
+        off_thread(move || held.publish(o))
+    }
+}
+
+impl Held {
+    fn publish(&self, o: HelpPublish) -> napi::Result<HelpPublished> {
         let fail = |error: std::io::Error| napi::Error::from_reason(error.to_string());
         let graph_digest: String = Sha256::digest(&self.tree).iter().map(|byte| format!("{byte:02x}")).collect();
         let generation = SearchGeneration {
@@ -108,11 +130,10 @@ impl HelpReading {
             graph_digest: graph_digest.clone(),
             generated_at: o.generated_at.clone(),
         };
-        let ((search, exported), value) = rayon::join(
+        let (search, value) = rayon::join(
             || encode(&o.published, &self.exported, Some(&generation)),
             || value(&o, &generation, &self.digest, &self.exported),
         );
-        debug_assert_eq!(exported, self.digest);
         if let Some(parent) = std::path::Path::new(&o.snapshot).parent() {
             std::fs::create_dir_all(parent).map_err(fail)?;
         }
@@ -133,8 +154,8 @@ fn value(o: &HelpPublish, generation: &SearchGeneration, digest: &str, exported:
     let mut out = Vec::with_capacity(exported.len() * 200);
     write!(
         out,
-        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"exportedDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"exported\":",
-        json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(digest),
+        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"exportedDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"exported\":",
+        json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(digest), json(&o.index_digest),
         o.packages, o.deep,
     )?;
     serde_json::to_writer(&mut out, exported)?;

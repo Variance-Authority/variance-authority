@@ -163,6 +163,20 @@ export async function shapeOf(input: {
   readonly tree: Tree;
   readonly options?: ResolveOptions;
 }): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases | undefined }> {
+  const { config, aliases } = await configOf(input);
+  return { shape: { config, directories: input.tree.directories() }, aliases };
+}
+
+/**
+ * The configuration half of {@link shapeOf}: the digest and the aliases,
+ * without the directory digests, which the addon's update derives from its own
+ * listing and a caller that hands it only the digest would build for nothing.
+ */
+export async function configOf(input: {
+  readonly root: string;
+  readonly tree: Tree;
+  readonly options?: ResolveOptions;
+}): Promise<{ readonly config: Digest; readonly aliases: Aliases | undefined }> {
   const { root, tree, options } = input;
   // `aliasesIn` reads configuration files, so it wants the configuration files —
   // which is the same question the config digest asks, minus the manifests.
@@ -183,12 +197,9 @@ export async function shapeOf(input: {
   ];
 
   return {
-    shape: {
-      // No bound on where a bare specifier could land means no bound on what a
-      // new path could change, and the honest expression of that is the old rule.
-      config: tree.configDigest(header, LAYOUT_FILES, aliases === undefined),
-      directories: tree.directories(),
-    },
+    // No bound on where a bare specifier could land means no bound on what a
+    // new path could change, and the honest expression of that is the old rule.
+    config: tree.configDigest(header, LAYOUT_FILES, aliases === undefined),
     aliases,
   };
 }

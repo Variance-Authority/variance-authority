@@ -37,6 +37,11 @@ interface WorkspaceSnapshot {
    * value published before it was kept.
    */
   readonly exportedDigest?: string;
+  /**
+   * The index manifest the value was read from, as `indexManifestDigest`
+   * states it; absent when the value was not refreshed from a published index.
+   */
+  readonly indexDigest?: string;
   readonly help: Help;
 }
 
@@ -97,6 +102,7 @@ export async function readWorkspaceSnapshot(
     graphDigest: decoded.graphDigest,
     generatedAt: decoded.generatedAt,
     ...(decoded.exportedDigest === undefined ? {} : { exportedDigest: decoded.exportedDigest }),
+    ...(decoded.indexDigest === undefined ? {} : { indexDigest: decoded.indexDigest }),
   });
   return decoded.help;
 }
@@ -136,6 +142,21 @@ export async function publishedGeneration(root: string, index: string): Promise<
 /** The digest of the value's export list: the one published beside it, or computed. */
 export function workspaceExportedDigest(help: Help): string {
   return snapshots.get(help)?.exportedDigest ?? exportedDigest(help.exported);
+}
+
+/** The index manifest the value was refreshed from, absent when it was read another way. */
+export function workspaceIndexDigest(help: Help): string | undefined {
+  return snapshots.get(help)?.indexDigest;
+}
+
+/**
+ * The digest of the manifest published at `index`. Segments are named by their
+ * own digests, so the manifest's bytes are the whole chain's identity. Absent
+ * when nothing is published there.
+ */
+export async function indexManifestDigest(index: string): Promise<string | undefined> {
+  const bytes = await readFile(index).catch(() => undefined);
+  return bytes === undefined ? undefined : digest(bytes);
 }
 
 /** Publish a new generation time when its authoritative changed set is empty. */
@@ -275,6 +296,7 @@ function isWorkspaceSnapshot(value: unknown): value is WorkspaceSnapshot {
     && typeof held.generatedAt === 'string'
     && Number.isFinite(Date.parse(held.generatedAt))
     && (held.exportedDigest === undefined || typeof held.exportedDigest === 'string')
+    && (held.indexDigest === undefined || typeof held.indexDigest === 'string')
     && held.help !== null
     && typeof held.help === 'object';
 }

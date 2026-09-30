@@ -19,7 +19,7 @@ import type { NativeInstrumented } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import { type ResolveOptions } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
-import type { Aliases } from './witness.js';
+import type { Aliases, AliasTable } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
@@ -123,6 +123,12 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
   gitTree(root: string): NativeGitTree | null;
+  /**
+   * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,
+   * read from `root`: `native/src/witness_aliases.rs`. `null` when one of them
+   * cannot be read.
+   */
+  aliasesIn(root: string, paths: string[]): AliasTable | null;
   /**
    * A source-index generation as bytes, from the JSON documents
    * `sourceIndexDocuments` writes of it. The only encoder of the format.

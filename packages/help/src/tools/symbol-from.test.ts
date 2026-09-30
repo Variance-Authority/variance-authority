@@ -46,7 +46,7 @@ it('resolves the version and signature from the owning workspace, and says where
   }
   execFileSync('git', ['add', '-f', '.'], { cwd: root });
   await updateSourceIndex(root);
-  refreshDependencyLexicon(root);
+  await refreshDependencyLexicon(root);
 
   const help = readHelp(root);
   const ask = (from?: string): string => symbol.run(help, from === undefined ? { name: 'sharedName' } : { name: 'sharedName', from }, { root });

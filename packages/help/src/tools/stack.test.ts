@@ -45,7 +45,7 @@ it('lists every package usable at a path, imported before unused, and pages with
   }
   execFileSync('git', ['add', '-f', '.'], { cwd: root });
   await updateSourceIndex(root);
-  refreshDependencyLexicon(root);
+  await refreshDependencyLexicon(root);
 
   const help = readHelp(root);
   const ask = (input: Record<string, unknown>): string => stack.run(help, input, { root });

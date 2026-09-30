@@ -17,7 +17,7 @@ import type { NativeGitTree } from './native.js';
 import { BUILTINS, CODE_EXTENSIONS } from './native-index-graph.js';
 import { LARGEST_FILE } from './scan.js';
 import { READABLE } from './language.js';
-import { shapeOf } from './reuse.js';
+import { configOf } from './reuse.js';
 import { gitTreeOf } from './tree.js';
 
 /** `UpdateOptions` in `native/src/source_update.rs`. */
@@ -53,11 +53,11 @@ export async function updateNatively(root: string, index: string): Promise<Nativ
   const tree = await gitTreeOf(root, ['.']);
   const held = tree?.native;
   if (tree === undefined || held?.updateIndex === undefined) return undefined;
-  const { shape, aliases } = await shapeOf({ root, tree });
+  const { config, aliases } = await configOf({ root, tree });
   const done = held.updateIndex({
     root,
     index,
-    config: shape.config,
+    config,
     largestFile: LARGEST_FILE,
     ...(aliases === undefined ? {} : { aliases: JSON.stringify(aliases.table) }),
     builtins: BUILTINS,

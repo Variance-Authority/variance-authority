@@ -15,6 +15,7 @@ use std::collections::{HashMap, HashSet};
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
+use rayon::prelude::*;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
@@ -62,7 +63,7 @@ pub struct EncodedSearch {
 /// Encode the search over `published` and `exported`.
 #[napi(catch_unwind)]
 pub fn encode_search_index(published: PublishedRows, exported: Vec<NamedExport>, generation: Option<SearchGeneration>) -> EncodedSearch {
-    let (bytes, digest) = encode(&published, &exported, generation.as_ref());
+    let (bytes, digest) = rayon::join(|| encode(&published, &exported, generation.as_ref()), || exported_digest(&exported));
     EncodedSearch { bytes: bytes.into(), exported: digest }
 }
 
@@ -136,7 +137,9 @@ fn json(text: &str) -> String {
     serde_json::to_string(text).expect("a string prints")
 }
 
-pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], generation: Option<&SearchGeneration>) -> (Vec<u8>, String) {
+/// The search file's bytes. The digest of `exported` is the caller's: a
+/// reading already holds it, and the encoder does not compute it again.
+pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], generation: Option<&SearchGeneration>) -> Vec<u8> {
     let split = Regex::new(r"[\n\r\p{Z}\p{P}]+").expect("the pattern is fixed");
     let (mut strings, mut names) = (Pool::default(), Pool::default());
     let (mut name_string, mut name_pub, mut name_exp): (Vec<u32>, Vec<Vec<u32>>, Vec<Vec<u32>>) = Default::default();
@@ -159,6 +162,9 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         (Vec::with_capacity(rows), Vec::with_capacity(rows), Vec::with_capacity(rows), Vec::with_capacity(rows), Vec::with_capacity(rows));
     let (mut sites_off, mut sites_at, mut doc_lower) = (vec![0u32], Vec::new(), Vec::with_capacity(rows));
     let mut site = 0usize;
+    // Tokenizing is the encoder's work per row, and each row's is its own.
+    let doc_terms: Vec<HashSet<String>> =
+        published.doc.par_iter().map(|doc| doc.as_deref().map(|doc| terms_of(&split, doc)).unwrap_or_default()).collect();
     for row in 0..rows {
         let name = name_of!(published.name[row].as_str());
         name_pub[name as usize].push(row as u32);
@@ -174,10 +180,8 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         site += published.site_counts[row] as usize;
         sites_off.push(sites_at.len() as u32);
         doc_lower.push(doc.unwrap_or("").to_lowercase());
-        if let Some(doc) = doc {
-            for term in terms_of(&split, doc) {
-                by_term.entry(term).or_default().1.push(row as u32);
-            }
+        for term in &doc_terms[row] {
+            by_term.entry(term.clone()).or_default().1.push(row as u32);
         }
     }
 
@@ -193,26 +197,27 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         exp_kind.push(USE_KINDS.iter().position(|kind| *kind == named.kind).map_or(u8::MAX, |at| at as u8));
     }
 
-    for (id, name) in names.values.iter().enumerate() {
-        for term in terms_of(&split, name) {
+    let name_terms: Vec<HashSet<String>> = names.values.par_iter().map(|name| terms_of(&split, name)).collect();
+    for (id, held) in name_terms.into_iter().enumerate() {
+        for term in held {
             by_term.entry(term).or_default().0.push(id as u32);
         }
     }
     let mut terms: Vec<&String> = by_term.keys().collect();
-    terms.sort_unstable_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+    terms.par_sort_unstable_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
 
     let mut files: Vec<u32> = pub_at.iter().chain(&sites_at).chain(&exp_at).copied().collect::<HashSet<u32>>().into_iter().collect();
-    files.sort_unstable_by(|&a, &b| strings.values[a as usize].as_bytes().cmp(strings.values[b as usize].as_bytes()));
+    files.par_sort_unstable_by(|&a, &b| strings.values[a as usize].as_bytes().cmp(strings.values[b as usize].as_bytes()));
 
     let mut order: Vec<u32> = (0..names.values.len() as u32).collect();
-    order.sort_unstable_by(|&a, &b| code_unit(names.values[a as usize], names.values[b as usize]));
+    order.par_sort_unstable_by(|&a, &b| code_unit(names.values[a as usize], names.values[b as usize]));
     let mut rank = vec![0u32; order.len()];
     for (at, &id) in order.iter().enumerate() {
         rank[id as usize] = at as u32;
     }
 
     let (strings_off, strings_blob) = joined(&strings.values, "");
-    let lowered: Vec<String> = names.values.iter().map(|name| name.to_lowercase()).collect();
+    let lowered: Vec<String> = names.values.par_iter().map(|name| name.to_lowercase()).collect();
     let (lower_off, lower_blob) = joined(&lowered, "\0");
     let (doc_off, doc_blob) = joined(&doc_lower, "\0");
     let (terms_off, terms_blob) = joined(&terms, "");
@@ -239,7 +244,7 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         ("terms.nameOff", Words(term_name_off)), ("terms.name", Words(term_name)),
         ("terms.pubOff", Words(term_pub_off)), ("terms.pub", Words(term_pub)),
     ];
-    let bodies: Vec<std::borrow::Cow<[u8]>> = sections.iter().map(|(_, section)| section.bytes()).collect();
+    let bodies: Vec<std::borrow::Cow<[u8]>> = sections.par_iter().map(|(_, section)| section.bytes()).collect();
 
     // Offsets count from where the sections start, so the header's own length
     // never feeds back into what it says.
@@ -267,7 +272,7 @@ pub(crate) fn encode(published: &PublishedRows, exported: &[NamedExport], genera
         out[at..at + body.len()].copy_from_slice(body);
         at = start + align(at - start + body.len());
     }
-    (out, exported_digest(exported))
+    out
 }
 
 fn align(at: usize) -> usize {
@@ -278,8 +283,8 @@ fn align(at: usize) -> usize {
 /// order, once.
 pub(crate) fn exported_digest(exported: &[NamedExport]) -> String {
     let mut keys: Vec<String> =
-        exported.iter().map(|named| format!("{}\0{}\0{}\0{}", named.at, named.name, named.kind, u8::from(named.r#type))).collect();
-    keys.sort_unstable();
+        exported.par_iter().map(|named| format!("{}\0{}\0{}\0{}", named.at, named.name, named.kind, u8::from(named.r#type))).collect();
+    keys.par_sort_unstable();
     keys.dedup();
     let mut digest = Sha256::new();
     for key in &keys {

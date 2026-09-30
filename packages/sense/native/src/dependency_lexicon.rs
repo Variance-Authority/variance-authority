@@ -370,8 +370,12 @@ fn api(root: &Path, importer: &Path, specifier: &str, resolver: &Resolvers, prev
 
 /// Refresh the complete installed lexicon from Git, the source index and the
 /// package manager's resolver. No per-dependency object crosses N-API.
-#[napi(catch_unwind)]
-pub fn refresh_dependency_lexicon(root: String, index: String, path: String, refreshed_at: String) -> napi::Result<LexiconRefresh> {
+#[napi(ts_return_type = "Promise<LexiconRefresh>")]
+pub fn refresh_dependency_lexicon(root: String, index: String, path: String, refreshed_at: String) -> napi::bindgen_prelude::AsyncTask<crate::off_thread::OffThread<LexiconRefresh>> {
+    crate::off_thread::off_thread(move || refresh(root, index, path, refreshed_at))
+}
+
+fn refresh(root: String, index: String, path: String, refreshed_at: String) -> napi::Result<LexiconRefresh> {
     let root_path = Path::new(&root);
     let lexicon_path = Path::new(&path);
     // Read before anything else, so a chain that moves during the refresh is never recorded as the one it read.
