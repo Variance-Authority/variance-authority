@@ -49,8 +49,12 @@ pub fn take_index_turn(path: String, holder: String) -> napi::Result<Option<Inde
         Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(fail(error)),
         _ => {}
     }
-    let mut file = File::options().write(true).create_new(true).open(&written).map_err(fail)?;
-    file.write_all(holder.as_bytes()).map_err(fail)?;
-    fs::rename(&written, format!("{path}.holder")).map_err(fail)?;
+    let named = File::options().write(true).create_new(true).open(&written)
+        .and_then(|mut file| file.write_all(holder.as_bytes()))
+        .and_then(|()| fs::rename(&written, format!("{path}.holder")));
+    if let Err(error) = named {
+        let _ = fs::remove_file(&written);
+        return Err(fail(error));
+    }
     Ok(Some(IndexTurn { lock: Some(lock) }))
 }

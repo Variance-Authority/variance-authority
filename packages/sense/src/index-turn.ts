@@ -33,16 +33,17 @@ export function indexTurnPath(): string {
 
 /**
  * Make the turn's directory readable by this user alone, and refuse one this
- * user does not own or that is a link: the lock and the holder are opened by
- * name, so either would let another user decide what they open.
+ * user does not own, that is a link, or that others may write in: the lock and
+ * the holder are opened by name, so any of them would let another user decide
+ * what they open.
  */
 function ownDirectory(directory: string): void {
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const stat = lstatSync(directory);
   const uid = process.getuid?.();
-  if (stat.isSymbolicLink() || !stat.isDirectory() || (uid !== undefined && stat.uid !== uid)) {
+  if (stat.isSymbolicLink() || !stat.isDirectory() || (uid !== undefined && (stat.uid !== uid || (stat.mode & 0o022) !== 0))) {
     throw new Error(
-      `the index turn's directory ${directory} is not a directory this user owns, so no index will lock or write in it: remove it, or set TMPDIR to a directory of your own`,
+      `the index turn's directory ${directory} is not a directory this user owns and alone may write in, so no index will lock or write in it: remove it, or set TMPDIR to a directory of your own`,
     );
   }
 }
