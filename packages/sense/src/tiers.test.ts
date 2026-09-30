@@ -35,4 +35,10 @@ describe('tierOf', () => {
     expect(tierLabel(place)).toBe('tier ≤ 5');
     expect(tierLabel(tierOf(tiers, { lines: 3000, unsizedFiles: 0 }))).toBe('tier 3');
   });
+
+  it('places a closure already in tier 0 exactly, because unsized code only adds to it', () => {
+    const place = tierOf(tiers, { lines: 50001, unsizedFiles: 3 });
+    expect(place).toEqual({ tier: 0, atMost: false });
+    expect(tierLabel(place)).toBe('tier 0');
+  });
 });

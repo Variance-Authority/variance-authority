@@ -60,7 +60,11 @@ export interface TierPlace {
   readonly atMost: boolean;
 }
 
-/** The highest-numbered tier whose budget holds `lines`; tier 0 holds everything. */
+/**
+ * The highest-numbered tier whose budget holds `lines`; tier 0 holds everything.
+ * Unsized code can only move a package to a lower-numbered tier, so a package
+ * already in tier 0 is placed exactly.
+ */
 export function tierOf(tiers: Tiers, closure: { readonly lines: number; readonly unsizedFiles: number }): TierPlace {
   let tier = 0;
   for (let at = tiers.length - 1; at > 0; at -= 1) {
@@ -69,7 +73,7 @@ export function tierOf(tiers: Tiers, closure: { readonly lines: number; readonly
       break;
     }
   }
-  return { tier, atMost: closure.unsizedFiles > 0 };
+  return { tier, atMost: tier > 0 && closure.unsizedFiles > 0 };
 }
 
 /** `tier 3`, or `tier ≤ 3` when the size is a lower bound. */

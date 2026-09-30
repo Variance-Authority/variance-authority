@@ -5,6 +5,7 @@
       "carry": "actions-cache"
     }
   },
+  "tiers": [200000, 50000, 20000, 6000, 1500],
   "entrypoints": {
     "packages/cli": [
       "src/bin.ts",
