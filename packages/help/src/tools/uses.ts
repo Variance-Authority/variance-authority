@@ -1,6 +1,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
+import { how, sitesByPath } from './by-path.js';
 import { entriesNamed, isPackage, unfound } from './find.js';
 
 /**
@@ -37,7 +38,17 @@ import { entriesNamed, isPackage, unfound } from './find.js';
  * it is marked, because the line that reads the name is not the line that loads
  * it. An `import()` loads the module when that call runs, so whether the name
  * is there at all can depend on a path the program takes.
+ *
+ * ## An import by path is a site
+ *
+ * A name no entry publishes is still used when another package imports the file
+ * that exports it. That import is listed like any other, saying whether it is a
+ * deep import — past the entry its package declares — or an import from a
+ * package that declares none.
  */
+
+/** A site, and how it names the module it imports when that is a file path. */
+type Site = Use & { readonly how?: string };
 
 /** How many leading path segments two files share. */
 export function sharedSegments(left: string, right: string): number {
@@ -52,7 +63,7 @@ export function sharedSegments(left: string, right: string): number {
 /** How many sites of one kind are worth naming before the list stops being read. */
 const CAP = 12;
 
-function order(sites: readonly Use[], from: string | undefined): readonly Use[] {
+function order(sites: readonly Site[], from: string | undefined): readonly Site[] {
   return [...sites].sort(
     (a, b) =>
       (from === undefined ? 0 : sharedSegments(from, b.at) - sharedSegments(from, a.at)) ||
@@ -61,7 +72,7 @@ function order(sites: readonly Use[], from: string | undefined): readonly Use[] 
   );
 }
 
-function listed(sites: readonly Use[], heading: string): readonly string[] {
+function listed(sites: readonly Site[], heading: string): readonly string[] {
   if (sites.length === 0) return [];
 
   const shown = sites.slice(0, CAP);
@@ -70,7 +81,7 @@ function listed(sites: readonly Use[], heading: string): readonly string[] {
     '',
     heading,
     '',
-    ...shown.map((use) => `${use.at}:${use.line} — ${use.by}${use.type ? ' (type only)' : ''}${held(use)}`),
+    ...shown.map((use) => `${use.at}:${use.line} — ${use.by}${use.how ?? ''}${use.type ? ' (type only)' : ''}${held(use)}`),
     ...(rest > 0 ? [`… and ${rest} more.`] : []),
   ];
 }
@@ -84,9 +95,9 @@ function held(use: Use): string {
 }
 
 /** Every site of one name, across every door it is published from, without duplicates. */
-function sitesOf(found: readonly (readonly [Documented, Opening, Entry])[]): readonly Use[] {
+function sitesOf(found: readonly (readonly [Documented, Opening, Entry])[], byPath: readonly Site[]): readonly Site[] {
   const seen = new Set<string>();
-  const sites: Use[] = [];
+  const sites: Site[] = [];
 
   for (const [, , entry] of found) {
     for (const use of entry.sites) {
@@ -96,6 +107,12 @@ function sitesOf(found: readonly (readonly [Documented, Opening, Entry])[]): rea
       sites.push(use);
     }
   }
+  for (const use of byPath) {
+    const key = `${use.at}:${use.line}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sites.push(use);
+  }
   return sites;
 }
 
@@ -103,8 +120,9 @@ export const uses: Tool<Help> = {
   name: 'docs_uses',
   description:
     'Every file:line in the workspace that imports one exported name, including reads through ' +
-    '`import()` or `import * as`, marked with the line that loads the module. Stories and tests ' +
-    'are listed apart. `from`, the file you are in, sorts sites by shared path.',
+    '`import()` or `import * as`, marked with the line that loads the module, and imports that ' +
+    'name the file by path, marked as such. Stories and tests are listed apart. `from`, the file ' +
+    'you are in, sorts sites by shared path.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -132,9 +150,15 @@ export const uses: Tool<Help> = {
     const found = entriesNamed(help, name).filter(
       ([published, held]) => wanted === undefined || isPackage(published, held, wanted),
     );
-    if (found.length === 0) throw new Error(unfound(help, name, wanted));
+    // An import by path joins a published name only when the index says it
+    // resolved to the file that declares it; one no entry publishes is joined by name.
+    const declared = new Set(found.map(([, , entry]) => entry.at));
+    const byPath: Site[] = sitesByPath(help, name, wanted)
+      .filter((site) => found.length === 0 || (site.held.to !== undefined && declared.has(site.held.to)))
+      .map((site) => ({ ...site.taken, how: how(site) }));
+    if (found.length === 0 && byPath.length === 0) throw new Error(unfound(help, name, wanted));
 
-    const sites = sitesOf(found);
+    const sites = sitesOf(found, byPath);
     if (sites.length === 0) {
       return `\`${name}\` is published and nothing in this workspace imports it. docs_symbol has its signature and what is written above it.`;
     }
@@ -151,8 +175,9 @@ export const uses: Tool<Help> = {
 
     const dynamic = sites.filter((use) => use.through?.kind === 'dynamic').length;
     const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
+    const published = found.length === 0 ? ', and no entry publishes it' : '';
     return [
-      `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${loaded}`,
+      `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${published}${loaded}`,
       nearest,
       ...listed(stories, 'Stories:'),
       ...listed(tests, 'Tests:'),

@@ -1,6 +1,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { how, sitesByPath, type PathSite } from './by-path.js';
 import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type ThirdPartyMatch } from '../dependency-lexicon.js';
@@ -57,6 +58,11 @@ export const symbol: Tool<Help> = {
         b.usedBy.length - a.usedBy.length || b.uses - a.uses ||
         byCodeUnit(left.name, right.name) || byCodeUnit(leftDoor.subpath, rightDoor.subpath));
 
+    // A name no entry publishes, that another package imports by the path of
+    // the file exporting it, is used here — and that import is what says so.
+    const byPath = found.length === 0 ? sitesByPath(help, name, wanted) : [];
+    if (byPath.length > 0) return importedByPath(help, name, byPath);
+
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
       const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
@@ -109,4 +115,48 @@ export const symbol: Tool<Help> = {
 /** Code-unit order, so a tie never depends on `LANG`. */
 function byCodeUnit(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/**
+ * One name no entry publishes, answered from the imports that name its file:
+ * one block per file, each with the import line, where the name is declared,
+ * why it is not published, and every import of it.
+ */
+function importedByPath(help: Help, name: string, sites: readonly PathSite[]): string {
+  const files = new Map<string, PathSite[]>();
+  for (const site of sites) {
+    const file = site.held.to ?? site.held.specifier;
+    files.set(file, [...(files.get(file) ?? []), site]);
+  }
+  const blocks = [...files.values()].map((held) => {
+    const [first] = held;
+    if (first === undefined) return '';
+    const declared = declaration(help, name, first);
+    const why = first.deep
+      ? `not published: ${first.owner} declares an entry, and this file is not behind it.`
+      : `not published: ${first.owner} declares no entry, so every import of it names a file.`;
+    return [
+      name,
+      ...(name === 'default' ? [] : [`import { ${name} } from '${first.held.specifier}';`]),
+      ...(declared === undefined ? [] : [`declared at ${declared.at}:${declared.line}`]),
+      why,
+      '',
+      `Imported by path in ${held.length} ${held.length === 1 ? 'place' : 'places'}:`,
+      ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.type ? ' (type only)' : ''}`),
+    ].join('\n');
+  });
+  return blocks.join('\n\n');
+}
+
+/**
+ * Where the name an import takes is declared: the export in the file the index
+ * resolved the import to, or, when the reading has no resolution, the one
+ * export of that name its package holds. Two candidates and no resolution is
+ * no answer, and says nothing.
+ */
+function declaration(help: Help, name: string, site: PathSite): { readonly at: string; readonly line: number } | undefined {
+  const to = site.held.to;
+  if (to !== undefined) return help.exported.find((held) => held.name === name && held.at === to);
+  const owned = help.exported.filter((held) => held.name === name && held.by === site.owner);
+  return owned.length === 1 ? owned[0] : undefined;
 }

@@ -29,7 +29,7 @@ use crate::source_tree::tree;
 #[napi]
 pub struct HelpReading {
     held: Arc<Held>,
-    usage: Option<(Vec<NameUse>, Vec<DeepRequest>, Vec<String>)>,
+    usage: Option<(Vec<NameUse>, Vec<DeepRequest>, Vec<DeepRequest>, Vec<String>)>,
 }
 
 /// What publishing reads, shared with the thread that writes it.
@@ -56,9 +56,10 @@ pub struct HelpPublish {
     /// The digest of the index manifest the reading was made from, which a
     /// later refresh over the same manifest keeps the value by.
     pub index_digest: String,
-    /// JSON of the value's `packages`, `deep` and `unreadable`.
+    /// JSON of the value's `packages`, `deep`, `byPath` and `unreadable`.
     pub packages: String,
     pub deep: String,
+    pub by_path: String,
     pub unreadable: String,
     pub published: PublishedRows,
 }
@@ -68,24 +69,25 @@ pub struct HelpPublished {
     pub graph_digest: String,
 }
 
-/// The reading of the chain at `index` for the entrypoints in `opened`; `None`
-/// when there is no index.
+/// The reading of the chain at `index` for the entrypoints in `opened` and the
+/// packages in `unentered`, which declare no entry; `None` when there is no
+/// index.
 #[napi(ts_return_type = "Promise<HelpReading | null>")]
-pub fn read_help(root: String, index: String, opened: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
-    off_thread(move || reading(&root, &index, &opened))
+pub fn read_help(root: String, index: String, opened: Vec<String>, unentered: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
+    off_thread(move || reading(&root, &index, &opened, &unentered))
 }
 
-fn reading(root: &str, index: &str, opened: &[String]) -> napi::Result<Option<HelpReading>> {
+fn reading(root: &str, index: &str, opened: &[String], unentered: &[String]) -> napi::Result<Option<HelpReading>> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
     let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
     let layers = chain.segments.par_iter().enumerate()
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<Vec<_>, _>>()
         .map_err(fail)?;
-    let (read, tree) = rayon::join(|| usage(root, &layers, opened), || tree(&layers));
-    let IndexedUsage { exported, deep, unreadable, names } = read;
+    let (read, tree) = rayon::join(|| usage(root, &layers, opened, unentered), || tree(&layers));
+    let IndexedUsage { exported, deep, by_path, unreadable, names } = read;
     let digest = exported_digest(&exported);
-    Ok(Some(HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some((names, deep, unreadable)) }))
+    Ok(Some(HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some((names, deep, by_path, unreadable)) }))
 }
 
 /// `exportedDigest` of a list JavaScript holds: a value published before the
@@ -103,12 +105,12 @@ impl HelpReading {
         self.held.digest.clone()
     }
 
-    /// The uses, deep requests and unreadable files, handed over once: the
+    /// The uses, imports by path and unreadable files, handed over once: the
     /// export list is left empty, and stays here.
     #[napi]
     pub fn usage(&mut self) -> IndexedUsage {
-        let (names, deep, unreadable) = self.usage.take().unwrap_or_default();
-        IndexedUsage { exported: Vec::new(), deep, unreadable, names }
+        let (names, deep, by_path, unreadable) = self.usage.take().unwrap_or_default();
+        IndexedUsage { exported: Vec::new(), deep, by_path, unreadable, names }
     }
 
     /// Write the graph, the value and its search. A graph already written
@@ -154,9 +156,9 @@ fn value(o: &HelpPublish, generation: &SearchGeneration, digest: &str, exported:
     let mut out = Vec::with_capacity(exported.len() * 200);
     write!(
         out,
-        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"exportedDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"exported\":",
+        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"exportedDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"exported\":",
         json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(digest), json(&o.index_digest),
-        o.packages, o.deep,
+        o.packages, o.deep, o.by_path,
     )?;
     serde_json::to_writer(&mut out, exported)?;
     write!(out, ",\"unreadable\":{}}}}}\n", o.unreadable)?;

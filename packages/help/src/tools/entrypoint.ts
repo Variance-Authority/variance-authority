@@ -1,6 +1,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { counted, ownerOf, surfaceByPath } from './by-path.js';
 import { doorOf, specifierOf } from './find.js';
 import { line } from './format.js';
 
@@ -39,11 +40,10 @@ export const entrypoint: Tool<Help> = {
 
   run(help, input) {
     const subpath = input['subpath'];
-    const [published, held] = doorOf(
-      help,
-      stringArg(input, 'package'),
-      typeof subpath === 'string' && subpath !== '' ? subpath : undefined,
-    );
+    const asked = stringArg(input, 'package');
+    const unentered = typeof subpath === 'string' && subpath !== '' ? undefined : unenteredAnswer(help, asked);
+    if (unentered !== undefined) return unentered;
+    const [published, held] = doorOf(help, asked, typeof subpath === 'string' && subpath !== '' ? subpath : undefined);
 
     if (held.entries.length === 0) return `${specifierOf(published, held)} opens no names.`;
 
@@ -52,3 +52,23 @@ export const entrypoint: Tool<Help> = {
     );
   },
 };
+
+/**
+ * A package that declares no entry opens nothing, and what other packages
+ * import from it by path is the answer in its place.
+ */
+function unenteredAnswer(help: Help, asked: string): string | undefined {
+  const owner = ownerOf(asked);
+  if (!help.byPath.some((held) => ownerOf(held.specifier) === owner)) {
+    const published = help.packages.find((candidate) => candidate.name === asked);
+    if (published === undefined || published.openings.length > 0) return undefined;
+    if (help.deep.some((held) => ownerOf(held.specifier) === owner)) return undefined;
+    return `${asked} opens no entry, and no other package imports a file of it.`;
+  }
+  const surface = surfaceByPath(help, owner);
+  const lines = asked === owner ? surface.lines : surface.lines.filter((line) => line.startsWith(`  ${asked} — `));
+  const heading = `${owner} declares no entry: no \`exports\`, \`main\` or \`types\`.`;
+  if (lines.length === 0) return `${heading} No other package imports ${asked === owner ? 'a file of it' : asked}.`;
+  const count = asked === owner ? counted(surface) : `${lines.length} ${lines.length === 1 ? 'name' : 'names'} from ${asked}`;
+  return [`${heading} Other packages import ${count} by path:`, ...lines].join('\n');
+}

@@ -2,7 +2,16 @@ import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import { readHelp, sourceIndexPath } from '@variance-authority/sense';
 
-import { readOfferings, type Deep, type Help, type HelpOptions, type Usage, type Use } from '@variance-authority/package/help';
+import {
+  readOfferings,
+  readUnentered,
+  type Deep,
+  type Help,
+  type HelpOptions,
+  type Taken,
+  type Usage,
+  type Use,
+} from '@variance-authority/package/help';
 import { joinUsage, samePackages } from './read.js';
 import { coversWhole, scanScope } from './scan-scope.js';
 import { publishedRows } from './search-index.js';
@@ -58,7 +67,7 @@ export async function refreshWorkspaceFromIndex(
   if (kept !== undefined && workspaceIndexDigest(documented) === indexDigest) return kept;
   let reading: Awaited<ReturnType<typeof readHelp>>;
   try {
-    reading = await readHelp(scope.root, opened, index);
+    reading = await readHelp(scope.root, opened, readUnentered(where), index);
   } catch {
     return undefined;
   }
@@ -71,13 +80,16 @@ export async function refreshWorkspaceFromIndex(
     names.set(use.key, held);
     const uses = held.get(use.name) ?? [];
     held.set(use.name, uses);
-    uses.push({
-      by: use.by, at: use.at, line: use.line, type: use.type, kind: use.kind,
-      ...(use.through === undefined || use.through === null ? {} : { through: { kind: use.through, line: use.throughLine } }),
-    });
+    uses.push(useOf(use));
   }
   // The export list is the reading's; the value joined here carries none of it.
-  const usage: Usage = { names, deep: read.deep as Deep[], exported: [], unreadable: read.unreadable };
+  const usage: Usage = {
+    names,
+    deep: read.deep.map(byPathOf),
+    byPath: read.byPath.map(byPathOf),
+    exported: [],
+    unreadable: read.unreadable,
+  };
   const help: Help = joinUsage(documented, offerings, usage);
   const generatedAt = new Date().toISOString();
   try {
@@ -93,6 +105,7 @@ export async function refreshWorkspaceFromIndex(
       indexDigest,
       packages: JSON.stringify(help.packages),
       deep: JSON.stringify(help.deep),
+      byPath: JSON.stringify(help.byPath),
       unreadable: JSON.stringify(help.unreadable),
       published: publishedRows(help),
     });
@@ -100,4 +113,25 @@ export async function refreshWorkspaceFromIndex(
     // The value is complete. An unwritable cache costs reuse, and the caller reads it back.
   }
   return generatedAt;
+}
+
+type NativeUsage = ReturnType<NonNullable<Awaited<ReturnType<typeof readHelp>>>['usage']>;
+type NativeUse = NativeUsage['names'][number];
+
+/** A use as the addon hands it over: `through` flattened, and `null` for absent. */
+function useOf(use: NativeUse): Use {
+  return {
+    by: use.by, at: use.at, line: use.line, type: use.type, kind: use.kind,
+    ...(use.through === undefined || use.through === null ? {} : { through: { kind: use.through, line: use.throughLine } }),
+  };
+}
+
+/** An import by path as the addon hands it over. */
+function byPathOf(held: NativeUsage['deep'][number]): Deep {
+  const names: Taken[] = held.names.map((use) => ({ name: use.name, ...useOf(use) }));
+  return {
+    specifier: held.specifier, by: held.by, at: held.at, line: held.line,
+    ...(held.to === undefined || held.to === null ? {} : { to: held.to }),
+    names,
+  };
 }

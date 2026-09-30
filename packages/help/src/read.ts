@@ -40,25 +40,21 @@ import {
   scanRelations,
   sourceIndexPath,
   type ParseCache,
-  type Parsed,
 } from '@variance-authority/sense';
-import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import { taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
-  kindOf,
   ownership,
   publishes,
   readOfferings,
-  requested,
-  type Deep,
+  readUnentered,
   type Help,
   type HelpOptions,
-  type Named,
   type Offering,
   type Usage,
   type Use,
 } from '@variance-authority/package/help';
+import { collectingUsage } from './collect-usage.js';
 import { indexedNames, type IndexedSource } from './indexed-surface.js';
 import { operatorError } from './operator.js';
 import { coversWhole, scanScope } from './scan-scope.js';
@@ -179,64 +175,6 @@ export interface IndexedUsageOptions {
   readonly tree?: (tree: Tree) => void;
 }
 
-/** Join cached parse facts directly, without constructing a second repository. */
-function collectingUsage(opened: ReadonlySet<string>): {
-  accept(at: string, by: string, parsed: Parsed): void;
-  read(): Usage;
-} {
-  const packages = new Set([...opened].map((key) => key.slice(0, key.indexOf(' '))));
-  const names = new Map<string, Map<string, Use[]>>();
-  const deep: Deep[] = [];
-  const exported: Named[] = [];
-  const unreadable: string[] = [];
-
-  return {
-    accept(at, by, parsed) {
-      if (parsed.unknown !== undefined) unreadable.push(at);
-      const kind = kindOf(at);
-
-      for (const published of parsed.exports ?? []) {
-        if (published.exported !== undefined) {
-          exported.push({
-            name: published.exported,
-            at,
-            by,
-            line: published.line,
-            type: published.type,
-            kind,
-          });
-        }
-      }
-
-      for (const [index, asked] of parsed.requests.entries()) {
-        const key = requested(asked.value);
-        if (!packages.has(key.slice(0, key.indexOf(' ')))) continue;
-        if (!opened.has(key)) {
-          deep.push({ specifier: asked.value, by, at, line: asked.line });
-          continue;
-        }
-
-        const held = names.get(key) ?? new Map<string, Use[]>();
-        names.set(key, held);
-        for (const binding of asked.bindings) {
-          if (binding.imported === NAMESPACE_NAME) continue;
-          const uses = held.get(binding.imported) ?? [];
-          held.set(binding.imported, uses);
-          uses.push({ by, at, line: binding.line, type: binding.type, kind });
-        }
-        const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
-        for (const member of parsed.members ?? []) {
-          if (member.request !== index) continue;
-          const uses = held.get(member.name) ?? [];
-          held.set(member.name, uses);
-          uses.push({ by, at, line: member.line, type: false, kind, through });
-        }
-      }
-    },
-    read: () => ({ names, deep, exported, unreadable }),
-  };
-}
-
 /**
  * Read what a repository imports from what it publishes, out of the source index.
  *
@@ -250,7 +188,7 @@ export async function readIndexedUsage(
   opened: ReadonlySet<string>,
   options: IndexedUsageOptions = {},
 ): Promise<Usage> {
-  const scanned = await scanIndexed(root, opened, options);
+  const scanned = await scanIndexed(root, opened, readUnentered(root), options);
   options.tree?.(treeOf(scanned.records, resolve(root)));
   if (options.save !== false) await scanned.save();
   return scanned.usage;
@@ -259,6 +197,7 @@ export async function readIndexedUsage(
 async function scanIndexed(
   root: string,
   opened: ReadonlySet<string>,
+  unentered: ReadonlySet<string>,
   options: IndexedUsageOptions,
   dirs: readonly string[] = ['.'],
 ): Promise<{
@@ -272,7 +211,7 @@ async function scanIndexed(
   const where = resolve(root);
   const index = await openSourceIndex(options.index ?? sourceIndexPath(where));
   const owner = ownership(where);
-  const usage = collectingUsage(opened);
+  const usage = collectingUsage(opened, unentered);
   const sources = new Map<string, IndexedSource>();
 
   const records = await scanRelations({
@@ -292,6 +231,7 @@ async function scanIndexed(
     },
     indexed: (file, parsed, targets) => {
       sources.set(file, { parsed, targets });
+      usage.targets(file, targets);
     },
   });
   const tainted = await taintRecords(records, options.taints ?? [], { root: where, cache: index.cache });
@@ -383,7 +323,7 @@ async function scanWorkspace(root: string, options: ReadingOptions): Promise<Wor
     ),
   );
 
-  const scanned = await scanIndexed(scope.root, opened, options, scope.dirs);
+  const scanned = await scanIndexed(scope.root, opened, readUnentered(where), options, scope.dirs);
   options.tree?.(treeAtWorkspace(treeOf(scanned.records, scope.root), where));
   return {
     workspace: where,
@@ -486,6 +426,7 @@ export function joinUsage(documented: Help, offerings: readonly Offering[], usag
   return {
     packages,
     deep: usage.deep.filter((held) => !publishes(offerings, held.specifier)),
+    byPath: usage.byPath,
     exported: usage.exported,
     unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
   };

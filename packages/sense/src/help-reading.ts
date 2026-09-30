@@ -60,9 +60,10 @@ export interface HelpPublish {
   readonly generatedAt: string;
   /** The digest of the index manifest the reading was made from. */
   readonly indexDigest: string;
-  /** JSON of the value's `packages`, `deep` and `unreadable`. */
+  /** JSON of the value's `packages`, `deep`, `byPath` and `unreadable`. */
   readonly packages: string;
   readonly deep: string;
+  readonly byPath: string;
   readonly unreadable: string;
   readonly published: PublishedRows;
 }
@@ -78,7 +79,7 @@ export interface HelpReading {
 }
 
 export interface NativeHelp {
-  readHelp?(root: string, index: string, opened: string[]): Promise<HelpReading | null>;
+  readHelp?(root: string, index: string, opened: string[], unentered: string[]): Promise<HelpReading | null>;
   encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
   digestExported?(exported: NamedExport[]): string;
 }
@@ -92,9 +93,18 @@ function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHel
   return (call as (...args: never[]) => unknown).bind(scanner) as NonNullable<NativeHelp[Name]>;
 }
 
-/** The reading of the index at `index` for the entrypoints in `opened`; `null` when none was published. */
-export function readHelp(root: string, opened: readonly string[], index: string = sourceIndexPath(root)): Promise<HelpReading | null> {
-  return entry('readHelp')(root, index, [...opened]);
+/**
+ * The reading of the index at `index` for the entrypoints in `opened` and the
+ * packages in `unentered`, which declare no entry; `null` when none was
+ * published.
+ */
+export function readHelp(
+  root: string,
+  opened: readonly string[],
+  unentered: Iterable<string>,
+  index: string = sourceIndexPath(root),
+): Promise<HelpReading | null> {
+  return entry('readHelp')(root, index, [...opened], [...unentered]);
 }
 
 /** The search over `published` and `exported`, and the digest of `exported`. */

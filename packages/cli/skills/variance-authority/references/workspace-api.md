@@ -120,8 +120,15 @@ Every import specifier the workspace publishes, with how much each is used and
 how well documented. It takes no argument and returns the argument every other
 verb wants, so start here unless you already have an exact specifier.
 
-A published specifier comes from a `package.json` `exports` field, so this verb
-and `entrypoint` answer for the JavaScript half of a mixed repository. The other
+A published specifier comes from a `package.json`: each subpath its `exports`
+field opens, or, when it has no `exports`, the bare name its `types` or `main`
+opens. An import of any other file of the package is listed as reaching past a
+published entrypoint. A package whose manifest declares none of `exports`, `main`,
+`types` or `typings` has no entrypoint to reach past, so every import of it names a file.
+It is listed by what other packages import from it: one line per file and name,
+with the importer's file and line. A file of it that no other package imports is
+not listed. So this verb and `entrypoint` answer for the JavaScript
+half of a mixed repository. The other
 four read the source and answer for every language: ask `search` or `symbol` for
 a Python, Rust, Java, Kotlin or Swift name.
 
@@ -147,6 +154,19 @@ $ variance-authority-help entrypoint @variance-authority/core ./format
 Viewport [interface] 17 packages, 60 imports — UNDOCUMENTED
 Digest [type] 17 packages, 51 imports — Content addressing (Principle 4).
 SemanticSnapshot [interface] 14 packages, 50 imports — The normalized semantic snapshot: the verdict's input, and the thing a render hash addresses.
+```
+
+A package that declares no entry opens nothing, and answers with the files and
+names other packages import from it. This repository has no such package, so the
+block below, like the next one under `symbol`, comes from the small workspace
+`packages/cli/src/commands/ask-packages-deep.test.ts` builds, where `@acme/app`
+imports files of `@acme/kit` and `@acme/lib` by path:
+
+```
+$ variance-authority-help entrypoint @acme/kit
+@acme/kit declares no entry: no `exports`, `main` or `types`. Other packages import 2 names from 2 of its files by path:
+  @acme/kit/src/money/tax — taxOf — @acme/app at apps/app/src/checkout.ts:1
+  @acme/kit/src/ui/Button — Button — @acme/app at apps/app/src/checkout.ts:2
 ```
 
 ### 3. `symbol <name> [--package <package>]`
@@ -177,10 +197,32 @@ $ variance-authority-help symbol NotAThing
 `NotAThing` is not published by this workspace; ask `search` for a name like it
 ```
 
+A name no entry publishes, but that another package imports by the path of its
+file, is answered rather than refused: where it is declared, why nothing
+publishes it, and each import of it. An import past an entry the package
+declares is a deep import; an import of a package that declares no entry is by
+path.
+
+```
+$ variance-authority-help symbol addTax
+addTax
+import { addTax } from '@acme/lib/src/internal/math';
+declared at packages/lib/src/internal/math.ts:1
+not published: @acme/lib declares an entry, and this file is not behind it.
+
+Imported by path in 1 place:
+  apps/app/src/total.ts:1 — @acme/app, deep import of @acme/lib/src/internal/math
+```
+
+A name that is exported without being published and that nothing imports is
+still refused, and the refusal names the file and line that export it.
+
 ### 4. `uses <name> [--from <file>] [--package <package>]`
 
 Where the repository already writes it. Same exact matching as `symbol`, and the
-same refusal when the name is not published. A published name that nothing
+same answer for a name imported by path, with each site marked `deep import of`
+or `by path from` its specifier. The same refusal, too, when nothing publishes
+the name and nothing imports it by path. A published name that nothing
 imports is a different answer, not an empty list:
 
 ```

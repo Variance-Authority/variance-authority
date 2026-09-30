@@ -189,14 +189,23 @@ help.exported.filter((named) => named.name.includes('Viewport'));
 ```
 
 `help.deep` is the other half of the same reading: every specifier that imports
-a workspace package past what its `exports` map opens — an import that depends
-on internals the manifest never promised to keep stable. A subpath `exports`
+a workspace package past the entry its manifest declares (its `exports` map, or
+without one its `types`, `typings` or `main`). Such an import depends on internals the
+manifest never promised to keep stable. A subpath `exports`
 names exactly is not one of them, even when its source could not be read: that
-subpath is listed in `help.unreadable` instead.
+subpath is listed in `help.unreadable` instead. Each import carries the names it
+takes, and `to`, the file the specifier resolves to, when the reading resolved
+it: the index's scan does, `readHelp` on its own does not.
 
 ```json
-[{ "specifier": "@acme/parser/src/parse.js", "by": "@acme/app", "at": "packages/app/src/deepuse.ts", "line": 1 }]
+[{ "specifier": "@acme/parser/src/parse.js", "by": "@acme/app", "at": "packages/app/src/deepuse.ts", "line": 1,
+   "names": [{ "name": "parse", "by": "@acme/app", "at": "packages/app/src/deepuse.ts", "line": 1, "type": false, "kind": "source" }] }]
 ```
+
+`help.byPath` has the same shape, for a package whose manifest declares none of
+`exports`, `main`, `types` or `typings`. Such a package has no entry to reach past, so
+every import of it names a file, and these imports are the whole of what other
+packages use from it.
 
 `help.unreadable` names files whose imports could not be enumerated. Empty is
 the expected answer.
