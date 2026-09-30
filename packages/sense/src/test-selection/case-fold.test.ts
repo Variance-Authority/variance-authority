@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
 import { native, nativeAvailable } from '../native.js';
-import { caseLayerFiles, foldCaseRun, inspectCaseRun, writeCaseIndex } from './case-fold.js';
+import { foldCaseRun, inspectCaseRun, writeCaseIndex } from './case-fold.js';
+import { caseLayerFiles } from './case-landing.js';
 import {
   AMBIENT,
   executionIndexFrom,

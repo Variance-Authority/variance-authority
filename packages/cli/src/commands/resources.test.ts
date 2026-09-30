@@ -186,7 +186,11 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
 
     const landed = await landJourneys('/repo', ['/ci/shard-1.bin', '/ci/shard-2.bin']);
 
-    expect(landed).toEqual({ at: CACHED, shards: 2, commit: 'c0ffee', observations: 2, modules: 1 });
+    // No shard left cases beside it, and there is no index here to drop.
+    expect(landed).toEqual({
+      at: CACHED, shards: 2, commit: 'c0ffee', observations: 2, modules: 1,
+      cases: { unanswered: `${CACHED}.cases.bin`, shard: '/ci/shard-1.bin', removed: false },
+    });
     expect(writeTestCoverage).toHaveBeenCalledTimes(1);
     const [at, written] = writeTestCoverage.mock.calls[0] as [string, TestCoverage];
     expect(at).toBe(CACHED);

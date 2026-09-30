@@ -10,8 +10,9 @@ import {
   testCoverageFile,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { recordedExecutionFile } from './execution-input.js';
 import { landJourneys } from './land.js';
-import { git, parseReview, published, selectedIn } from './mainline-fixture.js';
+import { git, parseReview, published, selectedIn, wholeRecord } from './mainline-fixture.js';
 import { review } from './review.js';
 
 /**
@@ -48,29 +49,6 @@ async function worktreeOf(whole = false): Promise<{ primary: string; worktree: s
   const worktree = join(home, 'feature');
   await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
   return { primary, worktree, first };
-}
-
-/** Both test files whole, and `src/total.ts` as one module block `total.test.ts` entered. */
-async function wholeRecord(dir: string): Promise<void> {
-  const record = testCoverageFile(dir, { suite: 'unit' });
-  await writeTestCoverage(record, {
-    version: 3,
-    instrumentation: 'fixture',
-    commit: await git(dir, 'rev-parse', 'HEAD'),
-    tests: [
-      { file: 'test/other.test.ts', complete: true, preconditions: [] },
-      { file: 'test/total.test.ts', complete: true, preconditions: [] },
-    ],
-    modules: [{
-      file: 'src/total.ts',
-      sourceDigest: 'source:total',
-      instrumented: true,
-      blocks: [{
-        ordinal: 0, kind: 'module', digest: 'block:0', name: 'total', path: 'module',
-        startLine: 1, endLine: 3, source: true, testFiles: ['test/total.test.ts'],
-      }],
-    }],
-  });
 }
 
 describe('a worktree that has not run', () => {
@@ -111,7 +89,7 @@ describe('a worktree that has not run', () => {
     expect(answer.runs).toBeUndefined();
   });
 
-  it('lands shards over the primary checkout\'s record and case index on its first `variance land`', async () => {
+  it('lands shards over the primary checkout\'s record on its first `variance land`, and drops the copied case index a shard left no cases for', async () => {
     const { primary, worktree, first } = await worktreeOf(true);
     const shard = join(home, 'shard-1.bin');
     await writeTestCoverage(shard, {
@@ -132,6 +110,11 @@ describe('a worktree that has not run', () => {
       'test/third.test.ts',
       'test/total.test.ts',
     ]);
-    expect(existsSync(`${own}.cases.bin`)).toBe(true);
+    // The shard finished `test/third.test.ts` and left no case index beside
+    // it, so the copy of the primary checkout's index cannot answer for it.
+    expect(existsSync(`${own}.cases.bin`)).toBe(false);
+    await expect(recordedExecutionFile(worktree, 'unit')).rejects.toMatchObject({ kind: 'unrecorded' });
+    expect(landed.cases).toEqual({ unanswered: `${own}.cases.bin`, shard, removed: true });
+    expect(existsSync(`${testCoverageFile(primary, { suite: 'unit' })}.cases.bin`)).toBe(true);
   });
 });

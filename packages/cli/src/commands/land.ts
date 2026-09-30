@@ -24,6 +24,13 @@ import { landingRecord } from './suite-record.js';
  * under local evidence rather than deleting it, and how a full run on the
  * default branch becomes the floor every local run stands on.
  *
+ * The case index beside the target is part of the same record: `recordings()`
+ * and `recordedExecutionFile` read it as the cases of the snapshot beside it.
+ * Each shard's seam left its own beside its snapshot, and those are laid over
+ * the target's in the same order; a shard that left none takes the target's
+ * index with it, so nobody reads cases the snapshot has replaced. See
+ * `landCaseIndexes`.
+ *
  * A target that exists and cannot be read is refused rather than replaced. The
  * runner replaces, because it reaches that file from inside a teardown where a
  * refusal is easiest to miss; an operator who typed this command is at the
@@ -82,6 +89,9 @@ export async function landJourneys(
 
   const landed = selection.mergeCoverage(previous, folded);
   await selection.writeTestCoverage(at, landed);
+  // The case index beside the record answers for the same runs, so each
+  // shard's cases are laid over it as the shard's seam would have laid them.
+  const cases = await selection.landCaseIndexes(at, root, read);
 
   return {
     at,
@@ -89,5 +99,6 @@ export async function landJourneys(
     ...(landed.commit === undefined ? {} : { commit: landed.commit }),
     observations: landed.tests.length,
     modules: landed.modules.length,
+    cases,
   };
 }

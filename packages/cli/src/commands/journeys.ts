@@ -1,4 +1,5 @@
 import type { JourneyParting, JourneyRegionRecord, JourneysReport } from '@variance-authority/report';
+import type { CaseLanding } from '@variance-authority/sense/test-selection';
 import { many } from './reach.js';
 
 /**
@@ -113,6 +114,8 @@ export interface LandedJourneys {
   /** Whole and truncated observations the landed snapshot now holds. */
   readonly observations: number;
   readonly modules: number;
+  /** What the landing did to the case index beside the file written. */
+  readonly cases?: CaseLanding;
 }
 
 export interface JourneysInput extends JourneyReading {
@@ -319,7 +322,22 @@ export function formatLanding(landed: LandedJourneys): string {
     `folded ${many(landed.shards, 'snapshot')} into ${landed.at}`,
     `  ${many(landed.observations, 'observation')} over ${many(landed.modules, 'module')}` +
       (landed.commit === undefined ? '' : `, recorded at ${landed.commit.slice(0, 12)}`),
+    ...(landed.cases === undefined ? [] : [casesLine(landed.cases)]),
   ].join('\n');
+}
+
+function casesLine(cases: CaseLanding): string {
+  if ('laid' in cases) {
+    return cases.shards === 0
+      ? `  case index at ${cases.laid} left as it was: no snapshot finished a test file`
+      : `  cases of ${many(cases.shards, 'snapshot')} laid over ${cases.laid}`;
+  }
+  if ('busy' in cases) return `  cases not landed: ${cases.reason}, and ${cases.busy} does not have these snapshots' cases`;
+  const why = `${cases.shard} finished a test file, and ${cases.shard}.cases.bin is missing or was not written by a run`;
+  return cases.removed
+    ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of its cases run a line. ` +
+        'Run the suite, or land shards that carry their case indexes, to record one.'
+    : `  no case index at ${cases.unanswered}: ${why}`;
 }
 
 export function formatJourneys(result: Journeys): string {

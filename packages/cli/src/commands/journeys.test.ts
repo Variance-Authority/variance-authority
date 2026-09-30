@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JourneyDivergence } from '@variance-authority/sense/test-selection';
-import { formatJourneys, formatLanding, journeysOf, type JourneysInput } from './journeys.js';
+import { formatJourneys, formatLanding, journeysOf, type JourneysInput, type LandedJourneys } from './journeys.js';
 
 /**
  * The surface over the one instrument that narrows a flake to a place.
@@ -232,6 +232,26 @@ describe('formatLanding', () => {
       'folded 3 snapshots into /cache/variance-authority/test-selection/abc/coverage.bin\n' +
         '  342 observations over 1204 modules, recorded at 0123456789ab',
     );
+  });
+
+  it('says what the landing did to the case index beside the fold', () => {
+    const fold = { at: '/tmp/coverage.bin', shards: 2, observations: 2, modules: 1 };
+    const lines = (cases: LandedJourneys['cases']) => formatLanding({ ...fold, cases }).split('\n').slice(2);
+
+    expect(lines({ laid: '/tmp/coverage.bin.cases.bin', shards: 2 })).toEqual([
+      '  cases of 2 snapshots laid over /tmp/coverage.bin.cases.bin',
+    ]);
+    expect(lines({ laid: '/tmp/coverage.bin.cases.bin', shards: 0 })).toEqual([
+      '  case index at /tmp/coverage.bin.cases.bin left as it was: no snapshot finished a test file',
+    ]);
+    expect(lines({ unanswered: '/tmp/coverage.bin.cases.bin', shard: '/ci/shard-1.bin', removed: true })).toEqual([
+      '  case index removed at /tmp/coverage.bin.cases.bin: /ci/shard-1.bin finished a test file, and ' +
+        '/ci/shard-1.bin.cases.bin is missing or was not written by a run, so no index can say which of its cases ' +
+        'run a line. Run the suite, or land shards that carry their case indexes, to record one.',
+    ]);
+    expect(lines({ busy: '/tmp/coverage.bin.cases.bin', reason: 'another run holds it' })).toEqual([
+      "  cases not landed: another run holds it, and /tmp/coverage.bin.cases.bin does not have these snapshots' cases",
+    ]);
   });
 
   it('leaves the position out when the shards had none', () => {
