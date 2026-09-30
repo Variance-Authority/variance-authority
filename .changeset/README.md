@@ -17,9 +17,20 @@ would want to know. Documentation, tests, repository tooling and the private
 workspaces under `examples/` and `cases/` never reach the registry and need
 nothing.
 
-No check fails a pull request for missing one. What pays is the changelog: a
-release with no changeset behind it reaches npm saying only that the version
-moved.
+A pull request that changes a published package and adds no changeset fails
+the `changeset` step of [`check.yml`](../.github/workflows/check.yml). When the
+change ships nothing worth a changelog line — a build script, an internal rename
+— say so with an empty one:
+
+```bash
+yarn changeset --empty
+```
+
+Which files count as a change is `changedFilePatterns` in
+[`config.json`](config.json): tests, fixtures, and a package's `README.md` and
+`CHANGELOG.md` do not. A release with no changeset behind it reaches npm saying
+only that the version moved, so the step asks at the pull request, where the
+author still knows what the change does.
 
 ## Writing one
 

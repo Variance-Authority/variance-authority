@@ -75,6 +75,10 @@ Look around:
 - Where each piece of writing goes, and [`docs/AGENTS.md`](docs/AGENTS.md)
   before any published sentence: a README, `docs/`, the site, CLI output or an
   error message.
+- Whether the change reaches a published package. If it does, it carries a
+  changeset — `yarn changeset` — written as it is made, not at release time; a
+  change that ships nothing worth naming carries `yarn changeset --empty`. CI
+  refuses a pull request that changes a package without either.
 - The code rules in the reference: absent is not empty, a package is named for
   what it is for, code-unit sorting, 500 lines per file, a documented export is
   run by something, every answer has an owner, one browser and one page, no
