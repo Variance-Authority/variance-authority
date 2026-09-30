@@ -101,6 +101,9 @@ pub struct JourneyMapFile {
     pub existed: Option<bool>,
     /// Why `existed` is absent.
     pub unread: Option<String>,
+    /// Whether git lists the file in the checkout, tracked or new and not
+    /// ignored; absent when git could not say.
+    pub listed: Option<bool>,
 }
 
 /// The map around `file`, kept to the cases whose test file or name holds any
@@ -125,7 +128,8 @@ const SHORT: usize = 12;
 /// Why there is no map around `file`, which the recording keeps no row for.
 ///
 /// A test file is not a module the probe records, so it is answered with the
-/// modules its own cases ran most. Any other file is a finding only when every
+/// modules its own cases ran most. A path git does not list is not in the
+/// checkout. Any other file is a finding only when every
 /// owner agrees it could have had a row: the default filter instruments it, git
 /// lists it at the recording's commit, and the recording keeps rows for other
 /// files beside it. Short of any of those, the answer says the recording cannot
@@ -140,6 +144,10 @@ pub(crate) fn unmapped(masks: &mut JourneyMasks, file: &str, known: Option<&Jour
     let Some(known) = known else {
         return Ok(format!("{cannot}: the caller did not say whether the file existed when the recording was made."));
     };
+    // A path git lists neither now nor at the recording's commit is not a file at all.
+    if known.listed == Some(false) && known.existed != Some(true) {
+        return Ok(format!("{file} is not in the checkout: git lists no such file, and the recording keeps no row for it."));
+    }
     if !known.module {
         return Ok(format!(
             "{cannot}: it keeps rows for the source modules a test run instruments, and by default a run leaves out tests, configs, type declarations and files that are not JavaScript or TypeScript."

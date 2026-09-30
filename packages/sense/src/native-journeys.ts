@@ -298,6 +298,8 @@ export interface NativeJourneyMapFile {
   readonly existed?: boolean | null;
   /** Why `existed` is absent. */
   readonly unread?: string | null;
+  /** Whether git lists the file in the checkout, tracked or new and not ignored; absent when git could not say. */
+  readonly listed?: boolean | null;
 }
 
 /** The map of the code around one file, drawn from the journeys of the tests kept. */

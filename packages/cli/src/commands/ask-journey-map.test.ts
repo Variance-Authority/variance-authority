@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_OPERATOR } from '../exit.js';
@@ -48,23 +48,56 @@ describe('variance ask journey-map', () => {
     expect(answered.err).toContain('holds no suite to read');
   });
 
-  it('says a path is not in the checkout, rather than that no test ran it, and names the nearest recorded path', async () => {
-    const root = checkout();
-    const at = testCoverageFile(root);
-    await writeTestCoverage(at, {
-      version: 3,
-      instrumentation: 'fixture-instrumentation',
-      tests: [{ file: 'test/api.test.ts', complete: true, preconditions: [] }],
-      modules: [],
-    });
-    // Unreadable as cases: every suite refuses, so the path is asked of git and the recording.
-    writeFileSync(`${at}.cases.bin`, 'not a recording');
+  it('refuses a mistyped path as not in the checkout, rather than as a file no test ran, and names the path one typo away', async () => {
+    const root = await recorded();
 
-    const answered = await run(['ask', 'journey-map', '--file', 'test/api.tset.ts']);
+    const answered = await run(['ask', 'journey-map', '--file', 'src/comands/since.ts']);
 
     expect(answered.code).toBe(EXIT_OPERATOR);
-    expect(answered.err).toContain(`\`test/api.tset.ts\` is in neither the recording nor the files git lists under ${root}.`);
-    expect(answered.err).toContain('Did you mean `test/api.test.ts`?');
+    expect(answered.err).toContain(
+      `\`src/comands/since.ts\` is in neither the recording nor the files git lists under ${root}.\nDid you mean \`src/commands/since.ts\`?`,
+    );
     expect(answered.err).not.toContain('No recorded test');
   });
+
+  it('refuses a path under the wrong directory as not in the checkout, and names the recorded files of the same name', async () => {
+    const root = await recorded();
+
+    const answered = await run(['ask', 'journey-map', '--file', 'src/test-selection/since.ts']);
+
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.err).toContain(
+      `\`src/test-selection/since.ts\` is in neither the recording nor the files git lists under ${root}.\n` +
+        'The recording holds `since.ts` at `src/commands/since.ts`.',
+    );
+    expect(answered.err).not.toContain('Did you mean');
+  });
 });
+
+/** A recording in which `test/since.test.ts` entered `src/commands/since.ts`, and a checkout that holds neither file. */
+async function recorded(): Promise<string> {
+  const root = checkout();
+  const at = testCoverageFile(root);
+  await writeTestCoverage(at, {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: 'test/since.test.ts', complete: true, preconditions: [] }],
+    modules: [{
+      file: 'src/commands/since.ts',
+      sourceDigest: 'digest:since',
+      instrumented: true,
+      blocks: [{
+        ordinal: 0, kind: 'module', digest: 'block:since', name: '', path: 'entry', source: true,
+        startLine: 1, endLine: 5, testFiles: ['test/since.test.ts'],
+      }],
+    }],
+  });
+  writeFileSync(`${at}.cases.bin`, encodeExecutionIndex({
+    tests: [{ id: 's1', file: 'test/since.test.ts', name: 'reads' }],
+    modules: [{
+      file: 'src/commands/since.ts',
+      blocks: [{ kind: 'module', name: '', path: 'entry', startLine: 1, endLine: 5, source: true, crossings: [{ test: 0, distance: 0 }] }],
+    }],
+  }));
+  return root;
+}

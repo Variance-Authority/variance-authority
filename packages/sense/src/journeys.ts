@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { native, nativeRefusal } from './native.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile,NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { keptRunnerAliases, runnerConfigs, unlistedRunnerAliases, type RunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
@@ -94,23 +94,30 @@ function commitOf(coverage: string): NativeJourneysCommit {
  * What the checkout's owners say about `file`, for the answer given when the
  * recording keeps no row for it. The runner's default filter says whether a row
  * could be kept for it — a type declaration passes the filter's extension test
- * and has no function to run — and git says whether it existed at the commit
- * the recording names, so a file added since is not reported as one no test loaded.
+ * and has no function to run — and git says whether it is in the checkout and
+ * whether it existed at the commit the recording names, so a typo is not
+ * reported as a file, nor a file added since as one no test loaded.
  */
 function knownOf(root: string, file: string, recording: string): NativeJourneyMapFile {
   const module = defaultInclude(resolve(root, file)) && !/\.d\.[cm]?ts$/.test(file);
+  const now = gitLists(root, ['ls-files', '--cached', '--others', '--exclude-standard', '--', file]);
+  const listed = typeof now === 'boolean' ? { listed: now } : {};
   const at = commitOf(recording.slice(0, -'.cases.bin'.length));
-  if (at.commit == null) return { module, ...(at.unread == null ? {} : { unread: at.unread }) };
+  if (at.commit == null) return { module, ...listed, ...(at.unread == null ? {} : { unread: at.unread }) };
+  const then = gitLists(root, ['ls-tree', '--name-only', at.commit, '--', file]);
+  return typeof then === 'boolean'
+    ? { module, ...listed, commit: at.commit, existed: then }
+    : { module, ...listed, commit: at.commit, unread: then.unread || `git could not list ${at.commit}` };
+}
+
+/** Whether a git listing names anything, or the first line git gave for not answering. */
+function gitLists(root: string, args: readonly string[]): boolean | { unread: string } {
   try {
-    const listed = execFileSync('git', ['ls-tree', '--name-only', at.commit, '--', file], {
-      cwd: root,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    return { module, commit: at.commit, existed: listed.trim() !== '' };
+    const listed = execFileSync('git', ['--literal-pathspecs', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return listed.trim() !== '';
   } catch (error) {
     const said = error instanceof Error && 'stderr' in error ? String(error.stderr) : String(error);
-    return { module, commit: at.commit, unread: said.trim().split('\n')[0] || `git could not list ${at.commit}` };
+    return { unread: said.trim().split('\n')[0] ?? '' };
   }
 }
 

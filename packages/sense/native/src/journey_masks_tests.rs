@@ -142,6 +142,7 @@ fn known(module: bool, existed: Option<bool>) -> crate::journey_map::JourneyMapF
         commit: Some("0123456789abcdef".to_owned()),
         existed,
         unread: existed.is_none().then(|| "git could not read 0123456789ab".to_owned()),
+        listed: Some(true),
     }
 }
 
@@ -176,4 +177,9 @@ fn a_journey_map_says_no_test_loaded_a_file_only_where_every_owner_agrees_it_cou
     );
     // Every row starts with the empty prefix; the root is judged by its own files.
     assert!(unmapped("absent.ts", &known(true, Some(true))).contains("it lists no file at the repository root."));
+    let nowhere = crate::journey_map::JourneyMapFile { listed: Some(false), ..known(false, Some(false)) };
+    assert_eq!(
+        unmapped("src/absent.json", &nowhere),
+        "src/absent.json is not in the checkout: git lists no such file, and the recording keeps no row for it."
+    );
 }
