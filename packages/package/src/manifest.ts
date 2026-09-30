@@ -342,14 +342,26 @@ function declarationsOf(condition: unknown): string | undefined {
  * TypeScript itself resolves that path to. It is authored, not emitted, so it is
  * the source: nothing is mapped back through a tsconfig. A wildcard is returned
  * as a pattern and the glob in {@link openedBy} keeps only the files that exist.
+ *
+ * Only for JavaScript that is source. Under the package's `outDir` the file
+ * beside it was emitted, and exists only when the build ran; an answer read
+ * from it would change with whether somebody had built.
  */
 function besideOf(dir: string, condition: unknown): string | undefined {
   if (typeof condition !== 'string') return undefined;
   const found = /\.(m|c)?js$/.exec(condition);
-  if (found === null) return undefined;
+  if (found === null || emittedInto(dir, condition)) return undefined;
   const declaration = `${condition.slice(0, found.index)}.d.${found[1] ?? ''}ts`;
   if (declaration.includes('*')) return declaration;
   return existsSync(join(dir, declaration)) ? declaration : undefined;
+}
+
+/** Whether `target` sits under the `outDir` the package's own tsconfig declares. */
+function emittedInto(dir: string, target: string): boolean {
+  const config = join(dir, 'tsconfig.json');
+  if (!existsSync(config)) return false;
+  const outDir = (read(config) as { compilerOptions?: { outDir?: unknown } }).compilerOptions?.outDir;
+  return typeof outDir === 'string' && posix.normalize(target).startsWith(posix.normalize(`${outDir}/`));
 }
 
 function openedBy(dir: string, subpath: string, types: string): readonly Entrypoint[] {

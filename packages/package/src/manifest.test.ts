@@ -135,7 +135,14 @@ describe('reading a workspace', () => {
     // What TypeScript resolves `./src/index.js` to, and how a package whose
     // source is JavaScript with hand-written types publishes them.
     const root = workspace({
-      'package.json': { name: 'beside', exports: { '.': './src/index.js', './*': './src/*/index.js', './raw': './raw.js' } },
+      'package.json': {
+        name: 'beside',
+        exports: { '.': './src/index.js', './*': './src/*/index.js', './raw': './raw.js', './tool': './dist/tool.cjs' },
+      },
+      // Emitted by a build, so present only when one ran: never an opening.
+      'tsconfig.json': { compilerOptions: { rootDir: './src', outDir: './dist' } },
+      'dist/tool.cjs': 'module.exports = {};\n',
+      'dist/tool.d.cts': 'export {};\n',
       'src/index.js': 'export const value = 1;\n',
       'src/index.d.ts': 'export declare const value: number;\n',
       'src/Button/index.js': 'export const Button = 1;\n',
