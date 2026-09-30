@@ -82,8 +82,14 @@ export async function landJourneys(
   // target first, so a write that fails leaves both as they were; then the
   // index lands, so a busy index refuses before the snapshot is replaced; and
   // the staged file is renamed over the target last, which does not fail on a
-  // full disk the way a write does. The staged name ends in the pid and `.tmp`,
-  // so prune removes it if this process dies before the `finally` does.
+  // full disk the way a write does. It is staged beside the target because a
+  // rename to another file system fails. The staged name ends in the pid and
+  // `.tmp`, so beside the default target prune removes it if this process dies
+  // before the `finally` does.
+  //
+  // FIXME: prune reads only `test-selection/<key>`, its `suites/<suite>` and `.work/<key>`, so beside an `--into` target elsewhere a crash leaves this file and the `<target>.<pid>-<uuid>.tmp.<pid>-<uuid>.tmp` `writeCoverageBytes` writes it through.
+  // A fix that removes them needs a floor like prune's `RUN_FLOOR_MS`, since a pid from another host, pid namespace or skewed file-system clock reads as dead,
+  // and must report a removal it could not make without failing a landing that already landed.
   //
   // FIXME: the case index and the snapshot are two files, and nothing renames
   // them together. A crash after `landCaseIndexes` and before the rename leaves
