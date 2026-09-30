@@ -196,7 +196,7 @@ function wrap(text, width) {
 
 export function report(found) {
   const files = new Set(found.map((marker) => marker.file));
-  // No legend: AGENTS.md defines the three markers, and a reader of this report
+  // No legend: .agents/references/change.md defines the three markers, and a reader of this report
   // is one who has already written them.
   const out = [`unrun: ${found.length} gaps in ${files.size} files`];
 

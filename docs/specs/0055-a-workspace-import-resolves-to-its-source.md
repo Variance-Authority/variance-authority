@@ -352,7 +352,7 @@ as plain bytes, so no compiler runs.
 ## 11. Out of scope
 
 Each item gets a marker at its line when this spec is built. `// FIXME:` is used
-where the item is a defect in code that ships, as `AGENTS.md` requires.
+where the item is a defect in code that ships, as `.agents/references/change.md` requires.
 
 | Item | Marker |
 |---|---|
