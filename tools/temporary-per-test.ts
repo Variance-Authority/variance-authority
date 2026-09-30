@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeEach } from 'vitest';
@@ -20,8 +20,9 @@ import { afterAll, beforeEach } from 'vitest';
  * So the file gets a directory of its own when this loads, which is where a
  * module's top level and a `beforeAll` write, and each test gets one inside it
  * before it runs. A process a test starts inherits it. The only turn a test
- * waits on is one it took on purpose. The variables are put back when the file
- * ends, for a worker that runs another file after this one.
+ * waits on is one it took on purpose. When the file ends, the variables are put
+ * back, for a worker that runs another file after this one, and the file's
+ * directory is removed with everything its tests left in it.
  */
 
 const TEMPORARY = ['TMPDIR', 'TEMP', 'TMP'] as const;
@@ -44,4 +45,9 @@ afterAll(() => {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   });
+  // Vitest calls no `afterAll` in a file whose every test is skipped, such as a
+  // browser-gated file on a machine without its browser, so that file's
+  // directory stays, empty. The pool ends a worker without an `exit` event, so
+  // a handler there never runs.
+  rmSync(file, { recursive: true, force: true, maxRetries: 3 });
 });
