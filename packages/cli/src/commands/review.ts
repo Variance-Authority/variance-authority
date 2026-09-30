@@ -172,7 +172,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   // the primary's runs beside it describe the primary's change, not this one.
   const own = await landingRecord(root, request.suite);
   const runs = await readCommitRuns(own);
-  const given = request.since ?? (await runsBase(root, runs));
+  const given = request.since ?? (await runsBase(root, runs, own));
   // Runs that name no start (`runsBase`), and no base named: a suite given to a
   // share starts from the record its mainline published, as a fresh CI checkout
   // always does (spec 0074, item 5). With no run here at all, nothing is fetched.

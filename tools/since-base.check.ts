@@ -84,7 +84,7 @@ describe('a change is read from where each test last ran, not from where the las
       base: H,
       from: P,
       stands: [{ commit: P, tests: ['test/far.test.ts', 'test/other.test.ts'], whole: ['src/far.ts'] }],
-      says: `where 2 test(s) the runs at ${H.slice(0, 12)} did not run last ran; 1 file(s) changed up to ${H.slice(0, 12)}, where the snapshot was recorded, are read whole for the 2 test(s) that last ran before it`,
+      says: `where 2 test(s) the runs at ${H.slice(0, 12)} did not run last ran; 1 file(s) changed between the commits 2 test(s) last ran at and ${H.slice(0, 12)}, where the snapshot was recorded, are read whole for them`,
     });
   });
 
@@ -141,7 +141,7 @@ describe('a change is read from where each test last ran, not from where the las
     const merged = git('rev-parse', 'mainline').trim();
     const start = readingFrom({ commit: H, ref: 'mainline', runs: runsAt(H, P, tests), tests, git });
     expect(start).toMatchObject({ base: H, from: merged, stands: [{ commit: merged, tests, whole: ['src/far.ts', 'src/other.ts'] }] });
-    expect(start.says).toMatch(/^the merge base with mainline; 2 file\(s\) changed up to /);
+    expect(start.says).toMatch(/^the merge base with mainline; 2 file\(s\) changed between the commits /);
   });
 
   it('starts at a stand older than the ref\'s merge base, which the merge base does not replace', async () => {

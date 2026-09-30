@@ -156,11 +156,13 @@ export async function landJourneys(
       // Landing the same shards again does not repair it: the snapshot already
       // stands at their commit and the record still names the one before, so
       // the retry is read as a new commit, not one more run at it, and names
-      // the landed commit itself as `over`. A review then reads the change from
-      // there and silently leaves out every commit between the old record's
-      // and the landed one. The same holds when this rename throws rather than
-      // the process dying: the snapshot has already landed, the command exits
-      // with the error, and the retry an operator makes next is that landing.
+      // the landed commit itself as `over`. The commit the change started at is
+      // then lost: a review refuses that record (`runsBase`) and asks for
+      // `--since <ref>`, and a `test:since` reading takes every test the
+      // shards did not run to have last run at the landed commit. The same
+      // holds when this rename throws rather than the process dying: the
+      // snapshot has already landed, the command exits with the error, and the
+      // retry an operator makes next is that landing.
       await rename(stagedRuns, runsAt);
       return { landed, cases };
     } finally {

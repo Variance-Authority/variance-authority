@@ -736,8 +736,10 @@ That commit is a start only when the one you ran at descends from it, and the
 review asks git. A run after checking out an older commit, or mainline shards
 landed over your branch's runs, has no previous commit to start from, and is
 read like the run below. When git cannot tell, because your clone does not
-hold that commit or is shallow, the review is refused and names the commit to
-fetch.
+hold that commit or is shallow and cut between the two, the review is refused
+and names the commit to fetch. So is a record that names the commit it ran at
+as the one it started from, which a landing interrupted and landed again
+leaves: name the start with `--since <ref>`.
 
 A run in a checkout that had no recording before it, such as a fresh clone,
 has no previous commit to start from. When the root config gives that suite to
