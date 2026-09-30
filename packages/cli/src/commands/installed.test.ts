@@ -96,7 +96,7 @@ describe('what a diff did to the install', () => {
     const at = await repository(BEFORE);
     const diff = await installDiff(undefined, [], at);
 
-    expect(diff && 'whole' in diff && diff.whole).toContain('from a commit this checkout does not hold');
+    expect(diff && 'whole' in diff && diff.whole).toContain('from a commit git could not resolve here');
   });
 
   it('names the commit the lockfile was missing at', async () => {

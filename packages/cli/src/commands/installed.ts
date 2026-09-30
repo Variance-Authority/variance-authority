@@ -143,8 +143,8 @@ async function installDiffAt(
   if (point === undefined) {
     return {
       whole:
-        `${relative(from, found.file) || pathTail(found.file)} is compared from a commit this checkout ` +
-        'does not hold, so there is no install to compare it against and any package in it may have moved',
+        `${relative(from, found.file) || pathTail(found.file)} is compared from a commit git could not resolve here, ` +
+        'so there is no install to compare it against and any package in it may have moved',
     };
   }
 

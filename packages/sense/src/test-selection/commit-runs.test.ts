@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -154,5 +154,13 @@ describe('the runs recorded at one commit', () => {
     await expect(readCommitRuns(coverageFile)).rejects.toThrow(`the runs record at ${commitRunsFile(coverageFile)} is not JSON`);
     await writeFile(commitRunsFile(coverageFile), '[]', 'utf8');
     await expect(readCommitRuns(coverageFile)).rejects.toThrow(`the runs record at ${commitRunsFile(coverageFile)} is not a JSON object`);
+  });
+
+  it('refuses a record that is there and cannot be read, rather than reading it as absent', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
+    const coverageFile = join(root, 'coverage.bin');
+
+    await mkdir(commitRunsFile(coverageFile));
+    await expect(readCommitRuns(coverageFile)).rejects.toThrow(`the runs record at ${commitRunsFile(coverageFile)} could not be read`);
   });
 });

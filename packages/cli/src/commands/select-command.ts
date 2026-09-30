@@ -165,7 +165,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // in is the whole change, so it is read for every test alike, and a note says
   // when some test last ran before the journal's commit.
   const handed = request.diff !== undefined;
-  const stood = commit === undefined ? undefined : await standsOf(at, handed);
+  const stood = commit === undefined ? undefined : await standsOf(at, request.cwd, handed);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
   const standing =
     stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!);
@@ -253,14 +253,15 @@ function compared(installed: InstallDiff | undefined): Exclude<InstallDiff, { re
 /**
  * Where each test in the journal at `at` last ran, as the runs recorded beside
  * it say, with the files read whole for each stand named the way this run
- * names files. `undefined` outside a checkout, or for a journal that names no
- * commit. A runs record that is not JSON is refused, with the reader's sentence
+ * names files. `undefined` when `cwd` is outside a checkout, or for a journal
+ * that names no commit. A runs record that cannot be read is refused, with the reader's sentence
  * naming the file: every test would otherwise be read from a guess, and a guess
  * can skip a test that should run. Under `--diff` the record feeds only a note,
  * so the note says it could not be read and nothing is refused.
  */
 async function standsOf(
   at: string,
+  cwd: string,
   handed: boolean,
 ): Promise<{ readonly reading: StandReading; readonly stands: readonly Stand[] } | { readonly unread: string } | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
@@ -278,7 +279,6 @@ async function standsOf(
       { cause: error },
     );
   }
-  const cwd = process.cwd();
   let repository: string;
   try {
     repository = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -289,8 +289,8 @@ async function standsOf(
     execFileSync('git', args, { cwd: repository, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
   const reading = selection.standsAt(at, runs, git, (test) => existsSync(join(repository, test)));
   if (reading === undefined) return undefined;
-  // `git` names files from the top of the checkout and the diff names them from here.
-  const here = (file: string): string => relative(cwd, join(repository, file));
+  // `git` names files from the top of the checkout, and `diffSince` names them from the process's directory.
+  const here = (file: string): string => relative(process.cwd(), join(repository, file));
   return { reading, stands: reading.stands.map((stand) => ({ ...stand, whole: stand.whole.map(here) })) };
 }
 

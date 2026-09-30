@@ -213,6 +213,8 @@ export function readingFrom({
   for (const stand of older) {
     const standing = grouped.get(stand)!.sort();
     try {
+      // FIXME: a submodule's change lists only its gitlink path here, so a test
+      // under it is not charged with what changed inside the submodule.
       read.push({ commit: stand, tests: standing, whole: [...new Set(paths(git('diff', '--name-only', '-z', '--no-renames', stand, commit)))].sort() });
     } catch {
       return {
@@ -249,9 +251,10 @@ export function readingFrom({
  * before the snapshot's commit is kept only when `exists` finds it, and the
  * ones it does not find are named in `gone`. The disk is asked rather than
  * git's list of files, which holds no generated test under an ignored
- * directory and no test inside a submodule or a nested repository, and each of
- * those would otherwise be read from the snapshot's commit and skipped for what
- * changed before it. Only those tests are asked about; nothing walks the tree.
+ * directory and no test inside a submodule or a nested repository. Asking the
+ * disk keeps such a test in its stand rather than dropping it; it does not
+ * make git's diff list what changed inside a submodule, which it names by its
+ * gitlink path alone. Only those tests are asked about; nothing walks the tree.
  *
  * `runs` is read by the caller, which says what the record was for when it
  * cannot be parsed. `undefined` when the snapshot names no commit, so there is

@@ -205,6 +205,17 @@ describe('a test that did not run at the journal commit', () => {
     await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} is not JSON`);
   });
 
+  it('refuses a runs record that is there and cannot be read, rather than reading it as absent', async () => {
+    const { root, file } = await partialRun();
+    rmSync(commitRunsFile(file));
+    mkdirSync(commitRunsFile(file));
+
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+
+    await expect(refused).rejects.toBeInstanceOf(OperatorError);
+    await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} could not be read`);
+  });
+
   it('says a runs record that is not JSON went unread under `--diff`, and does not refuse', async () => {
     const { root, file } = await partialRun();
     writeFileSync(commitRunsFile(file), '{');

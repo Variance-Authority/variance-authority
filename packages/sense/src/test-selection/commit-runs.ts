@@ -165,9 +165,10 @@ function standingAfter(
 
 /**
  * The runs recorded into the snapshot at `coverageFile`, or `undefined` when no
- * run has listed itself.
+ * run has listed itself: when there is no file at all.
  *
- * A record that is there and is not a JSON object throws, naming the file: it
+ * A record that is there and cannot be read, or is not a JSON object, throws,
+ * naming the file: it
  * says where each test last ran, and a reader that took it for *no record*
  * would place every test at the journal's commit, which can skip a test that
  * should run. Each caller says what the record was for and what to do.
@@ -177,8 +178,11 @@ export async function readCommitRuns(coverageFile: string): Promise<CommitRuns |
   let text: string;
   try {
     text = await readFile(file, 'utf8');
-  } catch {
-    return undefined;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw new Error(`the runs record at ${file} could not be read: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    });
   }
   let parsed: unknown;
   try {
