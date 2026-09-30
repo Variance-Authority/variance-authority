@@ -238,11 +238,16 @@ async function main() {
     runs = coverage.commit === undefined ? undefined : await readCommitRuns(snapshotFile);
   } catch (error) {
     // It says where each test last ran, and a selection that guessed would
-    // skip tests that should run, so nothing is narrowed on it.
+    // skip tests that should run, so nothing is narrowed on it. What to do
+    // depends on whose record it is, one case per place a record is read from.
+    const remedy = {
+      own: '  Run `yarn test`, which rewrites it; delete it first only if it is a directory.',
+      primary: "  It is the primary checkout's record: run `yarn test` here, which writes this worktree's own.",
+    }[own ? 'own' : 'primary'];
     say(
       `test:since: ${error?.message ?? error}.`,
       '  It says where each test in the snapshot last ran, so nothing is selected without it.',
-      '  Delete it and run `yarn test` once, which writes it again.',
+      remedy,
     );
     return 1;
   }

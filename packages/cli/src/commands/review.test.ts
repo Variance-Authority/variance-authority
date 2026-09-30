@@ -403,6 +403,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow(`the runs record at ${runs} could not be read`);
+    await expect(refused).rejects.toThrow('run the suite, which rewrites it; delete it first only if it is a directory.');
   });
 
   it('refuses a format it does not write', () => {

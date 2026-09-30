@@ -59,9 +59,11 @@ import { suiteRecord } from './suite-record.js';
 export async function changedSince(ref: string, roots: readonly string[] = []): Promise<readonly string[]> {
   const run = promisify(execFile);
   const here = process.cwd();
-  const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
 
   try {
+    const asked = roots[0] === undefined ? here : join(here, roots[0]);
+    const repository = await topLevel(asked, run);
+    if (repository === undefined) throw new Error(`${asked} is not in a git checkout`);
     const base = await mergeBase(run, ref, repository);
     return [...(await changedFiles(run, repository, base)), ...(await untrackedFiles(run, repository))].map(
       (file) => relative(here, join(repository, file)),
@@ -115,7 +117,8 @@ export async function diffSince(
 ): Promise<string | undefined> {
   const run = promisify(execFile);
   const here = options.cwd ?? process.cwd();
-  const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
+  const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]), run);
+  if (repository === undefined) return undefined;
   const side = options.reverse === true ? REVERSED : [];
 
   try {
@@ -263,7 +266,8 @@ export async function indexPosition(
   const selection = await import('@variance-authority/sense/test-selection');
 
   try {
-    const repository = await topLevel(run, roots[0] === undefined ? root : join(root, roots[0]));
+    const repository = await topLevel(roots[0] === undefined ? root : join(root, roots[0]), run);
+    if (repository === undefined) return undefined;
     // The position, and nothing else decoded to reach it: a snapshot of a
     // repository holds hundreds of thousands of regions and this asks it for
     // forty characters.
@@ -311,7 +315,8 @@ export async function commitPoint(commit: string, roots: readonly string[] = [],
 async function pointAt(roots: readonly string[], baseOf: (run: Run, at: string) => Promise<string>, here: string): Promise<DiffPoint | undefined> {
   const run = promisify(execFile);
   try {
-    const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
+    const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]), run);
+    if (repository === undefined) return undefined;
     const base = await baseOf(run, repository);
     return { repository, base, at: (path) => fileAt(repository, base, path) };
   } catch {
@@ -370,20 +375,20 @@ async function fileAt(repository: string, revision: string, path: string): Promi
 }
 
 /**
- * The checkout a directory belongs to, or the run's own directory when none does.
+ * The top level of the checkout a directory belongs to, as git spells it, or
+ * `undefined` when it belongs to none.
  *
- * A failure here is deliberately not raised. `rev-parse` fails for one uninteresting
- * reason — this is not a git checkout — and the diff that follows is about to fail
- * with a sentence naming the ref the operator actually typed, which is the more
- * useful of the two.
+ * Never the run's own directory in its place: that is another repository's
+ * answer, and a diff read there names changes this directory never made. A
+ * caller with no checkout has no diff, which skips nothing; `changedSince`
+ * refuses instead, with a sentence naming the ref the operator typed.
  */
-async function topLevel(run: Run, from: string): Promise<string> {
+export async function topLevel(from: string, run: Run = promisify(execFile)): Promise<string | undefined> {
   try {
     const { stdout } = await run('git', ['rev-parse', '--show-toplevel'], { cwd: from });
-    const found = stdout.trim();
-    return found === '' ? process.cwd() : found;
+    return stdout.trim() || undefined;
   } catch {
-    return process.cwd();
+    return undefined;
   }
 }
 

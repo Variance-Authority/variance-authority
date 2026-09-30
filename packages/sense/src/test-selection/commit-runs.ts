@@ -92,7 +92,7 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
   const held = await readCommitRuns(coverageFile).catch((error: unknown) => {
     console.warn(
       `variance-authority: ${error instanceof Error ? error.message : String(error)}; this run writes it afresh, ` +
-        'so where each test it did not run last ran is not recorded until a run observes every test.',
+        'so where each test last ran is recorded again once the runs at one commit together observe every test.',
     );
     return undefined;
   });
@@ -126,8 +126,8 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
  * there, and every other test is listed. Anything short of that — no record, a
  * record of another commit, one written before `standing`, a test it does not
  * list — is not known, and a guess written here would be read back as a fact at
- * every run after this one. So the answer is absent until a run observes every
- * test the snapshot held, which needs no record at all.
+ * every run after this one. So the answer is absent until the runs at one
+ * commit together observe every test the snapshot held.
  *
  * A worktree's first run is laid over a copy of the primary checkout's
  * snapshot, and the record beside it is the worktree's own, which does not

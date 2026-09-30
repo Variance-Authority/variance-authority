@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -48,14 +48,42 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
   });
 
-  it('reads the stands, the change and the install in the checkout it was asked about, not the process directory', async () => {
-    const { root, P } = await partialRun();
-    process.chdir(mkdtempSync(join(tmpdir(), 'va-select-standing-elsewhere-')));
+  // The process stands in another checkout of the same history, clean: a
+  // reading made there finds nothing changed and skips what `cwd` changed.
+  it.each([
+    ['a worktree', 'edited', ''],
+    ['a worktree', 'clean', 'test/near.test.ts\n'],
+    ['a clone', 'edited', ''],
+    ['a clone', 'clean', 'test/near.test.ts\n'],
+  ])('reads the checkout it was asked about, with the process in %s of it, when `cwd` is %s', async (other, tree, skipped) => {
+    const { root } = await partialRun();
+    // A side effect, so the edit is charged to the module's importers.
+    if (tree === 'edited') writeFileSync(join(root, 'src/near.ts'), 'export const near = 2;\nglobalThis.touched = 1;\n');
+    const elsewhere = join(mkdtempSync(join(tmpdir(), 'va-select-standing-other-')), 'other');
+    if (other === 'a worktree') execFileSync('git', ['worktree', 'add', '--quiet', '--detach', elsewhere, 'HEAD'], { cwd: root });
+    else execFileSync('git', ['clone', '--quiet', root, elsewhere]);
+    process.chdir(elsewhere);
 
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
+    expect(said.out).toBe(skipped);
+  });
+
+  it('reads the change from the top of the checkout when `cwd` is a directory under it', async () => {
+    const { root } = await partialRun();
+
+    const said = await selectOutput({ cwd: join(root, 'test'), format: 'plain' });
+
     expect(said.out).toBe('test/near.test.ts\n');
-    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
+  });
+
+  it('reads the change from the top of the checkout when the process and `cwd` are both under it', async () => {
+    const { root } = await partialRun();
+    process.chdir(join(root, 'test'));
+
+    const said = await selectOutput({ cwd: join(root, 'test'), format: 'plain' });
+
+    expect(said.out).toBe('test/near.test.ts\n');
   });
 
   it('runs where the runs record does not say where it last ran, and says so', async () => {
@@ -224,6 +252,21 @@ describe('a test that did not run at the journal commit', () => {
 
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} could not be read`);
+    await expect(refused).rejects.toThrow('delete it first only if it is a directory');
+  });
+
+  it("refuses the primary checkout's unreadable runs record from a worktree without telling it to delete that record", async () => {
+    // Spelled as git spells it, so the worktree finds the primary checkout's layer under the key it was written by.
+    const { root, file } = await partialRun(realpathSync(mkdtempSync(join(tmpdir(), 'va-select-standing-'))));
+    writeFileSync(commitRunsFile(file), '{');
+    const worktree = join(mkdtempSync(join(tmpdir(), 'va-select-standing-worktree-')), 'worktree');
+    execFileSync('git', ['worktree', 'add', '--quiet', '--detach', worktree, 'HEAD'], { cwd: root });
+    process.chdir(worktree);
+
+    const refused = selectOutput({ cwd: worktree, format: 'plain' });
+
+    await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} is not JSON`);
+    await expect(refused).rejects.toThrow("It is another checkout's record: run the suite here, which writes this checkout's own.");
   });
 
   it('says a runs record that is not JSON went unread under `--diff`, and does not refuse', async () => {
@@ -251,8 +294,8 @@ describe('a test that did not run at the journal commit', () => {
   });
 
   /** Every test runs at P; `far.ts` and `near.ts` change in H; only `near` runs at H. */
-  async function partialRun(): Promise<{ root: string; file: string; P: string }> {
-    const repo = checkout();
+  async function partialRun(at?: string): Promise<{ root: string; file: string; P: string }> {
+    const repo = checkout(at);
     const P = repo.commit(sources(1), 'P');
     await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
     const H = repo.commit(sources(2), 'H');
@@ -285,8 +328,7 @@ function sources(value: number, names: readonly string[] = [...NAMES, 'gone']): 
 }
 
 /** A repository with its journal, committing whatever is written into it. */
-function checkout() {
-  const root = mkdtempSync(join(tmpdir(), 'va-select-standing-'));
+function checkout(root = mkdtempSync(join(tmpdir(), 'va-select-standing-'))) {
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('init', '--quiet', '--initial-branch', 'main');
   git('config', 'user.email', 'fixture@example.test');
