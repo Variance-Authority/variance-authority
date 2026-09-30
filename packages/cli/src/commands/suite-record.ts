@@ -17,8 +17,11 @@ import { messageOf } from '../config-values.js';
  *
  * The path is the nearest cache layer holding the record, which in a worktree
  * that has not run is the primary checkout's: sense's `readableTestCoverage`
- * owns that lookup. What is read beside the record — its case index, its runs
- * — is read beside this path, so from the same layer.
+ * owns that lookup. The case index is read beside this path, so from the same
+ * layer as the record it was written with. The runs log is not: it says where
+ * this checkout's change starts and which files this checkout ran, so it is
+ * read from {@link landingRecord}'s layer and is absent until this checkout has
+ * run.
  */
 export async function suiteRecord(root: string, suite?: string): Promise<string> {
   return (await recordedSuite(root, suite)).file;
