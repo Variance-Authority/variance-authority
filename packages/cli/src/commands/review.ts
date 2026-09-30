@@ -148,8 +148,8 @@ export interface Review {
     /** Why the cases it published were not compared with, when it published cases that do not read. */
     readonly casesUnread?: string;
   };
-  /** The runs recorded at this commit, when they listed themselves. */
-  readonly runs?: CommitRuns;
+  /** The runs recorded at this commit, when they listed themselves, less `test:since`'s `standing`. */
+  readonly runs?: Omit<CommitRuns, 'standing'>;
   readonly files: readonly ReviewFile[];
   /** How many test files the snapshot holds, the scale `before` is read on. Absent with `before` when the snapshot could not be read. */
   readonly suite?: number;
@@ -270,7 +270,7 @@ export async function review(request: ParsedReview): Promise<Review> {
     record,
     base: request.since !== undefined ? 'since' : mainline === undefined ? 'recording' : 'mainline',
     ...(mainline === undefined ? {} : { mainline: mainlineOf(mainline) }),
-    ...(runs === undefined ? {} : { runs }),
+    ...(runs === undefined ? {} : { runs: Object.fromEntries(Object.entries(runs).filter(([key]) => key !== 'standing')) as Omit<CommitRuns, 'standing'> }),
     files,
     ...(suite === undefined ? {} : {
       suite: suite.tests,

@@ -24,7 +24,10 @@
  * before both. So the record also carries `standing`: for every test the runs
  * at its commit did not observe, the commit whose text that test last ran on.
  * It is carried forward from the record it replaces, never worked out again,
- * because once a run lands, the snapshot no longer says.
+ * because once a run lands, the snapshot no longer says. A record that cannot
+ * be carried forward — none beside the snapshot, one naming another commit, one
+ * with no `standing` of its own — leaves `standing` absent rather than guessed,
+ * until a run observes every test and there is nothing left to say.
  *
  * Written beside the snapshot, and by every writer of the snapshot rather than
  * by one seam: which runner recorded a run is not a question its reader should
@@ -60,9 +63,10 @@ export interface CommitRuns {
   readonly files: readonly string[];
   /**
    * The commit each other test in the snapshot last ran at, oldest first, each
-   * with its test files in code-unit order. A test in `files` is not listed. A
-   * record written before this field has none; its reader takes `over` as where
-   * every test outside `files` stands.
+   * with its test files in code-unit order. A test in `files` is not listed.
+   * Absent when the run that wrote this record could not know: the record it
+   * replaced did not speak for the snapshot the run was laid over. A reader
+   * that falls back, to `over` or to `commit`, says it did.
    */
   readonly standing?: readonly { readonly commit: string; readonly files: readonly string[] }[];
 }
@@ -92,7 +96,7 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
   const again = current.commit !== undefined && stood === current.commit && held?.commit === current.commit;
   const over = again ? held.over : stood;
   const ran = again ? [...new Set([...held.files, ...files])].sort(codeUnitOrder) : files;
-  const standing = current.commit === undefined ? [] : standingAfter(prior, held, current.commit, ran);
+  const standing = current.commit === undefined ? undefined : standingAfter(prior, held, current.commit, ran);
   const record: CommitRuns = {
     ...(current.commit === undefined ? {} : { commit: current.commit }),
     ...(over === undefined ? {} : { over }),
@@ -100,46 +104,60 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
     latest: at,
     runs: again ? held.runs + 1 : 1,
     files: ran,
-    ...(current.commit === undefined ? {} : { standing }),
+    ...(standing === undefined ? {} : { standing }),
   };
   await writeCoverageBytes(commitRunsFile(coverageFile), Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
 }
 
 /**
  * Where each test the snapshot held before this run last ran, leaving out the
- * tests the runs at `commit` observed.
+ * tests the runs at `commit` observed, or `undefined` when that is not known.
  *
- * The record `held` speaks for the snapshot only when it names the commit that
- * snapshot stood at; otherwise every test in it stands there. A record written
- * before `standing` existed answers with `over` for every test outside its
- * files, which is what its reader took it to mean.
+ * Only the record `held` knows, and only when it names the commit the snapshot
+ * stood at and carries `standing` of its own: a test in its `files` stood
+ * there, and every other test is listed. Anything short of that — no record, a
+ * record of another commit, one written before `standing`, a test it does not
+ * list — is not known, and a guess written here would be read back as a fact at
+ * every run after this one. So the answer is absent until a run observes every
+ * test the snapshot held, which needs no record at all.
+ *
+ * A worktree's first run is laid over a copy of the primary checkout's
+ * snapshot, and the record beside it is the worktree's own, which does not
+ * exist yet: the primary checkout's runs describe its change, not this one. So
+ * a worktree's first partial run leaves `standing` absent too.
+ *
+ * FIXME: `landJourneys` in `packages/cli/src/commands/land.ts` writes the
+ * snapshot without calling `landRun`, so a landing of shard snapshots leaves
+ * this record naming the commit before it. The next run here finds a record
+ * speaking for another snapshot and writes no `standing`, and a `test:since`
+ * before that run reads every test from the landed commit, saying so.
  */
 function standingAfter(
   prior: { readonly commit: string | undefined; readonly tests: readonly string[] } | undefined,
   held: CommitRuns | undefined,
   commit: string,
   ran: readonly string[],
-): NonNullable<CommitRuns['standing']> {
-  const stood = prior?.commit;
-  if (prior === undefined || stood === undefined) return [];
-  const speaks = held?.commit === stood ? held : undefined;
-  const listed = new Map<string, string>();
-  for (const entry of speaks?.standing ?? []) for (const file of entry.files) listed.set(file, entry.commit);
-  const ranThere = new Set(speaks?.files);
-  const standOf = (test: string): string =>
-    ranThere.has(test) ? stood : (listed.get(test) ?? speaks?.over ?? stood);
-  // Oldest first: the record's own order, then where its runs started, then the
-  // commit it named. `over` can be younger than a commit in `standing` — a test
-  // two partial runs back — but never older.
-  const order = [...new Set([...(speaks?.standing ?? []).map((entry) => entry.commit), ...(speaks?.over === undefined ? [] : [speaks.over]), stood])];
+): CommitRuns['standing'] {
+  // No snapshot under these probes: the run replaced it, and holds only its own.
+  if (prior === undefined) return [];
   const observed = new Set(ran);
+  const unobserved = prior.tests.filter((test) => !observed.has(test));
+  if (unobserved.length === 0) return [];
+  const stood = prior.commit;
+  if (stood === undefined || held?.commit !== stood || held.standing === undefined) return undefined;
+  const listed = new Map<string, string>();
+  for (const entry of held.standing) for (const file of entry.files) listed.set(file, entry.commit);
+  const ranThere = new Set(held.files);
   const grouped = new Map<string, string[]>();
-  for (const test of prior.tests) {
-    if (observed.has(test)) continue;
-    const stand = standOf(test);
+  for (const test of unobserved) {
+    const stand = ranThere.has(test) ? stood : listed.get(test);
+    if (stand === undefined) return undefined;
     if (stand === commit) continue;
     grouped.set(stand, [...(grouped.get(stand) ?? []), test]);
   }
+  // Oldest first: the record's own order, then the commit it named, which every
+  // test in `standing` last ran before.
+  const order = [...new Set([...held.standing.map((entry) => entry.commit), stood])];
   return order
     .filter((stand) => grouped.has(stand))
     .map((stand) => ({ commit: stand, files: [...new Set(grouped.get(stand))].sort(codeUnitOrder) }));
