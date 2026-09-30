@@ -121,6 +121,14 @@ import is not followed, because nothing loads it at runtime. An `import()` is
 followed, because something does. Test files, and files only tests import, are
 not part of what a package ships.
 
+What a package ships starts at the files its `package.json` names in `exports`,
+`main`, `module` or `bin`, whoever else imports them. A path under the build's
+output is read as the source file the `tsconfig` builds it from, so
+`./dist/index.js` is `src/index.ts` whether or not you have built. A package
+whose manifest names none of its files, such as an application, starts at its
+files that nothing imports, and `variance layers` lists every such package once
+under its answer.
+
 A package is in the highest-numbered tier whose budget its size fits. Tier 0 is
 the first entry and has no limit: a package that fits no smaller budget is tier
 0, whatever number you wrote there. Each budget must be smaller than the one

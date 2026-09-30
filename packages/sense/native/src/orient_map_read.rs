@@ -56,10 +56,18 @@ pub(crate) struct Read {
     pub closures: Vec<Closure>,
     /// Every counted file that is not the tests' side, in code-unit order.
     pub shipped: Vec<String>,
+    /// Packages whose manifest offers no counted file of their own, so their
+    /// shipped code starts at the files nothing imports (`tests`).
+    pub undeclared: Vec<bool>,
 }
 
 /// What a path says of a file: a test, its fixtures, or the harness's config.
-const TEST_BY_PATH: &str = r"(?i)\.(test|spec|stories|story)\.[cm]?[jt]sx?$|(^|/)(__tests?__|__mocks__|__fixtures?__|__jest__|__stories__|\.?storybook|fixtures|test|tests|test_helpers?|e2e|test-cases|[^/]*\.test)/|(^|/)[^/]*\.config\.[cm]?[jt]s$|(^|/)(vitest|jest|karma|playwright)[._-][^/]*$|(^|/)(setup[._-]?tests?|tests?[._-]?setup)\.[cm]?[jt]sx?$";
+const TEST_BY_PATH: &str = r"(?i)\.(test|spec|stories|story)\.[cm]?[jt]sx?$|(^|/)(__tests?__|__mocks__|__fixtures?__|__jest__|__stories__|\.storybook|fixtures|test|tests|test_helpers?|e2e|test-cases|[^/]*\.test)/|(^|/)[^/]*\.config\.[cm]?[jt]s$|(^|/)(vitest|jest|karma|playwright)[._-][^/]*$|(^|/)(setup[._-]?tests?|tests?[._-]?setup)\.[cm]?[jt]sx?$";
+/// A `storybook/` directory inside a package holds its stories' decorators and
+/// mocks, as Kibana's plugins keep them; read against the path inside the
+/// package, so a package that is itself named `storybook` is not its own
+/// stories' helper.
+const STORIES_INSIDE: &str = r"(?i)(^|/)storybook/";
 // TODO: a setup file is the runner's to name (`setupFiles`); the path is the
 // fallback until the runner's configuration is read here, and nothing imports
 // a setup file, so without it the file would read as a shipped entry.
@@ -105,6 +113,7 @@ fn package_of(value: &str) -> &str {
 /// git takes as long to answer as the reading takes, so the two overlap.
 pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made: impl FnOnce() -> HashSet<String>) -> Read {
     let by_path = Regex::new(TEST_BY_PATH).expect("the pattern is fixed");
+    let stories_inside = Regex::new(STORIES_INSIDE).expect("the pattern is fixed");
     let folded = fold(layers);
     let records = folded.len() as u32;
     let beside_them;
@@ -158,7 +167,21 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     let unread = files.iter().filter(|file| !file.parsed).count() as u32;
     let counted: HashMap<&str, usize> = files.iter().enumerate().map(|(at, file)| (file.path, at)).collect();
 
-    let test = tests(&files, &counted, &by_path);
+    let named_by_path: Vec<bool> = files
+        .par_iter()
+        .map(|file| {
+            let directory = packages[file.owner as usize].directory.as_str();
+            let inside = if directory.is_empty() { Some(file.path) } else { file.path.strip_prefix(directory).and_then(|rest| rest.strip_prefix('/')) };
+            by_path.is_match(file.path) || inside.is_some_and(|inside| stories_inside.is_match(inside))
+        })
+        .collect();
+    let offering: Vec<&crate::package_owners::Package> = by_name.iter().map(|&owner| &owners.packages[owner as usize]).collect();
+    let owner_of_file: Vec<u32> = files.iter().map(|file| file.owner).collect();
+    let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file);
+    // A test is never an entry, whatever the manifest offers.
+    entries.iter_mut().for_each(|entries| entries.retain(|&at| !named_by_path[at]));
+    let undeclared: Vec<bool> = entries.iter().map(Vec::is_empty).collect();
+    let test = tests(&files, &counted, &named_by_path, &entries);
     let targets: Vec<Vec<Option<u32>>> =
         files.par_iter().map(|file| file.requests.iter().map(|request| request.to.and_then(&owner_of)).collect()).collect();
 
@@ -210,7 +233,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     edges.sort_unstable();
     let closures = closures(&loads(&files, &counted, &test, &named), n);
     let shipped = files.iter().zip(&test).filter(|(_, &test)| !test).map(|(file, _)| file.path.to_owned()).collect();
-    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped }
+    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped, undeclared }
 }
 
 /// The graph a closure is walked over: every counted file, and what it loads.
@@ -269,19 +292,21 @@ fn heads(n: usize, uses: HashMap<(u32, &str), (u32, HashSet<u32>)>) -> Vec<Vec<S
         .collect()
 }
 
-/// Which files are the tests' side: a test by its path, and whatever a test
-/// reaches that nothing shipped does. Shipped is what the entries reach, an
-/// entry being a file nothing imports that is not a test by its path.
+/// Which files are the tests' side: a test by its path (`named`), and whatever
+/// a test reaches that nothing shipped does. Shipped is what the entries reach.
+/// A package's entries are the files its manifest offers (`declared`, by
+/// package, `orient_map_entries.rs`). Where it offers none that resolves, they
+/// are the files of it nothing imports that are not tests by their path: the
+/// owner gave no answer, so one is computed, and `Read::undeclared` says so.
 // TODO: what a test's specifier meant is the runner's alias table to say, and a
 // stub it maps to connects nothing; this walks the index's targets alone, so a
 // file only an aliased import reaches can land on the wrong side.
-fn tests(files: &[File], counted: &HashMap<&str, usize>, by_path: &Regex) -> Vec<bool> {
+fn tests(files: &[File], counted: &HashMap<&str, usize>, named: &[bool], declared: &[Vec<usize>]) -> Vec<bool> {
     let outgoing: Vec<Vec<usize>> = files
         .iter()
         .enumerate()
         .map(|(at, file)| file.requests.iter().filter_map(|request| counted.get(request.to?).copied()).filter(|&to| to != at).collect())
         .collect();
-    let named: Vec<bool> = files.iter().map(|file| by_path.is_match(file.path)).collect();
     let mut imported = vec![false; files.len()];
     for &to in outgoing.iter().flatten() {
         imported[to] = true;
@@ -302,7 +327,9 @@ fn tests(files: &[File], counted: &HashMap<&str, usize>, by_path: &Regex) -> Vec
         }
         seen
     };
-    let shipped = walk((0..files.len()).filter(|&at| !named[at] && !imported[at]).collect(), &|at| named[at]);
+    let unimported = (0..files.len()).filter(|&at| !named[at] && !imported[at] && declared[files[at].owner as usize].is_empty());
+    let entries = declared.iter().flatten().copied().chain(unimported).collect();
+    let shipped = walk(entries, &|at| named[at]);
     let reached = walk((0..files.len()).filter(|&at| named[at]).collect(), &|at| shipped[at]);
     (0..files.len()).map(|at| named[at] || reached[at]).collect()
 }

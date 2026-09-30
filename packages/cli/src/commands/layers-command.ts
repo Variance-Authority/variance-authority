@@ -11,7 +11,9 @@
  * much code it pulls in, and a base answer tells the tier moves the same way:
  * the few packages that caused them and the count each carried. Installed
  * packages are not in the code map, so a closure stops at them and the
- * listing says so once.
+ * listing says so once. It also names, once, every package whose manifest
+ * offers none of its files, because the fold had to compute where that
+ * package's shipped code starts rather than read it.
  *
  * Nothing here decides: the exit is clean whatever the answer, and the
  * markdown answer is empty when nothing moved, so a poster clears its comment
@@ -146,6 +148,13 @@ function markdown(moves: LayerMoves, tiers: TierMoves | undefined): string {
 
 const UNCOUNTED = 'Installed packages are not in the code map, so no closure counts their lines.';
 
+/** The packages whose manifest names none of their files, which the listing says once, or nothing. */
+function undeclared(packages: readonly PackageLayer[]): string[] {
+  const names = packages.filter((entry) => entry.undeclared).map((entry) => entry.package);
+  if (names.length === 0) return [];
+  return ['', `No \`exports\`, \`main\`, \`module\` or \`bin\` names a file of these packages, so each closure starts at the files of it nothing imports: ${names.join(', ')}.`];
+}
+
 /** One package's tier and the closure that places it, or nothing when no tiers are declared. */
 function placed(entry: PackageLayer, tiers: Tiers | undefined): string {
   if (tiers === undefined) return '';
@@ -160,12 +169,12 @@ function listing(packages: readonly PackageLayer[], tiers: Tiers | undefined, fo
     const entries = sorted.map((entry) => ({
       package: entry.package,
       layer: entry.layer,
-      ...(tiers === undefined ? {} : { ...tierOf(tiers, entry), lines: entry.lines, files: entry.files, unsizedFiles: entry.unsizedFiles }),
+      ...(tiers === undefined ? {} : { ...tierOf(tiers, entry), lines: entry.lines, files: entry.files, unsizedFiles: entry.unsizedFiles, undeclared: entry.undeclared }),
     }));
     return `${JSON.stringify({ packages: entries })}\n`;
   }
   const lines = sorted.map((entry) => `${entry.layer} ${entry.package}${placed(entry, tiers)}`);
-  const note = tiers === undefined ? [] : ['', UNCOUNTED];
+  const note = tiers === undefined ? [] : ['', UNCOUNTED, ...undeclared(sorted)];
   return format === 'markdown' ? `${[...lines.map((line) => `- ${line}`), ...note].join('\n')}\n` : `${[...lines, ...note].join('\n')}\n`;
 }
 
