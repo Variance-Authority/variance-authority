@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
@@ -61,21 +61,41 @@ const BROWSER_AVAILABLE = (() => {
   }
 })();
 
+// TODO: a stale build passes this gate. `cases/README.md` says generated inputs refuse
+// stale source bytes, and this checks only that both Storybook builds exist, so a story
+// edited since `build-storybook` fails the cycle as a wrong count. `stale()` in
+// `cases/incumbent-case/scripts/bundle.mjs` is the pattern: digests recorded at build time.
 const READY =
   existsSync(INDEX) && existsSync(CHANGED_INDEX) && existsSync(BIN) && BROWSER_AVAILABLE;
 
 let workspace = '';
 let configPath = '';
 let changedConfigPath = '';
+/** The ticking story's own directory: its config, its baseline and its report. */
+let tickingHome = '';
+let tickingConfigPath = '';
 
 /**
- * One config per build, sharing one baseline directory.
+ * One config per build, sharing one baseline directory, and a third config with
+ * a directory of its own for the ticking story.
  *
  * The sharing is the point: baselines recorded from the unmodified build are
  * what the changed build is judged against, which is a branch judged against its
  * trunk and not two independent runs compared afterwards.
+ *
+ * `no-variance` matches the case's own `variance.config.json`, and is not a
+ * convenience for this file: `Sheet — left in the document` appends a rule to
+ * the page and never removes it, so a run that planned it would read every
+ * subject after it through that rule and the workflow below would be measuring
+ * story order rather than an edit. It is a cause the case runs — in
+ * `alone.chromium.test.js` — and never a subject.
+ *
+ * `ticking` is the cycle's own exclusion. A reading of `Clock — ticking` agrees
+ * with its baseline, another mount, only when both were taken the same 50 ms
+ * step after mounting, so the cycle, which asserts `unchanged`, leaves it to the
+ * sweep below.
  */
-function writeConfig(path, index) {
+function writeConfig(path, index, excludeTags, home) {
   writeFileSync(
     path,
     `${JSON.stringify(
@@ -84,17 +104,11 @@ function writeConfig(path, index) {
         profile: 'chromium',
         viewport: { width: 1024, height: 768, deviceScaleFactor: 1, colorScheme: 'light' },
         retention: 'durable',
-        // `excludeTags` matches the case's own `variance.config.json`, and is not
-        // a convenience for this file: `Sheet — left in the document` appends a
-        // rule to the page and never removes it, so a run that planned it would
-        // read every subject after it through that rule and the workflow below
-        // would be measuring story order rather than an edit. It is a cause the
-        // case runs — in `alone.chromium.test.js` — and never a subject.
-        subjects: { kind: 'storybook', index, collector: COLLECTOR, excludeTags: ['no-variance'] },
-        baselines: { kind: 'directory', root: join(workspace, 'baselines') },
+        subjects: { kind: 'storybook', index, collector: COLLECTOR, excludeTags },
+        baselines: { kind: 'directory', root: join(home, 'baselines') },
         fonts: ['ui-sans-serif/400/normal/sha256-case-system-stack'],
-        report: join(workspace, 'run.json'),
-        images: join(workspace, 'images'),
+        report: join(home, 'run.json'),
+        images: join(home, 'images'),
       },
       null,
       2,
@@ -109,9 +123,13 @@ beforeAll(() => {
   workspace = mkdtempSync(join(tmpdir(), 'variance-case-'));
   configPath = join(workspace, 'variance.config.json');
   changedConfigPath = join(workspace, 'variance.changed.json');
+  tickingHome = join(workspace, 'ticking');
+  tickingConfigPath = join(tickingHome, 'variance.config.json');
 
-  writeConfig(configPath, INDEX);
-  writeConfig(changedConfigPath, CHANGED_INDEX);
+  mkdirSync(tickingHome);
+  writeConfig(configPath, INDEX, ['no-variance', 'ticking'], workspace);
+  writeConfig(changedConfigPath, CHANGED_INDEX, ['no-variance', 'ticking'], workspace);
+  writeConfig(tickingConfigPath, INDEX, ['no-variance'], tickingHome);
 });
 
 afterAll(() => {
@@ -158,8 +176,8 @@ live('the durable workflow, end to end', () => {
 
     // `new` is not a regression and is not a pass. Nothing moved, so the exit
     // is 0; nothing was accepted either, so the next run reports the same
-    // fourteen subjects `new` until a person accepts them.
-    expect(out).toContain('14 new');
+    // thirteen subjects `new` until a person accepts them.
+    expect(out).toContain('13 new');
     expect(status).toBe(0);
 
     // The whole reason the report carries a second list. A summary that says
@@ -167,23 +185,27 @@ live('the durable workflow, end to end', () => {
     // than no summary.
     //
     // The list is not empty here, and that is the branch worth running end to
-    // end: two of the sixteen stories are held out by tag and one by its own
+    // end: three of the sixteen stories are held out by tag and one by its own
     // parameters, and one story is read at two widths, so the header says
-    // fourteen of seventeen, the second list separates a subject nobody could
+    // thirteen of seventeen, the second list separates a subject nobody could
     // render from a subject nobody asked for, and it names what held each out.
     // The empty branch is asserted over a hand-built report in
     // `packages/cli/src/commands/report.test.ts`; this one had no exercise
     // anywhere until a real run had something real to leave out.
     //
-    // The two are held out for the same reason and it is not the same subject
-    // matter: `LeaksASheet` is a cause rather than a subject, and `FinishesLate`
-    // is a subject about the driver — it exists so `src/finish.chromium.test.js`
-    // has a story that is still in `afterEach` when the next one is asked for.
-    // Neither is a component anybody would want a baseline of.
-    expect(out).toContain('14 of 17 subject(s) observed');
-    expect(out).toContain('0 the run could not see, 3 excluded by configuration');
+    // Two are held out by `no-variance`, for the same reason and not the same
+    // subject matter: `LeaksASheet` is a cause rather than a subject, and
+    // `FinishesLate` is a subject about the driver — it exists so
+    // `src/finish.chromium.test.js` has a story that is still in `afterEach`
+    // when the next one is asked for. Neither is a component anybody would want
+    // a baseline of. The third is `Clock — ticking`, held out by `ticking`
+    // because this cycle asserts `unchanged` and one reading of it cannot
+    // promise that. See `writeConfig`.
+    expect(out).toContain('13 of 17 subject(s) observed');
+    expect(out).toContain('0 the run could not see, 4 excluded by configuration');
     expect(out).toContain('[excluded] story:case-surface--leaks-a-sheet: excluded by tag `no-variance`');
     expect(out).toContain('[excluded] story:case-surface--finishes-late: excluded by tag `no-variance`');
+    expect(out).toContain('[excluded] story:case-surface--ticking: excluded by tag `ticking`');
     expect(out).toContain(
       '[excluded] story:case-surface--receipt-not-read: excluded by its own parameters (`variance.exclude`)',
     );
@@ -191,7 +213,7 @@ live('the durable workflow, end to end', () => {
     // Exactly once. It was printed twice by two formatters over one artifact,
     // and every test asserting it used `toContain`, which the first copy
     // satisfies.
-    expect(out.split('not observed: 3 subject(s)').length - 1).toBe(1);
+    expect(out.split('not observed: 4 subject(s)').length - 1).toBe(1);
   }, 240_000);
 
   it('reads a story at the widths its own parameters declare', () => {
@@ -218,7 +240,7 @@ live('the durable workflow, end to end', () => {
   it('promotes the images the run already produced, without rendering again', () => {
     const { status, out } = variance('accept', '--all');
 
-    expect(out).toContain('accepted 14 subject(s)');
+    expect(out).toContain('accepted 13 subject(s)');
     expect(status).toBe(0);
   }, 240_000);
 
@@ -230,33 +252,42 @@ live('the durable workflow, end to end', () => {
     // not exist.
     const { status, out } = variance('run');
 
-    expect(out).toContain('14 unchanged');
+    expect(out).toContain('13 unchanged');
     expect(out).not.toContain('incomparable');
     expect(out).toContain('nothing to review');
     expect(status).toBe(0);
   }, 240_000);
 
   it('diagnoses a ticking story as unstable and refuses to accept its coin-flip candidate', () => {
-    // This is deliberately an unchanged story. Without `--flakes`, its baseline
-    // settles before a second read and the clock is invisible to the normal
-    // verdict path. The sweep asks the different question: does this subject
-    // agree with itself when nothing in the repository changed?
+    // Its own config and baseline. A `new` subject is read once, so this run and
+    // its `accept` record a baseline with no second reading to disagree with.
     const subject = 'story:case-surface--ticking';
-    const { status, out } = variance('run', '--flakes', '--subjects', subject);
+    const recorded = varianceWith(tickingConfigPath, 'run', '--subjects', subject);
+    expect(recorded.out).toContain('1 new');
+    expect(recorded.status).toBe(0);
+    const baseline = varianceWith(tickingConfigPath, 'accept', subject);
+    expect(baseline.out).toContain('accepted 1 subject(s)');
+    expect(baseline.status).toBe(0);
+
+    // The sweep reads the subject twice and asks whether the readings agree.
+    // Whether one of them matches the baseline depends on which 50 ms step it
+    // lands in, so the verdict is `unchanged` or `changed` and is not the claim.
+    const { status, out } = varianceWith(tickingConfigPath, 'run', '--flakes', '--subjects', subject);
 
     expect(status).toBe(1);
-    expect(out).toContain('unstable');
+    expect(out).toContain(`[unstable] ${subject}`);
 
-    const report = JSON.parse(readFileSync(join(workspace, 'run.json'), 'utf8'));
+    const report = JSON.parse(readFileSync(join(tickingHome, 'run.json'), 'utf8'));
     const observation = report.observations.find((entry) => entry.subject === subject);
 
-    expect(observation?.verdict).toBe('unchanged');
+    expect(['unchanged', 'changed']).toContain(observation?.verdict);
     // A continuously changing story can yield either of the two valid
-    // non-repeatability readings: two completed collections that disagree, or
-    // one completed collection followed by a collection that never settles.
-    expect(observation?.unstable?.because).toMatch(/differ|cannot be taken twice/);
+    // non-repeatability readings: two completed collections that disagree, which
+    // name the component that wrote the text, or one completed collection
+    // followed by a collection that never settles.
+    expect(observation?.unstable?.because).toMatch(/differ: Clock src\/ds\.jsx:\d+|cannot be taken twice/);
 
-    const refused = variance('accept', subject);
+    const refused = varianceWith(tickingConfigPath, 'accept', subject);
     // `accept` has no safe action to take, so refusal is an operator outcome
     // rather than a second review verdict. The important part is that no
     // baseline can be promoted from either reading of the ticking story.
@@ -268,12 +299,12 @@ live('the durable workflow, end to end', () => {
   it('reports exactly the stories that render the edited component', () => {
     // A source edit, judged against the baselines the trunk build recorded. The
     // interesting number is not that something changed — it is *which* subjects
-    // did. `Button` appears in five of the fourteen subjects, and the run has to
-    // find five, not fourteen and not one.
+    // did. `Button` appears in five of the thirteen subjects, and the run has to
+    // find five, not thirteen and not one.
     const { status, out } = varianceWith(changedConfigPath, 'run');
 
     expect(status).toBe(1);
-    expect(out).toContain('9 unchanged, 5 changed');
+    expect(out).toContain('8 unchanged, 5 changed');
 
     // Anchored on the id rather than on what follows it. The summary now names
     // the causing component after the subject, so a pattern that leaned on the
@@ -287,11 +318,13 @@ live('the durable workflow, end to end', () => {
       'story:case-surface--composed',
     ]);
 
-    // Every one of those renders `Button`; the nine that hold — Spinner, Clock,
+    // Every one of those renders `Button`; the eight that hold — Spinner,
     // AsyncPanel, the disclosure a play function opens, the three Suspense
-    // stories and the receipt at both its widths — do not. Stated as the inverse too, because "5 changed" is
-    // also what a tool that changed its mind about three unrelated subjects
-    // would print.
+    // stories and the receipt at both its widths — do not. All eight read the
+    // same way twice, so each one holding is a claim about this edit and not
+    // about when it was read; `Clock — ticking` is not in this run for that
+    // reason. Stated as the inverse too, because "5 changed" is also what a tool
+    // that changed its mind about three unrelated subjects would print.
     //
     // The Suspense three carry a second claim by being in this list at all: a
     // subject captured mid-arrival is not stable across two builds, so
@@ -299,7 +332,6 @@ live('the durable workflow, end to end', () => {
     // working, and `suspense-stalled` holding still is a declared loading
     // capture behaving like any other baseline.
     for (const held of [
-      'ticking',
       'loading',
       'deferred',
       'suspense-settles',

@@ -442,18 +442,19 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
 
     if (scope.__STORYBOOK_PREVIEW__?.currentSelection?.storyId === request.storyId) {
       // The first story of a session arrives selected by the URL, so its
-      // `storyRendered` may have fired before this function was injected.
-      // Waiting for it alone would burn the whole timeout and then report a
-      // story that is sitting fully rendered on the screen as a timeout.
+      // `storyRendered` may have fired before this function was injected. Waiting
+      // for it alone would burn the whole timeout, then report a story sitting fully
+      // rendered on the screen as a timeout.
       if (marker !== undefined) {
-        // The framework's half is already spent — the story was selected and
-        // rendered before this ran — so the marker is all that is outstanding.
+        // The framework's half is already spent, so the marker is all that is outstanding.
         settleByMarker(marker, request.timeoutMs, () => true, [
           `the story was already selected when this ran, so readiness waited on the subject's own ` +
             `marker \`${marker}\` rather than on markup that had stopped changing.`,
         ]).then(finish, failed);
         return;
       }
+      // FIXME: a story that is already selected waits on markup, not `storyRendered`,
+      // so a subject that never stops changing spends all of `timeoutMs` to say so.
       settleByMarkup('already-rendered', request.timeoutMs, []).then(finish, failed);
       return;
     }
@@ -476,11 +477,10 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     }
 
     if (marker !== undefined) {
-      // With a marker configured there is no fallback timer at all, because
-      // there is nothing to fall back *to*: the marker owns the deadline, and
-      // reaching it is a timeout naming the selector. This is the whole
-      // difference between a declared contract and a guess, and it is why the
-      // weaker path below is not merely deprioritised but absent.
+      // With a marker there is no fallback timer, because there is nothing to fall
+      // back *to*: the marker owns the deadline, and reaching it is a timeout naming
+      // the selector. That is the difference between a declared contract and a guess,
+      // and why the weaker path below is absent rather than deprioritised.
       settleByMarker(marker, request.timeoutMs, () => signalled, []).then(finish, failed);
       return;
     }

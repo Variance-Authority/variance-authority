@@ -118,8 +118,13 @@ two are exercised separately.
 | `Suspense — never resolves` | a boundary that never resolves, which is a flake source and is refused unless declared in `collector/index.mjs` |
 | `Card — receipt at two widths` | declares `widths: [375, 800]` in its own parameters, which the index does not carry, so it becomes two subjects, `@375` and `@800`, only if the collector asks the running preview |
 
-The first five rows are the five a `Button` edit moves. The nine subjects below
-them — `Spinner` down to both widths of the receipt — are the nine that hold.
+The first five rows are the five a `Button` edit moves. Of the nine subjects below
+them, eight read the same way every time. `Clock — ticking` does not: nothing
+freezes its clock, and its text counts the time since it mounted. Two readings of
+one mount seconds apart never agree, and a reading agrees with its baseline,
+which is another mount, only when both were taken the same 50 ms step after
+mounting. It has the tag `ticking`, so a run that asserts `unchanged` can exclude
+it.
 
 `Card — receipt not read` declares `exclude: true` in the same place. The report
 lists it as excluded by its own parameters rather than leaving it out.
@@ -136,9 +141,13 @@ contaminating a page. They are run, never recorded.
 
 ## A flake is diagnosed, not retried away
 
-`Clock — ticking` agrees with its baseline but changes between two readings of
-the same built story. A normal run settles at the baseline before it needs a
-second read; the diagnostic sweep asks the other question.
+`Clock — ticking` renders new text every 50 ms, and stabilization leaves timers
+running, because freezing the clock is the story author's job. A normal run
+compares one reading with a baseline taken from another mount, and the two match
+only when both were taken the same 50 ms step after mounting, so the run calls
+the story `unchanged` or `changed` depending on when it looked. That verdict is
+not the finding. The diagnostic sweep reads the same mount twice, seconds apart,
+and asks whether the two readings agree. They never do.
 
 From the repository root:
 
@@ -149,10 +158,16 @@ yarn workspace @variance-authority/case-storybook build-storybook:changed
 yarn vitest run cases/storybook-case/src/cli.chromium.test.js
 ```
 
-The case drives `variance run --flakes` for that one story and asserts that an
-`unchanged` verdict can still carry an `unstable` diagnosis for the named ticking
-story. The run exits **1** — something needs a decision. A following
-`variance accept` refuses the candidate, because there are two readings and
+`cli.chromium.test.js` writes the configs it runs into a temporary directory. The
+clock gets a config and baseline of its own, and the configs of the cycle below
+exclude it. The case records a baseline for the story, then drives
+`variance run --flakes` for it. Whatever the verdict, the run reports the story
+`[unstable]`. The explanation depends on the second reading. When it completes,
+the explanation says the two readings differ and names `Clock` in `src/ds.jsx` as
+the component that wrote the text. When it does not settle before the readiness
+timeout, the explanation says the story root was still changing and the subject
+cannot be taken twice. The run exits **1** — something needs a decision. A
+following `variance accept` refuses the candidate, because there are two readings and
 neither may become the baseline, and prints:
 
 ```
@@ -259,16 +274,22 @@ yarn vitest run cases/storybook-case/src/cli.chromium.test.js
 one baseline directory, so the second is a branch judged against its trunk rather
 than two independent runs compared afterwards.
 
-Four steps, which is the workflow a team actually runs:
+Four steps, which is the workflow a team actually runs. `cli.chromium.test.js`
+writes the cycle's two configs, one per build. Besides their project name,
+temporary paths and the build each reads, they differ from `variance.config.json`
+by also excluding the `ticking` tag, so the cycle reads thirteen subjects and
+leaves `Clock — ticking` to [its own sweep](#a-flake-is-diagnosed-not-retried-away). If you run
+`variance.config.json` by hand, it reads all fourteen, and the clock's verdict
+against its baseline varies from run to run.
 
 | step | verdicts | exit |
 |---|---|---|
-| `variance run` on a fresh checkout | 14 new | **1** |
-| `variance accept --all` | 14 accepted | 0 |
-| `variance run` again | 14 unchanged, *nothing to review* | 0 |
-| `variance run` on the changed build | 9 unchanged, **5 changed** | **1** |
+| `variance run` on a fresh checkout | 13 new | 0 |
+| `variance accept --all` | 13 accepted | 0 |
+| `variance run` again | 13 unchanged, *nothing to review* | 0 |
+| `variance run` on the changed build | 8 unchanged, **5 changed** | **1** |
 
-The last row is the one worth reading. `Button` appears in five of the fourteen
+The last row is the one worth reading. `Button` appears in five of the thirteen
 subjects, and the run finds exactly those five. The report resolves to source:
 
 ```
