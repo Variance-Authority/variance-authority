@@ -15,6 +15,7 @@ pub mod jvm;
 pub mod python;
 pub mod rust;
 pub mod shape;
+pub mod size;
 pub mod swift;
 
 use tree_sitter::Node;
@@ -60,13 +61,14 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
         }));
     };
 
-    Some(match grammar {
+    let read = match grammar {
         Grammar::Python => python::read(file, source, &tree),
         Grammar::Rust => rust::read(file, source, &tree),
         Grammar::Swift => swift::read(file, source, &tree),
         Grammar::Java => jvm::read(file, source, &tree, "java"),
         Grammar::Kotlin => jvm::read(file, source, &tree, "kotlin"),
-    })
+    };
+    Some(Read { size: Some(size::size_of(source, &tree, grammar)), ..read })
 }
 
 /// The targets a `Package.swift` declares, or nothing when it does not parse.

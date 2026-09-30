@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/core/relate';
+import type { ParseCache, ParseKey, Parsed } from './cache.js';
+import { keyFor, parseWay } from './files.js';
 import { scanRelations } from './scan.js';
 
 /**
@@ -80,6 +82,22 @@ describe('a repository of five languages, scanned once', () => {
     for (const record of records) {
       for (const edge of record.edges ?? []) expect(edge.kind).toBe('imports');
     }
+  });
+
+  it('stores bytes and lines for a file of every language, and a region count only for the module', async () => {
+    const held = new Map<ParseKey, Parsed>();
+    const cache: ParseCache = { get: () => undefined, set: (key, parsed) => void held.set(key, parsed) };
+    const digested = await scanRelations({ root, dirs: ['.'], cache });
+    const sizeOf = (file: string) => {
+      const digest = digested.find((record) => record.file === file)?.digest;
+      return digest === undefined ? undefined : held.get(keyFor(digest, parseWay(file)))?.size;
+    };
+
+    expect(sizeOf('app/lens.js')).toEqual({ bytes: 23, lines: 1, blocks: 1 });
+    expect(sizeOf('py/src/pkg/read.py')).toEqual({ bytes: 19, lines: 1 });
+    expect(sizeOf('rs/src/lib.rs')).toEqual({ bytes: 24, lines: 2 });
+    expect(sizeOf('jv/src/main/java/a/b/Thing.java')).toEqual({ bytes: 51, lines: 3 });
+    expect(sizeOf('sw/Sources/Core/Lens.swift')).toEqual({ bytes: 33, lines: 2 });
   });
 });
 

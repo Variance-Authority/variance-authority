@@ -32,7 +32,7 @@ import { packageOf } from './specifier.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 14;
+const VERSION = 15;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
 const ROWS = 4096;

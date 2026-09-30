@@ -73,10 +73,6 @@ pub struct Export {
     pub line: u32,
 }
 
-// TODO: a tree-sitter read stores no size, so `variance coverage` leaves every
-// Python, Rust, Swift and JVM file out of the files no suite loaded; its bytes
-// and lines are the tree's to count, and its regions wait on a recorder that
-// cuts them.
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Read {
     pub requests: Vec<Request>,
@@ -84,6 +80,12 @@ pub struct Read {
     pub exports: Option<Vec<Export>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
+    /// Bytes and lines, counted off the tree by [`size.rs`](./size.rs); absent
+    /// for a file the grammar could not parse at all.
+    // TODO: no region count, because no recorder cuts a Python, Rust, Swift or
+    // JVM file into regions; `blocks` is the instrument's to count once one does.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<crate::source_size::Size>,
 }
 
 impl Read {
@@ -93,6 +95,7 @@ impl Read {
             requests: Vec::new(),
             exports: None,
             unknown: Some(reason),
+            size: None,
         }
     }
 }
