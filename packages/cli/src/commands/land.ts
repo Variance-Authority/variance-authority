@@ -60,6 +60,12 @@ export async function landJourneys(
     throw new OperatorError(messageOf(error), { cause: error });
   }
 
+  // A worktree's first landing starts from the primary checkout's record and
+  // case index, as its first `yarn test` does; without the copy the fold would
+  // land over nothing and stand for the whole suite. A no-op for `--into` and
+  // in the primary checkout.
+  await selection.seedTestCoverage(at, root);
+
   let previous;
   try {
     previous = await selection.readTestCoverage(at);

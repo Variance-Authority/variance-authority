@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { inSnapshotCoordinates } from './since-diff.mjs';
-import { costLine, explain, findingLines, readingLines, runningLines } from './since-report.mjs';
+import { costLine, explain, findingLines, readingLines, recordLine, runningLines } from './since-report.mjs';
 import { recordToRead, selectedFiles } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
@@ -260,15 +260,19 @@ describe('a worktree that has not run reads the record the primary checkout made
     const { primary, path, cacheRoot } = await layered();
     await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
 
-    expect(await recordToRead(path, cacheRoot)).toBe(testCoverageFile(primary, { cacheRoot }));
-    expect(await recordToRead(path, cacheRoot)).not.toBe(testCoverageFile(path, { cacheRoot }));
+    const read = await recordToRead(path, cacheRoot);
+    expect(read).toEqual({ file: testCoverageFile(primary, { cacheRoot }), own: false });
+    expect(read.file).not.toBe(testCoverageFile(path, { cacheRoot }));
+    expect(recordLine(read.file, read.own)).toBe(
+      `  record   the primary checkout's, at ${read.file}; this worktree has recorded none of its own`,
+    );
   });
 
   it('finds the one declared suite\'s record the same way', async () => {
     const { primary, path, cacheRoot } = await layered({ suites: { unit: { kind: 'unit' } } });
     await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
 
-    expect(await recordToRead(path, cacheRoot)).toBe(testCoverageFile(primary, { suite: 'unit', cacheRoot }));
+    expect(await recordToRead(path, cacheRoot)).toEqual({ file: testCoverageFile(primary, { suite: 'unit', cacheRoot }), own: false });
   });
 
   it('prefers the worktree\'s own record once a run has landed one', async () => {
@@ -276,6 +280,8 @@ describe('a worktree that has not run reads the record the primary checkout made
     await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
     await writeTestCoverage(testCoverageFile(path, { cacheRoot }), snapshot);
 
-    expect(await recordToRead(path, cacheRoot)).toBe(testCoverageFile(path, { cacheRoot }));
+    const read = await recordToRead(path, cacheRoot);
+    expect(read).toEqual({ file: testCoverageFile(path, { cacheRoot }), own: true });
+    expect(recordLine(read.file, read.own)).toBe(`  record   this checkout's, at ${read.file}`);
   });
 });

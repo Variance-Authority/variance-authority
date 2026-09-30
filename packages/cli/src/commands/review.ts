@@ -40,7 +40,7 @@ import {
 import { digestString } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
-import { recordedSuite } from './suite-record.js';
+import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { regionState } from './covering-frame.js';
 import { motionAgainst, motionOfRuns, type CoveringMotion } from './covering-motion.js';
@@ -163,7 +163,11 @@ export async function review(request: ParsedReview): Promise<Review> {
   // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
   const recorded = await recordedSuite(root, request.suite);
   const coverageFile = recorded.file;
-  const runs = await readCommitRuns(coverageFile);
+  // The runs are this checkout's: where its change starts and which files it
+  // ran. A worktree that has not run reads the primary checkout's record, and
+  // the primary's runs beside it describe the primary's change, not this one.
+  const own = await landingRecord(root, request.suite);
+  const runs = await readCommitRuns(own);
   const given = request.since ?? runs?.over;
   // Runs that were laid over no recording, and no base named: a suite given to
   // a share starts from the record its mainline published, which is the state
@@ -175,7 +179,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   if (ref === undefined) {
     throw new OperatorError(
       (runs === undefined
-        ? `no run has listed itself beside \`${coverageFile}\`, so nothing says where this change starts. ` +
+        ? `no run has listed itself beside \`${own}\`, so nothing says where this change starts. ` +
             'Run the suite with `withTestSelection` first, or name the base with `--since <ref>`.'
         : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} were not laid over a recording of ` +
             'the same instrumentation, so nothing says where this change starts. Name the base with `--since <ref>`.') +
