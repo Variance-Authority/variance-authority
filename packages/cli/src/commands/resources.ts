@@ -160,7 +160,11 @@ export function cacheOf(config: Pick<Config, 'cacheRoot'>): string {
  * suite is run over a dirty tree far more often than a clean one. Without that
  * check the hunks of this diff are charged to whatever region happens to sit at
  * those numbers now — a different region, belonging to different subjects, or to
- * none at all, which is an exclusion nobody checked.
+ * none at all, which is an exclusion nobody checked. A module recorded over an
+ * edit is read from the text the landing kept, in the cache layers of
+ * `checkout`: the directory the record was found from, spelled as it was then.
+ * The cache is keyed by that spelling, and the top of the checkout as git
+ * spells it resolves symbolic links, so it can name a layer nothing wrote.
  */
 export async function journeyAgainst(
   root: string,
@@ -169,6 +173,7 @@ export async function journeyAgainst(
   packages: readonly string[] = [],
   /** A snapshot somewhere other than this repository's cache — one named by `--execution`. */
   at?: string,
+  checkout: string = root,
 ): Promise<ExecutionNarrowing | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   const file = at ?? (await suiteRecord(root));
@@ -177,6 +182,7 @@ export async function journeyAgainst(
   try {
     return await selection.narrowByExecution(file, diff, {
       sourceAt,
+      keptText: selection.keptTexts(checkout),
       root,
       ...(relations === undefined ? {} : { relations }),
       ...(packages.length === 0 ? {} : { packages }),

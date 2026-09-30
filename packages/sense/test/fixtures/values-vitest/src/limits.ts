@@ -10,3 +10,4 @@ export function clamp(value: number): number {
 export function render(): string {
   return `up to ${DEFAULTS.max}`;
 }
+// Every control reads the bounds through these two functions.

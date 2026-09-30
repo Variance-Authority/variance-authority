@@ -231,6 +231,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
       relations,
       compared(installs.get(stand))?.packages,
       at,
+      request.cwd,
     );
   const narrowing = stands.length === 0 ? await ask([], undefined) : await perStand(stands, ask);
   // The lockfile and the manifests beside it are unread by the journal and

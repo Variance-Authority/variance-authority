@@ -132,8 +132,8 @@ describe('what a foreign runner may skip', () => {
   it('reports a module recorded from another text, having already widened for it', () => {
     // `stale` cannot make the skip list wrong — every region of such a module
     // was charged, so its tests are in `entered` already. It is printed because
-    // it is a fact about the recording, and it is fixed by recording once over a
-    // clean tree rather than by anything typed here.
+    // it is a fact about the recording: a text the landing did not keep, which
+    // the next run that loads the module records again.
     const selection = skippableTests({
       at: '/cache/coverage.bin',
       commit: 'c0ffee',

@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import {
   askPerStand,
   distanceByExecution,
+  keptTexts,
   readingFrom,
   textAtRecording,
   wholeEntry,
@@ -93,9 +94,10 @@ const graphNames = (names, inGraph) =>
  * tree is therefore diffed from a position it was never at, and two edits to
  * the same file can cancel to a region nothing entered. So the selector is
  * handed `textAtRecording` as `sourceAt`, reading the commit the snapshot
- * names: a file whose text disagrees with its recorded digest is charged every
- * region it has, under every name, and a file whose text agrees is read by the
- * parser from both sides before any line of it is charged.
+ * names, and `keptTexts` for the text a landing kept when that commit does
+ * not hold it. A file whose recorded text is found either way is read by the
+ * parser from both sides before any line of it is charged; one whose recorded
+ * text neither holds is charged every region it has, under every name.
  */
 export async function readChange({ root, git, diffOfNew, snapshotFile, coverage, runs, ref, suite, stemOf, graph, say }) {
   const collected = new Set(suite);
@@ -187,7 +189,7 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
     knownAs: (file) => graphNames(byStem.get(stemOf(file)) ?? [file], named?.(file)),
     faces,
     root,
-    ...(sourceAt === undefined ? {} : { sourceAt }),
+    ...(sourceAt === undefined ? {} : { sourceAt, keptText: keptTexts(root) }),
   };
   // Asked once per stand, each answer kept for that stand's tests; the files a
   // stand charges whole leave the hunk diff, so none is also read by its hunks,

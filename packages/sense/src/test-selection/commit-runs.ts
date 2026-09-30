@@ -44,8 +44,10 @@
 import { readFile } from 'node:fs/promises';
 import { askCoverageFile } from './coverage-file.js';
 import { layeredCoverage } from './format-layer.js';
+import { openTestCoverage } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
+import { keepRecordedTexts } from './kept-texts.js';
 import { writeCoverageBytes } from './record-location.js';
 
 /**
@@ -121,16 +123,22 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
 };
 
 /**
- * Lay `current` over the snapshot, and add it to the runs at its commit.
+ * Lay `current` over the snapshot, add it to the runs at its commit, and keep
+ * the text of every module it recorded over an edit (`kept-texts.ts`).
  *
  * The caller holds the index lock: the base read here, the write after it and
  * the record of both are one read-modify-write, so two processes finishing
  * together each add their files.
  */
-export async function landRun(coverageFile: string, current: TestCoverage, root: string): Promise<void> {
+export async function landRun(coverageFile: string, current: TestCoverage, root: string, cacheRoot?: string): Promise<void> {
   const before = await recordedSnapshot(coverageFile);
   const held = await heldCommitRuns(coverageFile);
-  await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+  const bytes = await layeredCoverage(coverageFile, current, root);
+  await writeCoverageBytes(coverageFile, bytes);
+  // The snapshot's rows are coordinates in the texts on disk now, and the
+  // commit it names holds none of the edited ones. Kept after the write, so a
+  // text is never kept for a row that did not land.
+  await keepRecordedTexts(root, openTestCoverage(bytes), cacheRoot);
   // FIXME: two writes, and nothing makes them one. A failed record write, or a
   // process killed between them, leaves the snapshot at this run's commit
   // beside the record of the one before: the shape `commitRunsAfter` reads as

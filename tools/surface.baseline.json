@@ -2782,6 +2782,7 @@
         "journeyDivergences": "function",
         "journeyGaps": "function",
         "journeysApart": "function",
+        "keptTexts": "function",
         "landCaseIndexes": "function",
         "landRun": "function",
         "lastFetchedMainline": "function",

@@ -138,6 +138,16 @@ export interface ExecutionNarrowingOptions {
    */
   readonly sourceAt?: (file: string, commit: string | undefined) => string | undefined;
   /**
+   * The text a landing kept for a digest `modules.source` holds, when the
+   * commit on the label does not hold it (`keptTexts`).
+   *
+   * A module recorded over an edit disagrees with its commit, and with this its
+   * rows are read in the text they were cut from: the change is read as the
+   * diff from that text to the diff's new side, so the hunks land on the regions
+   * they touch. Without it, or when nothing was kept, the module is `stale`.
+   */
+  readonly keptText?: (digest: string) => string | undefined;
+  /**
    * The checkout every name is relative to, so a package's manifest can say
    * that loading a module does something (`sideEffects`). Without it, no
    * manifest is asked, and loading a module is assumed only to declare what it

@@ -48,6 +48,24 @@ export function gapInside(coverage: TestCoverageView, first: number, end: number
 }
 
 /**
+ * Whether no recorded region, the module's own included, holds a line of the
+ * range: text above the module's first statement or below its last.
+ *
+ * `blocksAround` answers such a line with the whole module, because in a text
+ * the snapshot never saw it is a line the file grew. In the recorded text it is
+ * a line the recording placed nowhere: a comment or a blank line the transform
+ * gave no origin, which nothing ran.
+ */
+export function outsideRegions(coverage: TestCoverageView, first: number, end: number, range: LineRange): boolean {
+  for (let block = first; block < end; block += 1) {
+    const from = coverage.blockStart.at(block);
+    if (from === NO_LINE) continue;
+    if (from <= range.end && Math.max(from, coverage.blockEnd.at(block)) >= range.start) return false;
+  }
+  return true;
+}
+
+/**
  * The narrowest region each changed line lands in — decided per line, never per
  * file and never per hunk.
  *

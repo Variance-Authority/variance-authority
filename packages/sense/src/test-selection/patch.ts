@@ -34,7 +34,8 @@ export interface Run {
   readonly gap?: readonly [number, number];
 }
 
-interface Hunk {
+/** One `@@` hunk of one file: where it starts on the old side, how many old lines, and its body. */
+export interface Hunk {
   readonly at: number;
   readonly count: number;
   readonly lines: readonly string[];
