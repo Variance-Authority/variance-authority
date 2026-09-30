@@ -91,7 +91,7 @@ describe('a worktree that has not run', () => {
     expect(answer.runs).toBeUndefined();
   });
 
-  it('is refused by `variance review` with no base named after its first `variance land`, whose seeded runs record lists no run of its own', async () => {
+  it('is refused by `variance review` with no base named once seeded, whose runs record lists no run of its own', async () => {
     const { primary, worktree, first } = await worktreeOf(true);
     // The primary checkout's runs at `first` ran every test its record holds.
     const base = testCoverageFile(primary, { suite: 'unit' });
@@ -99,21 +99,13 @@ describe('a worktree that has not run', () => {
       commit: first, over: first, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1,
       files: (await readTestCoverage(base)).tests.map((test) => test.file),
     }));
-    const shard = join(home, 'shard-1.bin');
-    await writeTestCoverage(shard, {
-      version: 3,
-      instrumentation: 'fixture',
-      commit: first,
-      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
-      modules: [],
-    });
-    await landJourneys(worktree, [shard]);
+    // A run or a landing seeds first and lists itself after; this one stops between.
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    await seedTestCoverage(own, worktree);
     process.chdir(worktree);
     await updateSourceIndex(worktree);
 
-    // The landing seeded the snapshot, and with it where the base's tests last
-    // ran; no run of this worktree is in it, and `over` is still the base's.
-    const own = testCoverageFile(worktree, { suite: 'unit' });
+    // The seed says where the base's tests last ran; no run of this worktree is in it.
     expect(await readCommitRuns(own)).toMatchObject({ commit: first, over: first, runs: 0 });
     await expect(review(parseReview(['--root', worktree]))).rejects.toThrow(
       `no run has listed itself beside \`${own}\`, so nothing says where this change starts.`,
