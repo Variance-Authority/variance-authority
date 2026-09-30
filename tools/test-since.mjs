@@ -83,7 +83,8 @@ import { costLine, describeRange, distanceLines, explain, findingLines, helpLine
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Paths come back as they are spelled on disk, not C-quoted: every git answer
-// read here is compared with a path some other owner spelled.
+// read here is compared with a path some other owner spelled. `core.quotePath`
+// only covers bytes above ASCII, so a name list is also asked with `-z`.
 const git = (...args) =>
   execFileSync('git', ['-c', 'core.quotePath=false', ...args], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
@@ -232,7 +233,16 @@ async function main() {
    * describe that snapshot; the worktree's own would describe nothing it reads.
    */
   const runs = coverage.commit === undefined ? undefined : await readCommitRuns(snapshotFile);
-  const suite = suiteFiles(ROOT);
+  let suite;
+  try {
+    suite = suiteFiles(ROOT);
+  } catch (error) {
+    // The runner has already printed why on stderr; what is left to say is
+    // which question went unanswered and what that stops.
+    const status = typeof error?.status === 'number' ? `exited ${error.status}` : `failed: ${String(error?.message ?? error).split('\n')[0]}`;
+    say(`test:since: \`yarn vitest list --filesOnly\` ${status}, so there is no suite to select from.`);
+    return 1;
+  }
   const read = await readChange({
     root: ROOT,
     git,

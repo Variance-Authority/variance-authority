@@ -28,12 +28,12 @@
  * the edit inert. Whole files select more inside them and never skip.
  */
 
-/** The non-empty lines of one git answer. */
-export const lines = (text) =>
-  text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '');
+/**
+ * The paths of one git answer asked with `-z`, as git wrote them. Without `-z`,
+ * git C-quotes a path holding a quote, a backslash, a tab or a newline whatever
+ * `core.quotePath` says, and a trimmed line loses a path's own leading space.
+ */
+export const paths = (text) => text.split('\0').filter((path) => path !== '');
 
 /** Whether `ancestor` is in the history of `commit`, asked of git. */
 function isAncestor(git, ancestor, commit) {
@@ -50,20 +50,36 @@ function isAncestor(git, ancestor, commit) {
  * recorded it.
  *
  * A test the runs at the snapshot's commit observed stands there. Any other
- * stands where `standing` lists it; a record written before `standing` existed
- * says `over` for all of them. Runs recorded at another commit describe some
- * other snapshot, and say nothing about this one.
+ * stands where `standing` lists it. Where the record does not say, the reading
+ * falls back, and `assumed` is the sentence that says how: a test the record
+ * does not list is read from `over`, where the runs at the snapshot's commit
+ * started, and with no record for this snapshot at all, from the snapshot's
+ * commit. Runs recorded at another commit describe some other snapshot and say
+ * nothing about this one; a landing that writes the snapshot without listing
+ * its run leaves the record behind like that.
  */
 export function standsOf({ commit, runs, tests }) {
   const stands = new Map(tests.map((test) => [test, commit]));
-  if (runs?.commit !== commit) return stands;
+  const at = commit.slice(0, 12);
+  const everyTest = `so every test is read as though it last ran at ${at}`;
+  if (runs === undefined) return { stands, assumed: tests.length === 0 ? undefined : `no runs record lies beside the snapshot, ${everyTest}` };
+  if (runs.commit !== commit) {
+    const whose = runs.commit === undefined ? 'a run outside a checkout' : `${runs.commit.slice(0, 12)}'s`;
+    return { stands, assumed: tests.length === 0 ? undefined : `the runs record beside the snapshot is ${whose}, not ${at}'s, ${everyTest}` };
+  }
   const ran = new Set(runs.files);
   const listed = new Map();
   for (const entry of runs.standing ?? []) for (const file of entry.files) listed.set(file, entry.commit);
+  const fallback = runs.over ?? commit;
+  let unlisted = 0;
   for (const test of tests) {
-    if (!ran.has(test)) stands.set(test, listed.get(test) ?? runs.over ?? commit);
+    if (ran.has(test)) continue;
+    if (!listed.has(test)) unlisted += 1;
+    stands.set(test, listed.get(test) ?? fallback);
   }
-  return stands;
+  if (unlisted === 0) return { stands, assumed: undefined };
+  const where = runs.over === undefined ? `${at}, where the snapshot was recorded` : `${runs.over.slice(0, 12)}, where its runs started`;
+  return { stands, assumed: `the runs record beside the snapshot does not say where ${unlisted} test(s) last ran, so they are read from ${where}` };
 }
 
 /** The merge base with `ref`, or why there is none to read from. */
@@ -88,7 +104,9 @@ function mergeBase(git, ref) {
  * with those tests and the files changed from it to `base`, which are charged
  * whole for them. `from` is the oldest of them, where the change starts, and
  * `says` is the header's words after it. A test in no stand is read from
- * `base`.
+ * `base`. `assumed` is present when the runs record could not say where some
+ * test last ran, and is the sentence saying what was read instead; `says` ends
+ * with it too.
  *
  * `runs` is `coverage.runs.json` beside the snapshot being read, which
  * describes that snapshot whichever layer holds it. `tests` are the snapshot's
@@ -107,7 +125,8 @@ export function readingFrom({ commit, ref, runs, tests = [], git }) {
   }
   if (commit === undefined) return { base: merged, from: merged, stands: [], says: `the merge base with ${ref}` };
 
-  const stands = standsOf({ commit, runs, tests });
+  const { stands, assumed } = standsOf({ commit, runs, tests });
+  const also = assumed === undefined ? {} : { assumed };
   let note = '';
   if (merged !== undefined && merged !== commit) {
     if (isAncestor(git, merged, commit)) {
@@ -134,7 +153,8 @@ export function readingFrom({ commit, ref, runs, tests = [], git }) {
     if (stand !== commit) grouped.set(stand, [...(grouped.get(stand) ?? []), test]);
   }
   const older = [...grouped.keys()].sort((a, b) => order.indexOf(a) - order.indexOf(b));
-  if (older.length === 0) return { base: commit, from: commit, stands: [], says: `where the snapshot was recorded${note}` };
+  const said = assumed === undefined ? '' : `; ${assumed}`;
+  if (older.length === 0) return { base: commit, from: commit, stands: [], says: `where the snapshot was recorded${note}${said}`, ...also };
 
   const at = commit.slice(0, 12);
   const from = older[0];
@@ -144,13 +164,14 @@ export function readingFrom({ commit, ref, runs, tests = [], git }) {
   for (const stand of older) {
     const standing = grouped.get(stand).sort();
     try {
-      read.push({ commit: stand, tests: standing, whole: [...new Set(lines(git('diff', '--name-only', '--no-renames', stand, commit)))].sort() });
+      read.push({ commit: stand, tests: standing, whole: [...new Set(paths(git('diff', '--name-only', '-z', '--no-renames', stand, commit)))].sort() });
     } catch {
       return {
         base: commit,
         from,
         stands: [],
-        says: reason,
+        says: `${reason}${said}`,
+        ...also,
         widened: `${stand.slice(0, 12)}, where ${standing.length} test(s) last ran, is not in this checkout`,
       };
     }
@@ -161,7 +182,8 @@ export function readingFrom({ commit, ref, runs, tests = [], git }) {
     base: commit,
     from,
     stands: read,
-    says: `${reason}${note}; ${whole.size} file(s) changed up to ${at}, where the snapshot was recorded, are read whole for the ${count} test(s) that last ran before it`,
+    says: `${reason}${note}; ${whole.size} file(s) changed up to ${at}, where the snapshot was recorded, are read whole for the ${count} test(s) that last ran before it${said}`,
+    ...also,
   };
 }
 

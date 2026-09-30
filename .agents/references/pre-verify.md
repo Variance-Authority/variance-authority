@@ -83,10 +83,13 @@ yarn test:since --at-distance 0-2  # only the tests within two imports of the ch
 yarn test:since --help             # every flag
 ```
 
-Each test is read from the commit it last ran at, so a leg that landed leaves
-the next leg the tests it did not run. Once every test has run at the
-snapshot's commit, the reading starts there. A ref reads every test from no
-later than the merge base with it.
+Each test is read from the commit it last ran at. A leg stamps the snapshot
+with `HEAD`, and the tests it did not run are still read from where they last
+ran, so the next leg selects them. Once every test has run at the snapshot's
+commit, the reading starts there. A ref reads every test from no later than the
+merge base with it. A file this machine skips whole, such as a browser-gated one
+with no browser installed, never records whole here, so it is selected every
+time.
 
 It selects on what the recording measured, and on nothing else. Each changed
 file is read from both of its texts first, and prints a `read` line saying what

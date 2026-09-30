@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { distanceByExecution, textAtRecording } from '@variance-authority/sense/test-selection';
-import { lines, readingFrom, wholeEntry, withoutFiles } from './since-base.mjs';
+import { paths, readingFrom, wholeEntry, withoutFiles } from './since-base.mjs';
 import { inSnapshotCoordinates } from './since-diff.mjs';
 import { isManifest, movedManifests, movedPackageFiles, movedPackages } from './since-graph.mjs';
 
@@ -133,10 +133,10 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
     byStem.set(stem, [...(byStem.get(stem) ?? []), module.file]);
   }
 
-  const untracked = new Set(lines(git('ls-files', '--others', '--exclude-standard')));
+  const untracked = new Set(paths(git('ls-files', '-z', '--others', '--exclude-standard')));
   // Renames are read as a deletion and an addition, which is what they are to a
   // module's identity: the old path's regions are gone and the new path has none.
-  const changed = [...new Set([...lines(git('diff', '--name-only', '--no-renames', base)), ...before, ...untracked])];
+  const changed = [...new Set([...paths(git('diff', '--name-only', '-z', '--no-renames', base)), ...before, ...untracked])];
 
   // The install is read at the two revisions rather than counted as a changed
   // path, and the paths that record it are then set aside: a workspace version
@@ -148,18 +148,23 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
   const moved = movedPackages(root, from, git);
   const manifests = movedManifests(root, from, git, changed);
   const consequential = changed.filter((path) => !isManifest(path));
-  // A test the merge demoted to incomplete runs at the next selection, and that
-  // run is what records it whole again, so nothing changed is not nothing to
-  // run. A test the harness skips on this machine, a browser-gated file where
-  // no browser is installed, never records whole here, so this holds only where
-  // the whole suite can run; elsewhere the reading goes on and selects it.
-  const settled = start.widened === undefined && live.every((test) => test.complete);
+  // Every file the runner collects needs a whole row before nothing changed is
+  // nothing to run. A test the merge demoted to incomplete runs at the next
+  // selection, and that run is what records it whole again; a collected file
+  // with no row at all — new, never reached, or one that failed to load — is
+  // selected by `selectedFiles`, and its absence is not a row saying it is
+  // settled. A test the harness skips on this machine, a browser-gated file
+  // where no browser is installed, never records whole here, so this holds only
+  // where the whole suite can run; elsewhere the reading goes on and selects it.
+  const complete = new Map(live.map((test) => [test.file, test.complete]));
+  const settled = start.widened === undefined && suite.every((file) => complete.get(file) === true);
   if (settled && consequential.length === 0 && manifests.length === 0 && moved !== undefined && moved.length === 0) {
     return {
       nothing: [
         changed.length === 0
           ? `test:since: nothing has changed since ${from.slice(0, 12)}.`
           : `test:since: ${changed.length} changed manifest(s), and the install they record did not change.`,
+        ...(start.assumed === undefined ? [] : [`  ${start.assumed[0].toUpperCase()}${start.assumed.slice(1)}.`]),
         '  Nothing to run.',
       ],
     };

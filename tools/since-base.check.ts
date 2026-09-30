@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
-import { landRun, readCommitRuns, readTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, landRun, readCommitRuns, readTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { readingFrom, wholeEntry, withoutFiles } from './since-base.mjs';
 import { readChange, selectedFiles } from './since-change.mjs';
@@ -81,19 +81,52 @@ describe('a change is read from where each test last ran, not from where the las
     });
   });
 
-  it('reads a record written before `standing` as every other test standing on `over`', async () => {
+  it('reads a test the record does not list from `over`, and says so', async () => {
     const { git, P, H } = await history();
-    expect(readingFrom({ commit: H, ref: undefined, runs: runsAt(H, P), tests, git }).stands).toEqual([
-      { commit: P, tests: ['test/far.test.ts', 'test/other.test.ts'], whole: ['src/far.ts'] },
-    ]);
+    const start = readingFrom({ commit: H, ref: undefined, runs: runsAt(H, P), tests, git });
+    expect(start.stands).toEqual([{ commit: P, tests: ['test/far.test.ts', 'test/other.test.ts'], whole: ['src/far.ts'] }]);
+    const assumed = `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from ${P.slice(0, 12)}, where its runs started`;
+    expect(start.assumed).toBe(assumed);
+    expect(start.says).toMatch(new RegExp(`; ${assumed.replace(/[()]/g, '\\$&')}$`));
   });
 
-  it('reads from the snapshot\'s commit when the runs are another commit\'s, are absent, or ran every test', async () => {
+  it('reads from the snapshot\'s commit when the runs are another commit\'s or are absent, and says it assumed so', async () => {
     const { git, P, H } = await history();
-    const fromCommit = { base: H, from: H, stands: [], says: 'where the snapshot was recorded' };
-    expect(readingFrom({ commit: H, ref: undefined, runs: runsAt(P, P), tests, git })).toEqual(fromCommit);
-    expect(readingFrom({ commit: H, ref: undefined, runs: undefined, tests, git })).toEqual(fromCommit);
-    expect(readingFrom({ commit: H, ref: undefined, runs: runsAt(H, P, tests), tests, git })).toEqual(fromCommit);
+    const at = H.slice(0, 12);
+    const assumed = {
+      [`the runs record beside the snapshot is ${P.slice(0, 12)}'s, not ${at}'s, so every test is read as though it last ran at ${at}`]: runsAt(P, P),
+      [`no runs record lies beside the snapshot, so every test is read as though it last ran at ${at}`]: undefined,
+    };
+    for (const [sentence, runs] of Object.entries(assumed)) {
+      expect(readingFrom({ commit: H, ref: undefined, runs, tests, git })).toEqual({
+        base: H,
+        from: H,
+        stands: [],
+        says: `where the snapshot was recorded; ${sentence}`,
+        assumed: sentence,
+      });
+    }
+  });
+
+  it('reads from the snapshot\'s commit, assuming nothing, when its runs ran every test', async () => {
+    const { git, P, H } = await history();
+    expect(readingFrom({ commit: H, ref: undefined, runs: runsAt(H, P, tests), tests, git })).toEqual({
+      base: H,
+      from: H,
+      stands: [],
+      says: 'where the snapshot was recorded',
+    });
+  });
+
+  it('charges a path whole however git would quote it in a name list', async () => {
+    const { git, commit, H } = await history();
+    const odd = [' lead.ts', 'src/back\\slash.ts', 'src/tab\tname.ts'];
+    const Q = await commit(Object.fromEntries(odd.map((path) => [path, '1\n'])), 'Q');
+    const runs = runsAt(Q, H, ['test/near.test.ts'], [{ commit: H, files: ['test/far.test.ts', 'test/other.test.ts'] }]);
+
+    expect(readingFrom({ commit: Q, ref: undefined, runs, tests, git }).stands).toEqual([
+      { commit: H, tests: ['test/far.test.ts', 'test/other.test.ts'], whole: odd },
+    ]);
   });
 
   it('takes a ref as a lower bound: its merge base replaces every later stand, the snapshot\'s commit included', async () => {
@@ -135,7 +168,8 @@ describe('a change is read from where each test last ran, not from where the las
       base: P,
       from: P,
       stands: [],
-      says: 'where the snapshot was recorded; the merge base with HEAD is not before it',
+      says: `where the snapshot was recorded; the merge base with HEAD is not before it; no runs record lies beside the snapshot, so every test is read as though it last ran at ${P.slice(0, 12)}`,
+      assumed: `no runs record lies beside the snapshot, so every test is read as though it last ran at ${P.slice(0, 12)}`,
     });
   });
 
@@ -184,12 +218,15 @@ describe('a file charged whole is cut out of the hunk diff by its header, howeve
     const { at, git, H } = await history();
     await writeFile(resolve(at, 'src/été "x".ts'), '1\n');
     await writeFile(resolve(at, 'src/a b.ts'), '1\n');
+    await writeFile(resolve(at, 'src/tab\tname.ts'), '1\n');
+    await writeFile(resolve(at, 'src/back\\slash.ts'), '1\n');
     git('add', '.');
     const quoted = git('diff', '--cached', H);
     expect(quoted).toContain('"a/src/\\303\\251t\\303\\251 \\"x\\".ts"');
+    expect(quoted).toContain('"a/src/tab\\tname.ts"');
 
     for (const diff of [quoted, git('-c', 'core.quotePath=false', 'diff', '--cached', H)]) {
-      const cut = withoutFiles(diff, ['src/été "x".ts', 'src/a b.ts']);
+      const cut = withoutFiles(diff, ['src/été "x".ts', 'src/a b.ts', 'src/tab\tname.ts', 'src/back\\slash.ts']);
       expect(cut.trim()).toBe('');
     }
     expect(wholeEntry('src/a.ts')).toBe('diff --git a/src/a.ts b/src/a.ts');
@@ -279,5 +316,30 @@ describe('legs at two commits leave each test read from where it last ran', () =
 
     expect((await readCommitRuns(file))?.standing?.flatMap((stand) => stand.files)).toEqual(['test/gone.test.ts']);
     expect(await read()).toEqual({ nothing: [`test:since: nothing has changed since ${C.slice(0, 12)}.`, '  Nothing to run.'] });
+  });
+
+  it('has something to run while a collected test has no row, even with nothing changed', async () => {
+    const { read, file, C, at } = await legs();
+    await landRun(file, run(at, C, ['far', 'near']), at);
+
+    const reading = await read([...tests, 'test/new.test.ts']);
+
+    expect(reading.nothing).toBeUndefined();
+    expect(reading.decided).toEqual({ selected: ['test/new.test.ts'] });
+  });
+
+  it('says what it assumed when it finds nothing to run without the runs record', async () => {
+    const { read, file, C, at } = await legs();
+    await landRun(file, run(at, C, ['far', 'near']), at);
+    await rm(commitRunsFile(file));
+
+    const at12 = C.slice(0, 12);
+    expect(await read()).toEqual({
+      nothing: [
+        `test:since: nothing has changed since ${at12}.`,
+        `  No runs record lies beside the snapshot, so every test is read as though it last ran at ${at12}.`,
+        '  Nothing to run.',
+      ],
+    });
   });
 });
