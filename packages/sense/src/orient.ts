@@ -20,8 +20,7 @@ import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
 import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation } from './native-orient.js';
 import { sourceIndexPath } from './source-index.js';
-import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js';
-import { recordPath } from './test-selection/record-location.js';
+import { nearestTestCoverage } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
 
 export type {
@@ -113,19 +112,17 @@ export type RecordedCases =
  * test files import it over the source index at `root`; and, for a test file,
  * the cases it declares.
  *
- * The layer holding the most cases answers, the nearest on a tie, the way every reader of
+ * The case index beside the nearest snapshot answers, the way every reader of
  * a recording finds one. A suite with none says where it looked, and so does
  * one the addon could not read, so the caller can say why that suite is absent
  * rather than print it as a suite that ran nothing.
  */
 export function recordedCases(root: string, files: readonly string[], titles: number): readonly RecordedCases[] {
   const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
-  const layers = repositoryLayers(root);
   return suites.map((suite) => {
     const named = suite === undefined ? {} : { suite };
-    const candidates = layeredFiles(layers, `${recordPath(root, suite)}.cases.bin`);
-    const recording = candidates.find((candidate) => existsSync(candidate));
-    if (recording === undefined) return { ...named, recording: candidates[0]!, unread: 'nothing is recorded there' };
+    const recording = `${nearestTestCoverage(root, { suite })}.cases.bin`;
+    if (!existsSync(recording)) return { ...named, recording, unread: 'nothing is recorded there' };
     const cases = entry('casesEntered');
     try {
       return { ...named, recording, files: cases(recording, [...files], titles, sourceIndexPath(root)) };

@@ -143,6 +143,12 @@ export async function createStoryRecorder(
       // touches. A story the driving index does not know — a subject named on
       // the command line, a preview rebuilt since — has no file to be a case
       // in, and contributes to the file-level record only.
+      //
+      // FIXME: the row is owned by `story:<id>` and the case by `story.file`,
+      // and the case index retires the cases of a file a run finished, read off
+      // the rows. No row names a story file, so no case is ever retired by a
+      // run: a story removed or renamed keeps its case until its file is
+      // deleted.
       if (story !== undefined) {
         cases.push({
           subject: subjectId,

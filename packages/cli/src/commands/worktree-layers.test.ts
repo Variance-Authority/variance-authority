@@ -3,15 +3,17 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { updateSourceIndex } from '@variance-authority/sense';
+import { prepareJourneys, recordedCases, recordedDurations, updateSourceIndex } from '@variance-authority/sense';
 import {
   commitRunsFile,
   readTestCoverage,
+  seedTestCoverage,
   testCoverageFile,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { recordedExecutionFile } from './execution-input.js';
 import { landJourneys } from './land.js';
-import { git, parseReview, published, selectedIn } from './mainline-fixture.js';
+import { git, parseReview, published, selectedIn, wholeRecord } from './mainline-fixture.js';
 import { review } from './review.js';
 
 /**
@@ -48,29 +50,6 @@ async function worktreeOf(whole = false): Promise<{ primary: string; worktree: s
   const worktree = join(home, 'feature');
   await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
   return { primary, worktree, first };
-}
-
-/** Both test files whole, and `src/total.ts` as one module block `total.test.ts` entered. */
-async function wholeRecord(dir: string): Promise<void> {
-  const record = testCoverageFile(dir, { suite: 'unit' });
-  await writeTestCoverage(record, {
-    version: 3,
-    instrumentation: 'fixture',
-    commit: await git(dir, 'rev-parse', 'HEAD'),
-    tests: [
-      { file: 'test/other.test.ts', complete: true, preconditions: [] },
-      { file: 'test/total.test.ts', complete: true, preconditions: [] },
-    ],
-    modules: [{
-      file: 'src/total.ts',
-      sourceDigest: 'source:total',
-      instrumented: true,
-      blocks: [{
-        ordinal: 0, kind: 'module', digest: 'block:0', name: 'total', path: 'module',
-        startLine: 1, endLine: 3, source: true, testFiles: ['test/total.test.ts'],
-      }],
-    }],
-  });
 }
 
 describe('a worktree that has not run', () => {
@@ -111,7 +90,7 @@ describe('a worktree that has not run', () => {
     expect(answer.runs).toBeUndefined();
   });
 
-  it('lands shards over the primary checkout\'s record and case index on its first `variance land`', async () => {
+  it('lands shards over the primary checkout\'s record on its first `variance land`, and drops the copied case index a shard left no cases for', async () => {
     const { primary, worktree, first } = await worktreeOf(true);
     const shard = join(home, 'shard-1.bin');
     await writeTestCoverage(shard, {
@@ -132,6 +111,46 @@ describe('a worktree that has not run', () => {
       'test/third.test.ts',
       'test/total.test.ts',
     ]);
-    expect(existsSync(`${own}.cases.bin`)).toBe(true);
+    // The shard finished `test/third.test.ts` and left no case index beside
+    // it, so the copy of the primary checkout's index cannot answer for it.
+    expect(existsSync(`${own}.cases.bin`)).toBe(false);
+    await expect(recordedExecutionFile(worktree, 'unit')).rejects.toMatchObject({ kind: 'unrecorded' });
+    expect(landed.cases).toEqual({ unanswered: `${own}.cases.bin`, shard, removed: true });
+    expect(existsSync(`${testCoverageFile(primary, { suite: 'unit' })}.cases.bin`)).toBe(true);
+  });
+
+  it('answers no case question from the primary checkout\'s index once a landing removed its own, and does not copy it again', async () => {
+    const { primary, worktree, first } = await worktreeOf(true);
+    const shard = join(home, 'shard-1.bin');
+    await writeTestCoverage(shard, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: first,
+      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    });
+    await landJourneys(worktree, [shard]);
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    const cases = `${own}.cases.bin`;
+    expect(existsSync(`${testCoverageFile(primary, { suite: 'unit' })}.cases.bin`)).toBe(true);
+
+    // Each reader opens the index beside the snapshot it reads, which is the
+    // worktree's own; the primary checkout's cases are for a snapshot the
+    // landing replaced here.
+    expect(recordedCases(worktree, ['src/total.ts'], 1)).toEqual([
+      { suite: 'unit', recording: cases, unread: 'nothing is recorded there' },
+    ]);
+    expect(recordedDurations(worktree, 5)[0]).toMatchObject({
+      recording: own,
+      cases: { recording: cases, unread: 'nothing is recorded there' },
+    });
+    expect(await prepareJourneys(worktree)).toMatchObject([
+      { suite: 'unit', unprepared: `nothing is recorded at ${cases}` },
+    ]);
+
+    // The snapshot is already the worktree's own, so a later seed copies no
+    // index to sit beside it.
+    await seedTestCoverage(own, worktree);
+    expect(existsSync(cases)).toBe(false);
   });
 });

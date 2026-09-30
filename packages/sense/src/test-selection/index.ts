@@ -156,7 +156,17 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
 export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
-export { caseLayerFiles, type LastCaseRun } from './case-fold.js';
+// The lock every writer of a snapshot or a case index takes, for a caller that
+// writes both as one landing.
+export { withIndexLock } from './index-lock.js';
+export {
+  caseLayerFiles,
+  landCaseIndexes,
+  type CaseLanding,
+  type LaidRun,
+  type LandedShard,
+  type LastCaseRun,
+} from './case-landing.js';
 export { commitRunsFile, landRun, readCommitRuns, type CommitRuns } from './commit-runs.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {

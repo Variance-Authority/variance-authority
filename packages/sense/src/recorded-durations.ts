@@ -16,11 +16,10 @@
 // compass: variance-authority.reach
 
 import { existsSync, readFileSync } from 'node:fs';
-import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
 import { NO_DURATION } from './test-selection/format-layout.js';
-import { recordPath } from './test-selection/record-location.js';
+import { nearestTestCoverage } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
 import {
   countScope,
@@ -91,15 +90,11 @@ export function recordedDurations(
   scope: DurationScope = {},
 ): readonly RecordedDurations[] {
   const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
-  const layers = repositoryLayers(root);
   return suites.map((suite) => {
     const named = suite === undefined ? {} : { suite };
-    const cases = caseDurations(layeredFiles(layers, `${recordPath(root, suite)}.cases.bin`), limit, scope);
-    const candidates = layeredFiles(layers, recordPath(root, suite));
-    const recording = candidates.find((candidate) => existsSync(candidate));
-    if (recording === undefined) {
-      return { ...named, recording: candidates[0]!, unread: 'nothing is recorded there', cases };
-    }
+    const recording = nearestTestCoverage(root, { suite });
+    const cases = caseDurations(`${recording}.cases.bin`, limit, scope);
+    if (!existsSync(recording)) return { ...named, recording, unread: 'nothing is recorded there', cases };
     try {
       return { ...named, recording, cases, ...askCoverageFile(recording, (view) => {
         const paths = view.testPath.all();
@@ -120,10 +115,9 @@ export function recordedDurations(
   });
 }
 
-/** The slowest cases the nearest case index among `candidates` holds. */
-function caseDurations(candidates: readonly string[], limit: number, scope: DurationScope): RecordedCaseDurations {
-  const recording = candidates.find((candidate) => existsSync(candidate));
-  if (recording === undefined) return { recording: candidates[0]!, unread: 'nothing is recorded there' };
+/** The slowest cases in the case index at `recording`, which is the one beside the snapshot the durations were read from. */
+function caseDurations(recording: string, limit: number, scope: DurationScope): RecordedCaseDurations {
+  if (!existsSync(recording)) return { recording, unread: 'nothing is recorded there' };
   try {
     const bytes = readFileSync(recording);
     // Only a `to` needs the crossings; the rest of the question is the test table.
@@ -149,11 +143,10 @@ function caseDurations(candidates: readonly string[], limit: number, scope: Dura
  * given is in neither the recording nor the checkout.
  */
 export function recordedPaths(root: string): readonly string[] {
-  const layers = repositoryLayers(root);
   const paths = new Set<string>();
   for (const suite of declaredSuites(root)?.map((declared) => declared.name) ?? [undefined]) {
-    const recording = layeredFiles(layers, recordPath(root, suite)).find((candidate) => existsSync(candidate));
-    if (recording === undefined) continue;
+    const recording = nearestTestCoverage(root, { suite });
+    if (!existsSync(recording)) continue;
     try {
       for (const path of askCoverageFile(recording, pathsOfSnapshot)) paths.add(path);
     } catch {

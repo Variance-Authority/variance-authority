@@ -194,6 +194,29 @@ export async function recordIn(
   await writeFile(`${record}.cases.bin`, encodeExecutionIndex(casesOf(cases)));
 }
 
+/** Both test files whole, and `src/total.ts` as one module block `total.test.ts` entered. */
+export async function wholeRecord(dir: string): Promise<void> {
+  const record = testCoverageFile(dir, { suite: 'unit' });
+  await writeTestCoverage(record, {
+    version: 3,
+    instrumentation: 'fixture',
+    commit: await git(dir, 'rev-parse', 'HEAD'),
+    tests: [
+      { file: 'test/other.test.ts', complete: true, preconditions: [] },
+      { file: 'test/total.test.ts', complete: true, preconditions: [] },
+    ],
+    modules: [{
+      file: 'src/total.ts',
+      sourceDigest: 'source:total',
+      instrumented: true,
+      blocks: [{
+        ordinal: 0, kind: 'module', digest: 'block:0', name: 'total', path: 'module',
+        startLine: 1, endLine: 3, source: true, testFiles: ['test/total.test.ts'],
+      }],
+    }],
+  });
+}
+
 /**
  * A change in the working tree of `dir`, and the run over it: a record that
  * describes the change, a case index with the case it added, and the runs file
