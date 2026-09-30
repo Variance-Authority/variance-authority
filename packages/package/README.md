@@ -190,7 +190,7 @@ help.exported.filter((named) => named.name.includes('Viewport'));
 
 `help.deep` is the other half of the same reading: every specifier that imports
 a workspace package past the entry its manifest declares (its `exports` map, or
-without one its `types` or `main`). Such an import depends on internals the
+without one its `types`, `typings` or `main`). Such an import depends on internals the
 manifest never promised to keep stable. A subpath `exports`
 names exactly is not one of them, even when its source could not be read: that
 subpath is listed in `help.unreadable` instead. Each import carries the names it
@@ -203,7 +203,7 @@ it: the index's scan does, `readHelp` on its own does not.
 ```
 
 `help.byPath` has the same shape, for a package whose manifest declares none of
-`exports`, `main` or `types`. Such a package has no entry to reach past, so
+`exports`, `main`, `types` or `typings`. Such a package has no entry to reach past, so
 every import of it names a file, and these imports are the whole of what other
 packages use from it.
 

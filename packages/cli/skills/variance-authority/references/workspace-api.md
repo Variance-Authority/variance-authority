@@ -123,8 +123,8 @@ verb wants, so start here unless you already have an exact specifier.
 A published specifier comes from a `package.json`: each subpath its `exports`
 field opens, or, when it has no `exports`, the bare name its `types` or `main`
 opens. An import of any other file of the package is listed as reaching past a
-published entrypoint. A package whose manifest declares none of `exports`, `main`
-or `types` has no entrypoint to reach past, so every import of it names a file.
+published entrypoint. A package whose manifest declares none of `exports`, `main`,
+`types` or `typings` has no entrypoint to reach past, so every import of it names a file.
 It is listed by what other packages import from it: one line per file and name,
 with the importer's file and line. A file of it that no other package imports is
 not listed. So this verb and `entrypoint` answer for the JavaScript
@@ -158,8 +158,9 @@ SemanticSnapshot [interface] 14 packages, 50 imports — The normalized semantic
 
 A package that declares no entry opens nothing, and answers with the files and
 names other packages import from it. This repository has no such package, so the
-block below, like the next one under `symbol`, comes from a small workspace where
-`@acme/app` imports files of `@acme/kit` and `@acme/lib` by path:
+block below, like the next one under `symbol`, comes from the small workspace
+`packages/cli/src/commands/ask-packages-deep.test.ts` builds, where `@acme/app`
+imports files of `@acme/kit` and `@acme/lib` by path:
 
 ```
 $ variance-authority-help entrypoint @acme/kit
@@ -206,7 +207,7 @@ path.
 $ variance-authority-help symbol addTax
 addTax
 import { addTax } from '@acme/lib/src/internal/math';
-declared at packages/lib/src/internal/math.ts:2
+declared at packages/lib/src/internal/math.ts:1
 not published: @acme/lib declares an entry, and this file is not behind it.
 
 Imported by path in 1 place:
