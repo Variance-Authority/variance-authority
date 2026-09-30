@@ -129,11 +129,10 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
  * test the snapshot held, which needs no record at all.
  *
  * A worktree's first run is laid over a copy of the primary checkout's
- * snapshot, and the record beside it was seeded with that copy: the base's
- * `files` and `standing`, with any test the base does not list standing at the
- * base's `over` (see `seedTestCoverage`). So a worktree's first partial run
- * carries `standing` forward like any other. A base that cannot say where every
- * test last ran seeds nothing, and leaves it absent.
+ * snapshot, and the record beside it was seeded with that copy: the base's own
+ * record, with no run of this checkout's in it (see `seedTestCoverage`). So a
+ * worktree's first partial run carries `standing` forward when the base's
+ * record had one, and leaves it absent when the base's did not.
  *
  * A test can stand at `commit` itself without being in `ran`: a worktree's
  * first run at the base's commit did not run it, and the base did. It is

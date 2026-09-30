@@ -1536,14 +1536,13 @@ line.
 
 In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
 and case index into the worktree's own record, so the fold lands over the
-suite's record rather than over nothing. Beside them it writes a runs record
-saying where each test last ran, carried from the primary checkout's, so a test
+suite's record rather than over nothing. Beside them it writes a copy of the
+primary checkout's runs record, with no run of the worktree's in it, so a test
 your worktree has not run is read from where it last ran there. A test that
-record does not list is read from where its runs started, as the primary
-checkout reads it. When the primary checkout cannot say where every test last
-ran, because it has no runs record or has one naming another commit, nothing is
-written, and `test:since` names the tests it could not place. The seeded record
-lists no run of the worktree's, so `variance review` still asks for a run or
+record does not place is read from where its runs started, and a reading in
+either checkout reports it as assumed. When the primary checkout has no runs
+record, or one naming another commit than its snapshot, nothing is written. The
+copy lists no run of the worktree's, so `variance review` still asks for a run or
 `--since`. In the primary checkout, or for a file you named yourself, it does
 nothing.
 

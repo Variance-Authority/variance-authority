@@ -112,11 +112,9 @@ describe('a worktree that has not run', () => {
     await updateSourceIndex(worktree);
 
     // The landing seeded the snapshot, and with it where the base's tests last
-    // ran; no run of this worktree is in it, and `over` is the base's to keep.
+    // ran; no run of this worktree is in it, and `over` is still the base's.
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    const seeded = await readCommitRuns(own);
-    expect(seeded).toMatchObject({ commit: first, runs: 0 });
-    expect(seeded?.over).toBeUndefined();
+    expect(await readCommitRuns(own)).toMatchObject({ commit: first, over: first, runs: 0 });
     await expect(review(parseReview(['--root', worktree]))).rejects.toThrow(
       `no run has listed itself beside \`${own}\`, so nothing says where this change starts.`,
     );

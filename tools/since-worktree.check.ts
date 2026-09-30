@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
@@ -173,42 +173,44 @@ describe('a worktree reads a test it has not run from where the primary checkout
     expect(reading.decided).toEqual({ selected: [] });
   });
 
-  it('lists a test the primary checkout\'s runs record does not place where that record\'s runs started', async () => {
-    const { primary, worktree, cacheRoot, base, own, M, read, farWhole } = await primaryAndWorktree();
-    // The primary checkout runs only `near` at M2, which changes `far.ts`, and its record lists no `standing`:
-    // it reads `far.test` and `other.test` from `over`, M.
-    const M2 = await commitIn(primary, source('far', 2), 'M2');
+  it('copies a primary runs record that does not place every test as it stands, so the worktree reports the primary\'s assumption', async () => {
+    const { primary, worktree, cacheRoot, base, own, read } = await primaryAndWorktree();
+    // The primary checkout runs only `near` at M1, which changes `far.ts`, and loses its runs record; then only
+    // `near` again at M2. Its record places `near.test` and reads the other two from M1, where its runs started,
+    // though `far.test` last ran at M.
+    const M1 = await commitIn(primary, source('far', 2), 'M1');
+    await landRun(base, run(primary, M1, ['near']), primary);
+    await rm(commitRunsFile(base));
+    const M2 = await commitIn(primary, source('near', 2), 'M2');
     await landRun(base, run(primary, M2, ['near']), primary);
-    const { standing: _dropped, ...unlisted } = JSON.parse(await readFile(commitRunsFile(base), 'utf8'));
-    await writeFile(commitRunsFile(base), `${JSON.stringify(unlisted, null, 2)}\n`);
-    expect(await readCommitRuns(base)).toMatchObject({ commit: M2, over: M, files: ['test/near.test.ts'] });
+    const held = await readCommitRuns(base);
+    expect(held).toMatchObject({ commit: M2, over: M1, files: ['test/near.test.ts'] });
+    expect(held?.standing).toBeUndefined();
     gitIn(worktree)('merge', '-q', '--ff-only', M2);
 
     await seedTestCoverage(own, worktree, cacheRoot);
-    const seeded = await readCommitRuns(own);
-    expect(seeded).toMatchObject({ commit: M2, runs: 0, files: ['test/near.test.ts'] });
-    expect(seeded?.over).toBeUndefined();
-    expect(seeded?.standing).toEqual([{ commit: M, files: ['test/far.test.ts', 'test/other.test.ts'] }]);
+    expect(await readCommitRuns(own)).toEqual({ ...held, first: expect.any(String), latest: expect.any(String), runs: 0 });
+    const unplaced = (at: string) =>
+      `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from ${at.slice(0, 12)}, where its runs started`;
+    expect((await read()).start.assumed).toBe(unplaced(M1));
 
-    const H = await commitIn(worktree, source('near', 2), 'H');
+    // The worktree's first run at M2 starts its own change there, so the assumption moves to M2, as the
+    // primary checkout's would at its next commit. Still printed, never listed.
+    await landRun(own, run(worktree, M2, ['near']), worktree);
+    expect(await readCommitRuns(own)).toMatchObject({ commit: M2, over: M2, runs: 1 });
+    expect((await readCommitRuns(own))?.standing).toBeUndefined();
+    // Nothing changed since M2, so the assumption is printed with "Nothing to run".
+    expect((await read()).nothing).toContain(`  T${unplaced(M2).slice(1)}.`);
+
+    const H = await commitIn(worktree, source('other', 2), 'H');
     await landRun(own, run(worktree, H, ['near']), worktree);
-    expect(await farWhole()).toBe(true);
-    expect((await read()).decided).toEqual({ selected: ['test/far.test.ts'] });
+    expect(await readCommitRuns(own)).toMatchObject({ commit: H, over: M2 });
+    expect((await readCommitRuns(own))?.standing).toBeUndefined();
+    expect((await read()).start.assumed).toBe(unplaced(M2));
   });
 
-  it('seeds no runs record when the primary checkout\'s places neither every test nor where its runs started', async () => {
-    const { primary, worktree, cacheRoot, base, own } = await primaryAndWorktree();
-    const M2 = await commitIn(primary, source('far', 2), 'M2');
-    await landRun(base, run(primary, M2, ['near']), primary);
-    const { standing: _dropped, over: _over, ...unplaced } = JSON.parse(await readFile(commitRunsFile(base), 'utf8'));
-    await writeFile(commitRunsFile(base), `${JSON.stringify(unplaced, null, 2)}\n`);
-    gitIn(worktree)('merge', '-q', '--ff-only', M2);
-
-    await seedTestCoverage(own, worktree, cacheRoot);
-    expect(await readCommitRuns(own)).toBeUndefined();
-  });
-
-  it('keeps a runs record a landing already wrote beside the worktree\'s snapshot', async () => {
+  // Sequential: the other record is there before seeding starts, which pins the order and not the race.
+  it('keeps a runs record already beside the worktree\'s snapshot when seeding starts', async () => {
     const { worktree, cacheRoot, own } = await primaryAndWorktree();
     const theirs = { commit: 'landed', first: 'a', latest: 'a', runs: 1, files: [] };
     await mkdir(resolve(own, '..'), { recursive: true });
@@ -217,6 +219,8 @@ describe('a worktree reads a test it has not run from where the primary checkout
     await seedTestCoverage(own, worktree, cacheRoot);
     expect(await readCommitRuns(own)).toEqual(theirs);
   });
+
+  it.todo('a runs record another first write lays beside the worktree\'s snapshot after the snapshot is copied and before the seed is written is kept — needs a seam that pauses `seedTestCoverage` between the two writes');
 
   it('carries the primary checkout\'s `standing`, so a test its last partial run did not run reads from further back', async () => {
     const { primary, worktree, cacheRoot, base, own, M, read, farWhole } = await primaryAndWorktree();
@@ -231,6 +235,7 @@ describe('a worktree reads a test it has not run from where the primary checkout
       commit: M2,
       first: expect.any(String),
       latest: expect.any(String),
+      over: M,
       runs: 0,
       files: ['test/near.test.ts'],
       standing: [{ commit: M, files: ['test/far.test.ts', 'test/other.test.ts'] }],
