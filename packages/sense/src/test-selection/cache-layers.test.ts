@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
@@ -8,10 +8,12 @@ import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { recordStore, recordStores } from './instrumented-modules.js';
 import {
+  mainlineReadRoot,
   readTestCoverage,
   readableTestCoverage,
   seedTestCoverage,
   testCoverageFile,
+  writeFetchedMainline,
   writeTestCoverage,
   type TestCoverage,
 } from './index.js';
@@ -272,5 +274,37 @@ describe('the snapshot a checkout starts from', () => {
     await seedTestCoverage(mine, path, cacheRoot);
     await expect(stat(mine)).rejects.toThrow();
     await expect(stat(testCoverageFile(path, { cacheRoot }))).rejects.toThrow();
+  });
+
+  test('a reader passes over a fetched mainline record this build does not read, as the first run does, for the layer beneath', async () => {
+    const at = await realpath(await mkdtemp(resolve(tmpdir(), 'va-layers-fetched-')));
+    const primary = resolve(at, 'primary');
+    const run = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, stdio: 'ignore' });
+    await mkdir(primary);
+    run(primary, 'init', '--quiet');
+    await writeFile(resolve(primary, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } } }));
+    run(primary, 'add', '-A');
+    run(primary, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '--quiet', '-m', 'first');
+    const [path, other] = [resolve(at, 'feature'), resolve(at, 'other')];
+    run(primary, 'worktree', 'add', '--quiet', '-b', 'feature', path);
+    run(primary, 'worktree', 'add', '--quiet', '-b', 'other', other);
+    const cacheRoot = resolve(at, 'cache');
+    const beneath = testCoverageFile(primary, { cacheRoot, suite: 'unit' });
+    await writeTestCoverage(beneath, snapshot);
+    const commit = 'c'.repeat(40);
+    const fetched = resolve(mainlineReadRoot(cacheRoot, 'unit'), commit, 'coverage.bin');
+    await mkdir(dirname(fetched), { recursive: true });
+    await writeFile(fetched, Buffer.from('not a snapshot this build knows'));
+    await writeFetchedMainline(cacheRoot, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
+
+    expect(await readableTestCoverage(path, { cacheRoot, suite: 'unit' })).toBe(beneath);
+    await expect(seedTestCoverage(testCoverageFile(path, { cacheRoot, suite: 'unit' }), path, cacheRoot)).resolves.toMatchObject({
+      from: 'primary',
+      file: beneath,
+    });
+
+    // One that reads is the base, over the same layer.
+    await writeTestCoverage(fetched, snapshot);
+    expect(await readableTestCoverage(other, { cacheRoot, suite: 'unit' })).toBe(fetched);
   });
 });

@@ -215,14 +215,23 @@ export async function wholeRunAt(
   collected?: ReadonlySet<string>,
 ): Promise<string | undefined> {
   if (runs === undefined) return 'no runs record lies beside it, so nothing says which tests ran at this commit';
-  let parsed: CommitRuns;
+  let value: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(runs)) as CommitRuns;
+    value = JSON.parse(new TextDecoder().decode(runs));
   } catch {
     return 'the runs record beside it is not JSON';
   }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 'the runs record beside it is not a JSON object';
+  const parsed = value as CommitRuns;
   if (parsed.commit !== commit) return `the runs record beside it is ${parsed.commit ?? 'of no commit'}'s, not ${commit}'s`;
+  // The record is JSON a run wrote, read here without its writer's types: a
+  // shape it does not have is refused by name, never met as a TypeError.
+  if (!Array.isArray(parsed.files)) return 'the runs record beside it has no list of the test files that ran at its commit';
   if (parsed.standing === undefined) return 'the runs record beside it does not say where every test it did not run last ran';
+  if (!Array.isArray(parsed.standing)) return 'the runs record beside it holds a `standing` that is not a list';
+  if (!parsed.standing.every((entry: unknown) => typeof entry === 'object' && entry !== null && Array.isArray((entry as { files?: unknown }).files))) {
+    return 'the runs record beside it holds a `standing` entry with no list of test files';
+  }
   if (collected !== undefined) {
     const listed = new Set([...parsed.files, ...parsed.standing.flatMap((entry) => entry.files)]);
     const unlisted = [...collected].filter((path) => !listed.has(path)).sort();

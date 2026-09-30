@@ -183,6 +183,24 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
     });
   });
 
+  it('is not published for a mainline when the runs record has the wrong shape, and says what it lacks', async () => {
+    const shapes: readonly [string, (commit: string) => unknown, string][] = [
+      ['not-an-object', () => null, 'is not a JSON object'],
+      ['no-files', (commit) => ({ ...ran(commit, []), files: undefined }), 'has no list of the test files that ran at its commit'],
+      ['standing-not-a-list', (commit) => ({ ...ran(commit), standing: { [commit]: ['test/kept.test.ts'] } }), 'holds a `standing` that is not a list'],
+      ['entry-without-files', (commit) => ran(commit, [{ commit: 'c'.repeat(40) } as { commit: string; files: string[] }]), 'holds a `standing` entry with no list of test files'],
+    ];
+
+    for (const [name, runs, lacks] of shapes) {
+      const { root, coverage, commit } = await ranAt(name, runs as (commit: string) => object);
+      for (const collected of [undefined, new Set(['test/kept.test.ts'])]) {
+        await expect(suiteEntryOf(root, 'unit', { commit }, { whole: true, ...(collected === undefined ? {} : { collected }) }), name).resolves.toEqual({
+          unpublished: `its record at ${coverage} is not a whole run: the runs record beside it ${lacks}`,
+        });
+      }
+    }
+  });
+
   it('is not published for a mainline when nothing says the whole suite ran, and says what was missing', async () => {
     const bare = await ranAt('runless');
     const vague = await ranAt('vague', (at) => ran(at));

@@ -161,17 +161,9 @@ export async function layFetchedMainline(record: LastFetched, file: string): Pro
   let runs: Uint8Array | undefined;
   try {
     coverage = await readFile(record.coverage);
-    // Opening parses the section index and nothing else, which is the whole of
-    // what "this build can read it" means.
-    openTestCoverage(coverage);
-    if (record.cases !== undefined) {
-      cases = await readFile(record.cases);
-      if (openSetExecutionIndex(cases) === undefined) decodeExecutionTests(cases);
-    }
-    if (record.runs !== undefined) {
-      runs = await readFile(record.runs);
-      JSON.parse(Buffer.from(runs).toString('utf8'));
-    }
+    cases = record.cases === undefined ? undefined : await readFile(record.cases);
+    runs = record.runs === undefined ? undefined : await readFile(record.runs);
+    opensFetched(coverage, cases, runs);
   } catch {
     return false;
   }
@@ -181,6 +173,35 @@ export async function layFetchedMainline(record: LastFetched, file: string): Pro
   await place(commitRunsFile(file), runs);
   await place(file, coverage);
   return true;
+}
+
+/**
+ * Whether this build reads `record`, by the check {@link layFetchedMainline}
+ * makes before it lays one: a reader that would be handed its path skips a
+ * record the first run would not lay, so both find the same base.
+ *
+ * Synchronous, for {@link nearestTestCoverage}, and asked only once the
+ * checkout's own layer has no record, so it costs a read in a checkout that
+ * has not run and nothing after.
+ */
+export function fetchedMainlineReads(record: LastFetched): boolean {
+  try {
+    opensFetched(
+      readFileSync(record.coverage),
+      record.cases === undefined ? undefined : readFileSync(record.cases),
+      record.runs === undefined ? undefined : readFileSync(record.runs),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Throws unless this build reads each part. Opening parses the section index and nothing else, which is the whole of what "this build can read it" means. */
+function opensFetched(coverage: Uint8Array, cases: Uint8Array | undefined, runs: Uint8Array | undefined): void {
+  openTestCoverage(coverage);
+  if (cases !== undefined && openSetExecutionIndex(cases) === undefined) decodeExecutionTests(cases);
+  if (runs !== undefined) JSON.parse(Buffer.from(runs).toString('utf8'));
 }
 
 async function place(file: string, bytes: Uint8Array | undefined): Promise<void> {
