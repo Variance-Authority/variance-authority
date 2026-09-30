@@ -59,6 +59,11 @@ describe('where to look, for a comment', () => {
     expect(text).not.toContain('t5.test.ts');
   });
 
+  it('counts the cases alone when the record names no test file for them', () => {
+    const text = scopeMarkdown(review([{ ...region('function', 'cap', 3, 20, 'near'), cases: 2 }]), mark).join('\n');
+    expect(text).toContain('- G `src/caps.ts:3-20` function `cap`, new — 2 cases\n');
+  });
+
   it('writes nothing when no function changed', () => {
     expect(scopeMarkdown(review([region('module', '', 1, 40, 'near', ['a.test.ts'])]), mark)).toEqual([]);
   });
