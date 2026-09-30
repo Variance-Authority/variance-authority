@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
-import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from '../exit.js';
+import { deletedAt } from './reach-command.js';
 
 /**
  * `variance reach` end to end, in a checkout of four languages and no config.
@@ -351,6 +352,14 @@ describe('a file the diff deletes', () => {
     expect(said.code).toBe(EXIT_OPERATOR);
     expect(said.out).toBe('');
     expect(said.err).toMatch(/deletes 1 file and changes nothing that exists/);
+  });
+
+  it('refuses as an operator error, naming the base and the checkout, when git cannot list the deletions', async () => {
+    const root = checkout(PAIR);
+    const listing = deletedAt({ repository: root, base: 'no-such-base', at: async () => undefined });
+
+    await expect(listing).rejects.toBeInstanceOf(OperatorError);
+    await expect(listing).rejects.toThrow(/deleted since `no-such-base` in .*va-reach-[^:]*: fatal: /);
   });
 });
 

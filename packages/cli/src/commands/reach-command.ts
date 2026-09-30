@@ -185,17 +185,33 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
  */
 // TODO: an unchanged importer whose relative request resolved to a deleted file
 // and now resolves to nothing is not reached; that needs the base's edges.
-async function deletedAt(point: DiffPoint): Promise<readonly string[]> {
-  const { stdout } = await promisify(execFile)(
-    'git',
-    ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', '--diff-filter=D', point.base],
-    { cwd: point.repository, maxBuffer: 32 * 1024 * 1024 },
-  );
+export async function deletedAt(point: DiffPoint): Promise<readonly string[]> {
+  let stdout: string;
+  try {
+    ({ stdout } = await promisify(execFile)(
+      'git',
+      ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', '--diff-filter=D', point.base],
+      { cwd: point.repository, maxBuffer: 32 * 1024 * 1024 },
+    ));
+  } catch (error) {
+    // Refused rather than read as no deletions: a deleted file missing from
+    // this list is walked from as though it were still there.
+    throw new OperatorError(
+      `git could not list the files deleted since \`${point.base}\` in ${point.repository}: ${gitSaid(error)}`,
+    );
+  }
   const here = process.cwd();
   return stdout
     .split('\0')
     .filter((file) => file !== '')
     .map((file) => relative(here, join(point.repository, file)));
+}
+
+/** What git wrote to stderr when it failed, or the error's own message when it wrote nothing. */
+function gitSaid(error: unknown): string {
+  const stderr = (error as { stderr?: unknown }).stderr;
+  const said = typeof stderr === 'string' ? stderr.trim() : '';
+  return said !== '' ? said : error instanceof Error ? error.message : String(error);
 }
 
 /** The whole suffix, in the spelling `languageOf` is keyed by. */
