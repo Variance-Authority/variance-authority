@@ -93,8 +93,10 @@ fn package_of(value: &str) -> &str {
 
 /// Every file's requests, packages and uses, read from the folded chain.
 /// `listed` is what git tracks; without it the files are the ones the index
-/// holds, and the manifests the ones beside them.
-pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made: &HashSet<String>) -> Read {
+/// holds, and the manifests the ones beside them. `made` answers which files
+/// are generated or vendored, asked only once every file's requests are read:
+/// git takes as long to answer as the reading takes, so the two overlap.
+pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made: impl FnOnce() -> HashSet<String>) -> Read {
     let by_path = Regex::new(TEST_BY_PATH).expect("the pattern is fixed");
     let folded = fold(layers);
     let records = folded.len() as u32;
@@ -131,18 +133,21 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
         owners.packages.iter().enumerate().map(|(at, package)| (package.directory.as_str(), at as u32)).collect();
     let owner_of = |path: &str| -> Option<u32> { owner_of(&owners, &directories, path).map(|owner| index[owner as usize]) };
 
-    // A counted file is tracked, not output, and owned.
+    // A counted file is tracked, owned, and not output.
     let mut crossings: Vec<Crossing> = folded
-        .into_iter()
-        .filter(|(path, _)| !made.contains(*path))
+        .into_par_iter()
         .filter_map(|(path, at)| {
             let &(owner, _) = owners.files.get(path)?;
             (owner != NO_OWNER).then(|| Crossing { file: path, owner: index[owner as usize], others: Vec::new(), at, parse: None })
         })
         .collect();
-    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
+    crossings.par_sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
     join_parses(layers, &mut crossings);
-    let files: Vec<File> = crossings.par_iter().map(|crossing| requests(layers, crossing)).collect();
+    let mut files: Vec<File> = crossings.par_iter().map(|crossing| requests(layers, crossing)).collect();
+    let made = made();
+    if !made.is_empty() {
+        files.retain(|file| !made.contains(file.path));
+    }
     let unread = files.iter().filter(|file| !file.parsed).count() as u32;
     let counted: HashMap<&str, usize> = files.iter().enumerate().map(|(at, file)| (file.path, at)).collect();
 

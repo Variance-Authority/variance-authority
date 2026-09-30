@@ -244,29 +244,30 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool) ->
     // Git owns the file list and the generated and vendored marks. Outside a
     // checkout git answers neither: the files are then the ones the index
     // holds, nothing is marked, and the result says so.
-    let (layers_read, made) = std::thread::scope(|scope| {
-        let made = scope.spawn(|| {
+    let layers_read: Vec<Layer> = chain
+        .segments
+        .iter()
+        .enumerate()
+        .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
+        .collect::<Result<_, _>>()
+        .map_err(fail)?;
+    let mut unmarked = false;
+    let read = std::thread::scope(|scope| {
+        let marks = scope.spawn(|| {
             snapshot.as_ref().and_then(|_| {
                 crate::git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
             })
         });
-        let layers_read: Result<Vec<Layer>, String> = chain
-            .segments
-            .iter()
-            .enumerate()
-            .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
-            .collect();
-        (layers_read, made.join().ok().flatten())
+        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), || {
+            let made = marks.join().ok().flatten();
+            unmarked = !walked && made.is_none();
+            made.unwrap_or_default()
+                .split(|&byte| byte == 0)
+                .filter(|path| !path.is_empty())
+                .map(|path| String::from_utf8_lossy(path).into_owned())
+                .collect()
+        })
     });
-    let layers_read = layers_read.map_err(fail)?;
-    let unmarked = !walked && made.is_none();
-    let made: HashSet<String> = made
-        .unwrap_or_default()
-        .split(|&byte| byte == 0)
-        .filter(|path| !path.is_empty())
-        .map(|path| String::from_utf8_lossy(path).into_owned())
-        .collect();
-    let read = read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), &made);
     let stored = match fold(&read) {
         Ok((made, pages, placed)) => Stored { format: FORMAT, index: digest, listed, unmarked, made: Some(made), unmade: None, pages, placed },
         Err(unmade) => {

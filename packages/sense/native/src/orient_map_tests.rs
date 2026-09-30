@@ -91,7 +91,7 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     publish(&index);
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
-    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), &HashSet::new());
+    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), HashSet::new);
     let (made, pages, placed) = fold(&read).ok().expect("named packages to fold");
     let digest = super::manifest_digest(&index).unwrap();
     let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, unmarked: false, made: Some(made), unmade: None, pages, placed };
