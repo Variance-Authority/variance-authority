@@ -42,7 +42,7 @@ writes that to a snapshot. `yarn test:since` reads the snapshot back and runs
 the files your change reached:
 
 ```bash
-yarn test:since             # since the commit the snapshot was recorded at
+yarn test:since             # since where the snapshot stood before the runs at its commit
 yarn test:since main        # since the merge base with main
 yarn test:since --dry-run   # print the reading, run nothing
 ```
