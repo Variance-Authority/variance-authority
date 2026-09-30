@@ -310,6 +310,18 @@ describe('legs at two commits leave each test read from where it last ran', () =
     expect(reading.decided).toEqual({ selected: ['test/near.test.ts'] });
   });
 
+  it('does not select a test file for an edit it ran after, though an older stand reads that edit whole', async () => {
+    const { read, file, commit, at } = await legs();
+    const D = await commit({ 'test/other.test.ts': 'export {};\n' }, 'D');
+    await landRun(file, run(at, D, ['other']), at);
+
+    const reading = await read();
+
+    expect(reading.start.stands.flatMap((stand: { whole: string[] }) => stand.whole)).toContain('test/other.test.ts');
+    expect(reading.touched).toEqual([]);
+    expect(reading.decided).toEqual({ selected: ['test/far.test.ts', 'test/near.test.ts'] });
+  });
+
   it('lets no test the suite no longer collects hold the reading at the commit it last ran at', async () => {
     const { read, file, C, at } = await legs();
     await landRun(file, run(at, C, ['far', 'near']), at);

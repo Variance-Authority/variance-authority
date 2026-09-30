@@ -136,7 +136,8 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
   const untracked = new Set(paths(git('ls-files', '-z', '--others', '--exclude-standard')));
   // Renames are read as a deletion and an addition, which is what they are to a
   // module's identity: the old path's regions are gone and the new path has none.
-  const changed = [...new Set([...paths(git('diff', '--name-only', '-z', '--no-renames', base)), ...before, ...untracked])];
+  const sinceBase = new Set([...paths(git('diff', '--name-only', '-z', '--no-renames', base)), ...untracked]);
+  const changed = [...new Set([...sinceBase, ...before])];
 
   // The install is read at the two revisions rather than counted as a changed
   // path, and the paths that record it are then set aside: a workspace version
@@ -170,7 +171,11 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
     };
   }
 
-  const touched = consequential.filter((path) => isTest(path));
+  // A test file is its own answer only when it changed after it last ran: after
+  // `base` for every test, and before it only for a test standing where it did.
+  const touched = consequential.filter(
+    (path) => isTest(path) && (sinceBase.has(path) || stands.some((stand) => stand.whole.includes(path) && stand.tests.includes(path))),
+  );
   const product = consequential.filter((path) => !isTest(path));
   // An untracked file has no diff of its own, and the graph may still know who
   // imports it, so it is asked about as the addition it is.
