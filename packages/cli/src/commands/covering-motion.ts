@@ -65,6 +65,12 @@ export interface CoveringMotion {
    */
   readonly unwritten?: readonly string[];
   /**
+   * Test files a run at this commit laid over no index, and none has run since:
+   * no case of them came before, so they are not compared. Absent when there
+   * are none.
+   */
+  readonly unbased?: readonly string[];
+  /**
    * The file naming the run that wrote the case index last, when it is there
    * and could not be read. Which files a run at this commit wrote is then not
    * known, so nothing is compared.
@@ -86,7 +92,12 @@ export interface CoveringMotion {
  * - `lastRunUnread`: the last run's file could not be read, so neither is known.
  */
 export type RunsWrote =
-  | { readonly compared: ReadonlySet<string>; readonly at?: string; readonly unwritten?: readonly string[] }
+  | {
+    readonly compared: ReadonlySet<string>;
+    readonly at?: string;
+    readonly unwritten?: readonly string[];
+    readonly unbased?: readonly string[];
+  }
   | { readonly lastRunUnread: string };
 
 export async function runsWrote(from: string, runs: CommitRuns): Promise<RunsWrote> {
@@ -95,11 +106,14 @@ export async function runsWrote(from: string, runs: CommitRuns): Promise<RunsWro
   if (last === 'unreadable') return { lastRunUnread: file };
   if (last === undefined) return { compared: new Set(runs.files) };
   if (last.commit === undefined || last.commit !== runs.commit) return { compared: new Set(), unwritten: [...runs.files] };
-  const compared = new Set(last.files);
+  const written = new Set(last.files);
+  const unbased = new Set(last.unbased ?? []);
+  const compared = new Set(last.files.filter((test) => !unbased.has(test)));
   return {
     compared,
     ...(last.before === undefined ? {} : { at: last.before }),
-    unwritten: runs.files.filter((test) => !compared.has(test)),
+    unwritten: runs.files.filter((test) => !written.has(test)),
+    ...(unbased.size === 0 ? {} : { unbased: [...unbased] }),
   };
 }
 
@@ -199,7 +213,11 @@ export async function motionOfRuns(
   // browser is installed, is that file on every run, and saying it was not
   // compared would name a comparison that was never there to make.
   const cased = new Set(full.tests.map((test) => test.file));
-  const said = wrote.unwritten === undefined ? {} : { unwritten: wrote.unwritten.filter((test) => cased.has(test)) };
+  const unbased = wrote.unbased?.filter((test) => cased.has(test)) ?? [];
+  const said = {
+    ...(wrote.unwritten === undefined ? {} : { unwritten: wrote.unwritten.filter((test) => cased.has(test)) }),
+    ...(unbased.length === 0 ? {} : { unbased }),
+  };
   if (wrote.compared.size === 0) return { base, ...said };
   const cases = full.tests.filter((test) => wrote.compared.has(test.file)).map((test) => test.id);
   return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared })), ...said };
@@ -249,9 +267,12 @@ export function motionText(
   const { base, moved } = motion;
   const at = base.at === undefined ? '' : ` at ${base.at.slice(0, 12)}`;
   const against = base.kind === 'before' ? `the run before it${at}` : `${base.from}${at}`;
-  const unwritten = motion.unwritten === undefined || motion.unwritten.length === 0
+  const unwritten: string[] = motion.unwritten === undefined || motion.unwritten.length === 0
     ? []
     : [`Not compared, no case index was written at this commit for: ${listedOf(motion.unwritten, listed, 'test file')}.`];
+  if (motion.unbased !== undefined && motion.unbased.length > 0) {
+    unwritten.push(`Not compared, no case of these was recorded before this commit's first run: ${listedOf(motion.unbased, listed, 'test file')}.`);
+  }
   if (motion.lastRunUnread !== undefined) {
     return ['', `Not compared: ${motion.lastRunUnread} could not be read, so which test files a run at this commit wrote to the case index is not known.`];
   }

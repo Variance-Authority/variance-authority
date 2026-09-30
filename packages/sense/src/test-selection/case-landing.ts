@@ -44,6 +44,13 @@ export interface LastCaseRun {
   readonly at: string;
   /** Every test file the runs at this commit announced, so a run can tell whether it ran one again. */
   readonly files: readonly string[];
+  /**
+   * Files of `files` the before layer cannot answer for: a run at this commit
+   * laid them over no index, and none has run them since. What came before
+   * them is not known, which is not the same as no case. Absent when every
+   * file has a base.
+   */
+  readonly unbased?: readonly string[];
   /** The cases the last run recorded, by id. */
   readonly cases: readonly string[];
 }
@@ -88,11 +95,18 @@ export async function layCaseRun(
   const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior?.commit;
   await writeCoverageBytes(file, merged);
   const files = [...ran].sort(codeUnitOrder);
+  // A file laid over no index has no base; running it again at this commit
+  // retires this commit's own cases of it, which are then its base.
+  const unbased = [
+    ...(again ? (prior.unbased ?? []).filter((test) => !ran.has(test)) : []),
+    ...(retired === undefined ? files : []),
+  ].sort(codeUnitOrder);
   const named: LastCaseRun = {
     ...(run.commit === undefined ? {} : { commit: run.commit }),
     ...(before === undefined || at === undefined ? {} : { before: at }),
     at: new Date().toISOString(),
     files: again ? [...new Set([...prior.files, ...files])].sort(codeUnitOrder) : files,
+    ...(unbased.length === 0 ? {} : { unbased }),
     cases: last,
   };
   await writeCoverageBytes(layers.last, Buffer.from(`${JSON.stringify(named, null, 2)}\n`));

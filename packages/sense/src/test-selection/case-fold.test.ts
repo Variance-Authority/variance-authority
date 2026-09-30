@@ -275,4 +275,42 @@ describe('the bounded case fold', () => {
     expect(await before()).toEqual({ 'test/b.test.ts': [1] });
     expect(await last()).toMatchObject({ commit: 'next', before: 'head', files: ['test/b.test.ts'] });
   });
+
+  it('names the files no index held a base for, until a run at the commit runs them again', async () => {
+    // TanStack Query's first cycle: a whole run into an empty cache, then the
+    // selected files again at the same commit. Only the files run again have a
+    // run before them; the rest were never laid over anything.
+    const cases = await directory();
+    const root = resolve(cases, '..');
+    const index = resolve(root, 'cases.bin');
+    await mkdir(resolve(root, 'test'));
+    for (const file of ['a', 'b']) await writeFile(resolve(root, 'test', `${file}.test.ts`), '');
+    const modules = new Map<ModuleId, CapturedModule>([['src/x.ts', captured('src/x.ts', 'src/x.ts', 3)]]);
+    let journals = 0;
+    const run = async (commit: string, calls: Readonly<Record<string, number>>): Promise<void> => {
+      const from = resolve(root, `run-${journals++}`);
+      await mkdir(from);
+      await writeFile(resolve(from, 'w.vac'), packFrames(Object.entries(calls).map(([file, branch]) =>
+        journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([['src/x.ts', counters(3, [branch])]])))));
+      await writeCaseIndex(index, from, root, modules, {
+        tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
+        commit,
+      });
+    };
+    const last = async () => JSON.parse(await readFile(caseLayerFiles(index).last, 'utf8'));
+
+    await run('head', { 'a.test.ts': 1, 'b.test.ts': 1 });
+    expect(existsSync(caseLayerFiles(index).before)).toBe(false);
+    expect(await last()).toMatchObject({ files: ['test/a.test.ts', 'test/b.test.ts'], unbased: ['test/a.test.ts', 'test/b.test.ts'] });
+
+    await run('head', { 'a.test.ts': 2 });
+    expect(await last()).toMatchObject({ files: ['test/a.test.ts', 'test/b.test.ts'], unbased: ['test/b.test.ts'] });
+
+    await run('head', { 'b.test.ts': 2 });
+    expect((await last()).unbased).toBeUndefined();
+
+    // A new commit lays over the index, so every file it runs has a base.
+    await run('next', { 'a.test.ts': 1 });
+    expect((await last()).unbased).toBeUndefined();
+  });
 });
