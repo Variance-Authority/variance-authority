@@ -163,12 +163,12 @@ export interface NativeOrientPackageLayer {
   /** The packages it imports from, in code-unit order. */
   readonly takes: readonly string[];
   /**
-   * Effective lines over every sized file its shipped files load, its own
+   * Effective lines over every sized file its entries load, its own
    * included, through every edge but a type-only one. A lower bound when
    * `unsizedFiles` is above 0.
    */
   readonly lines: number;
-  /** Effective lines in its own shipped files. */
+  /** Effective lines in the files of its own that its entries load. */
   readonly own: number;
   /** Files summed into `lines`. */
   readonly files: number;
@@ -176,7 +176,7 @@ export interface NativeOrientPackageLayer {
   readonly unsizedFiles: number;
   /**
    * Its manifest's `exports`, `main`, `module` and `bin` name none of its
-   * files, so what it ships starts at its files that nothing imports.
+   * files, so what it ships starts at the files its own code never imports.
    */
   readonly undeclared: boolean;
 }

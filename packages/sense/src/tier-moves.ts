@@ -30,7 +30,7 @@ export interface TierCause {
   /** Effective lines of its closure on each side. */
   readonly linesFrom: number;
   readonly linesTo: number;
-  /** Effective lines in its own shipped files on each side. */
+  /** Effective lines in the files of its own that its entries load, on each side. */
   readonly ownFrom: number;
   readonly ownTo: number;
   /** Packages it started importing, in code-unit order. */

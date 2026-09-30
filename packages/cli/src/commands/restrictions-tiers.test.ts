@@ -122,7 +122,7 @@ describe('variance layers with tiers declared', () => {
 
     expect(lines.slice(0, 3)).toEqual(['1 @t/a tier 2 (1 line in 1 file)', '1 @t/app tier 2 (1 line in 1 file)', '1 @t/tool tier 2 (1 line in 1 file)']);
     expect(lines.slice(-2)).toEqual([
-      "No `exports`, `main`, `module` or `bin` names a file of these packages, so each one's closure starts at its files that nothing imports: @t/app.",
+      "No `exports`, `main`, `module` or `bin` names a file of these packages, so each one's closure starts at the files its own code never imports: @t/app.",
       '',
     ]);
   });

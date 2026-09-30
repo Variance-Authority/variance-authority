@@ -26,7 +26,7 @@ const FILES: &[(&str, &str, &[&str])] = &[
     ("packages/built/tsconfig.json", r#"{"compilerOptions": {"outDir": "./dist", "rootDir": "./src"}}"#, &[]),
     ("packages/built/src/index.ts", "export const make = 1;\n", &[]),
     ("packages/built/src/index.test.ts", "import { make } from './index.ts';\n", &["packages/built/src/index.ts"]),
-    // Offers nothing, so its entries are the files nothing imports.
+    // Offers nothing, so its entries are the files its own code never imports.
     ("packages/bare/package.json", r#"{"name": "@t/bare"}"#, &[]),
     ("packages/bare/src/index.ts", "export const make = 1;\n", &[]),
     ("packages/bare/src/index.test.ts", "import { make } from './index.ts';\n", &["packages/bare/src/index.ts"]),
@@ -35,6 +35,15 @@ const FILES: &[(&str, &str, &[&str])] = &[
     ("packages/storybook/src/index.ts", "export const make = 1;\n", &[]),
     ("packages/storybook/src/index.test.ts", "import { make } from './index.ts';\n", &["packages/storybook/src/index.ts"]),
     ("packages/storybook/storybook/decorator.ts", "import { make } from '../src/index.ts';\n", &["packages/storybook/src/index.ts"]),
+    // A subpath pattern over source: each directory's index is an entry, and a file no entry loads is not in the closure.
+    ("packages/patterned/package.json", r#"{"name": "@t/patterned", "exports": {"./*": "./src/*/index.ts"}}"#, &[]),
+    ("packages/patterned/src/Foo/helper.ts", "export const make = 1;\n", &[]),
+    ("packages/patterned/src/Foo/index.ts", "import { make } from './helper.ts';\n", &["packages/patterned/src/Foo/helper.ts"]),
+    ("packages/patterned/src/orphan.ts", "export const make = 1;\n", &[]),
+    // A subpath pattern over the build's output, read as the source it is emitted from.
+    ("packages/emitted/package.json", r#"{"name": "@t/emitted", "exports": {"./*": {"types": "./dist/*.d.ts", "default": "./dist/*.js"}}}"#, &[]),
+    ("packages/emitted/tsconfig.json", r#"{"compilerOptions": {"outDir": "./dist", "rootDir": "./src"}}"#, &[]),
+    ("packages/emitted/src/a/b.ts", "export const make = 1;\n", &[]),
 ];
 
 fn publish(index: &str) {
@@ -91,10 +100,10 @@ fn a_file_its_manifest_offers_is_shipped_though_its_own_test_imports_it() {
 }
 
 #[test]
-fn a_manifest_that_offers_nothing_starts_at_the_files_nothing_imports_and_says_so() {
+fn a_manifest_that_offers_nothing_starts_at_the_files_nothing_of_its_own_ships_imports_and_says_so() {
     let (_root, read) = folded("undeclared");
-    // The only file nothing imports is the test, which is never an entry.
-    assert_eq!(package(&read, "@t/bare"), (0, 0, true, Vec::new()));
+    // Its own test importing the file is the file under test, not a reason it is no entry.
+    assert_eq!(package(&read, "@t/bare"), (1, 1, true, vec!["packages/bare/src/index.ts".to_owned()]));
 }
 
 #[test]
@@ -102,4 +111,13 @@ fn a_package_named_storybook_ships_and_its_own_storybook_directory_does_not() {
     let (_root, read) = folded("storybook");
     // A test its manifest offers as a `bin` is still a test.
     assert_eq!(package(&read, "@t/storybook"), (1, 1, false, vec!["packages/storybook/src/index.ts".to_owned()]));
+}
+
+#[test]
+fn a_subpath_pattern_offers_every_file_a_substitution_reaches() {
+    let (_root, read) = folded("patterned");
+    let shipped = ["packages/patterned/src/Foo/helper.ts", "packages/patterned/src/Foo/index.ts", "packages/patterned/src/orphan.ts"];
+    // The closure starts at the one index and loads its helper; the file nothing loads is left out of it.
+    assert_eq!(package(&read, "@t/patterned"), (2, 2, false, shipped.map(str::to_owned).to_vec()));
+    assert_eq!(package(&read, "@t/emitted"), (1, 1, false, vec!["packages/emitted/src/a/b.ts".to_owned()]));
 }

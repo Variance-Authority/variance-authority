@@ -114,20 +114,23 @@ repository root, largest first:
 { "tiers": [200000, 20000, 1000] }
 ```
 
-Each number is a budget in lines of code. A package's size is the lines in the
-files it ships plus the lines in every file those files import, followed to the
-end of the checkout. Blank lines and comments are not counted. A type-only
+Each number is a budget in lines of code. A package's size is the lines in its
+entries plus the lines in every file those files import, followed to the end of
+the checkout. A file of the package that no entry loads, such as dead code or a
+build script, is not counted. Blank lines and comments are not counted. A type-only
 import is not followed, because nothing loads it at runtime. An `import()` is
 followed, because something does. Test files, and files only tests import, are
 not part of what a package ships.
 
-What a package ships starts at the files its `package.json` names in `exports`,
-`main`, `module` or `bin`, whoever else imports them. A path under the build's
-output is read as the source file the `tsconfig` builds it from, so
+A package's entries are the files its `package.json` names in `exports`,
+`main`, `module` or `bin`, whoever else imports them. A subpath pattern such as
+`"./*": "./src/*/index.ts"` names every file it matches. A path under the
+build's output is read as the source file the `tsconfig` builds it from, so
 `./dist/index.js` is `src/index.ts` whether or not you have built. A package
-whose manifest names none of its files, such as an application, starts at its
-files that nothing imports, and `variance layers` lists every such package once
-under its answer.
+whose manifest names none of its files, such as an application, starts at the
+files its own code never imports — a test or another package importing one
+leaves it an entry — and `variance layers` lists every such package once under
+its answer.
 
 A package is in the highest-numbered tier whose budget its size fits. Tier 0 is
 the first entry and has no limit: a package that fits no smaller budget is tier

@@ -155,7 +155,7 @@ function undeclared(packages: readonly PackageLayer[]): string[] {
     .map((entry) => entry.package)
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   if (names.length === 0) return [];
-  return ['', `No \`exports\`, \`main\`, \`module\` or \`bin\` names a file of these packages, so each one's closure starts at its files that nothing imports: ${names.join(', ')}.`];
+  return ['', `No \`exports\`, \`main\`, \`module\` or \`bin\` names a file of these packages, so each one's closure starts at the files its own code never imports: ${names.join(', ')}.`];
 }
 
 /** One package's tier and the closure that places it, or nothing when no tiers are declared. */

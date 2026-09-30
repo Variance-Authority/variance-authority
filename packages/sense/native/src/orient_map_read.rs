@@ -57,7 +57,7 @@ pub(crate) struct Read {
     /// Every counted file that is not the tests' side, in code-unit order.
     pub shipped: Vec<String>,
     /// Packages whose manifest offers no counted file of their own, so their
-    /// shipped code starts at the files nothing imports (`tests`).
+    /// shipped code starts at the files its own code never imports (`tests`).
     pub undeclared: Vec<bool>,
 }
 
@@ -181,7 +181,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     // A test is never an entry, whatever the manifest offers.
     entries.iter_mut().for_each(|entries| entries.retain(|&at| !named_by_path[at]));
     let undeclared: Vec<bool> = entries.iter().map(Vec::is_empty).collect();
-    let test = tests(&files, &counted, &named_by_path, &entries);
+    let (test, roots) = tests(&files, &counted, &named_by_path, &entries);
     let targets: Vec<Vec<Option<u32>>> =
         files.par_iter().map(|file| file.requests.iter().map(|request| request.to.and_then(&owner_of)).collect()).collect();
 
@@ -231,7 +231,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     }
     let mut edges: Vec<(u32, u32, u32)> = edges.into_iter().map(|((a, b), files)| (a, b, files)).collect();
     edges.sort_unstable();
-    let closures = closures(&loads(&files, &counted, &test, &named), n);
+    let closures = closures(&loads(&files, &counted, &roots, &named), n);
     let shipped = files.iter().zip(&test).filter(|(_, &test)| !test).map(|(file, _)| file.path.to_owned()).collect();
     Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped, undeclared }
 }
@@ -242,7 +242,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
 /// unresolved are each a node the walk reaches and cannot size. A bare request
 /// naming anything else is an installed package, and a path under
 /// `node_modules` is one too: neither is a file of the checkout.
-fn loads(files: &[File], counted: &HashMap<&str, usize>, test: &[bool], named: &HashMap<&str, u32>) -> Nodes {
+fn loads(files: &[File], counted: &HashMap<&str, usize>, roots: &[usize], named: &HashMap<&str, u32>) -> Nodes {
     let mut leaves: HashMap<String, u32> = HashMap::new();
     let mut leaf = |key: String| -> u32 {
         let next = (files.len() + leaves.len()) as u32;
@@ -267,7 +267,10 @@ fn loads(files: &[File], counted: &HashMap<&str, usize>, test: &[bool], named: &
     Nodes {
         lines: files.iter().map(|file| file.lines).collect(),
         owner: files.iter().map(|file| file.owner).collect(),
-        shipped: test.iter().map(|&test| !test).collect(),
+        roots: roots.iter().fold(vec![false; files.len()], |mut marked, &at| {
+            marked[at] = true;
+            marked
+        }),
         outgoing,
         leaves: leaves.len() as u32,
     }
@@ -292,24 +295,32 @@ fn heads(n: usize, uses: HashMap<(u32, &str), (u32, HashSet<u32>)>) -> Vec<Vec<S
         .collect()
 }
 
-/// Which files are the tests' side: a test by its path (`named`), and whatever
-/// a test reaches that nothing shipped does. Shipped is what the entries reach.
-/// A package's entries are the files its manifest offers (`declared`, by
-/// package, `orient_map_entries.rs`). Where it offers none that resolves, they
-/// are the files of it nothing imports that are not tests by their path: the
-/// owner gave no answer, so one is computed, and `Read::undeclared` says so.
+/// Which files are the tests' side, and where each package's shipped code
+/// starts. The tests' side is a test by its path (`named`), and whatever a test
+/// reaches that nothing shipped does; shipped is what the entries reach through
+/// any request, a type's included, because the split is about who wrote the
+/// file for whom. A package's entries are the files its manifest offers
+/// (`declared`, by package, `orient_map_entries.rs`). Where it offers none that
+/// resolves, they are the files of it that no shipped file of its own imports
+/// and that are not tests by their path — another package taking a file is
+/// that file being used as an entry, and a test importing one is it under
+/// test: the owner gave no answer, so one is computed, and `Read::undeclared`
+/// says so. The entries are returned too, because a closure
+/// starts at them and follows only what a runtime loads.
 // TODO: what a test's specifier meant is the runner's alias table to say, and a
 // stub it maps to connects nothing; this walks the index's targets alone, so a
 // file only an aliased import reaches can land on the wrong side.
-fn tests(files: &[File], counted: &HashMap<&str, usize>, named: &[bool], declared: &[Vec<usize>]) -> Vec<bool> {
+fn tests(files: &[File], counted: &HashMap<&str, usize>, named: &[bool], declared: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
     let outgoing: Vec<Vec<usize>> = files
         .iter()
         .enumerate()
         .map(|(at, file)| file.requests.iter().filter_map(|request| counted.get(request.to?).copied()).filter(|&to| to != at).collect())
         .collect();
     let mut imported = vec![false; files.len()];
-    for &to in outgoing.iter().flatten() {
-        imported[to] = true;
+    for (from, to) in outgoing.iter().enumerate().filter(|&(from, _)| !named[from]) {
+        for &to in to.iter().filter(|&&to| files[to].owner == files[from].owner) {
+            imported[to] = true;
+        }
     }
     let walk = |starts: Vec<usize>, stop: &dyn Fn(usize) -> bool| {
         let mut seen = vec![false; files.len()];
@@ -328,10 +339,10 @@ fn tests(files: &[File], counted: &HashMap<&str, usize>, named: &[bool], declare
         seen
     };
     let unimported = (0..files.len()).filter(|&at| !named[at] && !imported[at] && declared[files[at].owner as usize].is_empty());
-    let entries = declared.iter().flatten().copied().chain(unimported).collect();
-    let shipped = walk(entries, &|at| named[at]);
+    let entries: Vec<usize> = declared.iter().flatten().copied().chain(unimported).collect();
+    let shipped = walk(entries.clone(), &|at| named[at]);
     let reached = walk((0..files.len()).filter(|&at| named[at]).collect(), &|at| shipped[at]);
-    (0..files.len()).map(|at| named[at] || reached[at]).collect()
+    ((0..files.len()).map(|at| named[at] || reached[at]).collect(), entries)
 }
 
 /// One counted file's requests, each with its target and the names it takes:

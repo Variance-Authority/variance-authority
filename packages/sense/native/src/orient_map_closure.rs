@@ -1,9 +1,11 @@
 //! How much code each package pulls in: the effective lines over every file
-//! its shipped files reach through an edge a runtime loads.
+//! its entries reach through an edge a runtime loads.
 //!
 //! The walk is the fold's own: the files are the counted files the code map is
-//! read from, the split between shipped and the tests' side is `tests` in
-//! `orient_map_read.rs`, and a file's lines are the ones its parse stored. A
+//! read from, a package's entries are the ones `tests` in `orient_map_read.rs`
+//! starts shipped code at, and a file's lines are the ones its parse stored. A
+//! file of the package that no entry loads, dead or reached only by a type, is
+//! not in its closure. A
 //! type-only request is not followed, because nothing loads it; an `import()`
 //! is, because something does. A file the walk reaches with no stored size — a
 //! stylesheet, a file the index holds no parse for, a target that is not a
@@ -23,8 +25,8 @@ pub(crate) struct Nodes {
     pub lines: Vec<Option<u32>>,
     /// Each counted file's package.
     pub owner: Vec<u32>,
-    /// Whether each counted file is shipped: not on the tests' side.
-    pub shipped: Vec<bool>,
+    /// Whether each counted file is an entry of its package: where its closure starts.
+    pub roots: Vec<bool>,
     /// The nodes each counted file loads, through every request kind but `type`.
     pub outgoing: Vec<Vec<u32>>,
     pub leaves: u32,
@@ -35,7 +37,7 @@ pub(crate) struct Nodes {
 pub(crate) struct Closure {
     /// Effective lines over every sized file the closure holds, the package's own included.
     pub lines: u64,
-    /// Effective lines in the package's own shipped files.
+    /// Effective lines in the package's own files the closure holds.
     pub own: u64,
     /// Files summed.
     pub files: u32,
@@ -49,23 +51,24 @@ pub(crate) fn closures(nodes: &Nodes, packages: usize) -> Vec<Closure> {
     let total = counted + nodes.leaves as usize;
     let mut seeds: Vec<Vec<u32>> = vec![Vec::new(); packages];
     for at in 0..counted {
-        if nodes.shipped[at] {
+        if nodes.roots[at] {
             seeds[nodes.owner[at] as usize].push(at as u32);
         }
     }
     seeds
         .par_iter()
+        .enumerate()
         .map_init(
             || (vec![u32::MAX; total], Vec::<u32>::new()),
-            |(stamp, queue), starts| walk(nodes, starts, stamp, queue),
+            |(stamp, queue), (package, starts)| walk(nodes, package as u32, starts, stamp, queue),
         )
         .collect()
 }
 
-/// One breadth-first walk from `starts`. `stamp` marks a node visited by the
-/// first seed of the walk that marked it, so one buffer serves every walk a
-/// worker makes without being cleared.
-fn walk(nodes: &Nodes, starts: &[u32], stamp: &mut [u32], queue: &mut Vec<u32>) -> Closure {
+/// One breadth-first walk from `package`'s entries, `starts`. `stamp` marks a
+/// node visited by the first seed of the walk that marked it, so one buffer
+/// serves every walk a worker makes without being cleared.
+fn walk(nodes: &Nodes, package: u32, starts: &[u32], stamp: &mut [u32], queue: &mut Vec<u32>) -> Closure {
     let mut closure = Closure::default();
     let Some(&mark) = starts.first() else { return closure };
     let counted = nodes.lines.len() as u32;
@@ -73,7 +76,6 @@ fn walk(nodes: &Nodes, starts: &[u32], stamp: &mut [u32], queue: &mut Vec<u32>) 
     for &start in starts {
         stamp[start as usize] = mark;
         queue.push(start);
-        closure.own += u64::from(nodes.lines[start as usize].unwrap_or(0));
     }
     let mut head = 0;
     while head < queue.len() {
@@ -85,6 +87,9 @@ fn walk(nodes: &Nodes, starts: &[u32], stamp: &mut [u32], queue: &mut Vec<u32>) 
         }
         match nodes.lines[at as usize] {
             Some(lines) => {
+                if nodes.owner[at as usize] == package {
+                    closure.own += u64::from(lines);
+                }
                 closure.lines += u64::from(lines);
                 closure.files += 1;
             }
@@ -104,19 +109,20 @@ fn walk(nodes: &Nodes, starts: &[u32], stamp: &mut [u32], queue: &mut Vec<u32>) 
 mod tests {
     use super::{closures, Closure, Nodes};
 
-    /// a0 → a1 → b0 → leaf; b0 → a0 (a cycle); a2 is a's test file.
+    /// a0 → a1 → b0 → leaf; b0 → a0 (a cycle); a2 is a's test file; a3 is a
+    /// file of a no entry loads. a0 and b0 are the entries.
     fn nodes() -> Nodes {
         Nodes {
-            lines: vec![Some(10), Some(5), Some(100), Some(7)],
-            owner: vec![0, 0, 1, 0],
-            shipped: vec![true, true, true, false],
-            outgoing: vec![vec![1], vec![2], vec![4, 0], vec![0]],
+            lines: vec![Some(10), Some(5), Some(100), Some(7), Some(20)],
+            owner: vec![0, 0, 1, 0, 0],
+            roots: vec![true, false, true, false, false],
+            outgoing: vec![vec![1], vec![2], vec![5, 0], vec![0], vec![]],
             leaves: 1,
         }
     }
 
     #[test]
-    fn a_closure_sums_what_its_shipped_files_reach_and_counts_what_it_cannot_size() {
+    fn a_closure_sums_what_its_entries_reach_and_counts_what_it_cannot_size() {
         let found = closures(&nodes(), 3);
         assert_eq!(found[0], Closure { lines: 115, own: 15, files: 3, unsized_files: 1 });
         assert_eq!(found[1], Closure { lines: 115, own: 100, files: 3, unsized_files: 1 });

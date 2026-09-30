@@ -62,21 +62,17 @@ pub(crate) struct Manifest {
 
 /// The paths a manifest offers a runtime, as written: every target of
 /// `exports` but one under a `types` condition, then `main`, `module` and
-/// every `bin`. A declaration is not what a runtime loads, and a subpath
-/// pattern (`./*`) opens whatever matches it rather than naming a file, so
-/// neither is offered here.
-// TODO: a subpath pattern offers every counted file its target matches; that
-// needs the pattern expanded against the listing in `orient_map_entries.rs`.
+/// every `bin`. A declaration is not what a runtime loads. A subpath pattern's
+/// target (`./src/*.ts`) is offered as written, `*` and all, and
+/// `orient_map_entries.rs` expands it against the files the package holds.
 fn offered(manifest: &Manifest) -> Vec<String> {
     fn targets(value: &serde_json::Value, into: &mut Vec<String>) {
         match value {
-            serde_json::Value::String(target) if !target.contains('*') => into.push(target.clone()),
+            serde_json::Value::String(target) => into.push(target.clone()),
             serde_json::Value::Array(values) => values.iter().for_each(|value| targets(value, into)),
             serde_json::Value::Object(map) => {
                 for (key, value) in map {
-                    // A subpath key with a pattern maps a pattern; a condition
-                    // key never holds one.
-                    if key != "types" && key != "typings" && !key.contains('*') {
+                    if key != "types" && key != "typings" {
                         targets(value, into);
                     }
                 }

@@ -26,7 +26,7 @@ use crate::orient_map_read::{read, Read};
 use crate::orient_map_signals::signals;
 use crate::orient_map_tree::tree;
 
-const FORMAT: u32 = 5;
+const FORMAT: u32 = 6;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Stored {

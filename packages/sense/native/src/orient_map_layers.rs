@@ -17,17 +17,17 @@ pub struct OrientPackageLayer {
     pub layer: u32,
     /// The packages it imports from, in code-unit order.
     pub takes: Vec<String>,
-    /// Effective lines over every sized file its shipped files load, through
+    /// Effective lines over every sized file its entries load, through
     /// every edge but a type-only one; a lower bound when `unsized_files` is above 0.
     pub lines: f64,
-    /// Effective lines in its own shipped files.
+    /// Effective lines in the files of its own that its entries load.
     pub own: f64,
     /// Files summed into `lines`.
     pub files: u32,
     /// Files and unresolved requests the closure reached and could not size.
     pub unsized_files: u32,
     /// Its manifest's `exports`, `main`, `module` and `bin` name none of its
-    /// files, so what it ships starts at its files that nothing imports.
+    /// files, so what it ships starts at the files its own code never imports.
     pub undeclared: bool,
 }
 

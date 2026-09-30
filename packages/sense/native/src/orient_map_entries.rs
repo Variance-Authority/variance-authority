@@ -9,6 +9,12 @@
 //! (`emitted.rs`), by the same resolver the scan resolves an import with, so
 //! `./dist/index.js` is `src/index.ts` whether or not the build ran.
 //!
+//! A subpath pattern names no file: its `*` stands for whatever a consumer
+//! writes after the key. So each file the package holds is asked which
+//! substitutions could reach it, and the same resolver answers each one;
+//! `./dist/*.js` reaches `src/a/b.ts` through `a/b` exactly as a consumer's
+//! `pkg/a/b` would.
+//!
 //! The root config's `entrypoints` is not read here. It says where a directory
 //! starts so that `variance coverage --from` can scope a closure, it may name a
 //! directory that is no package, and where a package has a manifest the two
@@ -45,29 +51,55 @@ pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str
     // A counted file under a directory the disk alone declines, such as a
     // tracked `build/`, is one git listed, and that is the word `resolve` takes.
     let known: HashMap<String, u32> = counted.keys().map(|&path| (path.to_owned(), 0)).collect();
+    let mut path_of = vec![""; counted.len()];
+    for (&path, &at) in counted {
+        path_of[at] = path;
+    }
     packages
         .par_iter()
         .enumerate()
         .map(|(at, package)| {
             let from = root.join(&package.directory).join("package.json");
-            let mut entries: Vec<usize> = package
+            let reaches = |request: &str| resolvers.resolve(&root, &from, request, Some(&known)).and_then(|file| counted.get(file.as_str()).copied());
+            let (patterns, targets): (Vec<String>, Vec<String>) = package
                 .offers
                 .iter()
                 .filter(|target| !target.starts_with('/'))
-                .filter_map(|target| {
-                    // A manifest path is relative to the manifest, `./` or not;
-                    // a request without it would name an installed package.
-                    let request = if target.starts_with("./") || target.starts_with("../") { target.clone() } else { format!("./{target}") };
-                    let file = resolvers.resolve(&root, &from, &request, Some(&known))?;
-                    counted.get(file.as_str()).copied()
-                })
-                .filter(|&file| owner[file] as usize == at)
-                .collect();
+                // A manifest path is relative to the manifest, `./` or not; a
+                // request without it would name an installed package.
+                .map(|target| if target.starts_with("./") || target.starts_with("../") { target.clone() } else { format!("./{target}") })
+                .partition(|target| target.contains('*'));
+            let mut entries: Vec<usize> = targets.iter().filter_map(|target| reaches(target)).filter(|&file| owner[file] as usize == at).collect();
+            let prefix = if package.directory.is_empty() { String::new() } else { format!("{}/", package.directory) };
+            for pattern in patterns.iter().filter_map(|pattern| pattern.split_once('*')).filter(|(_, tail)| !tail.contains('*')) {
+                entries.extend((0..path_of.len()).filter(|&file| owner[file] as usize == at).filter(|&file| {
+                    let Some(inside) = path_of[file].strip_prefix(&prefix) else { return false };
+                    substitutions(inside, pattern.1).any(|x| reaches(&format!("{}{x}{}", pattern.0, pattern.1)) == Some(file))
+                }));
+            }
             entries.sort_unstable();
             entries.dedup();
             entries
         })
         .collect()
+}
+
+/// `path` with its last segment's extension cut off.
+fn stem(path: &str) -> &str {
+    let name = path.rfind('/').map_or(0, |at| at + 1);
+    path[name..].rfind('.').map_or(path, |dot| &path[..name + dot])
+}
+
+/// The strings a pattern's `*` could stand for to reach the file at `inside`,
+/// its path within the package, given what follows the `*`: every trailing run
+/// of whole segments left once that tail is cut off, with and without both
+/// extensions, since a build's output names the file its source is emitted to.
+fn substitutions<'a>(inside: &'a str, tail: &'a str) -> impl Iterator<Item = &'a str> {
+    [(inside, tail), (inside, stem(tail)), (stem(inside), tail), (stem(inside), stem(tail))]
+        .into_iter()
+        .filter_map(|(path, tail)| path.strip_suffix(tail))
+        .flat_map(|rest| std::iter::once(0).chain(rest.match_indices('/').map(|(at, _)| at + 1)).map(move |start| &rest[start..]))
+        .filter(|x| !x.is_empty())
 }
 
 #[cfg(all(test, unix))]
