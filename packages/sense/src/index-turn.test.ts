@@ -3,29 +3,19 @@ import { chmodSync, mkdirSync, mkdtempSync, statSync, symlinkSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 
-// `tmpdir()` reads TMPDIR on POSIX and TEMP, then TMP, on Windows.
+// Each test starts in a temporary directory of its own, which the suite's setup
+// (`tools/temporary-per-test.ts`) makes, so the only turn a test here waits on
+// is the one it took. `tmpdir()` reads TMPDIR on POSIX and TEMP, then TMP, on
+// Windows.
 const TEMPORARY = ['TMPDIR', 'TEMP', 'TMP'] as const;
-const machineTemporary = TEMPORARY.map((name) => process.env[name]);
 
 function temporaryAt(directory: string): void {
   for (const name of TEMPORARY) process.env[name] = directory;
 }
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
-
-beforeEach(() => {
-  temporaryAt(mkdtempSync(join(tmpdir(), 'va-index-turn-')));
-});
-
-afterEach(() => {
-  TEMPORARY.forEach((name, at) => {
-    const value = machineTemporary[at];
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
-  });
-});
 
 describe('the index turn', () => {
   it('holds another checkout\'s index until the process holding the turn lets go, naming that process and its checkout', async () => {

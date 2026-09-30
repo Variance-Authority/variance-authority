@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { indexOutput } from './index-command.js';
@@ -22,30 +22,17 @@ import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy, holdFollow
 
 const cwd = process.cwd();
 const BIN = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
+const PACKAGE = fileURLToPath(new URL('../..', import.meta.url));
 
-// `tmpdir()` reads TMPDIR on POSIX and TEMP, then TMP, on Windows.
-const TEMPORARY = ['TMPDIR', 'TEMP', 'TMP'] as const;
-const machineTemporary = TEMPORARY.map((name) => process.env[name]);
-
-function temporaryAt(directory: string): void {
-  for (const name of TEMPORARY) process.env[name] = directory;
-}
-
-// The machine's index turn sits in the temporary directory, and another worker
-// indexing at the same time would put its wait on the stderr these assert on.
+// The machine's index turn sits in the temporary directory, which the suite's
+// setup (`tools/temporary-per-test.ts`) gives each test of its own.
 beforeEach(() => {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
-  temporaryAt(mkdtempSync(join(tmpdir(), 'va-index-turn-')));
 });
 
 afterEach(() => {
   process.chdir(cwd);
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
-  TEMPORARY.forEach((name, at) => {
-    const value = machineTemporary[at];
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
-  });
 });
 
 /** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `unchanged` is a run that found the index where the last one left it. */
@@ -97,6 +84,29 @@ describe('variance index', () => {
     writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 2;\n');
     expect(await indexOutput({ cwd: root }))
       .toBe(`source index updated: 2 files, 1 read again, at ${at}\n${unprepared(root)}`);
+  });
+
+  it("waits while another checkout's index holds the machine's index turn, and names that process and its checkout once", async () => {
+    const root = checkout();
+    // The holder says so from inside its turn, and lets go on the first line it reads.
+    const holder = spawn(process.execPath, ['--input-type=module', '-e', [
+      "const { inIndexTurn } = await import('@variance-authority/sense');",
+      "await inIndexTurn('/elsewhere', () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));",
+    ].join('\n')], { cwd: PACKAGE, env: process.env });
+    onTestFinished(() => { holder.kill(); });
+    await new Promise<void>((resolve, reject) => {
+      holder.stdout.once('data', () => resolve());
+      holder.once('exit', (code) => reject(new Error(`the holder exited with ${code}`)));
+    });
+    const told: string[] = [];
+
+    const output = await indexOutput({ cwd: root, waiting: (text) => {
+      told.push(text);
+      holder.stdin.write('\n');
+    } });
+
+    expect(told).toEqual([`waiting for process ${holder.pid}, which is indexing /elsewhere: one index at a time uses this machine's cores\n`]);
+    expect(output).toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);
   });
 
   it("carries the scan's listing to the code map, and a map prepared with no scan says git listed the checkout again", async () => {
