@@ -148,6 +148,51 @@ describe('a change read from both of its texts', () => {
     expect(narrowing.entered).toEqual(tests('clamp'));
   });
 
+  describe('a line deleted beside a changed body', () => {
+    // `limits.ts` opens with a comment above its first statement and closes
+    // with one below its last. No recorded region holds either line, and the
+    // module's own region spans only the statements between them.
+    const body = (before: string) => before.replace('Math.min', 'Math.max');
+    const deleted = async (edit: (before: string) => string) => {
+      const before = readFileSync(resolve(repository, limits), 'utf8');
+      return select(await diffOf(before, body(edit(before))));
+    };
+    const diffOf = (before: string, after: string) => edit(limits, before, after);
+
+    it('charges nothing for a comment deleted above the first statement', async () => {
+      const narrowing = await deleted((before) => before.replace('// The bounds every control shares.\n', ''));
+      expect(narrowing.readings).toEqual([{ file: limits, verdict: 'bodies', names: [] }]);
+      expect(narrowing.entered).toEqual(tests('clamp'));
+    });
+
+    it('charges nothing for a comment deleted below the last statement', async () => {
+      const narrowing = await deleted((before) => before.replace(/\n\/\/ Every control[^\n]*\n$/, '\n'));
+      expect(narrowing.readings).toEqual([{ file: limits, verdict: 'bodies', names: [] }]);
+      expect(narrowing.entered).toEqual(tests('clamp'));
+    });
+
+    it('charges nothing for a blank line deleted between two functions', async () => {
+      const narrowing = await deleted((before) => before.replace('}\n\nexport function render', '}\nexport function render'));
+      expect(narrowing.readings).toEqual([{ file: limits, verdict: 'bodies', names: [] }]);
+      expect(narrowing.entered).toEqual(tests('clamp'));
+    });
+
+    it('charges a line deleted from a function to the tests that ran it', async () => {
+      const narrowing = await deleted((before) =>
+        before.replace('// The bounds every control shares.\n', '').replace('  return `up to ${DEFAULTS.max}`;\n', ''),
+      );
+      expect(narrowing.readings).toEqual([{ file: limits, verdict: 'bodies', names: [] }]);
+      expect(narrowing.entered).toEqual(tests('clamp', 'render'));
+    });
+  });
+
+  it('charges a comment inserted above the first line, beside a changed body, to nothing but the body', async () => {
+    const before = readFileSync(resolve(repository, limits), 'utf8');
+    const narrowing = await select(await edit(limits, before, `// Shared.\n${before.replace('Math.min', 'Math.max')}`));
+    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'bodies', names: [] }]);
+    expect(narrowing.entered).toEqual(tests('clamp'));
+  });
+
   it('charges every test that loaded the file when a call is added at load', async () => {
     const narrowing = await select(await edit(limits, 'export const STEP = 2;', 'export const STEP = 2;\nconsole.log(STEP);'));
     expect(narrowing.readings).toEqual([{ file: limits, verdict: 'load', names: [] }]);

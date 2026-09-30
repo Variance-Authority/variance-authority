@@ -177,6 +177,52 @@ describe('reading this checkout', () => {
     expect(said.err).not.toContain('was recorded from a text');
   });
 
+  it('charges nothing for a comment deleted above the first statement, beside a changed body', async () => {
+    // The recorder starts a module's region at its first statement, so no
+    // region holds the comment above it, and deleting the comment ran nothing.
+    const licensed = `// Licensed under MIT.\n${SOURCE}`;
+    const { root, head } = checkout({ 'src/widget.ts': licensed });
+    const recorded = snapshot(head);
+    const [module] = recorded.modules;
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      modules: [{ ...module!, sourceDigest: digestString(licensed), blocks: below(module!.blocks, 1) }],
+    });
+
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
+  });
+
+  it('charges nothing for a comment a run recorded over, once the comment is reverted beside a changed body', async () => {
+    // The loop from the case above it, with the module's region where the
+    // recorder puts it: at the first statement, below the comment. Against the
+    // kept text, reverting the comment deletes a line no region holds.
+    const { root, head } = checkout();
+    const edited = `// scratch\n${SOURCE}`;
+    writeFileSync(join(root, 'src/widget.ts'), edited);
+    const recorded = snapshot(head);
+    const [module] = recorded.modules;
+    await landRun(testCoverageFile(root), {
+      ...recorded,
+      modules: [{ ...module!, sourceDigest: digestString(edited), blocks: below(module!.blocks, 1) }],
+    }, root);
+
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
+  });
+
   it('skips a test that mocked the changed module, where it entered only while the module evaluated', async () => {
     // The mock ran the real module to learn its shape, so the recording holds
     // `beta` inside `other` while `widget.ts` loaded. What `other` contains
@@ -267,6 +313,11 @@ function checkout(files: Readonly<Record<string, string>> = {}): { root: string;
   git(['commit', '--quiet', '-m', 'the text these line numbers are coordinates in']);
 
   return { root, head: git(['rev-parse', 'HEAD']) };
+}
+
+/** Every region `lines` further down, the module's own included, as a comment above the first statement puts them. */
+function below(blocks: TestCoverage['modules'][number]['blocks'], lines: number): TestCoverage['modules'][number]['blocks'] {
+  return blocks.map((block) => ({ ...block, startLine: block.startLine + lines, endLine: block.endLine + lines }));
 }
 
 /**

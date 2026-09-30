@@ -49,7 +49,7 @@ import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, type NodeId, type Relations } 
 import { native } from '../addon.js';
 import type { NativeModuleReaders } from '../native.js';
 import { MODULE_EXTENSIONS } from '../read.js';
-import { blocksAround, gapInside, moduleRegion, regionOf } from './blocks-around.js';
+import { blocksAround, gapInside, moduleRegion, outsideRegions, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredEffects } from './effects.js';
 import { frameOf, type Frame } from './frame.js';
@@ -153,6 +153,11 @@ export function readChange(
         // proved it loads nothing, and a value it moves is charged to its
         // readers below, so nothing recorded ran the text itself.
         if (range.added !== undefined && !gapInside(coverage, first, end, range)) continue;
+        // A line no region holds, the module's included, is above the first
+        // statement or below the last: a deleted license comment, or the top
+        // of the file an insertion opens. The frame proved this is the text the
+        // regions were cut from, so nothing recorded ran the line either.
+        if (outsideRegions(coverage, first, end, range)) continue;
         for (const block of blocksAround(coverage, first, end, range)) {
           if (!moduleRegion(coverage, block)) context.charge(file, block, regionOf(coverage, name, block));
         }
