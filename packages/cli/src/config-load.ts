@@ -61,7 +61,7 @@ export async function loadConfig(path: string): Promise<Config> {
         'looks for it; this file is not that one, so set it there',
     );
   }
-  // The same rule for `suites` and `entrypoints`, compared by file rather than
+  // The same rule for `suites`, `entrypoints` and `tiers`, compared by file rather than
   // by value: two files declaring the same suites today are two places to
   // change tomorrow.
   const atRoot = realpathSync(baseDir) === realpathSync(repositoryRoot(baseDir));
@@ -79,6 +79,14 @@ export async function loadConfig(path: string): Promise<Config> {
       'entrypoints',
       'is read from the variance.config.json at the repository root, where `variance coverage --from` ' +
         'looks for it; this file is not that one, so declare them there',
+    );
+  }
+  if ((value as Record<string, unknown>)['tiers'] !== undefined && !atRoot) {
+    throw new ConfigError(
+      source,
+      'tiers',
+      'is read from the variance.config.json at the repository root, where `variance layers` and every ' +
+        '`maxTier` rule look for it; this file is not that one, so declare them there',
     );
   }
   const suites = declaredSuites(baseDir);

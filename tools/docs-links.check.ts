@@ -25,7 +25,7 @@ import { MARKDOWN, ROOT, lineOf, prose } from './markdown.js';
  */
 
 /** Top-level directories that make a backticked path a claim about this repository. */
-const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docker/', '.github/'];
+const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docker/', '.github/', '.agents/'];
 
 /**
  * Paths and references that name something outside this repository.

@@ -108,7 +108,7 @@ describe('variance restrictions with a maxLayer', () => {
     expect(await run(['restrictions'])).toEqual({
       code: EXIT_CLEAN,
       err: '',
-      out: 'No import or layer breaks the rules in 1 .relations.json file.\n',
+      out: 'Nothing breaks the rules in 1 .relations.json file.\n',
     });
   });
 

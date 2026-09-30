@@ -11,7 +11,7 @@
 // compass: variance-authority.reach.relations
 
 import { native, nativeRefusal } from './native.js';
-import type { NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared } from './native-orient.js';
+import type { NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared, NativeOrientShipped } from './native-orient.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 
@@ -24,9 +24,10 @@ export type {
   NativeOrientMapPrepared as CodeMapPrepared,
   NativeOrientMapRow as CodeMapRow,
   NativeOrientMapShare as CodeMapShare,
+  NativeOrientShipped as ShippedFiles,
 } from './native-orient.js';
 
-function entry<Name extends 'prepareOrientMap' | 'orientMapPage' | 'orientLayers'>(name: Name) {
+function entry<Name extends 'prepareOrientMap' | 'orientMapPage' | 'orientLayers' | 'orientShipped'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -85,4 +86,13 @@ export function codeMapPage(root: string, area?: string): CodeMapRead {
  */
 export function packageLayers(root: string, index: string = sourceIndexPath(root)): NativeOrientLayers | undefined {
   return entry('orientLayers')(index) ?? undefined;
+}
+
+/**
+ * The files the code map read as shipped — every counted file its fold did
+ * not put on the tests' side — kept beside `index`. Absent when no map is kept
+ * there.
+ */
+export function shippedFiles(root: string, index: string = sourceIndexPath(root)): NativeOrientShipped | undefined {
+  return entry('orientShipped')(index) ?? undefined;
 }

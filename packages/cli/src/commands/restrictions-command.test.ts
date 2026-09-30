@@ -76,7 +76,7 @@ describe('variance restrictions', () => {
     expect(await run(['restrictions'])).toEqual({
       code: EXIT_CLEAN,
       err: '',
-      out: 'No import breaks the rules in 1 .relations.json file.\n',
+      out: 'Nothing breaks the rules in 1 .relations.json file.\n',
     });
   });
 
@@ -84,7 +84,7 @@ describe('variance restrictions', () => {
     checkout(undefined);
     await run(['index']);
 
-    expect((await run(['restrictions'])).out).toBe('No .relations.json is tracked in this checkout, so no import is restricted.\n');
+    expect((await run(['restrictions'])).out).toBe('No .relations.json is tracked in this checkout, so nothing is restricted.\n');
   });
 
   it('refuses a rule file that is not a list of typed rules, naming the file', async () => {

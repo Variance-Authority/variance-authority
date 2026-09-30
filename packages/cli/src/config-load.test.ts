@@ -90,6 +90,16 @@ describe('loadConfig and the suites', () => {
     await expect(loadConfig(file)).rejects.toThrow(/`entrypoints` is read from the variance\.config\.json at the repository root/);
   });
 
+  it('refuses `tiers` in a file below the repository root, which `variance layers` does not read', async () => {
+    const at = await repository();
+    const member = resolve(at, 'packages', 'app');
+    await mkdir(member, { recursive: true });
+    const file = resolve(member, 'variance.config.json');
+    await writeFile(file, JSON.stringify({ ...VALID, tiers: [200000, 1000] }));
+
+    await expect(loadConfig(file)).rejects.toThrow(/`tiers` is read from the variance\.config\.json at the repository root/);
+  });
+
   it('gives a config below the root the suites its repository declares', async () => {
     const at = await repository();
     await writeFile(resolve(at, 'variance.config.json'), JSON.stringify({ suites: SUITES }));

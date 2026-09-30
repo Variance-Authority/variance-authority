@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseLayerFiles, encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 
 type Index = Parameters<typeof encodeExecutionIndex>[0];
@@ -328,6 +328,17 @@ describe('coverage of the source the harness loads', () => {
     expect(answer.out).toMatch(/ {2}web\s+0\.0%\s+—\s+66\.7%\s+100\.0%/u);
   });
 
+  it('says in whole sentences for a pull request what the source index counts', async () => {
+    const answer = await ask(['coverage', '--root', repo, '--format', 'markdown']);
+
+    expect(answer.out).toContain(
+      '🗂️ The declared entry points import 6 files, directly or through other files, with 9 regions, and **55.6%** of those regions ran. ' +
+        '80.0% of what ran is code the test harness loads before any test starts. No suite recorded 3 of those files.',
+    );
+    expect(answer.out).toContain('<summary>📦 The 3 files no suite recorded, by directory, and the 2 files the test harness loads</summary>');
+    expect(answer.out).not.toContain('before reach');
+  });
+
   it('counts before reach within each application, and the harness no entry point reaches nowhere', async () => {
     const said = JSON.parse((await ask(['coverage', '--root', repo, '--format', 'json'])).out) as {
       source: { before: { list: { file: string }[] }; unloaded: { list: { file: string }[] } };
@@ -341,6 +352,67 @@ describe('coverage of the source the harness loads', () => {
       ['web', ['libs/probe.ts']],
     ]);
     expect(said.entries.map((entry) => entry.own.before.list.map((size) => size.file))).toEqual([['app/src/setup.ts'], []]);
+  });
+});
+
+describe('coverage of a change no suite loads', () => {
+  let repo: string;
+  let base: string;
+  const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: repo, encoding: 'utf8' }).trim();
+  const INDEX: Index = { tests: [UNIT], modules: [{ file: 'src/pay.ts', blocks: [region('charge', true), region('void', false)] }] };
+
+  // The mainline recorded the unit suite at one commit; the change since then edits prose.
+  beforeAll(async () => {
+    repo = await mkdtemp(join(tmpdir(), 'variance-coverage-unloaded-'));
+    execFileSync('git', ['init', '--quiet', repo]);
+    await writeFile(join(repo, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    await mkdir(join(repo, 'src'));
+    await writeFile(join(repo, 'src/pay.ts'), 'export function charge() {}\n');
+    await writeFile(join(repo, 'README.md'), '# pay\n');
+    git('add', '.');
+    git('commit', '--quiet', '-m', 'base');
+    await publishIndex(repo);
+    base = join(await mkdtemp(join(tmpdir(), 'variance-coverage-unloaded-base-')), 'unit.cases.bin');
+    await record(base, INDEX);
+    await writeFile(caseLayerFiles(base).last, JSON.stringify({ commit: git('rev-parse', 'HEAD'), files: [] }));
+    await record(`${testCoverageFile(repo, { suite: 'unit' })}.cases.bin`, INDEX);
+  });
+
+  afterAll(async () => {
+    await rm(repo, { recursive: true, force: true });
+    await rm(dirname(base), { recursive: true, force: true });
+  });
+
+  it('says in one sentence which files changed and that no suite loads them, and prints no count', async () => {
+    await writeFile(join(repo, 'README.md'), '# pay\n\nCharges once.\n');
+    const since = git('rev-parse', 'HEAD').slice(0, 8);
+
+    const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'markdown']);
+
+    expect(answer.code).toBe(0);
+    expect(answer.out).toBe(
+      `📊 \`README.md\` changed since the base was recorded at ${since}, and the unit suite does not load it, so coverage is the same as at the base.\n`,
+    );
+  });
+
+  it('prints the whole count when a changed file is one the suite loads', async () => {
+    await writeFile(join(repo, 'src/pay.ts'), 'export function charge() {\n  return 1;\n}\n');
+
+    const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'markdown']);
+
+    expect(answer.out).toContain('| Suite | Kind | Regions run | Share |');
+    expect(answer.out).not.toContain('does not load');
+  });
+
+  it('gives git no base commit that is not an object name, and prints the whole count instead', async () => {
+    await writeFile(join(repo, 'src/pay.ts'), 'export function charge() {}\n');
+    await writeFile(caseLayerFiles(base).last, JSON.stringify({ commit: '--output=diff.txt', files: [] }));
+
+    const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'markdown']);
+
+    expect(answer.out).toContain('| Suite | Kind | Regions run | Share |');
+    expect(answer.out).not.toContain('does not load');
+    await expect(access(join(repo, 'diff.txt'))).rejects.toThrow();
   });
 });
 

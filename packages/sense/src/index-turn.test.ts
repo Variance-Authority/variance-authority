@@ -3,29 +3,21 @@ import { chmodSync, mkdirSync, mkdtempSync, statSync, symlinkSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFailed, onTestFinished } from 'vitest';
 import { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 
+// Each test starts in a temporary directory of its own, which the suite's setup
+// (`tools/temporary-per-test.ts`) makes, so the only turn a test here waits on
+// is the one it took. The last test still moves to another one partway through:
+// it has spoiled the turn's directory with a mode of 0o777, and needs a fresh
+// temporary directory to plant a link where the turn's directory would be.
 // `tmpdir()` reads TMPDIR on POSIX and TEMP, then TMP, on Windows.
 const TEMPORARY = ['TMPDIR', 'TEMP', 'TMP'] as const;
-const machineTemporary = TEMPORARY.map((name) => process.env[name]);
 
 function temporaryAt(directory: string): void {
   for (const name of TEMPORARY) process.env[name] = directory;
 }
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
-
-beforeEach(() => {
-  temporaryAt(mkdtempSync(join(tmpdir(), 'va-index-turn-')));
-});
-
-afterEach(() => {
-  TEMPORARY.forEach((name, at) => {
-    const value = machineTemporary[at];
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
-  });
-});
 
 describe('the index turn', () => {
   it('holds another checkout\'s index until the process holding the turn lets go, naming that process and its checkout', async () => {
@@ -34,17 +26,31 @@ describe('the index turn', () => {
       "const { inIndexTurn } = await import('@variance-authority/sense');",
       "await inIndexTurn('/elsewhere', () => new Promise((resolve) => { process.stdout.write('held\\n'); process.stdin.once('data', resolve); }));",
     ].join('\n')], { cwd: PACKAGE, env: process.env });
+    let stderr = '';
+    holder.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+    onTestFailed(() => { console.error(`the holder's stderr:\n${stderr}`); });
+    onTestFinished(() => { holder.kill(); });
     await new Promise<void>((resolve, reject) => {
       holder.stdout.once('data', () => resolve());
-      holder.once('exit', (code) => reject(new Error(`the holder exited with ${code}`)));
+      holder.once('exit', (code) => reject(new Error(`the holder exited with ${code}: ${stderr}`)));
     });
     const told: IndexTurnHolder[] = [];
     const order: string[] = [];
+    const release = (): void => { holder.stdin.write('\n'); };
+    // Let go if nothing says it is waiting, so that silence fails the assertion
+    // below rather than running into the test's timeout.
+    const unheard = setTimeout(release, 2_000);
+    onTestFinished(() => { clearTimeout(unheard); });
 
     const ran = inIndexTurn('/here', async () => order.push('here'), (held) => {
       told.push(held);
       order.push('told');
-      holder.stdin.write('\n');
+      // Hold on for eight of the 25 ms pauses between tries, so a holder named
+      // on every try would be named eight times.
+      if (told.length === 1) {
+        clearTimeout(unheard);
+        setTimeout(release, 200);
+      }
     });
 
     await ran;

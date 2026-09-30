@@ -203,6 +203,7 @@ function parsedFrom(file: string, contents: string, way: ParseWay, language: Lan
     harvested: true,
     ...(declares.length === 0 ? {} : { declares: declares.sort(byCodeUnit) }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
+    ...(read.size === undefined ? {} : { size: read.size }),
   };
 }
 

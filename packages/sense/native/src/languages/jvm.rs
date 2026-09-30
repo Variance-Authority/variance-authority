@@ -45,6 +45,7 @@ pub fn read(file: &str, source: &str, tree: &Tree, id: &str) -> Read {
                 "{file} did not parse cleanly as {id}, so what it imports may be incomplete."
             )
         }),
+        ..Read::default()
     }
 }
 

@@ -47,6 +47,7 @@ pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
         } else {
             Some(format!("{file} — {}", at.reasons.join("; ")))
         },
+        ..Read::default()
     }
 }
 

@@ -24,6 +24,18 @@ impl Grammar {
         }
     }
 
+    /// The node kinds this grammar lexes as comments: the symbols its own
+    /// `extras` list beside whitespace (Python's `line_continuation` is the one
+    /// extra that is not a comment). Named here because the grammar decides what
+    /// a comment is, and a test holds every name to a kind the grammar declares.
+    pub fn comments(self) -> &'static [&'static str] {
+        match self {
+            Self::Python => &["comment"],
+            Self::Rust | Self::Java | Self::Kotlin => &["line_comment", "block_comment"],
+            Self::Swift => &["comment", "multiline_comment"],
+        }
+    }
+
     fn language(self) -> Language {
         match self {
             Self::Python => tree_sitter_python::LANGUAGE.into(),

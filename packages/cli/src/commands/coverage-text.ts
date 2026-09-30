@@ -12,10 +12,12 @@
 import type { SuiteChange, SuiteCount, TestFileMotion } from '@variance-authority/sense/test-selection';
 import type { CoverageFormat } from '../coverage-args.js';
 import type { CoverageSource } from './coverage-source.js';
-import type { Coverage, CoverageSuite } from './coverage.js';
+import type { Coverage, CoverageSuite, UnloadedChange } from './coverage.js';
 
 /** How many test files are named under a suite whose count changed. */
 const NAMED_TEST_FILES = 3;
+/** How many files a change no suite loads names before it counts the rest. */
+const NAMED_CHANGED_FILES = 5;
 /** How many directories of unloaded files the text names; the JSON has every file. */
 const NAMED_DIRECTORIES = 5;
 
@@ -128,6 +130,7 @@ function namedTestFiles(suite: CoverageSuite, testFiles: readonly TestFileMotion
  * repository under a summary that counts it.
  */
 function markdown(answer: Coverage): string {
+  if (answer.unloadedChange !== undefined) return `${unloadedMarkdown(answer.unloadedChange, answer.suites)}\n`;
   const { count, base } = answer;
   const compared = base !== undefined;
   const lines = [`<sub>${heading(answer)}</sub>`, '', lead(count.run, count.regions, base?.run, base?.regions), ''];
@@ -181,6 +184,30 @@ function markdown(answer: Coverage): string {
   return `${lines.join('\n')}\n`;
 }
 
+/**
+ * A change no suite loads, as the one sentence a reviewer needs: every count
+ * is the base's, so the tables would repeat the mainline's report under a
+ * change that did not touch it.
+ */
+function unloadedMarkdown(change: UnloadedChange, suites: readonly CoverageSuite[]): string {
+  const one = change.files.length === 1;
+  const named = change.files.slice(0, NAMED_CHANGED_FILES).map((file) => `\`${file}\``);
+  const more = change.files.length - named.length;
+  const list = more > 0 ? `${named.join(', ')} and ${grouped(more)} more` : joined(named);
+  const what = one ? `${list} changed` : `${grouped(change.files.length)} files changed`;
+  const which = one ? '' : ` — ${list} —`;
+  const names = suites.map((suite) => suite.suite).filter((name) => name !== undefined);
+  const loads = names.length <= 1
+    ? `${names.length === 0 ? 'the suite' : `the ${names[0]} suite`} ${one ? 'does not load it' : 'loads none of them'}`
+    : `none of the ${joined(names)} suites loads ${one ? 'it' : 'any of them'}`;
+  return `📊 ${what} since the base was recorded at ${short(change.since)}${which}${one ? ',' : ''} and ${loads}, so coverage is the same as at the base.`;
+}
+
+/** `a`, `a and b`, `a, b and c`. */
+function joined(items: readonly string[]): string {
+  return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)!}`;
+}
+
 /** The share a reviewer reads first, with its arrow when there is a base. */
 function lead(run: number, regions: number, wasRun: number | undefined, wasRegions: number | undefined): string {
   const now = `📊 **${ratio(run, regions)}** of the ${regionCount(regions)} the suites loaded ran`;
@@ -196,14 +223,16 @@ function sourceMarkdown(answer: Coverage): readonly string[] {
   if (source === undefined) return answer.sourceMissed === undefined ? [] : ['', `🗂️ Files no suite recorded: not counted, because ${answer.sourceMissed}.`];
   const { unloaded, before } = source;
   const early = before?.regions ?? 0;
-  const lines = ['', `🗂️ Of the ${regionCount(source.regions)} in ${files(source.files)} ${sourceWhere(source)}, **${ratio(source.ran, source.regions)}** ran${
-    early === 0 ? '' : ` (${ratio(early, source.ran)} of it before reach)`
-  }${unloaded.files > 0 ? `; ${files(unloaded.files)} no suite recorded` : ''}.`];
+  const lines = ['', [
+    `🗂️ ${sourceSubject(source)} with ${regionCount(source.regions)}, and **${ratio(source.ran, source.regions)}** of those regions ran.`,
+    ...(early === 0 ? [] : [`${ratio(early, source.ran)} of what ran is code the test harness loads before any test starts.`]),
+    ...(unloaded.files > 0 ? [`No suite recorded ${grouped(unloaded.files)} of those files.`] : []),
+  ].join(' ')];
   for (const pattern of source.unmatched ?? []) lines.push(`- the entry point \`${pattern}\` matches no file`);
   const row = (label: string, size: { files: number; lines: number; regions: number }) =>
     `| ${label} | ${grouped(size.files)} | ${grouped(size.lines)} | ${grouped(size.regions)} |`;
   const rows: string[] = [];
-  if (before !== undefined && before.files > 0) rows.push(row('⚙️ before reach', before));
+  if (before !== undefined && before.files > 0) rows.push(row('⚙️ loaded by the test harness', before));
   if (unloaded.files > 0) {
     rows.push(row('🔴 recorded by no suite', unloaded));
     rows.push(...unloaded.directories.slice(0, NAMED_DIRECTORIES).map((size) => row(`&emsp;\`${size.directory}\``, size)));
@@ -214,7 +243,11 @@ function sourceMarkdown(answer: Coverage): readonly string[] {
   if (rows.length === 0) {
     lines.push('', "Every one is in a suite's record.");
   } else {
-    const fold = unloaded.files > 0 ? `📦 ${files(unloaded.files)} no suite recorded, by directory` : `⚙️ ${files(before!.files)} before reach`;
+    // The table holds both rows when both have files, so the summary names both.
+    const harnessed = before === undefined || before.files === 0 ? undefined : `the ${files(before.files)} the test harness loads`;
+    const fold = unloaded.files === 0
+      ? `⚙️ The ${files(before!.files)} the test harness loads`
+      : `📦 The ${files(unloaded.files)} no suite recorded, by directory${harnessed === undefined ? '' : `, and ${harnessed}`}`;
     lines.push('', `<details><summary>${fold}</summary>`, '');
     lines.push('| | Files | Lines | Regions |', '|---|--:|--:|--:|', ...rows);
     if (unloaded.uncut > 0) lines.push('', `${files(unloaded.uncut)} did not parse, so no regions are counted for them.`);
@@ -223,8 +256,13 @@ function sourceMarkdown(answer: Coverage): readonly string[] {
   const entries = answer.entries ?? [];
   if (entries.length > 0) {
     const share = (scope: CoverageSource) => ratio(scope.before?.regions ?? 0, scope.ran);
-    lines.push('', `<details><summary>📁 ${grouped(entries.length)} directories: their own files, and everything each reaches</summary>`, '');
-    lines.push('| Directory | Own | Before reach | With imports | Before reach |', '|---|--:|--:|--:|--:|');
+    lines.push('', `<details><summary>📁 How much of each of ${grouped(entries.length)} directories ran</summary>`, '');
+    lines.push(
+      'Each directory is counted twice: over its own files, and over its own files with everything they import. ' +
+        '*Harness* is the share of what ran that is code the test harness loads before any test starts.',
+      '',
+    );
+    lines.push('| Directory | Own files ran | Harness | With imports ran | Harness |', '|---|--:|--:|--:|--:|');
     for (const entry of entries) {
       lines.push('missed' in entry
         ? `| \`${entry.from}\` | ${entry.missed} | | | |`
@@ -265,6 +303,18 @@ function sourceWhere(source: CoverageSource): string {
     return source.from === undefined ? 'reached from the declared entry points' : `reached from the entry points of ${source.from}`;
   }
   return source.seeds === 'directory' ? `reached from every file under ${source.from}, which declares no entry points` : 'in the source index';
+}
+
+/** Which files the source counts, as `--from` chose them, as the subject of the comment's sentence. */
+function sourceSubject(source: CoverageSource): string {
+  const counted = files(source.files);
+  if (source.seeds === 'entrypoints') {
+    const who = source.from === undefined ? 'The declared entry points' : `The entry points of \`${source.from}\``;
+    return `${who} import ${counted}, directly or through other files,`;
+  }
+  return source.seeds === 'directory'
+    ? `\`${source.from}\` declares no entry points, so every file under it and what those import come to ${counted},`
+    : `The source index lists ${counted}`;
 }
 
 /** One row per directory: its own files, then everything it reaches, each with its share before reach. */

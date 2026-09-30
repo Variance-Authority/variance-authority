@@ -107,8 +107,12 @@ export {
   type TimedTestFile,
 } from './recorded-durations.js';
 export { layerMoves, type LayerCause, type LayerMoves } from './layer-moves.js';
+export { tierMoves, type TierCause, type TierMoves } from './tier-moves.js';
+export { declaredTiers, parseTiers, tierLabel, tierOf, TiersError, type TierPlace, type Tiers } from './tiers.js';
 export {
   cappedLayers,
+  cappedTiers,
+  chainBetween,
   relationBetween,
   restrictedImports,
   type CapViolation,
@@ -116,12 +120,17 @@ export {
   type LayerCap,
   type RelationRule,
   type RuleFile,
+  type TierCap,
+  type TierCapFinding,
+  type TierCapReport,
   type Violation,
 } from './restrictions.js';
+export { restrictedChains, type ChainViolation } from './restrictions-transitive.js';
 export {
   codeMapPage,
   packageLayers,
   prepareCodeMap,
+  shippedFiles,
   type PackageLayer,
   type PackageLayers,
   type CodeMapAnswer,
@@ -132,6 +141,7 @@ export {
   type CodeMapRow,
   type CodeMapShare,
   type PreparedCodeMap,
+  type ShippedFiles,
 } from './code-map.js';
 export {
   forksBetween,

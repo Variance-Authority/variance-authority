@@ -6,11 +6,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SELECTION_REPORTER, SELECTION_TRANSFORM, withJourneyCoverage, withTestSelection } from './jest.js';
 import { repositoryRoot } from './repository-root.js';
 
+let temporary: string;
 let repository: string;
 let outside: string;
 
 beforeAll(async () => {
-  repository = await mkdtemp(resolve(tmpdir(), 'variance-authority-root-'));
+  // Kept, because each test is handed a temporary directory of its own.
+  temporary = tmpdir();
+  repository = await mkdtemp(resolve(temporary, 'variance-authority-root-'));
   outside = await mkdtemp(resolve(tmpdir(), 'variance-authority-no-git-'));
   await mkdir(resolve(repository, 'packages/cart/src'), { recursive: true });
   execFileSync('git', ['init', '-q'], { cwd: repository });
@@ -28,7 +31,7 @@ describe('the root every recorded name is relative to', () => {
 
   it('keeps the spelling it was reached by, so a symlinked temporary directory still strips', () => {
     // `tmpdir()` on macOS is under `/var`, which git would report as `/private/var`.
-    expect(repositoryRoot(resolve(repository, 'packages/cart')).startsWith(tmpdir())).toBe(true);
+    expect(repositoryRoot(resolve(repository, 'packages/cart')).startsWith(temporary)).toBe(true);
   });
 
   it('is the starting directory where git names no checkout', () => {

@@ -162,6 +162,31 @@ export interface NativeOrientPackageLayer {
   readonly layer: number;
   /** The packages it imports from, in code-unit order. */
   readonly takes: readonly string[];
+  /**
+   * Effective lines over every sized file its entries load, its own
+   * included, through every edge but a type-only one. A lower bound when
+   * `unsizedFiles` is above 0.
+   */
+  readonly lines: number;
+  /** Effective lines in the files of its own that its entries load. */
+  readonly own: number;
+  /** Files summed into `lines`. */
+  readonly files: number;
+  /** Files and unresolved requests the closure reached and could not size. */
+  readonly unsizedFiles: number;
+  /**
+   * Its manifest's `exports`, `main`, `module` and `bin` name none of its
+   * files, so what it ships starts at the files its own code never imports.
+   */
+  readonly undeclared: boolean;
+}
+
+/** The files the code map read as shipped: every counted file not on the tests' side. */
+export interface NativeOrientShipped {
+  /** Whether the list was read from the index as it stands now. */
+  readonly current: boolean;
+  /** In code-unit order. */
+  readonly files: readonly string[];
 }
 
 /** Every package's layer from the map kept beside an index. */
@@ -280,6 +305,8 @@ export interface NativeOrientMaps {
   /** One page of the code map kept beside the index at `index`, the top one without `area`; `null` when none is kept, or one of a format this reader does not know. */
   orientMapPage?(index: string, area?: string | null): NativeOrientMapAnswer | null;
   orientLayers?(index: string): NativeOrientLayers | null;
+  /** The shipped files kept beside the index at `index`; `null` when none are kept. */
+  orientShipped?(index: string): NativeOrientShipped | null;
 }
 
 /** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */

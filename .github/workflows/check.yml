@@ -73,9 +73,7 @@ jobs:
       # compiles each README example against each package's built `.d.ts`,
       # because that is the file a consumer's editor resolves (ADR-0014). A
       # checker reading `src` would pass on things the published types refuse.
-      - name: build
-        shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       # Before the checks because it is the fastest of the two and its failures
       # are the cheapest to act on: an unused import is a one-line fix.
@@ -111,9 +109,7 @@ jobs:
         shell: bash
         run: corepack enable && yarn install --immutable
 
-      - name: build
-        shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       # The cost arguments, timed. Separate from the suite because the suite
       # instruments every product module it loads, and a bound on how long the
@@ -145,9 +141,7 @@ jobs:
         shell: bash
         run: corepack enable && yarn install --immutable
 
-      - name: build
-        shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       # What this job restores, and where the change starts, asked of `variance
       # carry` rather than spelled here. The root `variance.config.json`
@@ -412,9 +406,7 @@ jobs:
         shell: bash
         run: corepack enable && yarn install --immutable
 
-      - name: build
-        shell: bash
-        run: yarn build
+      - uses: ./.github/actions/build
 
       # The subjects the cases observe, built the way each case's README says.
       # `storybook-static/` and the others are ignored, so nothing here can be
