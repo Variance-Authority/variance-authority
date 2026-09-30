@@ -194,19 +194,21 @@ describe('a worktree reads a test it has not run from where the primary checkout
       `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from ${at.slice(0, 12)}, where its runs started`;
     expect((await read()).start.assumed).toBe(unplaced(M1));
 
-    // The worktree's first run at M2 starts its own change there, so the assumption moves to M2, as the
-    // primary checkout's would at its next commit. Still printed, never listed.
+    // The worktree's first run at M2 starts its own change there, and lists the two tests at M1, the copy's
+    // start, marked assumed: the primary's assumption, carried as data, and still printed.
     await landRun(own, run(worktree, M2, ['near']), worktree);
-    expect(await readCommitRuns(own)).toMatchObject({ commit: M2, over: M2, runs: 1 });
-    expect((await readCommitRuns(own))?.standing).toBeUndefined();
-    // Nothing changed since M2, so the assumption is printed with "Nothing to run".
-    expect((await read()).nothing).toContain(`  T${unplaced(M2).slice(1)}.`);
+    const assumed = [{ commit: M1, files: ['test/far.test.ts', 'test/other.test.ts'], assumed: true }];
+    expect(await readCommitRuns(own)).toMatchObject({ commit: M2, over: M2, runs: 1, standing: assumed });
+    const carried = `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from the commits they were assumed at, ${M1.slice(0, 12)}`;
+    // Read from M1, `near.ts` changed since, and only `near.test` ran it, at M2: nothing is selected.
+    const first = await read();
+    expect(first.start.assumed).toBe(carried);
+    expect(first.decided).toEqual({ selected: [] });
 
     const H = await commitIn(worktree, source('other', 2), 'H');
     await landRun(own, run(worktree, H, ['near']), worktree);
-    expect(await readCommitRuns(own)).toMatchObject({ commit: H, over: M2 });
-    expect((await readCommitRuns(own))?.standing).toBeUndefined();
-    expect((await read()).start.assumed).toBe(unplaced(M2));
+    expect(await readCommitRuns(own)).toMatchObject({ commit: H, over: M2, standing: assumed });
+    expect((await read()).start.assumed).toBe(carried);
   });
 
   // Sequential: the other record is there before seeding starts, which pins the order and not the race.
@@ -287,9 +289,12 @@ describe('a worktree reads a test it has not run from where the primary checkout
     await ranHere(H, ['near']);
     const H2 = await commitIn(worktree, source('near', 2), 'H2');
     await ranHere(H2, ['near']);
-    expect((await readCommitRuns(own))?.standing).toBeUndefined();
+    // The first run had no record to place the two tests; the second lists them at L, where the first started.
+    expect((await readCommitRuns(own))?.standing).toEqual([
+      { commit: L, files: ['test/far.test.ts', 'test/other.test.ts'], assumed: true },
+    ]);
     expect((await read()).start.assumed).toBe(
-      `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from ${H.slice(0, 12)}, where its runs started`,
+      `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from the commits they were assumed at, ${L.slice(0, 12)}`,
     );
   });
 });

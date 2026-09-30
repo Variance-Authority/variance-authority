@@ -158,10 +158,10 @@ export async function seedTestCoverage(
  * observes every test, a test it did not run is read from the worktree's own
  * first commit — which skips it after a change it never ran against.
  *
- * A copy, and nothing added to it. A test the base's record does not place is
- * read from the base's `over` in both checkouts, and both readings print that
- * as an assumption; writing it into `standing` here would turn the primary's
- * assumption into the worktree's fact.
+ * A copy, and nothing added to it: an entry the base marked assumed stays
+ * marked, and a test the base's record does not place is read from the base's
+ * `over`, as the base reads it. The worktree's first run lists that test at the
+ * copy's `over`, marked assumed, as the base's next run would (see `landRun`).
  *
  * Nothing is seeded when the base has no runs record, or one naming another
  * commit than its snapshot — a landing replaced the snapshot and listed no

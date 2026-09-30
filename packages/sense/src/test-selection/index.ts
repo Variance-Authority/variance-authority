@@ -167,7 +167,15 @@ export {
   type LandedShard,
   type LastCaseRun,
 } from './case-landing.js';
-export { commitRunsFile, landRun, readCommitRuns, type CommitRuns } from './commit-runs.js';
+export {
+  commitRunsAfter,
+  commitRunsFile,
+  landRun,
+  readCommitRuns,
+  writeCommitRuns,
+  type CommitRuns,
+  type RecordedTests,
+} from './commit-runs.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {
   countCoverage,

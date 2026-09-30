@@ -155,7 +155,7 @@ describe('`variance review` when the mainline\'s record is not read', () => {
     await ranHere(clone, ci.first);
 
     await expect(review(parseReview(['--root', clone]))).rejects.toThrow(
-      /were not laid over a recording[^]*\nrecord of "unit": the share has none either; mainline main: nothing is published there\.$/,
+      /name no start they descend from[^]*\nrecord of "unit": the share has none either; mainline main: nothing is published there\.$/,
     );
   });
 

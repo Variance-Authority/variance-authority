@@ -365,7 +365,11 @@ The Vitest integration consolidates temporary worker journals into a versioned
 `TestCoverage` binary. Its default location is
 `<cache>/test-selection/<repository-digest>/coverage.bin`, in
 [your cache](cache.md). `coverageFile` gives it an explicit path when CI must
-publish, restore, or share the artifact. Temporary journals are removed after
+publish, restore, or share the artifact. The runs record beside it,
+`coverage.runs.json` for `coverage.bin`, says which runs landed at the
+snapshot's commit and where they started; publish and restore the two
+together. A snapshot restored without its runs record is read with whatever
+record already lies beside it. Temporary journals are removed after
 consolidation.
 
 This record stores the instrumentation recipe, the test files with their
