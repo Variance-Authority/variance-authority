@@ -1,8 +1,55 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { IndexLock, LOCK_POLL_MS, LOCK_WAIT_MS, withIndexLock } from './index-lock.js';
+import SelectionReporter from './jest-reporter.js';
+import { RUN_DIRECTORY_VARIABLE } from './jest.js';
+import journalFormat from './journal-format.cjs';
+import { recordExecution } from './journal.js';
+import { foldRun } from './selection-fold.js';
+import { newRun } from './selection-run.js';
+import { instrumentationId } from '../instrument/index.js';
+
+const { encodeJournal } = journalFormat;
+
+/**
+ * Run `work` across the whole waiting window of a lock it cannot take, in
+ * milliseconds rather than ten seconds.
+ *
+ * The waiter polls with `setTimeout`, so only the timers are faked: `Date` stays
+ * real, and a lock written a moment ago never reads as stale. The filesystem is
+ * real too, so every attempt is a real `wx` create against a lock file that is
+ * really there, and one handle to the real event loop is kept to yield to it:
+ * advancing the clock without yielding can schedule all of the polls before the
+ * first `wx` refusal has returned.
+ *
+ * One poll at a time, because a step that covered the whole window at once would
+ * reach the end of the fake clock while the first attempt was still in the
+ * kernel, and the waiter would be left mid-loop with no timer to wake it. `work`
+ * may do its own I/O before it reaches the lock and after it gives up, so the
+ * pump runs for four times the polls the window holds; a waiter still waiting
+ * after that never gives up, which is the failure these tests are here to catch.
+ */
+async function pastTheWait<T>(work: () => Promise<T>): Promise<T> {
+  const nextTurn = setTimeout;
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    let settled = false;
+    const running = work().finally(() => {
+      settled = true;
+    });
+    for (let step = 0; step < (4 * LOCK_WAIT_MS) / LOCK_POLL_MS && !settled; step += 1) {
+      await vi.advanceTimersByTimeAsync(LOCK_POLL_MS);
+      await new Promise<void>((wake) => nextTurn(wake, 0));
+    }
+    expect(settled).toBe(true);
+    return await running;
+  } finally {
+    vi.useRealTimers();
+  }
+}
 
 describe('who may grow the index', () => {
   const made: string[] = [];
@@ -72,43 +119,13 @@ describe('who may grow the index', () => {
 
     // The waiting window is the point of the test and ten seconds of it is not:
     // what has to be true is that the waiter polls to the end of the window and
-    // then refuses, and a clock the test drives says that in milliseconds. The
-    // filesystem underneath is real, so every attempt is a real `wx` create
-    // against a lock file that is really there.
-    // Keep one handle to the real event loop before replacing the global
-    // timers. The clock is fake, but each lock attempt is real filesystem I/O;
-    // advancing the clock without yielding to libuv can schedule all of the
-    // polls before the first `wx` refusal has returned.
-    const nextTurn = setTimeout;
-    vi.useFakeTimers();
-    try {
-      let settled = false;
-      const refusing = withIndexLock(file, async () => {
-        ran = true;
-      }).then((outcome) => {
-        settled = true;
-        return outcome;
-      });
+    // then refuses, and a clock the test drives says that in milliseconds.
+    const refused = await pastTheWait(() => withIndexLock(file, async () => {
+      ran = true;
+    }));
 
-      // One poll at a time, because each attempt is a real filesystem create:
-      // a step that covered the whole window at once would reach the end of the
-      // fake clock while the first attempt was still in the kernel, and the
-      // waiter would be left mid-loop with no timer to wake it. Twice the polls
-      // the window holds is slack for the ones that pass before the waiter
-      // reaches its loop at all; a waiter still waiting after that never gives
-      // up, which is the failure this test is here to catch.
-      for (let step = 0; step < (2 * LOCK_WAIT_MS) / LOCK_POLL_MS && !settled; step += 1) {
-        await vi.advanceTimersByTimeAsync(LOCK_POLL_MS);
-        await new Promise<void>((wake) => nextTurn(wake, 0));
-      }
-      expect(settled).toBe(true);
-      const refused = await refusing;
-
-      expect(refused.held).toBe(false);
-      expect(ran).toBe(false);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(refused.held).toBe(false);
+    expect(ran).toBe(false);
 
     finish();
     await held;
@@ -126,5 +143,123 @@ describe('who may grow the index', () => {
     // A token outlives its call, so holding one is not the same as holding the
     // index.
     expect(kept?.held).toBe(false);
+  });
+});
+
+/**
+ * What each seam does when another process holds the snapshot's lock past the
+ * waiting window: it writes neither the snapshot nor the case index beside it,
+ * and it says so in one sentence naming the lock. Each busy run is paired with
+ * the same run on a free lock, which does write the case index and does warn
+ * that no module was placed, so "nothing written" and "no empty-record warning"
+ * are both claims the free run could have broken.
+ */
+describe('a run the snapshot lock refuses', () => {
+  const made: string[] = [];
+  let warned: string[] = [];
+  const warn = console.warn;
+
+  afterEach(async () => {
+    console.warn = warn;
+    delete process.env[RUN_DIRECTORY_VARIABLE];
+    for (const directory of made.splice(0)) await rm(directory, { recursive: true, force: true });
+  });
+
+  /** A project with one test file, and a lock on its snapshot when `busy`. */
+  async function project(busy: boolean): Promise<{ root: string; coverageFile: string; testFile: string }> {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-busy-index-'));
+    made.push(root);
+    await mkdir(resolve(root, 'test'), { recursive: true });
+    const testFile = resolve(root, 'test/a.case.js');
+    await writeFile(testFile, '// a\n');
+    const coverageFile = resolve(root, 'coverage.bin');
+    // Written a moment ago by somebody else, which is what a live holder in
+    // another process looks like from here.
+    if (busy) await writeFile(`${coverageFile}.lock`, '1\n');
+    warned = [];
+    console.warn = (message: string): void => void warned.push(message);
+    return { root, coverageFile, testFile };
+  }
+
+  const busyWarning = (coverageFile: string): string =>
+    `variance-authority recorded nothing from this run: another process is holding ${coverageFile}.lock: ` +
+    'nothing was recorded rather than merged over whatever it is writing.';
+  const emptyWarning = /^variance-authority instrumented 0 modules across 1 test file\(s\)/u;
+
+  async function fold(busy: boolean): Promise<{ coverageFile: string }> {
+    const { root, coverageFile, testFile } = await project(busy);
+    const run = newRun(coverageFile, root, 'presence');
+    await mkdir(run.runDirectory, { recursive: true });
+    await writeFile(resolve(run.runDirectory, 'a.va'), encodeJournal(testFile, new Map()));
+    const settle = foldRun(run, { coverageFile, executionFile: `${coverageFile}.cases.bin`, shims: [] });
+    await pastTheWait(() => settle([{ filepath: testFile, complete: true }]));
+    return { coverageFile };
+  }
+
+  it('the Vitest and Rstest fold writes nothing, and says only that the lock was busy', async () => {
+    const free = await fold(false);
+    expect(existsSync(free.coverageFile)).toBe(true);
+    expect(existsSync(`${free.coverageFile}.cases.bin`)).toBe(true);
+    expect(warned).toEqual([expect.stringMatching(emptyWarning)]);
+
+    const { coverageFile } = await fold(true);
+    expect(existsSync(coverageFile)).toBe(false);
+    expect(existsSync(`${coverageFile}.cases.bin`)).toBe(false);
+    expect(warned).toEqual([busyWarning(coverageFile)]);
+  });
+
+  async function report(busy: boolean): Promise<{ coverageFile: string }> {
+    const { root, coverageFile, testFile } = await project(busy);
+    const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
+    reporter.onRunStart();
+    const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
+    await mkdir(runDirectory, { recursive: true });
+    await writeFile(resolve(runDirectory, 'a.va'), encodeJournal(testFile, new Map()));
+    await pastTheWait(() => reporter.onRunComplete(
+      new Set([{ config: { cacheDirectory: resolve(root, 'cache'), id: 'project' } }]),
+      { testResults: [{ testFilePath: testFile, skipped: false, testResults: [{ status: 'passed' }] }] },
+    ));
+    return { coverageFile };
+  }
+
+  it('the Jest reporter writes nothing, and says only that the lock was busy', async () => {
+    const free = await report(false);
+    expect(existsSync(free.coverageFile)).toBe(true);
+    expect(existsSync(`${free.coverageFile}.cases.bin`)).toBe(true);
+    expect(warned).toEqual([expect.stringMatching(emptyWarning)]);
+
+    const { coverageFile } = await report(true);
+    expect(existsSync(coverageFile)).toBe(false);
+    expect(existsSync(`${coverageFile}.cases.bin`)).toBe(false);
+    expect(warned).toEqual([busyWarning(coverageFile)]);
+  });
+
+  async function record(busy: boolean): Promise<{ coverageFile: string; recorded: unknown }> {
+    const { root, coverageFile } = await project(busy);
+    const recorded = await pastTheWait(() => recordExecution({
+      root,
+      cacheRoot: resolve(root, 'cache'),
+      coverageFile,
+      subjects: [{ owner: 'story:price--premium', journal: { instrumentation: instrumentationId(), modules: [] } }],
+    }));
+    return { coverageFile, recorded };
+  }
+
+  it('a browser recording writes nothing, and returns the reason rather than printing it', async () => {
+    const free = await record(false);
+    expect(free.recorded).toMatchObject({ recorded: true });
+    expect(existsSync(free.coverageFile)).toBe(true);
+    expect(warned).toEqual([expect.stringMatching(emptyWarning)]);
+
+    const { coverageFile, recorded } = await record(true);
+    expect(recorded).toEqual({
+      recorded: false,
+      coverageFile,
+      subjects: 0,
+      because: `another process is holding ${coverageFile}.lock: ` +
+        'nothing was recorded rather than merged over whatever it is writing',
+    });
+    expect(existsSync(coverageFile)).toBe(false);
+    expect(warned).toEqual([]);
   });
 });

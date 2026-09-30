@@ -1489,6 +1489,7 @@ import {
   landCaseIndexes,
   mergeCoverage,
   readTestCoverage,
+  seedTestCoverage,
   testCoverageFile,
   withIndexLock,
   writeTestCoverage,
@@ -1504,6 +1505,7 @@ const shards = await Promise.all(
 const suite = foldTestCoverage(shards);
 
 const file = testCoverageFile(process.cwd());
+await seedTestCoverage(file, process.cwd());
 const staged = `${file}.${process.pid}-${randomUUID()}.tmp`;
 const landed = await withIndexLock(file, async () => {
   let previous;
@@ -1532,14 +1534,21 @@ If a shard ran a test file to the end and has no case index, it removes the
 index instead, because nothing can then say which of that file's cases ran a
 line.
 
+In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
+and case index into the worktree's own record, so the fold lands over the
+suite's record rather than over nothing. In the primary checkout, or for a file
+you named yourself, it does nothing.
+
 The order is what keeps the snapshot and its cases describing the same runs.
 Only a missing snapshot starts the fold from nothing; one that cannot be read
 stops the landing, because a fold written over it would replace evidence you
 never saw. The merged snapshot is written to a staged file first, so a full disk
 leaves both files as they were. The cases land next, so a busy index stops the
 landing before the snapshot is replaced. The rename comes last, and `finally`
-removes the staged file if anything before it threw; the pid in its name lets
-the cache's pruning remove it if the process dies first.
+removes the staged file if anything before it threw. If the process dies
+first, the pid in the staged name lets the cache's pruning remove it, but only
+when `file` is inside the cache: a file anywhere else is in no directory the
+pruning reads.
 
 `withIndexLock` on `file` is the lock every seam takes to write the snapshot,
 so no run writes the snapshot while you land. `landCaseIndexes` takes the case

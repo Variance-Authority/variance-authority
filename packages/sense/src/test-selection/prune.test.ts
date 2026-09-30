@@ -14,6 +14,7 @@ import {
   PRUNE_EVERY_MS,
   type PruneOwners,
 } from './prune.js';
+import { testCoverageFile } from './record-location.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 8, 27);
@@ -145,6 +146,21 @@ describe('planPrune', () => {
     );
   });
 
+  test('a landing that died leaves its staged snapshot where prune removes it', async () => {
+    const root = await cache();
+    const checkout = await mkdtemp(resolve(tmpdir(), 'va-prune-checkout-'));
+    // The file `variance land` writes when no `--into` names another: the
+    // checkout's own record, inside the cache. Its staged copy is named beside it.
+    const target = testCoverageFile(checkout, { cacheRoot: root });
+    await marker(dirname(target), checkout, checkout, DAY);
+    await put(target, DAY);
+    const staged = await put(`${target}.4242-3f0c9a52-7d1e-4b6a-9c2f-5e8d1a0b4c77.tmp`, 2 * 60 * 60 * 1000);
+
+    const plan = await planPrune(root, owners({ exists: (path) => path === checkout }));
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[staged, 'dead-run']]);
+  });
+
   test('a story older than 14 days is removed and a newer one stays', async () => {
     const root = await cache();
     const layer = join(root, 'test-selection', 'repo');
@@ -215,8 +231,6 @@ test('a running process is the writer only of what was written after it started'
 test('scratchPid reads the process a scratch name belongs to', () => {
   expect(scratchPid('.run-4242-9f')).toBe(4242);
   expect(scratchPid('coverage.bin.4242-x.tmp')).toBe(4242);
-  // The snapshot a landing stages before it renames it over the target.
-  expect(scratchPid('coverage.bin.4242-3f0c9a52-7d1e-4b6a-9c2f-5e8d1a0b4c77.tmp')).toBe(4242);
   expect(scratchPid('coverage.bin.4242.3.tmp')).toBe(4242);
   expect(scratchPid('coverage.bin.1092.seed')).toBe(0x1092);
   expect(scratchPid('orphan.tmp')).toBeUndefined();

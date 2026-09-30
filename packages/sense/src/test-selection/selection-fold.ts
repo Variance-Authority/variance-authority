@@ -103,7 +103,6 @@ export function foldRun(
       : await placeFrom(destination.stores, written, modules, root, instrumentationId(mode));
     const files = finished.map((file) =>
       unplaced.has(projectPath(root, file.filepath)) ? { ...file, complete: false } : file);
-    noteAnEmptyRecord(files.length, modules.size, destination.unreached);
     // A journal names modules by id, so nothing here re-keys paths; the id is
     // what the map is keyed by too.
     const rows = journals.map((journal) => ({
@@ -143,7 +142,11 @@ export function foldRun(
       await landRun(coverageFile, current, root);
       markCheckout(repositoryRoot(root));
     });
-    if (!merged.held) noteABusyIndex(coverageFile);
+    // A run that placed no module says so once the snapshot saying every file
+    // may be skipped is written. A run the lock refused wrote none, and the busy
+    // warning is the whole story.
+    if (merged.held) noteAnEmptyRecord(files.length, modules.size, destination.unreached);
+    else noteABusyIndex(coverageFile);
     // Beside the snapshot, never inside it. The snapshot answers *which files
     // must run*, and its readers are unchanged. `run.cases` is whether the run
     // could record a case: one whose files ran in a page could not. One that

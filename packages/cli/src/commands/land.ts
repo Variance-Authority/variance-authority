@@ -83,7 +83,13 @@ export async function landJourneys(
   // index lands, so a busy index refuses before the snapshot is replaced; and
   // the staged file is renamed over the target last, which does not fail on a
   // full disk the way a write does. The staged name ends in the pid and `.tmp`,
-  // so prune removes it if this process dies before the `finally` does.
+  // so when the target is inside the cache, prune removes the staged file if
+  // this process dies before the `finally` does.
+  //
+  // FIXME: an `--into` target outside the cache is in no directory prune walks,
+  // so a crash between the write and the `finally` leaves the staged `.tmp`
+  // beside it until somebody deletes it by hand. Staging inside the cache
+  // instead would make the rename cross file systems, which is a copy.
   //
   // FIXME: the case index and the snapshot are two files, and nothing renames
   // them together. A crash after `landCaseIndexes` and before the rename leaves

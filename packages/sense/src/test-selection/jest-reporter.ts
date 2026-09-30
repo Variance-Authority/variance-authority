@@ -216,26 +216,29 @@ class JestCoverageReporter {
       await landRun(coverageFile, current, root);
       markCheckout(repositoryRoot(root));
     });
-    if (!merged.held) noteABusyIndex(coverageFile);
     // A run that finished test files and placed no module at all is a seam that
     // never engaged — a `transform` the configuration overwrote, an `include`
     // that matched nothing — and the snapshot it just wrote says every one of
-    // those files may be skipped. Said once, where the run ends.
-    noteAnEmptyRecord(results.testResults.length, modules.size);
+    // those files may be skipped. Said once, where the run ends. A run the lock
+    // refused wrote no snapshot, and the busy warning is the whole story.
+    if (merged.held) noteAnEmptyRecord(results.testResults.length, modules.size);
+    else noteABusyIndex(coverageFile);
     // Beside the snapshot, never inside it. The snapshot answers *which files
     // must run*, and its readers are unchanged. A run the snapshot did not take
     // lays no cases either, or the index would answer for a run the snapshot
     // beside it never saw.
     if (caseDirectory !== undefined) {
       const executionFile = this.#config.executionFile ?? `${coverageFile}.cases.bin`;
-      if (merged.held) await writeCaseIndex(executionFile, caseDirectory, root, modules, {
-        tests,
-        ...(commit === undefined ? {} : { commit }),
-        durations: caseDurations(results.testResults.map((result) => ({
-          filepath: result.testFilePath,
-          cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration)),
-        })), root),
-      });
+      if (merged.held) {
+        await writeCaseIndex(executionFile, caseDirectory, root, modules, {
+          tests,
+          ...(commit === undefined ? {} : { commit }),
+          durations: caseDurations(results.testResults.map((result) => ({
+            filepath: result.testFilePath,
+            cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration)),
+          })), root),
+        });
+      }
       await rm(caseDirectory, { recursive: true, force: true });
     }
     await rm(runDirectory, { recursive: true, force: true });
