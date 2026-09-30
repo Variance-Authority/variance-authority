@@ -205,8 +205,8 @@ async function lexicon(root: string): Promise<string> {
 /**
  * Journeys are walked after the index and the map, from each suite's latest
  * recording, so a walk that fails leaves both standing and says why. Walking is kept
- * when the recording, the index, the runner's alias table and the walk are the
- * ones the kept journeys were made from. They carry the update's listing of the
+ * when the recording, the index and the walk are the ones the kept journeys
+ * were made from. They carry the update's listing of the
  * checkout rather than asking git again.
  */
 async function journeys(cwd: string, update: SourceUpdate): Promise<readonly string[]> {
@@ -230,13 +230,18 @@ export function journeysLine(one: PreparedJourneys): string {
   const { prepared } = one;
   const share = prepared.functionsEntered === 0 ? '' : ` (${percent(prepared.placed, prepared.functionsEntered)})`;
   const notes = [
-    prepared.kept ? 'kept, because the recording, the index, the runner\'s aliases and the walk are the ones they were made from' : '',
+    prepared.kept ? 'kept, because the recording, the index and the walk are the ones they were made from' : '',
     prepared.tree === undefined || prepared.tree === null
       ? ''
       : `the files were parsed as the working tree has them, not as the recording ran them, because ${prepared.tree}`,
-    prepared.aliased > 0 ? `${prepared.aliased} imports resolved by the runner's aliases` : '',
     prepared.fellBack > 0 ? `${prepared.fellBack} imports the index did not resolve were resolved by the walk` : '',
-    ...prepared.runnerUnread,
+    prepared.recorded > 0
+      ? `${prepared.recorded} calls were placed from the recording, because their import led to no function the case ran and exactly one it ran has the imported name`
+      : '',
+    prepared.ambiguous > 0
+      ? `${prepared.ambiguous} calls have no place, because their import led to no function the case ran and several it ran have the imported name, ` +
+        `in ${prepared.ambiguousCases} ${prepared.ambiguousCases === 1 ? 'case' : 'cases'}`
+      : '',
   ].filter((note) => note !== '');
   return [
     `${named}: ${prepared.cases} cases walked; a caller is found for ${prepared.placed} of the ${prepared.functionsEntered} functions they ran${share}; ` +

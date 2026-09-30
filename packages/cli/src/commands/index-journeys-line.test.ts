@@ -3,8 +3,8 @@ import { journeysLine } from './index-command.js';
 
 /**
  * The journeys line of `variance index`, from a walk's own counts: what share
- * of the functions the recorded cases ran has a caller, and how the imports
- * that brought the calls there were resolved.
+ * of the functions the recorded cases ran has a caller, and how many calls the
+ * walk placed from the recording or left without a place.
  */
 
 const walk = {
@@ -15,8 +15,9 @@ const walk = {
   calls: 55,
   flows: 3,
   fellBack: 0,
-  aliased: 0,
-  runnerUnread: [],
+  recorded: 0,
+  ambiguous: 0,
+  ambiguousCases: 0,
 } as const;
 
 describe('the journeys line', () => {
@@ -26,16 +27,15 @@ describe('the journeys line', () => {
     );
   });
 
-  it('counts the imports the runner\'s aliases resolved, and says which runner configs did not load and why', () => {
-    expect(
-      journeysLine({
-        suite: 'unit',
-        out: 'journeys.unit.bin',
-        prepared: { ...walk, aliased: 4, runnerUnread: ['test/regressions/vitest.config.ts: did not load (__dirname is not defined)'] },
-      }),
-    ).toBe(
+  it('counts the calls placed from the recording, and the calls left without a place in how many cases', () => {
+    expect(journeysLine({ suite: 'unit', out: 'journeys.unit.bin', prepared: { ...walk, recorded: 4, ambiguous: 2, ambiguousCases: 5 } })).toBe(
       'journeys, suite unit: 12 cases walked; a caller is found for 30 of the 40 functions they ran (75%); 55 calls, 3 package flows; ' +
-        '4 imports resolved by the runner\'s aliases; test/regressions/vitest.config.ts: did not load (__dirname is not defined)',
+        '4 calls were placed from the recording, because their import led to no function the case ran and exactly one it ran has the imported name; ' +
+        '2 calls have no place, because their import led to no function the case ran and several it ran have the imported name, in 5 cases',
     );
+  });
+
+  it('says a single case when the calls without a place were all in one', () => {
+    expect(journeysLine({ out: 'journeys.bin', prepared: { ...walk, ambiguous: 1, ambiguousCases: 1 } })).toMatch(/several it ran have the imported name, in 1 case$/u);
   });
 });

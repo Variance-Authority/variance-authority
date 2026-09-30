@@ -6,10 +6,11 @@
 //! - static: the site is in the test, in an unrecorded file, or no recorded
 //!   region decides it — resolved, not seen;
 //! - inferred: no static target, so a member call matched by name to the one
-//!   entered function of that name, `new X` to X's constructor, a function
-//!   written inside a value handed to a call, a function a factory wrote, what
-//!   a caller handed a parameter, or a function no route reaches hung under the
-//!   placed function it is written in;
+//!   entered function of that name, an import the relations cannot bring to
+//!   an entered function placed from the recording (`journeys_recorded.rs`),
+//!   `new X` to X's constructor, a function written inside a value handed to a
+//!   call, a function a factory wrote, what a caller handed a parameter, or a
+//!   function no route reaches hung under the placed function it is written in;
 //! - unrecorded: a function in a file the recording does not instrument, on the
 //!   route to an entered one;
 //! - test: a helper declared in the test file.
@@ -26,7 +27,12 @@ use std::collections::{BinaryHeap, HashMap};
 use crate::journeys_graph::{Graph, Target};
 use crate::journeys_record::{Record, NONE};
 use crate::journeys_roots::{find_roots, registered, Helpers, TOP};
-pub(crate) use crate::journeys_steps::{Known, Step, Tag, Walked};
+pub(crate) use crate::journeys_steps::{Known, Tag, Walked};
+
+#[path = "journeys_emit.rs"]
+mod emit;
+#[path = "journeys_recorded.rs"]
+mod recorded;
 
 const BUILTIN: &[&str] = &[
     "add", "get", "set", "has", "delete", "clear", "map", "filter", "reduce", "forEach", "find", "some", "every", "sort", "join", "slice",
@@ -84,6 +90,7 @@ struct Walk<'w, 'j> {
     entered: Vec<bool>,
     by_last: HashMap<&'j str, (u32, u32)>,
     constructors: HashMap<&'j str, u32>,
+    named: recorded::Named<'j>,
     nodes: Vec<Node>,
     keys: HashMap<u64, u32>,
     edges: Vec<Edge>,
@@ -273,9 +280,14 @@ impl<'w, 'j> Walk<'w, 'j> {
                         let to = self.node(Kind::Region, to_file, to_func, Some(j));
                         self.link(node, to, guard, if site == Site::Ran { Tag::Observed } else { Tag::Static }, known);
                         self.explore(to, false);
+                    } else if !self.ran_in(to_file) {
+                        self.recorded(node, file, at, guard);
                     }
                 }
                 unresolved => {
+                    if matches!(unresolved, Target::External | Target::Member) && self.recorded(node, file, at, guard) {
+                        continue;
+                    }
                     let declared = |name: &Option<String>| name.as_deref().filter(|id| parsed.decls.contains_key(*id)).map(str::to_owned);
                     if call.by_ref {
                         match unresolved {
@@ -394,6 +406,7 @@ pub(crate) fn walk(graph: &Graph, record: &Record, helpers: &Helpers, case: usiz
         entered,
         by_last,
         constructors,
+        named: recorded::Named::of(record, case, test_file),
         nodes: Vec::new(),
         keys: HashMap::new(),
         edges: Vec::new(),
@@ -446,55 +459,10 @@ pub(crate) fn walk(graph: &Graph, record: &Record, helpers: &Helpers, case: usiz
         }
         (key, parent) = walk.route(&starts);
     }
-    let steps = emit(&walk, &starts, &parent);
+    let steps = emit::emit(&walk, &starts, &parent);
     let mut placed: Vec<u32> = steps.iter().filter_map(|step| step.region).collect();
     placed.sort_unstable();
     placed.dedup();
-    Walked { start: roots.map(|roots| roots.start), steps, entered: functions, placed: placed.len() as u32 }
-}
-
-/// The tree: region nodes, and the test helpers and unrecorded functions on a
-/// route to one, each placed once, depth first in call order.
-fn emit(walk: &Walk, starts: &[u32], parent: &[u32]) -> Vec<Step> {
-    let mut kids: Vec<Vec<u32>> = vec![Vec::new(); walk.nodes.len()];
-    for &rank in parent.iter().filter(|&&rank| rank != NONE) {
-        kids[walk.edges[rank as usize].from as usize].push(rank);
-    }
-    for list in &mut kids {
-        list.sort_unstable();
-    }
-    let mut useful: Vec<Option<bool>> = vec![None; walk.nodes.len()];
-    fn is_useful(node: u32, walk: &Walk, kids: &[Vec<u32>], useful: &mut [Option<bool>]) -> bool {
-        if let Some(known) = useful[node as usize] {
-            return known;
-        }
-        useful[node as usize] = Some(false);
-        let value = walk.nodes[node as usize].kind == Kind::Region
-            || kids[node as usize].iter().any(|&rank| is_useful(walk.edges[rank as usize].to, walk, kids, useful));
-        useful[node as usize] = Some(value);
-        value
-    }
-    let mut placed = vec![false; walk.nodes.len()];
-    let mut steps = Vec::new();
-    // Depth first, iteratively: (node, depth, next kid).
-    for &start in starts {
-        let mut stack: Vec<(u32, u32, usize)> = vec![(start, 0, 0)];
-        while let Some(top) = stack.last_mut() {
-            let (node, depth, next) = *top;
-            let Some(&rank) = kids[node as usize].get(next) else {
-                stack.pop();
-                continue;
-            };
-            top.2 += 1;
-            let edge = &walk.edges[rank as usize];
-            if !is_useful(edge.to, walk, &kids, &mut useful) || placed[edge.to as usize] {
-                continue;
-            }
-            placed[edge.to as usize] = true;
-            let to = &walk.nodes[edge.to as usize];
-            steps.push(Step { depth, region: to.region, file: to.file, tag: edge.tag, known: edge.known });
-            stack.push((edge.to, depth + 1, 0));
-        }
-    }
-    steps
+    let (recorded, ambiguous) = (std::mem::take(&mut walk.named.placed), std::mem::take(&mut walk.named.ambiguous));
+    Walked { start: roots.map(|roots| roots.start), steps, entered: functions, placed: placed.len() as u32, recorded, ambiguous }
 }
