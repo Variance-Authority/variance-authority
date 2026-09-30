@@ -138,6 +138,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
   /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
   seedSourceIndex(path: string, from: string): boolean;
+  /** The machine's index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
+  takeIndexTurn(path: string, holder: string): { release(): void } | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
   seedFiles(root: string, dirs: string[]): string[];
