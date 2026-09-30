@@ -29,38 +29,38 @@ use crate::orient_map_tree::tree;
 const FORMAT: u32 = 5;
 
 #[derive(Serialize, Deserialize)]
-struct Stored {
+pub(crate) struct Stored {
     format: u32,
     /// sha256 of the index manifest the map was folded from.
-    index: String,
+    pub(crate) index: String,
     /// sha256 over the path and blob id of every manifest and `.gitattributes`
     /// git listed; absent when git listed nothing.
     listed: Option<String>,
     unmarked: bool,
     /// What the fold made; absent when there was nothing to fold, and
     /// `unmade` says why.
-    made: Option<Made>,
-    unmade: Option<String>,
+    pub(crate) made: Option<Made>,
+    pub(crate) unmade: Option<String>,
     pages: Vec<Page>,
     /// Every package in code-unit order of name, with the layer it sits in and
     /// the packages it takes, so two maps can be compared package by package.
-    placed: Vec<Placed>,
+    pub(crate) placed: Vec<Placed>,
 }
 
 /// One package's place in the dependency layers.
 #[derive(Serialize, Deserialize)]
-struct Placed {
-    package: String,
-    directory: String,
-    layer: u32,
-    takes: Vec<String>,
+pub(crate) struct Placed {
+    pub(crate) package: String,
+    pub(crate) directory: String,
+    pub(crate) layer: u32,
+    pub(crate) takes: Vec<String>,
     /// The runtime closure of what it ships (`orient_map_closure.rs`).
-    lines: u64,
-    own: u64,
-    files: u32,
-    unsized_files: u32,
+    pub(crate) lines: u64,
+    pub(crate) own: u64,
+    pub(crate) files: u32,
+    pub(crate) unsized_files: u32,
     /// Its manifest offers none of its files (`Read::undeclared`).
-    undeclared: bool,
+    pub(crate) undeclared: bool,
 }
 
 /// What a kept map is, read without its pages.
@@ -74,7 +74,7 @@ struct Kept {
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
-struct Made {
+pub(crate) struct Made {
     packages: u32,
     areas: u32,
     levels: u32,
@@ -89,7 +89,7 @@ struct Format {
 }
 
 /// Where the map of the index at `index` is kept.
-fn map_path(index: &str) -> String {
+pub(crate) fn map_path(index: &str) -> String {
     format!("{index}.map")
 }
 
@@ -103,7 +103,7 @@ pub(crate) fn manifest_digest(index: &str) -> Option<String> {
 }
 
 /// The bytes kept at `path` when they are a map of this format.
-fn kept_bytes(path: &str) -> Result<Option<Vec<u8>>, String> {
+pub(crate) fn kept_bytes(path: &str) -> Result<Option<Vec<u8>>, String> {
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -434,70 +434,6 @@ pub fn orient_map_page(index: String, area: Option<String>) -> napi::Result<Opti
         list: page.list,
     });
     Ok(Some(OrientMapAnswer { current, layers: stored.made.map(|made| made.layers), page, unmade: stored.unmade }))
-}
-
-/// One package's place in the dependency layers of a kept map.
-#[napi(object)]
-pub struct OrientPackageLayer {
-    pub package: String,
-    pub directory: String,
-    /// One more than the highest layer among the packages it takes; a package
-    /// that takes nothing is layer 1.
-    pub layer: u32,
-    /// The packages it imports from, in code-unit order.
-    pub takes: Vec<String>,
-    /// Effective lines over every sized file its shipped files load, through
-    /// every edge but a type-only one; a lower bound when `unsized_files` is above 0.
-    pub lines: f64,
-    /// Effective lines in its own shipped files.
-    pub own: f64,
-    /// Files summed into `lines`.
-    pub files: u32,
-    /// Files and unresolved requests the closure reached and could not size.
-    pub unsized_files: u32,
-    /// Its manifest's `exports`, `main`, `module` and `bin` name none of its
-    /// files, so what it ships starts at the files of it nothing imports.
-    pub undeclared: bool,
-}
-
-#[napi(object)]
-pub struct OrientLayers {
-    /// Whether the map was folded from the index as it stands now.
-    pub current: bool,
-    /// Every package in code-unit order of name; `undefined` when there was
-    /// nothing to fold, and `unmade` says why.
-    pub packages: Option<Vec<OrientPackageLayer>>,
-    pub unmade: Option<String>,
-}
-
-/// Every package's layer from the map kept beside the index at `index`.
-/// `undefined` when no map is kept there, or one of a format this reader does
-/// not know.
-#[napi(catch_unwind)]
-pub fn orient_layers(index: String) -> napi::Result<Option<OrientLayers>> {
-    let path = map_path(&index);
-    let Some(bytes) = kept_bytes(&path).map_err(napi::Error::from_reason)? else { return Ok(None) };
-    let stored: Stored = serde_json::from_slice(&bytes)
-        .map_err(|error| napi::Error::from_reason(format!("the code map at {path} did not read: {error}")))?;
-    let current = manifest_digest(&index).as_deref() == Some(stored.index.as_str());
-    let packages = stored.made.map(|_| {
-        stored
-            .placed
-            .into_iter()
-            .map(|placed| OrientPackageLayer {
-                package: placed.package,
-                directory: placed.directory,
-                layer: placed.layer,
-                takes: placed.takes,
-                lines: placed.lines as f64,
-                own: placed.own as f64,
-                files: placed.files,
-                unsized_files: placed.unsized_files,
-                undeclared: placed.undeclared,
-            })
-            .collect()
-    });
-    Ok(Some(OrientLayers { current, packages, unmade: stored.unmade }))
 }
 
 #[cfg(all(test, unix))]

@@ -176,7 +176,7 @@ export interface NativeOrientPackageLayer {
   readonly unsizedFiles: number;
   /**
    * Its manifest's `exports`, `main`, `module` and `bin` name none of its
-   * files, so what it ships starts at the files of it nothing imports.
+   * files, so what it ships starts at its files that nothing imports.
    */
   readonly undeclared: boolean;
 }

@@ -152,7 +152,7 @@ const UNCOUNTED = 'Installed packages are not in the code map, so no closure cou
 function undeclared(packages: readonly PackageLayer[]): string[] {
   const names = packages.filter((entry) => entry.undeclared).map((entry) => entry.package);
   if (names.length === 0) return [];
-  return ['', `No \`exports\`, \`main\`, \`module\` or \`bin\` names a file of these packages, so each closure starts at the files of it nothing imports: ${names.join(', ')}.`];
+  return ['', `No \`exports\`, \`main\`, \`module\` or \`bin\` names a file of these packages, so each one's closure starts at its files that nothing imports: ${names.join(', ')}.`];
 }
 
 /** One package's tier and the closure that places it, or nothing when no tiers are declared. */

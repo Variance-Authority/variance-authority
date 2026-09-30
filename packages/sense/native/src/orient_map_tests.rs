@@ -185,7 +185,7 @@ fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside
 fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     let (_root, root, index) = indexed("placed");
     prepare_orient_map(&root, &index, Some(true)).unwrap().expect("an index");
-    let answer = crate::orient_map::orient_layers(index).unwrap().expect("a kept map");
+    let answer = crate::orient_map_layers::orient_layers(index).unwrap().expect("a kept map");
     assert!(answer.current && answer.unmade.is_none());
     let packages = answer.packages.expect("a folded map");
     let layer = |name: &str| packages.iter().find(|package| package.package == name).unwrap();
@@ -202,7 +202,7 @@ fn every_package_reads_back_with_its_layer_and_what_it_takes() {
 fn every_package_reads_back_with_the_lines_its_shipped_files_pull_in() {
     let (_root, root, index) = indexed("closures");
     prepare_orient_map(&root, &index, Some(true)).unwrap().expect("an index");
-    let packages = crate::orient_map::orient_layers(index.clone()).unwrap().unwrap().packages.unwrap();
+    let packages = crate::orient_map_layers::orient_layers(index.clone()).unwrap().unwrap().packages.unwrap();
     let size = |name: &str| {
         let package = packages.iter().find(|package| package.package == name).unwrap();
         (package.lines, package.own, package.files, package.unsized_files)
