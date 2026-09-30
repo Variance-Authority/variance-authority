@@ -1331,6 +1331,7 @@ variance journeys shard-1/coverage.bin shard-2/coverage.bin shard-3/coverage.bin
 ```
 folded 3 snapshots into <cache>/test-selection/1f3a…/coverage.bin
   342 observations over 1204 modules, recorded at 4f2a1c9d0b73
+  cases of 3 snapshots laid over <cache>/test-selection/1f3a…/coverage.bin.cases.bin
 
 app/src/components/CartCard.tsx  3 observers
   …
@@ -1350,8 +1351,18 @@ config declares suites — unless `--into <path>` names somewhere else — a job
 folds and uploads names the artifact it uploads. Landing is a layer, not a
 replacement: what was already there is merged under the fold, so the result
 stands at the fold's commit, retires every observation the fold re-recorded
-whole, and keeps the ones it did not. That is the whole of the recipe for a
-laptop:
+whole, and keeps the ones it did not.
+
+The per-case index lands with the snapshot. Each seam writes
+`<coverageFile>.cases.bin` beside the snapshot it records, so upload that file
+too. `journeys` lays each shard's index over the one beside the landed
+snapshot, the way a local run lays its own, and `covering`, `coverage` and
+`review` answer from the cases the fold holds. When a shard ran a test file to
+the end and has no index beside it, no index can say which of that file's cases
+run a line, so the landing removes the index. Those commands then say nothing
+is recorded until the suite runs, or shards land with their indexes.
+
+That is the whole of the recipe for a laptop:
 
 ```bash
 base=$(git merge-base origin/main HEAD)
