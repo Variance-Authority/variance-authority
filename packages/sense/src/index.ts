@@ -82,8 +82,6 @@ export {
   packagesAround,
   dependenciesAround,
   orientAround,
-  sourceTreeBytes,
-  indexedUsage,
   recordedCases,
   type CasesEntered,
   type Orientation,
@@ -182,6 +180,16 @@ export {
 } from './runner-aliases.js';
 
 export { gitDigests } from './tree.js';
+export {
+  encodeSearch,
+  exportedDigest,
+  readHelp,
+  type EncodedSearch,
+  type HelpPublish,
+  type HelpReading,
+  type PublishedRows,
+  type SearchGeneration,
+} from './help-reading.js';
 
 export {
   taintFile,

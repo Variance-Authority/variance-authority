@@ -294,7 +294,7 @@ export interface NativeDependencyLexicon {
   dependencyStack(path: string, files: string[], offset: number, limit: number): string | null;
 }
 
-/** What the published index records of imports and exports, read by `readIndexedUsage`. */
+/** What the published index records of imports and exports, read by `readHelp`. */
 export interface NativeIndexedUsage {
   exported: { name: string; at: string; by: string; line: number; type: boolean; kind: 'story' | 'test' | 'source' }[];
   deep: { specifier: string; by: string; at: string; line: number }[];

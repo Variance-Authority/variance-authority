@@ -19,7 +19,6 @@
 import { existsSync } from 'node:fs';
 import { native, nativeRefusal } from './native.js';
 import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation } from './native-orient.js';
-import type { NativeIndexedUsage } from './native-orient.js';
 import { sourceIndexPath } from './source-index.js';
 import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js';
 import { recordPath } from './test-selection/record-location.js';
@@ -48,7 +47,7 @@ export interface PackagesAround {
   readonly orientation?: NativeOrientation;
 }
 
-function entry<Name extends 'orientPackages' | 'orientAround' | 'encodeSourceTreeFromIndex' | 'readIndexedUsage' | 'externalDependencies' | 'casesEntered'>(name: Name) {
+function entry<Name extends 'orientPackages' | 'orientAround' | 'externalDependencies' | 'casesEntered'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -134,14 +133,4 @@ export function recordedCases(root: string, files: readonly string[], titles: nu
       return { ...named, recording, unread: error instanceof Error ? error.message : String(error) };
     }
   });
-}
-
-/** The path graph of the published index, encoded by the native scanner; `null` when no index was published. */
-export function sourceTreeBytes(root: string, index: string = sourceIndexPath(root)): Uint8Array | null {
-  return entry('encodeSourceTreeFromIndex')(index);
-}
-
-/** What the published index records of imports and exports, read by the native scanner; `null` when no index was published. */
-export function indexedUsage(root: string, opened: readonly string[], index: string = sourceIndexPath(root)): NativeIndexedUsage | null {
-  return entry('readIndexedUsage')(root, index, [...opened]);
 }

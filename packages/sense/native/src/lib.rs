@@ -28,6 +28,8 @@ mod dependency_namespace;
 mod digest;
 mod emitted;
 mod external_dependencies;
+mod help_publish;
+mod help_search;
 mod help_usage;
 mod source_tree;
 mod generation;

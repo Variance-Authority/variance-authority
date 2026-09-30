@@ -9,11 +9,8 @@
 
 use std::collections::HashMap;
 
-use napi::bindgen_prelude::Buffer;
-use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::index_chain::read_chain;
 use crate::package_graph::fold;
 use crate::segment::{encode_as, u32s, u8s, Collected, Strings, NONE};
 use crate::compact::Layer;
@@ -81,14 +78,3 @@ pub(crate) fn tree(layers: &[Layer]) -> Vec<u8> {
     ])
 }
 
-/// The tree bytes for the index at `index`, or `None` when there is none.
-#[napi(catch_unwind)]
-pub fn encode_source_tree_from_index(index: String) -> napi::Result<Option<Buffer>> {
-    let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
-    let Some(chain) = read_chain(&index).map_err(fail)? else { return Ok(None) };
-    let layers = chain.segments.par_iter().enumerate()
-        .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(fail)?;
-    Ok(Some(tree(&layers).into()))
-}

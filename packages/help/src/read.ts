@@ -67,7 +67,7 @@ import {
   workspaceGeneration,
 } from './snapshot.js';
 
-export { readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
+export { publishedGeneration, readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
 export type { SnapshotOptions } from './snapshot.js';
 
 export interface ReadingOptions extends HelpOptions, IndexedUsageOptions {}
@@ -410,6 +410,11 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
 }
 
 export function sameSurface(read: Pick<WorkspaceScan, 'root' | 'offerings' | 'changed'>, exported: Usage['exported'], documented: Help): boolean {
+  return samePackages(read, documented) && sameExportedSurface(read, exported, documented);
+}
+
+/** The offerings as `documented` published them: names, declarations and openings. */
+export function samePackages(read: Pick<WorkspaceScan, 'root' | 'offerings'>, documented: Help): boolean {
   const shape = read.offerings.map((offering) => ({
     name: offering.name,
     declared: offering.declared,
@@ -423,7 +428,7 @@ export function sameSurface(read: Pick<WorkspaceScan, 'root' | 'offerings' | 'ch
     declared: published.declared,
     openings: published.openings.map(({ subpath, source }) => ({ subpath, source })),
   }));
-  return isDeepStrictEqual(shape, previous) && sameExportedSurface(read, exported, documented);
+  return isDeepStrictEqual(shape, previous);
 }
 
 function sameExportedSurface(read: Pick<WorkspaceScan, 'changed'>, exported: Usage['exported'], documented: Help): boolean {

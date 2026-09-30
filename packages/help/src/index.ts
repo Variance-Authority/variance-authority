@@ -29,6 +29,7 @@
  */
 
 export {
+  publishedGeneration,
   readWorkspace,
   readWorkspaceForAnswer,
   readWorkspaceSnapshot,

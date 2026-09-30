@@ -1,6 +1,9 @@
 import type { Help, UseKind } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
+import { encodeSearch, type PublishedRows, type SearchGeneration } from '@variance-authority/sense';
 import { specifierOf } from './tools/find.js';
+
+export type { SearchGeneration };
 
 /**
  * What `docs_search` reads, laid out so a question reads only what it matches.
@@ -23,6 +26,7 @@ import { specifierOf } from './tools/find.js';
  * ([`loose.ts`](./tools/loose.ts)).
  */
 
+// The layout is written by `help_search.rs` in the sense addon.
 const MAGIC = 0x53484156; // "VAHS", little-endian
 const VERSION = 1;
 const NONE = 0xffffffff;
@@ -39,14 +43,6 @@ export function termsOf(text: string): readonly string[] {
   return found;
 }
 
-/** Which generation the index belongs to; absent on one built in memory. */
-export interface SearchGeneration {
-  readonly root: string;
-  readonly graphRoot: string;
-  readonly graphDigest: string;
-  readonly generatedAt: string;
-}
-
 const USE_KINDS: readonly UseKind[] = ['source', 'test', 'story'];
 
 const SECTIONS = [
@@ -59,188 +55,33 @@ const SECTIONS = [
 ] as const;
 type SectionName = (typeof SECTIONS)[number];
 
-class Pool {
-  readonly ids = new Map<string, number>();
-  readonly values: string[] = [];
-  id(value: string): number {
-    let id = this.ids.get(value);
-    if (id === undefined) {
-      id = this.values.length;
-      this.ids.set(value, id);
-      this.values.push(value);
-    }
-    return id;
-  }
-}
-
-/** Strings joined as UTF-8 with a separator, and where each one starts. */
-function joined(values: readonly string[], separator: string): { off: Uint32Array; blob: Uint8Array } {
-  const text = values.join(separator);
-  const blob = Buffer.from(text, 'utf8');
-  const off = new Uint32Array(values.length + 1);
-  let at = 0;
-  for (let index = 0; index < values.length; index += 1) {
-    off[index] = at;
-    at += Buffer.byteLength(values[index] ?? '', 'utf8') + Buffer.byteLength(separator, 'utf8');
-  }
-  off[values.length] = values.length === 0 ? 0 : blob.length + Buffer.byteLength(separator, 'utf8');
-  return { off, blob };
-}
-
-/** Postings: for each key, the ascending rows that hold it. */
-function postings(lists: readonly (readonly number[])[]): { off: Uint32Array; rows: Uint32Array } {
-  const off = new Uint32Array(lists.length + 1);
-  let total = 0;
-  for (let key = 0; key < lists.length; key += 1) {
-    off[key] = total;
-    total += lists[key]?.length ?? 0;
-  }
-  off[lists.length] = total;
-  const rows = new Uint32Array(total);
-  let at = 0;
-  for (const list of lists) for (const row of list ?? []) rows[at++] = row;
-  return { off, rows };
-}
-
-const u32s = (values: readonly number[]): Uint32Array => Uint32Array.from(values);
-
-/** Each name's place in code-unit order, so a tie is broken without decoding either side. */
-function ranks(values: readonly string[]): Uint32Array {
-  const order = values.map((_, id) => id).sort((a, b) => {
-    const x = values[a] ?? '';
-    const y = values[b] ?? '';
-    return x < y ? -1 : x > y ? 1 : 0;
-  });
-  const rank = new Uint32Array(values.length);
-  order.forEach((id, at) => (rank[id] = at));
-  return rank;
-}
-
-/** Encode what search reads of one Help value. */
-export function encodeSearchIndex(help: Help, generation?: SearchGeneration): Uint8Array {
-  const strings = new Pool();
-  const names = new Pool();
-  const nameString: number[] = [];
-  const namePub: number[][] = [];
-  const nameExp: number[][] = [];
-  const nameOf = (name: string): number => {
-    const id = names.id(name);
-    if (nameString[id] === undefined) {
-      nameString[id] = strings.id(name);
-      namePub[id] = [];
-      nameExp[id] = [];
-    }
-    return id;
-  };
-
-  const pub = { name: [] as number[], spec: [] as number[], kind: [] as number[], doc: [] as number[],
-    at: [] as number[], usedBy: [] as number[], uses: [] as number[] };
-  const sitesOff: number[] = [0];
-  const sitesAt: number[] = [];
-  const docLower: string[] = [];
-
-  // The loose pass's dictionary: a name's own terms, and each published row's
-  // doc terms, kept apart because an area admits a doc by the row's file.
-  const byTerm = new Map<string, { names: number[]; pub: number[] }>();
-  const post = (term: string): { names: number[]; pub: number[] } => {
-    let held = byTerm.get(term);
-    if (held === undefined) byTerm.set(term, (held = { names: [], pub: [] }));
-    return held;
-  };
-
+/**
+ * The published rows of one Help value, a column per field, in the order
+ * `everyEntry` yields them.
+ */
+export function publishedRows(help: Help): PublishedRows {
+  const rows: PublishedRows = { name: [], spec: [], kind: [], doc: [], at: [], usedBy: [], uses: [], siteCounts: [], sites: [] };
   for (const [owner, held, entry] of everyEntry(help)) {
-    const row = pub.name.length;
-    const name = nameOf(entry.name);
-    namePub[name]?.push(row);
-    pub.name.push(name);
-    pub.spec.push(strings.id(specifierOf(owner, held)));
-    pub.kind.push(strings.id(entry.kind));
-    pub.doc.push(entry.doc === undefined ? NONE : strings.id(entry.doc));
-    pub.at.push(strings.id(entry.at));
-    pub.usedBy.push(entry.usedBy.length);
-    pub.uses.push(entry.uses);
-    for (const site of entry.sites) sitesAt.push(strings.id(site.at));
-    sitesOff.push(sitesAt.length);
-    docLower.push((entry.doc ?? '').toLowerCase());
-    if (entry.doc !== undefined) for (const term of new Set(termsOf(entry.doc))) post(term).pub.push(row);
+    rows.name.push(entry.name);
+    rows.spec.push(specifierOf(owner, held));
+    rows.kind.push(entry.kind);
+    rows.doc.push(entry.doc ?? null);
+    rows.at.push(entry.at);
+    rows.usedBy.push(entry.usedBy.length);
+    rows.uses.push(entry.uses);
+    rows.siteCounts.push(entry.sites.length);
+    for (const site of entry.sites) rows.sites.push(site.at);
   }
+  return rows;
+}
 
-  const exp = { name: [] as number[], at: [] as number[], by: [] as number[], line: [] as number[], kind: [] as number[] };
-  for (const named of help.exported) {
-    const row = exp.name.length;
-    const name = nameOf(named.name);
-    nameExp[name]?.push(row);
-    exp.name.push(name);
-    exp.at.push(strings.id(named.at));
-    exp.by.push(strings.id(named.by));
-    exp.line.push(named.line);
-    exp.kind.push(USE_KINDS.indexOf(named.kind));
-  }
-
-  names.values.forEach((name, id) => {
-    for (const term of new Set(termsOf(name))) post(term).names.push(id);
-  });
-  // Byte order, so a prefix is one range the reader finds without decoding.
-  const terms = [...byTerm.keys()]
-    .map((term) => [term, Buffer.from(term, 'utf8')] as const)
-    .sort(([, a], [, b]) => Buffer.compare(a, b))
-    .map(([term]) => term);
-
-  // Every file a row names, by its UTF-8 bytes, so an area's paths become ids
-  // by binary search and a row is admitted by comparing integers.
-  const files = [...new Set([...pub.at, ...sitesAt, ...exp.at])]
-    .map((id) => [id, Buffer.from(strings.values[id] ?? '', 'utf8')] as const)
-    .sort(([, a], [, b]) => Buffer.compare(a, b))
-    .map(([id]) => id);
-  const pooled = joined(strings.values, '');
-  const lowerNames = joined(names.values.map((name) => name.toLowerCase()), '\0');
-  const lowerDocs = joined(docLower, '\0');
-  const termText = joined(terms, '');
-  const namePostings = postings(namePub);
-  const expPostings = postings(nameExp);
-  const termNames = postings(terms.map((term) => byTerm.get(term)?.names ?? []));
-  const termPub = postings(terms.map((term) => byTerm.get(term)?.pub ?? []));
-
-  const sections: Record<SectionName, Uint8Array | Uint32Array> = {
-    'strings.off': pooled.off, 'strings.blob': pooled.blob, 'files': u32s(files),
-    'names.name': u32s(nameString),
-    'names.rank': ranks(names.values),
-    'names.lowerOff': lowerNames.off, 'names.lower': lowerNames.blob,
-    'names.pubOff': namePostings.off, 'names.pub': namePostings.rows,
-    'names.expOff': expPostings.off, 'names.exp': expPostings.rows,
-    'pub.name': u32s(pub.name), 'pub.spec': u32s(pub.spec), 'pub.kind': u32s(pub.kind), 'pub.doc': u32s(pub.doc),
-    'pub.at': u32s(pub.at), 'pub.usedBy': u32s(pub.usedBy), 'pub.uses': u32s(pub.uses),
-    'pub.sitesOff': u32s(sitesOff), 'sites.at': u32s(sitesAt),
-    'pub.docLowerOff': lowerDocs.off, 'pub.docLower': lowerDocs.blob,
-    'exp.name': u32s(exp.name), 'exp.at': u32s(exp.at), 'exp.by': u32s(exp.by), 'exp.line': u32s(exp.line),
-    'exp.kind': Uint8Array.from(exp.kind),
-    'terms.off': termText.off, 'terms.blob': termText.blob,
-    'terms.nameOff': termNames.off, 'terms.name': termNames.rows,
-    'terms.pubOff': termPub.off, 'terms.pub': termPub.rows,
-  };
-
-  // Offsets count from where the sections start, so the header's own length
-  // never feeds back into what it says.
-  const table: Record<string, readonly [number, number]> = {};
-  let size = 0;
-  for (const name of SECTIONS) {
-    table[name] = [size, sections[name].byteLength];
-    size = align(size + sections[name].byteLength);
-  }
-  const head = Buffer.from(JSON.stringify({ generation: generation ?? null, sections: table }), 'utf8');
-  const start = align(12 + head.length);
-
-  const out = new Uint8Array(start + size);
-  const view = new DataView(out.buffer);
-  view.setUint32(0, MAGIC, true);
-  view.setUint32(4, VERSION, true);
-  view.setUint32(8, head.length, true);
-  out.set(head, 12);
-  for (const name of SECTIONS) {
-    const section = sections[name];
-    out.set(new Uint8Array(section.buffer, section.byteOffset, section.byteLength), start + (table[name]?.[0] ?? 0));
-  }
-  return out;
+/**
+ * Encode what search reads of one Help value. The addon encodes it
+ * (`help_search.rs`), because `variance index` publishes the same file from a
+ * reading whose export list never reaches JavaScript.
+ */
+export function encodeSearchIndex(help: Help, generation?: SearchGeneration): Uint8Array {
+  return encodeSearch(publishedRows(help), help.exported, generation).bytes;
 }
 
 function align(at: number): number {

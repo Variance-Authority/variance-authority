@@ -36,7 +36,7 @@ import {
   type PreparedJourneys,
   type SourceUpdate,
 } from '@variance-authority/sense';
-import { readWorkspace, readWorkspaceSnapshot, refreshDependencyLexicon, refreshWorkspaceFromIndex, workspaceGeneration, workspaceSnapshotPath } from '@variance-authority/help';
+import { publishedGeneration, readWorkspace, readWorkspaceSnapshot, refreshDependencyLexicon, refreshWorkspaceFromIndex, workspaceGeneration, workspaceSnapshotPath } from '@variance-authority/help';
 import { OperatorError } from '../exit.js';
 
 export interface IndexRequest {
@@ -74,8 +74,8 @@ async function answerable(root: string, index: string, noGit: boolean): Promise<
     // reading the chain into records; a changed surface reads the way a first publish does.
     const previous = await readWorkspaceSnapshot(root, { index }).catch(() => undefined);
     const refreshed = previous === undefined ? undefined : await refreshWorkspaceFromIndex(root, previous, { index });
-    const generation = workspaceGeneration(refreshed ?? await readWorkspace(root, { index, saveIndex: false, ...(noGit ? { packs: false } : {}) }));
-    const published = workspaceGeneration(await readWorkspaceSnapshot(root, { index }));
+    const generation = refreshed ?? workspaceGeneration(await readWorkspace(root, { index, saveIndex: false, ...(noGit ? { packs: false } : {}) }));
+    const published = await publishedGeneration(root, index);
     if (generation === undefined || published !== generation) {
       return `questions: not published: the value read back from ${at} is not the one this run wrote`;
     }

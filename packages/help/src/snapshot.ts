@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import {
   decodeSourceTree,
@@ -9,8 +9,8 @@ import {
   type Tree,
 } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { readSourceRecords, sourceIndexPath } from '@variance-authority/sense';
-import { encodeSearchIndex, openSearchIndex, type SearchIndex } from './search-index.js';
+import { encodeSearch, exportedDigest, readSourceRecords, sourceIndexPath } from '@variance-authority/sense';
+import { openSearchIndex, publishedRows, type SearchGeneration, type SearchIndex } from './search-index.js';
 
 export interface SnapshotOptions {
   /** The source index this reading was published beside. */
@@ -21,8 +21,8 @@ export interface SnapshotOptions {
   readonly tree?: (tree: Tree) => void;
 }
 
-const SNAPSHOT_FORMAT = 'variance-authority-help';
-const SNAPSHOT_VERSION = 3;
+export const SNAPSHOT_FORMAT = 'variance-authority-help';
+export const SNAPSHOT_VERSION = 3;
 
 interface WorkspaceSnapshot {
   readonly format: typeof SNAPSHOT_FORMAT;
@@ -32,6 +32,11 @@ interface WorkspaceSnapshot {
   readonly graphRoot: string;
   readonly graphDigest: string;
   readonly generatedAt: string;
+  /**
+   * The export list as a set, as the search encoder states it; absent on a
+   * value published before it was kept.
+   */
+  readonly exportedDigest?: string;
   readonly help: Help;
 }
 
@@ -91,8 +96,46 @@ export async function readWorkspaceSnapshot(
     graphRoot: decoded.graphRoot,
     graphDigest: decoded.graphDigest,
     generatedAt: decoded.generatedAt,
+    ...(decoded.exportedDigest === undefined ? {} : { exportedDigest: decoded.exportedDigest }),
   });
   return decoded.help;
+}
+
+/**
+ * When the value at `index` was published, read off its head alone: the value
+ * after it is every export of the repository, and a caller asking whether its
+ * write landed has no use for it. Absent when there is no value, or it belongs
+ * to another checkout or format.
+ */
+export async function publishedGeneration(root: string, index: string): Promise<string | undefined> {
+  const where = realpathSync(resolve(root));
+  let head: string;
+  try {
+    const file = await open(workspaceSnapshotPath(index), 'r');
+    try {
+      const bytes = Buffer.alloc(64 * 1024);
+      const { bytesRead } = await file.read(bytes, 0, bytes.length, 0);
+      head = bytes.toString('utf8', 0, bytesRead);
+    } finally {
+      await file.close();
+    }
+  } catch {
+    return undefined;
+  }
+  const end = head.indexOf(',"help":');
+  if (end === -1) return undefined;
+  let held: Partial<WorkspaceSnapshot>;
+  try {
+    held = JSON.parse(`${head.slice(0, end)}}`) as Partial<WorkspaceSnapshot>;
+  } catch {
+    return undefined;
+  }
+  return held.format === SNAPSHOT_FORMAT && held.version === SNAPSHOT_VERSION && held.root === where ? held.generatedAt : undefined;
+}
+
+/** The digest of the value's export list: the one published beside it, or computed. */
+export function workspaceExportedDigest(help: Help): string {
+  return snapshots.get(help)?.exportedDigest ?? exportedDigest(help.exported);
 }
 
 /** Publish a new generation time when its authoritative changed set is empty. */
@@ -130,13 +173,14 @@ export async function tryPublishWorkspaceSnapshot(
     const graphDigest = digest(tree);
     const treeAt = workspaceTreePath(index ?? sourceIndexPath(root), graphDigest);
     const treeTemporary = `${treeAt}.${String(process.pid)}.tmp`;
+    const generation = { root: realpathSync(root), graphRoot: realpathSync(graphRoot), graphDigest, generatedAt };
+    // The search is encoded first: it states the digest the value carries.
+    const search = encodeSearch(publishedRows(help), help.exported, generation);
     const snapshot: WorkspaceSnapshot = {
       format: SNAPSHOT_FORMAT,
       version: SNAPSHOT_VERSION,
-      root: realpathSync(root),
-      graphRoot: realpathSync(graphRoot),
-      graphDigest,
-      generatedAt,
+      ...generation,
+      exportedDigest: search.exported,
       help,
     };
     await mkdir(dirname(at), { recursive: true });
@@ -145,15 +189,9 @@ export async function tryPublishWorkspaceSnapshot(
     await writeFile(temporary, `${JSON.stringify(snapshot)}\n`, 'utf8');
     await rename(temporary, at);
     generated.set(help, generatedAt);
-    snapshots.set(help, {
-      format: snapshot.format,
-      version: snapshot.version,
-      root: snapshot.root,
-      graphRoot: snapshot.graphRoot,
-      graphDigest: snapshot.graphDigest,
-      generatedAt,
-    });
-    await writeSearch(help, index ?? sourceIndexPath(root));
+    const { help: _, ...held } = snapshot;
+    snapshots.set(help, held);
+    await writeSearch(help, index ?? sourceIndexPath(root), search.bytes);
   } catch {
     // This value is complete. An unwritable cache costs reuse, not this answer.
   }
@@ -206,14 +244,12 @@ export async function searchOf(help: Help, index: string): Promise<SearchIndex> 
   return searches.get(help) ?? (await writeSearch(help, index));
 }
 
-async function writeSearch(help: Help, index: string): Promise<SearchIndex> {
+async function writeSearch(help: Help, index: string, encoded?: Uint8Array): Promise<SearchIndex> {
   const held = snapshots.get(help);
-  const bytes = encodeSearchIndex(
-    help,
-    held === undefined
-      ? undefined
-      : { root: held.root, graphRoot: held.graphRoot, graphDigest: held.graphDigest, generatedAt: held.generatedAt },
-  );
+  const generation: SearchGeneration | undefined = held === undefined
+    ? undefined
+    : { root: held.root, graphRoot: held.graphRoot, graphDigest: held.graphDigest, generatedAt: held.generatedAt };
+  const bytes = encoded ?? encodeSearch(publishedRows(help), help.exported, generation).bytes;
   const search = openSearchIndex(bytes);
   searches.set(help, search);
   if (held === undefined) return search;
@@ -238,12 +274,18 @@ function isWorkspaceSnapshot(value: unknown): value is WorkspaceSnapshot {
     && typeof held.graphDigest === 'string'
     && typeof held.generatedAt === 'string'
     && Number.isFinite(Date.parse(held.generatedAt))
+    && (held.exportedDigest === undefined || typeof held.exportedDigest === 'string')
     && held.help !== null
     && typeof held.help === 'object';
 }
 
+/** Where the graph of one generation is written: this prefix, its digest, `.bin`. */
+export function workspaceTreePrefix(index: string): string {
+  return `${index}.help-tree.`;
+}
+
 function workspaceTreePath(index: string, graphDigest: string): string {
-  return `${index}.help-tree.${graphDigest}.bin`;
+  return `${workspaceTreePrefix(index)}${graphDigest}.bin`;
 }
 
 function digest(bytes: Uint8Array): string {

@@ -7,23 +7,24 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use napi_derive::napi;
 use rayon::prelude::*;
 
 use crate::compact::Layer;
-use crate::index_chain::read_chain;
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 
 #[napi(object)]
+#[derive(serde::Serialize)]
 pub struct NamedExport {
     pub name: String,
     pub at: String,
     pub by: String,
     pub line: u32,
+    #[serde(rename = "type")]
     pub r#type: bool,
     pub kind: String,
 }
@@ -156,16 +157,4 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String]) -> IndexedU
     }
     out.unreadable.extend(reasons);
     out
-}
-
-/// The usage the index at `index` records, joined against `opened`; `None` when there is no index.
-#[napi(catch_unwind)]
-pub fn read_indexed_usage(root: String, index: String, opened: Vec<String>) -> napi::Result<Option<IndexedUsage>> {
-    let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
-    let Some(chain) = read_chain(&index).map_err(fail)? else { return Ok(None) };
-    let layers = chain.segments.par_iter().enumerate()
-        .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(fail)?;
-    Ok(Some(usage(&root, &layers, &opened)))
 }
