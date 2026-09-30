@@ -104,10 +104,22 @@ describe('every published package carries the licence it claims', () => {
  * filed in the wrong place.
  */
 describe('nothing grows into a monster', () => {
-  const SOURCE = execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.mjs', '*.js', '*.jsx'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  })
+  /**
+   * Upstream's resolver, vendored so the addon can carry a patch to it.
+   *
+   * It is somebody else's code under a patch, not code this repository wrote,
+   * so its length is not a debt this list could pay: splitting it would only
+   * make the patch harder to drop. It is excluded by directory, which is the
+   * one exclusion by pattern here, and it leaves the repository when the patch
+   * is dropped.
+   */
+  const VENDORED = 'packages/sense/native/vendor/oxc_resolver';
+
+  const SOURCE = execFileSync(
+    'git',
+    ['ls-files', '--', '*.ts', '*.tsx', '*.mjs', '*.js', '*.jsx', '*.rs', `:(exclude)${VENDORED}`],
+    { cwd: ROOT, encoding: 'utf8' },
+  )
     .trim()
     .split('\n')
     .filter((file) => existsSync(join(ROOT, file)));
@@ -115,35 +127,108 @@ describe('nothing grows into a monster', () => {
   const LIMIT = 500;
 
   /**
-   * Files over the limit, and there are none.
+   * Files over the limit, each held at the length it has.
    *
-   * This was a list of twenty-two on the day the rule landed — a debt list
-   * rather than an exemption list, on the argument that a file may leave it and
-   * may not join it. It emptied on 2026-08-04, which is the only outcome that
-   * makes the argument true rather than merely stated.
+   * This is a debt list rather than an exemption list, on the argument that a
+   * file may leave it and may not join it. It held twenty-two TypeScript files
+   * on the day the rule landed and emptied on 2026-08-04. It filled again when
+   * the rule reached Rust, with what the addon had grown while nothing counted
+   * it.
    *
-   * Kept as an empty set rather than deleted along with the tests below,
-   * because the next long file will want somewhere to go, and re-deriving the
-   * rules for it — a name, not a pattern; leaving is allowed, joining is not —
-   * is how an exemption list gets born instead.
+   * Each entry carries its own ceiling, because a listed file that could grow
+   * without bound would make the list an exemption after all. A file that
+   * shrinks takes its ceiling down in the same change, so a line given back
+   * stays given back. Why an entry is still here is a marker on the entry.
    */
-  const OVERSIZE = new Set<string>([]);
+  const OVERSIZE = new Map<string, number>([
+    // FIXME: `journey.rs` is 38 lines over the limit, holding the fold's entry
+    // points, its replay visitors and its bit-set helpers in one file. Moving one
+    // of those groups into a module of its own closes this.
+    ['packages/sense/native/src/journey.rs', 538],
+  ]);
 
-  const lines = (file: string): number => readFileSync(join(ROOT, file), 'utf8').split('\n').length;
+  /** Lines as `wc -l` counts them, plus a last line that has no newline after it. */
+  const count = (text: string): number => {
+    const breaks = text.split('\n').length - 1;
+    return text === '' || text.endsWith('\n') ? breaks : breaks + 1;
+  };
 
-  it.each(SOURCE.filter((file) => !OVERSIZE.has(file)))(`%s is under ${LIMIT} lines`, (file) => {
-    expect(lines(file)).toBeLessThanOrEqual(LIMIT);
+  const lines = (file: string): number => count(readFileSync(join(ROOT, file), 'utf8'));
+
+  /** Each listed file that is shorter than its ceiling, which must come down to meet it. */
+  const slack = (ceilings: ReadonlyMap<string, number>, length: (file: string) => number): string[] =>
+    [...ceilings]
+      .filter(([file, ceiling]) => length(file) < ceiling)
+      .map(([file, ceiling]) => `${file}: ${length(file)} lines, held at ${ceiling}`);
+
+  /** Why a file at this length breaks the rule, or nothing when it keeps it. */
+  const refusal = (file: string, length: number, ceilings: ReadonlyMap<string, number>): string | undefined => {
+    const ceiling = ceilings.get(file);
+    if (ceiling === undefined) {
+      return length > LIMIT ? `${file} has ${length} lines, over the limit of ${LIMIT}` : undefined;
+    }
+    return length > ceiling ? `${file} has ${length} lines, and the debt list holds it at ${ceiling}` : undefined;
+  };
+
+  it(`refuses a Rust file over ${LIMIT} lines that is not on the debt list`, () => {
+    expect(refusal('native/src/grown.rs', LIMIT + 1, new Map())).toBe(
+      `native/src/grown.rs has ${LIMIT + 1} lines, over the limit of ${LIMIT}`,
+    );
+    expect(refusal('native/src/kept.rs', LIMIT, new Map())).toBeUndefined();
+  });
+
+  it('counts lines as `wc -l` does, so a closing newline is not a line of its own', () => {
+    expect(count('')).toBe(0);
+    expect(count('\n')).toBe(1);
+    expect(count('one\ntwo\n')).toBe(2);
+    expect(count('one\ntwo')).toBe(2);
+    expect(count('one\ntwo\n\n')).toBe(3);
+  });
+
+  it('measures a file on the debt list against its own ceiling rather than the limit', () => {
+    const ceilings = new Map([['native/src/listed.rs', 539]]);
+
+    expect(refusal('native/src/listed.rs', 520, ceilings)).toBeUndefined();
+    expect(refusal('native/src/listed.rs', 539, ceilings)).toBeUndefined();
+    expect(refusal('native/src/listed.rs', 540, ceilings)).toBe(
+      'native/src/listed.rs has 540 lines, and the debt list holds it at 539',
+    );
+  });
+
+  it('refuses a shrink that leaves the ceiling where it was', () => {
+    const ceilings = new Map([['native/src/listed.rs', 539]]);
+
+    expect(slack(ceilings, () => 520)).toEqual(['native/src/listed.rs: 520 lines, held at 539']);
+    expect(slack(ceilings, () => 539)).toEqual([]);
+  });
+
+  it('counts Rust, so the rule cannot pass by never reading the addon', () => {
+    expect(SOURCE).toContain('packages/sense/native/src/lib.rs');
+  });
+
+  it('leaves out the vendored resolver, and the directory it leaves out exists', () => {
+    expect(existsSync(join(ROOT, VENDORED, 'src/lib.rs'))).toBe(true);
+    expect(SOURCE.filter((file) => file.startsWith(`${VENDORED}/`))).toEqual([]);
+  });
+
+  it.each(SOURCE)(`%s is under ${LIMIT} lines, or under its ceiling on the debt list`, (file) => {
+    expect(refusal(file, lines(file), OVERSIZE)).toBeUndefined();
   });
 
   it('has no entry on the debt list that is already under the limit', () => {
     // The list shortens by deleting a name once the file is split, and this is
     // what makes anyone bother: a fixed file that stays listed fails here.
-    const fixed = [...OVERSIZE].filter((file) => existsSync(join(ROOT, file)) && lines(file) <= LIMIT);
+    const fixed = [...OVERSIZE.keys()].filter((file) => existsSync(join(ROOT, file)) && lines(file) <= LIMIT);
     expect(fixed).toEqual([]);
   });
 
+  it('holds each entry on the debt list at the length the file has, so a shrink is kept', () => {
+    const present = new Map([...OVERSIZE].filter(([file]) => existsSync(join(ROOT, file))));
+    expect(slack(present, lines)).toEqual([]);
+  });
+
   it('has no entry on the debt list that no longer exists', () => {
-    expect([...OVERSIZE].filter((file) => !existsSync(join(ROOT, file)))).toEqual([]);
+    expect([...OVERSIZE.keys()].filter((file) => !existsSync(join(ROOT, file)))).toEqual([]);
   });
 
   it.each(SOURCE.filter((file) => /\.(test|spec|check)\.(ts|tsx)$/.test(file)))(
