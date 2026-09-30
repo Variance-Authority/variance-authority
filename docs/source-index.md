@@ -68,6 +68,23 @@ questions: published at <cache>/test-selection/<digest>/source-index.bin.help.js
   Either one says `not prepared` or `not published`, with the reason, when it
   could not be written.
 
+On your machine the command returns once the index is written. The code map,
+the journeys and the last two lines are made by a process it starts for them,
+and the index line is followed by one naming that process and the file its lines
+go to:
+
+```text
+follow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process 48213, and the next variance command waits for it; their lines are written to <cache>/test-selection/<digest>/source-index.bin.follow-ups.log
+```
+
+The next `variance` command you run waits for that process before it reads
+anything, and says on stderr that it is waiting, so no answer is made from a map
+older than the index. A process that ended before it finished is not waited on:
+the next command makes what it left and prints the lines. `variance index --wait`
+makes them before it returns, which is what it always does in CI: a step's log
+is where its lines are read, and nothing may outlive the step that saves the
+cache.
+
 When the file system refuses the index itself, the command prints
 `source index not written: <reason>, at <path>` and exits `2`. Every reader of
 the index would otherwise answer from the one already there, so nothing after

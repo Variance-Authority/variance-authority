@@ -75,7 +75,7 @@ for (const corpus of CORPORA) {
       const cache = mkdtempSync(join(tmpdir(), 'va-scale-'));
       caches.push(cache);
       process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
-      const index = timed(() => cli(corpus.root, cache, ['index']));
+      const index = timed(() => cli(corpus.root, cache, ['index', '--wait']));
       const { path } = readDependencyLexicon(corpus.root);
       rmSync(path);
       const cold = await awaited(() => refreshDependencyLexicon(corpus.root));

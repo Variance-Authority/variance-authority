@@ -60,7 +60,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--flakes',
     '--exit-zero-on-changes',
   ],
-  index: ['--no-git'],
+  index: ['--no-git', '--wait', '--follow-ups'],
   select: ['--since', '--execution', '--diff', '--suite', '--format', '--no-git'],
   reach: ['--since', '--format', '--whole-files', '--no-git'],
   covering: [
@@ -136,7 +136,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]',
-  'variance index   [--no-git]',
+  'variance index   [--no-git] [--wait | --follow-ups]',
   'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
@@ -239,6 +239,12 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
     '',
     ...(flags.includes('--no-git')
       ? ['--no-git: read file contents from the working tree, not Git\'s object store; the index is the same.']
+      : []),
+    ...(flags.includes('--wait')
+      ? ['--wait: make the code map, journeys, lexicon and questions before returning, rather than in a process of their own.']
+      : []),
+    ...(flags.includes('--follow-ups')
+      ? ['--follow-ups: what that process runs; lets go of the lock the other commands wait on when it is done.']
       : []),
     ...(flags.includes('--whole-files')
       ? ['--whole-files: walk from every changed file whole, without reading the edit; the list is never shorter.']

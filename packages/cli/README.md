@@ -144,7 +144,7 @@ ids are the safe default after initial setup.
 
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
-variance index   [--no-git]
+variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
@@ -1396,6 +1396,15 @@ A suite with no recording prints `not prepared: nothing is recorded at …`. The
 last two lines are what `variance ask` answers from, and each says why when it
 could not be written. An index the file system refuses
 to write prints `source index not written: <reason>, at <path>` and exits `2`.
+
+On your machine the command returns once the index is written. The code map,
+the journeys and the last two lines are made by a process it starts for them,
+and a `follow-ups:` line names that process and the file its lines go to. The
+next `variance` command waits for it before reading anything, and says so on
+stderr, so no answer comes from a map older than the index. A process that ended
+before it finished is not waited on: the next command makes them itself and
+prints their lines. `--wait` makes them before `index` returns, which is what it
+always does in CI. `--follow-ups` is what the started process runs.
 
 In CI, run it as its own step after you restore the cache. A reader that finds
 nothing published there exits `2` and names the missing step, because an index

@@ -75,7 +75,7 @@ import { rendererFor } from './renderer.js';
  */
 export async function dispatch(
   parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' }>,
-  streams: { out(text: string): void; err(text: string): void },
+  streams: { out(text: string): void; err(text: string): void; detach?(argv: readonly string[], log: string): number | undefined },
 ): Promise<ExitCode> {
   // What answers before a config is read, and why each of them may: see
   // `configless.ts`, which holds those reasons beside the `CONFIGLESS` list in
