@@ -121,11 +121,12 @@ export function readingFrom({ commit, ref, runs, tests = [], git }) {
 
   // Oldest first: `standing` is in the record's own order, and `over` is where
   // the snapshot stood before the runs at its commit, which no test in
-  // `standing` ran after.
+  // `standing` ran after. The merge base comes last: every stand descending
+  // from it was lowered onto it above, so a stand still held is older.
   const order = [
     ...new Set([
-      ...(merged === undefined ? [] : [merged]),
       ...(runs?.commit === commit ? [...(runs.standing ?? []).map((entry) => entry.commit), ...(runs.over === undefined ? [] : [runs.over])] : []),
+      ...(merged === undefined ? [] : [merged]),
     ]),
   ];
   const grouped = new Map();

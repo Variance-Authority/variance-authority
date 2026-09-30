@@ -104,6 +104,25 @@ describe('a change is read from where each test last ran, not from where the las
     expect(start.says).toMatch(/^the merge base with mainline; 2 file\(s\) changed up to /);
   });
 
+  it('starts at a stand older than the ref\'s merge base, which the merge base does not replace', async () => {
+    const { git, P, H } = await history();
+    const M = git('rev-parse', 'mainline').trim();
+    git('branch', 'at-p', P);
+    const runs = runsAt(H, P, ['test/near.test.ts'], [{ commit: M, files: ['test/far.test.ts'] }]);
+
+    const start = readingFrom({ commit: H, ref: 'at-p', runs, tests, git });
+
+    expect(start).toMatchObject({
+      base: H,
+      from: M,
+      stands: [
+        { commit: M, tests: ['test/far.test.ts'], whole: ['src/far.ts', 'src/other.ts'] },
+        { commit: P, tests: ['test/near.test.ts', 'test/other.test.ts'], whole: ['src/far.ts'] },
+      ],
+    });
+    expect(start.says).toMatch(/^where 1 test\(s\) the runs at /);
+  });
+
   it('keeps the runs when the ref\'s merge base is the snapshot\'s commit, so naming it reads no less than naming nothing', async () => {
     const { git, P, H } = await history();
     const runs = runsAt(H, P);
