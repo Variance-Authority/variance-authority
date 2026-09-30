@@ -1,6 +1,6 @@
 import { relative, resolve } from 'node:path';
 import type { Declaration } from './declare.js';
-import { type Offering, type OfferingOptions, readOfferings } from './manifest.js';
+import { type Offering, type OfferingOptions, publishes, readOfferings } from './manifest.js';
 import { createReader, namesReachedBy, type Names } from './reach.js';
 import { type Mention, type Readmes, readMention, readmes } from './mention.js';
 import { type Deep, type Named, type Usage, type UsageOptions, type Use, readUsage } from './use.js';
@@ -232,7 +232,7 @@ export function assembleHelp(
 
   return {
     packages,
-    deep: usage.deep,
+    deep: usage.deep.filter((held) => !publishes(offerings, held.specifier)),
     exported: usage.exported,
     unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
   };
@@ -288,7 +288,7 @@ export type {
   Use,
   UseKind,
 } from './use.js';
-export { ownership, readOfferings, requested } from './manifest.js';
+export { ownership, publishes, readOfferings, requested } from './manifest.js';
 export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';
