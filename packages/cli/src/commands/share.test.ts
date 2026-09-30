@@ -14,6 +14,7 @@ import type { Env } from '../share-lines.js';
 import { ask, type AskRequest } from './ask.js';
 import { reportsFor } from './report-read.js';
 import { mainlineIndex, mainlineSuite, mainlinesOf, publishedLine, publishRun, shareLines } from './share.js';
+import { publishSuite } from './suite-share.js';
 
 /**
  * A run publishes to the line it belongs to, and a reader reads its mainline.
@@ -99,22 +100,21 @@ describe('publishing a run', () => {
     expect(done).toMatchObject({ published: { written: ['suite-index-v1', 'report-v1'] } });
   });
 
-  it('carries a suite\'s record when the config gives it to the share, and a reader reads it back', async () => {
+  it('carries a suite\'s record to a mainline only from `share --suite` given what the runner collects, and a reader reads it back', async () => {
     const repository = await repositoryOf(2);
     const config = { ...configOf({ root: join(home, 'share'), mainlines: ['main'] }), suites: [{ name: 'unit', carry: 'share' }] } as Config;
-    await writeFile(join(repository.dir, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    await writeFile(join(repository.dir, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share: config.share }));
     const record = testCoverageFile(repository.dir, { suite: 'unit' });
     await mkdir(dirname(record), { recursive: true });
-    await writeTestCoverage(record, { version: 3, instrumentation: 'fixture', commit: repository.commits[0]!, tests: [], modules: [] });
+    await writeTestCoverage(record, { version: 3, instrumentation: 'fixture', commit: repository.commits[1]!, tests: [], modules: [] });
     await writeFile(`${record}.cases.bin`, 'cases');
-    await writeFile(commitRunsFile(record), JSON.stringify({ commit: repository.commits[0], first: '', latest: '', runs: 1, files: [], standing: [] }));
+    await writeFile(commitRunsFile(record), JSON.stringify({ commit: repository.commits[1]!, first: '', latest: '', runs: 1, files: [], standing: [] }));
+    await writeFile(join(home, 'collected.txt'), '');
 
-    const done = await publishRun(config, await reportAt(repository.commits[0]!), { env: PUSH, cwd: repository.dir });
-    expect(done).toMatchObject({ published: { written: ['suite-index-v1', 'suite-v1/unit'] } });
-    expect(done).not.toHaveProperty('unpublished');
-
+    expect(await publishRun(config, await reportAt(repository.commits[1]!), { env: PUSH, cwd: repository.dir })).toMatchObject({ published: { written: ['suite-index-v1'] }, unpublished: [expect.stringContaining('pass `--collected`')] });
+    expect(await publishSuite(repository.dir, 'unit', { env: PUSH }, { collected: join(home, 'collected.txt') })).toMatchObject({ published: { written: ['suite-v1/unit'] } });
     const found = await mainlineSuite(config, 'unit', { env: LOCAL, cwd: repository.dir });
-    expect(found).toMatchObject({ mainline: 'main', commit: repository.commits[0], distance: 1 });
+    expect(found).toMatchObject({ mainline: 'main', commit: repository.commits[1]!, distance: 0 });
     expect('coverage' in found && Buffer.from(found.coverage).equals(await readFile(record))).toBe(true);
     expect('coverage' in found && new TextDecoder().decode(found.cases)).toBe('cases');
     expect('coverage' in found && JSON.parse(new TextDecoder().decode(found.runs))).toMatchObject({ standing: [] });

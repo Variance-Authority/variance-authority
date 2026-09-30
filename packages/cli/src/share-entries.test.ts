@@ -144,11 +144,13 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
   const ran = (commit: string, standing?: readonly { commit: string; files: string[] }[]) => ({
     commit, first: at, latest: at, runs: 1, files: ['test/kept.test.ts'], ...(standing === undefined ? {} : { standing }),
   });
+  /** What the runner collects at the commit `ranAt` makes. */
+  const collected = new Set(['test/kept.test.ts']);
 
   it('carries the runs record of a run of the whole suite, and a reader reads it back', async () => {
     const { root, coverage, commit } = await ranAt('whole', (at) => ran(at, []));
 
-    const entry = await suiteEntryOf(root, 'unit', { commit }, { whole: true });
+    const entry = await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected });
 
     if (entry === undefined || 'unpublished' in entry) throw new Error(`not published: ${JSON.stringify(entry)}`);
     const read = readSuiteEntry(entry.bytes);
@@ -159,23 +161,22 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
   it('counts a test that last ran before the commit as run when the commit no longer has it', async () => {
     const { root, commit } = await ranAt('deleted', (at) => ran(at, [{ commit: 'c'.repeat(40), files: ['test/gone.test.ts'] }]));
 
-    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true })).toMatchObject({ name: 'suite-v1/unit', commit });
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected })).toMatchObject({ name: 'suite-v1/unit', commit });
   });
 
   it('is not published for a mainline when a test the commit still has last ran before it, and names one', async () => {
     const { root, coverage, commit } = await ranAt('partial', (at) => ran(at, [{ commit: 'c'.repeat(40), files: ['test/kept.test.ts'] }]));
 
-    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true })).toEqual({
-      unpublished: `its record at ${coverage} is not a whole run: 1 test file(s) git holds at ${commit} last ran before it, test/kept.test.ts among them; ` +
-        'the runner was not asked which files it collects, so each one git holds counts: pass `--collected`',
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected })).toEqual({
+      unpublished: `its record at ${coverage} is not a whole run: 1 test file(s) the suite collects last ran before ${commit}, test/kept.test.ts among them`,
     });
   });
 
   it('is not published for a mainline when a test file the runner collects is in no run the record lists, and names it', async () => {
     const { root, coverage, commit } = await ranAt('unlisted', (at) => ran(at, []));
-    const collected = new Set(['test/kept.test.ts', 'test/new.test.ts']);
+    const more = new Set(['test/kept.test.ts', 'test/new.test.ts']);
 
-    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected })).toEqual({
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: more })).toEqual({
       unpublished: `its record at ${coverage} is not a whole run: 1 test file(s) the suite collects are listed nowhere in the runs record: test/new.test.ts`,
     });
     expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/kept.test.ts']) })).toMatchObject({
@@ -193,8 +194,8 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
 
     for (const [name, runs, lacks] of shapes) {
       const { root, coverage, commit } = await ranAt(name, runs as (commit: string) => object);
-      for (const collected of [undefined, new Set(['test/kept.test.ts'])]) {
-        await expect(suiteEntryOf(root, 'unit', { commit }, { whole: true, ...(collected === undefined ? {} : { collected }) }), name).resolves.toEqual({
+      for (const listed of [undefined, collected]) {
+        await expect(suiteEntryOf(root, 'unit', { commit }, { whole: true, ...(listed === undefined ? {} : { collected: listed }) }), name).resolves.toEqual({
           unpublished: `its record at ${coverage} is not a whole run: the runs record beside it ${lacks}`,
         });
       }

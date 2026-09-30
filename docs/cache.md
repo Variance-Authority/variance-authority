@@ -155,9 +155,11 @@ Delete the directory for your checkout and run `yarn test` again:
 rm -rf "<cache>/test-selection/<repository>"
 ```
 
-For a suite given to the share, the first run then lands on the mainline's
-record last fetched on this machine, and prints that it did. To start that
-suite from nothing, delete `<cache>/share/read/<suite>/` as well.
+For a suite given to the share, the first run then copies the mainline's
+record, but only when this machine has fetched one, and prints that it did.
+With none fetched, a worktree's first run copies the primary checkout's record,
+as [sharing](sharing.md#a-suite-your-checkout-has-not-recorded) describes. To
+start that suite from nothing, delete `<cache>/share/read/<suite>/` as well.
 
 To reset only the source index and keep the recording, delete
 `source-index.bin` and `source-index.bin.segments/` and run `variance index`.

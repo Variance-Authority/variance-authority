@@ -82,9 +82,11 @@ fetched here, and the reader says so.**
 - **A record that is not a whole run.** Every test file must have run at the
   publish commit. The runner owns which files it collects, so the publish job
   asks it (`yarn vitest list --filesOnly`) and passes the list with
-  `--collected`. Without the list, git's tree at the commit answers, listed
-  once with `ls-tree -r --full-tree`, and the refusal says to pass
-  `--collected`. A standing entry at the publish commit counts as run there.
+  `--collected`. Without the list the publish is refused and says to pass
+  `--collected`: git holds test files and every other file alike, so its tree
+  cannot say which files the suite runs. `share --publish` takes no list, so
+  it publishes a suite's record only to a branch line. A standing entry at the
+  publish commit counts as run there.
   A commit git does not hold is named.
 - **A refusal on a mainline fails the command** with `EXIT_OPERATOR`. Every
   pull request measures from this record, so an older one left in place must

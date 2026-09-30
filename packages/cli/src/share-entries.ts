@@ -24,16 +24,13 @@
  * so a part added later does not break it.
  */
 
-import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { promisify } from 'node:util';
 import type { ShareEntry } from '@variance-authority/core/share';
 import { askCoverageFile, commitRunsFile, testCoverageFile, type CommitRuns } from '@variance-authority/sense/test-selection';
 import { readCliRunReport } from './commands/run-report.js';
 
-const run = promisify(execFile);
 
 /** The entry a run report is published under. */
 export const REPORT_ENTRY = 'report-v1';
@@ -148,8 +145,8 @@ export function readReportEntry(
  * can. `whole` is set for a mainline, whose record every checkout measures from:
  * then the record is published only when its runs record shows a run of the
  * whole suite at this commit, which {@link wholeRunAt} tells from the runs record
- * and from what the runner collects (`collected`), else from git, never from
- * the caller's word.
+ * and from what the runner collects (`collected`), never from the caller's
+ * word. Without `collected` it cannot be told, and the record is left out.
  */
 export async function suiteEntryOf(
   root: string,
@@ -171,7 +168,7 @@ export async function suiteEntryOf(
   const cases = await held(`${coverage}.cases.bin`);
   const runs = await held(commitRunsFile(coverage));
   if (options.whole === true) {
-    const partial = await wholeRunAt(root, runs, at.commit, options.collected);
+    const partial = wholeRunAt(runs, at.commit, options.collected);
     if (partial !== undefined) return { unpublished: `its record at ${coverage} is not a whole run: ${partial}` };
   }
 
@@ -203,17 +200,16 @@ const RUNS_PART = 'coverage.runs.json';
  *
  * The runner owns what the suite collects, so `collected` is its answer: the
  * repository-relative test files it lists at `commit`, each of which the runs
- * record must list as run or standing somewhere. Without it, git answers
- * for which of those files `commit` still has, and a refusal says the runner
- * was not asked, because a file git holds and the runner no longer collects
- * would hold the gate shut on every run.
+ * record must list as run or standing somewhere. Without it nothing here can
+ * say which files are tests the suite still runs, since the checkout holds
+ * tests and every other file alike, so an unknown collection is not whole, and
+ * the refusal says to pass it.
  */
-export async function wholeRunAt(
-  root: string,
+export function wholeRunAt(
   runs: Uint8Array | undefined,
   commit: string,
   collected?: ReadonlySet<string>,
-): Promise<string | undefined> {
+): string | undefined {
   if (runs === undefined) return 'no runs record lies beside it, so nothing says which tests ran at this commit';
   let value: unknown;
   try {
@@ -232,49 +228,22 @@ export async function wholeRunAt(
   if (!parsed.standing.every((entry: unknown) => typeof entry === 'object' && entry !== null && Array.isArray((entry as { files?: unknown }).files))) {
     return 'the runs record beside it holds a `standing` entry with no list of test files';
   }
-  if (collected !== undefined) {
-    const listed = new Set([...parsed.files, ...parsed.standing.flatMap((entry) => entry.files)]);
-    const unlisted = [...collected].filter((path) => !listed.has(path)).sort();
-    if (unlisted.length > 0) {
-      const named = unlisted.length > 5 ? `${unlisted.slice(0, 5).join(', ')} and ${unlisted.length - 5} more` : unlisted.join(', ');
-      return `${unlisted.length} test file(s) the suite collects are listed nowhere in the runs record: ${named}`;
-    }
+  if (collected === undefined) {
+    return 'the runner was not asked which test files it collects, so nothing says the run covered all of them: pass `--collected`';
+  }
+  const listed = new Set([...parsed.files, ...parsed.standing.flatMap((entry) => entry.files)]);
+  const unlisted = [...collected].filter((path) => !listed.has(path)).sort();
+  if (unlisted.length > 0) {
+    const named = unlisted.length > 5 ? `${unlisted.slice(0, 5).join(', ')} and ${unlisted.length - 5} more` : unlisted.join(', ');
+    return `${unlisted.length} test file(s) the suite collects are listed nowhere in the runs record: ${named}`;
   }
   // A test standing at this commit ran at it, in a run before the latest.
-  const older = parsed.standing.filter((entry) => entry.commit !== commit).flatMap((entry) => entry.files);
-  if (older.length === 0) return undefined;
-  const present = collected ?? (await trackedAt(root, commit));
-  if (typeof present === 'string') return present;
-  const kept = older.filter((path) => present.has(path));
+  const kept = parsed.standing
+    .filter((entry) => entry.commit !== commit)
+    .flatMap((entry) => entry.files)
+    .filter((path) => collected.has(path));
   if (kept.length === 0) return undefined;
-  if (collected !== undefined) return `${kept.length} test file(s) the suite collects last ran before ${commit}, ${kept[0]} among them`;
-  return (
-    `${kept.length} test file(s) git holds at ${commit} last ran before it, ${kept[0]} among them; ` +
-    'the runner was not asked which files it collects, so each one git holds counts: pass `--collected`'
-  );
-}
-
-/**
- * Every file git holds at `commit`, repository-relative, listed once from the
- * repository root whatever directory `root` is; or why git could not say.
- */
-async function trackedAt(root: string, commit: string): Promise<ReadonlySet<string> | string> {
-  try {
-    const { stdout } = await run('git', ['ls-tree', '-r', '--name-only', '-z', '--full-tree', commit], {
-      cwd: root,
-      maxBuffer: 256 * 1024 * 1024,
-    });
-    return new Set(stdout.split('\0').filter((path) => path !== ''));
-  } catch (error) {
-    const held = await run('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: root }).then(
-      () => true,
-      () => false,
-    );
-    if (!held) {
-      return `git does not hold ${commit} in the checkout at ${root}, so which test files it still has cannot be asked: fetch it, or pass \`--collected\``;
-    }
-    return `git could not list the files at ${commit}: ${error instanceof Error ? error.message.trim() : String(error)}`;
-  }
+  return `${kept.length} test file(s) the suite collects last ran before ${commit}, ${kept[0]} among them`;
 }
 
 /** A `suite-v1` entry's parts: the coverage record, the per-case index when there was one, and the runs record when the publisher carried it. */

@@ -136,7 +136,7 @@ export async function gitPublished(
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
   const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));
   if (options.publish !== false) {
-    const done = await publishSuite(ci, 'unit', { env: PUSH });
+    const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
     const written = 'published' in done && done.line.kind === 'mainline' ? done.published.written : [];
     if (!written.includes(suiteEntry('unit'))) throw new Error(`the record was to reach mainline main, and the share answered ${JSON.stringify(done)}`);
   }
@@ -162,14 +162,29 @@ export function shareConfig(home: string): Config {
 
 /**
  * Publish what `dir` recorded at `commit`, as a run of the whole suite there
- * would, and fail unless the suite's record reached `line`.
+ * would, and fail unless the suite's record reached `line`. A mainline takes
+ * the record only from `share --suite` given the runner's collected list, so
+ * there the run's publish carries the index and the suite's carries the record,
+ * as check.yml publishes them.
  */
 export async function publishTo(home: string, dir: string, commit: string, env: Env, line: string): Promise<void> {
   await ranWhole(testCoverageFile(dir, { suite: 'unit' }), commit);
+  const mainline = line.startsWith('mainline ');
   const done = await publishRun(shareConfig(home), await reportAt(home, commit), { env, cwd: dir });
   const reached = 'published' in done ? `${done.line.kind} ${done.line.name}: ${done.published.written.join(', ')}` : undefined;
-  const wanted = `${line}: suite-index-v1, suite-v1/unit`;
+  const wanted = `${line}: ${mainline ? 'suite-index-v1' : 'suite-index-v1, suite-v1/unit'}`;
   if (reached !== wanted) throw new Error(`the run was to publish ${wanted}, and the share answered ${JSON.stringify(done)}`);
+  if (!mainline) return;
+  const suite = await publishSuite(dir, 'unit', { env }, { collected: await collectedBoth(home) });
+  const written = 'published' in suite ? `${suite.line.kind} ${suite.line.name}: ${suite.published.written.join(', ')}` : undefined;
+  if (written !== `${line}: suite-v1/unit`) throw new Error(`the record was to reach ${line}, and the share answered ${JSON.stringify(suite)}`);
+}
+
+/** The runner's collected list for the fixture's suite: both of its test files. */
+export async function collectedBoth(home: string): Promise<string> {
+  const path = join(home, 'collected.txt');
+  await writeFile(path, 'test/other.test.ts\ntest/total.test.ts\n');
+  return path;
 }
 
 /**

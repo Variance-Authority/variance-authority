@@ -63,7 +63,7 @@ baseline costs you the comparison.
 | `suite-index-v1` | the [suite index](lexicon.md#where-it-is-kept) of the run | the run report has a [composition](composition.md) section and names a commit |
 | `subject-costs-v1` | what each subject took to collect, in whole milliseconds, and the file that declares it | the run report timed a subject, and is not one shard of a sharded build |
 | `report-v1` | the run report byte for byte, and a table from each image path it names to that image's digest | `report.carry` is `"share"` |
-| `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, and its execution record here was recorded at the run report's commit |
+| `suite-v1/<suite>` | that suite's execution record, as this machine recorded it | the suite's `carry` is `"share"`, its execution record here was recorded at the run report's commit, and the line is a branch's: a mainline takes it only from [`share --suite`](#a-suite-with-no-run-report) |
 
 Every publish includes `suite-index-v1`, which is what `variance share` reads,
 and the other entries are published only beside it. A run report has no
@@ -875,7 +875,10 @@ jobs:
 - **A pull request from a fork and a merge-queue run publish nothing**, and the
   step says so and exits 0.
 - **`suite-v1/stories` is published only when an earlier step ran the `stories`
-  suite** under its [runner integration](execution-record.md#one-record-for-each-suite).
+  suite** under its [runner integration](execution-record.md#one-record-for-each-suite),
+  and only to a branch line. This step cannot say which test files the runner
+  collects, so a push to a mainline leaves the suite out and says to pass
+  `--collected`, which [`share --suite`](#a-suite-with-no-run-report) takes.
 - **Jobs that run different suites on one line** each keep their own
   `suite-v1/<name>`, while `report-v1` and `suite-index-v1` are one per line,
   from the job that published last.
@@ -995,8 +998,12 @@ record it had, and the command exits 2:
 nothing published: suite-v1/unit is left out: its record at <path> is not a whole run: 3 test file(s) the suite collects last ran before 3f1c…, test/cart.test.ts among them.
 ```
 
-Without `--collected`, every test file git has at `HEAD` counts, and the
-message says to pass `--collected`.
+Without `--collected` nothing says which files are the suite's tests, so a
+mainline publish is refused:
+
+```text
+nothing published: suite-v1/unit is left out: its record at <path> is not a whole run: the runner was not asked which test files it collects, so nothing says the run covered all of them: pass `--collected`.
+```
 
 A branch line takes the record whatever ran, because nothing measures from it
 but that branch.

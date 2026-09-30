@@ -19,7 +19,7 @@ import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { MAINLINE_REUSE_MS, mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
-import { DISCOUNTS, GIT_SHARE, PUSH, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
+import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
 import { layMainline, suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
 
@@ -93,9 +93,24 @@ describe('a published record reaches the remote', () => {
     const own = testCoverageFile(ci, { suite: 'unit' });
     const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [{ commit: 'c'.repeat(40), files: ['test/other.test.ts'] }] };
     await writeFile(commitRunsFile(own), JSON.stringify(runs));
+    const collected = join(home, 'collected.txt');
+    await writeFile(collected, 'test/other.test.ts\ntest/total.test.ts\n');
+
+    expect(await publishSuite(ci, 'unit', { env: PUSH }, { collected })).toEqual({
+      none: `suite-v1/unit is left out: its record at ${own} is not a whole run: 1 test file(s) the suite collects last ran before ${first}, test/other.test.ts among them`,
+    });
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe('');
+  });
+
+  it('is refused without the runner\'s collected list, even when the runs record lists no test as run elsewhere', async () => {
+    // `test/other.test.ts` is tracked and never ran; only the runner can say it is a test.
+    const { ci, origin, first } = await mainline({ publish: false });
+    const own = testCoverageFile(ci, { suite: 'unit' });
+    const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [] };
+    await writeFile(commitRunsFile(own), JSON.stringify(runs));
 
     expect(await publishSuite(ci, 'unit', { env: PUSH })).toEqual({
-      none: `suite-v1/unit is left out: its record at ${own} is not a whole run: 1 test file(s) git holds at ${first} last ran before it, test/other.test.ts among them; the runner was not asked which files it collects, so each one git holds counts: pass \`--collected\``,
+      none: `suite-v1/unit is left out: its record at ${own} is not a whole run: the runner was not asked which test files it collects, so nothing says the run covered all of them: pass \`--collected\``,
     });
     expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe('');
   });
@@ -212,7 +227,7 @@ describe('the primary checkout\'s record is the offline fallback, and says why',
 describe('`variance share --suite unit`', () => {
   it('publishes the record alone, and says so the way `share --publish` does', async () => {
     const { ci } = await mainline({ publish: false });
-    const lines = await suiteShareLines(ci, { suite: 'unit', publish: true }, { env: PUSH });
+    const lines = await suiteShareLines(ci, { suite: 'unit', publish: true, collected: await collectedBoth(home) }, { env: PUSH });
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatch(/^wrote suite-v1\/unit to mainline main in /u);
   });
@@ -293,8 +308,10 @@ describe('a mainline publish counts a whole run against what the runner collects
     const own = testCoverageFile(ci, { suite: 'unit' });
     const runs = { commit: first, first: '', latest: '', runs: 1, files: ['test/total.test.ts'], standing: [{ commit: first, files: ['test/other.test.ts'] }] };
     await writeFile(commitRunsFile(own), JSON.stringify(runs));
+    const collected = join(home, 'collected.txt');
+    await writeFile(collected, 'test/other.test.ts\ntest/total.test.ts\n');
 
-    expect(await publishSuite(ci, 'unit', { env: PUSH })).toMatchObject({ published: { written: [suiteEntry('unit')] } });
+    expect(await publishSuite(ci, 'unit', { env: PUSH }, { collected })).toMatchObject({ published: { written: [suiteEntry('unit')] } });
   });
 
   it('fails the command when a mainline publish writes nothing, and not when a branch\'s does', async () => {
