@@ -60,6 +60,7 @@ import {
   type Use,
 } from '@variance-authority/package/help';
 import { indexedNames, type IndexedSource } from './indexed-surface.js';
+import { operatorError } from './operator.js';
 import { coversWhole, scanScope } from './scan-scope.js';
 import {
   readWorkspaceSnapshot,
@@ -104,7 +105,13 @@ export async function readWorkspaceForAnswer(
   try {
     recorded = await readWorkspaceSnapshot(root, reading);
   } catch (error) {
-    if (justAnswer) throw error;
+    if (justAnswer) {
+      throw operatorError(
+        `${error instanceof Error ? error.message : String(error)}. ` +
+          'Run `variance index`, or ask again without `--just-answer`, to read the checkout and publish one.',
+        { cause: error },
+      );
+    }
     return readWorkspace(root, reading);
   }
 

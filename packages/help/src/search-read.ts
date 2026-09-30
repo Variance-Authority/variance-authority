@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
+import { operatorError } from './operator.js';
 import { readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
 import type { SearchIndex } from './search-index.js';
 import { readSearchSnapshot, readSearchTree, searchOf, workspaceSearchPath } from './snapshot.js';
@@ -36,9 +37,9 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
   try {
     return await searchOf(await readWorkspaceForAnswer(root, { ...reading, justAnswer: true }), index);
   } catch (cause) {
-    throw new Error(
+    throw operatorError(
       `search reads the published source generation, and none is published at ${workspaceSearchPath(index)}. ` +
-        'Ask any other source question without `--just-answer` to read the checkout and publish one.',
+        'Run `variance index`, or ask any other source question without `--just-answer`, to read the checkout and publish one.',
       { cause },
     );
   }
