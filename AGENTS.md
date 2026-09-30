@@ -301,7 +301,7 @@ loads, and a ratio cannot be timed through the thing timing it.
 `yarn test:since` reads that back and runs the files a change reached:
 
 ```bash
-yarn test:since                    # since the commit the snapshot was recorded at
+yarn test:since                    # since where the snapshot stood before the runs at its commit
 yarn test:since main               # since the merge base with main
 yarn test:since --dry-run          # decide, explain, run nothing
 yarn test:since --at-distance 0-2  # only the tests within two imports of the change

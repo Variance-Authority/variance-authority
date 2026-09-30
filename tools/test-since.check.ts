@@ -1,9 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { narrowByExecution, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
+import { excluding, readingFrom, wholeEntry } from './since-base.mjs';
 import { inSnapshotCoordinates } from './since-diff.mjs';
 import { costLine, explain, findingLines, readingLines, recordLine, runningLines } from './since-report.mjs';
 import { recordToRead, selectedFiles } from './test-since.mjs';
@@ -283,5 +285,151 @@ describe('a worktree that has not run reads the record the primary checkout made
     const read = await recordToRead(path, cacheRoot);
     expect(read).toEqual({ file: testCoverageFile(path, { cacheRoot }), own: true });
     expect(recordLine(read.file, read.own)).toBe(`  record   this checkout's, at ${read.file}`);
+  });
+});
+
+describe('a change is read from where it started, not from where the last leg left the snapshot', () => {
+  // `mainline` holds three modules. The branch changes `src/other.ts` (P), then
+  // `src/far.ts` (H). A leg at H landed its run over the snapshot P recorded, so
+  // the snapshot names H while every test the leg did not run stands on P.
+  async function history(): Promise<{ at: string; git: (...args: string[]) => string; P: string; H: string }> {
+    const at = await mkdtemp(resolve(tmpdir(), 'va-since-start-'));
+    const git = (...args: string[]): string =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], {
+        cwd: at,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    const commit = async (files: Record<string, string>, message: string): Promise<string> => {
+      for (const [file, text] of Object.entries(files)) {
+        await mkdir(resolve(at, file, '..'), { recursive: true });
+        await writeFile(resolve(at, file), text);
+      }
+      git('add', '.');
+      git('commit', '-q', '-m', message);
+      return git('rev-parse', 'HEAD').trim();
+    };
+    git('init', '-q', '-b', 'work');
+    const names = ['far', 'near', 'other'];
+    await commit(Object.fromEntries(names.map((name) => [`src/${name}.ts`, `export const ${name} = 1;\n`])), 'M');
+    git('branch', 'mainline');
+    const P = await commit({ 'src/other.ts': 'export const other = 2;\n' }, 'P');
+    const H = await commit({ 'src/far.ts': 'export const far = 2;\n' }, 'H');
+    return { at, git, P, H };
+  }
+
+  const runsAt = (commit: string, over: string) => ({ commit, over, first: '', latest: '', runs: 1, files: ['test/far.test.ts'] });
+
+  const snapshot = (commit: string): TestCoverage => ({
+    version: 3,
+    instrumentation: 'probe-recipe',
+    commit,
+    tests: ['far', 'near', 'other'].map((name) => ({ file: `test/${name}.test.ts`, complete: true, preconditions: [] })),
+    modules: ['far', 'near', 'other'].map((name) => ({
+      file: `src/${name}.ts`,
+      sourceDigest: `source:${name}`,
+      instrumented: true,
+      blocks: [
+        {
+          ordinal: 0,
+          kind: 'module' as const,
+          digest: `block:${name}`,
+          name: '',
+          path: 'module',
+          startLine: 1,
+          endLine: 1,
+          source: true,
+          testFiles: [`test/${name}.test.ts`],
+        },
+      ],
+    })),
+  });
+
+  it('selects the tests of a file changed between the runs\' start and the snapshot\'s commit, beside a hunk after it', async () => {
+    const { at, git, P, H } = await history();
+    await writeFile(resolve(at, 'src/near.ts'), 'export const near = 2;\n');
+    const file = resolve(at, 'coverage.bin');
+    await writeTestCoverage(file, snapshot(H));
+
+    const start = readingFrom({ commit: H, ref: undefined, runs: runsAt(H, P), git });
+    const hunks = git('diff', '--no-renames', start.base, ...excluding(start.whole));
+    expect(hunks).toContain('+++ b/src/near.ts');
+    const diff = [hunks, ...start.whole.map(wholeEntry)].join('\n');
+    expect([...(await narrowByExecution(file, diff)).entered].sort()).toEqual(['test/far.test.ts', 'test/near.test.ts']);
+
+    expect(start).toEqual({
+      base: H,
+      from: P,
+      whole: ['src/far.ts'],
+      says: `where the snapshot stood before the runs at ${H.slice(0, 12)}; 1 file(s) changed up to ${H.slice(0, 12)}, where the snapshot was recorded, are read whole`,
+    });
+  });
+
+  it('leaves a file charged whole out of the hunk diff, by its literal name', async () => {
+    const { at, git, H } = await history();
+    await writeFile(resolve(at, 'src/far.ts'), 'export const far = 3;\n');
+    await writeFile(resolve(at, 'src/near.ts'), 'export const near = 2;\n');
+    const hunks = git('diff', '--no-renames', H, ...excluding(['src/far.ts', 'src/*.ts']));
+    expect(hunks).toContain('+++ b/src/near.ts');
+    expect(hunks).not.toContain('src/far.ts');
+    expect(excluding([])).toEqual([]);
+  });
+
+  it('reads from the snapshot\'s commit when the runs are another commit\'s, or absent', async () => {
+    const { git, P, H } = await history();
+    const fromCommit = { base: H, from: H, whole: [], says: 'where the snapshot was recorded' };
+    expect(readingFrom({ commit: H, ref: undefined, runs: runsAt(P, P), git })).toEqual(fromCommit);
+    expect(readingFrom({ commit: H, ref: undefined, runs: undefined, git })).toEqual(fromCommit);
+  });
+
+  it('honours a ref: from its merge base, whatever the runs say', async () => {
+    const { git, P, H } = await history();
+    const start = readingFrom({ commit: H, ref: 'mainline', runs: runsAt(H, P), git });
+    expect(start).toMatchObject({ base: H, from: git('rev-parse', 'mainline').trim(), whole: ['src/far.ts', 'src/other.ts'] });
+    expect(start.says).toMatch(/^the merge base with mainline; 2 file\(s\) changed up to /);
+  });
+
+  it('reads from the snapshot\'s commit when the ref\'s merge base is not before it, and says so', async () => {
+    const { git, P, H } = await history();
+    expect(readingFrom({ commit: H, ref: 'HEAD', runs: undefined, git })).toEqual({
+      base: H,
+      from: H,
+      whole: [],
+      says: 'where the snapshot was recorded',
+    });
+    expect(readingFrom({ commit: P, ref: 'HEAD', runs: undefined, git })).toEqual({
+      base: P,
+      from: P,
+      whole: [],
+      says: 'where the snapshot was recorded; the merge base with HEAD is not before it',
+    });
+  });
+
+  it('measures a snapshot that names no commit from the merge base alone', async () => {
+    const { git } = await history();
+    const merged = git('rev-parse', 'mainline').trim();
+    expect(readingFrom({ commit: undefined, ref: 'mainline', runs: undefined, git })).toEqual({
+      base: merged,
+      from: merged,
+      whole: [],
+      says: 'the merge base with mainline',
+    });
+  });
+
+  it('runs the whole suite when the start the runs name is not in this checkout', async () => {
+    const { git, H } = await history();
+    const gone = 'e'.repeat(40);
+    const start = readingFrom({ commit: H, ref: undefined, runs: runsAt(H, gone), git });
+    expect(start.widened).toBe(`${gone.slice(0, 12)}, where the snapshot stood before the runs at ${H.slice(0, 12)}, is not in this checkout`);
+    const decided = selectedFiles({
+      suite: ['a.test.ts'],
+      whole: new Set(['a.test.ts']),
+      entered: new Set(),
+      touched: [],
+      moved: [],
+      base: H,
+      unstarted: start.widened,
+    });
+    expect(decided).toEqual({ widened: `${start.widened}, so the change cannot be read from where it started` });
   });
 });

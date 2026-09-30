@@ -9,6 +9,7 @@ import {
   distanceByExecution,
   distanceRange,
   groupByDistance,
+  readCommitRuns,
   readTestCoverage,
   readableTestCoverage,
   remaining,
@@ -16,6 +17,7 @@ import {
   textAtRecording,
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
+import { excluding, lines, readingFrom, wholeEntry } from './since-base.mjs';
 import { inSnapshotCoordinates } from './since-diff.mjs';
 import { importGraph, isManifest, movedManifests, movedPackageFiles, movedPackages } from './since-graph.mjs';
 import { costLine, describeRange, distanceLines, explain, findingLines, helpLines, readingLines, recordLine, runningLines } from './since-report.mjs';
@@ -107,7 +109,8 @@ const diffOfNew = (path) =>
  * ran has already said everything it can by being absent from `entered`,
  * and the only ways to the whole suite are a reading that could not be made.
  */
-export function selectedFiles({ suite, whole, entered, touched, moved, base }) {
+export function selectedFiles({ suite, whole, entered, touched, moved, base, unstarted }) {
+  if (unstarted !== undefined) return { widened: `${unstarted}, so the change cannot be read from where it started` };
   if (moved === undefined) {
     return { widened: `the install could not be compared against ${base.slice(0, 12)}` };
   }
@@ -269,32 +272,27 @@ async function main() {
   /**
    * Where to measure from, and why it is always the working tree on the other side.
    *
-   * The snapshot's own commit whenever it names one: its line ranges are in that
-   * commit's coordinates and no other's, and a hunk read anywhere else lands on
-   * lines it never numbered once `main` has moved. A ref only decides the base
-   * for a snapshot that names no commit, and is resolved to its merge base so a
-   * branch behind `main` is not told that everything anybody else merged has
-   * changed here — the same reason `packages/cli/src/commands/since.ts` does.
+   * Hunks are read from the snapshot's own commit whenever it names one: its
+   * line ranges are in that commit's coordinates and no other's. The change can
+   * start earlier, and `readingFrom` in `since-base.mjs` says where and what it
+   * charges whole. A ref is resolved to its merge base so a branch behind `main`
+   * is not told that everything anybody else merged has changed here — the same
+   * reason `packages/cli/src/commands/since.ts` does.
    *
    * The comparison is against the working tree either way, because uncommitted
    * edits are what the loop before `yarn test` is about. A snapshot recorded
    * over a dirty tree is therefore diffed from a position it was never at, and
-   * the error is not in the safe direction: a file already edited when the
-   * recording was made has regions cut from *that* text and line numbers read
-   * against *this* one, and two edits to the same file can cancel to a region
-   * nothing entered and a selection of nothing at all.
-   *
-   * So the selector is handed `textAtRecording` as `sourceAt`, reading
-   * `git cat-file --batch` at the commit the snapshot names. A file whose text
-   * disagrees with its recorded digest is charged every region it has, under
-   * every name, and a file whose text agrees is read by the parser from both
-   * sides before any line of it is charged.
-   *
-   * A snapshot that names no commit is not checked, because a position is what
-   * the text is read from. That is the `yarn test:since main` case, where the
-   * base is a merge base and the snapshot never had coordinates of its own.
+   * two edits to the same file can cancel to a region nothing entered. So the
+   * selector is handed `textAtRecording` as `sourceAt`, reading the commit the
+   * snapshot names: a file whose text disagrees with its recorded digest is
+   * charged every region it has, under every name, and a file whose text agrees
+   * is read by the parser from both sides before any line of it is charged. A
+   * snapshot that names no commit has no position to read the text from, and
+   * is not checked.
    */
-  const base = coverage.commit ?? git('merge-base', ref, 'HEAD').trim();
+  const runs = own && coverage.commit !== undefined ? await readCommitRuns(snapshotFile) : undefined;
+  const start = readingFrom({ commit: coverage.commit, ref, runs, git });
+  const { base, from, whole: before } = start;
 
   const byStem = new Map();
   for (const module of coverage.modules) {
@@ -302,16 +300,10 @@ async function main() {
     byStem.set(stem, [...(byStem.get(stem) ?? []), module.file]);
   }
 
-  const lines = (text) =>
-    text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line !== '');
-
   const untracked = new Set(lines(git('ls-files', '--others', '--exclude-standard')));
   // Renames are read as a deletion and an addition, which is what they are to a
   // module's identity: the old path's regions are gone and the new path has none.
-  const changed = [...lines(git('diff', '--name-only', '--no-renames', base)), ...untracked];
+  const changed = [...new Set([...lines(git('diff', '--name-only', '--no-renames', base)), ...before, ...untracked])];
 
   // The install is read at the two revisions rather than counted as a changed
   // path, and the paths that record it are then set aside: a workspace version
@@ -319,13 +311,18 @@ async function main() {
   // comparison has already said so. `undefined` is a comparison that could not
   // be made. A manifest whose change the install does not read — `exports`,
   // `main`, `type` — is set aside too, and its package's files stand in for it.
-  const moved = movedPackages(ROOT, base, git);
-  const manifests = movedManifests(ROOT, base, git, changed);
+  // Read from where the change starts, because the tests the snapshot's commit
+  // did not run stand on the install there.
+  const moved = movedPackages(ROOT, from, git);
+  const manifests = movedManifests(ROOT, from, git, changed);
   const consequential = changed.filter((path) => !isManifest(path));
-  if (consequential.length === 0 && manifests.length === 0 && moved !== undefined && moved.length === 0) {
+  // A test the merge demoted to incomplete runs at the next selection, and that
+  // run is what records it whole again, so nothing changed is not nothing to run.
+  const settled = start.widened === undefined && coverage.tests.every((test) => test.complete);
+  if (settled && consequential.length === 0 && manifests.length === 0 && moved !== undefined && moved.length === 0) {
     say(
       changed.length === 0
-        ? `test:since: nothing has changed since ${base.slice(0, 12)}.`
+        ? `test:since: nothing has changed since ${from.slice(0, 12)}.`
         : `test:since: ${changed.length} changed manifest(s), and the install they record did not change.`,
       '  Nothing to run.',
     );
@@ -339,7 +336,7 @@ async function main() {
   // An untracked file has no diff of its own, and the graph may still know who
   // imports it, so it is asked about as the addition it is.
   const diff = [
-    git('diff', '--no-renames', base),
+    git('diff', '--no-renames', base, ...excluding(before)),
     ...product.filter((path) => untracked.has(path)).map(diffOfNew),
   ].join('\n');
   // Only a changed file with a row has line numbers to prove, so only those are
@@ -364,7 +361,7 @@ async function main() {
   const { narrowing, distances } = await distanceByExecution(
     snapshotFile,
     inSnapshotCoordinates(
-      [diff, ...wholePackages.map((file) => `diff --git a/${file} b/${file}`)].join('\n'),
+      [diff, ...[...before, ...wholePackages].map(wholeEntry)].join('\n'),
       byStem,
     ),
     {
@@ -398,7 +395,8 @@ async function main() {
     entered: new Set(narrowing.entered),
     touched,
     moved,
-    base,
+    base: from,
+    unstarted: start.widened,
   });
   if (decided.widened !== undefined) {
     say(
@@ -449,7 +447,7 @@ async function main() {
   say(
     `test:since: ${selected.length} of ${suite.length} files, at ${groups.length} distance(s).`,
     recordLine(snapshotFile, own),
-    `  base     ${base.slice(0, 12)}${ref === undefined ? ' — where the snapshot was recorded' : ' — merged with HEAD'}`,
+    `  base     ${from.slice(0, 12)} — ${start.says}`,
     `  changed  ${changed.length} path(s): ${touched.length} test file(s), ${changed.length - consequential.length} manifest(s), ${unentered.length} unlisted`,
     `  skipped  ${suite.length - selected.length} file(s): recorded whole, ran nothing that changed`,
     costLine(running, recorded),
