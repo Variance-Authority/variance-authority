@@ -163,15 +163,35 @@ function standingAfter(
     .map((stand) => ({ commit: stand, files: [...new Set(grouped.get(stand))].sort(codeUnitOrder) }));
 }
 
-/** The runs recorded into the snapshot at `coverageFile`, or `undefined` when no run has listed itself. */
+/**
+ * The runs recorded into the snapshot at `coverageFile`, or `undefined` when no
+ * run has listed itself.
+ *
+ * A record that is there and is not a JSON object throws, naming the file: it
+ * says where each test last ran, and a reader that took it for *no record*
+ * would place every test at the journal's commit, which can skip a test that
+ * should run. Each caller says what the record was for and what to do.
+ */
 export async function readCommitRuns(coverageFile: string): Promise<CommitRuns | undefined> {
+  const file = commitRunsFile(coverageFile);
   let text: string;
   try {
-    text = await readFile(commitRunsFile(coverageFile), 'utf8');
+    text = await readFile(file, 'utf8');
   } catch {
     return undefined;
   }
-  return JSON.parse(text) as CommitRuns;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`the runs record at ${file} is not JSON: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    });
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`the runs record at ${file} is not a JSON object`);
+  }
+  return parsed as CommitRuns;
 }
 
 /**

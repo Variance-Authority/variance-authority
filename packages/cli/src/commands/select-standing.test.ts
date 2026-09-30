@@ -80,7 +80,7 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
   });
 
-  it('holds no stand for a test that is no longer in the tree', async () => {
+  it('holds no stand for a test that is no longer on disk, and names it', async () => {
     // `gone` runs at P and is deleted at H, where everything left runs. The
     // journal keeps its row and every run carries it in `standing`.
     const repo = checkout();
@@ -95,6 +95,90 @@ describe('a test that did not run at the journal commit', () => {
 
     expect(said.err).not.toContain('last ran at');
     expect(said.err).not.toContain(P.slice(0, 12));
+    expect(said.err).toContain(`1 test file the runs record places before the journal's commit ${H.slice(0, 12)} is not on disk`);
+    expect(said.err).toContain('test/gone.test.ts');
+  });
+
+  it('holds a stand for a test git does not list, because it is on disk', async () => {
+    // `far` is ignored, as a generated test is: git lists nothing of it, and
+    // it ran at P and entered `src/far.ts`, which changes at H.
+    const repo = checkout();
+    const P = repo.commit({ '.gitignore': 'test/far.test.ts\n', ...sources(1, NAMES) }, 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const H = repo.commit(sources(2, NAMES), 'H');
+    await landRun(repo.file, run(repo.root, H, ['near']), repo.root);
+    expect(repo.git('ls-files', 'test')).toBe('test/near.test.ts');
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
+  });
+
+  it('holds a stand for a test nobody committed', async () => {
+    const repo = checkout();
+    const { 'test/far.test.ts': far, ...committed } = sources(1, NAMES);
+    const P = repo.commit(committed, 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const H = repo.commit({ 'src/far.ts': sources(2, NAMES)['src/far.ts']!, 'src/near.ts': sources(2, NAMES)['src/near.ts']! }, 'H');
+    await landRun(repo.file, run(repo.root, H, ['near']), repo.root);
+    writeFileSync(join(repo.root, 'test/far.test.ts'), far!);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+  });
+
+  it('runs a test whose install moved since it ran, where the journal group moved nothing', async () => {
+    // P installs left-pad 1.3.0 and runs everything; C installs 1.4.0 and runs
+    // only `near`, which does not import it. The tree stays at 1.4.0, so the
+    // bump is after `far` ran and before `near` did.
+    const repo = checkout();
+    const P = repo.commit({ ...sources(1), 'src/far.ts': FAR_PAD, 'package-lock.json': npmLock('1.3.0') }, 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const C = repo.commit({ 'package-lock.json': npmLock('1.4.0') }, 'C');
+    await landRun(repo.file, run(repo.root, C, ['near']), repo.root);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
+  });
+
+  it('charges a package only to the group whose install it moved', async () => {
+    // Both import left-pad. The bump from P to C is behind `far`, which ran at
+    // P, and not behind `near`, which ran on it at C.
+    const repo = checkout();
+    const P = repo.commit({ ...sources(1), 'src/far.ts': FAR_PAD, 'src/near.ts': NEAR_PAD, 'package-lock.json': npmLock('1.3.0') }, 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const C = repo.commit({ 'package-lock.json': npmLock('1.4.0') }, 'C');
+    await landRun(repo.file, run(repo.root, C, ['near']), repo.root);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+  });
+
+  it('compares the install at the commit a test ran at, on another line of history', async () => {
+    // `far` last ran at S, on a branch off P that installed left-pad 1.4.0.
+    // HEAD is back on P's line at 1.3.0, as is the merge base with S, so only S
+    // itself holds the install `far` ran on.
+    const repo = checkout();
+    const P = repo.commit({ ...sources(1), 'src/far.ts': FAR_PAD, 'package-lock.json': npmLock('1.3.0') }, 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    repo.git('checkout', '--quiet', '-b', 'side');
+    const S = repo.commit({ 'package-lock.json': npmLock('1.4.0') }, 'S');
+    await landRun(repo.file, run(repo.root, S, ['far']), repo.root);
+    repo.git('checkout', '--quiet', 'main');
+    const H = repo.commit({ 'notes.txt': 'unrelated\n' }, 'H');
+    await landRun(repo.file, run(repo.root, H, ['near']), repo.root);
+    expect((await readCommitRuns(repo.file))?.standing).toEqual([{ commit: S, files: ['test/far.test.ts'] }]);
+    expect(repo.git('merge-base', S, H)).toBe(P);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(`1 test file last ran at ${S.slice(0, 12)}`);
   });
 
   it('names the stand git cannot read, not the oldest one', async () => {
@@ -118,7 +202,19 @@ describe('a test that did not run at the journal commit', () => {
     const refused = selectOutput({ cwd: root, format: 'plain' });
 
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
-    await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} could not be read`);
+    await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} is not JSON`);
+  });
+
+  it('says a runs record that is not JSON went unread under `--diff`, and does not refuse', async () => {
+    const { root, file } = await partialRun();
+    writeFileSync(commitRunsFile(file), '{');
+    const patch = join(mkdtempSync(join(tmpdir(), 'va-select-standing-patch-')), 'change.diff');
+    writeFileSync(patch, '');
+
+    const said = await selectOutput({ cwd: root, format: 'plain', diff: patch });
+
+    expect(said.err).toContain(`the runs record at ${commitRunsFile(file)} is not JSON`);
+    expect(said.err).toContain("so whether a test file last ran before the journal's commit is not said");
   });
 
   it('says a patch handed in is not read against where each test last ran', async () => {
@@ -155,6 +251,7 @@ describe('a test that did not run at the journal commit', () => {
 const NAMES = ['far', 'near'];
 
 const NEAR_PAD = "import leftPad from 'left-pad';\n\nexport const near = leftPad('1', 2);\n";
+const FAR_PAD = "import leftPad from 'left-pad';\n\nexport const far = leftPad('1', 2);\n";
 
 /** Each module at `value`, and a test file for each, as the tree holds them. */
 function sources(value: number, names: readonly string[] = [...NAMES, 'gone']): Record<string, string> {
@@ -175,6 +272,7 @@ function checkout() {
   git('config', 'user.name', 'Fixture');
   return {
     root,
+    git,
     file: testCoverageFile(root),
     commit(files: Readonly<Record<string, string>>, message: string): string {
       for (const [path, text] of Object.entries(files)) {

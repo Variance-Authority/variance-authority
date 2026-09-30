@@ -145,4 +145,14 @@ describe('the runs recorded at one commit', () => {
 
     expect(await readCommitRuns(join(root, 'coverage.bin'))).toBeUndefined();
   });
+
+  it('refuses a record that is there and is not a JSON object, naming the file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
+    const coverageFile = join(root, 'coverage.bin');
+
+    await writeFile(commitRunsFile(coverageFile), '{"commit": ', 'utf8');
+    await expect(readCommitRuns(coverageFile)).rejects.toThrow(`the runs record at ${commitRunsFile(coverageFile)} is not JSON`);
+    await writeFile(commitRunsFile(coverageFile), '[]', 'utf8');
+    await expect(readCommitRuns(coverageFile)).rejects.toThrow(`the runs record at ${commitRunsFile(coverageFile)} is not a JSON object`);
+  });
 });

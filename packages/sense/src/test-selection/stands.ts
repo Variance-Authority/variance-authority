@@ -32,6 +32,7 @@
 
 import type { CommitRuns } from './commit-runs.js';
 import { askCoverageFile } from './coverage-file.js';
+import { codeUnitOrder } from './instrumented-modules.js';
 import type { ExecutionNarrowing } from './select.js';
 
 /** One git invocation, answering its stdout and throwing when git fails. */
@@ -66,6 +67,8 @@ export interface StandReading {
   readonly refused?: string;
   /** A stand git cannot read, such as one a rebase rewrote away; the caller runs every test. */
   readonly widened?: string;
+  /** Tests the runs place before the snapshot's commit that are not on disk, in no stand; only {@link standsAt} asks. */
+  readonly gone?: readonly string[];
 }
 
 /**
@@ -235,39 +238,42 @@ export function readingFrom({
 
 /**
  * The reading of the snapshot at `coverageFile` against `runs`, the record
- * beside it, for every test the snapshot holds that is still in the tree.
+ * beside it, for every test the snapshot holds that is still on disk.
  *
  * For a selector that has no suite of its own to ask which tests still count,
- * such as `variance select`, so git is asked which files exist. A deleted or
- * renamed test keeps its row in the snapshot, and every later run carries it
- * forward in `standing`, because no run can observe it again. Left in, it
- * would hold a stand at the commit it last ran at for ever: an extra reading,
- * a note, and, once that commit is gone from the checkout, a reading that
- * cannot be made. An untracked test is in the tree and counts. When git cannot
- * list the tree, every test counts, which reads more and never less.
+ * such as `variance select`. A deleted or renamed test keeps its row in the
+ * snapshot, and every later run carries it forward in `standing`, because no
+ * run can observe it again. Left in, it would hold a stand at the commit it
+ * last ran at for ever: an extra reading, a note, and, once that commit is gone
+ * from the checkout, a reading that cannot be made. So a test the runs place
+ * before the snapshot's commit is kept only when `exists` finds it, and the
+ * ones it does not find are named in `gone`. The disk is asked rather than
+ * git's list of files, which holds no generated test under an ignored
+ * directory and no test inside a submodule or a nested repository, and each of
+ * those would otherwise be read from the snapshot's commit and skipped for what
+ * changed before it. Only those tests are asked about; nothing walks the tree.
  *
- * `runs` is read by the caller, which names the file when it cannot be parsed.
- * `undefined` when the snapshot names no commit, so there is nothing to read
- * from.
+ * `runs` is read by the caller, which says what the record was for when it
+ * cannot be parsed. `undefined` when the snapshot names no commit, so there is
+ * nothing to read from.
  */
-export function standsAt(coverageFile: string, runs: CommitRuns | undefined, git: Git): StandReading | undefined {
+export function standsAt(
+  coverageFile: string,
+  runs: CommitRuns | undefined,
+  git: Git,
+  exists: (test: string) => boolean,
+): StandReading | undefined {
   const recorded = askCoverageFile(coverageFile, (coverage) => ({
     commit: coverage.commit,
     tests: Array.from(coverage.testPath.all(), (path) => coverage.string(path)),
   }));
-  if (recorded.commit === undefined) return undefined;
-  return readingFrom({ commit: recorded.commit, ref: undefined, runs, tests: inTree(git, recorded.tests), git });
-}
-
-/** The `tests` git lists in the tree, tracked or untracked and not ignored; all of them when git cannot say. */
-function inTree(git: Git, tests: readonly string[]): readonly string[] {
-  let listed: Set<string>;
-  try {
-    listed = new Set(paths(git('ls-files', '-z', '--cached', '--others', '--exclude-standard')));
-  } catch {
-    return tests;
-  }
-  return tests.filter((test) => listed.has(test));
+  const commit = recorded.commit;
+  if (commit === undefined) return undefined;
+  const { stands } = standsOf({ commit, runs, tests: recorded.tests });
+  const gone = new Set([...stands].filter(([test, stand]) => stand !== commit && !exists(test)).map(([test]) => test));
+  const tests = recorded.tests.filter((test) => !gone.has(test));
+  const reading = readingFrom({ commit, ref: undefined, runs, tests, git });
+  return gone.size === 0 ? reading : { ...reading, gone: [...gone].sort(codeUnitOrder) };
 }
 
 /** A path as a `diff --git` header spells it, unquoted where git quoted it. */

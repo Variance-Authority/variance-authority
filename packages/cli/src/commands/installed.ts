@@ -51,6 +51,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { nodesOfKind, within, type Relations } from '@variance-authority/core/relate';
+import type { Lockfile } from '@variance-authority/sense/lock';
 
 /** A package name each importing file gets an edge to, and the package it rests on. */
 export type Depends = readonly (readonly [string, string])[];
@@ -88,11 +89,11 @@ export interface DiffPoint {
  * Which packages this diff installed differently, or the reason it cannot say.
  *
  * `undefined` is *there is no install to compare* — no lockfile anywhere above
- * the run, or no revision to compare it against — and it is the one absence
- * that widens nothing: a repository with no recorded install has no diff of
- * one, so no seed is missing. Every other failure is a sentence, because *this
- * cannot be read* and *nothing changed* produce the same empty list and mean
- * opposite things.
+ * the run — and it is the one absence that widens nothing: a repository with no
+ * recorded install has no diff of one, so no seed is missing. Every other
+ * failure is a sentence, because *this cannot be read* and *nothing changed*
+ * produce the same empty list and mean opposite things. A point that could not
+ * be resolved is one of them: a lockfile is here, and nothing says what it was.
  *
  * The point is passed in rather than resolved here, and that is the join that
  * has to hold: the file list is measured from the merge base, and an install
@@ -112,8 +113,40 @@ export async function installDiff(
   changed: readonly string[],
   from: string = process.cwd(),
 ): Promise<InstallDiff | undefined> {
+  return (await installDiffs([{ point, changed }], from))[0];
+}
+
+/**
+ * {@link installDiff} from several points to one working tree, in the order
+ * asked. The lockfile on disk is found, read and parsed once for all of them,
+ * however many commits a selection compares it from.
+ */
+export async function installDiffs(
+  asked: readonly { readonly point: DiffPoint | undefined; readonly changed: readonly string[] }[],
+  from: string = process.cwd(),
+): Promise<readonly (InstallDiff | undefined)[]> {
   const found = await lockfileNear(from);
-  if (found === undefined || point === undefined) return undefined;
+  if (found === undefined) return asked.map(() => undefined);
+  let parsed: Promise<Lockfile> | undefined;
+  const lock = () => import('@variance-authority/sense/lock');
+  const after = () => (parsed ??= lock().then((read) => read.readLockfile(found.file, found.text)));
+  return await Promise.all(asked.map(({ point, changed }) => installDiffAt(found, after, point, changed, from)));
+}
+
+async function installDiffAt(
+  found: { readonly file: string; readonly text: string },
+  after: () => Promise<Lockfile>,
+  point: DiffPoint | undefined,
+  changed: readonly string[],
+  from: string,
+): Promise<InstallDiff | undefined> {
+  if (point === undefined) {
+    return {
+      whole:
+        `${relative(from, found.file) || pathTail(found.file)} is compared from a commit this checkout ` +
+        'does not hold, so there is no install to compare it against and any package in it may have moved',
+    };
+  }
 
   const path = relative(point.repository, found.file);
   // A lockfile above the checkout is somebody else's install — a vendored
@@ -136,12 +169,12 @@ export async function installDiff(
   if (before === undefined) {
     return {
       whole:
-        `${path} is not in the tree at the base of this diff, so there is no install to compare ` +
-        'it against and any package in it may have moved',
+        `${path} is not in the tree at ${point.base.slice(0, 12)}, where this install is compared ` +
+        'from, so there is no install to compare it against and any package in it may have moved',
     };
   }
 
-  return await compared(path, before, found.text, manifests, moved);
+  return await compared(path, before, after, manifests, moved);
 }
 
 /**
@@ -201,7 +234,8 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
         : blob(entry.after, root).then((text) => text ?? worktree(file, entry.after!, root)),
     ]);
   });
-  return await compared(found.path, before, after, manifests, moved);
+  const lockfile = async () => (await import('@variance-authority/sense/lock')).readLockfile(found.path, after);
+  return await compared(found.path, before, lockfile, manifests, moved);
 }
 
 /**
@@ -230,10 +264,11 @@ async function movedManifests(
   return moved;
 }
 
+/** The packages that moved from `before` to `after`, which is parsed once however many commits read it. */
 async function compared(
   path: string,
   before: string,
-  after: string,
+  after: () => Promise<Lockfile>,
   manifests: readonly string[],
   moved: readonly string[],
 ): Promise<InstallDiff> {
@@ -241,7 +276,7 @@ async function compared(
     const lock = await import('@variance-authority/sense/lock');
     return {
       manifests,
-      packages: lock.changedPackages(lock.readLockfile(path, before), lock.readLockfile(path, after)),
+      packages: lock.changedPackages(lock.readLockfile(path, before), await after()),
       moved,
     };
   } catch (error) {

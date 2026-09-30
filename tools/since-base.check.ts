@@ -14,6 +14,7 @@ import {
   withoutFiles,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
 import { readChange, selectedFiles } from './since-change.mjs';
 
@@ -270,7 +271,7 @@ describe('legs at two commits leave each test read from where it last ran', () =
   async function recorded() {
     const repo = await repository();
     const file = resolve(await mkdtemp(resolve(tmpdir(), 'va-since-cache-')), 'coverage.bin');
-    const read = async (suite = tests) =>
+    const read = async (suite = tests, relations?: ReturnType<typeof relationsOfFiles>) =>
       readChange({
         root: repo.at,
         git: repo.git,
@@ -281,7 +282,7 @@ describe('legs at two commits leave each test read from where it last ran', () =
         ref: undefined,
         suite,
         stemOf: (path: string) => path,
-        graph: async () => ({}),
+        graph: async () => (relations === undefined ? {} : { relations }),
         say: () => {},
       });
     return { ...repo, file, read };
@@ -356,9 +357,10 @@ describe('legs at two commits leave each test read from where it last ran', () =
 
   it('compares the install from where each test last ran, so a bump the tree undid still reaches the tests that ran on it', async () => {
     // P installs left-pad 1.3.0 and runs everything; C bumps it to 1.4.0 and
-    // runs `near`; the tree goes back to 1.3.0. Compared from P alone, where
-    // `far` and `other` stand, the install did not move, and the tests that
-    // ran on 1.4.0 would be settled.
+    // runs `near`; the tree goes back to 1.3.0. `far` and `near` both import
+    // it. Compared from P alone, where `far` and `other` stand, the install did
+    // not move and `near` would be settled; compared from C alone, `far` would
+    // be charged a bump it never ran on.
     const { read, file, commit, at } = await recorded();
     const P = await commit({ ...Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'package-lock.json': npmLock('1.3.0') }, 'P');
     await landRun(file, run(at, P, NAMES), at);
@@ -366,11 +368,11 @@ describe('legs at two commits leave each test read from where it last ran', () =
     await landRun(file, run(at, C, ['near']), at);
     await writeFile(resolve(at, 'package-lock.json'), npmLock('1.3.0'));
 
-    const reading = await read();
+    const pad = [{ to: 'left-pad', kind: 'imports' as const }];
+    const reading = await read(tests, relationsOfFiles(NAMES.map((name) => ({ file: `src/${name}.ts`, ...(name === 'other' ? {} : { packages: pad }) }))));
 
     expect(reading.start.stands.map((stand: { commit: string }) => stand.commit)).toEqual([P]);
-    expect(reading.nothing).toBeUndefined();
-    expect(reading.decided).not.toHaveProperty('widened');
+    expect(reading.decided).toEqual({ selected: ['test/near.test.ts'] });
   });
 
   it('says what it assumed when it finds nothing to run without the runs record', async () => {

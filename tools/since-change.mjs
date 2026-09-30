@@ -128,7 +128,7 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
   // that ran before it, and everything for the tests that ran on it.
   const groups = [base, ...stands.map((stand) => stand.commit)];
   const sinceGroup = (at) => (at === base ? [...sinceBase] : [...new Set([...sinceBase, ...stands.find((stand) => stand.commit === at).whole])]);
-  const movedAt = new Map(groups.map((at) => [at, movedPackages(root, at, git)]));
+  const movedAt = new Map(movedPackages(root, groups, git).map((moved, index) => [groups[index], moved]));
   const manifestsAt = new Map(groups.map((at) => [at, movedManifests(root, at, git, sinceGroup(at))]));
   const uncompared = groups.findIndex((at) => movedAt.get(at) === undefined);
   const manifests = [...new Set([...manifestsAt.values()].flat())].sort();
