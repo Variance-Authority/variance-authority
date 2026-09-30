@@ -65,12 +65,16 @@ export interface OfferingOptions {
   readonly tolerant?: boolean;
 }
 
-/** A manifest or a tsconfig, as the object it holds; a `package.yaml` member is YAML. */
-function read(path: string): Record<string, unknown> {
+/**
+ * A manifest or a tsconfig, as the object it holds; a `package.yaml` member is
+ * YAML. A tsconfig is JSONC whatever it is named, so a config an `extends`
+ * chain reaches — Kibana's `tsconfig.base.json` — is read as `tsconfig: true`.
+ */
+function read(path: string, tsconfig = path.endsWith('tsconfig.json')): Record<string, unknown> {
   const source = readFileSync(path, 'utf8');
   const yaml = path.endsWith('.yaml');
   try {
-    const held: unknown = yaml ? parseYaml(source) : JSON.parse(path.endsWith('tsconfig.json') ? jsonc(source) : source);
+    const held: unknown = yaml ? parseYaml(source) : JSON.parse(tsconfig ? jsonc(source) : source);
     return (held ?? {}) as Record<string, unknown>;
   } catch (error) {
     throw new Error(`${path} is not readable ${yaml ? 'YAML' : 'JSON'}: ${error instanceof Error ? error.message : String(error)}`);
@@ -335,7 +339,7 @@ function openedBy(dir: string, subpath: string, types: string): readonly Entrypo
 function customConditionsOf(dir: string): ReadonlySet<string> {
   const chain = (path: string, seen: ReadonlySet<string>): readonly string[] | undefined => {
     if (seen.has(path)) return undefined;
-    const config = read(path) as { extends?: unknown; compilerOptions?: { customConditions?: unknown } };
+    const config = read(path, true) as { extends?: unknown; compilerOptions?: { customConditions?: unknown } };
     const own = config.compilerOptions?.customConditions;
     if (own !== undefined) {
       return Array.isArray(own) ? own.filter((value): value is string => typeof value === 'string') : [];
