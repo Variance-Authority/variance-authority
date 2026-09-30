@@ -20,6 +20,7 @@
  */
 
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
   askCoverageFile,
@@ -36,6 +37,7 @@ import {
   type FileReading,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
+import { digestString } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { recordedSuite } from './suite-record.js';
@@ -80,6 +82,16 @@ export interface ReviewRegion {
   readonly written: boolean;
   /** How many cases called into it. */
   readonly cases: number;
+  /** The test files those cases are declared in, in code-unit order. */
+  readonly tests: readonly string[];
+  /** Those cases by test file and title, in code-unit order: what a reader asks the count about. */
+  readonly called: readonly ReviewCase[];
+}
+
+export interface ReviewCase {
+  readonly file: string;
+  /** The title with every `describe` it sits in, joined by ` > `. */
+  readonly name: string;
 }
 
 export interface ReviewFile {
@@ -108,6 +120,14 @@ export interface BeforeReach {
 export interface Review {
   /** The commit the change is read from. */
   readonly from: string;
+  /**
+   * Whether the record holds this change. `ran` when every changed module it
+   * recorded ran as the tree holds it now, so it says what the change did;
+   * `before` when one ran as other text, so it names the cases that stood on
+   * the changed lines — the ones the change might move — and code written
+   * since has no row yet.
+   */
+  readonly record: 'ran' | 'before';
   /**
    * What `from` came from: `--since`, the commit the recording stood at before
    * these runs, or, when there was no recording before them, the record the
@@ -230,8 +250,10 @@ export async function review(request: ParsedReview): Promise<Review> {
       ? undefined
       : await motionOfLast(full, from, full.tests.filter((test) => runs.files.includes(test.file)).map((test) => test.id), root, undefined, ref);
 
+  const record = await ranAsTree(coverageFile, root, files.filter((file) => file.recorded === true).map((file) => file.file));
   return {
     from: point.base,
+    record,
     base: request.since !== undefined ? 'since' : mainline === undefined ? 'recording' : 'mainline',
     ...(mainline === undefined ? {} : { mainline: mainlineOf(mainline) }),
     ...(runs === undefined ? {} : { runs }),
@@ -315,7 +337,34 @@ function regionOf(
     reach,
     written: ranges.some((range) => range.start <= region.startLine && region.startLine <= range.end),
     cases: called.length,
+    tests: [...new Set(called.map((test) => test.file))].sort(),
+    called: called
+      .map((test) => ({ file: test.file, name: test.name }))
+      .sort((left, right) => order(left.file, right.file) || order(left.name, right.name)),
   };
+}
+
+/**
+ * Whether the record ran these modules as the tree holds them: the digest it
+ * took of each module's text, against the text on disk. A change with no
+ * recorded module ran nothing yet.
+ */
+async function ranAsTree(coverageFile: string, root: string, files: readonly string[]): Promise<'ran' | 'before'> {
+  if (files.length === 0) return 'before';
+  const recorded = await askCoverageFile(coverageFile, (coverage) => {
+    const path = coverage.modulePath.all();
+    const source = coverage.moduleSource.all();
+    return new Map(Array.from(path, (held, module) => [coverage.string(held), coverage.string(source[module]!)]));
+  });
+  for (const file of files) {
+    const text = await readFile(resolve(root, file), 'utf8').catch(() => undefined);
+    if (text === undefined || recorded.get(file) !== digestString(text)) return 'before';
+  }
+  return 'ran';
+}
+
+function order(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 /** The test files near a changed module, and those whose distance to it was not measured. */

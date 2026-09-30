@@ -126,13 +126,13 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
 
-    expect(answer).toMatchObject({ from: first, base: 'since', suite: 1, before: [{ file: 'config.json', tests: 1 }] });
+    expect(answer).toMatchObject({ from: first, record: 'ran', base: 'since', suite: 1, before: [{ file: 'config.json', tests: 1 }] });
     const total = answer.files.find((file) => file.file === 'src/total.ts');
     // A new export changes what the module's namespace holds, so the reading is `values`, not `bodies`.
     expect(total?.verdict).toBe('values');
-    expect(total?.regions?.map((region) => [region.name, region.reach, region.written])).toEqual([
-      ['applyDiscount', 'near', false],
-      ['round', 'unwalked', true],
+    expect(total?.regions?.map((region) => [region.name, region.reach, region.written, region.called])).toEqual([
+      ['applyDiscount', 'near', false, [{ file: 'test/total.test.ts', name: 'discounts' }]],
+      ['round', 'unwalked', true, []],
     ]);
     expect(answer.files.find((file) => file.file === 'test/total.test.ts')?.cases).toEqual({ added: ['rounds'], removed: [] });
 
@@ -145,12 +145,28 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
     const markdown = formatReview(answer, 'markdown');
     expect(markdown.startsWith(`${REVIEW_MARKER}\n`)).toBe(true);
-    expect(markdown).toContain('> [!WARNING]\n> **1 of 2 changed regions in 1 file have no case that covers them**, all of them new code.');
-    expect(markdown).toContain('| 🔴 no case covered it | 1 | 1 |');
+    expect(markdown).toContain('### 🧭 What this change did');
+    expect(markdown).toContain('> [!WARNING]\n> **1 of 2 changed functions has code no case ran:** `round`.');
+    expect(markdown).toContain('<details><summary>🔴 Where no case ran: 1 place in 1 function</summary>\n\n- `src/total.ts:5-7` function `round`');
+    expect(markdown).toContain('<details><summary>🟢 <code>applyDiscount</code> — 1 case in 1 test file</summary>\n\n`src/total.ts:1-3`\n\n- `test/total.test.ts`\n  - discounts');
     expect(markdown).not.toContain('| **');
     expect(markdown).toContain('⚙️ `config.json` changed, and the one test file loads it before any import.');
-    expect(markdown).toContain('<details><summary>🧪 Cases: +1 −0 in 1 test file</summary>');
+    expect(markdown).toContain('<details><summary>✏️ Cases added and removed: +1 −0 in 1 test file</summary>');
     expect(markdown).toContain('- `test/total.test.ts`\n  - + rounds');
+  });
+
+  it('says what the change might do when the record ran the changed module as other text', async () => {
+    const { root, first } = await changed();
+    await writeFile(join(root, 'src/total.ts'), `${AFTER}// not run yet\n`);
+
+    const answer = await review(parse(['--since', first, '--root', root]));
+
+    expect(answer.record).toBe('before');
+    const markdown = formatReview(answer, 'markdown');
+    expect(markdown).toContain('### 🧭 What this change might do');
+    expect(markdown).toContain('> [!NOTE]\n> **1 of 2 changed functions has code the record holds no case for:** `round`.');
+    expect(markdown).toContain('<details><summary>🧪 What the record ran for 1 changed function — 1 case in 1 test file</summary>');
+    expect(markdown).not.toContain('🎯');
   });
 
   it('does not call a region far when the only test that covered it is one the import graph does not hold', async () => {
