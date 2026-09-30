@@ -1281,7 +1281,7 @@ it nothing.
 | reader | format |
 |---|---|
 | `yarn.lock` | Yarn classic (v1) and Yarn Berry (`__metadata.version` 4 through 8) |
-| `pnpm-lock.yaml` | pnpm lockfile 5.x, 6.x, 9.x |
+| `pnpm-lock.yaml` | pnpm lockfile 9.x, with or without the environment document a pnpm that pins itself writes first |
 | `package-lock.json`, `npm-shrinkwrap.json` | npm lockfile 2 and 3 |
 
 Workspace entries are excluded by every reader. A workspace package is your own
