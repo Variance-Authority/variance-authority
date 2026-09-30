@@ -1,8 +1,0 @@
----
-"@variance-authority/cli": minor
-"@variance-authority/sense": minor
----
-
-`variance index` refreshes the dependency lexicon from what changed
-
-Each refresh records what the dependency lexicon was built from in `dependency-lexicon.built.json` beside it: the digests of the source index segments, the files beside `source-index.bin` that hold its data, and the modification time and size of every installed file and `node_modules` directory it read. When all of them are the same at the next `variance index`, the refresh reads nothing and prints `dependency lexicon: unchanged, nothing read: …`; `refreshDependencyLexiconNative` in `@variance-authority/sense` returns `unchanged: true`. When source files changed, `dependency-lexicon.merge.json` lists the import requests each source file writes. The refresh opens only the source index segments added since the record, replaces the requests of a file written again, drops those of a deleted file, and copies every workspace and package pair whose inputs are the same. A source index that does not extend the recorded one, a changed manifest, or a segment whose digest does not match makes the refresh read everything. Either way the lexicon it writes is the file a refresh from nothing writes. Workspaces that resolve a package to the same install share one reading of it, and import specifiers that resolve to the same entrypoint share one entry, so two refreshes over one install write the same entry and a refresh over an unchanged install reuses it rather than reading the package again. An edit that keeps an installed file's modification time and size is not seen until that stamp changes.

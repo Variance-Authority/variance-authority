@@ -1,5 +1,11 @@
 # @variance-authority/store
 
+## 0.13.0
+
+### Patch Changes
+
+- 7dda58a: A `git` share line does not send `http.extraheader` twice when the environment already hands the same header over as `GIT_CONFIG_*` variables, as a CI step does after checking out with `persist-credentials: false`.
+
 ## 0.12.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
