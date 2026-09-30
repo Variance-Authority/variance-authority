@@ -122,7 +122,10 @@ a subagent with no other context read it cold. Never push to `main`.
 
 Each cycle on the PR, from opening it or from picking up a failure, a comment
 or a conflict, puts the `agent:debugging` label on. Handing over swaps it for
-`agent:done`; stopping short of that takes it off and puts nothing on.
+`agent:done`; stopping short of that takes it off and puts nothing on. Nothing
+announces a PR that has finished passing, so a cycle ends by watching every
+check until it has finished, `gh pr checks <n> --watch`, never with
+`agent:debugging` left on.
 
 ### 6. Validate
 

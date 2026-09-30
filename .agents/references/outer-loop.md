@@ -27,6 +27,22 @@ on the person who asked, takes `agent:debugging` off and does not put
 `agent:done` on. A PR with neither label is one nobody is working on and nobody
 has finished, and the report says why.
 
+**A cycle ends in one of those two states, never with `agent:debugging` left on.**
+Nothing tells you when the last check turns green. A failure, a comment or a
+conflict reaches you; a PR that simply finishes passing does not, and one left
+labelled `agent:debugging` then says somebody is working on a PR that is ready.
+So every cycle, including one that was woken by a comment with nothing to fix,
+ends by watching the checks until each has finished:
+
+```bash
+gh pr checks <n> --watch
+```
+
+CodeRabbit is one of those checks, so the watch ends only after its review is
+complete. Then read what it found, classify it, and either go round again or
+hand over. A cycle you had to start by fixing something ends the same way, after
+the push.
+
 ## 6. Validate
 
 ### Look around
