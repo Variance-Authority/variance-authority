@@ -4,6 +4,29 @@ Phases 6 and 7 of [`AGENTS.md`](../../AGENTS.md). Once the PR is open, other
 parties answer: CI, CodeRabbit, the person who asked. A PR is handed over only
 when every check is green and every finding is classified.
 
+## Labels
+
+A PR's label says whether an agent is working on it. A cycle starts when you
+open the PR, and again each time you pick it up after a failing check, a comment
+or a merge conflict. When it starts, put `agent:debugging` on and take
+`agent:done` off:
+
+```bash
+gh pr edit <n> --add-label agent:debugging --remove-label agent:done
+```
+
+When you [hand it over](#handing-over), swap them:
+
+```bash
+gh pr edit <n> --remove-label agent:debugging --add-label agent:done
+```
+
+`agent:done` means what handing over means: every check green and every finding
+classified. A cycle that stops short of that, because you are blocked or waiting
+on the person who asked, takes `agent:debugging` off and does not put
+`agent:done` on. A PR with neither label is one nobody is working on and nobody
+has finished, and the report says why.
+
 ## 6. Validate
 
 ### Look around
@@ -59,6 +82,8 @@ the code, is left as it is. Never reply to a thread, never resolve one, and neve
 tick its autofix checkboxes.
 
 ## Handing over
+
+Swap `agent:debugging` for `agent:done` when you hand over, and not before.
 
 Never report a PR as done, ready or passing while any check is red or still
 running. Say which check, what it said, and what you did about it.
