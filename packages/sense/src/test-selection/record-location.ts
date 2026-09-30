@@ -13,7 +13,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { statSync } from 'node:fs';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.js';
@@ -159,35 +159,32 @@ export async function seedTestCoverage(
  * observes every test, a test it did not run is read from the worktree's own
  * first commit — which skips it after a change it never ran against.
  *
- * A base with no runs record is read by the repository's own position rather
- * than left unsaid: the primary checkout's record is a recording of its commit,
- * so every test in it ran there, and the seeded record lists them all in
- * `files`. That is assumed, not recorded — a base written before runs were
- * listed beside it, or by a landing that listed none, is taken to have run
- * every test at the commit it names.
+ * A test the base's record neither ran nor lists is one the primary checkout
+ * reads from the base's `over`, where its runs started, and the seed lists it
+ * there. That is the primary's own reading, carried so both checkouts select
+ * the same tests; the primary prints it as an assumption and the worktree,
+ * holding it as a listing, does not.
  *
- * A base whose runs record names another commit than its snapshot — a landing
- * replaced the snapshot and listed no run — speaks for a snapshot that is not
- * this one, and nothing is seeded. The worktree's reading then says, on the
- * line under the one naming whose record it read, which tests it could not
- * place and where it read them from.
+ * Nothing is seeded when the base cannot say where every test last ran: no
+ * runs record, one naming another commit than its snapshot — a landing
+ * replaced the snapshot and listed no run — or one with tests it does not place
+ * and no `over` to read them from. A snapshot names the commit of its latest
+ * run, not of every test in it, so a seed built from it would record a guess.
+ * The worktree's reading then says, on the line under the one naming whose
+ * record it read, which tests it could not place and where it read them from.
  *
- * `over` is never carried: it is where the base's change started, and a review
- * in the worktree asks where the worktree's own change starts. `runs` is 0, so
- * the worktree's first run at the same commit is not counted as another run of
- * the base's — see `landRun` — and a review still finds that no run of this
- * checkout has listed itself.
+ * `over` itself is never carried: it is where the base's change started, and a
+ * review in the worktree asks where the worktree's own change starts. `runs` is
+ * 0, so the worktree's first run at the same commit is not counted as another
+ * run of the base's — see `landRun` — and a review still finds that no run of
+ * this checkout has listed itself.
+ *
+ * The record is linked into place rather than renamed over it: a landing that
+ * wrote one first, between the snapshot's copy and this, keeps its own.
  */
 async function seedCommitRuns(file: string, base: string, snapshot: TestCoverageView): Promise<void> {
   const commit = snapshot.commit;
   if (commit === undefined) return;
-  const target = commitRunsFile(file);
-  try {
-    await stat(target);
-    return;
-  } catch (error) {
-    if (!missing(error)) throw error;
-  }
   let held: CommitRuns | undefined;
   try {
     held = await readCommitRuns(base);
@@ -195,16 +192,33 @@ async function seedCommitRuns(file: string, base: string, snapshot: TestCoverage
     // A record this build cannot parse says nothing about this snapshot.
     return;
   }
-  if (held !== undefined && held.commit !== commit) return;
+  if (held?.commit !== commit) return;
+  const placed = new Set([...held.files, ...(held.standing ?? []).flatMap((entry) => entry.files)]);
+  const unplaced = Array.from(snapshot.testPath.all(), (path) => snapshot.string(path))
+    .filter((test) => !placed.has(test))
+    .sort(codeUnitOrder);
+  let standing = held.standing;
+  if (unplaced.length > 0) {
+    if (held.over === undefined) return;
+    // Every test the record lists last ran before the commit its runs started
+    // at, so `over` is the newest stand, and oldest first puts it last.
+    const listed = standing ?? [];
+    const last = listed.at(-1);
+    standing =
+      last?.commit === held.over
+        ? [...listed.slice(0, -1), { commit: held.over, files: [...last.files, ...unplaced].sort(codeUnitOrder) }]
+        : [...listed, { commit: held.over, files: unplaced }];
+  }
   const at = new Date().toISOString();
-  const carried: Pick<CommitRuns, 'files' | 'standing'> = held === undefined
-    ? {
-        files: Array.from(snapshot.testPath.all(), (path) => snapshot.string(path)).sort(codeUnitOrder),
-        standing: [],
-      }
-    : { files: held.files, ...(held.standing === undefined ? {} : { standing: held.standing }) };
-  const record: CommitRuns = { commit, first: at, latest: at, runs: 0, ...carried };
-  await writeCoverageBytes(target, Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
+  const record: CommitRuns = {
+    commit,
+    first: at,
+    latest: at,
+    runs: 0,
+    files: held.files,
+    ...(standing === undefined ? {} : { standing }),
+  };
+  await writeCoverageOnce(commitRunsFile(file), Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
 }
 
 /**
@@ -294,6 +308,24 @@ export async function writeCoverageBytes(file: string, bytes: Uint8Array): Promi
   const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
   await writeFile(temporary, bytes);
   await rename(temporary, file);
+}
+
+/**
+ * {@link writeCoverageBytes} for a file somebody else may be writing: the bytes
+ * are linked into place, never over it, so whoever wrote the path first keeps
+ * it and a reader still never sees a partial file.
+ */
+async function writeCoverageOnce(file: string, bytes: Uint8Array): Promise<void> {
+  await mkdir(dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
+  await writeFile(temporary, bytes);
+  try {
+    await link(temporary, file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code !== 'EEXIST') throw error;
+  } finally {
+    await unlink(temporary);
+  }
 }
 
 function missing(error: unknown): boolean {

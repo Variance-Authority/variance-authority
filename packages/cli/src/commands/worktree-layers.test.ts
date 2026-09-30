@@ -92,7 +92,13 @@ describe('a worktree that has not run', () => {
   });
 
   it('is refused by `variance review` with no base named after its first `variance land`, whose seeded runs record lists no run of its own', async () => {
-    const { worktree, first } = await worktreeOf(true);
+    const { primary, worktree, first } = await worktreeOf(true);
+    // The primary checkout's runs at `first` ran every test its record holds.
+    const base = testCoverageFile(primary, { suite: 'unit' });
+    await writeFile(commitRunsFile(base), JSON.stringify({
+      commit: first, over: first, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1,
+      files: (await readTestCoverage(base)).tests.map((test) => test.file),
+    }));
     const shard = join(home, 'shard-1.bin');
     await writeTestCoverage(shard, {
       version: 3,
