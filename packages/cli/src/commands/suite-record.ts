@@ -15,9 +15,10 @@ import { messageOf } from '../config-values.js';
  * the path are sense's; the default is this reader's, because it is a rule
  * about what a person typed, not about where a run records.
  *
- * The path is the nearest cache layer holding the record, which in a worktree
- * that has not run is the primary checkout's: sense's `readableTestCoverage`
- * owns that lookup. The case index is read beside this path, so from the same
+ * The path is the nearest record, which in a checkout that has not run is the
+ * mainline's as last fetched on this machine, else, in a worktree, the primary
+ * checkout's: sense's `readableTestCoverage` owns that lookup, and it never
+ * fetches. The case index is read beside this path, so from the same
  * layer as the record it was written with. The runs log is not: it says where
  * this checkout's change starts and which files this checkout ran, so it is
  * read from {@link landingRecord}'s layer and is absent until this checkout has

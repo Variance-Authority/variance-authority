@@ -167,8 +167,9 @@ export async function review(request: ParsedReview): Promise<Review> {
   const recorded = await recordedSuite(root, request.suite);
   const coverageFile = recorded.file;
   // The runs are this checkout's: where its change starts and which files it
-  // ran. A worktree that has not run reads the primary checkout's record, and
-  // the primary's runs beside it describe the primary's change, not this one.
+  // ran. A checkout that has not run reads a base it did not record, the
+  // mainline's or the primary checkout's, and the runs beside that base
+  // describe another change, not this one.
   const own = await landingRecord(root, request.suite);
   const runs = await readCommitRuns(own);
   const given = request.since ?? runs?.over;
