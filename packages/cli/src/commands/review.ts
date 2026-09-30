@@ -185,7 +185,7 @@ export async function review(request: ParsedReview): Promise<Review> {
         ? `no run has listed itself beside \`${own}\`, so nothing says where this change starts. ` +
             'Run the suite with `withTestSelection` first, or name the base with `--since <ref>`.'
         : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} were not laid over a recording of ` +
-            'the same instrumentation, so nothing says where this change starts. Name the base with `--since <ref>`.') +
+            'the same instrumentation at a commit they descend from, so nothing says where this change starts. Name the base with `--since <ref>`.') +
         (shared !== undefined && 'miss' in shared ? `\n${mainlineMissed(shared)}.` : ''),
       { kind: 'unrecorded' },
     );

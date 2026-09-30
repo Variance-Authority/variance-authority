@@ -24,7 +24,11 @@ import { landingRecord } from './suite-record.js';
  * stands at the fold's commit, retires every observation the fold re-recorded
  * whole, and keeps the ones it did not. That is how a fetched baseline lands
  * under local evidence rather than deleting it, and how a full run on the
- * default branch becomes the floor every local run stands on.
+ * default branch becomes the floor every local run stands on. The runs record
+ * beside it names the local snapshot's commit as where the landed run's change
+ * starts only when git says the fold's commit descends from it: a fetched
+ * baseline is usually older than the local runs, and naming them as its start
+ * would have a review leave out every commit before them.
  *
  * The case index beside the target is part of the same record: `recordings()`
  * and `recordedExecutionFile` read it as the cases of the snapshot beside it.
@@ -120,8 +124,20 @@ export async function landJourneys(
       }
     }
 
+    let held;
+    try {
+      held = await selection.readCommitRuns(at);
+    } catch (error) {
+      throw new OperatorError(
+        `the runs record at ${said(runsAt)} could not be read: ${messageOf(error)}. ` +
+          'Delete it and land again; the record written then says what the shards ran, ' +
+          'and leaves out where the tests they did not run last ran.',
+        { cause: error },
+      );
+    }
+
     const landed = selection.mergeCoverage(previous, folded);
-    const runs = selection.commitRunsAfter(previous, await selection.readCommitRuns(at), folded);
+    const runs = await selection.commitRunsAfter(previous, held, folded, root);
     try {
       await selection.writeTestCoverage(staged, landed);
       await selection.writeCommitRuns(stagedRuns, runs);
@@ -136,6 +152,14 @@ export async function landJourneys(
       // landed commit. The snapshot goes first because the other order is
       // worse: at the same commit, a record renamed ahead of its snapshot says
       // the shards ran on rows the snapshot does not hold yet, and says nothing.
+      // Landing the same shards again does not repair it: the snapshot already
+      // stands at their commit and the record still names the one before, so
+      // the retry is read as a new commit, not one more run at it, and names
+      // the landed commit itself as `over`. A review then reads the change from
+      // there and silently leaves out every commit between the old record's
+      // and the landed one. The same holds when this rename throws rather than
+      // the process dying: the snapshot has already landed, the command exits
+      // with the error, and the retry an operator makes next is that landing.
       await rename(stagedRuns, runsAt);
       return { landed, cases };
     } finally {

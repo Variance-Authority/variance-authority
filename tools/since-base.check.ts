@@ -262,13 +262,17 @@ async function land(file: string, shard: TestCoverage): Promise<void> {
     fonts: [],
     report: 'report.json',
   };
-  await writeFile(resolve(cwd, 'variance.config.json'), JSON.stringify(config));
-  await writeTestCoverage(resolve(cwd, 'shard.bin'), shard);
-  execFileSync(process.execPath, [VARIANCE, 'journeys', resolve(cwd, 'shard.bin'), '--into', file], {
-    cwd,
-    env: { ...process.env, VARIANCE_AUTHORITY_CACHE: resolve(cwd, 'cache') },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  try {
+    await writeFile(resolve(cwd, 'variance.config.json'), JSON.stringify(config));
+    await writeTestCoverage(resolve(cwd, 'shard.bin'), shard);
+    execFileSync(process.execPath, [VARIANCE, 'journeys', resolve(cwd, 'shard.bin'), '--into', file], {
+      cwd,
+      env: { ...process.env, VARIANCE_AUTHORITY_CACHE: resolve(cwd, 'cache') },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 }
 
 /**
