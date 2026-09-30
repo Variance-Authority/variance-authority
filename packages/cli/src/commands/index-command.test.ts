@@ -23,13 +23,20 @@ import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy, holdFollow
 const cwd = process.cwd();
 const BIN = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
 
+const machineTemporary = process.env['TMPDIR'];
+
+// The machine's index turn sits in the temporary directory, and another worker
+// indexing at the same time would put its wait on the stderr these assert on.
 beforeEach(() => {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-index-cache-'));
+  process.env['TMPDIR'] = mkdtempSync(join(tmpdir(), 'va-index-turn-'));
 });
 
 afterEach(() => {
   process.chdir(cwd);
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  if (machineTemporary === undefined) delete process.env['TMPDIR'];
+  else process.env['TMPDIR'] = machineTemporary;
 });
 
 /** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `unchanged` is a run that found the index where the last one left it. */
