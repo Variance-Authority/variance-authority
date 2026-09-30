@@ -115,6 +115,10 @@ export function foldRun(
     // One row per path, not per project run of it: two projects that both match
     // a file are two announcements of one test file, and the snapshot is keyed
     // by path.
+    // FIXME: each test file reads and digests its preconditions itself, so one
+    // that every test shares is read once per test file. This repository's unit
+    // suite declares every file of the native crate, which made re-reading them
+    // about 2.5 s of a fold that needs to read each of them once.
     const tests = await Promise.all(
       oneRowPerFile(files, root).map((file) =>
         coverageTest(file, root, governingPreconditions(run, file.configs), journals, modules),

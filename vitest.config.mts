@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
+import { nativeSources } from './tools/native-sources.mjs';
 import { probeable } from './tools/page-side.mjs';
 
 /** This file's directory, so the exclusions read the same from any cwd. */
@@ -134,11 +135,13 @@ export const selection = {
   // What governs every observation rather than any one of them. The seam
   // declares this file and the local modules it imports, and
   // `tools/test-since.mjs` reads the manifests and the lockfile as the install
-  // they record. What is left is the compiler settings the built half is
-  // emitted under, which no import names. Editing a precondition retires every
-  // inherited crossing. A fixture or a workflow has no row of its own, and
-  // selects nothing until it is declared here.
-  preconditions: ['tsconfig.base.json'],
+  // they record. What is left is what no import names: the compiler settings
+  // the built half is emitted under, and the crate the native addon is built
+  // from, which Node loads with `dlopen` and every instrumented module passed
+  // through (`tools/native-sources.mjs` says why that is every test). Editing a
+  // precondition retires every inherited crossing. A fixture or a workflow has
+  // no row of its own, and selects nothing until it is declared here.
+  preconditions: ['tsconfig.base.json', ...nativeSources(ROOT)],
 };
 
 export default withTestSelection(suite, selection);
