@@ -257,14 +257,18 @@ async function changeNoSuiteLoads(
   if (bases.length === 0 || bases.some((base) => base === undefined || !unchanged(base.change))) return undefined;
   const commits = new Set(bases.map((base) => base!.commit));
   const [since] = commits;
-  if (commits.size !== 1 || since === undefined) return undefined;
+  // The commit is read from a file beside the record, so only an object name
+  // reaches git: anything else could be read as an option.
+  if (commits.size !== 1 || since === undefined || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(since)) return undefined;
   let names: string;
   try {
-    names = (await promisify(execFile)('git', ['diff', '--name-only', '--no-renames', since], { cwd: root })).stdout;
+    // `-z`: without it git quotes a path with unusual characters, and a quoted
+    // path never matches the name a record lists.
+    names = (await promisify(execFile)('git', ['diff', '--name-only', '--no-renames', '-z', since], { cwd: root })).stdout;
   } catch {
     return undefined;
   }
-  const files = names.split('\n').filter((file) => file !== '').sort();
+  const files = names.split('\0').filter((file) => file !== '').sort();
   if (files.length === 0 || files.some((file) => loaded.has(file))) return undefined;
   return { since, files };
 }

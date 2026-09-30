@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -402,6 +402,17 @@ describe('coverage of a change no suite loads', () => {
 
     expect(answer.out).toContain('| Suite | Kind | Regions run | Share |');
     expect(answer.out).not.toContain('does not load');
+  });
+
+  it('gives git no base commit that is not an object name, and prints the whole count instead', async () => {
+    await writeFile(join(repo, 'src/pay.ts'), 'export function charge() {}\n');
+    await writeFile(caseLayerFiles(base).last, JSON.stringify({ commit: '--output=diff.txt', files: [] }));
+
+    const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'markdown']);
+
+    expect(answer.out).toContain('| Suite | Kind | Regions run | Share |');
+    expect(answer.out).not.toContain('does not load');
+    await expect(access(join(repo, 'diff.txt'))).rejects.toThrow();
   });
 });
 
