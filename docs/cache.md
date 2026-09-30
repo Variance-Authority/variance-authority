@@ -80,7 +80,7 @@ over it, so a repository that names its cache keeps one answer for everyone.
     coverage.bin.cases.bin       the same, for each test case
     coverage.bin.cases.*         the cases each run replaced, kept for `variance review`
     coverage.bin.lock            held while a run writes the recording
-    coverage.runs.json           the runs at the current commit, and the commit before them
+    coverage.runs.json           the runs at the current commit, and where each other test last ran
     coverage.stories/            a test story for each test a run recorded, when you ask for them
     suites/<name>/               the same files for each suite you declare
     source-index.bin             the source index, and its segments beside it

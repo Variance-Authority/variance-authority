@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
+import { selectedFiles } from './since-change.mjs';
 import { inSnapshotCoordinates } from './since-diff.mjs';
 import { costLine, explain, findingLines, readingLines, recordLine, runningLines } from './since-report.mjs';
-import { recordToRead, selectedFiles } from './test-since.mjs';
+import { recordToRead } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
 /**

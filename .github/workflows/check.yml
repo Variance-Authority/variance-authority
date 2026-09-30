@@ -195,12 +195,13 @@ jobs:
       #
       # A pull request runs what its change reached, and nothing else: this
       # repository ships test selection, so its own pull requests are selected
-      # by it. `yarn test:since` reads the restored recording, diffs from the
-      # commit it was recorded at, and runs the files whose recorded regions the
-      # change entered. It runs the whole suite itself when the reading cannot be
-      # made, and says why. The selected run layers onto the restored recording,
-      # so the coverage below counts every file, and a file that did not run
-      # keeps the rows the mainline recorded for it.
+      # by it. `yarn test:since` reads the restored recording, diffs each test
+      # from the commit it last ran at, which for a recording the mainline made
+      # whole is the commit it was recorded at, and runs the files whose
+      # recorded regions the change entered. It runs the whole suite itself
+      # when the reading cannot be made, and says why. The selected run layers
+      # onto the restored recording, so the coverage below counts every file,
+      # and a file that did not run keeps the rows the mainline recorded for it.
       #
       # A push to `main`, and a dispatch, run the whole suite. That is the gate a
       # selection is a smaller claim than, and it is what the recording `main`

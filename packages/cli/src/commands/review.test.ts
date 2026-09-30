@@ -184,11 +184,14 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const { root, first } = await changed();
     await writeFile(commitRunsFile(testCoverageFile(root)), JSON.stringify({
       over: first, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 2, files: ['test/total.test.ts'],
+      standing: [{ commit: first, files: ['test/other.test.ts'] }],
     }));
 
     const answer = await review(parse(['--root', root]));
 
     expect(answer).toMatchObject({ from: first, base: 'recording', runs: { runs: 2 } });
+    // Where each other test last ran is `test:since`'s reading, not the review's.
+    expect(answer.runs).not.toHaveProperty('standing');
     expect(formatReview(answer, 'text')).toContain('the commit the recording was at before these runs. 2 runs recorded 1 test file.');
     const select = `\`variance select --since ${first.slice(0, 12)}\``;
     expect(formatReview(answer, 'markdown')).toContain(`🎯 All 1 test file ran at this commit. ${select} lists the ones this change reaches.`);

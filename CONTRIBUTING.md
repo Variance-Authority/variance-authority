@@ -42,7 +42,7 @@ writes that to a snapshot. `yarn test:since` reads the snapshot back and runs
 the files your change reached:
 
 ```bash
-yarn test:since             # since the commit the snapshot was recorded at
+yarn test:since             # since the commit each test last ran at
 yarn test:since main        # since the merge base with main
 yarn test:since --dry-run   # print the reading, run nothing
 ```
@@ -91,8 +91,16 @@ test:since — run the tests a change reached, nearest first.
 
 usage: yarn test:since [<ref>] [--at-distance <range>] [--dry-run]
 
-  <ref>                 measure from the merge base with this ref.
-                        Defaults to the commit the snapshot was recorded at.
+  <ref>                 read every test from no later than the merge base
+                        with this ref. Without one, each test is read from
+                        the commit it last ran at. A leg stamps the
+                        snapshot with HEAD, and the tests it did not run
+                        are still read from where they last ran, so the
+                        next leg selects them. Once every test has run at
+                        the snapshot's commit, the reading starts there. A
+                        file this machine skips whole, such as a
+                        browser-gated one with no browser installed, never
+                        records whole here, so it is selected every time.
   --at-distance <range> run only the tests this many imports from the change.
                         `0-2`, `2`, or `3-`. Zero is a test whose own source
                         you edited. Tests with no measurable distance ride
