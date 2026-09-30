@@ -73,25 +73,34 @@ export async function landJourneys(
   // in the primary checkout.
   await selection.seedTestCoverage(at, root);
 
-  let previous;
-  try {
-    previous = await selection.readTestCoverage(at);
-  } catch (error) {
-    if (!isMissing(error)) {
-      throw new OperatorError(
-        `the snapshot already at ${said(at)} could not be read: ${messageOf(error)}. ` +
-          'Delete it and land again; a fold written over it would have replaced evidence ' +
-          'nobody could see.',
-        { cause: error },
-      );
+  // The snapshot is read, merged and written under the lock every runner seam
+  // takes on it, and the case index is laid inside that, under its own: the
+  // two answer for the same runs, and a run landing between them would leave
+  // each one describing a different suite. The index goes first, so a busy
+  // index refuses the landing before the snapshot is written.
+  const locked = await selection.withIndexLock(at, async () => {
+    let previous;
+    try {
+      previous = await selection.readTestCoverage(at);
+    } catch (error) {
+      if (!isMissing(error)) {
+        throw new OperatorError(
+          `the snapshot already at ${said(at)} could not be read: ${messageOf(error)}. ` +
+            'Delete it and land again; a fold written over it would have replaced evidence ' +
+            'nobody could see.',
+          { cause: error },
+        );
+      }
     }
-  }
 
-  const landed = selection.mergeCoverage(previous, folded);
-  await selection.writeTestCoverage(at, landed);
-  // The case index beside the record answers for the same runs, so each
-  // shard's cases are laid over it as the shard's seam would have laid them.
-  const cases = await selection.landCaseIndexes(at, root, read);
+    const landed = selection.mergeCoverage(previous, folded);
+    const cases = await selection.landCaseIndexes(at, root, read);
+    if ('busy' in cases) throw busy(cases.busy, at);
+    await selection.writeTestCoverage(at, landed);
+    return { landed, cases };
+  });
+  if (!locked.held) throw busy(at, at);
+  const { landed, cases } = locked.value;
 
   return {
     at,
@@ -101,4 +110,17 @@ export async function landJourneys(
     modules: landed.modules.length,
     cases,
   };
+}
+
+/**
+ * A landing that cannot take a lock is refused whole, and exits non-zero. The
+ * lock already waits for the holder, and one held past that is a run still
+ * writing, so a retry here would only wait longer for the same answer. Nothing
+ * was written, so landing again once that run ends is an ordinary landing.
+ */
+function busy(file: string, at: string): OperatorError {
+  return new OperatorError(
+    `nothing landed at ${said(at)}: another process is holding ${said(`${file}.lock`)}. ` +
+      'Land again once that run ends.',
+  );
 }

@@ -1484,9 +1484,11 @@ the same union in any order:
 ```ts
 import {
   foldTestCoverage,
+  landCaseIndexes,
   mergeCoverage,
   readTestCoverage,
   testCoverageFile,
+  withIndexLock,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 
@@ -1500,12 +1502,24 @@ const shards = await Promise.all(
 const suite = foldTestCoverage(shards);
 
 const file = testCoverageFile(process.cwd());
-const previous = await readTestCoverage(file).catch(() => undefined);
-await writeTestCoverage(file, mergeCoverage(previous, suite));
+const landed = await withIndexLock(file, async () => {
+  const previous = await readTestCoverage(file).catch(() => undefined);
+  const cases = await landCaseIndexes(file, process.cwd(), shards);
+  if ('busy' in cases) throw new Error(cases.reason);
+  await writeTestCoverage(file, mergeCoverage(previous, suite));
+});
+if (!landed.held) throw new Error(`another process is writing ${file}`);
 ```
 
 Record each shard through the ordinary seams with `coverageFile` pointing at
-that job's artifact, then fold the artifacts in a job of their own.
+that job's artifact, upload the case index beside it, `<coverageFile>.cases.bin`,
+and fold the artifacts in a job of their own. `landCaseIndexes` merges each
+shard's cases into the index beside `file`, in the order the shards are named.
+If a shard ran a test file to the end and has no case index, it removes the
+index instead, because nothing can then say which of that file's cases ran a
+line. `withIndexLock` takes the lock every seam takes before it writes the
+snapshot, so a run finishing in the same checkout cannot write between the
+snapshot and its cases.
 
 Folding refuses by name, on one rule: the result must not be able to say
 anything one run could not. Shards recorded under different probe recipes or at

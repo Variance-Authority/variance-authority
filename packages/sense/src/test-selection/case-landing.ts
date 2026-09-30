@@ -13,7 +13,8 @@ import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
-import { openSetExecutionIndex } from './execution-set-format.js';
+import { decodeExecutionIndex } from './execution-format.js';
+import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { busyIndex, withIndexLock, type IndexLock } from './index-lock.js';
 import { codeUnitOrder, isMissing } from './instrumented-modules.js';
 import { writeCoverageBytes } from './record-location.js';
@@ -111,29 +112,34 @@ export type CaseLanding =
   /** `shards` case indexes were laid over the one at `laid`, in the order they were named. */
   | { readonly laid: string; readonly shards: number }
   /**
-   * A shard that finished a test file left no case index this build can lay, so
-   * no index can answer for that file's cases. `removed` says whether one was
-   * there to remove.
+   * A shard that finished a test file left no case index this build can read,
+   * so no index can answer for that file's cases. `removed` says whether one
+   * was there to remove.
    */
   | { readonly unanswered: string; readonly shard: string; readonly removed: boolean }
-  /** Another process held the index, which was left as it was. */
+  /** Another process had the index locked, and it was left as it was. */
   | { readonly busy: string; readonly reason: string };
 
 /**
  * Keep the case index beside `record` answering for the snapshot a landing
- * wrote there.
+ * writes there.
  *
  * Each shard's seam left its cases at `<shard>.cases.bin`, as it does beside
  * any snapshot it records. They are laid over the index in the order the
- * shards were named, each as the run it was.
+ * shards were named, each as the run it was. An index in the row spelling is
+ * laid the same way, once it is spelled as sets.
  *
- * A shard that finished a test file and left no index this build can open
- * recorded cases nobody can read back. The index cannot say which cases of
- * that file walk a line, and the cases it still holds for that file are an
- * earlier run's. So the index and its two layers are removed, and a reader says
- * nothing is recorded rather than answer from cases the snapshot beside it
- * replaced. A shard that finished no file is skipped: its seam writes no index
- * for such a run either, and laying it would change nothing.
+ * A shard that finished a test file and left no index recorded no cases, which
+ * is what a seam does when it was not asked for them. The index cannot say
+ * which cases of that file walk a line, and the cases it still has for that
+ * file are an earlier run's. So the index and its two layers are removed, and a
+ * reader says nothing is recorded rather than answer from cases the snapshot
+ * beside it replaced. A shard that finished no file is skipped: its seam writes
+ * no index for such a run either, and laying it would change nothing.
+ *
+ * Everything is done under the index's lock, and nothing at all when another
+ * process has it. A landing writes the snapshot under that snapshot's own lock
+ * and calls this inside it, so the snapshot and the index change together.
  */
 export async function landCaseIndexes(
   record: string,
@@ -142,35 +148,43 @@ export async function landCaseIndexes(
 ): Promise<CaseLanding> {
   const file = `${record}.cases.bin`;
   const runs: { readonly fresh: Uint8Array; readonly coverage: LaidRun }[] = [];
+  let unanswered: string | undefined;
   for (const shard of shards) {
     const fresh = await layableIndex(`${shard.path}.cases.bin`);
     if (fresh !== undefined) runs.push({ fresh, coverage: shard.coverage });
-    else if (shard.coverage.tests.some((test) => test.complete)) return removeCaseIndex(file, record, shard.path);
+    else if (shard.coverage.tests.some((test) => test.complete)) {
+      unanswered = shard.path;
+      break;
+    }
   }
-  if (runs.length === 0) return { laid: file, shards: 0 };
+  if (unanswered === undefined && runs.length === 0) return { laid: file, shards: 0 };
 
-  const written = await withIndexLock(file, async (lock) => {
+  const written = await withIndexLock(file, async (lock): Promise<CaseLanding> => {
+    if (unanswered !== undefined) return removeCaseIndex(file, record, unanswered);
+    // FIXME: each shard is laid as a run of its own, so the last-run layer names
+    // only the last shard's cases, and `covering --cases last` after a landing
+    // answers from that shard rather than from the whole fold.
     for (const run of runs) await layCaseRun(lock, run.fresh, root, run.coverage);
+    return { laid: file, shards: runs.length };
   });
-  return written.held ? { laid: file, shards: runs.length } : { busy: file, reason: busyIndex(file) };
+  return written.held ? written.value : { busy: file, reason: busyIndex(file) };
 }
 
+/** Remove the index and everything beside it that answers for its cases. Called under the index's lock. */
 async function removeCaseIndex(file: string, record: string, shard: string): Promise<CaseLanding> {
   const layers = caseLayerFiles(file);
-  const stale = [file, layers.last, layers.before, `${record}.cases.json`].filter((path) => existsSync(path));
-  if (stale.length === 0) return { unanswered: file, shard, removed: false };
-  const removed = await withIndexLock(file, async () => {
-    await Promise.all(stale.map((path) => rm(path, { force: true })));
-  });
-  return removed.held ? { unanswered: file, shard, removed: true } : { busy: file, reason: busyIndex(file) };
+  const stale = [file, layers.last, layers.before, `${record}.cases.json`];
+  const removed = stale.some((path) => existsSync(path));
+  await Promise.all(stale.map((path) => rm(path, { force: true })));
+  return { unanswered: file, shard, removed };
 }
 
-/** The shard's index when it is there and in the spelling a run is laid from. */
+/** The shard's index spelled as sets, when it is there and this build can read it. */
 async function layableIndex(file: string): Promise<Uint8Array | undefined> {
   const bytes = await readIfThere(file);
   if (bytes === undefined) return undefined;
   try {
-    return openSetExecutionIndex(bytes) === undefined ? undefined : bytes;
+    return openSetExecutionIndex(bytes) === undefined ? encodeAsSetExecutionIndex(decodeExecutionIndex(bytes)) : bytes;
   } catch {
     return undefined;
   }

@@ -2789,6 +2789,7 @@
         "testsReaching": "function",
         "testsReachingFromView": "function",
         "textAtRecording": "function",
+        "withIndexLock": "function",
         "writeCoverageBytes": "function",
         "writeTestCoverage": "function"
       },

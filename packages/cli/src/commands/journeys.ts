@@ -333,10 +333,10 @@ function casesLine(cases: CaseLanding): string {
       : `  cases of ${many(cases.shards, 'snapshot')} laid over ${cases.laid}`;
   }
   if ('busy' in cases) return `  cases not landed: ${cases.reason}, and ${cases.busy} does not have these snapshots' cases`;
-  const why = `${cases.shard} finished a test file, and ${cases.shard}.cases.bin is missing or was not written by a run`;
+  const why = `${cases.shard} ran a test file to the end, and there is no case index this build can read at ${cases.shard}.cases.bin`;
   return cases.removed
-    ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of its cases run a line. ` +
-        'Run the suite, or land shards that carry their case indexes, to record one.'
+    ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of that file's cases run a line. ` +
+        'Record cases in the runs that write the shards, or run the suite here, to write one.'
     : `  no case index at ${cases.unanswered}: ${why}`;
 }
 

@@ -20,8 +20,7 @@ import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativePath
 import type { SourceUpdate } from './published.js';
 import { keptRunnerAliases, runnerConfigs, unlistedRunnerAliases, type RunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
-import { layeredFiles, repositoryLayers } from './test-selection/cache-layers.js';
-import { recordPath } from './test-selection/record-location.js';
+import { nearestTestCoverage } from './test-selection/record-location.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { declaredSuites } from './test-selection/suites.js';
 
@@ -69,14 +68,12 @@ export function journeysPath(index: string, suite?: string): string {
   return suite === undefined ? `${index}.journeys` : `${index}.${encodeURIComponent(suite)}.journeys`;
 }
 
-/** One suite's recording, found the way every reader of one finds it: the layer that holds the most cases. */
+/** One suite's recording, found the way every reader of one finds it: the case index beside the nearest snapshot. */
 function recordings(root: string): readonly { readonly suite?: string; readonly recording?: string; readonly looked: string }[] {
   const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
-  const layers = repositoryLayers(root);
   return suites.map((suite) => {
-    const candidates = layeredFiles(layers, `${recordPath(root, suite)}.cases.bin`);
-    const recording = candidates.find((candidate) => existsSync(candidate));
-    return { ...(suite === undefined ? {} : { suite }), ...(recording === undefined ? {} : { recording }), looked: candidates[0]! };
+    const looked = `${nearestTestCoverage(root, { suite })}.cases.bin`;
+    return { ...(suite === undefined ? {} : { suite }), ...(existsSync(looked) ? { recording: looked } : {}), looked };
   });
 }
 

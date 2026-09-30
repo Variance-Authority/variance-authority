@@ -12,6 +12,7 @@
 // compass: variance-authority.reach
 
 import { randomUUID } from 'node:crypto';
+import { statSync } from 'node:fs';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
@@ -120,11 +121,17 @@ export async function seedTestCoverage(
   // anything: there is no base beneath a path somebody passed in.
   const inside = relative(layers.top, file).split(sep).join('/');
   if (inside !== 'coverage.bin' && !/^suites\/[^/]+\/coverage\.bin$/u.test(inside)) return;
-  await seedFrom(layers.base, inside, file, (bytes) => void openTestCoverage(bytes));
+  const seeded = await seedFrom(layers.base, inside, file, (bytes) => void openTestCoverage(bytes));
   // The case index is a second record beside the snapshot, and the run folds
   // into whatever it finds there, replacing the cases of the files it ran. With
   // nothing seeded the first run in a worktree would write a partial index that
   // then stands for the whole suite.
+  //
+  // Only beside the snapshot copied with it. A checkout whose own snapshot is
+  // there and whose index is not has no recorded cases — a landing removed
+  // them, or its runs recorded none — and the base's index is the cases of a
+  // different snapshot.
+  if (!seeded) return;
   await seedFrom(layers.base, `${inside}.cases.bin`, `${file}.cases.bin`, (bytes) => {
     if (openSetExecutionIndex(bytes) === undefined) decodeExecutionTests(bytes);
   });
@@ -133,17 +140,17 @@ export async function seedTestCoverage(
 /**
  * Copy `name` from under `base` to `target` unless `target` is already there,
  * and unless `opens` refuses the bytes. No base and an unreadable one are the
- * same answer: nothing to inherit.
+ * same answer: nothing to inherit. Says whether it copied.
  */
 async function seedFrom(
   base: string,
   name: string,
   target: string,
   opens: (bytes: Uint8Array) => void,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await stat(target);
-    return;
+    return false;
   } catch (error) {
     if (!missing(error)) throw error;
   }
@@ -153,9 +160,11 @@ async function seedFrom(
     // what "this build can read it" means and costs a fraction of a decode.
     opens(bytes);
     await writeCoverageBytes(target, bytes);
+    return true;
   } catch {
     // No base, or one this build has no claim on. Either way there is nothing
     // to inherit and the run records its own.
+    return false;
   }
 }
 
@@ -175,10 +184,23 @@ export async function readableTestCoverage(
   root: string,
   options: RecordLocationOptions = {},
 ): Promise<string> {
+  return nearestTestCoverage(root, options);
+}
+
+/**
+ * {@link readableTestCoverage} for a caller that cannot wait, and the one rule
+ * every reader finds a recording by.
+ *
+ * The case index a reader opens is the one beside this snapshot, never the
+ * nearest index on its own: an index answers for the snapshot it was laid
+ * beside. A layer whose snapshot is there and whose index is not has no
+ * recorded cases, and the layer under it is not asked.
+ */
+export function nearestTestCoverage(root: string, options: RecordLocationOptions = {}): string {
   const files = layeredFiles(repositoryLayers(root, options.cacheRoot), recordPath(root, options.suite));
   for (const file of files) {
     try {
-      await stat(file);
+      statSync(file);
       return file;
     } catch (error) {
       if (!missing(error)) throw error;

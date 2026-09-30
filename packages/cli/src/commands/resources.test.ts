@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type { TestCoverage } from '@variance-authority/sense/test-selection';
 import { landJourneys } from './land.js';
 import { recordedJourneys } from './resources.js';
@@ -19,7 +22,10 @@ const { readTestCoverage, writeTestCoverage } = vi.hoisted(() => ({
   writeTestCoverage: vi.fn(),
 }));
 
-const CACHED = '/cache/variance-authority/test-selection/abc/coverage.bin';
+// A real directory: the snapshots are stood in for, and the lock a landing
+// takes on the record, and the case index it keeps beside it, are on disk.
+const DISK = join(tmpdir(), `variance-resources-${process.pid}`);
+const CACHED = join(DISK, 'cache/variance-authority/test-selection/abc/coverage.bin');
 
 vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => ({
   // The fold and the layer are the package's own; only the disk is stood in for.
@@ -34,6 +40,10 @@ vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => ({
 afterEach(() => {
   readTestCoverage.mockReset();
   writeTestCoverage.mockReset();
+});
+
+afterAll(async () => {
+  await rm(DISK, { recursive: true, force: true });
 });
 
 const COVERAGE: TestCoverage = {
@@ -201,10 +211,11 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
   it('lands where --into says instead, and the reading is pointed there', async () => {
     disk({ '/ci/shard-1.bin': shardOf('story:a') });
 
-    const landed = await landJourneys('/repo', ['/ci/shard-1.bin'], '/tmp/folded.bin');
+    const into = join(DISK, 'folded.bin');
+    const landed = await landJourneys('/repo', ['/ci/shard-1.bin'], into);
 
-    expect(landed.at).toBe('/tmp/folded.bin');
-    expect(writeTestCoverage.mock.calls[0]?.[0]).toBe('/tmp/folded.bin');
+    expect(landed.at).toBe(into);
+    expect(writeTestCoverage.mock.calls[0]?.[0]).toBe(into);
   });
 
   it('layers the fold over what was already there, so a baseline lands under local evidence', async () => {

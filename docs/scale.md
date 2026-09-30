@@ -451,6 +451,12 @@ unsharded run would have written:
 variance journeys shard-1/coverage.bin shard-2/coverage.bin --into coverage.bin
 ```
 
+Upload each shard's case index, `coverage.bin.cases.bin`, beside its record.
+The fold merges the shards' cases into the index beside the stitched record. A
+shard that ran a test file to the end with no case index beside it leaves no
+index at all, because nothing can then say which of that file's cases ran a
+line.
+
 The fold refuses rather than guesses. Shards recorded at different commits, or
 under different **probe recipes** — the instrumentation configuration a build
 applied — are named and rejected. A journal does not spell out which region a

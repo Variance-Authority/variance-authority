@@ -245,9 +245,9 @@ describe('formatLanding', () => {
       '  case index at /tmp/coverage.bin.cases.bin left as it was: no snapshot finished a test file',
     ]);
     expect(lines({ unanswered: '/tmp/coverage.bin.cases.bin', shard: '/ci/shard-1.bin', removed: true })).toEqual([
-      '  case index removed at /tmp/coverage.bin.cases.bin: /ci/shard-1.bin finished a test file, and ' +
-        '/ci/shard-1.bin.cases.bin is missing or was not written by a run, so no index can say which of its cases ' +
-        'run a line. Run the suite, or land shards that carry their case indexes, to record one.',
+      '  case index removed at /tmp/coverage.bin.cases.bin: /ci/shard-1.bin ran a test file to the end, and ' +
+        'there is no case index this build can read at /ci/shard-1.bin.cases.bin, so no index can say which of ' +
+        "that file's cases run a line. Record cases in the runs that write the shards, or run the suite here, to write one.",
     ]);
     expect(lines({ busy: '/tmp/coverage.bin.cases.bin', reason: 'another run holds it' })).toEqual([
       "  cases not landed: another run holds it, and /tmp/coverage.bin.cases.bin does not have these snapshots' cases",

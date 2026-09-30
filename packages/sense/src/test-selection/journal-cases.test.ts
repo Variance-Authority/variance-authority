@@ -4,7 +4,7 @@
  * recording part of one run are joined without losing what the others saw.
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -139,6 +139,40 @@ describe('a driver that can tell its cases apart', () => {
       const [change] = coveringChange(index, new Map([['price.js', [{ start: LABEL_PLAIN_LINE, end: LABEL_PLAIN_LINE }]]]));
       expect(change?.regions.length).toBeGreaterThan(0);
       expect(change?.regions.filter((region) => region.passengers !== undefined)).toEqual([]);
+    });
+  });
+});
+
+describe('a driver that records one spec file at a time', () => {
+  it('keeps the cases of the spec files it did not run, and replaces those of the one it ran to the end', async () => {
+    await inRoot(async (root) => {
+      const cacheRoot = resolve(root, 'cache');
+      const coverageFile = resolve(root, 'coverage.bin');
+      await mkdir(resolve(root, 'e2e'), { recursive: true });
+      for (const spec of ['e2e/premium.spec.ts', 'e2e/plain.spec.ts']) await writeFile(resolve(root, spec), '');
+      const run = twoCases(root);
+      await run.write();
+      const record = (file: string, name: string, journal: ExecutionJournal) =>
+        recordExecution({
+          root,
+          cacheRoot,
+          coverageFile,
+          subjects: [{ owner: file, journal, complete: true }],
+          cases: [{ file, name, id: name, journal }],
+        });
+
+      await record('e2e/premium.spec.ts', 'charges twice above ten', run.premium);
+      await record('e2e/plain.spec.ts', 'charges the amount below it', run.plain);
+      // The premium spec again, and its case now walks the plain branch.
+      await record('e2e/premium.spec.ts', 'charges once below ten', run.plain);
+
+      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      expect(index.tests.map((test) => test.id)).toEqual([
+        'e2e/plain.spec.ts > charges the amount below it',
+        'e2e/premium.spec.ts > charges once below ten',
+      ]);
+      expect(named(index, PREMIUM_LINE)).toEqual([]);
+      expect([...named(index, PLAIN_LINE)].sort()).toEqual(['charges once below ten', 'charges the amount below it']);
     });
   });
 });

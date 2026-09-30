@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { caseLayerFiles, landCaseIndexes, type LastCaseRun } from './case-landing.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
-import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import {
+  encodeAsSetExecutionIndex,
+  encodeSetExecutionIndex,
+  openSetExecutionIndex,
+  type SetExecutionModule,
+} from './execution-set-format.js';
 
 /** The regions of `src/shared.ts`, which every run here loads whole. */
 const regions = ['alpha', 'beta', 'gamma'];
@@ -84,8 +89,8 @@ describe('landCaseIndexes', () => {
   it('removes the index and both of its layers when a shard that finished a file left no index it can lay', async () => {
     const layers = caseLayerFiles(`${record}.cases.bin`);
     await writeFile(layers.before, index({ 'a.test.ts > one': ['alpha'] }));
-    // An index in the row spelling: a reader decodes it, and no run is laid from it.
-    await writeFile(join(root, 'shard-1.bin.cases.bin'), encodeExecutionIndex({ tests: [], modules: [] }));
+    // Bytes no reader in this build can decode, so no run is laid from them.
+    await writeFile(join(root, 'shard-1.bin.cases.bin'), Buffer.from('not a case index'));
     const shard = join(root, 'shard-2.bin');
 
     const landed = await landCaseIndexes(record, root, [
@@ -95,6 +100,46 @@ describe('landCaseIndexes', () => {
 
     expect(landed).toEqual({ unanswered: `${record}.cases.bin`, shard: join(root, 'shard-1.bin'), removed: true });
     expect([`${record}.cases.bin`, layers.last, layers.before].filter((file) => existsSync(file))).toEqual([]);
+  });
+
+  it('lays a shard index in the row spelling, which the Playwright and Storybook seams wrote before they laid their own', async () => {
+    const block = (name: string, line: number) => ({ kind: 'function', name, path: name, startLine: line, endLine: line, source: true });
+    await writeFile(join(root, 'shard-1.bin.cases.bin'), encodeExecutionIndex({
+      tests: [{ id: 'b.test.ts > two', file: 'b.test.ts', name: 'two' }],
+      modules: [{ file: 'src/shared.ts', blocks: [
+        { ...block('alpha', 1), crossings: [] },
+        { ...block('beta', 2), crossings: [] },
+        { ...block('gamma', 3), crossings: [{ test: 0, distance: 0 }] },
+      ] }],
+    }));
+
+    const landed = await landCaseIndexes(record, root, [
+      { path: join(root, 'shard-1.bin'), coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } },
+    ]);
+
+    expect(landed).toEqual({ laid: `${record}.cases.bin`, shards: 1 });
+    expect(await read(`${record}.cases.bin`)).toEqual({ 'a.test.ts > one': ['alpha'], 'b.test.ts > two': ['gamma'] });
+  });
+
+  it('spells a row index as sets without losing a case, and refuses one that records a depth', () => {
+    const block = { kind: 'function', name: 'alpha', path: 'alpha', startLine: 1, endLine: 1, source: true };
+    const rows = {
+      tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }, { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two' }],
+      modules: [{ file: 'src/shared.ts', blocks: [
+        { ...block, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0, loaded: true }] },
+        { ...block, name: 'beta', path: 'beta', loaded: true as const, crossings: [] },
+      ] }],
+    };
+
+    const sets = encodeAsSetExecutionIndex(rows);
+
+    expect(openSetExecutionIndex(sets)).toBeDefined();
+    const decoded = decodeExecutionIndex(sets);
+    expect(decoded.tests.map((test) => test.id)).toEqual(['a.test.ts > one', 'a.test.ts > two']);
+    expect(decoded.modules[0]!.blocks.map((region) => region.crossings.map((crossing) => crossing.test))).toEqual([[0], []]);
+    expect(decoded.modules[0]!.blocks.map((region) => region.loaded)).toEqual([true, true]);
+    const deep = { ...rows, modules: [{ file: 'src/shared.ts', blocks: [{ ...block, crossings: [{ test: 0, distance: 2 }] }] }] };
+    expect(() => encodeAsSetExecutionIndex(deep)).toThrow('src/shared.ts has a case at depth 2');
   });
 
   it('writes nothing when there is no index to remove', async () => {

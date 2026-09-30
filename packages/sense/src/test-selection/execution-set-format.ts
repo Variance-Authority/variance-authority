@@ -10,7 +10,7 @@ import {
   type Section,
 } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
-import type { CrossingSetsPool, SetId } from './crossing-sets.js';
+import { CrossingSets, type CrossingSetsPool, type SetId } from './crossing-sets.js';
 import { codeUnitOrder, intern } from '@variance-authority/core/segment';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 
@@ -162,6 +162,41 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       })),
     })),
   };
+}
+
+/**
+ * A journey-only index in the set spelling, whatever built it: the spelling a
+ * run is laid over the index beside a snapshot in, so a seam that builds its
+ * cases as rows is laid by the same body as one that folds them to sets.
+ *
+ * Lossless for an index whose crossings are all at distance zero, which is
+ * every index a case journal becomes. A crossing marked as run while its module
+ * loaded is the region's load flag here, as the set spelling records it, and
+ * names no case. A measured depth has no place in the set spelling, so an index
+ * with one is refused rather than flattened.
+ */
+export function encodeAsSetExecutionIndex(index: ExecutionIndex): Buffer {
+  const sets = new CrossingSets(index.tests.length);
+  sets.intern([]);
+  const modules = index.modules.map((module): SetExecutionModule => {
+    const called = new Uint32Array(module.blocks.length);
+    const loaded = new Uint8Array(module.blocks.length);
+    const blocks = module.blocks.map(({ crossings, loaded: load, ...block }, at) => {
+      const cases: number[] = [];
+      if (load === true) loaded[at] = 1;
+      for (const crossing of crossings) {
+        if (crossing.distance !== 0) {
+          throw new Error(`${module.file} has a case at depth ${crossing.distance}, and the set spelling records no depth`);
+        }
+        if (crossing.loaded === true) loaded[at] = 1;
+        else cases.push(crossing.test);
+      }
+      called[at] = sets.intern(cases);
+      return block;
+    });
+    return { file: module.file, blocks, called, loaded };
+  });
+  return encodeSetExecutionIndex({ tests: index.tests, modules, sets: sets.pool() });
 }
 
 /**
