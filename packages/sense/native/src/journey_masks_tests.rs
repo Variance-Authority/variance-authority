@@ -120,3 +120,33 @@ fn a_journey_map_draws_what_the_kept_cases_ran_beyond_the_suite() {
     assert!(kept.branches.is_empty());
     assert!(crate::journey_map::map(&mut masks, "src/absent.ts", &[]).unwrap().is_none());
 }
+
+#[test]
+fn a_journey_map_asked_about_a_test_file_names_the_modules_its_cases_ran() {
+    let mut masks = recorded();
+    // Cases 0, 2, 4 and 6: three run each module, and fewer of the suite run `target` than the other two.
+    assert_eq!(
+        crate::journey_map::unmapped(&mut masks, "route0.test.ts").unwrap(),
+        "route0.test.ts is a test file, and a journey map is drawn around code that tests run. \
+         Ask about one of the modules its 4 recorded tests ran most:\n  \
+         src/target.ts  run by 3 of its 4 and 5 of all 8 recorded tests\n  \
+         src/route.ts  run by 3 of its 4 and 7 of all 8 recorded tests\n  \
+         src/setup.ts  run by 3 of its 4 and 7 of all 8 recorded tests"
+    );
+}
+
+#[test]
+fn a_journey_map_tells_a_file_no_test_ran_from_one_the_recording_cannot_judge() {
+    let mut masks = recorded();
+    assert_eq!(
+        crate::journey_map::unmapped(&mut masks, "src/absent.ts").unwrap(),
+        "No recorded test ran src/absent.ts. This is a finding about the tests, not a gap in the recording: \
+         the recording lists 3 files under src/ that its 8 tests loaded, and this file is not one of them."
+    );
+    assert_eq!(
+        crate::journey_map::unmapped(&mut masks, "lib/absent.ts").unwrap(),
+        "The recording lists no file under lib/, so it cannot say whether a test ran lib/absent.ts. \
+         A directory with no listed file is either one that no recorded test loaded or one that the test run does not instrument, \
+         and the recording does not say which."
+    );
+}

@@ -91,10 +91,106 @@ fn refused(file: String, reason: String) -> JourneyMap {
 #[napi(catch_unwind)]
 pub fn journey_map(recording: String, file: String, terms: Option<Vec<String>>) -> JourneyMap {
     let terms = terms.unwrap_or_default();
-    match JourneyMasks::open(&recording).and_then(|mut masks| map(&mut masks, &file, &terms)) {
-        Ok(Some(answer)) => answer,
-        Ok(None) => refused(file.clone(), format!("the recording holds no {file}")),
-        Err(error) => refused(file, format!("the recording did not read ({error})")),
+    let answered = JourneyMasks::open(&recording).and_then(|mut masks| match map(&mut masks, &file, &terms)? {
+        Some(answer) => Ok(answer),
+        None => Ok(refused(file.clone(), unmapped(&mut masks, &file)?)),
+    });
+    answered.unwrap_or_else(|error| refused(file, format!("the recording did not read ({error})")))
+}
+
+/// Modules named when the file asked about is a test file.
+const INSTEAD: usize = 3;
+
+/// Why there is no map around `file`, which the recording keeps no module row
+/// for, said so the reader knows what to ask next.
+///
+/// A test file is not a module the probe records, so it is answered with the
+/// modules its own cases ran most. Any other file is judged by its directory:
+/// the recording keeps a row for each instrumented file some test loaded, so a
+/// directory it keeps rows in is one it covers, and a missing row there means
+/// no test loaded the file. A directory with no row at all is one the
+/// recording says nothing about — it does not state its own scope — so that
+/// answer says it cannot tell rather than reporting the file as untested.
+pub(crate) fn unmapped(masks: &mut JourneyMasks, file: &str) -> Result<String, String> {
+    let own: Vec<bool> = masks.journey.test_file_names()?.iter().map(|name| *name == file).collect();
+    let declared = own.iter().filter(|&&is| is).count();
+    if declared > 0 {
+        return instead(masks, file, &own, declared);
+    }
+    let dir = file.rfind('/').map_or("", |at| &file[..=at]);
+    let place = if dir.is_empty() { "the repository root" } else { dir };
+    let rows = masks.journey.files()?.iter().filter(|path| path.starts_with(dir)).count();
+    Ok(if rows > 0 {
+        format!(
+            "No recorded test ran {file}. This is a finding about the tests, not a gap in the recording: the recording lists {rows} {} under {place} that its {} {} loaded, and this file is not one of them.",
+            plural(rows, "file", "files"),
+            own.len(),
+            plural(own.len(), "test", "tests"),
+        )
+    } else {
+        format!(
+            "The recording lists no file under {place}, so it cannot say whether a test ran {file}. A directory with no listed file is either one that no recorded test loaded or one that the test run does not instrument, and the recording does not say which."
+        )
+    })
+}
+
+/// A test file's answer: the modules its cases ran most, and among those the
+/// ones fewer of the whole suite ran first, so the module the file is about
+/// comes before the shared code every test runs.
+fn instead(masks: &mut JourneyMasks, file: &str, own: &[bool], declared: usize) -> Result<String, String> {
+    let mut stamp = vec![u32::MAX; own.len()];
+    // (module, cases of this file that ran it, cases of the suite that ran it)
+    let mut ran: Vec<(u32, u32, u32)> = Vec::new();
+    let mut current: Option<(u32, u32, u32)> = None;
+    for bit in 0..masks.bits.len() as u32 {
+        let held = masks.bits[bit as usize];
+        if held.shape != Shape::Function {
+            continue;
+        }
+        if current.is_some_and(|(module, _, _)| module != held.module) {
+            ran.extend(current.take().filter(|&(_, mine, _)| mine > 0));
+        }
+        let (module, mut mine, mut all) = current.unwrap_or((held.module, 0, 0));
+        for &case in masks.entered(bit)?.iter() {
+            if stamp.get(case as usize).is_some_and(|&seen| seen != module) {
+                stamp[case as usize] = module;
+                all += 1;
+                mine += u32::from(own[case as usize]);
+            }
+        }
+        current = Some((module, mine, all));
+    }
+    ran.extend(current.filter(|&(_, mine, _)| mine > 0));
+    let journey = &masks.journey;
+    ran.sort_by(|x, y| {
+        y.1.cmp(&x.1)
+            .then(x.2.cmp(&y.2))
+            .then(order::code_unit(journey.module_file(x.0 as usize).unwrap_or(""), journey.module_file(y.0 as usize).unwrap_or("")))
+    });
+    let its = format!("its {declared} recorded {}", plural(declared, "test", "tests"));
+    if ran.is_empty() {
+        return Ok(format!(
+            "{file} is a test file, and a journey map is drawn around code that tests run. None of {its} ran a function the recording lists, so there is no module to ask about instead."
+        ));
+    }
+    let mut lines = vec![format!(
+        "{file} is a test file, and a journey map is drawn around code that tests run. Ask about one of the modules {its} ran most:"
+    )];
+    for &(module, mine, all) in ran.iter().take(INSTEAD) {
+        lines.push(format!(
+            "  {}  run by {mine} of its {declared} and {all} of all {} recorded tests",
+            journey.module_file(module as usize)?,
+            own.len()
+        ));
+    }
+    Ok(lines.join("\n"))
+}
+
+fn plural(count: usize, one: &'static str, many: &'static str) -> &'static str {
+    if count == 1 {
+        one
+    } else {
+        many
     }
 }
 
