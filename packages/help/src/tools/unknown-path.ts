@@ -12,13 +12,22 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { spawnSync } from 'node:child_process';
 import { didYouMean } from '@variance-authority/mcp/tools';
-import { recordedPaths } from '@variance-authority/sense';
+import { checkoutListing, recordedPaths, type CheckoutListing } from '@variance-authority/sense';
 
-/** Throw when `path`, a file or a directory, is in neither the recording nor the files git lists under `root`. */
-export function refuseUnknownPath(root: string, path: string, recorded: () => readonly string[]): void {
-  if (listed(root, path)) return;
+/**
+ * Throw when `path`, a file or a directory, is in neither the recording nor the
+ * files git lists under `root`. A directory is a path here, since a reader such
+ * as `slowest-tests` takes one. `listing` is what git lists at `path`, when the
+ * caller has already asked; otherwise it is asked here.
+ */
+export function refuseUnknownPath(
+  root: string,
+  path: string,
+  recorded: () => readonly string[],
+  listing: CheckoutListing = checkoutListing(root, path),
+): void {
+  if (!('unread' in listing) && (listing.file || listing.directory)) return;
   const bare = path.endsWith('/') ? path.slice(0, -1) : path;
   const held = recorded();
   if (held.some((known) => known === bare || known.startsWith(`${bare}/`))) return;
@@ -44,19 +53,6 @@ function sameName(path: string, held: readonly string[]): string {
   const more = found.length - shown.length;
   const listed = more > 0 ? `${shown.join(', ')} and ${more} more` : shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)}`;
   return `\nThe recording holds \`${name}\` at ${listed}.`;
-}
-
-/**
- * Whether git lists `path` in the checkout: tracked, or new and not ignored,
- * which is the set the source index is scanned from.
- */
-function listed(root: string, path: string): boolean {
-  const found = spawnSync('git', ['--literal-pathspecs', 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', path], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 1024 * 1024 * 1024,
-  });
-  return found.status === 0 && found.stdout !== '';
 }
 
 /** The recording's paths under `root`, read once however many paths are asked about. */

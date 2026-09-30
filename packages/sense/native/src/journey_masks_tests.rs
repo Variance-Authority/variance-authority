@@ -143,6 +143,8 @@ fn known(module: bool, existed: Option<bool>) -> crate::journey_map::JourneyMapF
         existed,
         unread: existed.is_none().then(|| "git could not read 0123456789ab".to_owned()),
         listed: Some(true),
+        directory: Some(false),
+        ignored: Some(false),
     }
 }
 
@@ -152,9 +154,9 @@ fn a_journey_map_says_no_test_loaded_a_file_only_where_every_owner_agrees_it_cou
     let mut unmapped = |file: &str, known: &crate::journey_map::JourneyMapFile| crate::journey_map::unmapped(&mut masks, file, Some(known)).unwrap();
     assert_eq!(
         unmapped("src/absent.ts", &known(true, Some(true))),
-        "No recorded test loaded src/absent.ts, unless the test run leaves it uninstrumented, \
-         as it must for a module whose functions are sent to a browser page. \
-         The file existed at 0123456789ab, where the recording was made, and the recording lists 3 files under src/ \
+        "No recorded test loaded src/absent.ts, unless the test run is configured to leave it uninstrumented: \
+         the recording keeps no row for a file the run leaves out. \
+         The file existed at 0123456789ab, where the recording was made, and the recording lists 3 files in src/ \
          that its 8 tests loaded, but not this one."
     );
     assert_eq!(
@@ -163,23 +165,37 @@ fn a_journey_map_says_no_test_loaded_a_file_only_where_every_owner_agrees_it_cou
     );
     assert_eq!(
         unmapped("src/absent.ts", &known(true, None)),
-        "The recording cannot say whether a test loaded src/absent.ts: git cannot say whether the file existed \
-         when the recording was made (git could not read 0123456789ab)."
+        "The recording cannot say whether a test loaded src/absent.ts: git could not say whether the file existed \
+         at 0123456789ab, where the recording was made (git could not read 0123456789ab)."
     );
     assert!(unmapped("src/types.d.ts", &known(false, Some(true))).starts_with(
         "The recording cannot say whether a test loaded src/types.d.ts: it keeps rows for the source modules a test run instruments"
     ));
     assert_eq!(
         unmapped("lib/absent.ts", &known(true, Some(true))),
-        "The recording cannot say whether a test loaded lib/absent.ts: it lists no file under lib/. \
+        "The recording cannot say whether a test loaded lib/absent.ts: it lists no file in lib/. \
          A directory with no listed file is either one that no recorded test loaded or one that the test run does not instrument, \
          and the recording does not say which."
     );
-    // Every row starts with the empty prefix; the root is judged by its own files.
+    // The root is judged by its own files, not by every row.
     assert!(unmapped("absent.ts", &known(true, Some(true))).contains("it lists no file at the repository root."));
     let nowhere = crate::journey_map::JourneyMapFile { listed: Some(false), ..known(false, Some(false)) };
     assert_eq!(
         unmapped("src/absent.json", &nowhere),
         "src/absent.json is not in the checkout: git lists no such file, and the recording keeps no row for it."
+    );
+    let ignored = crate::journey_map::JourneyMapFile { listed: Some(false), ignored: Some(true), ..known(false, Some(false)) };
+    assert_eq!(
+        unmapped("gen/out.ts", &ignored),
+        "gen/out.ts is not in the checkout: git ignores it, and the recording keeps no row for it."
+    );
+    let deleted = crate::journey_map::JourneyMapFile { listed: Some(false), ..known(true, Some(true)) };
+    assert_eq!(
+        unmapped("src/old.ts", &deleted),
+        "src/old.ts existed at 0123456789ab, where the recording was made, and is not in the checkout now."
+    );
+    assert_eq!(
+        unmapped("src", &known(false, Some(true))),
+        "src is a directory, and journey-map draws its map around one file: ask about one of the files in it."
     );
 }

@@ -143,6 +143,7 @@ export {
   type PreparedCodeMap,
   type ShippedFiles,
 } from './code-map.js';
+export { checkoutListing, checkoutPath, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
 export {
   forksBetween,
   journeysAmong,

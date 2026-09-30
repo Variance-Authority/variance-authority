@@ -300,6 +300,10 @@ export interface NativeJourneyMapFile {
   readonly unread?: string | null;
   /** Whether git lists the file in the checkout, tracked or new and not ignored; absent when git could not say. */
   readonly listed?: boolean | null;
+  /** Whether git lists files under the path, which makes it a directory. */
+  readonly directory?: boolean | null;
+  /** Whether the path is on disk and git ignores it. */
+  readonly ignored?: boolean | null;
 }
 
 /** The map of the code around one file, drawn from the journeys of the tests kept. */
