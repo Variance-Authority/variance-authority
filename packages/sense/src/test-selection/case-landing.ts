@@ -46,9 +46,9 @@ export interface LastCaseRun {
   readonly files: readonly string[];
   /**
    * Files of `files` the before layer cannot answer for: a run at this commit
-   * laid them over no index, and none has run them since. What came before
-   * them is not known, which is not the same as no case. Absent when every
-   * file has a base.
+   * laid them over no index, or over one that began at this commit, and none
+   * has run them since. What came before them is not known, which is not the
+   * same as no case. Absent when every file has a base.
    */
   readonly unbased?: readonly string[];
   /** The cases the last run recorded, by id. */
@@ -96,10 +96,13 @@ export async function layCaseRun(
   await writeCoverageBytes(file, merged);
   const files = [...ran].sort(codeUnitOrder);
   // A file laid over no index has no base; running it again at this commit
-  // retires this commit's own cases of it, which are then its base.
+  // retires this commit's own cases of it, which are then its base. While the
+  // commit's runs still hold such files, the index they lay over began at this
+  // commit, so a file none of them ran before — the next shard's — has none either.
+  const began = again && (prior.unbased?.length ?? 0) > 0;
   const unbased = [
     ...(again ? (prior.unbased ?? []).filter((test) => !ran.has(test)) : []),
-    ...(retired === undefined ? files : []),
+    ...(retired === undefined ? files : began ? files.filter((test) => !prior.files.includes(test)) : []),
   ].sort(codeUnitOrder);
   const named: LastCaseRun = {
     ...(run.commit === undefined ? {} : { commit: run.commit }),
