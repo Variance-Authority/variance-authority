@@ -14,6 +14,12 @@ description: >-
 # prints that it did; a miss, or a stamp that does not match, is an ordinary
 # build. Nothing here decides whether to build: this step only puts back what a
 # previous run left, and `build.mjs` owns the decision.
+#
+# The key also names the C library the binary links against, as `ldd` reports
+# it. The same workflows build on the bare runner and inside the Playwright
+# image, and a binary linked against a newer glibc than the host's does not load
+# there; the runner's OS name alone does not tell those two apart. A host with
+# no `ldd` names `none`.
 
 runs:
   using: composite
@@ -21,7 +27,10 @@ runs:
     - name: name the native tree
       id: native
       shell: bash
-      run: echo "tree=$(git rev-parse HEAD:packages/sense/native)" >> "$GITHUB_OUTPUT"
+      run: |
+        echo "tree=$(git rev-parse HEAD:packages/sense/native)" >> "$GITHUB_OUTPUT"
+        libc=$(ldd --version 2>/dev/null | head -n 1 | awk '{ print $NF }')
+        echo "libc=${libc:-none}" >> "$GITHUB_OUTPUT"
 
     - name: restore the native scanner
       uses: actions/cache@v4
@@ -29,7 +38,7 @@ runs:
         path: |
           packages/sense/npm/*/scan.node
           packages/sense/npm/*/scan.node.tree
-        key: sense-native-${{ runner.os }}-${{ runner.arch }}-${{ steps.native.outputs.tree }}
+        key: sense-native-${{ runner.os }}-${{ runner.arch }}-libc-${{ steps.native.outputs.libc }}-${{ steps.native.outputs.tree }}
 
     - name: build
       shell: bash
