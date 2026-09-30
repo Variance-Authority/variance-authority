@@ -211,7 +211,7 @@ async function lexicon(root: string): Promise<string> {
  */
 async function journeys(cwd: string, update: SourceUpdate): Promise<readonly string[]> {
   try {
-    return (await prepareJourneys(cwd, update.path, update)).map(walked);
+    return (await prepareJourneys(cwd, update.path, update)).map(journeysLine);
   } catch (error) {
     return [`journeys: not prepared: ${error instanceof Error ? error.message : String(error)}`];
   }
@@ -223,7 +223,8 @@ function percent(part: number, whole: number): string {
   return part > 0 && share < 0.5 ? '<1%' : `${Math.round(share)}%`;
 }
 
-function walked(one: PreparedJourneys): string {
+/** The line `variance index` prints for one suite's journeys, and why they were not prepared when they were not. */
+export function journeysLine(one: PreparedJourneys): string {
   const named = one.suite === undefined ? 'journeys' : `journeys, suite ${one.suite}`;
   if ('unprepared' in one) return `${named}: not prepared: ${one.unprepared}`;
   const { prepared } = one;

@@ -1,0 +1,246 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { journeysAround, prepareJourneys, type JourneysAnswer } from './journeys.js';
+import { updateSourceIndex } from './published.js';
+import { CrossingSets } from './test-selection/crossing-sets.js';
+import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
+import { testCoverageFile } from './test-selection/record-location.js';
+
+/**
+ * How a recorded case's call reaches the function it ran, for each shape of
+ * import a test suite writes: through the test runner's own module mapping,
+ * through `tsconfig` paths, from a package's build to its source, by a
+ * workspace package's name, and by a relative path; and what the walk answers
+ * when the source does not bring the call to that function at all. One case
+ * per checkout, one call, and the functions it ran. The answer is how many of
+ * those functions the walk found a caller for, and the caller it found for the
+ * one asked about. The checkouts are small copies of the shapes Material UI and
+ * Docusaurus use.
+ */
+
+/** A file of functions, each three lines long, so the `n`th spans lines `3n + 1` to `3n + 3`. */
+const functions = (...names: readonly string[]): string => names.map((name) => `export function ${name}(value) {\n  return value;\n}\n`).join('');
+
+/** A test file with one case, `runs`, that calls `called` as `imports` brought it in. */
+const test = (imports: string, called: string): string => `${imports}\nit('runs', () => ${called}('x'));\n`;
+
+interface Ran {
+  readonly file: string;
+  /** Every function the file holds, in order. */
+  readonly functions: readonly string[];
+  /** The ones the case entered. */
+  readonly entered: readonly string[];
+}
+
+let root: string;
+
+beforeEach(() => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-journeys-imports-cache-'));
+  root = realpathSync(mkdtempSync(join(tmpdir(), 'va-journeys-imports-')));
+});
+
+afterEach(() => {
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+});
+
+function checkout(files: Readonly<Record<string, string>>): void {
+  for (const [path, text] of Object.entries({ '.gitignore': 'node_modules\n', ...files })) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), text);
+  }
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+  git('init', '--quiet');
+  git('add', '.');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture');
+}
+
+/** The Vite this repository installs, where the checkout's own `node_modules` would hold it. */
+function installVite(): void {
+  const vite = dirname(createRequire(import.meta.url).resolve('vite/package.json'));
+  mkdirSync(join(root, 'node_modules'), { recursive: true });
+  symlinkSync(vite, join(root, 'node_modules', 'vite'), 'dir');
+}
+
+/** Each workspace package linked under its name, as an install leaves it. */
+function installWorkspaces(packages: Readonly<Record<string, string>>): void {
+  for (const [name, directory] of Object.entries(packages)) {
+    mkdirSync(dirname(join(root, 'node_modules', name)), { recursive: true });
+    symlinkSync(join(root, directory), join(root, 'node_modules', name), 'dir');
+  }
+}
+
+function recording(testFile: string, ran: readonly Ran[]): Buffer {
+  const tests = [{ id: 'case > runs', file: testFile, name: 'runs' }];
+  const sets = new CrossingSets(tests.length);
+  return encodeSetExecutionIndex({
+    tests,
+    modules: ran.map(({ file, functions: held, entered }) => ({
+      file,
+      blocks: [
+        { kind: 'module', name: '', path: '', startLine: 1, endLine: held.length * 3, source: true },
+        ...held.map((name, at) => ({ kind: 'function', name, path: name, startLine: at * 3 + 1, endLine: at * 3 + 3, source: true })),
+      ],
+      called: Uint32Array.from([sets.intern([]), ...held.map((name) => sets.intern(entered.includes(name) ? [0] : []))]),
+      loaded: Uint8Array.from([1, ...held.map(() => 0)]),
+    })),
+    sets: sets.pool(),
+  });
+}
+
+/** The journeys prepared over the checkout: how many functions the case ran, how many have a caller, and the callers of the function at `asked:2`. */
+async function walk(testFile: string, ran: readonly Ran[], asked: string) {
+  await updateSourceIndex(root);
+  const at = `${testCoverageFile(root)}.cases.bin`;
+  mkdirSync(dirname(at), { recursive: true });
+  writeFileSync(at, recording(testFile, ran));
+  const [only] = await prepareJourneys(root);
+  if (only === undefined || !('prepared' in only)) return only;
+  const { functionsEntered: entered, placed, aliased, runnerUnread } = only.prepared;
+  const [around] = journeysAround(root, [{ file: asked, line: 2 }]) as [{ answer: JourneysAnswer }?];
+  return { entered, placed, aliased, runnerUnread, callers: around?.answer.files[0]?.focus?.callers };
+}
+
+/** The case ran `get`, the only function of `src/api.ts`. */
+const ranGet: readonly Ran[] = [{ file: 'src/api.ts', functions: ['get'], entered: ['get'] }];
+
+describe('a call reaches the function its case ran', () => {
+  it('through the test runner\'s own module mapping, as Material UI sends a package name to its source directory', async () => {
+    installVite();
+    checkout({
+      'package.json': JSON.stringify({ name: 'material-ui', private: true, workspaces: ['packages/*'] }),
+      'vitest.config.ts': `export default { resolve: { alias: { '@mui/utils': ${JSON.stringify(join(root, 'packages/mui-utils/src'))} } } };\n`,
+      'packages/mui-utils/package.json': JSON.stringify({ name: '@mui/utils', main: './build/index.js' }),
+      'packages/mui-utils/src/index.js': functions('capitalize'),
+      'packages/mui-material/test/capitalize.test.js': test("import { capitalize } from '@mui/utils';", 'capitalize'),
+    });
+    installWorkspaces({ '@mui/utils': 'packages/mui-utils' });
+
+    expect(await walk('packages/mui-material/test/capitalize.test.js', [
+      { file: 'packages/mui-utils/src/index.js', functions: ['capitalize'], entered: ['capitalize'] },
+    ], 'packages/mui-utils/src/index.js')).toEqual({ entered: 1, placed: 1, aliased: 1, runnerUnread: [], callers: [{ cases: 1, known: 'static' }] });
+  });
+
+  it('through the test runner\'s own module mapping, when it names a file', async () => {
+    installVite();
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'vitest.config.ts': "export default { resolve: { alias: { '@api': './src/api.ts' } } };\n",
+      'src/api.ts': functions('get'),
+      'test/api.test.ts': test("import { get } from '@api';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 0, aliased: 1, runnerUnread: [], callers: [] });
+  });
+
+  it('through `tsconfig` paths', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'tsconfig.json': JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@app/*': ['src/*'] } } }),
+      'src/api.ts': functions('get'),
+      'test/api.test.ts': test("import { get } from '@app/api';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, aliased: 0, runnerUnread: [], callers: [{ cases: 1, known: 'static' }] });
+  });
+
+  it('from a package\'s build to its source, as a Docusaurus package names `lib/` and runs `src/`', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'docusaurus', private: true, workspaces: ['packages/*'] }),
+      'packages/docusaurus-utils/package.json': JSON.stringify({ name: '@docusaurus/utils', main: './lib/index.js', types: './lib/index.d.ts' }),
+      'packages/docusaurus-utils/tsconfig.json': JSON.stringify({ compilerOptions: { outDir: 'lib', rootDir: 'src' } }),
+      'packages/docusaurus-utils/src/index.ts': functions('posixPath'),
+      'packages/docusaurus/package.json': JSON.stringify({ name: '@docusaurus/core', dependencies: { '@docusaurus/utils': '*' } }),
+      'packages/docusaurus/src/__tests__/paths.test.ts': test("import { posixPath } from '@docusaurus/utils';", 'posixPath'),
+    });
+    installWorkspaces({ '@docusaurus/utils': 'packages/docusaurus-utils', '@docusaurus/core': 'packages/docusaurus' });
+
+    expect(await walk('packages/docusaurus/src/__tests__/paths.test.ts', [
+      { file: 'packages/docusaurus-utils/src/index.ts', functions: ['posixPath'], entered: ['posixPath'] },
+    ], 'packages/docusaurus-utils/src/index.ts')).toEqual({ entered: 1, placed: 1, aliased: 0, runnerUnread: [], callers: [{ cases: 1, known: 'static' }] });
+  });
+
+  it('by a workspace package\'s name', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'repo', private: true, workspaces: ['packages/*'] }),
+      'packages/lib/package.json': JSON.stringify({ name: '@t/lib', main: './src/index.ts' }),
+      'packages/lib/src/index.ts': functions('get'),
+      'packages/app/package.json': JSON.stringify({ name: '@t/app', dependencies: { '@t/lib': '*' } }),
+      'packages/app/test/get.test.ts': test("import { get } from '@t/lib';", 'get'),
+    });
+    installWorkspaces({ '@t/lib': 'packages/lib', '@t/app': 'packages/app' });
+
+    expect(await walk('packages/app/test/get.test.ts', [
+      { file: 'packages/lib/src/index.ts', functions: ['get'], entered: ['get'] },
+    ], 'packages/lib/src/index.ts')).toEqual({ entered: 1, placed: 1, aliased: 0, runnerUnread: [], callers: [{ cases: 1, known: 'static' }] });
+  });
+
+  it('by a relative path', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/api.ts': functions('get'),
+      'test/api.test.ts': test("import { get } from '../src/api.js';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 1, aliased: 0, runnerUnread: [], callers: [{ cases: 1, known: 'static' }] });
+  });
+});
+
+describe('a call the source does not bring to the function its case ran', () => {
+  it('when nothing in the checkout resolves the import', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/api.ts': functions('get'),
+      'test/api.test.ts': test("import { get } from 'api';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({ entered: 1, placed: 0, aliased: 0, runnerUnread: [], callers: [] });
+  });
+
+  it('when the import resolves to a file the case entered nothing in', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/api.ts': functions('get'),
+      'lib/api.js': functions('get'),
+      'test/api.test.ts': test("import { get } from '../lib/api.js';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', [...ranGet, { file: 'lib/api.js', functions: ['get'], entered: [] }], 'src/api.ts'))
+      .toEqual({ entered: 1, placed: 0, aliased: 0, runnerUnread: [], callers: [] });
+  });
+
+  it('when the case ran more than one function under the imported name', async () => {
+    checkout({
+      'package.json': JSON.stringify({ name: 'app', private: true }),
+      'src/api.ts': functions('get'),
+      'src/other.ts': functions('get'),
+      'test/api.test.ts': test("import { get } from 'api';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', [...ranGet, { file: 'src/other.ts', functions: ['get'], entered: ['get'] }], 'src/api.ts'))
+      .toEqual({ entered: 2, placed: 0, aliased: 0, runnerUnread: [], callers: [] });
+  });
+
+  it('when the runner config throws as it is evaluated, as Material UI\'s does on `__dirname`', async () => {
+    installVite();
+    const evaluated = join(mkdtempSync(join(tmpdir(), 'va-journeys-imports-evaluated-')), 'evaluated');
+    checkout({
+      'package.json': JSON.stringify({ name: 'material-ui', private: true }),
+      'test/regressions/vitest.config.ts': `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(evaluated)}, '');\nthrow new ReferenceError('__dirname is not defined');\n`,
+      'src/api.ts': functions('get'),
+      'test/api.test.ts': test("import { get } from '../src/api.js';", 'get'),
+    });
+
+    expect(await walk('test/api.test.ts', ranGet, 'src/api.ts')).toEqual({
+      entered: 1,
+      placed: 1,
+      aliased: 0,
+      runnerUnread: ['test/regressions/vitest.config.ts: did not load (__dirname is not defined)'],
+      callers: [{ cases: 1, known: 'static' }],
+    });
+    expect(existsSync(evaluated)).toBe(true);
+  });
+});
