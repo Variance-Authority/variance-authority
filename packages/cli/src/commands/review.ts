@@ -80,6 +80,8 @@ export interface ReviewRegion {
   readonly written: boolean;
   /** How many cases called into it. */
   readonly cases: number;
+  /** The test files those cases are declared in, in code-unit order. */
+  readonly tests: readonly string[];
 }
 
 export interface ReviewFile {
@@ -315,6 +317,7 @@ function regionOf(
     reach,
     written: ranges.some((range) => range.start <= region.startLine && region.startLine <= range.end),
     cases: called.length,
+    tests: [...new Set(called.map((test) => test.file))].sort(),
   };
 }
 
