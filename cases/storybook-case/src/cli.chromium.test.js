@@ -61,6 +61,10 @@ const BROWSER_AVAILABLE = (() => {
   }
 })();
 
+// TODO: a stale build passes this gate. `cases/README.md` says generated inputs refuse
+// stale source bytes, and this checks only that both Storybook builds exist, so a story
+// edited since `build-storybook` fails the cycle as a wrong count. `stale()` in
+// `cases/incumbent-case/scripts/bundle.mjs` is the pattern: digests recorded at build time.
 const READY =
   existsSync(INDEX) && existsSync(CHANGED_INDEX) && existsSync(BIN) && BROWSER_AVAILABLE;
 

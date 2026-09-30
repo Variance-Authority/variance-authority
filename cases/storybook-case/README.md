@@ -145,9 +145,9 @@ contaminating a page. They are run, never recorded.
 running, because freezing the clock is the story author's job. A normal run
 compares one reading with a baseline taken from another mount, and the two match
 only when both were taken the same 50 ms step after mounting, so the run calls
-the story `unchanged` or `changed` depending on when it looked. That verdict is not the finding. The diagnostic sweep reads the
-same mount twice, seconds apart, and asks whether the two readings agree. They
-never do.
+the story `unchanged` or `changed` depending on when it looked. That verdict is
+not the finding. The diagnostic sweep reads the same mount twice, seconds apart,
+and asks whether the two readings agree. They never do.
 
 From the repository root:
 
@@ -275,10 +275,10 @@ one baseline directory, so the second is a branch judged against its trunk rathe
 than two independent runs compared afterwards.
 
 Four steps, which is the workflow a team actually runs. `cli.chromium.test.js`
-writes the cycle's two configs, one per build. They differ from
-`variance.config.json` only by also excluding the `ticking` tag, so the cycle
-reads thirteen subjects and leaves `Clock — ticking` to
-[its own sweep](#a-flake-is-diagnosed-not-retried-away). If you run
+writes the cycle's two configs, one per build. Besides their project name,
+temporary paths and the build each reads, they differ from `variance.config.json`
+by also excluding the `ticking` tag, so the cycle reads thirteen subjects and
+leaves `Clock — ticking` to [its own sweep](#a-flake-is-diagnosed-not-retried-away). If you run
 `variance.config.json` by hand, it reads all fourteen, and the clock's verdict
 against its baseline varies from run to run.
 
