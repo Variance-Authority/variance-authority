@@ -11,8 +11,6 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::HashSet;
-
 use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
 
@@ -28,7 +26,7 @@ use crate::orient_map_read::{read, Read};
 use crate::orient_map_signals::signals;
 use crate::orient_map_tree::tree;
 
-const FORMAT: u32 = 3;
+const FORMAT: u32 = 4;
 
 #[derive(Serialize, Deserialize)]
 struct Stored {
@@ -56,6 +54,11 @@ struct Placed {
     directory: String,
     layer: u32,
     takes: Vec<String>,
+    /// The runtime closure of what it ships (`orient_map_closure.rs`).
+    lines: u64,
+    own: u64,
+    files: u32,
+    unsized_files: u32,
 }
 
 /// What a kept map is, read without its pages.
@@ -92,7 +95,7 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-fn manifest_digest(index: &str) -> Option<String> {
+pub(crate) fn manifest_digest(index: &str) -> Option<String> {
     let bytes = std::fs::read(index).ok()?;
     Some(hex(&Sha256::digest(&bytes)))
 }
@@ -237,7 +240,8 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool) ->
     let listed = snapshot.as_ref().and_then(listing);
     if listed.is_some() {
         let kept = kept_bytes(&path).map_err(fail)?.and_then(|bytes| serde_json::from_slice::<Kept>(&bytes).ok());
-        if let Some(kept) = kept.filter(|kept| kept.index == digest && kept.listed == listed) {
+        let kept = kept.filter(|kept| kept.index == digest && kept.listed == listed && crate::orient_map_shipped::kept(index, &digest));
+        if let Some(kept) = kept {
             return Ok(Some(OrientMapPrepared { map: kept.made.map(Into::into), unmade: kept.unmade, walked, unmarked: kept.unmarked, relisted }));
         }
     }
@@ -279,6 +283,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool) ->
     std::fs::write(&written, text)
         .and_then(|()| std::fs::rename(&written, &path))
         .map_err(|error| fail(format!("{path} was not written: {error}")))?;
+    crate::orient_map_shipped::write(index, &stored.index, &read.shipped).map_err(fail)?;
     Ok(Some(OrientMapPrepared { map: stored.made.map(Into::into), unmade: stored.unmade, walked, unmarked, relisted }))
 }
 
@@ -314,7 +319,17 @@ fn fold(read: &Read) -> Result<(Made, Vec<Page>, Vec<Placed>), &'static str> {
         .iter()
         .zip(&layer)
         .zip(takes)
-        .map(|((named, &layer), takes)| Placed { package: named.name.clone(), directory: named.directory.clone(), layer, takes })
+        .zip(&read.closures)
+        .map(|(((named, &layer), takes), closure)| Placed {
+            package: named.name.clone(),
+            directory: named.directory.clone(),
+            layer,
+            takes,
+            lines: closure.lines,
+            own: closure.own,
+            files: closure.files,
+            unsized_files: closure.unsized_files,
+        })
         .collect();
     Ok((Made { packages: pages[0].packages, areas: pages.len() as u32 - 1, levels, layers: count, unread: read.unread }, pages, placed))
 }
@@ -427,6 +442,15 @@ pub struct OrientPackageLayer {
     pub layer: u32,
     /// The packages it imports from, in code-unit order.
     pub takes: Vec<String>,
+    /// Effective lines over every sized file its shipped files load, through
+    /// every edge but a type-only one; a lower bound when `unsized_files` is above 0.
+    pub lines: f64,
+    /// Effective lines in its own shipped files.
+    pub own: f64,
+    /// Files summed into `lines`.
+    pub files: u32,
+    /// Files and unresolved requests the closure reached and could not size.
+    pub unsized_files: u32,
 }
 
 #[napi(object)]
@@ -453,7 +477,16 @@ pub fn orient_layers(index: String) -> napi::Result<Option<OrientLayers>> {
         stored
             .placed
             .into_iter()
-            .map(|placed| OrientPackageLayer { package: placed.package, directory: placed.directory, layer: placed.layer, takes: placed.takes })
+            .map(|placed| OrientPackageLayer {
+                package: placed.package,
+                directory: placed.directory,
+                layer: placed.layer,
+                takes: placed.takes,
+                lines: placed.lines as f64,
+                own: placed.own as f64,
+                files: placed.files,
+                unsized_files: placed.unsized_files,
+            })
             .collect()
     });
     Ok(Some(OrientLayers { current, packages, unmade: stored.unmade }))

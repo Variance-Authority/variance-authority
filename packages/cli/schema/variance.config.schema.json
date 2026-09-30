@@ -149,6 +149,12 @@
         "items": { "type": "string", "minLength": 1 }
       },
       "description": "Where each part of the repository starts, by its directory spelled from the repository root. Each pattern is relative to that directory: `*` matches within one path segment and `**` any number of segments. `variance coverage --from <dir>` counts the files these entry points import, followed through every import. Read only from the variance.config.json at the repository root."
+    },
+    "tiers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "integer", "minimum": 1 },
+      "description": "Budgets in effective lines of code (comments and blank lines excluded) over the code a package pulls in at run time, tier 0 first, each strictly smaller than the one before. A package sits in the highest-numbered tier whose budget holds it; tier 0 holds everything, so its budget labels it and does not limit it. `variance layers` prints each package's tier, and a `maxTier` entry in a `.relations.json` holds packages to one. Read only from the variance.config.json at the repository root."
     }
   },
   "$defs": {

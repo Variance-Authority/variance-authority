@@ -35,7 +35,7 @@ import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
 import { parseNames, type NamesConfig } from './config-names.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
 import { parseSuitesAt, type DeclaredSuite } from './config-suites.js';
-import { parseEntrypointsAt } from './config-entrypoints.js';
+import { parseDeclaredAt } from './config-declared.js';
 import { checkCarriers, parsePlacement, type Carrier } from './config-placement.js';
 
 export type { BlankConfig, ChangeConfig, IgnoreConfig, NamesConfig, SensitivityConfig, SourceConfig };
@@ -361,7 +361,7 @@ const TOP_LEVEL = [
   'workers',
   'cacheRoot',
   'suites',
-  'entrypoints',
+  'entrypoints', 'tiers',
 ] as const;
 
 /**
@@ -438,7 +438,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const blank = root['blank'] === undefined ? undefined : parseBlanks(root['blank'], options);
   const names = root['names'] === undefined ? undefined : parseNames(root['names'], options);
   const sensitivity = root['sensitivity'] === undefined ? undefined : parseSensitivities(root['sensitivity'], options);
-  if (root['entrypoints'] !== undefined) parseEntrypointsAt(root['entrypoints'], options);
+  parseDeclaredAt(root, options);
 
   const concurrency = root['concurrency'] === undefined ? undefined : integer(root, 'concurrency', 'concurrency', options);
   const workers = root['workers'] === undefined ? undefined : integer(root, 'workers', 'workers', options);

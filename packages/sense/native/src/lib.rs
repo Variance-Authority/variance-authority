@@ -86,6 +86,8 @@ mod module_verdict;
 mod order;
 mod off_thread;
 mod orient_map;
+mod orient_map_closure;
+mod orient_map_shipped;
 mod orient_map_pages;
 mod orient_map_read;
 mod orient_map_signals;

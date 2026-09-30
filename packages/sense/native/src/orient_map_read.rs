@@ -18,6 +18,7 @@ use rayon::prelude::*;
 use regex::Regex;
 
 use crate::compact::Layer;
+use crate::orient_map_closure::{closures, Closure, Nodes};
 use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::{owner_of, owners, parent, shown, NO_OWNER};
 
@@ -51,6 +52,10 @@ pub(crate) struct Read {
     pub unread: u32,
     /// Files the folded chain holds a record for.
     pub records: u32,
+    /// Each package's runtime closure (`orient_map_closure.rs`).
+    pub closures: Vec<Closure>,
+    /// Every counted file that is not the tests' side, in code-unit order.
+    pub shipped: Vec<String>,
 }
 
 /// What a path says of a file: a test, its fixtures, or the harness's config.
@@ -74,6 +79,8 @@ struct File<'a> {
     requests: Vec<Request<'a>>,
     /// Whether the requests were read against the file's parse.
     parsed: bool,
+    /// Effective lines, as the parse stored them; absent when it stored none.
+    lines: Option<u32>,
 }
 
 fn code(path: &str) -> bool {
@@ -201,7 +208,46 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     }
     let mut edges: Vec<(u32, u32, u32)> = edges.into_iter().map(|((a, b), files)| (a, b, files)).collect();
     edges.sort_unstable();
-    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records }
+    let closures = closures(&loads(&files, &counted, &test, &named), n);
+    let shipped = files.iter().zip(&test).filter(|(_, &test)| !test).map(|(file, _)| file.path.to_owned()).collect();
+    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped }
+}
+
+/// The graph a closure is walked over: every counted file, and what it loads.
+/// A target that is not a counted file, a relative request the index left
+/// unresolved, and a bare one naming a package of this checkout that it left
+/// unresolved are each a node the walk reaches and cannot size. A bare request
+/// naming anything else is an installed package, and a path under
+/// `node_modules` is one too: neither is a file of the checkout.
+fn loads(files: &[File], counted: &HashMap<&str, usize>, test: &[bool], named: &HashMap<&str, u32>) -> Nodes {
+    let mut leaves: HashMap<String, u32> = HashMap::new();
+    let mut leaf = |key: String| -> u32 {
+        let next = (files.len() + leaves.len()) as u32;
+        *leaves.entry(key).or_insert(next)
+    };
+    let installed = |path: &str| path.starts_with("node_modules/") || path.contains("/node_modules/");
+    let mut outgoing: Vec<Vec<u32>> = Vec::with_capacity(files.len());
+    for file in files {
+        let mut to: Vec<u32> = Vec::new();
+        for request in file.requests.iter().filter(|request| request.kind != "type") {
+            let node = match (request.to, request.value) {
+                (Some(path), _) if installed(path) => continue,
+                (Some(path), _) => counted.get(path).map_or_else(|| leaf(path.to_owned()), |&at| at as u32),
+                (None, Some(value)) if !bare(value) => leaf(format!("{}\0{value}", file.path)),
+                (None, Some(value)) if named.contains_key(package_of(value)) => leaf(format!("\0{}", package_of(value))),
+                _ => continue,
+            };
+            to.push(node);
+        }
+        outgoing.push(to);
+    }
+    Nodes {
+        lines: files.iter().map(|file| file.lines).collect(),
+        owner: files.iter().map(|file| file.owner).collect(),
+        shipped: test.iter().map(|&test| !test).collect(),
+        outgoing,
+        leaves: leaves.len() as u32,
+    }
 }
 
 /// A package's head: the names taken more than an equal share would give
@@ -272,9 +318,9 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
     } else {
         Vec::new()
     };
-    let file = |requests, parsed| File { path: crossing.file, owner: crossing.owner, requests, parsed };
+    let file = |requests, parsed, lines| File { path: crossing.file, owner: crossing.owner, requests, parsed, lines };
     let unparsed = |targets: Vec<Option<&'a str>>| {
-        file(targets.into_iter().map(|to| Request { to, kind: "", value: None, names: Vec::new() }).collect(), false)
+        file(targets.into_iter().map(|to| Request { to, kind: "", value: None, names: Vec::new() }).collect(), false, None)
     };
     let Some((parse_layer, parse_row)) = crossing.parse else { return unparsed(targets) };
     let (text, parses) = (&layers[parse_layer].stored, &layers[parse_layer].parses);
@@ -306,7 +352,7 @@ fn requests<'a>(layers: &'a [Layer<'a>], crossing: &Crossing<'a>) -> File<'a> {
             Request { to, kind, value: Some(text.text(parses.request_value.at(request))), names }
         })
         .collect();
-    file(requests, true)
+    file(requests, true, parses.code_lines(parse_row))
 }
 
 /// The files the index holds, and every `package.json` in a directory above
