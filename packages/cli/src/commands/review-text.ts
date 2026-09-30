@@ -14,6 +14,7 @@
 import type { ReviewFormat } from '../review-args.js';
 import { motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
+import { outermost, scopeMarkdown, uncoveredCallout } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
 
@@ -96,6 +97,7 @@ function markdown(review: Review): string {
     lines.push('', '| Changed regions | All | New |', '| --- | ---: | ---: |');
     for (const [kind, all, written] of reach) lines.push(`| ${MARK[kind]} ${REACH_TEXT[kind]} | ${all} | ${written} |`);
   }
+  lines.push(...scopeMarkdown(review, (region) => MARK[region.reach]));
   const counts = review.motion?.moved?.counts;
   if (counts !== undefined) {
     lines.push('', `Against the base: ▲ ${counts.gained} region${counts.gained === 1 ? '' : 's'} gained cases · ▼ ${
@@ -160,6 +162,7 @@ function calloutMarkdown(review: Review, regions: readonly ReviewRegion[]): read
       `> **${uncovered.length} of ${regions.length} changed regions${holding} have no case that covers them**${
         written === 0 ? '' : written === uncovered.length ? ', all of them new code' : `, ${written} of them new code`
       }.`,
+      ...uncoveredCallout(review),
       ...(further.length === 0 ? [] : ['>', `> ${further.join('; ')}.`]),
     ];
   }
@@ -372,24 +375,6 @@ function editOf(file: ReviewFile, code: (value: string) => string): string {
   if (file.verdict === undefined) return '';
   const label = EDITS.find(([verdict]) => verdict === file.verdict)![1];
   return file.names === undefined ? label : `${label}: ${file.names.map(code).join(', ')}`;
-}
-
-/**
- * The regions a reader counts: each one whose answer differs from the region
- * around it. A function no case covered is one finding, not one per branch
- * inside it. The JSON keeps every region.
- */
-function outermost(file: ReviewFile): readonly ReviewRegion[] {
-  const regions = [...(file.regions ?? [])]
-    .sort((left, right) => left.startLine - right.startLine || right.endLine - left.endLine);
-  const kept: ReviewRegion[] = [];
-  const open: ReviewRegion[] = [];
-  for (const region of regions) {
-    while (open.length > 0 && open.at(-1)!.endLine < region.startLine) open.pop();
-    if (open.at(-1)?.reach !== region.reach) kept.push(region);
-    open.push(region);
-  }
-  return kept;
 }
 
 /** A region the reader should look at by name: not near, and not a module's own top level, which loads with any import. */
