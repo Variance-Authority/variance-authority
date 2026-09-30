@@ -24,7 +24,7 @@ afterEach(() => {
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
-function checkout(): string {
+function checkout(overrides: Readonly<Record<string, string>> = {}): string {
   // The cache is keyed by the path the checkout is at, which a temporary directory's name is not on macOS.
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-exports-')));
   const files: Record<string, string> = {
@@ -43,6 +43,7 @@ function checkout(): string {
     'packages/solid/src/index.ts': 'export const useQuery = () => 1;\n',
     'packages/app/package.json': JSON.stringify({ name: '@t/app', dependencies: { '@t/solid': '*' } }),
     'packages/app/src/page.ts': "import { useQuery } from '@t/solid';\nexport const page = useQuery();\n",
+    ...overrides,
   };
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -79,5 +80,20 @@ describe('variance ask packages over an `exports` written as conditions', () => 
     expect(out).not.toMatch(/custom-condition/);
     expect(out).toMatch(/^@t\/solid — 1 names?, 1 imported elsewhere/m);
     expect(out).not.toMatch(/reach past a published entrypoint/);
+  });
+
+  it('reads the condition from a commented `tsconfig.base.json` the package extends', async () => {
+    // Kibana's shape: every config in an `extends` chain is JSONC, whatever its name.
+    checkout({
+      'tsconfig.json': '{}',
+      'tsconfig.base.json': '// shared settings\n{ "compilerOptions": { "customConditions": ["@tanstack/custom-condition"], }, }\n',
+      'packages/solid/tsconfig.json': JSON.stringify({ extends: '../../tsconfig.base.json', compilerOptions: { outDir: './dist-ts', rootDir: '.' } }),
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'packages']);
+
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toMatch(/^@t\/solid — 1 names?, 1 imported elsewhere/m);
   });
 });

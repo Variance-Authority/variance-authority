@@ -253,6 +253,17 @@ describe('which subpaths an `exports` field opens', () => {
     ).toEqual([['.', '/packages/solid/src/index.ts']]);
   });
 
+  it('reads the custom condition from a commented config a package specifier `extends` names', () => {
+    expect(
+      opened({
+        'package.json': { name: 'shared', exports: { '@t/source': './src/index.ts', types: './dist/index.d.ts' } },
+        'tsconfig.json': { extends: '@t/tsconfig/base.json' },
+        'node_modules/@t/tsconfig/base.json': '/* shared */\n{ "compilerOptions": { "customConditions": ["@t/source"], }, }\n',
+        'src/index.ts': 'export const one = 1;\n',
+      }),
+    ).toEqual([['.', '/src/index.ts']]);
+  });
+
   it('reads a condition-only object with no custom condition as `.`', () => {
     expect(
       opened({
