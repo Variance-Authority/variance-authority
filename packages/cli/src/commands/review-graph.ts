@@ -86,7 +86,15 @@ export function changeGraph(review: Review): readonly string[] {
     }
     lines.push('  end');
   }
-  for (const fn of drawn) for (const test of fn.own.tests) if (kept.has(test)) lines.push(`  ${id('t', test)} --> ${id('r', key(fn))}`);
+  // A test file that reaches every drawn function of a file some case reached points at the file, once.
+  for (const file of [...new Set(drawn.map((fn) => fn.file))].sort(order)) {
+    const fns = drawn.filter((fn) => fn.file === file && fn.own.tests.length > 0);
+    for (const test of kept) {
+      const into = fns.filter((fn) => fn.own.tests.includes(test));
+      if (into.length > 1 && into.length === fns.length) lines.push(`  ${id('t', test)} --> ${id('f', file)}`);
+      else for (const fn of into) lines.push(`  ${id('t', test)} --> ${id('r', key(fn))}`);
+    }
+  }
   lines.push(
     '  classDef none fill:#ffebe9,stroke:#cf222e,color:#1f2328',
     '  classDef far fill:#fff8c5,stroke:#9a6700,color:#1f2328',
@@ -95,7 +103,7 @@ export function changeGraph(review: Review): readonly string[] {
     '```',
   );
   if (all.length > drawn.length) lines.push('', overflow(all.length - drawn.length, all.length));
-  if (reached.size > kept.size) lines.push('', `${reached.size - kept.size} more test files not drawn.`);
+  if (reached.size > kept.size) lines.push('', `${reached.size - kept.size} more test file${reached.size - kept.size === 1 ? '' : 's'} not drawn.`);
   lines.push('', '</details>');
   return lines;
 }

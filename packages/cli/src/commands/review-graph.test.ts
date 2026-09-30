@@ -30,6 +30,13 @@ describe('the changed functions drawn for a comment', () => {
     expect(text.match(/-->/gu)).toHaveLength(1);
   });
 
+  it('points a test file at the file once when it reaches every function there a case reached', () => {
+    const both = ['a.test.ts', 'b.test.ts'];
+    const text = changeGraph(review([region('f', 1, 'near', both), region('g', 10, 'near', both), region('h', 20, 'unwalked')])).join('\n');
+    expect(text.match(/-->/gu)).toHaveLength(2);
+    expect(text).toMatch(/t\d+ --> f\d+/u);
+  });
+
   it('keeps a function its own colour and count when only a closure inside it has no case', () => {
     const text = changeGraph(review([region('f', 1, 'near', ['f.test.ts', 'g.test.ts']), region('f/map.arg0', 2, 'unwalked')])).join('\n');
     expect(text).toContain('"🟢 f · new<br/>2 cases · 1 closure no case"]:::near');
