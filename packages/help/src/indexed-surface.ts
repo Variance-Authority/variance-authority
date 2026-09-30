@@ -86,11 +86,23 @@ export async function indexedNames(
     }
   }
 
+  // The graph's edge to `./theme` lands on `theme.js` on purpose: a change to
+  // the file a runtime loads has to reach its importers. A published name is
+  // what a type checker reads, and TypeScript reads the declaration written
+  // beside that file first, so a name followed through here does the same.
+  // `export type { Theme } from './theme'` names nothing the `.js` holds.
+  const typed = (target: string | undefined): string | undefined => {
+    const found = target === undefined ? null : /\.(m|c)?js$/.exec(target);
+    if (target === undefined || found === null) return target;
+    const declaration = `${target.slice(0, found.index)}.d.${found[1] ?? ''}ts`;
+    return sources.has(declaration) ? declaration : target;
+  };
+
   const targetOf = (at: string, specifier: string): string | undefined => {
     if (!specifier.startsWith('.')) return entrypoints.get(requested(specifier));
     const source = sources.get(at);
     const index = source?.parsed.requests.findIndex((request) => request.value === specifier) ?? -1;
-    return index < 0 ? undefined : source?.targets[index];
+    return index < 0 ? undefined : typed(source?.targets[index]);
   };
 
   const wanted = new Set<string>();
@@ -143,7 +155,7 @@ export async function indexedNames(
         if (published.from !== undefined || bound === undefined) continue;
         for (const [index, request] of source.parsed.requests.entries()) {
           if (!request.bindings.some((binding) => binding.local === bound)) continue;
-          const target = source.targets[index];
+          const target = typed(source.targets[index]);
           if (target !== undefined && sources.has(target) && !wanted.has(target)) {
             wanted.add(target);
             changed = true;
@@ -217,7 +229,7 @@ export async function indexedNames(
         const imported = source.parsed.requests.flatMap((request, index) =>
           request.bindings
             .filter((binding) => binding.local === bound)
-            .map((binding) => ({ name: binding.imported, target: source.targets[index] })),
+            .map((binding) => ({ name: binding.imported, target: typed(source.targets[index]) })),
         )[0];
         if (imported?.target === undefined) {
           if (imported !== undefined) add(found, name, written);

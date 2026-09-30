@@ -133,7 +133,8 @@ function jsonc(source: string): string {
 }
 
 /**
- * Every manifest the root's `workspaces` field reaches.
+ * Every manifest the root's `workspaces` field reaches, or, when the root
+ * manifest names none, the `packages:` of a `pnpm-workspace.yaml` beside it.
  *
  * Only a literal path and a trailing `/*` are understood, because those are what
  * a workspace field almost always holds and a half-implemented glob that quietly
@@ -153,9 +154,10 @@ function members(root: string): readonly string[] {
   if (!existsSync(join(root, 'package.json'))) return [];
 
   const { workspaces } = read(join(root, 'package.json'));
-  const globs = Array.isArray(workspaces)
+  const declared = Array.isArray(workspaces)
     ? (workspaces as string[])
     : (((workspaces as { packages?: string[] } | undefined)?.packages ?? []) as string[]);
+  const globs = declared.length > 0 ? declared : (pnpmMembers(root) ?? []);
 
   if (globs.length === 0) return [join(root, 'package.json')];
 
@@ -179,6 +181,42 @@ function members(root: string): readonly string[] {
     }
   }
   return found;
+}
+
+/**
+ * The member globs `pnpm-workspace.yaml` declares, or `undefined` when there is
+ * no such file.
+ *
+ * pnpm keeps its workspace here and not in the root manifest, so a pnpm root
+ * read only for `workspaces` is a private one-package repository that publishes
+ * nothing. Only the `packages:` block sequence of plain entries is read — the
+ * shape pnpm's own documentation writes — and anything else under that key is
+ * refused by line, because a list half-read is a workspace missing members.
+ */
+function pnpmMembers(root: string): readonly string[] | undefined {
+  const path = join(root, 'pnpm-workspace.yaml');
+  if (!existsSync(path)) return undefined;
+
+  const lines = readFileSync(path, 'utf8').split(/\r?\n/);
+  const start = lines.findIndex((text) => /^packages\s*:/.test(text));
+  if (start === -1) return undefined;
+  const refuse = (at: number): never => {
+    throw new Error(
+      `${path}:${at + 1} is not a \`packages:\` entry this reads; write each member as its own \`- <glob>\` line`,
+    );
+  };
+  if (!/^packages\s*:\s*(#.*)?$/.test(lines[start]!)) refuse(start);
+
+  const globs: string[] = [];
+  for (let at = start + 1; at < lines.length; at += 1) {
+    const text = lines[at]!;
+    if (/^\s*(#.*)?$/.test(text)) continue;
+    if (!/^\s/.test(text)) break;
+    const entry = /^\s+-\s+(?:'([^']*)'|"([^"]*)"|([^\s#'"][^#]*?))\s*(#.*)?$/.exec(text);
+    if (entry === null) refuse(at);
+    globs.push((entry![1] ?? entry![2] ?? entry![3])!);
+  }
+  return globs;
 }
 
 /**
@@ -295,6 +333,25 @@ function declarationsOf(condition: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * The declaration file written beside a bare JavaScript export, or `undefined`
+ * when there is none.
+ *
+ * `"./src/index.js"` with `src/index.d.ts` next to it is how a package whose
+ * source is JavaScript publishes hand-written types, and the sibling is what
+ * TypeScript itself resolves that path to. It is authored, not emitted, so it is
+ * the source: nothing is mapped back through a tsconfig. A wildcard is returned
+ * as a pattern and the glob in {@link openedBy} keeps only the files that exist.
+ */
+function besideOf(dir: string, condition: unknown): string | undefined {
+  if (typeof condition !== 'string') return undefined;
+  const found = /\.(m|c)?js$/.exec(condition);
+  if (found === null) return undefined;
+  const declaration = `${condition.slice(0, found.index)}.d.${found[1] ?? ''}ts`;
+  if (declaration.includes('*')) return declaration;
+  return existsSync(join(dir, declaration)) ? declaration : undefined;
+}
+
 function openedBy(dir: string, subpath: string, types: string): readonly Entrypoint[] {
   if (!types.includes('*')) return [{ subpath, source: sourceOf(dir, types) }];
   if ((types.match(/\*/g)?.length ?? 0) !== 1 || (subpath.match(/\*/g)?.length ?? 0) !== 1) {
@@ -339,7 +396,12 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
     const unreadable: string[] = [];
     const exports = (manifest['exports'] ?? {}) as Record<string, unknown>;
     for (const [subpath, condition] of Object.entries(exports)) {
-      const types = declarationsOf(condition);
+      const authored = besideOf(dir, condition);
+      if (authored !== undefined && !authored.includes('*')) {
+        entrypoints.push({ subpath, source: join(dir, authored) });
+        continue;
+      }
+      const types = authored ?? declarationsOf(condition);
       if (types === undefined) continue;
       try {
         entrypoints.push(...openedBy(dir, subpath, types));

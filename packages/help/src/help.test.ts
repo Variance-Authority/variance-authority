@@ -76,6 +76,15 @@ describe('what one door opens', () => {
     expect(() => call('docs_entrypoint', { package: 'gamma' })).toThrow(/this workspace publishes: alpha, beta/);
   });
 
+  it('says a workspace publishes nothing rather than listing nothing', () => {
+    const empty = { ...READING, packages: [] };
+    const door = HELP_TOOLS.find((candidate) => candidate.name === 'docs_entrypoint')!;
+    expect(() => door.run(empty, { package: 'gamma' })).toThrow(/publishes no package/);
+    expect(() => door.run(empty, { package: 'gamma' })).not.toThrow(/publishes: *$/);
+    const listing = HELP_TOOLS.find((candidate) => candidate.name === 'docs_packages')!;
+    expect(listing.run(empty, {})).toMatch(/^This workspace publishes no package/);
+  });
+
   it('takes the specifier the first question printed, unsplit', () => {
     expect(call('docs_entrypoint', { package: 'alpha/deep' })).toBe(
       call('docs_entrypoint', { package: 'alpha', subpath: './deep' }),
