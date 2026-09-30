@@ -7,7 +7,7 @@
  * asked for.
  */
 
-import { readFile, stat } from 'node:fs/promises';
+import { lstat, readFile, stat } from 'node:fs/promises';
 import { indexSource } from '@variance-authority/core/attribute';
 import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed, ParseCache } from './cache.js';
@@ -75,15 +75,14 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
     const size = await sized(absolute);
     if (size !== undefined && size > largestFile) {
       // Declined for its bytes, so the record names them when git already
-      // has: an unchanged file is kept, not opened to be declined again.
+      // has: an unchanged file is kept, not opened to be declined again. A
+      // link's object is the path it holds, not these bytes, so it names none.
+      const named = digest !== undefined && !(await linked(absolute));
       return {
         record: {
           file,
-          ...(digest === undefined ? {} : { digest }),
-          unknown:
-            `${file} is ${size} bytes, over the ${largestFile} this scan opens: ` +
-            'parsing it costs about fifty times that in memory, and it is almost ' +
-            'certainly built output. Raise `largestFile` to read it anyway.',
+          ...(named ? { digest } : {}),
+          unknown: `${file} is ${size} bytes, over the ${largestFile} ${TOO_LARGE}`,
         },
         witnesses: [],
       };
@@ -182,6 +181,37 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       })
       : [],
   };
+}
+
+/** The rest of the reason a file declined for its size is given: `too_large` in `acquire.rs` writes the same words. */
+const TOO_LARGE =
+  'this scan opens: parsing it costs about fifty times that in memory, and it is ' +
+  'almost certainly built output. Raise `largestFile` to read it anyway.';
+
+/** Whether `record` was declined for its size. */
+// TODO: a record carries a decline for size only in its reason's words; a field
+// for it would let a keep ask without matching them.
+export function declinedForSize(record: FileRecord): boolean {
+  const { file, unknown } = record;
+  return unknown !== undefined && unknown.startsWith(`${file} is `) && unknown.endsWith(TOO_LARGE);
+}
+
+/**
+ * Whether the file at `absolute` is still over `largestFile` as it is checked
+ * out, through any link. A decline is decided on these bytes and kept by Git's
+ * object name, which under a clean filter — `core.autocrlf`, LFS — names others.
+ */
+export async function stillTooLarge(absolute: string, largestFile: number): Promise<boolean> {
+  const size = await sized(absolute);
+  return size !== undefined && size > largestFile;
+}
+
+async function linked(absolute: string): Promise<boolean> {
+  try {
+    return (await lstat(absolute)).isSymbolicLink();
+  } catch {
+    return true;
+  }
 }
 
 async function sized(absolute: string): Promise<number | undefined> {

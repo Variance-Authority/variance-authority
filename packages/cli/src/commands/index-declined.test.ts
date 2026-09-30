@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -13,9 +13,10 @@ import { indexOutput } from './index-command.js';
  * A file the scan declines by its bytes — past the megabyte it opens, or a
  * module that is not UTF-8 — is recorded with its reason and no edges, and the
  * record names the bytes by Git's object name, so an update over an unchanged
- * checkout keeps it. A file Git names no object for, and a read that failed,
- * name nothing, so every update opens them again. The count an update prints,
- * `N read again`, is what each case below is read from.
+ * checkout keeps it, and a decline for size is kept while the checked-out file
+ * is still over. A file Git names no object for, one reached through a link,
+ * and a read that failed name nothing, so every update opens them again. The
+ * count an update prints, `N read again`, is what each case below is read from.
  */
 
 const cwd = process.cwd();
@@ -117,6 +118,50 @@ describe('variance index, over a file it declines', () => {
     expect(await updated(root)).toBe('source index updated: 3 files, 0 read again,');
   });
 
+  it('opens a file it declined through a symbolic link on every update, because the link\'s object names the path it holds and not the bytes', async () => {
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'va-link-target-')));
+    writeFileSync(join(outside, 'bundle.js'), bundle('a'));
+    const root = checkout({}, false);
+    symlinkSync(join(outside, 'bundle.js'), join(root, 'src/linked.js'));
+    git(root, ['add', '-A']);
+    git(root, ['commit', '--quiet', '-m', 'the link']);
+
+    expect(await indexed(root)).toBe('source index built: 3 files,');
+    expect(await updated(root)).toBe('source index updated: 3 files, 1 read again,');
+
+    // The link's object is unchanged; the bytes it leads to fit.
+    writeFileSync(join(outside, 'bundle.js'), 'export const bundle = 1;\n');
+    expect(await updated(root)).toBe('source index updated: 3 files, 1 read again,');
+  });
+
+  it('reads a file it declined for its size again once its checked-out bytes fit, though Git\'s object for it has not moved', async () => {
+    // 64 bytes a line with LF, 65 with CRLF: under `core.autocrlf` the object
+    // Git holds is the LF text, under the limit, and the checked-out file is
+    // the CRLF text, over it.
+    const text = (header: string, line: string, eol: string): string =>
+      [header, ...Array.from({ length: 16_380 }, () => line)].join(eol) + eol;
+    const module = (eol: string): string => text('export const crlf = 1;', `// ${'x'.repeat(60)}`, eol);
+    const sheet = (eol: string): string => text('.a { color: red; }', `/*${'x'.repeat(59)}*/`, eol);
+    for (const lf of [module('\n'), sheet('\n')]) expect(Buffer.byteLength(lf)).toBeLessThanOrEqual(1024 * 1024);
+    const root = checkout({}, false);
+    git(root, ['config', 'core.autocrlf', 'true']);
+    writeFileSync(join(root, 'src/crlf.js'), module('\r\n'));
+    writeFileSync(join(root, 'src/theme.css'), sheet('\r\n'));
+    git(root, ['add', '-A']);
+    git(root, ['commit', '--quiet', '-m', 'the CRLF files']);
+
+    expect(await indexed(root)).toBe('source index built: 4 files,');
+    expect(await updated(root)).toBe('source index updated: 4 files, 0 read again,');
+
+    // The module alone is the addon's update to read; a stylesheet it cannot
+    // read hands the update to JavaScript, which checks it the same way.
+    writeFileSync(join(root, 'src/crlf.js'), module('\n'));
+    expect(await updated(root)).toBe('source index updated: 4 files, 1 read again,');
+    writeFileSync(join(root, 'src/theme.css'), sheet('\n'));
+    expect(await updated(root)).toBe('source index updated: 4 files, 1 read again,');
+    expect(await updated(root)).toBe('source index updated: 4 files, 0 read again,');
+  });
+
   it('opens an ignored file it declined for its size on every update, because Git names no object for it', async () => {
     const root = checkout({
       '.gitignore': 'src/generated/\n',
@@ -144,7 +189,8 @@ describe('variance index, over a file it declines', () => {
   // names no bytes: `acquire.rs`, `record_tests.rs` and `record.test.ts` hold
   // that. Through `variance index` a file whose bytes cannot be read never
   // reaches a read: Git cannot hash it either, and the listing leaves it out.
-  it('leaves out a file it cannot read, which Git cannot hash to list', async () => {
+  // A mode takes nothing from root, and win32 has no mode for `chmod` to take.
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('leaves out a file it cannot read, which Git cannot hash to list', async () => {
     const root = checkout({ 'src/locked.js': 'export const locked = 1;\n' }, false);
     chmodSync(join(root, 'src/locked.js'), 0o000);
     onTestFinished(() => { chmodSync(join(root, 'src/locked.js'), 0o644); });

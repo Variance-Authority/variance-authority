@@ -79,6 +79,7 @@ pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, targets:
         // UTF-8 — names them, so the next update keeps the record rather than
         // opening the file to decline it again. A read that failed names
         // nothing: what failed it may not hold next time, so it is tried again.
+        // Nor does a refusal reached through a link (`Outcome` in `acquire.rs`).
         return Indexed {
             record: FileRecord {
                 file: file.to_owned(),

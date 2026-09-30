@@ -1,17 +1,18 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { memoryParseCache } from './cache.js';
 import { digestString } from './digest.js';
-import { recordFor, type RecordSubject } from './record.js';
+import { declinedForSize, recordFor, stillTooLarge, type RecordSubject } from './record.js';
 import { resolversFor } from './resolve.js';
 
 /**
  * `recordFor` builds the records the native batch does not: every language that
  * is not a module. A file it declines for its size is declined for its bytes, so
  * the record names them when the caller already knows them, and the next update
- * keeps it rather than opening the file to decline it again.
+ * keeps it rather than opening the file to decline it again — unless it was
+ * reached through a link, whose object names the path it holds.
  */
 
 const made: string[] = [];
@@ -49,5 +50,34 @@ describe('recordFor', () => {
     const missing = (await recordFor(subject(root, 'gone.css', digest))).record;
     expect(missing.digest).toBeUndefined();
     expect(missing.unknown).toContain('could not be read');
+  });
+
+  it('parses a stylesheet of exactly the limit, and an empty one', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
+    made.push(root);
+    await writeFile(join(root, 'exact.css'), '.a{}/**/', 'utf8');
+    await writeFile(join(root, 'empty.css'), '', 'utf8');
+
+    for (const file of ['exact.css', 'empty.css']) {
+      const record = (await recordFor(subject(root, file))).record;
+      expect(record.unknown).toBeUndefined();
+      expect(declinedForSize(record)).toBe(false);
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')('names no bytes for a stylesheet it declined through a link', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
+    made.push(root);
+    await writeFile(join(root, 'wide.css'), '.a { color: red; }\n', 'utf8');
+    await symlink(join(root, 'wide.css'), join(root, 'linked.css'));
+    const digest = digestString('the object name git gave the link');
+
+    const declined = (await recordFor(subject(root, 'linked.css', digest))).record;
+    expect(declined.digest).toBeUndefined();
+    expect(declinedForSize(declined)).toBe(true);
+    expect(await stillTooLarge(join(root, 'linked.css'), 8)).toBe(true);
+
+    await writeFile(join(root, 'wide.css'), '.a{}\n', 'utf8');
+    expect(await stillTooLarge(join(root, 'linked.css'), 8)).toBe(false);
   });
 });
