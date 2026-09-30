@@ -36,6 +36,7 @@
 import {
   prepareCodeMap,
   prepareJourneys,
+  readySourceIndex,
   sourceIndexPath,
   updateSourceIndex,
   type PreparedCodeMap,
@@ -134,6 +135,9 @@ export async function settleFollowUps(parsed: Parsed, streams: { err(text: strin
 }
 
 async function followUps(cwd: string, update: SourceUpdate, noGit: boolean): Promise<readonly string[]> {
+  // Readied first, so everything below reads the base the next update keeps and
+  // the update itself never folds one while somebody waits on it.
+  await readySourceIndex(update.path);
   // The map, the journeys, the lexicon and the published value each read the index
   // the update wrote and nothing another writes, so they are made at once.
   const [map, walks, names, questions] = await Promise.all([

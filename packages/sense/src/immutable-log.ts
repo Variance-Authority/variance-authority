@@ -9,6 +9,10 @@
  *
  * The writer is the addon's (`native/src/log.rs`), and it is the only one:
  * this file decides what the next manifest names, and the addon writes it.
+ * The addon's own update marks the last segment as a working layer it rewrites
+ * over the base (`native/src/ready_index.rs`); a manifest decided here marks
+ * none, so a chain this file appends to is base throughout, and is compacted
+ * past {@link MAX_SEGMENTS}.
  */
 
 import { readFileSync } from 'node:fs';

@@ -95,6 +95,7 @@ mod package_owners;
 mod parse_columns;
 mod path;
 mod read;
+mod ready_index;
 mod record;
 mod resolve;
 mod seed;

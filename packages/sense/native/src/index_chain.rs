@@ -28,6 +28,9 @@ struct Manifest {
     format: String,
     version: u32,
     segments: Vec<Reference>,
+    /// How many of the last segments are the working layer (`log.rs`).
+    #[serde(default)]
+    working: usize,
 }
 
 #[derive(Deserialize)]
@@ -47,6 +50,9 @@ pub(crate) struct Chain {
     /// What the manifest names, whether or not each could be read: a writer
     /// appending to the chain keeps all of it.
     pub references: Vec<Reference>,
+    /// How many of the last `references` are the working layer an update
+    /// rewrites; the rest is the base the index was readied with.
+    pub working: usize,
 }
 
 impl Chain {
@@ -65,9 +71,9 @@ pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
         Err(error) => return Err(format!("{path}: {error}")),
     };
     if !bytes.starts_with(MAGIC) {
-        return Ok(Some(Chain { segments: vec![bytes], dropped: 0, manifest: None, references: Vec::new() }));
+        return Ok(Some(Chain { segments: vec![bytes], dropped: 0, manifest: None, references: Vec::new(), working: 0 }));
     }
-    let references = manifest(&bytes).ok_or_else(|| format!("{path}: invalid immutable log manifest"))?;
+    let (references, working) = manifest(&bytes).ok_or_else(|| format!("{path}: invalid immutable log manifest"))?;
     let directory = format!("{path}.segments");
     let read: Vec<Option<Vec<u8>>> = references
         .par_iter()
@@ -82,12 +88,12 @@ pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
     let count = read.iter().position(Option::is_none).unwrap_or(read.len());
     let dropped = (references.len() - count) as u32;
     let segments = read.into_iter().take(count).map(Option::unwrap).collect();
-    Ok(Some(Chain { segments, dropped, manifest: Some(bytes), references }))
+    Ok(Some(Chain { segments, dropped, manifest: Some(bytes), references, working }))
 }
 
 /// `decodeManifest` and `manifestIsValid`: the header's length is the rest of
 /// the file, and every reference is a `v1:` digest with a length.
-fn manifest(bytes: &[u8]) -> Option<Vec<Reference>> {
+fn manifest(bytes: &[u8]) -> Option<(Vec<Reference>, usize)> {
     let length = u32::from_le_bytes(bytes.get(MAGIC.len()..HEADER_BYTES)?.try_into().ok()?) as usize;
     if length != bytes.len() - HEADER_BYTES {
         return None;
@@ -97,7 +103,8 @@ fn manifest(bytes: &[u8]) -> Option<Vec<Reference>> {
         let hex = reference.digest.strip_prefix("v1:").unwrap_or("");
         hex.len() == 32 && hex.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
     });
-    (parsed.format == "variance-authority-immutable-log" && parsed.version == 1 && digests).then_some(parsed.segments)
+    let working = parsed.working.min(parsed.segments.len());
+    (parsed.format == "variance-authority-immutable-log" && parsed.version == 1 && digests).then_some((parsed.segments, working))
 }
 
 /// The digests of the segments the manifest at `path` names, oldest first: the chain's identity, read
@@ -106,7 +113,7 @@ fn manifest(bytes: &[u8]) -> Option<Vec<Reference>> {
 pub(crate) fn manifest_digests(path: &str) -> Option<Vec<String>> {
     let bytes = std::fs::read(path).ok()?;
     if !bytes.starts_with(MAGIC) { return None; }
-    Some(manifest(&bytes)?.into_iter().map(|reference| reference.digest).collect())
+    Some(manifest(&bytes)?.0.into_iter().map(|reference| reference.digest).collect())
 }
 
 /// The segments of `chain` past its first `known`, read and checked against the digests they are named by,

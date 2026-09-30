@@ -2527,6 +2527,7 @@
         "readHelp": "function",
         "readPublishedSources": "function",
         "readSourceRecords": "function",
+        "readySourceIndex": "function",
         "recordedCases": "function",
         "recordedDurations": "function",
         "recordedPaths": "function",

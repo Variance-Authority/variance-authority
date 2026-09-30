@@ -1,7 +1,10 @@
 //! A chain of source-index generations folded into one, on this side.
 //!
-//! The immutable log replaces its chain with one generation once it grows past
-//! eight segments (`immutable-log.ts`). That generation used to be written from
+//! A chain is the base an index was readied with and at most one working layer
+//! over it (`log.rs`). Readying folds the whole chain into one base
+//! (`compacted`); an update folds the working layer and its own delta into the
+//! next working layer (`merged`), which keeps its deletes because the base
+//! beneath it still holds what they delete. A base used to be written from
 //! the whole index as JavaScript held it: every parse and record an object,
 //! every object printed as JSON, and the JSON parsed here again to be encoded.
 //! On a repository of a hundred thousand files that was the largest thing a
@@ -19,7 +22,7 @@
 
 // compass: variance-authority.reach.source-index
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
@@ -43,6 +46,16 @@ pub fn compact_source_index(layers: Vec<Buffer>) -> napi::Result<Buffer> {
 }
 
 pub(crate) fn compacted(layers: &[&[u8]]) -> Result<Vec<u8>, String> {
+    folded(layers, false)
+}
+
+/// The layers over a base as one layer that still stands over it: a key one of
+/// them deleted and none put again stays deleted.
+pub(crate) fn merged(layers: &[&[u8]]) -> Result<Vec<u8>, String> {
+    folded(layers, true)
+}
+
+fn folded(layers: &[&[u8]], over: bool) -> Result<Vec<u8>, String> {
     let layers = layers
         .par_iter()
         .enumerate()
@@ -52,28 +65,38 @@ pub(crate) fn compacted(layers: &[&[u8]]) -> Result<Vec<u8>, String> {
     let mut parses: HashMap<String, (usize, usize)> = HashMap::new();
     let mut records: HashMap<&str, (usize, usize)> = HashMap::new();
     let mut directories: HashMap<&str, &str> = HashMap::new();
+    let (mut gone_parses, mut gone_records, mut gone_directories) = (HashSet::new(), HashSet::new(), HashSet::new());
     for (at, layer) in layers.iter().enumerate() {
         let (stored, columns) = (&layer.stored, &layer.parses);
         for row in 0..columns.deleted.len() {
-            parses.remove(&joined(stored.text(columns.deleted.at(row)), stored.text(columns.deleted_way.at(row))));
+            let key = joined(stored.text(columns.deleted.at(row)), stored.text(columns.deleted_way.at(row)));
+            parses.remove(&key);
+            if over { gone_parses.insert(key); }
         }
         for row in 0..columns.key.len() {
-            parses.insert(joined(stored.text(columns.key.at(row)), stored.text(columns.way.at(row))), (at, row));
+            let key = joined(stored.text(columns.key.at(row)), stored.text(columns.way.at(row)));
+            if over { gone_parses.remove(&key); }
+            parses.insert(key, (at, row));
         }
         for row in 0..layer.records.deleted.len() {
-            records.remove(stored.text(layer.records.deleted.at(row)));
+            let file = stored.text(layer.records.deleted.at(row));
+            records.remove(file);
+            if over { gone_records.insert(file); }
         }
         for row in 0..layer.records.file.len() {
-            records.insert(stored.text(layer.records.file.at(row)), (at, row));
+            let file = stored.text(layer.records.file.at(row));
+            if over { gone_records.remove(file); }
+            records.insert(file, (at, row));
         }
         for row in 0..layer.directories.deleted.len() {
-            directories.remove(stored.text(layer.directories.deleted.at(row)));
+            let path = stored.text(layer.directories.deleted.at(row));
+            directories.remove(path);
+            if over { gone_directories.insert(path); }
         }
         for row in 0..layer.directories.path.len() {
-            directories.insert(
-                stored.text(layer.directories.path.at(row)),
-                stored.text(layer.directories.digest.at(row)),
-            );
+            let path = stored.text(layer.directories.path.at(row));
+            if over { gone_directories.remove(path); }
+            directories.insert(path, stored.text(layer.directories.digest.at(row)));
         }
     }
     let config = layers.last().and_then(|layer| layer.config);
@@ -96,12 +119,20 @@ pub(crate) fn compacted(layers: &[&[u8]]) -> Result<Vec<u8>, String> {
         directories.into_iter().map(|(path, digest)| (path.to_owned(), digest.to_owned())).collect();
     directories.sort_unstable_by(|left, right| code_unit(&left.0, &right.0));
 
+    let sorted = |gone: Vec<String>| {
+        let mut gone = gone;
+        gone.sort_unstable_by(|left, right| code_unit(left, right));
+        gone
+    };
+    let gone_parses = sorted(gone_parses.into_iter().collect());
+    let gone_records = sorted(gone_records.into_iter().map(str::to_owned).collect());
+    let gone_directories = sorted(gone_directories.into_iter().map(str::to_owned).collect());
     Ok(encode_generation(&Generation {
         config,
         directories: &directories,
         parses: &parses,
         records: &records,
-        deleted: Deleted::default(),
+        deleted: Deleted { parses: &gone_parses, records: &gone_records, directories: &gone_directories },
     }))
 }
 

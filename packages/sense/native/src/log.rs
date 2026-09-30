@@ -38,6 +38,14 @@ struct Manifest<'a> {
     format: &'static str,
     version: u8,
     segments: &'a [LogSegment],
+    /// How many of the last segments are the working layer: absent when none
+    /// is, so a chain with no working layer is written as it always was.
+    #[serde(skip_serializing_if = "is_zero")]
+    working: usize,
+}
+
+fn is_zero(count: &usize) -> bool {
+    *count == 0
 }
 
 fn scratch(path: &str) -> String {
@@ -54,6 +62,18 @@ fn file_name(directory: &str, digest: &str) -> String {
 /// names. A segment already under its digest is the same bytes, and is
 /// written again rather than trusted.
 pub fn publish(path: &str, kept: &[LogSegment], segments: &[&[u8]], replaced: &[LogSegment]) -> io::Result<()> {
+    written(path, kept, segments, replaced, 0)
+}
+
+/// `base` kept and `working` written over it as the chain's working layer,
+/// `replaced` — the working layer it folds in — removed once nothing names it.
+/// An update rewrites this one layer rather than appending another, so the
+/// chain stays the base the index was readied with and one layer over it.
+pub fn publish_working(path: &str, base: &[LogSegment], working: &[u8], replaced: &[LogSegment]) -> io::Result<()> {
+    written(path, base, &[working], replaced, 1)
+}
+
+fn written(path: &str, kept: &[LogSegment], segments: &[&[u8]], replaced: &[LogSegment], working: usize) -> io::Result<()> {
     let directory = format!("{path}.segments");
     let added: Vec<LogSegment> = segments
         .iter()
@@ -67,6 +87,7 @@ pub fn publish(path: &str, kept: &[LogSegment], segments: &[&[u8]], replaced: &[
         format: "variance-authority-immutable-log",
         version: 1,
         segments: &next,
+        working,
     })
     .map_err(io::Error::other)?;
     let mut scratch_files = Scratch(Vec::new());

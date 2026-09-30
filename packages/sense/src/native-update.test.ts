@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openSourceIndexFile } from './source-index-file.js';
 import { updateNatively } from './native-update.js';
+import { readySourceIndex } from './ready-index.js';
 import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
 import { gitTreeOf } from './tree.js';
@@ -106,6 +107,32 @@ describe('the native warm update', () => {
       await rm(join(root, 'lib/alone.ts'));
     });
     git('checkout', '--', 'lib/alone.ts');
+  });
+
+  /** The segments the manifest at `index` names, and how many of the last are the working layer. */
+  async function chain(index: string): Promise<{ segments: number; working: number }> {
+    const manifest = JSON.parse((await readFile(index)).subarray(12).toString('utf8')) as { segments: unknown[]; working?: number };
+    return { segments: manifest.segments.length, working: manifest.working ?? 0 };
+  }
+
+  it('rewrites one working layer over the base, keeping what an earlier update deleted, and readying folds it in', async () => {
+    const start = await both();
+    const base = (await chain(start)).segments;
+    await rm(join(root, 'lib/alone.ts'));
+    await updateNatively(root, start);
+    await write('lib/unit.ts', 'export const unit = 5;\n');
+    await updateNatively(root, start);
+    expect(await chain(start)).toEqual({ segments: base + 1, working: 1 });
+    const twin = join(work, `twin-${step}`, 'index.bin');
+    await mkdir(dirname(twin), { recursive: true });
+    await updateSourceIndex(root, { index: twin });
+    expect(await held(start)).toEqual(await held(twin));
+
+    expect(await readySourceIndex(start)).toBe(true);
+    expect(await chain(start)).toEqual({ segments: 1, working: 0 });
+    expect(await held(start)).toEqual(await held(twin));
+    expect(await readySourceIndex(start)).toBe(false);
+    git('checkout', '--', 'lib/alone.ts', 'lib/unit.ts');
   });
 
   it('writes nothing when nothing changed', async () => {
