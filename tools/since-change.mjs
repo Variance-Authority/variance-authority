@@ -122,10 +122,16 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
   // rewrite moves hundreds of manifest lines and no installed byte. `undefined`
   // is a comparison that could not be made. A manifest whose change the install
   // does not read — `exports`, `main`, `type` — is set aside too, and its
-  // package's files stand in for it. Read from where the change starts, because
-  // the tests that last ran there stand on the install there.
-  const moved = movedPackages(root, from, git);
-  const manifests = movedManifests(root, from, git, changed);
+  // package's files stand in for it. Read once per group of tests, from the
+  // commit that group last ran at, because each stands on the install there: a
+  // bump made after a leg and undone in the tree moved nothing for the tests
+  // that ran before it, and everything for the tests that ran on it.
+  const groups = [base, ...stands.map((stand) => stand.commit)];
+  const sinceGroup = (at) => (at === base ? [...sinceBase] : [...new Set([...sinceBase, ...stands.find((stand) => stand.commit === at).whole])]);
+  const movedAt = new Map(groups.map((at) => [at, movedPackages(root, at, git)]));
+  const manifestsAt = new Map(groups.map((at) => [at, movedManifests(root, at, git, sinceGroup(at))]));
+  const uncompared = groups.findIndex((at) => movedAt.get(at) === undefined);
+  const manifests = [...new Set([...manifestsAt.values()].flat())].sort();
   const consequential = changed.filter((path) => !isManifest(path));
   // Every file the runner collects needs a whole row before nothing changed is
   // nothing to run. A test the merge demoted to incomplete runs at the next
@@ -137,7 +143,7 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
   // where the whole suite can run; elsewhere the reading goes on and selects it.
   const complete = new Map(live.map((test) => [test.file, test.complete]));
   const settled = start.widened === undefined && suite.every((file) => complete.get(file) === true);
-  if (settled && consequential.length === 0 && manifests.length === 0 && moved !== undefined && moved.length === 0) {
+  if (settled && consequential.length === 0 && manifests.length === 0 && [...movedAt.values()].every((moved) => moved?.length === 0)) {
     return {
       nothing: [
         changed.length === 0
@@ -167,12 +173,12 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
   const { relations, enumerated, named, faces } = await graph();
   // Named with no hunk, each is every region it has, and a file with no row is
   // answered by its importers.
-  const wholePackages = relations === undefined ? [] : movedPackageFiles(relations, manifests);
+  const packageFiles = (at) => (relations === undefined ? [] : movedPackageFiles(relations, manifestsAt.get(at)));
   if (manifests.length > 0) {
     say(
       `test:since: ${manifests.length} manifest(s) moved what the install does not read ` +
         `(${manifests.slice(0, 3).join(', ')}${manifests.length > 3 ? ', …' : ''}); ` +
-        `${wholePackages.length} file(s) of their packages are read as changed whole.`,
+        `${new Set(groups.flatMap(packageFiles)).size} file(s) of their packages are read as changed whole.`,
     );
   }
   const options = {
@@ -182,17 +188,19 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
     faces,
     root,
     ...(sourceAt === undefined ? {} : { sourceAt }),
-    ...(moved === undefined || moved.length === 0 ? {} : { packages: moved }),
   };
   // Asked once per stand, each answer kept for that stand's tests; the files a
-  // stand charges whole leave the hunk diff, so none is also read by its hunks.
-  const { narrowing, distances } = await askPerStand(stands, (whole) =>
-    distanceByExecution(
+  // stand charges whole leave the hunk diff, so none is also read by its hunks,
+  // and each is charged the packages that moved since it ran.
+  const { narrowing, distances } = await askPerStand(stands, (whole, stand) => {
+    const at = stand ?? base;
+    const moved = movedAt.get(at) ?? [];
+    return distanceByExecution(
       snapshotFile,
-      inSnapshotCoordinates([withoutFiles(hunks, whole), ...[...whole, ...wholePackages].map(wholeEntry)].join('\n'), byStem),
-      options,
-    ),
-  );
+      inSnapshotCoordinates([withoutFiles(hunks, whole), ...[...whole, ...packageFiles(at)].map(wholeEntry)].join('\n'), byStem),
+      moved.length === 0 ? options : { ...options, packages: moved },
+    );
+  });
 
   // A changed path the snapshot, the declarations and the graph all say
   // nothing about selects nothing, and is named so a reader can see what the
@@ -204,8 +212,8 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
     whole: new Set(narrowing.whole),
     entered: new Set(narrowing.entered),
     touched,
-    moved,
-    base: from,
+    moved: uncompared === -1 ? [] : undefined,
+    base: uncompared === -1 ? from : groups[uncompared],
     unstarted: start.widened,
   });
   return { start, changed, touched, consequential, unentered, narrowing, distances, decided };

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
@@ -12,6 +12,7 @@ import {
   testCoverageFile,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { OperatorError } from '../exit.js';
 import { selectOutput } from './select-command.js';
 import { indexOutput } from './index-command.js';
 
@@ -61,38 +62,155 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.err).toContain('the runs record beside the snapshot does not say where 1 test(s) last ran');
   });
 
+  it('runs a test that ran on a bump the tree has undone, compared from where it ran', async () => {
+    // P installs left-pad 1.3.0 and runs everything; C bumps it to 1.4.0 and
+    // runs `near`, which imports it; the tree goes back to 1.3.0. `far` stands
+    // at P, on the install the tree has again, and `near` ran on one it has not.
+    const repo = checkout();
+    const files = { ...sources(1), 'src/near.ts': NEAR_PAD, 'package-lock.json': npmLock('1.3.0') };
+    const P = repo.commit(files, 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const C = repo.commit({ 'package-lock.json': npmLock('1.4.0') }, 'C');
+    await landRun(repo.file, run(repo.root, C, ['near']), repo.root);
+    writeFileSync(join(repo.root, 'package-lock.json'), npmLock('1.3.0'));
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/far.test.ts\n');
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
+  });
+
+  it('holds no stand for a test that is no longer in the tree', async () => {
+    // `gone` runs at P and is deleted at H, where everything left runs. The
+    // journal keeps its row and every run carries it in `standing`.
+    const repo = checkout();
+    const P = repo.commit(sources(1), 'P');
+    await landRun(repo.file, run(repo.root, P, [...NAMES, 'gone']), repo.root);
+    rmSync(join(repo.root, 'test/gone.test.ts'));
+    const H = repo.commit(sources(2, NAMES), 'H');
+    await landRun(repo.file, run(repo.root, H, NAMES), repo.root);
+    expect((await readCommitRuns(repo.file))?.standing).toEqual([{ commit: P, files: ['test/gone.test.ts'] }]);
+
+    const said = await repo.select();
+
+    expect(said.err).not.toContain('last ran at');
+    expect(said.err).not.toContain(P.slice(0, 12));
+  });
+
+  it('names the stand git cannot read, not the oldest one', async () => {
+    const { root, file, P } = await partialRun();
+    const gone = 'e'.repeat(40);
+    const runs = (await readCommitRuns(file))!;
+    const standing = [{ commit: P, files: ['test/far.test.ts'] }, { commit: gone, files: ['test/near.test.ts'] }];
+    writeFileSync(commitRunsFile(file), `${JSON.stringify({ ...runs, files: [], standing }, null, 2)}\n`);
+
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('');
+    expect(said.err).toContain(`cannot read what changed since ${gone}`);
+    expect(said.err).toContain(`${gone.slice(0, 12)}, where 1 test(s) last ran, is not in this checkout`);
+  });
+
+  it('refuses a runs record that is not JSON, by the file it read', async () => {
+    const { root, file } = await partialRun();
+    writeFileSync(commitRunsFile(file), '{');
+
+    const refused = selectOutput({ cwd: root, format: 'plain' });
+
+    await expect(refused).rejects.toBeInstanceOf(OperatorError);
+    await expect(refused).rejects.toThrow(`the runs record at ${commitRunsFile(file)} could not be read`);
+  });
+
+  it('says a patch handed in is not read against where each test last ran', async () => {
+    const { root, P } = await partialRun();
+    const patch = join(mkdtempSync(join(tmpdir(), 'va-select-standing-patch-')), 'change.diff');
+    writeFileSync(patch, '');
+
+    const said = await selectOutput({ cwd: root, format: 'plain', diff: patch });
+
+    expect(said.err).not.toContain(`last ran at ${P.slice(0, 12)}`);
+    expect(said.err).toContain('1 test file last ran before the journal\'s commit');
+    expect(said.err).toContain('a patch handed in with `--diff` is read as the whole change');
+  });
+
   /** Every test runs at P; `far.ts` and `near.ts` change in H; only `near` runs at H. */
   async function partialRun(): Promise<{ root: string; file: string; P: string }> {
-    const root = mkdtempSync(join(tmpdir(), 'va-select-standing-'));
-    const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
-    git('init', '--quiet', '--initial-branch', 'main');
-    git('config', 'user.email', 'fixture@example.test');
-    git('config', 'user.name', 'Fixture');
-    mkdirSync(join(root, 'src'), { recursive: true });
-    const commit = (value: number, message: string): string => {
-      for (const name of NAMES) writeFileSync(join(root, `src/${name}.ts`), `export const ${name} = ${value};\n`);
-      git('add', '-A');
-      git('commit', '--quiet', '-m', message);
-      return git('rev-parse', 'HEAD');
-    };
-    const file = testCoverageFile(root);
-    const P = commit(1, 'P');
-    await landRun(file, run(root, P, NAMES), root);
-    const H = commit(2, 'H');
-    await landRun(file, run(root, H, ['near']), root);
-    expect(JSON.parse(readFileSync(commitRunsFile(file), 'utf8'))).toMatchObject({
+    const repo = checkout();
+    const P = repo.commit(sources(1), 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const H = repo.commit(sources(2), 'H');
+    await landRun(repo.file, run(repo.root, H, ['near']), repo.root);
+    expect(JSON.parse(readFileSync(commitRunsFile(repo.file), 'utf8'))).toMatchObject({
       commit: H,
       over: P,
       files: ['test/near.test.ts'],
       standing: [{ commit: P, files: ['test/far.test.ts'] }],
     });
-    process.chdir(root);
-    await indexOutput({ cwd: root });
-    return { root, file, P };
+    process.chdir(repo.root);
+    await indexOutput({ cwd: repo.root });
+    return { root: repo.root, file: repo.file, P };
   }
 });
 
 const NAMES = ['far', 'near'];
+
+const NEAR_PAD = "import leftPad from 'left-pad';\n\nexport const near = leftPad('1', 2);\n";
+
+/** Each module at `value`, and a test file for each, as the tree holds them. */
+function sources(value: number, names: readonly string[] = [...NAMES, 'gone']): Record<string, string> {
+  return Object.fromEntries(
+    names.flatMap((name) => [
+      [`src/${name}.ts`, `export const ${name} = ${value};\n`],
+      [`test/${name}.test.ts`, `import '../src/${name}.js';\n`],
+    ]),
+  );
+}
+
+/** A repository with its journal, committing whatever is written into it. */
+function checkout() {
+  const root = mkdtempSync(join(tmpdir(), 'va-select-standing-'));
+  const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '--quiet', '--initial-branch', 'main');
+  git('config', 'user.email', 'fixture@example.test');
+  git('config', 'user.name', 'Fixture');
+  return {
+    root,
+    file: testCoverageFile(root),
+    commit(files: Readonly<Record<string, string>>, message: string): string {
+      for (const [path, text] of Object.entries(files)) {
+        mkdirSync(dirname(join(root, path)), { recursive: true });
+        writeFileSync(join(root, path), text);
+      }
+      git('add', '-A');
+      git('commit', '--quiet', '-m', message);
+      return git('rev-parse', 'HEAD');
+    },
+    async select() {
+      process.chdir(root);
+      await indexOutput({ cwd: root });
+      return await selectOutput({ cwd: root, format: 'plain' });
+    },
+  };
+}
+
+function npmLock(version: string): string {
+  return JSON.stringify(
+    {
+      name: 'fixture',
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'fixture', dependencies: { 'left-pad': '^1.0.0' } },
+        'node_modules/left-pad': {
+          version,
+          resolved: `https://registry.npmjs.org/left-pad/-/left-pad-${version}.tgz`,
+          integrity: `sha512-${version}==`,
+        },
+      },
+    },
+    null,
+    2,
+  );
+}
 
 /**
  * What a run records: the tests it ran, and the module each loaded, with the

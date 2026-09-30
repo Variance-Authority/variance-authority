@@ -266,18 +266,10 @@ describe('legs at two commits leave each test read from where it last ran', () =
       })),
   });
 
-  /** P runs everything, H runs `near`, C runs `other`; M → P → H → C change `other`, `far` and `near`. */
-  async function legs() {
+  /** A repository, and a snapshot for it outside the checkout, where it does not read as a change. */
+  async function recorded() {
     const repo = await repository();
-    // The cache sits outside the checkout, where it does not read as a change.
     const file = resolve(await mkdtemp(resolve(tmpdir(), 'va-since-cache-')), 'coverage.bin');
-    await repo.commit(Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'M');
-    const P = await repo.commit(source('other', 2), 'P');
-    await landRun(file, run(repo.at, P, [...NAMES, 'gone']), repo.at);
-    const H = await repo.commit(source('far', 2), 'H');
-    await landRun(file, run(repo.at, H, ['near']), repo.at);
-    const C = await repo.commit(source('near', 2), 'C');
-    await landRun(file, run(repo.at, C, ['other']), repo.at);
     const read = async (suite = tests) =>
       readChange({
         root: repo.at,
@@ -292,7 +284,20 @@ describe('legs at two commits leave each test read from where it last ran', () =
         graph: async () => ({}),
         say: () => {},
       });
-    return { ...repo, file, P, H, C, read };
+    return { ...repo, file, read };
+  }
+
+  /** P runs everything, H runs `near`, C runs `other`; M → P → H → C change `other`, `far` and `near`. */
+  async function legs() {
+    const repo = await recorded();
+    await repo.commit(Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'M');
+    const P = await repo.commit(source('other', 2), 'P');
+    await landRun(repo.file, run(repo.at, P, [...NAMES, 'gone']), repo.at);
+    const H = await repo.commit(source('far', 2), 'H');
+    await landRun(repo.file, run(repo.at, H, ['near']), repo.at);
+    const C = await repo.commit(source('near', 2), 'C');
+    await landRun(repo.file, run(repo.at, C, ['other']), repo.at);
+    return { ...repo, P, H, C };
   }
 
   it('selects a test that last ran two commits back, for a file changed after it ran', async () => {
@@ -349,6 +354,25 @@ describe('legs at two commits leave each test read from where it last ran', () =
     expect(reading.decided).toEqual({ selected: ['test/new.test.ts'] });
   });
 
+  it('compares the install from where each test last ran, so a bump the tree undid still reaches the tests that ran on it', async () => {
+    // P installs left-pad 1.3.0 and runs everything; C bumps it to 1.4.0 and
+    // runs `near`; the tree goes back to 1.3.0. Compared from P alone, where
+    // `far` and `other` stand, the install did not move, and the tests that
+    // ran on 1.4.0 would be settled.
+    const { read, file, commit, at } = await recorded();
+    const P = await commit({ ...Object.assign({}, ...NAMES.map((name) => source(name, 1))), 'package-lock.json': npmLock('1.3.0') }, 'P');
+    await landRun(file, run(at, P, NAMES), at);
+    const C = await commit({ 'package-lock.json': npmLock('1.4.0') }, 'C');
+    await landRun(file, run(at, C, ['near']), at);
+    await writeFile(resolve(at, 'package-lock.json'), npmLock('1.3.0'));
+
+    const reading = await read();
+
+    expect(reading.start.stands.map((stand: { commit: string }) => stand.commit)).toEqual([P]);
+    expect(reading.nothing).toBeUndefined();
+    expect(reading.decided).not.toHaveProperty('widened');
+  });
+
   it('says what it assumed when it finds nothing to run without the runs record', async () => {
     const { read, file, C, at } = await legs();
     await landRun(file, run(at, C, ['far', 'near']), at);
@@ -364,3 +388,18 @@ describe('legs at two commits leave each test read from where it last ran', () =
     });
   });
 });
+
+function npmLock(version: string): string {
+  return JSON.stringify(
+    {
+      name: 'fixture',
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'fixture', dependencies: { 'left-pad': '^1.0.0' } },
+        'node_modules/left-pad': { version, resolved: `https://registry.npmjs.org/left-pad/-/left-pad-${version}.tgz`, integrity: `sha512-${version}==` },
+      },
+    },
+    null,
+    2,
+  );
+}

@@ -30,7 +30,7 @@
  * the edit inert. Whole files select more inside them and never skip.
  */
 
-import { readCommitRuns, type CommitRuns } from './commit-runs.js';
+import type { CommitRuns } from './commit-runs.js';
 import { askCoverageFile } from './coverage-file.js';
 import type { ExecutionNarrowing } from './select.js';
 
@@ -54,7 +54,7 @@ export interface Stand {
 export interface StandReading {
   /** The commit the hunk diff and the recorded text are read from. */
   readonly base?: string;
-  /** The oldest stand, where the change starts. */
+  /** The oldest stand, where the change starts; with `widened`, the stand git could not read. */
   readonly from?: string;
   /** Oldest first. A test in no stand is read from `base`. */
   readonly stands: readonly Stand[];
@@ -214,7 +214,7 @@ export function readingFrom({
     } catch {
       return {
         base: commit,
-        from,
+        from: stand,
         stands: [],
         says: `${reason}${said}`,
         ...also,
@@ -234,22 +234,40 @@ export function readingFrom({
 }
 
 /**
- * The reading of the snapshot at `coverageFile` against the runs recorded
- * beside it, for every test the snapshot holds.
+ * The reading of the snapshot at `coverageFile` against `runs`, the record
+ * beside it, for every test the snapshot holds that is still in the tree.
  *
  * For a selector that has no suite of its own to ask which tests still count,
- * such as `variance select`: a test the snapshot holds and nobody collects any
- * more only makes the reading start further back, which reads more and never
- * skips. `undefined` when the snapshot names no commit, so there is nothing to
- * read from.
+ * such as `variance select`, so git is asked which files exist. A deleted or
+ * renamed test keeps its row in the snapshot, and every later run carries it
+ * forward in `standing`, because no run can observe it again. Left in, it
+ * would hold a stand at the commit it last ran at for ever: an extra reading,
+ * a note, and, once that commit is gone from the checkout, a reading that
+ * cannot be made. An untracked test is in the tree and counts. When git cannot
+ * list the tree, every test counts, which reads more and never less.
+ *
+ * `runs` is read by the caller, which names the file when it cannot be parsed.
+ * `undefined` when the snapshot names no commit, so there is nothing to read
+ * from.
  */
-export async function standsAt(coverageFile: string, git: Git): Promise<StandReading | undefined> {
+export function standsAt(coverageFile: string, runs: CommitRuns | undefined, git: Git): StandReading | undefined {
   const recorded = askCoverageFile(coverageFile, (coverage) => ({
     commit: coverage.commit,
     tests: Array.from(coverage.testPath.all(), (path) => coverage.string(path)),
   }));
   if (recorded.commit === undefined) return undefined;
-  return readingFrom({ commit: recorded.commit, ref: undefined, runs: await readCommitRuns(coverageFile), tests: recorded.tests, git });
+  return readingFrom({ commit: recorded.commit, ref: undefined, runs, tests: inTree(git, recorded.tests), git });
+}
+
+/** The `tests` git lists in the tree, tracked or untracked and not ignored; all of them when git cannot say. */
+function inTree(git: Git, tests: readonly string[]): readonly string[] {
+  let listed: Set<string>;
+  try {
+    listed = new Set(paths(git('ls-files', '-z', '--cached', '--others', '--exclude-standard')));
+  } catch {
+    return tests;
+  }
+  return tests.filter((test) => listed.has(test));
 }
 
 /** A path as a `diff --git` header spells it, unquoted where git quoted it. */
@@ -303,24 +321,30 @@ export const wholeEntry = (file: string): string => `diff --git a/${file} b/${fi
  *
  * `ask` is handed the files a stand charges whole, empty for the snapshot's
  * own commit, and builds and asks the diff itself, because each selector
- * brings the hunks into its own coordinates. `whole`, `readings` and the rest
- * of the narrowing are the snapshot commit's answer; `unread` and `stale` are
- * every answer's.
+ * brings the hunks into its own coordinates. It is handed the stand's commit
+ * too, `undefined` for the snapshot's own, because the install each group ran
+ * on is the one at that commit: a group is charged the packages that moved
+ * between there and the tree, and no other group's. `whole`, `readings` and
+ * the rest of the narrowing are the snapshot commit's answer; `unread` and
+ * `stale` are every answer's.
  */
 export async function askPerStand<Distance extends { readonly test: string }>(
   stands: readonly Stand[],
-  ask: (whole: readonly string[]) => Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly Distance[] }>,
+  ask: (
+    whole: readonly string[],
+    at: string | undefined,
+  ) => Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly Distance[] }>,
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances: readonly Distance[] }> {
   const owner = new Map(stands.flatMap((stand, at) => stand.tests.map((test) => [test, at] as const)));
   const mine = (at: number) => (test: string) => (owner.get(test) ?? -1) === at;
-  const here = await ask([]);
+  const here = await ask([], undefined);
   const entered = here.narrowing.entered.filter(mine(-1));
   const because = here.narrowing.because.filter((cause) => mine(-1)(cause.test));
   const distances = (here.distances ?? []).filter((distance) => mine(-1)(distance.test));
   const unread = new Set(here.narrowing.unread);
   const stale = new Set(here.narrowing.stale);
   for (const [at, stand] of stands.entries()) {
-    const { narrowing, distances: far } = await ask(stand.whole);
+    const { narrowing, distances: far } = await ask(stand.whole, stand.commit);
     entered.push(...narrowing.entered.filter(mine(at)));
     because.push(...narrowing.because.filter((cause) => mine(at)(cause.test)));
     distances.push(...(far ?? []).filter((distance) => mine(at)(distance.test)));
