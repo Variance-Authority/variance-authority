@@ -141,5 +141,5 @@ export function claims(entry, stem) {
 /** Whether a transformed module may carry probes. */
 export function probeable(root, file) {
   const stem = sourceStem(root, file);
-  return !PAGE_SIDE.some((entry) => claims(entry, stem));
+  return PAGE_SIDE.every((entry) => !claims(entry, stem));
 }
