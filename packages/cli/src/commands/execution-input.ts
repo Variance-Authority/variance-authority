@@ -7,7 +7,7 @@ import {
   decodeExecutionIndex,
   isEncodedExecutionIndex,
   projectJourneyFile,
-  testCoverageFile,
+  readableTestCoverage,
   type ExecutionIndex,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
@@ -59,15 +59,20 @@ export async function readExecutionFor(
  * columns are not there, because a cache recorded by an earlier version still
  * holds the answer and re-recording a suite to ask one question about one line
  * is not a reasonable price for a format change.
+ *
+ * With no record named, the index is the one beside the record a reader reads:
+ * the nearest cache layer that holds it, which in a worktree that has not run
+ * is the primary checkout's.
  */
 export async function defaultExecutionFile(
   root: string,
   suite?: string,
-  record: string = testCoverageFile(root, { suite }),
+  record?: string,
 ): Promise<string> {
-  const columns = `${record}.cases.bin`;
+  const beside = record ?? (await readableTestCoverage(root, { suite }));
+  const columns = `${beside}.cases.bin`;
   if (await readable(columns)) return columns;
-  const json = `${record}.cases.json`;
+  const json = `${beside}.cases.json`;
   return (await readable(json)) ? json : columns;
 }
 
@@ -81,7 +86,7 @@ export async function defaultExecutionFile(
 export async function recordedExecutionFile(
   root: string,
   suite?: string,
-  record: string = testCoverageFile(root, { suite }),
+  record?: string,
 ): Promise<string> {
   const file = await defaultExecutionFile(root, suite, record);
   if (await readable(file)) return file;

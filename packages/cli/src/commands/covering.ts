@@ -172,7 +172,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
 
 async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Covering> {
   const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
-  const record = snapshotFor(request);
+  const record = await snapshotFor(request);
 
   if (request.since !== undefined) {
     // The snapshot's commit is the coordinate of what was recorded beside it,

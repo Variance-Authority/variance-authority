@@ -25,6 +25,7 @@ vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => ({
   // The fold and the layer are the package's own; only the disk is stood in for.
   ...(await importOriginal<typeof import('@variance-authority/sense/test-selection')>()),
   testCoverageFile: () => CACHED,
+  readableTestCoverage: async () => CACHED,
   readTestCoverage,
   writeTestCoverage,
   journeyDivergences: () => [],
