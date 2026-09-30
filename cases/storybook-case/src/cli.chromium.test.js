@@ -86,9 +86,10 @@ let tickingConfigPath = '';
  * story order rather than an edit. It is a cause the case runs — in
  * `alone.chromium.test.js` — and never a subject.
  *
- * `unstable` is the cycle's own exclusion. One reading of `Clock — ticking`
- * agrees with its baseline only when both land in the same 50 ms step, so the
- * cycle, which asserts `unchanged`, leaves it to the sweep below.
+ * `ticking` is the cycle's own exclusion. A reading of `Clock — ticking` agrees
+ * with its baseline, another mount, only when both were taken the same 50 ms
+ * step after mounting, so the cycle, which asserts `unchanged`, leaves it to the
+ * sweep below.
  */
 function writeConfig(path, index, excludeTags, home) {
   writeFileSync(
@@ -122,8 +123,8 @@ beforeAll(() => {
   tickingConfigPath = join(tickingHome, 'variance.config.json');
 
   mkdirSync(tickingHome);
-  writeConfig(configPath, INDEX, ['no-variance', 'unstable'], workspace);
-  writeConfig(changedConfigPath, CHANGED_INDEX, ['no-variance', 'unstable'], workspace);
+  writeConfig(configPath, INDEX, ['no-variance', 'ticking'], workspace);
+  writeConfig(changedConfigPath, CHANGED_INDEX, ['no-variance', 'ticking'], workspace);
   writeConfig(tickingConfigPath, INDEX, ['no-variance'], tickingHome);
 });
 
@@ -193,14 +194,14 @@ live('the durable workflow, end to end', () => {
     // `FinishesLate` is a subject about the driver — it exists so
     // `src/finish.chromium.test.js` has a story that is still in `afterEach`
     // when the next one is asked for. Neither is a component anybody would want
-    // a baseline of. The third is `Clock — ticking`, held out by `unstable`
+    // a baseline of. The third is `Clock — ticking`, held out by `ticking`
     // because this cycle asserts `unchanged` and one reading of it cannot
     // promise that. See `writeConfig`.
     expect(out).toContain('13 of 17 subject(s) observed');
     expect(out).toContain('0 the run could not see, 4 excluded by configuration');
     expect(out).toContain('[excluded] story:case-surface--leaks-a-sheet: excluded by tag `no-variance`');
     expect(out).toContain('[excluded] story:case-surface--finishes-late: excluded by tag `no-variance`');
-    expect(out).toContain('[excluded] story:case-surface--ticking: excluded by tag `unstable`');
+    expect(out).toContain('[excluded] story:case-surface--ticking: excluded by tag `ticking`');
     expect(out).toContain(
       '[excluded] story:case-surface--receipt-not-read: excluded by its own parameters (`variance.exclude`)',
     );
