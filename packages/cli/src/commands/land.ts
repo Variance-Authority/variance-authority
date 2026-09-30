@@ -89,7 +89,7 @@ export async function landJourneys(
   // FIXME: an `--into` target outside the cache is in no directory prune walks,
   // so a crash between the write and the `finally` leaves the staged `.tmp`
   // beside it until somebody deletes it by hand. Staging inside the cache
-  // instead would make the rename cross file systems, which is a copy.
+  // instead would make the rename cross file systems, where it fails.
   //
   // FIXME: the case index and the snapshot are two files, and nothing renames
   // them together. A crash after `landCaseIndexes` and before the rename leaves
