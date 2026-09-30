@@ -8,10 +8,23 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { distanceByExecution, textAtRecording } from '@variance-authority/sense/test-selection';
-import { paths, readingFrom, wholeEntry, withoutFiles } from './since-base.mjs';
+import {
+  askPerStand,
+  distanceByExecution,
+  readingFrom,
+  textAtRecording,
+  wholeEntry,
+  withoutFiles,
+} from '@variance-authority/sense/test-selection';
 import { inSnapshotCoordinates } from './since-diff.mjs';
 import { isManifest, movedManifests, movedPackageFiles, movedPackages } from './since-graph.mjs';
+
+/**
+ * The paths of one git answer asked with `-z`, as git wrote them. Without `-z`,
+ * git C-quotes a path holding a quote, a backslash, a tab or a newline whatever
+ * `core.quotePath` says, and a trimmed line loses a path's own leading space.
+ */
+const paths = (text) => text.split('\0').filter((path) => path !== '');
 
 export const isTest = (path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
 
@@ -63,41 +76,6 @@ export function selectedFiles({ suite, whole, entered, touched, moved, base, uns
  */
 const graphNames = (names, inGraph) =>
   inGraph === undefined || names.includes(inGraph) ? names : [...names, inGraph];
-
-/**
- * Ask the snapshot once for the tests at the snapshot's commit, and once per
- * older stand for the tests standing there, and keep each answer only for the
- * tests it was asked for. One question over every stand at once would read a
- * test that ran after an edit as though it had not, and charge it whole.
- */
-async function askPerStand({ snapshotFile, hunks, stands, wholePackages, byStem, options }) {
-  const ask = (whole) =>
-    distanceByExecution(
-      snapshotFile,
-      inSnapshotCoordinates([withoutFiles(hunks, whole), ...[...whole, ...wholePackages].map(wholeEntry)].join('\n'), byStem),
-      options,
-    );
-  const owner = new Map(stands.flatMap((stand, at) => stand.tests.map((test) => [test, at])));
-  const here = await ask([]);
-  const mine = (at) => (test) => (owner.get(test) ?? -1) === at;
-  const entered = here.narrowing.entered.filter(mine(-1));
-  const because = here.narrowing.because.filter((cause) => mine(-1)(cause.test));
-  const distances = here.distances.filter((distance) => mine(-1)(distance.test));
-  const unread = new Set(here.narrowing.unread);
-  const stale = new Set(here.narrowing.stale);
-  for (const [at, stand] of stands.entries()) {
-    const { narrowing, distances: far } = await ask(stand.whole);
-    entered.push(...narrowing.entered.filter(mine(at)));
-    because.push(...narrowing.because.filter((cause) => mine(at)(cause.test)));
-    distances.push(...far.filter((distance) => mine(at)(distance.test)));
-    for (const path of narrowing.unread) unread.add(path);
-    for (const name of narrowing.stale) stale.add(name);
-  }
-  return {
-    narrowing: { ...here.narrowing, entered, because, unread: [...unread].sort(), stale: [...stale].sort() },
-    distances,
-  };
-}
 
 /**
  * Read the change and decide what it selects.
@@ -197,22 +175,24 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
         `${wholePackages.length} file(s) of their packages are read as changed whole.`,
     );
   }
-  const { narrowing, distances } = await askPerStand({
-    snapshotFile,
-    hunks,
-    stands,
-    wholePackages,
-    byStem,
-    options: {
-      relations,
-      enumerated,
-      knownAs: (file) => graphNames(byStem.get(stemOf(file)) ?? [file], named?.(file)),
-      faces,
-      root,
-      ...(sourceAt === undefined ? {} : { sourceAt }),
-      ...(moved === undefined || moved.length === 0 ? {} : { packages: moved }),
-    },
-  });
+  const options = {
+    relations,
+    enumerated,
+    knownAs: (file) => graphNames(byStem.get(stemOf(file)) ?? [file], named?.(file)),
+    faces,
+    root,
+    ...(sourceAt === undefined ? {} : { sourceAt }),
+    ...(moved === undefined || moved.length === 0 ? {} : { packages: moved }),
+  };
+  // Asked once per stand, each answer kept for that stand's tests; the files a
+  // stand charges whole leave the hunk diff, so none is also read by its hunks.
+  const { narrowing, distances } = await askPerStand(stands, (whole) =>
+    distanceByExecution(
+      snapshotFile,
+      inSnapshotCoordinates([withoutFiles(hunks, whole), ...[...whole, ...wholePackages].map(wholeEntry)].join('\n'), byStem),
+      options,
+    ),
+  );
 
   // A changed path the snapshot, the declarations and the graph all say
   // nothing about selects nothing, and is named so a reader can see what the

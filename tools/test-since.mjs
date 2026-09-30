@@ -223,7 +223,8 @@ async function main() {
    * are read from the snapshot's own commit whenever it names one: its line
    * ranges are in that commit's coordinates and no other's. A test the runs at
    * that commit did not observe stands where it last ran, and `readingFrom` in
-   * `since-base.mjs` says what is charged whole for it. A ref is a lower bound,
+   * `@variance-authority/sense/test-selection` says what is charged whole for
+   * it. A ref is a lower bound,
    * resolved to its merge base so a branch behind `main` is not told that
    * everything anybody else merged has changed here — the same reason
    * `packages/cli/src/commands/since.ts` does.

@@ -480,10 +480,12 @@ a test that would have failed; this one does not make that trade.
 
 A record describes the commit it was recorded at. A change is measured from
 that commit rather than from your branch point, so a record several commits old
-selects for every change made since. Record a run of the whole suite at every
-commit and the record is never more than one commit old. A run of some of the
-tests also stamps the record with its commit, and the tests it left out keep
-the rows they recorded on an older text.
+selects for every change made since. A run of some of the tests also stamps the
+record with its commit, and the tests it left out keep the rows they recorded
+on an older text. Each of those is measured from the commit it last ran at, so
+a file that changed between that commit and the record's is read whole for it.
+Where nothing says which commit that was, the output says what it assumed
+instead.
 
 It does not see through a cache. A memoized function is credited to the case
 that ran it first. A later case that got the cached result is not recorded as

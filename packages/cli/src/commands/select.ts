@@ -126,6 +126,12 @@ export interface SelectInput {
    * read against whatever diff it is given, a synthetic one included.
    */
   readonly given?: boolean;
+  /**
+   * Where the tests that did not run at the journal's commit last ran, and
+   * what that reading could not tell, from the runs recorded beside the
+   * journal. Said after whose record it was, in every outcome.
+   */
+  readonly standing?: readonly string[];
   readonly ground: SelectGround;
 }
 
@@ -186,7 +192,7 @@ export function skippableTests(input: SelectInput): TestSelection {
     unread: [] as readonly string[],
     stale: [] as readonly string[],
     // Which record answered is the first note, before any other note about it.
-    notes: input.source === undefined ? [] : [input.source.says],
+    notes: [...(input.source === undefined ? [] : [input.source.says]), ...(input.standing ?? [])],
   };
 
   if (input.ground.kind === 'no-journal') {

@@ -4,9 +4,17 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
-import { commitRunsFile, landRun, readCommitRuns, readTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  commitRunsFile,
+  landRun,
+  readCommitRuns,
+  readingFrom,
+  readTestCoverage,
+  wholeEntry,
+  withoutFiles,
+  type TestCoverage,
+} from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import { readingFrom, wholeEntry, withoutFiles } from './since-base.mjs';
 import { readChange, selectedFiles } from './since-change.mjs';
 
 /**
@@ -187,6 +195,7 @@ describe('a change is read from where each test last ran, not from where the las
   it('refuses a ref git cannot read, by name', async () => {
     const { git, H } = await history();
     expect(readingFrom({ commit: H, ref: 'no-such-branch', runs: undefined, tests, git })).toEqual({
+      stands: [],
       refused: '`no-such-branch` is not a commit this checkout knows',
     });
   });
