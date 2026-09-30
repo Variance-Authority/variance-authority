@@ -78,7 +78,7 @@ export function changeGraph(review: Review): readonly string[] {
   };
   for (const test of kept) lines.push(`  ${id('t', test)}(["${label(basename(test))}"])`);
   for (const file of [...new Set(drawn.map((fn) => fn.file))].sort(order)) {
-    lines.push(`  subgraph ${id('f', file)}["${label(file)}"]`, '    direction TB');
+    lines.push(`  subgraph ${id('f', file)}["${label(file)}"]`, '    direction LR');
     for (const fn of drawn.filter((held) => held.file === file).sort((a, b) => a.own.startLine - b.own.startLine)) {
       const cases = fn.own.cases === 0 ? 'no case' : `${fn.own.cases} case${fn.own.cases === 1 ? '' : 's'}`;
       const bare = fn.bare === 0 ? '' : ` · ${fn.bare} closure${fn.bare === 1 ? '' : 's'} no case`;
