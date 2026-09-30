@@ -57,10 +57,12 @@ export interface CommitRuns {
    * it left names the commit that landing was laid over, and a run after it
    * carries that commit rather than the one the snapshot stands at.
    *
-   * A fact about the snapshot, written without asking git. It is where every
-   * test the runs did not observe, and `standing` does not list, last ran, so
-   * `test:since` reads those tests from it whatever the history between the
-   * two commits. It is where the change these runs ran for starts only when
+   * A fact about the snapshot, written without asking git: where these runs
+   * started. Where a test the runs did not observe, and `standing` does not
+   * list, last ran is not known; `test:since` assumes it was here, reads the
+   * test from here whatever the history between the two commits, and says it
+   * assumed. The assumption is wrong for a test that last ran before a record
+   * was lost. It is where the change these runs ran for starts only when
    * `commit` descends from it, and a review asks git that where it runs: a
    * landing may be written outside the checkout, or before the other commit
    * was fetched.
