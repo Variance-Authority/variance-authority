@@ -72,8 +72,7 @@ export async function readWorkspaceSnapshot(
     decoded = JSON.parse(await readFile(at, 'utf8'));
   } catch (error) {
     throw new Error(
-      `no readable workspace snapshot at ${at}: ${error instanceof Error ? error.message : String(error)}. ` +
-        'Refresh the workspace index before asking from recorded state.',
+      `no readable workspace snapshot at ${at}: ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     );
   }
