@@ -925,6 +925,11 @@ paths relative to each directory, where `*` matches within one path segment and
 A directory with no entry points declared starts from every file under it, and
 the first line says so. A pattern that matches no file is named.
 
+To leave a part of the repository out of the count — a marketing site nothing
+measures, say — declare the repository root as the directory (`"."`), with a
+pattern for each top-level directory you do count. What the patterns do not
+name, and nothing they name imports, is not in the source.
+
 `--packages` gives every workspace the root `package.json` names a row of that
 table:
 

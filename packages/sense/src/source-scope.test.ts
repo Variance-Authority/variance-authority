@@ -45,6 +45,14 @@ describe('sourceScope', () => {
     });
   });
 
+  it('takes `.` as the repository root, so what its patterns leave out is not in the scope', () => {
+    const root = parseEntrypoints({ '.': ['apps/**', 'libs/**'] }, 'variance.config.json');
+    const scope = sourceScope(RECORDS, '.', root);
+    expect(scope).toMatchObject({ seeds: 'entrypoints', unmatched: [] });
+    expect(scope.files).toContain('apps/next/lib/unused.ts');
+    expect(scope.files).not.toContain('tooling/lint.py');
+  });
+
   it('is seeded from every file under a directory that declares no entry points, and says so', () => {
     expect(sourceScope(RECORDS, 'tooling', entrypoints)).toEqual({
       from: 'tooling',
