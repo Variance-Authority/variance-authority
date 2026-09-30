@@ -123,8 +123,9 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   for (const one of counted) {
     const named = one === undefined ? {} : { suite: one.name, kind: one.kind };
     // The record and everything read beside it come from one cache layer: the
-    // nearest that holds it, which in a worktree that has not run is the
-    // primary checkout's.
+    // nearest that holds it, which in a checkout that has not run is the
+    // mainline's as last fetched here, else, in a worktree, the primary
+    // checkout's.
     const record = await readableTestCoverage(request.root, { suite: one?.name });
     const from = await recordOf(request.root, one?.name, record);
     if (from === undefined) {

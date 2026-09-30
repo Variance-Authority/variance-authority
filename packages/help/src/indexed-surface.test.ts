@@ -113,4 +113,14 @@ describe('published names from indexed declaration facts', () => {
       'logger.ts': logger,
     })).toEqual({ default: ['function logger.ts:1'], logger: ['const pair.ts:3'] });
   });
+
+  it('follows a type through a JavaScript module to the declaration written beside it', async () => {
+    // The graph lands `./theme` on `theme.js`, which a runtime loads and which
+    // declares no type; TypeScript reads `theme.d.ts` first.
+    expect(await publishedBy('styles.ts', {
+      'styles.ts': { text: "export type { Theme } from './theme';\n", targets: ['theme.js'] },
+      'theme.js': { text: 'export default function createTheme() {}\n', targets: [] },
+      'theme.d.ts': { text: 'export interface Theme {}\n', targets: [] },
+    })).toEqual({ Theme: ['interface theme.d.ts:1'] });
+  });
 });

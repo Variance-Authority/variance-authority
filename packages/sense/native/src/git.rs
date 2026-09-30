@@ -103,6 +103,8 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         let path = &path[1..];
         let relative = path.strip_prefix(prefix).unwrap_or(path);
         if mode == Some(b"120000".as_slice()) {
+            // FIXME: a module parsed through a link keeps the link's object name,
+            // the path it holds, so an update does not see its target change.
             links.insert(relative.to_vec());
         }
         listed.push((relative.to_vec(), oid));

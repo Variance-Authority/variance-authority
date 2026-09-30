@@ -307,9 +307,9 @@ fn heads(n: usize, uses: HashMap<(u32, &str), (u32, HashSet<u32>)>) -> Vec<Vec<S
 /// test: the owner gave no answer, so one is computed, and `Read::undeclared`
 /// says so. The entries are returned too, because a closure
 /// starts at them and follows only what a runtime loads.
-// TODO: what a test's specifier meant is the runner's alias table to say, and a
-// stub it maps to connects nothing; this walks the index's targets alone, so a
-// file only an aliased import reaches can land on the wrong side.
+// TODO: this walks the index's targets alone, so a file a test reaches only
+// through a specifier the index left unresolved can land on the wrong side;
+// which files a test loaded is the recording's to say, and it is not read here.
 fn tests(files: &[File], counted: &HashMap<&str, usize>, named: &[bool], declared: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
     let outgoing: Vec<Vec<usize>> = files
         .iter()

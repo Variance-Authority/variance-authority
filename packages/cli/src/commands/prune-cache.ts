@@ -12,7 +12,8 @@
  * older than {@link STORY_AGE_MS} — the branch it was written on was dropped or
  * rebased. A commit this clone does not hold is kept until it is older than
  * {@link UNMARKED_AGE_MS}, because git cannot answer for it and another project
- * may share the cache. The newest entry of each project and each suite always
+ * may share the cache. The newest entry of each project and each suite, and the
+ * mainline record a suite's `fetched.json` names, always
  * stays. A shared report names no commit, so it is aged out after
  * {@link STORY_AGE_MS}; the share still holds it, and the next read fetches it.
  *
@@ -30,6 +31,7 @@ import {
   machineOwners,
   planPrune,
   prunedLine,
+  readFetchedMainline,
   pruneWhenDue,
   PRUNE_EVERY_MS,
   STORY_AGE_MS,
@@ -116,7 +118,10 @@ export async function planCachePrune(
   const read = join(shareRoot(config), 'read');
   for (const suite of await directoriesIn(read)) {
     const directory = join(read, suite);
-    await commits(await commitEntries(directory, (name) => /^[0-9a-f]{7,64}$/u.exec(name)?.[0]));
+    // The record `fetched.json` names is the base every checkout of this
+    // machine lays its first run on, however far behind it falls.
+    const named = readFetchedMainline(directory)?.commit;
+    await commits(await commitEntries(directory, (name) => (name === named ? undefined : /^[0-9a-f]{7,64}$/u.exec(name)?.[0])));
   }
 
   const reports = sharedReportRoot(config);

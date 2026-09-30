@@ -255,12 +255,20 @@ function spent(milliseconds) {
 }
 
 /**
- * Which record the reading used, and whose cache layer held it. A worktree that
- * has not run reads the primary checkout's, which is a different record from
- * the one its first `yarn test` will write, so the header says which.
+ * Which record the reading used, and whose it is: this checkout's own, the one
+ * CI published for the mainline, or the primary checkout's. A worktree that has
+ * not run reads the primary checkout's only when the mainline's was not read,
+ * which is a different record from the one its first `yarn test` will write, so
+ * the header says which, and why the mainline's was passed over.
  */
-export function recordLine(file, own) {
-  return own
-    ? `  record   this checkout's, at ${file}`
-    : `  record   the primary checkout's, at ${file}; this worktree has recorded none of its own`;
+export function recordLine(base) {
+  if (base.from === 'own') return [`  record   this checkout's, at ${base.file}`];
+  if (base.from === 'mainline') return [`  record   ${base.note}`];
+  if (base.note === undefined) {
+    return [`  record   the primary checkout's, at ${base.file}; this worktree has recorded none of its own`];
+  }
+  return [
+    `  record   the primary checkout's, at ${base.file}, as an offline fallback; this worktree has recorded none of its own`,
+    `  mainline ${base.note}`,
+  ];
 }

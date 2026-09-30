@@ -262,18 +262,22 @@ describe('a worktree that has not run reads the record the primary checkout made
     await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
 
     const read = await recordToRead(path, cacheRoot);
-    expect(read).toEqual({ file: testCoverageFile(primary, { cacheRoot }), own: false });
+    expect(read).toEqual({ from: 'primary', file: testCoverageFile(primary, { cacheRoot }) });
     expect(read.file).not.toBe(testCoverageFile(path, { cacheRoot }));
-    expect(recordLine(read.file, read.own)).toBe(
+    expect(recordLine(read)).toEqual([
       `  record   the primary checkout's, at ${read.file}; this worktree has recorded none of its own`,
-    );
+    ]);
   });
 
   it('finds the one declared suite\'s record the same way', async () => {
     const { primary, path, cacheRoot } = await layered({ suites: { unit: { kind: 'unit' } } });
     await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
 
-    expect(await recordToRead(path, cacheRoot)).toEqual({ file: testCoverageFile(primary, { suite: 'unit', cacheRoot }), own: false });
+    expect(await recordToRead(path, cacheRoot)).toEqual({
+      from: 'primary',
+      suite: 'unit',
+      file: testCoverageFile(primary, { suite: 'unit', cacheRoot }),
+    });
   });
 
   it('prefers the worktree\'s own record once a run has landed one', async () => {
@@ -282,7 +286,18 @@ describe('a worktree that has not run reads the record the primary checkout made
     await writeTestCoverage(testCoverageFile(path, { cacheRoot }), snapshot);
 
     const read = await recordToRead(path, cacheRoot);
-    expect(read).toEqual({ file: testCoverageFile(path, { cacheRoot }), own: true });
-    expect(recordLine(read.file, read.own)).toBe(`  record   this checkout's, at ${read.file}`);
+    expect(read).toEqual({ from: 'own', file: testCoverageFile(path, { cacheRoot }) });
+    expect(recordLine(read)).toEqual([`  record   this checkout's, at ${read.file}`]);
+  });
+
+  it('names the mainline\'s record by the note `select` prints, and the primary checkout\'s as a fallback with the reason', () => {
+    const note = 'record of "unit": read from mainline main, published at abc, 2 commits behind; kept at /cache/share/read/unit/abc/coverage.bin';
+    expect(recordLine({ from: 'mainline', file: '/cache/share/read/unit/abc/coverage.bin', note })).toEqual([`  record   ${note}`]);
+
+    const missed = 'record of "unit": the mainline\'s was not read; mainline main: the share could not be reached';
+    expect(recordLine({ from: 'primary', file: '/primary/coverage.bin', note: missed })).toEqual([
+      "  record   the primary checkout's, at /primary/coverage.bin, as an offline fallback; this worktree has recorded none of its own",
+      `  mainline ${missed}`,
+    ]);
   });
 });

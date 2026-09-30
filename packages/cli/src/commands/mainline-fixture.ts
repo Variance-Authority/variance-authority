@@ -23,6 +23,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
 import { publishRun } from './share.js';
+import { publishSuite } from './suite-share.js';
 
 /**
  * A mainline that published a record of `unit`, and a clone that recorded none.
@@ -98,6 +99,50 @@ export async function published(
   return { dir, origin, first };
 }
 
+/** A share on the checkout's own `origin`, whose mainline is `main`, as GitHub carries it. */
+export const GIT_SHARE = { kind: 'git', mainlines: ['main'] } as const;
+
+/**
+ * The CI checkout for {@link GIT_SHARE}: `unit` given to it, one commit pushed
+ * to a bare `origin`, and the record a run of the whole suite made there, in
+ * which only `total.test.ts` runs `applyDiscount`. Published with a push's
+ * environment unless told not to, from a cache at `ci-cache` under `home`.
+ */
+export async function gitPublished(
+  home: string,
+  options: { readonly publish?: boolean } = {},
+): Promise<{ ci: string; origin: string; first: string; record: Buffer }> {
+  const origin = join(home, 'origin.git');
+  const ci = join(home, 'ci');
+  await git(home, 'init', '--quiet', '--bare', '--initial-branch', 'main', origin);
+  await git(home, 'init', '--quiet', '--initial-branch', 'main', ci);
+  await git(ci, 'config', 'user.email', 'fixture@example.test');
+  await git(ci, 'config', 'user.name', 'Fixture');
+  await mkdir(join(ci, 'src'));
+  await mkdir(join(ci, 'test'));
+  await writeFile(join(ci, 'src/total.ts'), BEFORE);
+  await writeFile(join(ci, 'test/total.test.ts'), "it('discounts', () => {});\n");
+  await writeFile(join(ci, 'test/other.test.ts'), "it('stands alone', () => {});\n");
+  await writeFile(join(ci, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share: GIT_SHARE }));
+  await git(ci, 'add', '-A');
+  await git(ci, 'commit', '--quiet', '-m', 'first');
+  const first = await git(ci, 'rev-parse', 'HEAD');
+  await git(ci, 'remote', 'add', 'origin', origin);
+  await git(ci, 'push', '--quiet', 'origin', 'main');
+  await git(ci, 'fetch', '--quiet', 'origin');
+
+  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+  await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS]);
+  await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
+  const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));
+  if (options.publish !== false) {
+    const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
+    const written = 'published' in done && done.line.kind === 'mainline' ? done.published.written : [];
+    if (!written.includes(suiteEntry('unit'))) throw new Error(`the record was to reach mainline main, and the share answered ${JSON.stringify(done)}`);
+  }
+  return { ci, origin, first, record };
+}
+
 /** A clone of `origin` at another path, as a fresh CI checkout or a laptop has it, on `branch` when one is named. */
 export async function cloneOf(home: string, origin: string, branch?: string): Promise<string> {
   const dir = join(home, 'clone');
@@ -115,12 +160,31 @@ export function shareConfig(home: string): Config {
   } as unknown as Config;
 }
 
-/** Publish what `dir` recorded at `commit`, and fail unless the suite's record reached `line`. */
+/**
+ * Publish what `dir` recorded at `commit`, as a run of the whole suite there
+ * would, and fail unless the suite's record reached `line`. A mainline takes
+ * the record only from `share --suite` given the runner's collected list, so
+ * there the run's publish carries the index and the suite's carries the record,
+ * as check.yml publishes them.
+ */
 export async function publishTo(home: string, dir: string, commit: string, env: Env, line: string): Promise<void> {
+  await ranWhole(testCoverageFile(dir, { suite: 'unit' }), commit);
+  const mainline = line.startsWith('mainline ');
   const done = await publishRun(shareConfig(home), await reportAt(home, commit), { env, cwd: dir });
   const reached = 'published' in done ? `${done.line.kind} ${done.line.name}: ${done.published.written.join(', ')}` : undefined;
-  const wanted = `${line}: suite-index-v1, suite-v1/unit`;
+  const wanted = `${line}: ${mainline ? 'suite-index-v1' : 'suite-index-v1, suite-v1/unit'}`;
   if (reached !== wanted) throw new Error(`the run was to publish ${wanted}, and the share answered ${JSON.stringify(done)}`);
+  if (!mainline) return;
+  const suite = await publishSuite(dir, 'unit', { env }, { collected: await collectedBoth(home) });
+  const written = 'published' in suite ? `${suite.line.kind} ${suite.line.name}: ${suite.published.written.join(', ')}` : undefined;
+  if (written !== `${line}: suite-v1/unit`) throw new Error(`the record was to reach ${line}, and the share answered ${JSON.stringify(suite)}`);
+}
+
+/** The runner's collected list for the fixture's suite: both of its test files. */
+export async function collectedBoth(home: string): Promise<string> {
+  const path = join(home, 'collected.txt');
+  await writeFile(path, 'test/other.test.ts\ntest/total.test.ts\n');
+  return path;
 }
 
 /**
@@ -194,13 +258,26 @@ export async function recordIn(
   await writeFile(`${record}.cases.bin`, encodeExecutionIndex(casesOf(cases)));
 }
 
+/**
+ * The runs record a run of both test files at `commit` leaves beside `record`
+ * when it lays itself over nothing: every test ran there, and none stands
+ * anywhere older. It is what a mainline publishes a record on, so it is
+ * written where a test publishes and never where a laptop records.
+ */
+export async function ranWhole(record: string, commit: string): Promise<void> {
+  const at = '2026-01-01T00:00:00.000Z';
+  const runs = { commit, first: at, latest: at, runs: 1, files: ['test/other.test.ts', 'test/total.test.ts'], standing: [] };
+  await writeFile(commitRunsFile(record), `${JSON.stringify(runs, null, 2)}\n`);
+}
+
 /** Both test files whole, and `src/total.ts` as one module block `total.test.ts` entered. */
 export async function wholeRecord(dir: string): Promise<void> {
   const record = testCoverageFile(dir, { suite: 'unit' });
+  const commit = await git(dir, 'rev-parse', 'HEAD');
   await writeTestCoverage(record, {
     version: 3,
     instrumentation: 'fixture',
-    commit: await git(dir, 'rev-parse', 'HEAD'),
+    commit,
     tests: [
       { file: 'test/other.test.ts', complete: true, preconditions: [] },
       { file: 'test/total.test.ts', complete: true, preconditions: [] },

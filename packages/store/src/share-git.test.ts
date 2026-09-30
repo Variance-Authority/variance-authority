@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { findEntry, publishLine, readLine, type ShareEntry } from '@variance-authority/core/share';
-import { createGitLineCell, gitDescends } from './share-git.js';
+import { createGitLineCell, gitDescends, headerEnv } from './share-git.js';
 
 const MAIN = { kind: 'mainline', name: 'release/2.0' } as const;
 const REF = 'refs/variance/mainline/release/2.0';
@@ -112,5 +112,33 @@ describe('createGitLineCell', () => {
     expect(await descent(first, first)).toBe(false);
     expect(await descent('f'.repeat(40), first)).toBeUndefined();
     expect(await gitDescends({ url, gitDir: join(home, 'b') }, 'gone')(second, first)).toBeUndefined();
+  });
+});
+
+describe('headerEnv', () => {
+  const URL = 'https://github.com/Variance-Authority/variance-authority';
+  const HEADER = 'AUTHORIZATION: basic dG9rZW4=';
+  const given = (key: string, value = HEADER): NodeJS.ProcessEnv => ({
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: key,
+    GIT_CONFIG_VALUE_0: value,
+  });
+  const added = { GIT_CONFIG_COUNT: '2', GIT_CONFIG_KEY_1: 'http.extraheader', GIT_CONFIG_VALUE_1: HEADER };
+
+  it('does not give git a header the environment already gives it for the share URL', () => {
+    expect(headerEnv(HEADER, URL, given('http.https://github.com/.extraheader'))).toEqual({});
+    expect(headerEnv(HEADER, URL, given('http.extraHeader'))).toEqual({});
+    expect(headerEnv(HEADER, URL, {})).toEqual({
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: 'http.extraheader',
+      GIT_CONFIG_VALUE_0: HEADER,
+    });
+  });
+
+  it('gives it when the same value sits under another URL or another key', () => {
+    expect(headerEnv(HEADER, URL, given('http.https://other.example/.extraheader'))).toEqual(added);
+    expect(headerEnv(HEADER, URL, given('http.https://github.com/Variance.extraheader'))).toEqual(added);
+    expect(headerEnv(HEADER, URL, given('core.sshCommand'))).toEqual(added);
+    expect(headerEnv(HEADER, URL, given('http.https://github.com/.extraheader', 'AUTHORIZATION: basic b3RoZXI='))).toEqual(added);
   });
 });

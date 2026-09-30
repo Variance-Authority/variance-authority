@@ -10,6 +10,10 @@ import { everyEntry } from '@variance-authority/package/help';
  * already been read, so withholding it buys nothing.
  */
 
+/** What a workspace with no published package is told, wherever it would have been listed. */
+export const NOTHING_PUBLISHED =
+  'this workspace publishes no package: no manifest it declares is both named and public';
+
 /** The door a subpath names, written the way somebody would import it. */
 export function specifierOf(published: Documented, opening: Opening): string {
   return `${published.name}${opening.subpath === '.' ? '' : opening.subpath.slice(1)}`;
@@ -19,6 +23,9 @@ export function packageOf(help: Help, name: string): Documented {
   const found = help.packages.find((published) => published.name === name);
   if (found !== undefined) return found;
 
+  // An empty list printed after the colon would read as the answer. It is one,
+  // but only said as a sentence: no manifest the workspace declares is public.
+  if (help.packages.length === 0) throw new Error(`unknown package \`${name}\`; ${NOTHING_PUBLISHED}`);
   const known = help.packages.map((published) => published.name).join(', ');
   throw new Error(`unknown package \`${name}\`; this workspace publishes: ${known}`);
 }

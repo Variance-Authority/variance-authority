@@ -1,12 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { forksBetween, journeysAmong, journeysAround, journeyMap, journeysPath, pathsThrough, prepareJourneys } from './journeys.js';
 import { updateSourceIndex } from './published.js';
-import { keptRunnerAliases, runnerAliases, runnerConfigs, runnerDigest, unlistedRunnerAliases } from './runner-aliases.js';
 import { sourceIndexPath } from './source-index.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
@@ -53,7 +51,6 @@ beforeEach(() => {
   write('package.json', JSON.stringify({ name: '@t/api', private: true }));
   write('src/api.ts', 'export function get(id: string) {\n  return put(id);\n}\nexport function put(id: string) {\n  return id;\n}\n');
   write('test/api.test.ts', "import { get } from '../src/api.js';\nit('gets', () => get('x'));\n");
-  write('vitest.config.ts', 'export default {};\n');
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, stdio: 'pipe' });
   git('init', '--quiet');
   git('add', '.');
@@ -80,7 +77,7 @@ describe('the journeys prepared beside the index', () => {
     writeFileSync(at, recording());
 
     const [first] = await prepareJourneys(root);
-    expect(first && 'prepared' in first ? { ...first.prepared, runnerUnread: [] } : first).toMatchObject({
+    expect(first && 'prepared' in first ? first.prepared : first).toMatchObject({
       kept: false,
       cases: 1,
       functionsEntered: 2,
@@ -203,85 +200,5 @@ describe('journeys read as masks', () => {
       ['put', 2, 1],
     ]);
     expect(journeyMap(root, 'src/api.ts', ['AGAIN'])?.tests.map((test) => test.name)).toEqual(['finds again']);
-  });
-
-  it('says why a file has no map: a test file names the modules its tests ran, and no row is a finding only where the recording lists files', () => {
-    const at = `${testCoverageFile(root)}.cases.bin`;
-    mkdirSync(dirname(at), { recursive: true });
-    writeFileSync(at, branched());
-
-    expect(journeyMap(root, 'test/api.test.ts')?.notRecorded).toBe(
-      'test/api.test.ts is a test file, and a journey map is drawn around code that tests run. ' +
-        'Ask about one of the modules its 3 recorded tests ran most:\n' +
-        '  src/api.ts  run by 3 of its 3 and 3 of all 3 recorded tests',
-    );
-    expect(journeyMap(root, 'src/none.ts')?.notRecorded).toBe(
-      'No recorded test ran src/none.ts. This is a finding about the tests, not a gap in the recording: ' +
-        'the recording lists 1 file under src/ that its 3 tests loaded, and this file is not one of them.',
-    );
-    expect(journeyMap(root, 'lib/none.ts')?.notRecorded).toBe(
-      'The recording lists no file under lib/, so it cannot say whether a test ran lib/none.ts. ' +
-        'A directory with no listed file is either one that no recorded test loaded or one that the test run does not instrument, ' +
-        'and the recording does not say which.',
-    );
-  });
-});
-
-describe("the runner's alias table", () => {
-  const fixture = fileURLToPath(new URL('../test/fixtures/runner-aliases', import.meta.url));
-
-  it('lists the tracked configs, reads their aliases with the Vite the checkout resolves, and stamps every file it read', async () => {
-    const configs = runnerConfigs(fixture);
-    expect(configs).toEqual(['vitest.config.ts']);
-
-    const table = await runnerAliases(fixture, configs ?? []);
-    expect(table.unread).toEqual([]);
-    expect(table.configs).toEqual([
-      { directory: '', aliases: [{ find: '@api', replacement: './src/api.ts' }, { source: '^~\\/(.*)$', flags: '', replacement: './src/$1' }] },
-    ]);
-    expect(table.files).toEqual(['vitest.config.ts', 'where.ts']);
-    expect(table.digest).toBe(runnerDigest(fixture, table.files));
-    // A file the table was read from going missing moves the stamp.
-    expect(runnerDigest(fixture, [...table.files, 'gone.ts'])).not.toBe(table.digest);
-  });
-
-  it('names a config it has no Vite to load with, and reads no alias from it', async () => {
-    const table = await runnerAliases(root, ['vitest.config.ts']);
-
-    expect(table.configs).toEqual([]);
-    expect(table.unread).toEqual([expect.stringMatching(/^vitest\.config\.ts: no Vite to load it with \(/u)]);
-    expect(table.unloaded).toEqual(['vitest.config.ts']);
-    // What it needed is outside the stamp, so the table is not kept: it is read again.
-    const kept = join(root, 'runner-aliases.json');
-    writeFileSync(kept, JSON.stringify({ ...table, unread: ['held'] }));
-    expect(await keptRunnerAliases(root, ['vitest.config.ts'], kept)).toEqual(table);
-  });
-
-  it('keeps the table beside the index, and reads it again when a file it was read from changes', async () => {
-    const kept = join(root, 'runner-aliases.json');
-    const read = await keptRunnerAliases(fixture, ['vitest.config.ts'], kept);
-    expect(JSON.parse(readFileSync(kept, 'utf8'))).toEqual(read);
-
-    // A table kept under a stamp nothing on disk matches is not believed.
-    writeFileSync(kept, JSON.stringify({ ...read, digest: 'stale', configs: [] }));
-    expect(await keptRunnerAliases(fixture, ['vitest.config.ts'], kept)).toEqual(read);
-    // One kept under the right stamp is used as kept, and Vite is not asked.
-    const held = { ...read, unread: ['held'] };
-    writeFileSync(kept, JSON.stringify(held));
-    expect(await keptRunnerAliases(fixture, ['vitest.config.ts'], kept)).toEqual(held);
-  });
-
-  it('names every alias it cannot carry, and the table it could not list', async () => {
-    const dropped = fileURLToPath(new URL('../test/fixtures/runner-aliases-dropped', import.meta.url));
-    const table = await runnerAliases(dropped, ['vitest.config.ts']);
-
-    expect(table.configs).toEqual([{ directory: '', aliases: [{ find: '@test', replacement: './src/test.ts' }, { find: '@kept', replacement: './src/kept.ts' }] }]);
-    expect(table.unread).toEqual([
-      'vitest.config.ts: resolve.alias `@custom` has a customResolver, which is not read',
-      'vitest.config.ts: resolve.alias `@made` is replaced by a function, which is not read',
-    ]);
-    expect(unlistedRunnerAliases(root, 'git could not list the checkout').unread).toEqual([
-      'runner configs were not listed: git could not list the checkout',
-    ]);
   });
 });
