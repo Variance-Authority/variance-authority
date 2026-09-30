@@ -46,9 +46,12 @@ export const symbol: Tool<Help> = {
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
 
-    const found = entriesNamed(help, name).filter(
-      ([published, held]) => wanted === undefined || isPackage(published, held, wanted),
-    );
+    // The door the workspace imports the name by leads. Every adapter that
+    // re-exports a core publishes the same declaration, and the first one read
+    // is an alphabetical accident whose own count is usually nothing.
+    const found = entriesNamed(help, name)
+      .filter(([published, held]) => wanted === undefined || isPackage(published, held, wanted))
+      .sort(([, , a], [, , b]) => b.usedBy.length - a.usedBy.length || b.uses - a.uses);
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
