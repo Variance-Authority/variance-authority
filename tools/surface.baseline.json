@@ -2695,6 +2695,7 @@
         "RangeState": "type",
         "ReachThrough": "interface",
         "RecordLocationOptions": "interface",
+        "RecordedTests": "type",
         "RegionMotion": "interface",
         "RegionMotionKind": "type",
         "RegionRun": "type",
@@ -2732,6 +2733,7 @@
         "caseLayerFiles": "function",
         "caseMotion": "function",
         "changedLines": "function",
+        "commitRunsAfter": "function",
         "commitRunsFile": "function",
         "countCoverage": "function",
         "counted": "function",
@@ -2809,6 +2811,7 @@
         "testsReachingFromView": "function",
         "textAtRecording": "function",
         "withIndexLock": "function",
+        "writeCommitRuns": "function",
         "writeCoverageBytes": "function",
         "writeTestCoverage": "function"
       },

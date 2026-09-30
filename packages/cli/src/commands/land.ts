@@ -78,16 +78,19 @@ export async function landJourneys(
   // The snapshot is read, merged and written under the lock every runner seam
   // takes on it, and the case index is laid inside that, under its own: the
   // two answer for the same runs, and a run landing between them would leave
-  // each one describing a different suite. The snapshot is staged beside the
-  // target first, so a write that fails leaves both as they were; then the
-  // index lands, so a busy index refuses before the snapshot is replaced; and
-  // the staged file is renamed over the target last, which does not fail on a
-  // full disk the way a write does. It is staged beside the target because a
-  // rename to another file system fails. The staged name ends in the pid and
-  // `.tmp`, so beside the default target prune removes it if this process dies
-  // before the `finally` does.
+  // each one describing a different suite. The runs record beside the snapshot
+  // answers for them too, and is written by `commitRunsAfter`, the rules every
+  // runner's `landRun` writes it by: the fold is one run at the shards' commit,
+  // and its test files are the ones the shards recorded. The snapshot and the
+  // record are staged beside their targets first, so a write that fails leaves
+  // everything as it was; then the index lands, so a busy index refuses before
+  // the snapshot is replaced; and the staged files are renamed over their
+  // targets last, which does not fail on a full disk the way a write does. They
+  // are staged beside the targets because a rename to another file system
+  // fails. The staged names end in the pid and `.tmp`, so beside the default
+  // target prune removes them if this process dies before the `finally` does.
   //
-  // FIXME: prune reads only `test-selection/<key>`, its `suites/<suite>` and `.work/<key>`, so beside an `--into` target elsewhere a crash leaves this file and the `<target>.<pid>-<uuid>.tmp.<pid>-<uuid>.tmp` `writeCoverageBytes` writes it through.
+  // FIXME: prune reads only `test-selection/<key>`, its `suites/<suite>` and `.work/<key>`, so beside an `--into` target elsewhere a crash leaves these files and the `<staged>.<pid>-<uuid>.tmp` `writeCoverageBytes` writes each through.
   // A fix that removes them needs a floor like prune's `RUN_FLOOR_MS`, since a pid from another host, pid namespace or skewed file-system clock reads as dead,
   // and must report a removal it could not make without failing a landing that already landed.
   //
@@ -98,7 +101,10 @@ export async function landJourneys(
   // more run at the same commit, so `layerBefore` puts the first attempt's own
   // cases into the before layer over the base they replaced, and review
   // compares those files with themselves.
-  const staged = `${at}.${process.pid}-${randomUUID()}.tmp`;
+  const runsAt = selection.commitRunsFile(at);
+  const stage = `${process.pid}-${randomUUID()}.tmp`;
+  const staged = `${at}.${stage}`;
+  const stagedRuns = `${runsAt}.${stage}`;
   const locked = await selection.withIndexLock(at, async () => {
     let previous;
     try {
@@ -115,14 +121,26 @@ export async function landJourneys(
     }
 
     const landed = selection.mergeCoverage(previous, folded);
+    const runs = selection.commitRunsAfter(previous, await selection.readCommitRuns(at), folded);
     try {
       await selection.writeTestCoverage(staged, landed);
+      await selection.writeCommitRuns(stagedRuns, runs);
       const cases = await selection.landCaseIndexes(at, root, read);
       if ('busy' in cases) throw busy(cases.busy, at);
       await rename(staged, at);
+      // FIXME: the snapshot and the runs record are two files, and nothing
+      // renames them together. A crash between these two renames leaves the
+      // record as it was before the landing. When the landing moved the
+      // snapshot to a new commit, a `test:since` reading then says the record
+      // is another commit's, and reads every test as though it last ran at the
+      // landed commit. The snapshot goes first because the other order is
+      // worse: at the same commit, a record renamed ahead of its snapshot says
+      // the shards ran on rows the snapshot does not hold yet, and says nothing.
+      await rename(stagedRuns, runsAt);
       return { landed, cases };
     } finally {
       await rm(staged, { force: true });
+      await rm(stagedRuns, { force: true });
     }
   });
   if (!locked.held) throw busy(at, at);

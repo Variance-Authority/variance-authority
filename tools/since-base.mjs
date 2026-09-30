@@ -55,8 +55,7 @@ function isAncestor(git, ancestor, commit) {
  * does not list is read from `over`, where the runs at the snapshot's commit
  * started, and with no record for this snapshot at all, from the snapshot's
  * commit. Runs recorded at another commit describe some other snapshot and say
- * nothing about this one; a landing that writes the snapshot without listing
- * its run leaves the record behind like that.
+ * nothing about this one.
  */
 export function standsOf({ commit, runs, tests }) {
   const stands = new Map(tests.map((test) => [test, commit]));

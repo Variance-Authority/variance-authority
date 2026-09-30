@@ -4,7 +4,14 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
-import { commitRunsFile, landRun, readCommitRuns, readTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  commitRunsFile,
+  landRun,
+  readCommitRuns,
+  readTestCoverage,
+  writeTestCoverage,
+  type TestCoverage,
+} from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { readingFrom, wholeEntry, withoutFiles } from './since-base.mjs';
 import { readChange, selectedFiles } from './since-change.mjs';
@@ -233,6 +240,37 @@ describe('a file charged whole is cut out of the hunk diff by its header, howeve
   });
 });
 
+/** The `variance` executable, where the CLI's manifest says it is. */
+const CLI = resolve(import.meta.dirname, '../packages/cli');
+const VARIANCE = resolve(CLI, (JSON.parse(readFileSync(resolve(CLI, 'package.json'), 'utf8')) as { bin: { variance: string } }).bin.variance);
+
+/**
+ * Land `shard` on the snapshot at `file` the way a pipeline does, with
+ * `variance journeys <shard> --into <file>` run from a directory of its own:
+ * the command reads a project config, and one inside the checkout would read as
+ * a change.
+ */
+async function land(file: string, shard: TestCoverage): Promise<void> {
+  const cwd = await mkdtemp(resolve(tmpdir(), 'va-since-land-'));
+  const config = {
+    project: 'since',
+    profile: 'chromium',
+    viewport: { width: 1280, height: 800 },
+    retention: 'durable',
+    subjects: { kind: 'list', ids: ['unused'], collector: './collector.mjs' },
+    baselines: { kind: 'directory', root: 'baselines' },
+    fonts: [],
+    report: 'report.json',
+  };
+  await writeFile(resolve(cwd, 'variance.config.json'), JSON.stringify(config));
+  await writeTestCoverage(resolve(cwd, 'shard.bin'), shard);
+  execFileSync(process.execPath, [VARIANCE, 'journeys', resolve(cwd, 'shard.bin'), '--into', file], {
+    cwd,
+    env: { ...process.env, VARIANCE_AUTHORITY_CACHE: resolve(cwd, 'cache') },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
 /**
  * Snapshots laid down the way `yarn test` lays them, through `landRun`, and
  * read the way `yarn test:since` reads them, through `readChange`.
@@ -338,6 +376,20 @@ describe('legs at two commits leave each test read from where it last ran', () =
 
     expect(reading.nothing).toBeUndefined();
     expect(reading.decided).toEqual({ selected: ['test/new.test.ts'] });
+  });
+
+  it('reads a landing of shards as a run at its commit, so the tests it did not run are read from where they last ran', async () => {
+    const { read, file, commit, at, C } = await legs();
+    const D = await commit(source('other', 3), 'D');
+    await land(file, run(at, D, ['far']));
+
+    const reading = await read();
+
+    // `near` last ran at H and `other` at C, and each module changed after.
+    expect(reading.decided).toEqual({ selected: ['test/near.test.ts', 'test/other.test.ts'] });
+    expect(reading.start.base).toBe(D);
+    expect(reading.start.assumed).toBeUndefined();
+    expect(await readCommitRuns(file)).toMatchObject({ commit: D, over: C, files: ['test/far.test.ts'] });
   });
 
   it('says what it assumed when it finds nothing to run without the runs record', async () => {

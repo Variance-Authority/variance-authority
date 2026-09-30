@@ -31,7 +31,9 @@
  *
  * Written beside the snapshot, and by every writer of the snapshot rather than
  * by one seam: which runner recorded a run is not a question its reader should
- * have to ask.
+ * have to ask. A landing of shard snapshots is one of those writers. Its fold is
+ * one run of the suite at the shards' commit, and the shards name the test files
+ * they ran, so it is recorded by the same rules as a run.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -78,6 +80,15 @@ export function commitRunsFile(coverageFile: string): string {
 }
 
 /**
+ * What the runs record reads of a snapshot, or of a run laid over one: the
+ * probes it was recorded under, the commit it names, and its test files. A
+ * {@link TestCoverage} is one.
+ */
+export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
+  readonly tests: readonly { readonly file: string }[];
+};
+
+/**
  * Lay `current` over the snapshot, and add it to the runs at its commit.
  *
  * The caller holds the index lock: the base read here, the write after it and
@@ -85,10 +96,30 @@ export function commitRunsFile(coverageFile: string): string {
  * together each add their files.
  */
 export async function landRun(coverageFile: string, current: TestCoverage, root: string): Promise<void> {
-  const prior = await standingSnapshot(coverageFile, current.instrumentation);
-  const stood = prior?.commit;
+  const before = await recordedSnapshot(coverageFile);
   const held = await readCommitRuns(coverageFile);
   await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current));
+}
+
+/**
+ * The runs record once `current` is laid over the snapshot `before`, where
+ * `held` is the record beside that snapshot.
+ *
+ * The test files are `current`'s own, as its runner recorded them. Nothing here
+ * works them out again. A snapshot under other probes is replaced rather than
+ * laid over, so it is no base: the record then names none.
+ *
+ * {@link landRun} reads both inputs off the disk. A landing of shard snapshots
+ * has already read the snapshot to merge over it, and passes that.
+ */
+export function commitRunsAfter(
+  before: RecordedTests | undefined,
+  held: CommitRuns | undefined,
+  current: RecordedTests,
+): CommitRuns {
+  const prior = before?.instrumentation === current.instrumentation ? before : undefined;
+  const stood = prior?.commit;
   const at = new Date().toISOString();
   const files = current.tests.map((test) => test.file);
   // The snapshot already stands at this commit and the record says what it
@@ -97,7 +128,7 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
   const over = again ? held.over : stood;
   const ran = again ? [...new Set([...held.files, ...files])].sort(codeUnitOrder) : files;
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, current.commit, ran);
-  const record: CommitRuns = {
+  return {
     ...(current.commit === undefined ? {} : { commit: current.commit }),
     ...(over === undefined ? {} : { over }),
     first: again ? held.first : at,
@@ -106,7 +137,14 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
     files: ran,
     ...(standing === undefined ? {} : { standing }),
   };
-  await writeCoverageBytes(commitRunsFile(coverageFile), Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
+}
+
+/**
+ * Write `record` to `to`, whole or not at all: to {@link commitRunsFile} of the
+ * snapshot, or to a file staged beside it that the caller renames over it.
+ */
+export async function writeCommitRuns(to: string, record: CommitRuns): Promise<void> {
+  await writeCoverageBytes(to, Buffer.from(`${JSON.stringify(record, null, 2)}\n`));
 }
 
 /**
@@ -125,15 +163,9 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
  * snapshot, and the record beside it is the worktree's own, which does not
  * exist yet: the primary checkout's runs describe its change, not this one. So
  * a worktree's first partial run leaves `standing` absent too.
- *
- * FIXME: `landJourneys` in `packages/cli/src/commands/land.ts` writes the
- * snapshot without calling `landRun`, so a landing of shard snapshots leaves
- * this record naming the commit before it. The next run here finds a record
- * speaking for another snapshot and writes no `standing`, and a `test:since`
- * before that run reads every test from the landed commit, saying so.
  */
 function standingAfter(
-  prior: { readonly commit: string | undefined; readonly tests: readonly string[] } | undefined,
+  prior: RecordedTests | undefined,
   held: CommitRuns | undefined,
   commit: string,
   ran: readonly string[],
@@ -141,7 +173,7 @@ function standingAfter(
   // No snapshot under these probes: the run replaced it, and holds only its own.
   if (prior === undefined) return [];
   const observed = new Set(ran);
-  const unobserved = prior.tests.filter((test) => !observed.has(test));
+  const unobserved = prior.tests.map((test) => test.file).filter((test) => !observed.has(test));
   if (unobserved.length === 0) return [];
   const stood = prior.commit;
   if (stood === undefined || held?.commit !== stood || held.standing === undefined) return undefined;
@@ -174,19 +206,14 @@ export async function readCommitRuns(coverageFile: string): Promise<CommitRuns |
   return JSON.parse(text) as CommitRuns;
 }
 
-/**
- * The snapshot a run under `instrumentation` is laid over — its commit and its
- * test files — which a snapshot under other probes is not.
- */
-async function standingSnapshot(
-  coverageFile: string,
-  instrumentation: string,
-): Promise<{ readonly commit: string | undefined; readonly tests: readonly string[] } | undefined> {
+/** The snapshot at `coverageFile` as the runs record reads it, or `undefined` when there is none to read. */
+async function recordedSnapshot(coverageFile: string): Promise<RecordedTests | undefined> {
   try {
-    return await askCoverageFile(coverageFile, (coverage) =>
-      coverage.instrumentation === instrumentation
-        ? { commit: coverage.commit, tests: Array.from(coverage.testPath.all(), (path) => coverage.string(path)) }
-        : undefined);
+    return await askCoverageFile(coverageFile, (coverage) => ({
+      instrumentation: coverage.instrumentation,
+      ...(coverage.commit === undefined ? {} : { commit: coverage.commit }),
+      tests: Array.from(coverage.testPath.all(), (path) => ({ file: coverage.string(path) })),
+    }));
   } catch {
     return undefined;
   }
