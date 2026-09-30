@@ -126,18 +126,10 @@ export async function landJourneys(
       }
     }
 
-    let held;
-    try {
-      held = await selection.readCommitRuns(at);
-    } catch (error) {
-      throw new OperatorError(
-        `the runs record at ${said(runsAt)} could not be read: ${messageOf(error)}. ` +
-          'Delete it and land again; the record written then says what the shards ran, ' +
-          'and leaves out where the tests they did not run last ran.',
-        { cause: error },
-      );
-    }
-
+    // A runs record that cannot be read is written afresh, and said so, as a
+    // runner's `landRun` does: refusing would leave the operator to delete it
+    // and land again, which writes the same record.
+    const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const landed = selection.mergeCoverage(previous, folded);
     const runs = selection.commitRunsAfter(previous, held, folded);
     try {

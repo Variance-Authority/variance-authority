@@ -1,7 +1,7 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { commitRunsFile, landRun, readCommitRuns } from './commit-runs.js';
 import { writeTestCoverage, type TestCoverage } from './index.js';
 
@@ -236,5 +236,50 @@ describe('the runs recorded at one commit', () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
 
     expect(await readCommitRuns(join(root, 'coverage.bin'))).toBeUndefined();
+  });
+
+  it('refuses a record that is there and is not a JSON object, naming the file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
+    const coverageFile = join(root, 'coverage.bin');
+
+    await writeFile(commitRunsFile(coverageFile), '{"commit": ', 'utf8');
+    await expect(readCommitRuns(coverageFile)).rejects.toThrow(`the runs record at ${commitRunsFile(coverageFile)} is not JSON`);
+    await writeFile(commitRunsFile(coverageFile), '[]', 'utf8');
+    await expect(readCommitRuns(coverageFile)).rejects.toThrow(`the runs record at ${commitRunsFile(coverageFile)} is not a JSON object`);
+  });
+
+  it('refuses a record that is there and cannot be read, rather than reading it as absent', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
+    const coverageFile = join(root, 'coverage.bin');
+
+    await mkdir(commitRunsFile(coverageFile));
+    await expect(readCommitRuns(coverageFile)).rejects.toThrow(`the runs record at ${commitRunsFile(coverageFile)} could not be read`);
+  });
+
+  it('writes a fresh record over one it cannot read, without `standing`, and says so', async () => {
+    const { root, coverageFile } = await recorded('H');
+    await writeTestCoverage(coverageFile, run('H', ['a.test.ts', 'b.test.ts']));
+    await writeFile(commitRunsFile(coverageFile), '{"commit": ', 'utf8');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await landRun(coverageFile, run('C', ['a.test.ts']), root);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(`the runs record at ${commitRunsFile(coverageFile)} is not JSON`));
+    } finally {
+      warn.mockRestore();
+    }
+    const written = await readCommitRuns(coverageFile);
+    expect(written).toMatchObject({ commit: 'C', over: 'H', runs: 1, files: ['a.test.ts'] });
+    expect(written?.standing).toBeUndefined();
+  });
+
+  it('lets a failure to write the record surface', async () => {
+    const { root, coverageFile } = await recorded('H');
+    await mkdir(commitRunsFile(coverageFile));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await expect(landRun(coverageFile, run('C', ['a.test.ts']), root)).rejects.toThrow();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

@@ -250,31 +250,37 @@ export function installDepends(root) {
 }
 
 /**
- * Which packages are not the packages that were there, between a revision and
- * the working tree.
+ * Which packages are not the packages that were there, between each of `bases`
+ * and the working tree, in the order asked.
  *
  * The lockfile is read at two revisions, never counted as a changed path: a
  * workspace version rewrite moves hundreds of its lines and no installed byte,
  * and a transitive bump moves real code behind a line nobody reads. `undefined`
- * says the comparison could not be made — no lockfile, no such revision, a
- * format this build does not know — and a caller that cannot compare an install
- * cannot report success over a package it never looked at.
+ * says the comparison could not be made — no such revision, a format this build
+ * does not know — and a caller that cannot compare an install cannot report
+ * success over a package it never looked at. No lockfile at all moves nothing.
+ * The working tree's lockfile is read and parsed once, however many revisions
+ * it is compared against.
  */
-export function movedPackages(root, base, git) {
+export function movedPackages(root, bases, git) {
   const found = lockfileAt(root);
-  if (found === undefined) return [];
-  let before;
-  try {
-    before = git('show', `${base}:${found.name}`);
-  } catch {
-    return undefined;
-  }
-  if (before === found.text) return [];
-  try {
-    return changedPackages(readLockfile(found.name, before), readLockfile(found.name, found.text));
-  } catch {
-    return undefined;
-  }
+  if (found === undefined) return bases.map(() => []);
+  let after;
+  const parsed = () => (after ??= readLockfile(found.name, found.text));
+  return bases.map((base) => {
+    let before;
+    try {
+      before = git('show', `${base}:${found.name}`);
+    } catch {
+      return undefined;
+    }
+    if (before === found.text) return [];
+    try {
+      return changedPackages(readLockfile(found.name, before), parsed());
+    } catch {
+      return undefined;
+    }
+  });
 }
 
 /**

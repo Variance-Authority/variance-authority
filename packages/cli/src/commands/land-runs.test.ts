@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +11,6 @@ import {
   writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { OperatorError } from '../exit.js';
 import { landJourneys } from './land.js';
 
 /**
@@ -164,17 +163,25 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     });
   });
 
-  it('refuses a runs record it cannot read, naming it, and lands nothing', async () => {
+  it('writes a runs record it cannot read afresh, as a runner does, and says so naming it', async () => {
     await partial();
     await writeFile(commitRunsFile(into), '{ not json');
-    const snapshot = await readFile(into);
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    let said: string;
+    try {
+      await land(run('C', ['other.test.ts']));
+    } finally {
+      said = stderr.mock.calls.map(([line]) => String(line)).join('');
+      stderr.mockRestore();
+    }
 
-    const landing = land(run('C', ['other.test.ts']));
-
-    await expect(landing).rejects.toBeInstanceOf(OperatorError);
-    await expect(landing).rejects.toThrow(`the runs record at ${commitRunsFile(into)} could not be read`);
-    expect(await readFile(into)).toEqual(snapshot);
-    expect(await readFile(commitRunsFile(into), 'utf8')).toBe('{ not json');
+    expect((await readTestCoverage(into)).commit).toBe('C');
+    const runs = await readCommitRuns(into);
+    expect(runs).toMatchObject({ commit: 'C', over: 'H', files: ['other.test.ts'] });
+    expect(runs).not.toHaveProperty('standing');
+    expect(said).toContain(
+      `variance: the runs record at ${commitRunsFile(into)} is not JSON`,
+    );
   });
 
   it('landed again after the record was not renamed, names the commit the interrupted landing was laid over, and where each test stood there', async () => {

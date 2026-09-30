@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { changedSince, diffSince } from './since.js';
 
@@ -238,5 +238,17 @@ describe('what a diff touched, named the way the run names files', () => {
     // An empty list means "this diff touched nothing", and a run that narrowed
     // itself to nothing on the strength of a missing ref would report success.
     await expect(changedSince('no-such-ref', ['src'])).rejects.toThrow(/could not list what changed/);
+  });
+
+  it('reads no diff for a directory outside any checkout, rather than the one the process is in', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'va-since-'));
+    repo(root);
+    commit(root, { 'src/a.ts': 'export const a = 1;\n' }, 'first');
+    writeFileSync(join(root, 'src/a.ts'), 'export const a = 2;\n');
+    process.chdir(root);
+    const outside = mkdtempSync(join(tmpdir(), 'va-since-outside-'));
+
+    expect(await diffSince('HEAD', [], undefined, { cwd: outside })).toBeUndefined();
+    await expect(changedSince('HEAD', [relative(root, outside)])).rejects.toThrow(/is not in a git checkout/);
   });
 });
