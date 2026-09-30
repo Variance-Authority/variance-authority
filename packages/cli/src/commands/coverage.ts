@@ -70,6 +70,20 @@ export interface Coverage {
   readonly sourceMissed?: string;
   /** Each package with `--packages`, or each directory the root config declares entry points for, counted over its own files and over everything it reaches. Absent with `--from`. */
   readonly entries?: readonly (CoverageEntry | MissedEntry)[];
+  /**
+   * The files changed since the commit every base was recorded at, when no
+   * counted suite loads any of them and no suite's count changed. Absent
+   * whenever git or a record cannot say so, and whenever the change is
+   * anything else: the whole count is then the answer.
+   */
+  readonly unloadedChange?: UnloadedChange;
+}
+
+/** A change no suite loads: the files git says changed, and since which commit. */
+export interface UnloadedChange {
+  readonly since: string;
+  /** In code-unit order. */
+  readonly files: readonly string[];
 }
 
 /** Count the records the request names, and compare them with their bases. */
@@ -102,6 +116,10 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   const now: CountedSuite[] = [];
   const bases: CountedSuite[] = [];
   const harness = new Set<string>();
+  // Every file a counted suite loads: the modules it instrumented, its test
+  // files, and what every test rests on. Unscoped, because `--from` narrows
+  // the count, not what the suites load.
+  const loaded = new Set<string>();
   for (const one of counted) {
     const named = one === undefined ? {} : { suite: one.name, kind: one.kind };
     // The record and everything read beside it come from one cache layer: the
@@ -113,7 +131,10 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       suites.push(named);
       continue;
     }
-    const index = within(await readExecutionIndex(from), scope);
+    const whole = await readExecutionIndex(from);
+    for (const module of whole.modules) loaded.add(module.file);
+    for (const test of whole.tests) loaded.add(test.file);
+    const index = within(whole, scope);
     const recorded = await recordedCommit(record);
     for (const entry of restsOn(record)) harness.add(entry);
     now.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index });
@@ -146,11 +167,14 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   const count = countCoverage(now);
   const indexes = now.map((one) => one.index);
   const reach = 'missed' in reading ? undefined : harnessReach(reading.records, [...harness].sort());
+  for (const entry of harness) loaded.add(entry);
+  const unloadedChange = await changeNoSuiteLoads(request.root, suites, loaded);
   return {
     ...(at === undefined ? {} : { at }),
     count,
     suites,
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
+    ...(unloadedChange === undefined ? {} : { unloadedChange }),
     ...('missed' in reading
       ? { sourceMissed: reading.missed }
       : {
@@ -214,6 +238,47 @@ async function baseOf(
     return { missed: `no base: mainline ${shared.mainline} published no per-case index of "${shared.suite}"${shared.casesUnread === undefined ? '' : `: ${shared.casesUnread}`}` };
   }
   return { from: shared.cases, commit: shared.commit };
+}
+
+/**
+ * The files changed since the one commit every base was recorded at, when no
+ * counted suite loads any of them and no suite's count changed. Git says what
+ * changed, the working tree included; the records say what the suites load.
+ * A declared suite with no record, a base with no commit, bases at two
+ * commits, a git that cannot answer, no changed file, or one changed file a
+ * suite loads: each leaves the answer to the whole count.
+ */
+async function changeNoSuiteLoads(
+  root: string,
+  suites: readonly CoverageSuite[],
+  loaded: ReadonlySet<string>,
+): Promise<UnloadedChange | undefined> {
+  const bases = suites.map((suite) => suite.base);
+  if (bases.length === 0 || bases.some((base) => base === undefined || !unchanged(base.change))) return undefined;
+  const commits = new Set(bases.map((base) => base!.commit));
+  const [since] = commits;
+  // The commit is read from a file beside the record, so only an object name
+  // reaches git: anything else could be read as an option.
+  if (commits.size !== 1 || since === undefined || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(since)) return undefined;
+  let names: string;
+  try {
+    // `-z`: without it git quotes a path with unusual characters, and a quoted
+    // path never matches the name a record lists.
+    names = (await promisify(execFile)('git', ['diff', '--name-only', '--no-renames', '-z', since], { cwd: root })).stdout;
+  } catch {
+    return undefined;
+  }
+  const files = names.split('\0').filter((file) => file !== '').sort();
+  if (files.length === 0 || files.some((file) => loaded.has(file))) return undefined;
+  return { since, files };
+}
+
+/** Whether a suite's count is the base's, part for part. */
+function unchanged(change: SuiteChange): boolean {
+  return change.gained === 0 && change.lost === 0 && change.hidden === 0 && change.thinned === 0 &&
+    change.written.regions === 0 && change.deleted.regions === 0 &&
+    change.arrived.files.length === 0 && change.departed.files.length === 0 &&
+    change.testFiles.every((file) => file.entered.length === 0 && file.left.length === 0);
 }
 
 async function head(root: string): Promise<string | undefined> {

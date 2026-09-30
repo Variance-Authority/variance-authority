@@ -224,20 +224,54 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
   it('compares no case against the base when no run at this commit wrote the case index', async () => {
     const { root, first } = await changed();
-    // The mainline's full run wrote the layers last; the run at this commit skipped its one file and wrote nothing.
+    // The mainline's full run wrote the layers last; the run at this commit stopped in its one file and wrote nothing.
     const mainline = { commit: first, at: '2026-09-25T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] };
-    const layers = await layered(root, mainline, MAINLINE_BEFORE, CHANGE, ['test/skipped.chromium.test.ts']);
+    const layers = await layered(root, mainline, MAINLINE_BEFORE, CHANGE, ['test/total.test.ts']);
 
     const answer = await review(parse(['--since', first, '--root', root]));
 
-    expect(answer.motion).toEqual({ base: { from: layers.before, kind: 'before' }, unwritten: ['test/skipped.chromium.test.ts'] });
+    expect(answer.motion).toEqual({ base: { from: layers.before, kind: 'before' }, unwritten: ['test/total.test.ts'] });
     // Nor are a changed test file's cases compared with the names the mainline's layer holds.
     expect(answer.files.find((file) => file.file === 'test/total.test.ts')?.cases).toBeUndefined();
     const markdown = formatReview(answer, 'markdown');
     expect(markdown).not.toContain('Lost every case');
     expect(markdown).not.toContain('old name');
     expect(markdown).toContain('No case index was written at this commit for the one test file run at this commit, so no case is compared against the base.');
-    expect(formatReview(answer, 'text')).toContain('Not compared, no case index was written at this commit for: test/skipped.chromium.test.ts.');
+    expect(formatReview(answer, 'text')).toContain('Not compared, no case index was written at this commit for: test/total.test.ts.');
+  });
+
+  it('names no test file whose every case skipped, because the index holds no case of it to compare', async () => {
+    const { root, first } = await changed();
+    // A change no test file loads, on a machine with no browser: the only file the run
+    // selected is one whose every case skips there, as it did in the mainline's run.
+    const mainline = { commit: first, at: '2026-09-25T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] };
+    const layers = await layered(root, mainline, MAINLINE_BEFORE, CHANGE, ['test/skipped.chromium.test.ts']);
+
+    const answer = await review(parse(['--since', first, '--root', root]));
+
+    expect(answer.motion).toEqual({ base: { from: layers.before, kind: 'before' }, unwritten: [] });
+    const markdown = formatReview(answer, 'markdown');
+    expect(markdown).not.toContain('skipped.chromium');
+    expect(markdown).not.toContain('No case index was written');
+    expect(markdown).not.toContain('Cases moved against the base');
+    expect(formatReview(answer, 'text')).not.toContain('Not compared');
+  });
+
+  it('says of a change to prose alone only that no record holds it', async () => {
+    const { root, first } = await changed();
+    // Undo the fixture's change to code, and change a document instead.
+    git(root, ['checkout', first, '--', '.']);
+    await writeFile(join(root, 'NOTES.md'), '# Notes\n');
+    git(root, ['add', 'NOTES.md']);
+    const mainline = { commit: first, at: '2026-09-25T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] };
+    await layered(root, mainline, MAINLINE_BEFORE, CHANGE, ['test/skipped.chromium.test.ts']);
+
+    const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
+
+    expect(markdown).toContain('1 changed file, and no changed region the record covers.');
+    expect(markdown).toContain('- `NOTES.md`');
+    expect(markdown).not.toContain('skipped.chromium');
+    expect(markdown).not.toContain('Cases moved against the base');
   });
 
   it('compares every test file the runs at this commit wrote, and names the ones they did not', async () => {
@@ -252,11 +286,12 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(written.motion?.moved?.counts).toEqual({ lost: 0, hidden: 0, thinned: 0, gained: 0 });
     expect(written.motion?.unwritten).toEqual([]);
 
-    await layered(root, last, before, CHANGE, ['test/skipped.chromium.test.ts', 'test/total.test.ts']);
+    // The last writer named only the other file, so the one with cases was not written.
+    await layered(root, { ...last, files: ['test/other.test.ts'] }, before, CHANGE, ['test/other.test.ts', 'test/total.test.ts']);
 
     const both = await review(parse(['--since', first, '--root', root]));
 
-    expect(both.motion?.unwritten).toEqual(['test/skipped.chromium.test.ts']);
+    expect(both.motion?.unwritten).toEqual(['test/total.test.ts']);
     expect(both.motion?.moved?.counts).toEqual({ lost: 0, hidden: 0, thinned: 0, gained: 0 });
   });
 
