@@ -45,7 +45,8 @@ fetched here, and the reader says so.**
   `<cacheRoot>/share/read/<suite>/<commit>/` and names it, last, in
   `fetched.json` beside it. A seam laying a first record reads that name
   (`lastFetchedMainline`) and lays that record with the runs record it came
-  with (`layFetchedMainline`); with no name it lays the primary checkout's.
+  with, seeded with `runs: 0` as the primary checkout's is
+  (`layFetchedMainline`); with no name it lays the primary checkout's.
   Either way it prints which (`noteSeeded`). A test run never opens a
   connection, and a plain `yarn test` in a fresh worktree gets the same base
   `test:since` would have read.

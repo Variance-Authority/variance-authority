@@ -81,10 +81,10 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
 
 /**
  * Lay the mainline's record into a checkout's own layer, where the run it
- * makes next lands on it: the coverage record, its per-case index and the
- * runs record, unaltered, by the same `layFetchedMainline` a runner seam lays
- * it with. Nothing is made up in place of a runs record the entry did not
- * carry.
+ * makes next lands on it: the coverage record and its per-case index
+ * unaltered, and the runs record as a seed with `runs: 0`, by the same
+ * `layFetchedMainline` a runner seam lays it with. Nothing is made up in place
+ * of a runs record the entry did not carry.
  *
  * A seam lays it on its own before a run lands, so a checkout needs this only
  * when something reads the own layer before the first run: CI's

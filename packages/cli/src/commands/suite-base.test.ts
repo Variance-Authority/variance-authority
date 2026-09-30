@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
@@ -121,7 +121,7 @@ describe('the record a worktree that has run nothing measures from', () => {
     expect(existsSync(testCoverageFile(worktree, { suite: 'unit' }))).toBe(false);
   });
 
-  it('is laid into a fresh CI checkout\'s own layer with the runs record the mainline carried, and never over a record it has', async () => {
+  it('is laid into a fresh CI checkout\'s own layer with the runs record the mainline carried as a seed, and never over a record it has', async () => {
     const { origin } = await mainline();
     const fresh = join(home, 'fresh');
     await git(home, 'clone', '--quiet', origin, fresh);
@@ -135,7 +135,9 @@ describe('the record a worktree that has run nothing measures from', () => {
     expect(laid).toBe(own);
     expect(await readFile(own)).toEqual(await readFile(base.file));
     expect(existsSync(`${own}.cases.bin`)).toBe(true);
-    expect(await readFile(commitRunsFile(own))).toEqual(await readFile(join(dirname(base.file), 'coverage.runs.json')));
+    // The mainline's runs record, as a seed: none of its runs are this checkout's.
+    const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
+    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });
     expect(await suiteBase(fresh, { env: LOCAL })).toEqual({ from: 'own', suite: 'unit', file: own });
     expect(await layMainline(fresh, base.mainline)).toBeUndefined();
   });
@@ -246,7 +248,8 @@ describe('every reader of a worktree that has run nothing starts from the same r
     expect(seeded).toMatchObject({ from: 'mainline', record: { mainline: 'main', commit: ci.first } });
     expect(await readFile(own)).toEqual(ci.record);
     expect(await readFile(own)).not.toEqual(record);
-    expect(await readFile(commitRunsFile(own))).toEqual(await readFile(commitRunsFile(base.file)));
+    const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
+    expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });
   });
 
   it('`variance select` reads the mainline\'s record, and says so, where the primary checkout holds one too', async () => {

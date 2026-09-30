@@ -1915,9 +1915,9 @@ owns its own collector, renderer, storage, or review surface:
   read. `mainlineRead` and `mainlineMissed` print the same `record of
   "<suite>":` line `select` does. The mainline's record is read with the runs
   record the publishing run carried beside it, at `mainline.runs`. In a fresh
-  CI checkout, `layMainline` copies the record, its per-case index and that
-  runs record into the checkout's own layer, so the run the job makes lands on
-  them, as a cache restore would. `env` stands in for `process.env` when the
+  CI checkout, `layMainline` copies the record and its per-case index into the
+  checkout's own layer, with that runs record as a seed that lists no run, so
+  the run the job makes lands on them, as a cache restore would. `env` stands in for `process.env` when the
   line is asked, and `cacheRoot` for the cache.
 - The executable's `config` path selects the source; `parseConfig` takes that
   value and `baseDir` through `ParseOptions`. Relative paths resolve against

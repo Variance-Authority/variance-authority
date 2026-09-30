@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { cacheRootFor, primaryCheckout } from './cache-layers.js';
-import { commitRunsFile } from './commit-runs.js';
+import { commitRunsFile, type CommitRuns } from './commit-runs.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { openTestCoverage } from './format-view.js';
@@ -101,10 +101,11 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
  * checkout's, because each checkout fetches into its own cache and a worktree
  * cut this morning has fetched nothing. A caller that names `cacheRoot` asks
  * that one only, as {@link cacheLayers} reads both layers from it. A pointer
- * whose record is not on disk is passed over.
+ * whose record is not on disk, or does not read in this build, is passed over.
  *
  * Synchronous, because {@link nearestTestCoverage} asks it and a caller of that
- * cannot wait: two small reads.
+ * cannot wait. It opens the record, so a reader asks it only once the
+ * checkout's own layer has none.
  */
 export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string): LastFetched | undefined {
   const declared = declaredSuites(root);
@@ -119,13 +120,16 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
     if (!existsSync(coverage)) continue;
     const cases = `${coverage}.cases.bin`;
     const runs = commitRunsFile(coverage);
-    newest = {
+    const found: LastFetched = {
       ...pointer,
       suite: name,
       coverage,
       ...(existsSync(cases) ? { cases } : {}),
       ...(existsSync(runs) ? { runs } : {}),
     };
+    // One this build does not read, fetched by another version of it, is no
+    // base: every reader passes it over here, rather than each checking again.
+    if (fetchedMainlineReads(found)) newest = found;
   }
   return newest;
 }
@@ -139,13 +143,18 @@ function fetchCaches(root: string, cacheRoot: string | undefined): readonly stri
 }
 
 /**
- * Copy `record` into the own layer at `file`: the coverage record, its case
- * index and its runs record, unaltered, and nothing else. Nothing is laid over
- * a record already there, and a record whose bytes this build does not read is
- * not laid. Says whether it laid.
+ * Copy `record` into the own layer at `file`: the coverage record and its case
+ * index unaltered, and its runs record as a seed, and nothing else. Nothing is
+ * laid over a record already there, and a record whose bytes this build does
+ * not read is not laid. Says whether it laid.
  *
  * The runs record comes with the snapshot it describes, so the first run here
- * carries its `over` and `standing` forward rather than starting them again.
+ * carries its `standing` forward rather than starting it again. It is laid
+ * with `runs: 0`, as a seed from the primary checkout's is: the mainline's
+ * runs are not this checkout's, so its first run at the same commit starts its
+ * own change there rather than counting as one more of CI's — see `landRun` —
+ * and a review before that run finds none listed. A runs record naming another
+ * commit than its snapshot describes neither, and is not laid.
  * A case index or runs record already in the own layer beside no snapshot
  * describes nothing, and is replaced or removed with the lay.
  */
@@ -162,8 +171,8 @@ export async function layFetchedMainline(record: LastFetched, file: string): Pro
   try {
     coverage = await readFile(record.coverage);
     cases = record.cases === undefined ? undefined : await readFile(record.cases);
-    runs = record.runs === undefined ? undefined : await readFile(record.runs);
-    opensFetched(coverage, cases, runs);
+    const held = opensFetched(coverage, cases, record.runs === undefined ? undefined : await readFile(record.runs));
+    runs = held === undefined ? undefined : seeded(held);
   } catch {
     return false;
   }
@@ -177,14 +186,10 @@ export async function layFetchedMainline(record: LastFetched, file: string): Pro
 
 /**
  * Whether this build reads `record`, by the check {@link layFetchedMainline}
- * makes before it lays one: a reader that would be handed its path skips a
- * record the first run would not lay, so both find the same base.
- *
- * Synchronous, for {@link nearestTestCoverage}, and asked only once the
- * checkout's own layer has no record, so it costs a read in a checkout that
- * has not run and nothing after.
+ * makes before it lays one, so a reader handed its path and the first run
+ * here find the same base.
  */
-export function fetchedMainlineReads(record: LastFetched): boolean {
+function fetchedMainlineReads(record: LastFetched): boolean {
   try {
     opensFetched(
       readFileSync(record.coverage),
@@ -197,11 +202,29 @@ export function fetchedMainlineReads(record: LastFetched): boolean {
   }
 }
 
-/** Throws unless this build reads each part. Opening parses the section index and nothing else, which is the whole of what "this build can read it" means. */
-function opensFetched(coverage: Uint8Array, cases: Uint8Array | undefined, runs: Uint8Array | undefined): void {
-  openTestCoverage(coverage);
+/**
+ * Throws unless this build reads each part. Opening parses the section index
+ * and nothing else, which is the whole of what "this build can read it" means;
+ * the runs record reads when it is a JSON object, as `readCommitRuns` has it.
+ * Returns the runs record when it names the snapshot's own commit.
+ */
+function opensFetched(
+  coverage: Uint8Array,
+  cases: Uint8Array | undefined,
+  runs: Uint8Array | undefined,
+): CommitRuns | undefined {
+  const { commit } = openTestCoverage(coverage);
   if (cases !== undefined && openSetExecutionIndex(cases) === undefined) decodeExecutionTests(cases);
-  if (runs !== undefined) JSON.parse(Buffer.from(runs).toString('utf8'));
+  if (runs === undefined) return undefined;
+  const held: unknown = JSON.parse(Buffer.from(runs).toString('utf8'));
+  if (typeof held !== 'object' || held === null || Array.isArray(held)) throw new Error('the runs record is not a JSON object');
+  return commit !== undefined && (held as CommitRuns).commit === commit ? (held as CommitRuns) : undefined;
+}
+
+/** `held` as the seed of a checkout that has not run: its runs are none of this checkout's. */
+function seeded(held: CommitRuns): Uint8Array {
+  const at = new Date().toISOString();
+  return Buffer.from(`${JSON.stringify({ ...held, first: at, latest: at, runs: 0 } satisfies CommitRuns, null, 2)}\n`);
 }
 
 async function place(file: string, bytes: Uint8Array | undefined): Promise<void> {

@@ -592,7 +592,9 @@ record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(
 was. Your test runner's integration never asks the remote. When its first run
 in a checkout has no record to land on, it copies the mainline record last
 fetched on this machine into the checkout's own place, with the runs record
-that came with it, and prints that it did. With none fetched, a worktree's
+that came with it, and prints that it did. None of those runs are the
+checkout's own, so `variance review` finds no run listed until your first one,
+which starts your change at that commit. With none fetched, a worktree's
 first run copies the primary checkout's, and says so.
 
 A [miss](#when-a-share-fails), or an execution record that names no commit or

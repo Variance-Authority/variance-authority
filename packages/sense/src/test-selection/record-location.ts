@@ -20,7 +20,7 @@ import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.j
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
-import { fetchedMainlineReads, layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
+import { layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
 import { declaredSuite } from './suites.js';
 
 export interface RecordLocationOptions {
@@ -315,12 +315,12 @@ export async function readableTestCoverage(
 export function nearestTestCoverage(root: string, options: RecordLocationOptions = {}): string {
   const inside = recordPath(root, options.suite);
   const [own, ...under] = layeredFiles(repositoryLayers(root, options.cacheRoot), inside);
-  const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
-  const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot);
   if (present(own!)) return own!;
   // The fetched record is the base only when the first run here would lay it:
   // one this build does not read is passed over, as seeding passes it over.
-  if (fetched !== undefined && fetchedMainlineReads(fetched)) return fetched.coverage;
+  const suite = /^suites\/([^/]+)\//u.exec(inside)?.[1];
+  const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot);
+  if (fetched !== undefined) return fetched.coverage;
   for (const file of under) if (present(file)) return file;
 
   return own!;
