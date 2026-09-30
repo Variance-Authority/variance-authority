@@ -51,7 +51,8 @@
  * beside the binary as `scan.node.tree`. Git owns what the directory contains;
  * nothing here hashes it again. A directory with uncommitted changes has no
  * tree id that describes it, and neither does a build narrowed by
- * `SENSE_TARGET_CPU` or `RUSTFLAGS`, or one that lost the grammars: each of
+ * `SENSE_TARGET_CPU`, `RUSTFLAGS` or `CARGO_ENCODED_RUSTFLAGS` (which `cargo`
+ * reads first), or one that lost the grammars: each of
  * those builds, and leaves no stamp. That is what lets CI restore a binary and
  * its stamp from a cache and pay nothing for a crate nobody changed, and it
  * says so when it skips.
@@ -109,7 +110,8 @@ const tree = builtFrom();
 const plain =
   target === undefined &&
   (process.env['SENSE_TARGET_CPU'] ?? '') === '' &&
-  (process.env['RUSTFLAGS'] ?? '') === '';
+  (process.env['RUSTFLAGS'] ?? '') === '' &&
+  (process.env['CARGO_ENCODED_RUSTFLAGS'] ?? '') === '';
 const stamped = existsSync(stamp) ? readFileSync(stamp, 'utf8').trim() : undefined;
 
 if (plain && tree !== undefined && stamped === tree && existsSync(join(into, 'scan.node'))) {
