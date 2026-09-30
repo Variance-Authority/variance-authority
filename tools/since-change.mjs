@@ -144,8 +144,11 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
   // rewrite moves hundreds of manifest lines and no installed byte. `undefined`
   // is a comparison that could not be made. A manifest whose change the install
   // does not read — `exports`, `main`, `type` — is set aside too, and its
-  // package's files stand in for it. Read from where the change starts, because
-  // the tests that last ran there stand on the install there.
+  // package's files stand in for it. Read from `from`, the stand landed
+  // earliest, because the tests that last ran there stand on the install there.
+  // FIXME: the tests at every other stand stand on that stand's install, and
+  // only `from`'s is compared: an install that differs between another stand
+  // and the checkout, and not between `from` and the checkout, moves nothing.
   const moved = movedPackages(root, from, git);
   const manifests = movedManifests(root, from, git, changed);
   const consequential = changed.filter((path) => !isManifest(path));

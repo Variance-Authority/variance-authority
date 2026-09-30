@@ -9,6 +9,7 @@ import {
   caseLayerFiles,
   commitRunsFile,
   encodeExecutionIndex,
+  landRun,
   testCoverageFile,
   writeTestCoverage,
   type ExecutionBlock,
@@ -198,6 +199,58 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(formatReview({ ...answer, suite: 4 }, 'markdown')).toContain(
       `🎯 **1 of 4 test files ran** at this commit, 25% of the suite; the other 3 kept the rows recorded before it. ${select}`,
     );
+  });
+
+  /** A runs record at `commit`, laid over `over`, beside the suite's snapshot. */
+  const runsOver = (root: string, commit: string, over: string) =>
+    writeFile(commitRunsFile(testCoverageFile(root)), JSON.stringify({
+      commit, over, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1, files: ['test/total.test.ts'],
+    }));
+
+  it('starts from the commit the runs were laid over when git says theirs descends from it', async () => {
+    const { root, first } = await changed();
+    git(root, ['commit', '--quiet', '--allow-empty', '-m', 'next']);
+    await runsOver(root, git(root, ['rev-parse', 'HEAD']), first);
+
+    expect(await review(parse(['--root', root]))).toMatchObject({ from: first, base: 'recording' });
+  });
+
+  it('starts at the snapshot\'s own commit after a first run there with no runs record beside it', async () => {
+    // A worktree's first run at its base, a clone with a restored cache, or a
+    // run after the record was deleted: the run is laid over its own commit.
+    const { root, first } = await changed();
+    await landRun(testCoverageFile(root), {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: first,
+      tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    }, root);
+
+    const answer = await review(parse(['--root', root]));
+
+    expect(answer).toMatchObject({ from: first, base: 'recording', runs: { commit: first, over: first, runs: 1 } });
+    // From the commit it stands at, the change is the working tree's.
+    expect(formatReview(answer, 'text')).toContain('2 changed regions in 1 file');
+  });
+
+  it('names no start when git says the runs\' commit does not descend from the one they were laid over', async () => {
+    const { root, first } = await changed();
+    // The main line's shards at `first`, landed over a branch's runs at `side`.
+    const side = git(root, ['commit-tree', `${first}^{tree}`, '-p', first, '-m', 'side']);
+    await runsOver(root, first, side);
+
+    await expect(review(parse(['--root', root]))).rejects.toThrow(/name no start they descend from, so nothing says where this change starts/);
+  });
+
+  it('is refused, naming the commit to fetch, when git cannot say whether the runs descend from it', async () => {
+    const { root, first } = await changed();
+    const unfetched = 'd'.repeat(40);
+    await runsOver(root, first, unfetched);
+
+    const refused = review(parse(['--root', root]));
+    await expect(refused).rejects.toThrow(`git cannot say whether ${first.slice(0, 12)} descends from it`);
+    await expect(refused).rejects.toThrow(`Fetch ${unfetched} with the history between them`);
   });
 
   /** The layers a run leaves beside the case index, and the runs at `change` listing `files`. */

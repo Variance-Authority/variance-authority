@@ -12,11 +12,11 @@
  *
  * It runs after the suite, so the record it reads already describes the change.
  * That fixes two coordinates. The change starts where the recording stood
- * before the first run at this commit: {@link readCommitRuns} keeps that
- * commit, because the snapshot itself now names this one. And the line numbers
- * the record holds are the working tree's, so coverage reads the diff reversed,
- * while the reading of each edit reads it forward, against the text it
- * replaced.
+ * before the first run at this commit, when git says it is an ancestor: the
+ * runs record keeps that commit, since the snapshot names this one. And the line
+ * numbers the record holds are the working tree's, so coverage reads the diff
+ * reversed, while the reading of each edit reads it forward, against the text
+ * it replaced.
  */
 
 import { existsSync } from 'node:fs';
@@ -49,6 +49,7 @@ import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
 import { packagesReached, type PackageReach } from './review-install.js';
 import { diffPoint, diffSince } from './since.js';
+import { runsBase } from './runs-base.js';
 import { relationsFor } from './source-graph.js';
 
 /**
@@ -171,11 +172,10 @@ export async function review(request: ParsedReview): Promise<Review> {
   // the primary's runs beside it describe the primary's change, not this one.
   const own = await landingRecord(root, request.suite);
   const runs = await readCommitRuns(own);
-  const given = request.since ?? runs?.over;
-  // Runs that were laid over no recording, and no base named: a suite given to
-  // a share starts from the record its mainline published, which is the state
-  // a fresh CI checkout is always in (spec 0074, item 5). With no run here at
-  // all there is nothing to review, and nothing is fetched.
+  const given = request.since ?? (await runsBase(root, runs, own));
+  // Runs that name no start (`runsBase`), and no base named: a suite given to a
+  // share starts from the record its mainline published, as a fresh CI checkout
+  // always does (spec 0074, item 5). With no run here at all, nothing is fetched.
   const shared = given === undefined && runs !== undefined ? await mainlineBase(root, recorded.declared) : undefined;
   const mainline = shared === undefined || 'miss' in shared ? undefined : shared;
   const ref = given ?? mainline?.commit;
@@ -184,8 +184,8 @@ export async function review(request: ParsedReview): Promise<Review> {
       (runs === undefined
         ? `no run has listed itself beside \`${own}\`, so nothing says where this change starts. ` +
             'Run the suite with `withTestSelection` first, or name the base with `--since <ref>`.'
-        : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} were not laid over a recording of ` +
-            'the same instrumentation, so nothing says where this change starts. Name the base with `--since <ref>`.') +
+        : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} name no start ` +
+            'they descend from, so nothing says where this change starts. Name the base with `--since <ref>`.') +
         (shared !== undefined && 'miss' in shared ? `\n${mainlineMissed(shared)}.` : ''),
       { kind: 'unrecorded' },
     );
