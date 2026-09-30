@@ -1,5 +1,6 @@
-import { existsSync, globSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, globSync, readFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
+import { members } from './members.js';
 
 /**
  * What a workspace publishes, read from the manifests rather than from a build.
@@ -133,93 +134,6 @@ function jsonc(source: string): string {
 }
 
 /**
- * Every manifest the root's `workspaces` field reaches, or, when the root
- * manifest names none, the `packages:` of a `pnpm-workspace.yaml` beside it.
- *
- * Only a literal path and a trailing `/*` are understood, because those are what
- * a workspace field almost always holds and a half-implemented glob that quietly
- * matches the wrong set is worse than one that says it cannot. A repository with
- * no `workspaces` at all is one package, and that is the interesting case for
- * anybody who is not a monorepo.
- *
- * A repository with no root manifest publishes nothing, and that is an answer
- * rather than an error. Plenty of checkouts are not npm projects at all — a
- * Swift application with a landing page under it, a service with a web client in
- * a subdirectory — and the question *where is the thing that does X* is asked of
- * those more often than of a monorepo. Nothing is published there, so nothing is
- * on the published half of an answer, and everything the source exports is still
- * read.
- */
-function members(root: string): readonly string[] {
-  if (!existsSync(join(root, 'package.json'))) return [];
-
-  const { workspaces } = read(join(root, 'package.json'));
-  const declared = Array.isArray(workspaces)
-    ? (workspaces as string[])
-    : (((workspaces as { packages?: string[] } | undefined)?.packages ?? []) as string[]);
-  const globs = declared.length > 0 ? declared : (pnpmMembers(root) ?? []);
-
-  if (globs.length === 0) return [join(root, 'package.json')];
-
-  const found: string[] = [];
-  for (const glob of globs) {
-    if (!glob.includes('*')) {
-      const manifest = join(root, glob, 'package.json');
-      if (existsSync(manifest)) found.push(manifest);
-      continue;
-    }
-
-    if (!glob.endsWith('/*')) {
-      throw new Error(`workspace glob \`${glob}\` is neither a path nor \`dir/*\`, which is all this reads`);
-    }
-
-    const parent = join(root, glob.slice(0, -2));
-    if (!existsSync(parent)) continue;
-    for (const name of readdirSync(parent).sort()) {
-      const manifest = join(parent, name, 'package.json');
-      if (existsSync(manifest)) found.push(manifest);
-    }
-  }
-  return found;
-}
-
-/**
- * The member globs `pnpm-workspace.yaml` declares, or `undefined` when there is
- * no such file.
- *
- * pnpm keeps its workspace here and not in the root manifest, so a pnpm root
- * read only for `workspaces` is a private one-package repository that publishes
- * nothing. Only the `packages:` block sequence of plain entries is read — the
- * shape pnpm's own documentation writes — and anything else under that key is
- * refused by line, because a list half-read is a workspace missing members.
- */
-function pnpmMembers(root: string): readonly string[] | undefined {
-  const path = join(root, 'pnpm-workspace.yaml');
-  if (!existsSync(path)) return undefined;
-
-  const lines = readFileSync(path, 'utf8').split(/\r?\n/);
-  const start = lines.findIndex((text) => /^packages\s*:/.test(text));
-  if (start === -1) return undefined;
-  const refuse = (at: number): never => {
-    throw new Error(
-      `${path}:${at + 1} is not a \`packages:\` entry this reads; write each member as its own \`- <glob>\` line`,
-    );
-  };
-  if (!/^packages\s*:\s*(#.*)?$/.test(lines[start]!)) refuse(start);
-
-  const globs: string[] = [];
-  for (let at = start + 1; at < lines.length; at += 1) {
-    const text = lines[at]!;
-    if (/^\s*(#.*)?$/.test(text)) continue;
-    if (!/^\s/.test(text)) break;
-    const entry = /^\s+-\s+(?:'([^']*)'|"([^"]*)"|([^\s#'"][^#]*?))\s*(#.*)?$/.exec(text);
-    if (entry === null) refuse(at);
-    globs.push((entry![1] ?? entry![2] ?? entry![3])!);
-  }
-  return globs;
-}
-
-/**
  * Which package a repository-relative file belongs to.
  *
  * The nearest manifest above it, which is what makes a file in an example
@@ -347,6 +261,11 @@ function declarationsOf(condition: unknown): string | undefined {
  * beside it was emitted, and exists only when the build ran; an answer read
  * from it would change with whether somebody had built.
  */
+// FIXME: a package with no tsconfig `outDir` that builds into `dist` beside a
+// bare `./dist/index.js` export opens the emitted `dist/index.d.ts` whenever a
+// build has run, so the answer changes with whether somebody built. Open the
+// sibling only when the repository tracks it; a condition object with no
+// `types` is not read this way at all.
 function besideOf(dir: string, condition: unknown): string | undefined {
   if (typeof condition !== 'string') return undefined;
   const found = /\.(m|c)?js$/.exec(condition);
@@ -396,7 +315,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
   const offered = options.offered ?? OFFERED;
   const found: Offering[] = [];
 
-  for (const path of members(resolve(root))) {
+  for (const path of members(resolve(root), read)) {
     const manifest = read(path);
     if (manifest['private'] === true || typeof manifest['name'] !== 'string') continue;
 

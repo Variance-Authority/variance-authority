@@ -42,8 +42,8 @@ What it reads to find your packages:
 
 | Question | Answer |
 | --- | --- |
-| Which packages are in the workspace | The root `package.json` `workspaces` field, as an array or as `{ "packages": [...] }`. A path, or a glob ending in `/*`; anything more elaborate throws. |
-| pnpm or Bun workspace files | Not read. A `pnpm-workspace.yaml` with no root `workspaces` field reads as a workspace with no members. |
+| Which packages are in the workspace | The root `package.json` `workspaces` field, as an array or as `{ "packages": [...] }`, in the order it is written. Entries are globs, and an entry starting with `!` excludes what it matches. |
+| A `pnpm-workspace.yaml` | Its `packages:` list, read when the root `package.json` lists no `workspaces`. A file that is not YAML, or a `packages:` that is not a list, throws an error naming the file. |
 | A repository with one package and no `workspaces` | Read as a single package. This is a supported case, not a degenerate one. |
 | A repository with no root `package.json` | Publishes nothing, which is an answer rather than an error. `readHelp` still reads every name the source exports. |
 | `private: true` | The only filter. A private package is skipped. |

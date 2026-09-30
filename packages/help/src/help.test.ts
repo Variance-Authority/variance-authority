@@ -394,3 +394,7 @@ describe('the same answers as files', () => {
     }
   });
 });
+
+it.todo(
+  'a workspace that publishes nothing says which file listed its members and how many manifests it read — needs the reading to carry the member list into `Help` and the published snapshot',
+);

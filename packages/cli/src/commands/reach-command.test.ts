@@ -353,3 +353,10 @@ describe('a file the diff deletes', () => {
     expect(said.err).toMatch(/deletes 1 file and changes nothing that exists/);
   });
 });
+
+it.todo(
+  'a file the diff renames is walked once, under its new path, and is not named as deleted — needs a `git mv` fixture under `a file the diff deletes`',
+);
+it.todo(
+  'the deleted files and the changed files come from one `--name-status` diff against one merge base — needs `changedSince` in `since.ts` to return the deletions it read',
+);

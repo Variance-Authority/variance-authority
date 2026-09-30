@@ -5138,6 +5138,8 @@ __metadata:
   dependencies:
     oxc-parser: "npm:^0.144.0"
     oxc-resolver: "npm:^11.24.2"
+    tinyglobby: "npm:^0.2.17"
+    yaml: "npm:^2.9.0"
   languageName: unknown
   linkType: soft
 

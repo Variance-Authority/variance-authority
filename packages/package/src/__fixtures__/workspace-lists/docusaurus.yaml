@@ -1,0 +1,13 @@
+nodeLinker: 'hoisted'
+
+# For now we use this setting instead of the workspace:* protocol
+linkWorkspacePackages: true
+
+packages:
+  - 'packages/*'
+  - 'website'
+  - 'packages/create-docusaurus/templates/*'
+  - 'admin/new.docusaurus.io'
+
+overrides:
+  axios: 1.16.1 # Fix CVEs

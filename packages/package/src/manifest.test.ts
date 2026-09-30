@@ -160,11 +160,6 @@ describe('reading a workspace', () => {
 describe('what it refuses rather than guesses', () => {
   const manifest = { name: 'one', exports: { '.': { types: './dist/index.d.ts' } } };
 
-  it('a workspace glob it does not understand', () => {
-    const root = workspace({ 'package.json': { workspaces: ['packages/**/deep'] } });
-    expect(() => readOfferings(root)).toThrow(/neither a path nor/);
-  });
-
   it('a published declaration with no tsconfig to say what produced it', () => {
     const root = workspace({ 'package.json': manifest });
     expect(() => readOfferings(root)).toThrow(/not there to say what produced it/);
@@ -256,9 +251,11 @@ describe('a pnpm workspace', () => {
     });
     expect(readOfferings(root).map((offering) => offering.name)).toEqual(['@scope/alpha', 'docs']);
   });
-
-  it('refuses a member list it cannot read, naming the file', () => {
-    const root = workspace({ ...members, 'pnpm-workspace.yaml': 'packages: [packages/*]\n' });
-    expect(() => readOfferings(root)).toThrow(/pnpm-workspace\.yaml/);
-  });
 });
+
+it.todo(
+  'a condition object with no `types`, such as `{ "import": "./src/index.js" }`, opens by the `.d.ts` beside its first JavaScript target — needs `besideOf` to read condition objects',
+);
+it.todo(
+  'a `.d.ts` beside a bare `.js` export opens only when the repository tracks it, so a build output in `dist` opens nothing — needs `besideOf` to ask git which siblings are tracked',
+);
