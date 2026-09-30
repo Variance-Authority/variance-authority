@@ -45,7 +45,8 @@ import { readFile } from 'node:fs/promises';
 import { askCoverageFile } from './coverage-file.js';
 import { layeredCoverage } from './format-layer.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { writeCoverageBytes, type TestCoverage } from './index.js';
+import type { TestCoverage } from './index.js';
+import { writeCoverageBytes } from './record-location.js';
 
 /**
  * One commit's runs, as `coverage.runs.json` holds them: what a review reads to
@@ -73,7 +74,11 @@ export interface CommitRuns {
   /** When the first and the latest of the runs landed. */
   readonly first: string;
   readonly latest: string;
-  /** How many runs landed at this commit. */
+  /**
+   * How many runs landed at this commit. 0 in a worktree's record before its
+   * first run: the record was seeded beside the primary checkout's snapshot and
+   * speaks for the base's runs, not for any of this checkout's.
+   */
   readonly runs: number;
   /** Every test file the runs observed, in code-unit order. */
   readonly files: readonly string[];
@@ -154,8 +159,11 @@ export function commitRunsAfter(
   const at = new Date().toISOString();
   const files = current.tests.map((test) => test.file);
   // The snapshot already stands at this commit and the record says what it
-  // stood at before: this run is one more at the commit, not a new change.
-  const again = current.commit !== undefined && stood === current.commit && held?.commit === current.commit;
+  // stood at before: this run is one more at the commit, not a new change. A
+  // record of no runs was seeded from the base, and the first run over it
+  // starts this checkout's change.
+  const again =
+    current.commit !== undefined && stood === current.commit && held?.commit === current.commit && held.runs > 0;
   // The snapshot stands at this commit and the record at another: a landing
   // renamed its snapshot and died before its record. The record still names
   // the commit that landing was laid over, and it is this run's start too, and
@@ -205,9 +213,10 @@ export async function writeCommitRuns(to: string, record: CommitRuns): Promise<v
  * test the record does not list is one nobody knows about.
  *
  * A worktree's first run is laid over a copy of the primary checkout's
- * snapshot, and the record beside it is the worktree's own, which does not
- * exist yet: the primary checkout's runs describe its change, not this one. So
- * a worktree's first partial run leaves `standing` absent too.
+ * snapshot, and the record beside it was seeded with that copy: the base's own
+ * record, with no run of this checkout's in it (see `seedTestCoverage`). So a
+ * worktree's first partial run carries the base's `standing` forward, assumed
+ * entries included, and leaves it absent when the base had no record to copy.
  */
 function standingAfter(
   prior: RecordedTests | undefined,
