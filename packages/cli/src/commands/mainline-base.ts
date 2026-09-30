@@ -214,7 +214,14 @@ export function mainlineMissed(missed: MainlineMissed): string {
   return `record of "${missed.suite}": ${opening}; ${line}: ${said}`;
 }
 
-/** The note a reader gives when this checkout's own record won over the mainline's. */
-export function checkoutRead(suite: string): string {
-  return `record of "${suite}": read from this checkout; the mainline's is read only when this checkout has none`;
+/**
+ * The note a reader gives when a local record won over the mainline's, naming
+ * the cache layer it came from: `primary` is the record's path when it was the
+ * primary checkout's, read because this worktree has recorded none of its own.
+ */
+export function checkoutRead(suite: string, primary?: string): string {
+  return primary === undefined
+    ? `record of "${suite}": read from this checkout; the mainline's is read only when this checkout has none`
+    : `record of "${suite}": read from the primary checkout, because this worktree has recorded none of its own; ` +
+        `kept at ${primary}; the mainline's is read only when neither has one`;
 }

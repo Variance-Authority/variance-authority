@@ -245,3 +245,14 @@ export function costLine(files, durations) {
 function spent(milliseconds) {
   return milliseconds < 1000 ? `${milliseconds} ms` : `${(milliseconds / 1000).toFixed(1)} s`;
 }
+
+/**
+ * Which record the reading used, and whose cache layer held it. A worktree that
+ * has not run reads the primary checkout's, which is a different record from
+ * the one its first `yarn test` will write, so the header says which.
+ */
+export function recordLine(file, own) {
+  return own
+    ? `  record   this checkout's, at ${file}`
+    : `  record   the primary checkout's, at ${file}; this worktree has recorded none of its own`;
+}

@@ -55,7 +55,7 @@ import { isMissing, journeyAgainst } from './resources.js';
 import { diffPoint, diffSince } from './since.js';
 import { checkoutRead, mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
 import { relationsFor } from './source-graph.js';
-import { recordedSuite } from './suite-record.js';
+import { landingRecord, recordedSuite } from './suite-record.js';
 import {
   formatSelection,
   selectionNotes,
@@ -192,8 +192,9 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
 }
 
 /**
- * This checkout's record of the suite, or, when it has none and the suite is
- * given to a share, the one its mainline published (spec 0074, item 5).
+ * This checkout's record of the suite — in a worktree that has not run, the
+ * primary checkout's — or, when neither has one and the suite is given to a
+ * share, the one its mainline published (spec 0074, item 5).
  *
  * The local record wins whenever it is on disk, and nothing is fetched then.
  * For a suite given to a share, either way, the first note after the verdict
@@ -206,9 +207,9 @@ async function recordedOrMainline(
   const recorded = await recordedSuite(request.cwd, request.suite);
   const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
   if (await exists(recorded.file)) {
-    return suite === undefined
-      ? { at: recorded.file, held: true }
-      : { at: recorded.file, held: true, source: { from: 'checkout', says: checkoutRead(suite) } };
+    if (suite === undefined) return { at: recorded.file, held: true };
+    const own = recorded.file === (await landingRecord(request.cwd, request.suite));
+    return { at: recorded.file, held: true, source: { from: 'checkout', says: checkoutRead(suite, own ? undefined : recorded.file) } };
   }
   const read = await mainlineBase(request.cwd, recorded.declared);
   if (read === undefined) return { at: recorded.file, held: false };
