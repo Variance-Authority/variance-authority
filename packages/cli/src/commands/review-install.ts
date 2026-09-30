@@ -17,7 +17,7 @@
  * journey file hears a bump.
  */
 
-import { affectedBy, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, EDGE_KINDS, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { narrowByJourneys, type ExecutionIndex } from '@variance-authority/sense/test-selection';
 import type { Review } from './review.js';
 
@@ -54,10 +54,10 @@ export interface ImportedPackage {
  * Each changed package, followed to the files that import it and the test
  * files that run them.
  *
- * A file the walk entered from a package imports that package: the graph has
- * no other edge from a package to a file. Its trail back to the seed is the
- * chain, so a file that imports two packages on the way is named under the one
- * the shortest walk came through.
+ * A file is named under the package on the walk it imports with the shortest
+ * chain back to the changed one, so a file that imports two packages on the
+ * way is named once. A file that imports none of them depends on the change
+ * through another file here, and is counted but not named.
  */
 export function packagesReached(
   names: readonly string[],
@@ -66,22 +66,54 @@ export function packagesReached(
 ): readonly PackageReach[] {
   return names.map((name) => {
     const { files, traversal } = affectedBy(relations, [{ kind: 'package', name }]);
+    const chains = new Map<NodeId, readonly string[]>();
+    const chainOf = (id: NodeId): readonly string[] => {
+      let chain = chains.get(id);
+      if (chain === undefined) chains.set(id, (chain = trailOf(traversal, id).map((step) => relations.names[step]!)));
+      return chain;
+    };
     const importers = new Map<NodeId, string[]>();
     for (const id of traversal.nodes) {
       const node = nodeAt(relations, id);
-      const from = traversal.via[id]!;
-      if (node?.kind !== 'file' || from === -1 || nodeAt(relations, from)?.kind !== 'package') continue;
-      const held = importers.get(from);
-      if (held === undefined) importers.set(from, [node.name]);
+      if (node?.kind !== 'file') continue;
+      const through = importedPackage(relations, traversal.mask, id, chainOf);
+      if (through === undefined) continue;
+      const held = importers.get(through);
+      if (held === undefined) importers.set(through, [node.name]);
       else held.push(node.name);
     }
     const imported = [...importers]
-      .map(([id, by]) => ({ chain: trailOf(traversal, id).map((step) => relations.names[step]!), importers: by.sort(order) }))
+      .map(([id, by]) => ({ chain: chainOf(id), importers: by.sort(order) }))
       .sort((left, right) => left.chain.length - right.chain.length || order(left.chain.join('\0'), right.chain.join('\0')));
     const tests = files.length === 0 ? [] : narrowByJourneys(index, new Map(), { relations, packages: [name] }).entered;
     const running = new Set(tests);
     return { name, imported, files: files.filter((file) => !running.has(file)).length, tests };
   });
+}
+
+/**
+ * The package on the walk this file imports whose chain from the changed one
+ * is shortest, read off the file's own edges rather than off the walk's: the
+ * walk enters a file once, and may enter it from another file first.
+ */
+function importedPackage(
+  relations: Relations,
+  walked: Uint8Array,
+  file: NodeId,
+  chainOf: (id: NodeId) => readonly string[],
+): NodeId | undefined {
+  const { offset, target, kind } = relations.depends;
+  let best: NodeId | undefined;
+  for (let at = offset[file]!; at < offset[file + 1]!; at += 1) {
+    const to = target[at]!;
+    if (walked[to] !== 1 || EDGE_KINDS[kind[at]!] === 'type' || nodeAt(relations, to)?.kind !== 'package') continue;
+    if (best === undefined || shorter(chainOf(to), chainOf(best))) best = to;
+  }
+  return best;
+}
+
+function shorter(left: readonly string[], right: readonly string[]): boolean {
+  return left.length < right.length || (left.length === right.length && order(left.join('\0'), right.join('\0')) < 0);
 }
 
 /**

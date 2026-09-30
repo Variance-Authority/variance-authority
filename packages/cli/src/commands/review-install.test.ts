@@ -53,6 +53,29 @@ describe('an installed package the lockfile changed, followed into the code', ()
     expect(reach!.tests).toEqual(['test/glob.test.ts', 'test/walk.test.ts']);
   });
 
+  it('names a file under the package it imports even when the walk entered it from another file', () => {
+    // `leaf.ts` imports `picomatch`, `top.ts` imports `leaf.ts` and
+    // `micromatch`: both are one step from the walk, and whichever the walk
+    // enters `top.ts` from, `top.ts` itself imports `micromatch`.
+    const relations = relationsOfFiles(
+      [
+        { file: 'src/leaf.ts', packages: [{ to: 'picomatch', kind: 'imports' }] },
+        { file: 'src/top.ts', edges: [{ to: 'src/leaf.ts', kind: 'imports' }], packages: [{ to: 'micromatch', kind: 'imports' }] },
+        { file: 'src/types.ts', packages: [{ to: 'micromatch', kind: 'type' }], edges: [{ to: 'src/leaf.ts', kind: 'imports' }] },
+      ],
+      { depends: [['micromatch', 'picomatch']] },
+    );
+    const [reach] = packagesReached(['picomatch'], relations, INDEX);
+
+    // `types.ts` names `micromatch` for its types only, which nothing runs: it
+    // depends on the change through `leaf.ts`, and is counted, not named.
+    expect(reach!.imported).toEqual([
+      { chain: ['picomatch'], importers: ['src/leaf.ts'] },
+      { chain: ['picomatch', 'micromatch'], importers: ['src/top.ts'] },
+    ]);
+    expect(reach!.files).toBe(3);
+  });
+
   it('counts the files a package reaches whether or not a test runs them', () => {
     const [reach] = packagesReached(['dayjs'], RELATIONS, INDEX);
 
@@ -102,6 +125,24 @@ describe('an installed package the lockfile changed, followed into the code', ()
       '  - `dayjs` → `src/clock.ts`',
       '',
       'No file here imports `left-pad`, or a package that depends on it.',
+    ]);
+  });
+
+  it('lists twenty packages, counts the rest, and names the manifests whose entry points moved', () => {
+    const names = Array.from({ length: 22 }, (_, at) => `pkg-${String(at).padStart(2, '0')}`);
+    const relations = relationsOfFiles(names.map((name) => ({ file: `src/${name}.ts`, packages: [{ to: name, kind: 'imports' as const }] })));
+    const wide = {
+      beyond: { packages: names, manifests: ['yarn.lock'], moved: ['packages/ui/package.json'] },
+      packages: packagesReached(names, relations, INDEX),
+    } as unknown as Review;
+    const lines = installLines(wide, (value) => value, false);
+
+    expect(lines.filter((line) => line.startsWith('  pkg-')).map((line) => line.split(':')[0]!.trim()))
+      .toEqual(names.slice(0, 20));
+    expect(lines.slice(-3)).toEqual([
+      '  2 more, not listed here; `--format json` lists every one.',
+      '',
+      'Manifests whose entry points changed: packages/ui/package.json.',
     ]);
   });
 
