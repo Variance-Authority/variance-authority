@@ -38,7 +38,8 @@ jobs:
   rules:
     # The repository's own rules, read as data: lint, and the `tools/*.check.ts`
     # suite. The cheapest failures there are, so they report while the suite is
-    # still installing.
+    # still installing. The native crate's unit tests run last, for the reason
+    # written at their step.
     runs-on: ubuntu-24.04
 
     steps:
@@ -113,6 +114,19 @@ jobs:
       - name: check
         shell: bash
         run: yarn check
+
+      # The native crate's own unit tests, the `#[cfg(test)]` modules under
+      # `packages/sense/native/src`. `yarn test` reaches the crate only through
+      # the built addon, so these are the only runs of its tests. They are here
+      # rather than in `suite` because a cold debug build of the crate is a few
+      # minutes: this job ends minutes before the suite does, so the step
+      # lengthens nothing, and `suite` stays the unit suite's harness. The step
+      # runs after a red rule too, because a failing link check says nothing
+      # about the crate.
+      - name: native unit tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: yarn workspace @variance-authority/sense test:native
 
   measure:
     # Timed on a machine nothing else is running on. The suite instruments every
