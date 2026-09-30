@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, test } from 'vitest';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { selectOutput } from './select-command.js';
-import { oneRecord, suiteRecord } from './suite-record.js';
+import { landingRecord, oneRecord, suiteRecord } from './suite-record.js';
 
 async function repository(config?: unknown): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-suite-record-'));
@@ -53,6 +54,47 @@ describe('the record a one-runner command reads', () => {
 
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow('the suite "e2e" is not declared in');
+  });
+});
+
+describe('the record a one-runner command reads in a worktree that has not run', () => {
+  // A relative `cacheRoot` in both checkouts keeps each layer inside its own
+  // checkout, whatever cache the suite running this was pointed at.
+  async function layered(config: object = {}): Promise<{ primary: string; path: string }> {
+    const at = await mkdtemp(resolve(tmpdir(), 'va-suite-record-layers-'));
+    const primary = resolve(at, 'primary');
+    const gitdir = resolve(primary, '.git', 'worktrees', 'feature');
+    await mkdir(gitdir, { recursive: true });
+    const path = resolve(at, 'feature');
+    await mkdir(path, { recursive: true });
+    await writeFile(resolve(path, '.git'), `gitdir: ${gitdir}\n`);
+    for (const where of [primary, path]) {
+      await writeFile(resolve(where, 'variance.config.json'), JSON.stringify({ cacheRoot: '.cache', ...config }));
+    }
+
+    return { primary, path };
+  }
+
+  test('is the primary checkout\'s, and a landing still goes to the worktree\'s own layer', async () => {
+    const { primary, path } = await layered({ suites: { unit: { kind: 'unit' } } });
+    const base = testCoverageFile(primary, { suite: 'unit' });
+    await writeTestCoverage(base, { version: 3, instrumentation: 'probe-recipe', tests: [], modules: [] });
+
+    expect(await suiteRecord(path)).toBe(base);
+    expect(await landingRecord(path)).toBe(testCoverageFile(path, { suite: 'unit' }));
+    expect(await landingRecord(path)).not.toBe(base);
+  });
+
+  test('is what `variance select` reads, rather than reporting nothing recorded', async () => {
+    const { primary, path } = await layered();
+    const base = testCoverageFile(primary);
+    await mkdir(dirname(base), { recursive: true });
+    await writeFile(base, 'this is not a snapshot');
+
+    // Unreadable on purpose: only a reader that opened the primary checkout's
+    // file can refuse it, and one that looked only in the worktree's own layer
+    // skips nothing instead.
+    await expect(selectOutput({ cwd: path, format: 'plain', noGit: true })).rejects.toThrow(/could not be read/);
   });
 });
 

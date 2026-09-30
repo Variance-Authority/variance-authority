@@ -144,7 +144,9 @@ live('an rstest suite that drives playwright', () => {
       const accepted = await rstest('e2e', ['-u'], { VA_BASELINES: baselines });
       expect(accepted, accepted.output).toMatchObject({ code: 0 });
 
-      const unchanged = await rstest('e2e', [], { VA_BASELINES: baselines });
+      // The md reporter is the one that lists the tests that ran. Rstest picks it
+      // on its own only when it detects an AI agent, so name it here.
+      const unchanged = await rstest('e2e', ['--reporters=md'], { VA_BASELINES: baselines });
       expect(unchanged, unchanged.output).toMatchObject({ code: 0 });
       expect(unchanged.output).toContain('cart.e2e.test.mjs :: cart > empty');
     } finally {

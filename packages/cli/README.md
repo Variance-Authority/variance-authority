@@ -716,9 +716,13 @@ Each part comes from the party that owns the answer:
 - **Before any import** names changed files the test runner loads before any
   test, such as its config, or declares in `preconditions`, and how many test
   files depend on each. No import graph shows them.
-- Installed packages the lockfile changed, and workspace manifests whose entry
-  points changed, are listed last, because nothing in your own source shows
-  them either.
+- Installed packages the lockfile changed come last, because nothing in your
+  own source shows them either. Each one your code depends on is followed to
+  your files: the chain of packages from the one that changed to the one you
+  import, the files that import it, and how many test files run them. A bump
+  you never import directly reads `picomatch` → `micromatch` →
+  `src/glob.ts`. Packages nothing of yours depends on are named on one line.
+  Workspace manifests whose entry points changed follow.
 
 The diff starts at the merge base with `<ref>`. Without `--since`, it starts at
 the last commit the suite ran at before this one. Every run writes that commit,
@@ -755,8 +759,12 @@ The review also lists the regions whose cases changed. It compares them with
 the cases the runs at this commit replaced, which the suite keeps beside its
 case index with the commit they were recorded at. What the base's branch changed
 after that commit is left out and named, as in
-[What a change moved](#what-a-change-moved). `--against <record>` compares with
-a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
+[What a change moved](#what-a-change-moved). Only the test files that a run at
+this commit wrote to the case index are compared, as are the cases each test
+file added and removed. A run that writes no case index, such as one whose only
+file a browser gate skips, replaced no case: the review names its files and
+compares nothing for them.
+`--against <record>` compares with a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
 printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
 
@@ -775,7 +783,11 @@ suite, and review after it:
 In the markdown, the test files whose reach moved are also drawn as a Mermaid
 diagram: a test file on the left, a directory of the code it runs on the right,
 and each edge counts the functions it now enters or no longer enters. The same
-lines as the text follow it, folded.
+lines as the text follow it, folded. The markdown lists the first 40 moved
+regions, test files whose reach moved, and files not compared, and counts the rest.
+GitHub rejects a comment longer than 65,536 characters, so a longer markdown
+review is cut at a line break before that length, and its last line says how
+many characters are not shown.
 
 A comment shows part of the answer, and `review.json` holds all of it. Upload
 the `--out` directory as an artifact, and anyone with the GitHub CLI can print
@@ -918,6 +930,11 @@ paths relative to each directory, where `*` matches within one path segment and
 
 A directory with no entry points declared starts from every file under it, and
 the first line says so. A pattern that matches no file is named.
+
+To leave a part of the repository out of the count — a marketing site nothing
+measures, say — declare the repository root as the directory (`"."`), with a
+pattern for each top-level directory you do count. What the patterns do not
+name, and nothing they name imports, is not in the source.
 
 `--packages` gives every workspace the root `package.json` names a row of that
 table:

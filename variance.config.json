@@ -1,5 +1,198 @@
 {
   "suites": {
-    "unit": { "kind": "unit", "carry": "actions-cache" }
+    "unit": {
+      "kind": "unit",
+      "carry": "actions-cache"
+    }
+  },
+  "entrypoints": {
+    "packages/cli": [
+      "src/bin.ts",
+      "src/index.ts"
+    ],
+    "packages/core": [
+      "src/attribute/index.ts",
+      "src/compare/index.ts",
+      "src/format/index.ts",
+      "src/index.ts",
+      "src/judge/index.ts",
+      "src/plan/index.ts",
+      "src/relate/index.ts",
+      "src/rules/index.ts",
+      "src/segment/index.ts",
+      "src/share/index.ts"
+    ],
+    "packages/distill": [
+      "src/index.ts"
+    ],
+    "packages/dom": [
+      "src/index.ts"
+    ],
+    "packages/editors": [
+      "src/bin.mjs"
+    ],
+    "packages/event": [
+      "src/collect.ts",
+      "src/index.ts"
+    ],
+    "packages/eyes": [
+      "src/archive.ts",
+      "src/collect.ts",
+      "src/index.ts",
+      "src/playwright.ts",
+      "src/reporter.ts",
+      "src/rtl.ts"
+    ],
+    "packages/help": [
+      "src/bin.ts",
+      "src/index.ts",
+      "src/tools.ts"
+    ],
+    "packages/history": [
+      "src/client.ts",
+      "src/index.ts"
+    ],
+    "packages/ioc": [
+      "src/reset/index.ts",
+      "src/reset/setup.ts"
+    ],
+    "packages/jsx-source": [
+      "jest-resolver.cjs",
+      "src/jsx-dev-runtime.ts",
+      "src/jsx-runtime.ts",
+      "src/under.ts",
+      "src/vite.ts"
+    ],
+    "packages/mcp": [
+      "src/bin.ts",
+      "src/index.ts",
+      "src/protocol.ts",
+      "src/tools.ts"
+    ],
+    "packages/observe": [
+      "src/index.ts"
+    ],
+    "packages/package": [
+      "src/help.ts",
+      "src/index.ts"
+    ],
+    "packages/playwright": [
+      "src/agent.ts",
+      "src/engines.ts",
+      "src/index.ts",
+      "src/renderer.ts"
+    ],
+    "packages/playwright-test": [
+      "src/index.ts",
+      "src/reporter.ts",
+      "src/rstest.ts"
+    ],
+    "packages/png": [
+      "src/difference.ts",
+      "src/index.ts",
+      "src/mask.ts"
+    ],
+    "packages/png-sharp": [
+      "src/index.ts"
+    ],
+    "packages/presentation": [
+      "src/index.ts",
+      "src/playwright.ts"
+    ],
+    "packages/raster": [
+      "src/difference/index.ts",
+      "src/index.ts"
+    ],
+    "packages/react": [
+      "src/index.ts"
+    ],
+    "packages/remote": [
+      "src/index.ts",
+      "src/renderer.ts",
+      "src/store.ts"
+    ],
+    "packages/report": [
+      "src/file.ts",
+      "src/index.ts",
+      "src/suite-index.ts"
+    ],
+    "packages/route-collector": [
+      "src/index.ts"
+    ],
+    "packages/scenario": [
+      "src/archive.ts",
+      "src/index.ts"
+    ],
+    "packages/sense": [
+      "src/test-selection/case-journey.cts",
+      "src/test-selection/jest-globals.cts",
+      "src/test-selection/jest-setup.cts",
+      "src/index.ts",
+      "src/instrument/index.ts",
+      "src/lock/index.ts",
+      "src/read.ts",
+      "src/story/index.ts",
+      "src/taint/index.ts",
+      "src/test-selection/index.ts",
+      "src/test-selection/jest-reporter.ts",
+      "src/test-selection/jest-transform.ts",
+      "src/test-selection/jest.ts",
+      "src/test-selection/journal.ts",
+      "src/test-selection/journey.ts",
+      "src/test-selection/rstest-loader.ts",
+      "src/test-selection/rstest.ts",
+      "src/test-selection/runner.ts",
+      "src/test-selection/vitest.ts"
+    ],
+    "packages/server": [
+      "src/backend-sqlite.ts",
+      "src/bin.ts",
+      "src/index.ts"
+    ],
+    "packages/session": [
+      "src/index.ts"
+    ],
+    "packages/store": [
+      "src/changelog.ts",
+      "src/durable.ts",
+      "src/lfs.ts",
+      "src/share.ts"
+    ],
+    "packages/storybook": [
+      "src/index.ts",
+      "src/read.ts"
+    ],
+    "packages/storybook-collector": [
+      "src/index.ts"
+    ],
+    "packages/tribunal": [
+      "src/history.ts",
+      "src/index.ts",
+      "src/next.ts",
+      "src/node/bin.ts",
+      "src/node/index.ts",
+      "src/review.ts",
+      "src/store.ts",
+      "src/testing.ts",
+      "src/ui/index.ts",
+      "src/worker-entry.ts",
+      "src/worker.ts"
+    ],
+    "packages/unit-test": [
+      "src/capture.ts",
+      "src/index.ts"
+    ],
+    "packages/vantage": [
+      "src/attach.ts",
+      "src/index.ts"
+    ],
+    "packages/vitest-browser": [
+      "src/index.ts",
+      "src/node.ts"
+    ],
+    "packages/wire": [
+      "src/index.ts",
+      "src/listen.ts"
+    ]
   }
 }

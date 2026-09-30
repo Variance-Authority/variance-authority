@@ -85,6 +85,17 @@ makes them before it returns, which is what it always does in CI: a step's log
 is where its lines are read, and nothing may outlive the step that saves the
 cache.
 
+One index works at a time on a machine. The update and the follow-ups each use
+every core, so two checkouts indexing at once would each take longer than they
+do one after the other. The second waits for the first and says so on stderr:
+
+```text
+waiting for process 48213, which is indexing /home/you/other-checkout: one index at a time uses this machine's cores
+```
+
+The turn is a lock the operating system holds for the process, so a process
+that crashes lets it go.
+
 When the file system refuses the index itself, the command prints
 `source index not written: <reason>, at <path>` and exits `2`. Every reader of
 the index would otherwise answer from the one already there, so nothing after

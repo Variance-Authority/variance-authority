@@ -34,6 +34,7 @@
  */
 
 import {
+  inIndexTurn,
   prepareCodeMap,
   prepareJourneys,
   readySourceIndex,
@@ -41,6 +42,7 @@ import {
   updateSourceIndex,
   type PreparedCodeMap,
   type PreparedJourneys,
+  type IndexTurnHolder,
   type SourceUpdate,
 } from '@variance-authority/sense';
 import { publishedGeneration, readWorkspace, readWorkspaceSnapshot, refreshDependencyLexicon, refreshWorkspaceFromIndex, workspaceGeneration, workspaceSnapshotPath } from '@variance-authority/help';
@@ -61,7 +63,7 @@ export interface IndexRequest {
    * `--wait`.
    */
   readonly detach?: Detach;
-  /** Told once when another `index` holds the follow-ups and this one waits for it. */
+  /** Told once when another `index` holds the follow-ups, or another checkout's the machine's index turn, and this one waits for it. */
   readonly waiting?: (text: string) => void;
 }
 
@@ -73,7 +75,7 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
   try {
     const update = await written(request);
     const pid = request.detach(['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])], log);
-    if (pid === undefined) return `${[describe(update), ...(await followUps(request.cwd, update, request.noGit === true))].join('\n')}\n`;
+    if (pid === undefined) return `${[describe(update), ...(await followUps(request, update))].join('\n')}\n`;
     holdFollowUps(index, { pid, log });
     return `${describe(update)}\nfollow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command waits for it; their lines are written to ${log}\n`;
   } finally {
@@ -84,11 +86,11 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
 
 async function inline(request: IndexRequest): Promise<string> {
   const update = await written(request);
-  return `${[describe(update), ...(await followUps(request.cwd, update, request.noGit === true))].join('\n')}\n`;
+  return `${[describe(update), ...(await followUps(request, update))].join('\n')}\n`;
 }
 
 async function written(request: IndexRequest): Promise<SourceUpdate> {
-  const update = await updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {});
+  const update = await turn(request, () => updateSourceIndex(request.cwd, request.noGit ? { packs: false } : {}));
   // A scan treats an unwritable cache as a cold next run. This step exists to
   // write it, so a refusal is the answer, and nothing after it has an index to read.
   if (update.refused !== undefined) {
@@ -96,6 +98,20 @@ async function written(request: IndexRequest): Promise<SourceUpdate> {
     throw new OperatorError(`source index not written: ${reason}, at ${update.path}`);
   }
   return update;
+}
+
+/**
+ * `work` in the machine's index turn: an update and its follow-ups each use
+ * every core, so another checkout's index waits for this one rather than
+ * starving it. The turn is let go between the update and the follow-ups, so a
+ * short update elsewhere is not queued behind a long map here.
+ */
+function turn<T>(request: IndexRequest, work: () => Promise<T>): Promise<T> {
+  return inIndexTurn(request.cwd, work, (holder) => request.waiting?.(turnLine(holder)));
+}
+
+function turnLine({ pid, root }: IndexTurnHolder): string {
+  return `waiting for process ${pid}, which is indexing ${root}: one index at a time uses this machine's cores\n`;
 }
 
 function waitingLine({ pid, log }: { pid: number; log: string }): string {
@@ -131,22 +147,26 @@ export async function settleFollowUps(parsed: Parsed, streams: { err(text: strin
   if (indexing) return;
   const { pid, log } = waited.lock;
   streams.err(`process ${pid} ended before it finished what \`variance index\` left to it, so it is made now; what it wrote is in ${log}\n`);
-  streams.err(await indexOutput({ cwd }));
+  streams.err(await indexOutput({ cwd, waiting: (text) => streams.err(text) }));
 }
 
-async function followUps(cwd: string, update: SourceUpdate, noGit: boolean): Promise<readonly string[]> {
-  // Readied first, so everything below reads the base the next update keeps and
-  // the update itself never folds one while somebody waits on it.
-  await readySourceIndex(update.path);
-  // The map, the journeys, the lexicon and the published value each read the index
-  // the update wrote and nothing another writes, so they are made at once.
-  const [map, walks, names, questions] = await Promise.all([
-    codeMap(cwd, update),
-    journeys(cwd, update),
-    lexicon(cwd),
-    answerable(cwd, update.path, noGit),
-  ]);
-  return [map, ...walks, names, questions];
+async function followUps(request: IndexRequest, update: SourceUpdate): Promise<readonly string[]> {
+  const { cwd } = request;
+  const noGit = request.noGit === true;
+  return turn(request, async () => {
+    // Readied first, so everything below reads the base the next update keeps and
+    // the update itself never folds one while somebody waits on it.
+    await readySourceIndex(update.path);
+    // The map, the journeys, the lexicon and the published value each read the index
+    // the update wrote and nothing another writes, so they are made at once.
+    const [map, walks, names, questions] = await Promise.all([
+      codeMap(cwd, update),
+      journeys(cwd, update),
+      lexicon(cwd),
+      answerable(cwd, update.path, noGit),
+    ]);
+    return [map, ...walks, names, questions];
+  });
 }
 
 /**

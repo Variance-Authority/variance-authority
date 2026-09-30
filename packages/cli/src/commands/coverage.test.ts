@@ -232,6 +232,32 @@ describe('coverage of the source no suite loaded', () => {
     }
   });
 
+  it('leaves out a top-level directory the repository does not declare, so an unmeasured site is not a hole in the ratio', async () => {
+    const declared = await mkdtemp(join(tmpdir(), 'variance-coverage-root-'));
+    try {
+      execFileSync('git', ['init', '--quiet', declared]);
+      const config = JSON.stringify({ suites: { unit: { kind: 'unit' } }, entrypoints: { '.': ['apps/**', 'libs/**'] } });
+      for (const [file, text] of Object.entries({ ...files, 'variance.config.json': config, 'site/app/page.tsx': 'export function page() {\n  return 1;\n}\n' })) {
+        await mkdir(dirname(join(declared, file)), { recursive: true });
+        await writeFile(join(declared, file), text);
+      }
+      execFileSync('git', ['add', '.'], { cwd: declared });
+      await publishIndex(declared);
+      await record(`${testCoverageFile(declared, { suite: 'unit' })}.cases.bin`, {
+        tests: [MAIN],
+        modules: [{ file: 'apps/main/src/main.ts', blocks: [region('module', true)] }],
+      });
+      const said = JSON.parse((await ask(['coverage', '--root', declared, '--format', 'json'])).out) as {
+        source: { seeds: string; files: number; unloaded: { list: { file: string }[] } };
+      };
+      expect(said.source.seeds).toBe('entrypoints');
+      expect(said.source.files).toBe(5);
+      expect(said.source.unloaded.list.map((size) => size.file)).not.toContain('site/app/page.tsx');
+    } finally {
+      await rm(declared, { recursive: true, force: true });
+    }
+  });
+
   it('counts only what the entry points of `--from` reach, and names what they reach that no suite loaded', async () => {
     const answer = await ask(['coverage', '--root', repo, '--from', 'apps/main']);
 

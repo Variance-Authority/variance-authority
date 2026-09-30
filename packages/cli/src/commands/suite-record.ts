@@ -14,9 +14,25 @@ import { messageOf } from '../config-values.js';
  * operator would read a record they did not ask about. The declaration and
  * the path are sense's; the default is this reader's, because it is a rule
  * about what a person typed, not about where a run records.
+ *
+ * The path is the nearest cache layer holding the record, which in a worktree
+ * that has not run is the primary checkout's: sense's `readableTestCoverage`
+ * owns that lookup. The case index is read beside this path, so from the same
+ * layer as the record it was written with. The runs log is not: it says where
+ * this checkout's change starts and which files this checkout ran, so it is
+ * read from {@link landingRecord}'s layer and is absent until this checkout has
+ * run.
  */
 export async function suiteRecord(root: string, suite?: string): Promise<string> {
   return (await recordedSuite(root, suite)).file;
+}
+
+/**
+ * Where a command that writes the record lands it: this checkout's own layer,
+ * which is the one layer it may write, whatever {@link suiteRecord} would read.
+ */
+export async function landingRecord(root: string, suite?: string): Promise<string> {
+  return (await recordedSuite(root, suite, 'landing')).file;
 }
 
 /**
@@ -27,6 +43,7 @@ export async function suiteRecord(root: string, suite?: string): Promise<string>
 export async function recordedSuite(
   root: string,
   suite?: string,
+  purpose: 'reading' | 'landing' = 'reading',
 ): Promise<{ readonly file: string; readonly declared?: DeclaredSuite }> {
   const selection = await import('@variance-authority/sense/test-selection');
   try {
@@ -38,7 +55,9 @@ export async function recordedSuite(
           'and each records on its own; pass `--suite <name>` to say which record to read',
       );
     }
-    const file = selection.testCoverageFile(root, { suite: only });
+    const file = purpose === 'landing'
+      ? selection.testCoverageFile(root, { suite: only })
+      : await selection.readableTestCoverage(root, { suite: only });
     const named = declared?.find((one) => one.name === only);
     return named === undefined ? { file } : { file, declared: named };
   } catch (error) {

@@ -112,7 +112,11 @@ export function foldRun(input: RunFoldInput, paths: readonly string[], tests: re
     ...(input.budget === undefined ? {} : { budget: input.budget }),
     replay(visit: JournalVisitor) {
       const noted: JournalVisitor = {
-        test(file) { test = file; visit.test(file); },
+        // The fold numbers tests by the name the snapshot holds them under, so a
+        // frame's raw file is named before it is looked up. Passed through as it
+        // was written, every crossing of a run whose frames name files
+        // differently from the snapshot resolved to no test and was dropped.
+        test(file) { test = file; visit.test(name(file)); },
         wants(id) {
           if (first) {
             const module = modules.get(id);

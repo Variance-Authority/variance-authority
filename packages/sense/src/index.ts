@@ -75,6 +75,7 @@ export {
   type SourceUpdateOptions,
 } from './published.js';
 export { readySourceIndex } from './ready-index.js';
+export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 export type { SourceIndexState } from './source-index-file.js';
 
 export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } from './source-scope.js';

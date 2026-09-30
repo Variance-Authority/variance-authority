@@ -129,7 +129,7 @@ async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, num
     ...(request.function === undefined ? {} : { function: request.function }),
   };
 
-  const snapshot = snapshotFor(request);
+  const snapshot = await snapshotFor(request);
   if (snapshot === undefined) {
     throw new OperatorError(
       'import hops are read from a suite\'s coverage snapshot, and an index named by `--execution` is no ' +

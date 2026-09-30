@@ -11,14 +11,19 @@
  */
 
 import type { ReviewFormat } from '../review-args.js';
+import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 import { functionsIn, motionText } from './covering-motion.js';
 import { changeGraph } from './review-graph.js';
+import { installLines } from './review-install.js';
 import { caseTree, functionsMarkdown, namedList, outermost, uncoveredFunctions, uncoveredMarkdown } from './review-scope.js';
 import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
 import { describeDistance } from './share.js';
 
 /** The first line of the markdown, which a workflow looks for to edit its own comment. */
 export const REVIEW_MARKER = '<!-- variance-authority: review -->';
+
+/** Moved regions, and test files whose reach moved, listed in the comment before the rest are counted. */
+const MOTION_LISTED = 40;
 
 const EDITS = [
   ['none', 'no change to what runs: comments, types, formatting'],
@@ -52,7 +57,7 @@ function text(review: Review): string {
     for (const [kind, all, written] of reach) lines.push(`  ${`${all}`.padStart(5)} (${written})  ${REACH_TEXT[kind]}`);
   }
   lines.push(...casesText(review.files, (code) => code));
-  lines.push(...beforeText(review, (code) => code), ...beyondText(review, (code) => code));
+  lines.push(...beforeText(review, (code) => code), ...installLines(review, (code) => code, false));
   lines.push(...motionText(review.motion));
   const detail = review.files.flatMap((file) =>
     outermost(file).filter(worthNaming).map((region) => `  ${file.file}:${region.startLine}-${region.endLine} ${
@@ -85,6 +90,10 @@ const MARK: Readonly<Record<Reach, string>> = {
  * would dig for — each location, the cases that ran each function by title,
  * the cases added — is one fold down, and what is rarely read is two. Before
  * the change has run, the same answers say what it might move.
+ *
+ * The comment is posted as it is written, so it is cut to GitHub's limit here,
+ * where the notice can say where the whole review is. One character is kept
+ * for the final line break.
  */
 function markdown(review: Review): string {
   const code = (value: string): string => `\`${value}\``;
@@ -99,7 +108,7 @@ function markdown(review: Review): string {
       file.tests !== review.suite ? `${file.tests} of ${review.suite} test files load` : file.tests === 1 ? 'the one test file loads' : `all ${file.tests} test files load`
     } it before any import.`));
   }
-  lines.push(...beyondText(review, code));
+  lines.push(...installLines(review, code, true));
   lines.push(...uncoveredMarkdown(review, mark), ...functionsMarkdown(review, mark), ...casesMarkdown(review.files, code));
   const more: string[] = [];
   const said: string[] = [];
@@ -112,7 +121,7 @@ function markdown(review: Review): string {
   const graph = changeGraph(review);
   if (graph.length > 0) said.push('the change graph');
   more.push(...graph);
-  const motion = motionText(review.motion).filter((line) => line !== '');
+  const motion = motionText(review.motion, undefined, MOTION_LISTED).filter((line) => line !== '');
   if (motion.length > 0) {
     said.push('cases moved against the base');
     more.push('', '<details><summary>🔀 Cases moved against the base</summary>', '', '```', ...motion, '```', '', '</details>');
@@ -126,7 +135,9 @@ function markdown(review: Review): string {
     more.push('', '</details>');
   }
   if (more.length > 0) lines.push('', `<details><summary>📎 More: ${said.join(', ')}</summary>`, ...more, '', '</details>');
-  return `${lines.join('\n')}\n`;
+  return `${clampComment(lines.join('\n'), COMMENT_CHARACTERS - 1, (dropped) =>
+    `\n\n> ${dropped} characters of this review are not shown, because GitHub rejects a comment longer than ${COMMENT_CHARACTERS}. ` +
+    '`--format json` prints the whole review, and `--out` writes it to `review.json`.')}\n`;
 }
 
 /**
@@ -155,10 +166,22 @@ function calloutMarkdown(review: Review): readonly string[] {
   return ['> [!TIP]', `> Every one of the ${every} ${ran ? 'ran under a case' : 'has a case in the record'}.`];
 }
 
-/** The changed code that lost every case against the base, by function, and how much kept fewer. */
+/**
+ * The changed code that lost every case against the base, by function, and how
+ * much kept fewer. When no case index written at this commit names the test
+ * files run here, there is no base to lose against, and the line says so instead.
+ */
 function lostMarkdown(review: Review): readonly string[] {
   const moved = review.motion?.moved;
-  if (moved === undefined) return [];
+  const unwritten = review.motion?.unwritten?.length ?? 0;
+  if (review.motion?.lastRunUnread !== undefined) {
+    return ['', 'Which test files a run at this commit wrote to the case index could not be read, so no case is compared against the base.'];
+  }
+  if (moved === undefined) {
+    if (unwritten === 0) return [];
+    const files = unwritten === 1 ? 'the one test file run at this commit' : `the ${unwritten} test files run at this commit`;
+    return ['', `No case index was written at this commit for ${files}, so no case is compared against the base.`];
+  }
   const lost = moved.regions.filter((region) => region.motion === 'lost' || region.motion === 'hidden');
   const thinned = moved.counts.thinned;
   const fewer = thinned === 0 ? '' : `▽ ${thinned} changed region${thinned === 1 ? '' : 's'} kept fewer cases.`;
@@ -339,21 +362,6 @@ function beforeText(review: Review, code: (value: string) => string): readonly s
     `Before any import: ${review.before.length} changed file${review.before.length === 1 ? '' : 's'} the tests declare as a precondition.`,
     ...review.before.map((file) => `- ${code(file.file)}: ${file.tests} of ${review.suite} test files`),
   ];
-}
-
-/** What the install changed, which no import in this repository shows. */
-function beyondText(review: Review, code: (value: string) => string): readonly string[] {
-  const beyond = review.beyond;
-  if (beyond === undefined) return [];
-  if ('whole' in beyond) return ['', `Installed packages: could not be compared (${beyond.whole}).`];
-  const lines: string[] = [];
-  if (beyond.packages.length > 0) {
-    lines.push('', `Installed packages changed: ${beyond.packages.map(code).join(', ')}.`);
-  }
-  if (beyond.moved.length > 0) {
-    lines.push('', `Manifests whose entry points changed: ${beyond.moved.map(code).join(', ')}.`);
-  }
-  return lines;
 }
 
 function editOf(file: ReviewFile, code: (value: string) => string): string {

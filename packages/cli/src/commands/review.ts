@@ -40,13 +40,14 @@ import {
 import { digestString } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
-import { recordedSuite } from './suite-record.js';
+import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { regionState } from './covering-frame.js';
-import { motionAgainst, motionOfLast, type CoveringMotion } from './covering-motion.js';
+import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
+import { packagesReached, type PackageReach } from './review-install.js';
 import { diffPoint, diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
 
@@ -155,6 +156,8 @@ export interface Review {
   readonly before?: readonly BeforeReach[];
   /** Absent when there is no install to compare. */
   readonly beyond?: InstallDiff;
+  /** Each package `beyond` names, followed to the files here that depend on it. Absent with `beyond`, or when it could not be compared. */
+  readonly packages?: readonly PackageReach[];
   readonly motion?: CoveringMotion;
 }
 
@@ -163,7 +166,11 @@ export async function review(request: ParsedReview): Promise<Review> {
   // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
   const recorded = await recordedSuite(root, request.suite);
   const coverageFile = recorded.file;
-  const runs = await readCommitRuns(coverageFile);
+  // The runs are this checkout's: where its change starts and which files it
+  // ran. A worktree that has not run reads the primary checkout's record, and
+  // the primary's runs beside it describe the primary's change, not this one.
+  const own = await landingRecord(root, request.suite);
+  const runs = await readCommitRuns(own);
   const given = request.since ?? runs?.over;
   // Runs that were laid over no recording, and no base named: a suite given to
   // a share starts from the record its mainline published, which is the state
@@ -175,7 +182,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   if (ref === undefined) {
     throw new OperatorError(
       (runs === undefined
-        ? `no run has listed itself beside \`${coverageFile}\`, so nothing says where this change starts. ` +
+        ? `no run has listed itself beside \`${own}\`, so nothing says where this change starts. ` +
             'Run the suite with `withTestSelection` first, or name the base with `--since <ref>`.'
         : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} were not laid over a recording of ` +
             'the same instrumentation, so nothing says where this change starts. Name the base with `--since <ref>`.') +
@@ -222,6 +229,11 @@ export async function review(request: ParsedReview): Promise<Review> {
   );
   const full = await readExecutionIndex(from);
   const held = await baseIndex(against, from, request.against === undefined && against !== undefined ? mainline : undefined);
+  // With no base named, the base is the layer the runs at this commit retired,
+  // and it is theirs only for the test files a run at this commit wrote to the
+  // case index; for any other file it holds an earlier commit's cases.
+  const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
+  const comparable = (file: string): boolean => wrote === undefined || ('compared' in wrote && wrote.compared.has(file));
   const near = await nearTests(coverageFile, [...covered.values()].filter((file) => file.recorded).map((file) => file.file), relations);
 
   const files: ReviewFile[] = [];
@@ -230,7 +242,8 @@ export async function review(request: ParsedReview): Promise<Review> {
     const change = covered.get(file);
     const ranges = now.get(file) ?? [];
     const created = await point.at(named(file)) === undefined && existsSync(resolve(root, file));
-    const cases = casesMoved(file, held, full, created);
+    // A file no run at this commit wrote has no base, so it has no answer either: absent, not every case added.
+    const cases = comparable(file) ? casesMoved(file, held, full, created) : undefined;
     files.push({
       file,
       ...(created ? { created: true } : read === undefined ? {} : readingOf(read)),
@@ -244,11 +257,12 @@ export async function review(request: ParsedReview): Promise<Review> {
 
   const suite = await preconditionsOf(coverageFile, [...changed.keys()].map(named));
   const beyond = await installDiff(point, [...changed.keys()]);
+  const packages = beyond === undefined || 'whole' in beyond ? undefined : packagesReached(beyond.packages, relations, full);
   const motion = against !== undefined
     ? await motionAgainst(from, against, ref, root)
-    : runs === undefined
+    : wrote === undefined
       ? undefined
-      : await motionOfLast(full, from, full.tests.filter((test) => runs.files.includes(test.file)).map((test) => test.id), root, undefined, ref);
+      : await motionOfRuns(full, from, wrote, root, ref);
 
   const record = await ranAsTree(coverageFile, root, files.filter((file) => file.recorded === true).map((file) => file.file));
   return {
@@ -263,6 +277,7 @@ export async function review(request: ParsedReview): Promise<Review> {
       before: beforeReach([...changed.keys()].map(named), suite.declared),
     }),
     ...(beyond === undefined ? {} : { beyond }),
+    ...(packages === undefined ? {} : { packages }),
     ...(motion === undefined ? {} : { motion }),
   };
 }

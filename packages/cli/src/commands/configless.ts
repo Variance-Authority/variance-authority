@@ -189,6 +189,8 @@ export async function answerConfigless(
       const answer = await review(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
+        // FIXME: review.json is unbounded — every moved region carries its cases in full, and a change that moves
+        // most of a suite's regions writes hundreds of megabytes (430 MB on a pull request's CI run).
         await writeFile(join(parsed.out, 'review.json'), formatReview(answer, 'json'));
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
@@ -210,8 +212,9 @@ export async function answerConfigless(
     // may have configured this tool for nothing else.
     case 'index': {
       const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) };
-      if (parsed.followUps) streams.out(await followUpsOutput(request));
-      else streams.out(await indexOutput({ ...request, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach, waiting: (text: string) => streams.err(text) }) }));
+      const waiting = (text: string): void => streams.err(text);
+      if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
+      else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
       return EXIT_CLEAN;
     }
 

@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { inSnapshotCoordinates } from './since-diff.mjs';
-import { costLine, explain, findingLines, readingLines, runningLines } from './since-report.mjs';
-import { selectedFiles } from './test-since.mjs';
+import { costLine, explain, findingLines, readingLines, recordLine, runningLines } from './since-report.mjs';
+import { recordToRead, selectedFiles } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
 /**
@@ -227,5 +230,58 @@ describe('what a run costs is summed from what the runner reported', () => {
   it('says the cost is unknown rather than printing a zero', () => {
     expect(costLine(['c.test.ts'], recorded))
       .toBe('  cost     unknown: none of these 1 file(s) has a recorded duration');
+  });
+});
+
+describe('a worktree that has not run reads the record the primary checkout made', () => {
+  const snapshot = {
+    version: 3,
+    instrumentation: 'probe-recipe',
+    tests: [{ file: 'a.test.ts', complete: true, preconditions: [] }],
+    modules: [],
+  } as const;
+
+  async function layered(config?: unknown): Promise<{ primary: string; path: string; cacheRoot: string }> {
+    const at = await mkdtemp(resolve(tmpdir(), 'va-since-layers-'));
+    const primary = resolve(at, 'primary');
+    const gitdir = resolve(primary, '.git', 'worktrees', 'feature');
+    await mkdir(gitdir, { recursive: true });
+    const path = resolve(at, 'feature');
+    await mkdir(path, { recursive: true });
+    await writeFile(resolve(path, '.git'), `gitdir: ${gitdir}\n`);
+    if (config !== undefined) {
+      for (const where of [primary, path]) await writeFile(resolve(where, 'variance.config.json'), JSON.stringify(config));
+    }
+
+    return { primary, path, cacheRoot: resolve(at, 'cache') };
+  }
+
+  it('finds the repository record under the base layer, and makes no copy of it', async () => {
+    const { primary, path, cacheRoot } = await layered();
+    await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
+
+    const read = await recordToRead(path, cacheRoot);
+    expect(read).toEqual({ file: testCoverageFile(primary, { cacheRoot }), own: false });
+    expect(read.file).not.toBe(testCoverageFile(path, { cacheRoot }));
+    expect(recordLine(read.file, read.own)).toBe(
+      `  record   the primary checkout's, at ${read.file}; this worktree has recorded none of its own`,
+    );
+  });
+
+  it('finds the one declared suite\'s record the same way', async () => {
+    const { primary, path, cacheRoot } = await layered({ suites: { unit: { kind: 'unit' } } });
+    await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
+
+    expect(await recordToRead(path, cacheRoot)).toEqual({ file: testCoverageFile(primary, { suite: 'unit', cacheRoot }), own: false });
+  });
+
+  it('prefers the worktree\'s own record once a run has landed one', async () => {
+    const { primary, path, cacheRoot } = await layered();
+    await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
+    await writeTestCoverage(testCoverageFile(path, { cacheRoot }), snapshot);
+
+    const read = await recordToRead(path, cacheRoot);
+    expect(read).toEqual({ file: testCoverageFile(path, { cacheRoot }), own: true });
+    expect(recordLine(read.file, read.own)).toBe(`  record   this checkout's, at ${read.file}`);
   });
 });

@@ -10,6 +10,7 @@ import {
   distanceRange,
   groupByDistance,
   readTestCoverage,
+  readableTestCoverage,
   remaining,
   testCoverageFile,
   textAtRecording,
@@ -17,7 +18,7 @@ import {
 import { sourceStem } from './page-side.mjs';
 import { inSnapshotCoordinates } from './since-diff.mjs';
 import { importGraph, isManifest, movedManifests, movedPackageFiles, movedPackages } from './since-graph.mjs';
-import { costLine, describeRange, distanceLines, explain, findingLines, helpLines, readingLines, runningLines } from './since-report.mjs';
+import { costLine, describeRange, distanceLines, explain, findingLines, helpLines, readingLines, recordLine, runningLines } from './since-report.mjs';
 
 /**
  * Run the tests a change reached, from the suite's own record of itself.
@@ -116,6 +117,18 @@ export function selectedFiles({ suite, whole, entered, touched, moved, base }) {
   return { selected: suite.filter((file) => !whole.has(file) || entered.has(file) || touched.includes(file)) };
 }
 
+/**
+ * The one declared suite's record, from the nearest cache layer holding it, and
+ * whether that layer is this checkout's own. `readableTestCoverage` owns that
+ * lookup, and `variance select` asks it too. Nothing here writes.
+ */
+export async function recordToRead(root, cacheRoot) {
+  const declared = declaredSuites(root);
+  const options = { suite: declared?.length === 1 ? declared[0].name : undefined, cacheRoot };
+  const file = await readableTestCoverage(root, options);
+  return { file, own: file === testCoverageFile(root, options) };
+}
+
 const say = (...lines) => process.stdout.write(`${lines.join('\n')}\n`);
 
 const isTest = (path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
@@ -186,11 +199,7 @@ async function main() {
   const asked = distanceAt < 0 ? undefined : (argv[distanceAt + 1] ?? '');
   const ref = argv.find((argument, at) => !argument.startsWith('-') && at !== distanceAt + 1);
 
-  // The record of the one suite the root declares, which `vitest.config.mts`
-  // names as the suite it is. `variance select` reads the same record by the
-  // same rule.
-  const declared = declaredSuites(ROOT);
-  const snapshotFile = testCoverageFile(ROOT, { suite: declared?.length === 1 ? declared[0].name : undefined });
+  const { file: snapshotFile, own } = await recordToRead(ROOT);
   if (!existsSync(snapshotFile)) {
     say(
       'test:since: no execution snapshot on disk, so nothing here has an opinion about anything.',
@@ -394,6 +403,7 @@ async function main() {
   if (decided.widened !== undefined) {
     say(
       `test:since: running the whole suite — ${decided.widened}.`,
+      recordLine(snapshotFile, own),
       `  ${suite.length} files`,
       costLine(suite, recorded),
       '',
@@ -438,6 +448,7 @@ async function main() {
 
   say(
     `test:since: ${selected.length} of ${suite.length} files, at ${groups.length} distance(s).`,
+    recordLine(snapshotFile, own),
     `  base     ${base.slice(0, 12)}${ref === undefined ? ' — where the snapshot was recorded' : ' — merged with HEAD'}`,
     `  changed  ${changed.length} path(s): ${touched.length} test file(s), ${changed.length - consequential.length} manifest(s), ${unentered.length} unlisted`,
     `  skipped  ${suite.length - selected.length} file(s): recorded whole, ran nothing that changed`,
