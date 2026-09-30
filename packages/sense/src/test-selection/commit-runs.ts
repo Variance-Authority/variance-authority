@@ -87,7 +87,15 @@ export function commitRunsFile(coverageFile: string): string {
 export async function landRun(coverageFile: string, current: TestCoverage, root: string): Promise<void> {
   const prior = await standingSnapshot(coverageFile, current.instrumentation);
   const stood = prior?.commit;
-  const held = await readCommitRuns(coverageFile);
+  // A record this cannot read is no record to carry forward: the run writes a
+  // fresh one, which leaves `standing` absent rather than guessed, and says so.
+  const held = await readCommitRuns(coverageFile).catch((error: unknown) => {
+    console.warn(
+      `variance-authority: ${error instanceof Error ? error.message : String(error)}; this run writes it afresh, ` +
+        'so where each test it did not run last ran is not recorded until a run observes every test.',
+    );
+    return undefined;
+  });
   await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
   const at = new Date().toISOString();
   const files = current.tests.map((test) => test.file);
@@ -168,10 +176,11 @@ function standingAfter(
  * run has listed itself: when there is no file at all.
  *
  * A record that is there and cannot be read, or is not a JSON object, throws,
- * naming the file: it
- * says where each test last ran, and a reader that took it for *no record*
- * would place every test at the journal's commit, which can skip a test that
- * should run. Each caller says what the record was for and what to do.
+ * naming the file: it says where each test last ran, and a reader that took it
+ * for *no record* would place every test at the journal's commit, which can
+ * skip a test that should run. Each caller says what the record was for and
+ * what to do. A writer, `landRun`, need not refuse: it writes a record that
+ * says less, and says so.
  */
 export async function readCommitRuns(coverageFile: string): Promise<CommitRuns | undefined> {
   const file = commitRunsFile(coverageFile);

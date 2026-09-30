@@ -48,6 +48,16 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
   });
 
+  it('reads the stands, the change and the install in the checkout it was asked about, not the process directory', async () => {
+    const { root, P } = await partialRun();
+    process.chdir(mkdtempSync(join(tmpdir(), 'va-select-standing-elsewhere-')));
+
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
+  });
+
   it('runs where the runs record does not say where it last ran, and says so', async () => {
     const { root, file } = await partialRun();
     // A record written without `standing`, as a worktree's first partial run
@@ -192,7 +202,7 @@ describe('a test that did not run at the journal commit', () => {
 
     expect(said.out).toBe('');
     expect(said.err).toContain(`cannot read what changed since ${gone}`);
-    expect(said.err).toContain(`${gone.slice(0, 12)}, where 1 test(s) last ran, is not in this checkout`);
+    expect(said.err).toContain(`git could not diff ${gone.slice(0, 12)}, where 1 test(s) last ran, against`);
   });
 
   it('refuses a runs record that is not JSON, by the file it read', async () => {

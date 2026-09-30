@@ -201,11 +201,11 @@ describe('a change is read from where each test last ran, not from where the las
     });
   });
 
-  it('runs the whole suite when a stand the runs name is not in this checkout', async () => {
+  it('runs the whole suite when git cannot diff a stand the runs name', async () => {
     const { git, H } = await history();
     const gone = 'e'.repeat(40);
     const start = readingFrom({ commit: H, ref: undefined, runs: runsAt(H, gone), tests, git });
-    expect(start.widened).toBe(`${gone.slice(0, 12)}, where 2 test(s) last ran, is not in this checkout`);
+    expect(start.widened).toBe(`git could not diff ${gone.slice(0, 12)}, where 2 test(s) last ran, against ${H.slice(0, 12)}`);
     const decided = selectedFiles({ suite: ['a.test.ts'], whole: new Set(['a.test.ts']), entered: new Set(), touched: [], moved: [], base: H, unstarted: start.widened });
     expect(decided).toEqual({ widened: `${start.widened}, so the change cannot be read from where it started` });
   });

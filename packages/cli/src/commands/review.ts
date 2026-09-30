@@ -170,7 +170,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   // ran. A worktree that has not run reads the primary checkout's record, and
   // the primary's runs beside it describe the primary's change, not this one.
   const own = await landingRecord(root, request.suite);
-  const runs = await readCommitRuns(own);
+  const runs = await readCommitRuns(own).catch((error: unknown) => { throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. It says where this change starts; delete it and record a run of the whole suite, which writes it again.`, { cause: error }); });
   const given = request.since ?? runs?.over;
   // Runs that were laid over no recording, and no base named: a suite given to
   // a share starts from the record its mainline published, which is the state

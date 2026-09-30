@@ -16,6 +16,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { readFlags } from '../args.js';
+import { OperatorError } from '../exit.js';
 import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { review } from './review.js';
@@ -391,6 +392,17 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const root = await mkdtemp(join(tmpdir(), 'variance-review-bare-'));
 
     await expect(review(parse(['--root', root]))).rejects.toThrow(/no run has listed itself/);
+  });
+
+  it('refuses a runs record that is there and cannot be read, as an operator error naming it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-review-unread-'));
+    const runs = commitRunsFile(testCoverageFile(root));
+    await mkdir(runs, { recursive: true });
+
+    const refused = review(parse(['--root', root]));
+
+    await expect(refused).rejects.toBeInstanceOf(OperatorError);
+    await expect(refused).rejects.toThrow(`the runs record at ${runs} could not be read`);
   });
 
   it('refuses a format it does not write', () => {

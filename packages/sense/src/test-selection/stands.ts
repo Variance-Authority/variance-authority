@@ -213,8 +213,8 @@ export function readingFrom({
   for (const stand of older) {
     const standing = grouped.get(stand)!.sort();
     try {
-      // FIXME: a submodule's change lists only its gitlink path here, so a test
-      // under it is not charged with what changed inside the submodule.
+      // FIXME: a submodule's change lists only its gitlink path here, so neither a
+      // test under it nor one that entered a file inside it is charged with that change.
       read.push({ commit: stand, tests: standing, whole: [...new Set(paths(git('diff', '--name-only', '-z', '--no-renames', stand, commit)))].sort() });
     } catch {
       return {
@@ -223,7 +223,7 @@ export function readingFrom({
         stands: [],
         says: `${reason}${said}`,
         ...also,
-        widened: `${stand.slice(0, 12)}, where ${standing.length} test(s) last ran, is not in this checkout`,
+        widened: `git could not diff ${stand.slice(0, 12)}, where ${standing.length} test(s) last ran, against ${at}`,
       };
     }
   }

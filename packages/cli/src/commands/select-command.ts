@@ -44,7 +44,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import type { CommitRuns, ExecutionNarrowing, Stand, StandReading } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
@@ -165,7 +165,10 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // in is the whole change, so it is read for every test alike, and a note says
   // when some test last ran before the journal's commit.
   const handed = request.diff !== undefined;
-  const stood = commit === undefined ? undefined : await standsOf(at, request.cwd, handed);
+  // Every reading from here on is made against git's top level, which git spells
+  // through symlinks, as `process.cwd()` does; the journal is found by `cwd` as given.
+  const here = await realpath(request.cwd).catch(() => request.cwd);
+  const stood = commit === undefined ? undefined : await standsOf(at, here, handed);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
   const standing =
     stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!);
@@ -175,7 +178,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } });
   }
   const diff = request.diff === undefined
-    ? await diffSince(request.since ?? base, [], commit)
+    ? await diffSince(request.since ?? base, [], commit, { cwd: here })
     : await handedDiff(request.diff);
   if (diff === undefined) {
     const ground: SelectGround = { kind: 'no-diff', from: base };
@@ -188,19 +191,19 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // tests ran and not one `main` made since, and a bump made and undone after a
   // test ran is no bump for it. Keyed by the stand's commit, `undefined` for
   // the journal's own. `undefined` is no lockfile to compare, which moves
-  // nothing; a comparison that could not be made — a commit this checkout does
-  // not hold among them — declines before the graph is scanned for an answer
+  // nothing; a comparison that could not be made — from a commit git could not
+  // resolve here — declines before the graph is scanned for an answer
   // nobody will read. The lockfile on disk is parsed once for every group.
   const changed = [...selection.changedLines(diff).keys()];
   const installs = new Map<string | undefined, InstallDiff | undefined>();
-  if (request.diff !== undefined) installs.set(undefined, await installDiffOfPatch(diff));
+  if (request.diff !== undefined) installs.set(undefined, await installDiffOfPatch(diff, here));
   else {
     const groups = [undefined, ...stands];
     const asked = await Promise.all(groups.map(async (stand) => ({
-      point: commit === undefined ? await diffPoint(base) : await commitPoint(stand?.commit ?? commit),
+      point: commit === undefined ? await diffPoint(base, [], here) : await commitPoint(stand?.commit ?? commit, [], here),
       changed: stand === undefined ? changed : [...new Set([...changed, ...stand.whole])],
     })));
-    const answers = await installDiffs(asked);
+    const answers = await installDiffs(asked, here);
     groups.forEach((stand, index) => installs.set(stand?.commit, answers[index]));
   }
   for (const installed of installs.values()) {
@@ -289,9 +292,9 @@ async function standsOf(
     execFileSync('git', args, { cwd: repository, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
   const reading = selection.standsAt(at, runs, git, (test) => existsSync(join(repository, test)));
   if (reading === undefined) return undefined;
-  // `git` names files from the top of the checkout, and `diffSince` names them from the process's directory.
-  const here = (file: string): string => relative(process.cwd(), join(repository, file));
-  return { reading, stands: reading.stands.map((stand) => ({ ...stand, whole: stand.whole.map(here) })) };
+  // `git` names files from the top of the checkout, and `diffSince` names them from `cwd`, as every reader here does.
+  const named = (file: string): string => relative(cwd, join(repository, file));
+  return { reading, stands: reading.stands.map((stand) => ({ ...stand, whole: stand.whole.map(named) })) };
 }
 
 /** What the journal says about where its tests last ran, as notes after the verdict. */

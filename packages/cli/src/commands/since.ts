@@ -111,14 +111,16 @@ export async function diffSince(
   ref: string,
   roots: readonly string[] = [],
   from?: string,
-  options: { readonly reverse?: boolean } = {},
+  options: { readonly reverse?: boolean; readonly cwd?: string } = {},
 ): Promise<string | undefined> {
   const run = promisify(execFile);
-  const here = process.cwd();
+  const here = options.cwd ?? process.cwd();
   const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
   const side = options.reverse === true ? REVERSED : [];
 
   try {
+    // FIXME: a changed submodule is one `Subproject commit` hunk under its gitlink
+    // path, so no test under it, or that entered a file inside it, is charged.
     const { stdout } = await run('git', [...PLAIN, 'diff', ...NO_DECORATION, ...side, '--no-renames', from ?? (await mergeBase(run, ref, repository))], {
       cwd: repository,
       maxBuffer: 64 * 1024 * 1024,
@@ -287,27 +289,27 @@ export async function indexPosition(
  * `undefined` rather than a throw. The file list is resolved first and has
  * already refused with a sentence naming the ref the operator typed.
  */
-export async function diffPoint(ref: string, roots: readonly string[] = []): Promise<DiffPoint | undefined> {
-  return await pointAt(roots, (run, repository) => mergeBase(run, ref, repository));
+export async function diffPoint(ref: string, roots: readonly string[] = [], here = process.cwd()): Promise<DiffPoint | undefined> {
+  return await pointAt(roots, (run, repository) => mergeBase(run, ref, repository), here);
 }
 
 /**
  * The point at `commit` itself, with no merge base taken — for a record that
  * says a test ran *at* that commit, whatever line it is on. A test that last
  * ran on another branch ran against that branch's install, and the merge base
- * with this one is an install it never saw. `undefined` when this checkout
- * does not hold the commit.
+ * with this one is an install it never saw. `undefined` when git cannot
+ * resolve the commit here.
  */
-export async function commitPoint(commit: string, roots: readonly string[] = []): Promise<DiffPoint | undefined> {
+export async function commitPoint(commit: string, roots: readonly string[] = [], here = process.cwd()): Promise<DiffPoint | undefined> {
   return await pointAt(roots, async (run, repository) => {
     const { stdout } = await run('git', ['rev-parse', '--verify', '--quiet', `${commit}^{commit}`], { cwd: repository });
     return stdout.trim();
-  });
+  }, here);
 }
 
-async function pointAt(roots: readonly string[], baseOf: (run: Run, at: string) => Promise<string>): Promise<DiffPoint | undefined> {
+/** The point `baseOf` names in the checkout `here` (or `roots[0]` under it) belongs to. */
+async function pointAt(roots: readonly string[], baseOf: (run: Run, at: string) => Promise<string>, here: string): Promise<DiffPoint | undefined> {
   const run = promisify(execFile);
-  const here = process.cwd();
   try {
     const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
     const base = await baseOf(run, repository);

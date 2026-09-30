@@ -233,7 +233,19 @@ async function main() {
    * not run reads the primary checkout's snapshot, and the runs beside it
    * describe that snapshot; the worktree's own would describe nothing it reads.
    */
-  const runs = coverage.commit === undefined ? undefined : await readCommitRuns(snapshotFile);
+  let runs;
+  try {
+    runs = coverage.commit === undefined ? undefined : await readCommitRuns(snapshotFile);
+  } catch (error) {
+    // It says where each test last ran, and a selection that guessed would
+    // skip tests that should run, so nothing is narrowed on it.
+    say(
+      `test:since: ${error?.message ?? error}.`,
+      '  It says where each test in the snapshot last ran, so nothing is selected without it.',
+      '  Delete it and run `yarn test` once, which writes it again.',
+    );
+    return 1;
+  }
   let suite;
   try {
     suite = suiteFiles(ROOT);
