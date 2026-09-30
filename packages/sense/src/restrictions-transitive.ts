@@ -33,6 +33,7 @@ import {
   trailOf,
   type FileRecord,
   type NodeId,
+  type Relations,
 } from '@variance-authority/core/relate';
 import { chainBetween, holds, inside, type Decision, type RuleFile } from './restrictions.js';
 
@@ -66,6 +67,24 @@ function keyOf(files: readonly RuleFile[], seed: string): string | undefined {
     });
   });
   return holding.length === 0 ? undefined : `${above.join(',')}|${holding.join(',')}`;
+}
+
+/**
+ * How many of `group` reach `at` without crossing a restricted file. A
+ * restricted seed counts when it imports into that reach, since its own chain
+ * starts there, and is never walked through: a seed behind it first broke the
+ * rule on arriving in it. For the same reason a restricted `at` counts only
+ * itself.
+ */
+function seedsBehind(relations: Relations, group: readonly NodeId[], restricted: ReadonlyMap<NodeId, Decision>, at: NodeId): number {
+  if (restricted.has(at)) return group.includes(at) ? 1 : 0;
+  const back = dependentsOf(relations, [at], { through: EDGE_KINDS, avoid: restricted.keys() });
+  const { offset, target } = relations.depends;
+  const intoReach = (seed: NodeId): boolean => {
+    for (let edge = offset[seed]!; edge < offset[seed + 1]!; edge += 1) if (back.mask[target[edge]!] === 1) return true;
+    return false;
+  };
+  return group.filter((seed) => back.mask[seed] === 1 || (restricted.has(seed) && intoReach(seed))).length;
 }
 
 /**
@@ -111,8 +130,7 @@ export function restrictedChains(records: readonly FileRecord[], files: readonly
         const decision = restricted.get(to);
         if (decision === undefined || arrived.has(to)) continue;
         arrived.add(to);
-        const back = dependentsOf(relations, [at], options);
-        const seeds = group.filter((seed) => back.mask[seed] === 1).length;
+        const seeds = seedsBehind(relations, group, restricted, at);
         const chain = trailOf(walk, at).map((id) => relations.names[id]!);
         const key = `${relations.names[at]}\0${relations.names[to]}`;
         const held = found.get(key);

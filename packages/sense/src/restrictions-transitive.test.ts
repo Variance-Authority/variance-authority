@@ -90,9 +90,33 @@ describe('restrictedChains', () => {
       record('packages/secret/s.ts', 'tools/x.ts'),
     ];
     const found = restrictedChains(graph, sealed, ['packages/app/a.ts', 'packages/secret/s.ts']);
-    expect(found.map((finding) => [finding.from, finding.to, finding.message, finding.chain])).toEqual([
-      ['packages/app/b.ts', 'packages/secret/s.ts', 'the secret is sealed', ['packages/app/a.ts', 'packages/app/b.ts']],
-      ['packages/secret/s.ts', 'tools/x.ts', 'packages never rest on tools', ['packages/secret/s.ts']],
+    // `a.ts` is behind the import into the secret and not behind the secret's
+    // own import: its chain broke the rule on arriving in `s.ts`.
+    expect(found.map((finding) => [finding.from, finding.to, finding.message, finding.chain, finding.seeds])).toEqual([
+      ['packages/app/b.ts', 'packages/secret/s.ts', 'the secret is sealed', ['packages/app/a.ts', 'packages/app/b.ts'], 1],
+      ['packages/secret/s.ts', 'tools/x.ts', 'packages never rest on tools', ['packages/secret/s.ts'], 1],
+    ]);
+  });
+
+  it('counts a restricted seed behind the import its own chain reaches, and no seed past it', () => {
+    const sealed: RuleFile[] = [
+      {
+        directory: '',
+        rules: [
+          { from: 'packages/*', to: 'packages/secret/*', type: 'restricted', transitive: true, message: 'the secret is sealed' },
+          { from: 'packages/*', to: 'tools/*', type: 'restricted', transitive: true, message: 'packages never rest on tools' },
+        ],
+      },
+    ];
+    const graph = [
+      record('packages/app/a.ts', 'packages/secret/s.ts'),
+      record('packages/secret/s.ts', 'packages/app/c.ts'),
+      record('packages/app/c.ts', 'tools/x.ts'),
+    ];
+    const found = restrictedChains(graph, sealed, ['packages/app/a.ts', 'packages/secret/s.ts']);
+    expect(found.map((finding) => [finding.from, finding.to, finding.chain, finding.seeds])).toEqual([
+      ['packages/app/a.ts', 'packages/secret/s.ts', ['packages/app/a.ts'], 1],
+      ['packages/app/c.ts', 'tools/x.ts', ['packages/secret/s.ts', 'packages/app/c.ts'], 1],
     ]);
   });
 
