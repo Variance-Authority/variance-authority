@@ -174,6 +174,11 @@ export interface NativeOrientPackageLayer {
   readonly files: number;
   /** Files and unresolved requests the closure reached and could not size. */
   readonly unsizedFiles: number;
+  /**
+   * Its manifest's `exports`, `main`, `module` and `bin` name none of its
+   * files, so what it ships starts at the files of it nothing imports.
+   */
+  readonly undeclared: boolean;
 }
 
 /** The files the code map read as shipped: every counted file not on the tests' side. */

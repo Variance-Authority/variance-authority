@@ -88,6 +88,7 @@ mod order;
 mod off_thread;
 mod orient_map;
 mod orient_map_closure;
+mod orient_map_entries;
 mod orient_map_shipped;
 mod orient_map_pages;
 mod orient_map_read;

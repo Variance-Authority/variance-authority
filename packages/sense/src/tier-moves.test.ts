@@ -28,6 +28,7 @@ function sized(entries: Record<string, Entry>): NativeOrientPackageLayer[] {
       lines: closure(name).reduce((sum, member) => sum + entries[member]!.own, 0),
       files: closure(name).length,
       unsizedFiles: entries[name]!.unsizedFiles ?? 0,
+      undeclared: false,
     }));
 }
 

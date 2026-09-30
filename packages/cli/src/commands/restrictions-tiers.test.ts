@@ -105,6 +105,28 @@ describe('variance layers with tiers declared', () => {
     ].join('\n'));
   });
 
+  it('sizes the file a manifest offers though its own test imports it, and names each package whose manifest offers none', async () => {
+    checkout({
+      tiers: [100, 8, 4],
+      files: {
+        'packages/tool/package.json': JSON.stringify({ name: '@t/tool', bin: { tool: './src/cli.ts' } }),
+        'packages/tool/src/cli.ts': 'export const tool = 1;\n',
+        'packages/tool/src/cli.test.ts': "import { tool } from './cli.ts';\nexport const seen = tool;\n",
+        'packages/app/package.json': JSON.stringify({ name: '@t/app' }),
+        'packages/app/src/main.ts': 'export const app = 1;\n',
+      },
+    });
+    await run(['index']);
+
+    const lines = (await run(['layers'])).out.split('\n');
+
+    expect(lines.slice(0, 3)).toEqual(['1 @t/a tier 2 (1 line in 1 file)', '1 @t/app tier 2 (1 line in 1 file)', '1 @t/tool tier 2 (1 line in 1 file)']);
+    expect(lines.slice(-2)).toEqual([
+      'No `exports`, `main`, `module` or `bin` names a file of these packages, so each closure starts at the files of it nothing imports: @t/app.',
+      '',
+    ]);
+  });
+
   it('names the package that caused a tier move and counts the ones it carried', async () => {
     const root = checkout({ tiers: [100, 8, 4] });
     await run(['index']);

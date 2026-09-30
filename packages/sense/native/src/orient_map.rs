@@ -26,7 +26,7 @@ use crate::orient_map_read::{read, Read};
 use crate::orient_map_signals::signals;
 use crate::orient_map_tree::tree;
 
-const FORMAT: u32 = 4;
+const FORMAT: u32 = 5;
 
 #[derive(Serialize, Deserialize)]
 struct Stored {
@@ -59,6 +59,8 @@ struct Placed {
     own: u64,
     files: u32,
     unsized_files: u32,
+    /// Its manifest offers none of its files (`Read::undeclared`).
+    undeclared: bool,
 }
 
 /// What a kept map is, read without its pages.
@@ -320,7 +322,8 @@ fn fold(read: &Read) -> Result<(Made, Vec<Page>, Vec<Placed>), &'static str> {
         .zip(&layer)
         .zip(takes)
         .zip(&read.closures)
-        .map(|(((named, &layer), takes), closure)| Placed {
+        .zip(&read.undeclared)
+        .map(|((((named, &layer), takes), closure), &undeclared)| Placed {
             package: named.name.clone(),
             directory: named.directory.clone(),
             layer,
@@ -329,6 +332,7 @@ fn fold(read: &Read) -> Result<(Made, Vec<Page>, Vec<Placed>), &'static str> {
             own: closure.own,
             files: closure.files,
             unsized_files: closure.unsized_files,
+            undeclared,
         })
         .collect();
     Ok((Made { packages: pages[0].packages, areas: pages.len() as u32 - 1, levels, layers: count, unread: read.unread }, pages, placed))
@@ -451,6 +455,9 @@ pub struct OrientPackageLayer {
     pub files: u32,
     /// Files and unresolved requests the closure reached and could not size.
     pub unsized_files: u32,
+    /// Its manifest's `exports`, `main`, `module` and `bin` name none of its
+    /// files, so what it ships starts at the files of it nothing imports.
+    pub undeclared: bool,
 }
 
 #[napi(object)]
@@ -486,6 +493,7 @@ pub fn orient_layers(index: String) -> napi::Result<Option<OrientLayers>> {
                 own: placed.own as f64,
                 files: placed.files,
                 unsized_files: placed.unsized_files,
+                undeclared: placed.undeclared,
             })
             .collect()
     });
