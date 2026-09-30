@@ -51,3 +51,32 @@ it('answers a re-exported name through the door the workspace imports it by', as
   expect(answer).toContain('used by 2 packages: @tanstack/react-query, @tanstack/solid-query');
   expect(answer).toContain('Also published by: @tanstack/angular-query-experimental, @tanstack/react-query');
 });
+
+it('breaks a tie between doors by published name, whatever order their directories are read in', async () => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-symbol-door-cache-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-symbol-door-')));
+  execFileSync('git', ['init', '--quiet', root]);
+  const manifest = (name: string, dependencies: Record<string, string> = {}): string =>
+    JSON.stringify({ name, exports: { '.': './src/index.ts' }, dependencies });
+  // Directories read a, m, z; the packages in them are named zeta, core, alpha.
+  // Nothing imports the name, so every door counts nothing.
+  const files: Record<string, string> = {
+    'package.json': JSON.stringify({ name: 'tie', private: true, workspaces: ['packages/*'] }),
+    'packages/m-core/package.json': manifest('@x/core'),
+    'packages/m-core/src/index.ts': 'export class Thing {}\n',
+    'packages/a-zeta/package.json': manifest('@x/zeta', { '@x/core': 'workspace:*' }),
+    'packages/a-zeta/src/index.ts': "export * from '@x/core';\n",
+    'packages/z-alpha/package.json': manifest('@x/alpha', { '@x/core': 'workspace:*' }),
+    'packages/z-alpha/src/index.ts': "export * from '@x/core';\n",
+  };
+  for (const [path, value] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), value);
+  }
+  execFileSync('git', ['add', '-f', '.'], { cwd: root });
+  await updateSourceIndex(root);
+
+  const answer = symbol.run(readHelp(root), { name: 'Thing' }, { root });
+  expect(answer).toContain("import { Thing } from '@x/alpha';");
+  expect(answer).toContain('Also published by: @x/core, @x/zeta');
+});
