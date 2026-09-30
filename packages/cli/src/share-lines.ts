@@ -1,6 +1,6 @@
 /**
  * Which lines a share keeps, which one this run writes, and which one a reader
- * reads (spec 0074).
+ * reads (ADR-0077).
  *
  * Every answer here has an owner that is not this file. The configuration
  * names the mainlines when it wants to; otherwise git does, through

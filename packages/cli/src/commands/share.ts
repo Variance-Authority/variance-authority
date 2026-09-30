@@ -40,7 +40,7 @@ export { mainlinesOf, type Mainlines } from '../share-lines.js';
 
 /**
  * Publishing a run to its line, and reading a mainline's suite index back — the
- * CLI half of spec 0074.
+ * CLI half of ADR-0077.
  *
  * `@variance-authority/core/share` knows what a line holds and how a write
  * races another; `share-lines.ts` knows which line a run belongs to and which
@@ -194,7 +194,7 @@ export async function publishKept(
   if (!('none' in costs)) entries.push(costs);
   for (const suite of config.suites ?? []) {
     if (suite.carry !== 'share') continue;
-    const entry = await suiteEntryOf(cwd, suite.name, at);
+    const entry = await suiteEntryOf(cwd, suite.name, at, { whole: run.line.kind === 'mainline' });
     if (entry === undefined) continue;
     if ('unpublished' in entry) unpublished.push(`${suiteEntry(suite.name)}: ${entry.unpublished}`);
     else entries.push(entry);
@@ -289,10 +289,11 @@ export async function mainlineIndex(
   return { ...at, from: 'share', index };
 }
 
-/** One suite's record as the reader's mainline holds it: the coverage record, and its per-case index when it had one. */
+/** One suite's record as the reader's mainline holds it: the coverage record, its per-case index when it had one, and its runs record when the publisher carried it. */
 export interface MainlineSuite extends MainlineAt {
   readonly coverage: Uint8Array;
   readonly cases?: Uint8Array;
+  readonly runs?: Uint8Array;
 }
 
 /**
@@ -415,7 +416,7 @@ export async function shareLines(
 }
 
 /** What a publish did, in the lines `variance share --publish` prints. */
-export function describePublish(config: Config, done: RunPublish): readonly string[] {
+export function describePublish(config: Pick<Config, 'share'>, done: RunPublish): readonly string[] {
   const where = describeShare(config);
   if ('none' in done) return [`nothing published: ${done.none}.`];
   const line = `${done.line.kind} ${done.line.name}`;
@@ -447,7 +448,7 @@ export function describePublish(config: Config, done: RunPublish): readonly stri
   ];
 }
 
-function describeShare(config: Config): string {
+function describeShare(config: Pick<Config, 'share'>): string {
   const share = config.share;
   if (share === undefined) return 'no share';
   if (share.kind === 'directory') return `the directory ${share.root}`;

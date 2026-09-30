@@ -166,8 +166,8 @@ export async function review(request: ParsedReview): Promise<Review> {
   const { root } = request;
   // TODO: a repository that declares several suites is read suite by suite when none is named, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads one record and refuses to guess which.
   const recorded = await recordedSuite(root, request.suite);
-  // The runs are always this checkout's own, never the primary's a worktree that has not run
-  // reads its recording from, and a record seeded from the base (`runs: 0`) lists none of them.
+  // The runs are always this checkout's own: a base it did not record, the mainline's or the
+  // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
   const own = await landingRecord(root, request.suite);
   const runs = await readCommitRuns(own).catch((error: unknown) => {
     const remedy = 'It says where this change starts: run the suite, which rewrites it; delete it first only if it is a directory';
@@ -176,7 +176,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   const given = request.since ?? (await runsBase(root, runs, own));
   // Runs that name no start (`runsBase`), and no base named: a suite given to a
   // share starts from the record its mainline published, as a fresh CI checkout
-  // always does (spec 0074, item 5). With no run here at all, nothing is fetched.
+  // always does (ADR-0084). With no run here at all, nothing is fetched.
   const shared = given === undefined && runs !== undefined ? await mainlineBase(root, recorded.declared) : undefined;
   const mainline = shared === undefined || 'miss' in shared ? undefined : shared;
   const ref = given ?? mainline?.commit;

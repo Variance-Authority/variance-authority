@@ -16,7 +16,7 @@ import { describeDistance, describeMiss, lineEntry, mainlineEntry, type Here, ty
 
 /**
  * The report a reader answers from when this checkout has none of its own
- * (spec 0074, item 5).
+ * (ADR-0077).
  *
  * `config.report` first, always, and fetching nothing when it is there. Without
  * it, the branch's own line, then the mainline's. A record read from a line is

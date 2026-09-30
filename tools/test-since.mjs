@@ -5,14 +5,11 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   atDistance,
-  declaredSuites,
   distanceRange,
   groupByDistance,
   readCommitRuns,
   readTestCoverage,
-  readableTestCoverage,
   remaining,
-  testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
 import { readChange, suiteFiles } from './since-change.mjs';
@@ -97,15 +94,21 @@ const diffOfNew = (path) =>
   }).stdout;
 
 /**
- * The one declared suite's record, from the nearest cache layer holding it, and
- * whether that layer is this checkout's own. `readableTestCoverage` owns that
- * lookup, and `variance select` asks it too. Nothing here writes.
+ * The record to measure from, which `suiteBase` in `@variance-authority/cli`
+ * orders, and the note that says whose it is: this checkout's own, else the
+ * mainline's, fetched now or as last fetched on this machine, else the primary
+ * checkout's as the offline fallback, with the reason no mainline record was
+ * read. `variance select` asks the same `suiteBase` and prints the same notes.
+ * Nothing here writes but the fetch, which keeps the mainline's bytes in the
+ * cache's read layer and names them in `fetched.json` there, where the run this
+ * selects lays them under its own record.
  */
-export async function recordToRead(root, cacheRoot) {
-  const declared = declaredSuites(root);
-  const options = { suite: declared?.length === 1 ? declared[0].name : undefined, cacheRoot };
-  const file = await readableTestCoverage(root, options);
-  return { file, own: file === testCoverageFile(root, options) };
+export async function recordToRead(root, cacheRoot, env) {
+  const { mainlineMissed, mainlineRead, primaryRead, suiteBase } = await import('@variance-authority/cli');
+  const base = await suiteBase(root, { ...(cacheRoot === undefined ? {} : { cacheRoot }), ...(env === undefined ? {} : { env }) });
+  if (base.from === 'mainline') return { ...base, note: mainlineRead(base.mainline) };
+  if (base.from === 'primary' && base.missed !== undefined) return { ...base, note: primaryRead(base.missed.suite, base.file, base.missed) };
+  return base.missed === undefined ? base : { ...base, note: mainlineMissed(base.missed) };
 }
 
 const say = (...lines) => process.stdout.write(`${lines.join('\n')}\n`);
@@ -151,11 +154,13 @@ async function main() {
   const asked = distanceAt < 0 ? undefined : (argv[distanceAt + 1] ?? '');
   const ref = argv.find((argument, at) => !argument.startsWith('-') && at !== distanceAt + 1);
 
-  const { file: snapshotFile, own } = await recordToRead(ROOT);
-  if (!existsSync(snapshotFile)) {
+  const base = await recordToRead(ROOT);
+  const snapshotFile = base.file;
+  if (base.from === 'none' || !existsSync(snapshotFile)) {
     say(
       'test:since: no execution snapshot on disk, so nothing here has an opinion about anything.',
       `  looked in ${snapshotFile}`,
+      ...(base.note === undefined ? [] : [`  mainline ${base.note}`]),
       '  Run `yarn test` once — it records what each file entered — and ask again.',
     );
     return 1;
@@ -230,8 +235,13 @@ async function main() {
    * `packages/cli/src/commands/since.ts` does.
    *
    * The runs are read beside whichever snapshot is read. A worktree that has
-   * not run reads the primary checkout's snapshot, and the runs beside it
-   * describe that snapshot; the worktree's own would describe nothing it reads.
+   * not run reads the mainline's snapshot, or the primary checkout's, and the
+   * runs beside it describe that snapshot; the worktree's own would describe
+   * nothing it reads. The mainline's record has beside it the runs record the
+   * run that published it wrote, when the entry carried one. `readingFrom` says
+   * what it read in place of an answer whenever the runs beside the snapshot
+   * cannot give one: there are none, they are another commit's, or they do not
+   * list where a test in the snapshot last ran.
    */
   let runs;
   try {
@@ -242,8 +252,9 @@ async function main() {
     // depends on whose record it is, one case per place a record is read from.
     const remedy = {
       own: '  Run `yarn test`, which rewrites it; delete it first only if it is a directory.',
+      mainline: "  It is the mainline's record, as last fetched: run `yarn test` here, which writes this checkout's own.",
       primary: "  It is the primary checkout's record: run `yarn test` here, which writes this worktree's own.",
-    }[own ? 'own' : 'primary'];
+    }[base.from];
     say(
       `test:since: ${error?.message ?? error}.`,
       '  It says where each test in the snapshot last ran, so nothing is selected without it.',
@@ -295,7 +306,7 @@ async function main() {
   if (decided.widened !== undefined) {
     say(
       `test:since: running the whole suite — ${decided.widened}.`,
-      recordLine(snapshotFile, own),
+      ...recordLine(base),
       `  ${suite.length} files`,
       costLine(suite, recorded),
       '',
@@ -340,7 +351,7 @@ async function main() {
 
   say(
     `test:since: ${selected.length} of ${suite.length} files, at ${groups.length} distance(s).`,
-    recordLine(snapshotFile, own),
+    ...recordLine(base),
     `  base     ${from.slice(0, 12)} — ${start.says}`,
     `  changed  ${changed.length} path(s): ${touched.length} test file(s), ${changed.length - consequential.length} manifest(s), ${unentered.length} unlisted`,
     `  skipped  ${suite.length - selected.length} file(s): recorded whole, ran nothing that changed`,

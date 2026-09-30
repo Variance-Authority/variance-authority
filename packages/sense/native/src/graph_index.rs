@@ -106,15 +106,15 @@ pub(crate) fn index_graph(
     let mut records: Vec<Indexed> = (0..files.len())
         .into_par_iter()
         .map(|index| {
-            let (held, _, parsed) = &read[index];
-            built(&files[index], &identities[index], held, *parsed, &targets[index], &settling)
+            let (held, _, outcome) = &read[index];
+            built(&files[index], &identities[index], held, *outcome, &targets[index], &settling)
         })
         .collect();
     let keys = files
         .iter()
         .zip(&identities)
         .zip(&read)
-        .filter(|((_, identity), (_, _, parsed))| *parsed && !identity.is_empty())
+        .filter(|((_, identity), (_, _, outcome))| outcome.parsed() && !identity.is_empty())
         .map(|((file, identity), _)| format!("{identity}\0{}", way(file)))
         .collect();
     drop(read);

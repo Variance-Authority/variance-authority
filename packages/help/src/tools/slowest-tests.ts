@@ -20,10 +20,10 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { spawnSync } from 'node:child_process';
-import { didYouMean, type Tool } from '@variance-authority/mcp/tools';
-import { recordedDurations, recordedPaths, type DurationScope } from '@variance-authority/sense';
+import type { Tool } from '@variance-authority/mcp/tools';
+import { recordedDurations, type DurationScope } from '@variance-authority/sense';
 import { formatSlowest } from './slowest-format.js';
+import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
 export { formatSlowest, spent } from './slowest-format.js';
 
@@ -57,44 +57,10 @@ export function scopeOf(input: Readonly<Record<string, unknown>>): DurationScope
   return { ...(from === undefined ? {} : { from }), ...(to === undefined ? {} : { to }) };
 }
 
-/**
- * Refuse a path that is in neither the recording nor the checkout.
- *
- * Git owns what the checkout holds, and the recording what it recorded; a path
- * in either has an answer, even if the answer is that nothing entered it. A
- * path in neither is a typo, and the nearest recorded path is named beside it.
- */
+/** Refuse a `from` or `to` path that is in neither the recording nor the checkout. */
 function refuseUnknown(root: string, scope: DurationScope): void {
-  let recorded: readonly string[] | undefined;
-  for (const path of [...(scope.from ?? []), ...(scope.to ?? [])]) {
-    if (tracked(root, path)) continue;
-    recorded ??= recordedPaths(root);
-    const bare = path.endsWith('/') ? path.slice(0, -1) : path;
-    if (recorded.some((held) => held === bare || held.startsWith(`${bare}/`))) continue;
-    throw new Error(
-      `\`${path}\` is in neither the recording nor the files git tracks under ${root}.` +
-        `${didYouMean(bare, withDirectories(recorded))}`,
-    );
-  }
-}
-
-function tracked(root: string, path: string): boolean {
-  const listed = spawnSync('git', ['--literal-pathspecs', 'ls-files', '-z', '--', path], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 1024 * 1024 * 1024,
-  });
-  return listed.status === 0 && listed.stdout !== '';
-}
-
-/** Every recorded path and every directory above one, so a mistyped directory has a candidate too. */
-function withDirectories(paths: readonly string[]): readonly string[] {
-  const all = new Set<string>();
-  for (const path of paths) {
-    all.add(path);
-    for (let cut = path.indexOf('/'); cut !== -1; cut = path.indexOf('/', cut + 1)) all.add(path.slice(0, cut));
-  }
-  return [...all];
+  const recorded = recordedOnce(root);
+  for (const path of [...(scope.from ?? []), ...(scope.to ?? [])]) refuseUnknownPath(root, path, recorded);
 }
 
 const PATHS = { type: 'array', items: { type: 'string' } } as const;

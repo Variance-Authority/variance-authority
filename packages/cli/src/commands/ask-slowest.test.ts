@@ -182,4 +182,15 @@ describe('variance ask slowest-tests, somewhere', () => {
     expect(refused.err).toContain('`src/formt.ts` is in neither the recording nor the files');
     expect(refused.err).toContain('Did you mean `src/format.ts`?');
   });
+
+  it('answers a new file git lists as untracked and not ignored, rather than refusing it as a typo', async () => {
+    const root = checkout();
+    await twoModules(root);
+    writeFileSync(join(root, 'new.ts'), 'export const added = 1;\n');
+
+    const answered = await run(['ask', 'slowest-tests', '--to', 'new.ts']);
+
+    expect(answered.code).toBe(EXIT_CLEAN);
+    expect(answered.err).toBe('');
+  });
 });

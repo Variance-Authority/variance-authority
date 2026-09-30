@@ -181,6 +181,7 @@ export async function updateSourceIndex(
   // native parse layer to the parse cache object itself, and a wrapper there
   // would publish without it.
   const reused = new Set<string>();
+  const adopt = source.reuse.adopt?.bind(source.reuse);
   const reuse: RecordCache = {
     under: (shape) => source.reuse.under(shape),
     get: (file, digest) => {
@@ -193,8 +194,18 @@ export async function updateSourceIndex(
       if (found !== undefined) reused.add(file);
       return found;
     },
-    set: (record, witnesses, targets) => source.reuse.set(record, witnesses, targets),
-    ...(source.reuse.adopt === undefined ? {} : { adopt: source.reuse.adopt.bind(source.reuse) }),
+    // A record found and then built again was not reused: the scan found it no
+    // longer holds, as a decline for size does once the file fits.
+    set: (record, witnesses, targets) => {
+      reused.delete(record.file);
+      source.reuse.set(record, witnesses, targets);
+    },
+    ...(adopt === undefined ? {} : {
+      adopt: (graph) => {
+        for (const file of reused) if (graph.has(file)) reused.delete(file);
+        adopt(graph);
+      },
+    }),
   };
   // Counted rather than collected: the update publishes the records through
   // `reuse` and reports how many, and a cold closure the addon holds is never

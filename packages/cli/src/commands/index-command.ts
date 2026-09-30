@@ -205,13 +205,13 @@ async function lexicon(root: string): Promise<string> {
 /**
  * Journeys are walked after the index and the map, from each suite's latest
  * recording, so a walk that fails leaves both standing and says why. Walking is kept
- * when the recording, the index, the runner's alias table and the walk are the
- * ones the kept journeys were made from. They carry the update's listing of the
+ * when the recording, the index and the walk are the ones the kept journeys
+ * were made from. They carry the update's listing of the
  * checkout rather than asking git again.
  */
 async function journeys(cwd: string, update: SourceUpdate): Promise<readonly string[]> {
   try {
-    return (await prepareJourneys(cwd, update.path, update)).map(walked);
+    return (await prepareJourneys(cwd, update.path, update)).map(journeysLine);
   } catch (error) {
     return [`journeys: not prepared: ${error instanceof Error ? error.message : String(error)}`];
   }
@@ -223,19 +223,25 @@ function percent(part: number, whole: number): string {
   return part > 0 && share < 0.5 ? '<1%' : `${Math.round(share)}%`;
 }
 
-function walked(one: PreparedJourneys): string {
+/** The line `variance index` prints for one suite's journeys, and why they were not prepared when they were not. */
+export function journeysLine(one: PreparedJourneys): string {
   const named = one.suite === undefined ? 'journeys' : `journeys, suite ${one.suite}`;
   if ('unprepared' in one) return `${named}: not prepared: ${one.unprepared}`;
   const { prepared } = one;
   const share = prepared.functionsEntered === 0 ? '' : ` (${percent(prepared.placed, prepared.functionsEntered)})`;
   const notes = [
-    prepared.kept ? 'kept, because the recording, the index, the runner\'s aliases and the walk are the ones they were made from' : '',
+    prepared.kept ? 'kept, because the recording, the index and the walk are the ones they were made from' : '',
     prepared.tree === undefined || prepared.tree === null
       ? ''
       : `the files were parsed as the working tree has them, not as the recording ran them, because ${prepared.tree}`,
-    prepared.aliased > 0 ? `${prepared.aliased} imports resolved by the runner's aliases` : '',
     prepared.fellBack > 0 ? `${prepared.fellBack} imports the index did not resolve were resolved by the walk` : '',
-    ...prepared.runnerUnread,
+    prepared.recorded > 0
+      ? `${prepared.recorded} calls were placed from the recording, because their import resolved to no function and exactly one the case ran is exported under the imported name`
+      : '',
+    prepared.ambiguous > 0
+      ? `${prepared.ambiguous} calls have no place, because their import resolved to no function and several the case ran are exported under the imported name, ` +
+        `in ${prepared.ambiguousCases} ${prepared.ambiguousCases === 1 ? 'case' : 'cases'}`
+      : '',
   ].filter((note) => note !== '');
   return [
     `${named}: ${prepared.cases} cases walked; a caller is found for ${prepared.placed} of the ${prepared.functionsEntered} functions they ran${share}; ` +

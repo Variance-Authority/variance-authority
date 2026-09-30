@@ -54,7 +54,7 @@ async function worktreeOf(whole = false): Promise<{ primary: string; worktree: s
 }
 
 describe('a worktree that has not run', () => {
-  it('says `variance select` read the primary checkout\'s record, and where it is kept', async () => {
+  it('says `variance select` read the primary checkout\'s record as the offline fallback, where it is kept, and why the mainline\'s was not read', async () => {
     const { primary, worktree } = await worktreeOf();
     await writeFile(join(worktree, 'src/total.ts'), 'export const changed = true;\n');
 
@@ -62,8 +62,9 @@ describe('a worktree that has not run', () => {
 
     const kept = testCoverageFile(primary, { suite: 'unit' });
     expect(err).toContain(
-      'record of "unit": read from the primary checkout, because this worktree has recorded none of its own; ' +
-        `kept at ${kept}; the mainline's is read only when neither has one.`,
+      `record of "unit": read from the primary checkout's, at ${kept}, as the offline fallback: ` +
+        'this worktree has recorded none, and no mainline record of it was fetched on this machine; ' +
+        'the share has none either; mainline main: nothing is published there.',
     );
   });
 

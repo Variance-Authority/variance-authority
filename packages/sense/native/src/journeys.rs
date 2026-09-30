@@ -10,7 +10,7 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use napi_derive::napi;
 use rayon::prelude::*;
@@ -24,8 +24,7 @@ use crate::journeys_fold::{columns, fold, Packages};
 use crate::journeys_graph::Graph;
 use crate::journeys_record::{record, seeds};
 use crate::journeys_roots::Helpers;
-use crate::journeys_runner::Runner;
-use crate::journeys_walk::{walk, Walked};
+use crate::journeys_walk::{walk, Exported, Walked};
 use crate::package_owners::{owner_of, owners, shown};
 use crate::GitTree;
 
@@ -33,7 +32,7 @@ pub(crate) const FORMAT: u8 = 2;
 /// The walk that prepared a file: the addon's version, and a revision moved
 /// whenever the walk or the fold changes what it writes within one version.
 /// A file another walk prepared is prepared again, never answered from.
-pub(crate) const WALK: &str = concat!(env!("CARGO_PKG_VERSION"), "/walk.3");
+pub(crate) const WALK: &str = concat!(env!("CARGO_PKG_VERSION"), "/walk.5");
 /// The caller of a case's first placed function: the test itself.
 pub(crate) const TEST: u32 = u32::MAX;
 /// The package of a file no named manifest sits above.
@@ -74,9 +73,14 @@ pub(crate) struct Meta {
     pub flows: u32,
     /// Specifiers the index did not answer, which the graph resolved itself.
     pub fell_back: u32,
-    /// Specifiers the runner's alias table answered.
-    pub aliased: u32,
-    pub runner: Option<RunnerStamp>,
+    /// Call sites the static resolution missed that the recording placed, on
+    /// the one entered function exported under the imported name.
+    pub recorded: u32,
+    /// Call sites the static resolution missed where several entered functions
+    /// are exported under the imported name and nothing else placed the call,
+    /// and the cases they were ambiguous in.
+    pub ambiguous: u32,
+    pub ambiguous_cases: u32,
     /// The recording's and the index's size and modification time when they
     /// were digested, so a question finds them unmoved without hashing them.
     pub recording_stat: Option<Stat>,
@@ -132,9 +136,13 @@ pub struct JourneysPrepared {
     pub calls: u32,
     pub flows: u32,
     pub fell_back: u32,
-    pub aliased: u32,
-    /// Runner configs that did not load and aliases that were not read.
-    pub runner_unread: Vec<String>,
+    /// Call sites the static resolution missed that the recording placed.
+    pub recorded: u32,
+    /// Call sites the static resolution missed where several entered functions
+    /// are exported under the imported name and nothing else placed the call,
+    /// and the cases they were ambiguous in.
+    pub ambiguous: u32,
+    pub ambiguous_cases: u32,
     /// The commit the recording ran at, when it names one.
     pub commit: Option<String>,
     /// Why the graph was parsed from the working tree rather than from the
@@ -152,65 +160,22 @@ impl From<(&Meta, bool)> for JourneysPrepared {
             calls: meta.calls,
             flows: meta.flows,
             fell_back: meta.fell_back,
-            aliased: meta.aliased,
-            runner_unread: meta.runner.as_ref().map(|runner| runner.unread.clone()).unwrap_or_default(),
+            recorded: meta.recorded,
+            ambiguous: meta.ambiguous,
+            ambiguous_cases: meta.ambiguous_cases,
             commit: meta.commit.clone(),
             tree: meta.tree.clone(),
         }
     }
 }
 
-/// The stamp the runner's alias table is kept under: a digest the caller
-/// computes over the files it read the table from, and those files.
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct RunnerStamp {
-    pub digest: String,
-    pub files: Vec<String>,
-    /// Configs the runner could not load and aliases that were not read,
-    /// each with why: the runner's answer for them is missing.
-    #[serde(default)]
-    pub unread: Vec<String>,
-}
-
 /// The journeys kept at `out`, when this walk prepared them from this
-/// recording, this index and a runner table under `runner_digest`; `None`
-/// otherwise.
+/// recording and this index; `None` otherwise.
 #[napi(catch_unwind)]
-pub fn journeys_kept(index: String, recording: String, out: String, runner_digest: Option<String>) -> Option<JourneysPrepared> {
+pub fn journeys_kept(index: String, recording: String, out: String) -> Option<JourneysPrepared> {
     let meta = kept_meta(&out)?;
-    let fresh = meta.runner.as_ref().map(|runner| &runner.digest) == runner_digest.as_ref()
-        && same(&index, meta.index_stat.as_ref(), &meta.index)
-        && same(&recording, meta.recording_stat.as_ref(), &meta.recording);
+    let fresh = same(&index, meta.index_stat.as_ref(), &meta.index) && same(&recording, meta.recording_stat.as_ref(), &meta.recording);
     fresh.then(|| (&meta, true).into())
-}
-
-/// The tracked Vite and Vitest configs a runner reads its aliases from, in
-/// code-unit order: not one a fixture, a template or an example ships.
-pub(crate) fn runner_configs_of<'a>(paths: impl Iterator<Item = &'a String>) -> Vec<String> {
-    const ASIDE: [&str; 9] = ["node_modules", "fixture", "fixtures", "__fixtures__", "test-cases", "template", "templates", "example", "examples"];
-    let mut configs: Vec<String> = paths
-        .filter(|path| {
-            let (directory, name) = path.rsplit_once('/').unwrap_or(("", path));
-            let config = ["vite.config.", "vitest.config."].iter().any(|stem| {
-                name.strip_prefix(stem).is_some_and(|rest| {
-                    let (mode, extension) = rest.rsplit_once('.').map_or(("", rest), |(mode, extension)| (mode, extension));
-                    let extension = extension.strip_prefix(['c', 'm']).unwrap_or(extension);
-                    matches!(extension, "js" | "ts") && (mode.is_empty() || mode.bytes().all(|byte| byte.is_ascii_lowercase()))
-                })
-            });
-            config && !directory.split('/').any(|part| ASIDE.contains(&part))
-        })
-        .cloned()
-        .collect();
-    configs.sort_unstable();
-    configs
-}
-
-/// The runner configs git lists under `root`; `None` when git cannot list.
-#[napi(catch_unwind)]
-pub fn runner_configs(root: String) -> Option<Vec<String>> {
-    Some(runner_configs_of(listed(&root)?.iter()))
 }
 
 fn listed(root: &str) -> Option<Vec<String>> {
@@ -228,9 +193,9 @@ pub struct JourneysCommit {
 }
 
 /// Walks the recording at `recording` over the index at `index` and writes the
-/// journeys to `out`, with git listing the checkout. `runner` is the test
-/// runner's alias table as `runner-aliases.ts` read it, with its stamp.
-/// `None` when there is no source index.
+/// journeys to `out`, with git listing the checkout. `None` when there is no
+/// source index. `builtins` are the runtime's own modules, which no function
+/// of the checkout answers.
 #[napi(catch_unwind)]
 pub fn prepare_journeys(
     root: String,
@@ -238,20 +203,14 @@ pub fn prepare_journeys(
     recording: String,
     at: JourneysCommit,
     out: String,
-    runner: Option<String>,
+    builtins: Vec<String>,
 ) -> napi::Result<Option<JourneysPrepared>> {
     let listing = listed(&root);
-    prepare(&root, &index, &recording, at, &out, runner, listing.as_deref())
+    prepare(&root, &index, &recording, at, &out, listing.as_deref(), builtins)
 }
 
 #[napi]
 impl GitTree {
-    /// The runner configs this listing holds.
-    #[napi(catch_unwind)]
-    pub fn runner_configs(&self) -> Vec<String> {
-        runner_configs_of(self.listed().iter())
-    }
-
     /// Walk the recording over the index and write the journeys to `out`,
     /// carrying this listing of the checkout rather than asking git again.
     #[napi(catch_unwind)]
@@ -262,9 +221,9 @@ impl GitTree {
         recording: String,
         at: JourneysCommit,
         out: String,
-        runner: Option<String>,
+        builtins: Vec<String>,
     ) -> napi::Result<Option<JourneysPrepared>> {
-        prepare(&root, &index, &recording, at, &out, runner, Some(self.listed()))
+        prepare(&root, &index, &recording, at, &out, Some(self.listed()), builtins)
     }
 }
 
@@ -274,8 +233,8 @@ fn prepare(
     recording: &str,
     at: JourneysCommit,
     out: &str,
-    runner: Option<String>,
     listing: Option<&[String]>,
+    builtins: Vec<String>,
 ) -> napi::Result<Option<JourneysPrepared>> {
     let fail = napi::Error::from_reason;
     // Stat before reading, so a file replaced while it is read is stamped as
@@ -295,39 +254,26 @@ fn prepare(
     let journey = Journey::of(recording, bytes).map_err(fail)?;
     let seeds = seeds(&journey).map_err(fail)?;
     // Git's listing owns which package each file is in. Without it, the files
-    // the graph read are the listing, and the runner's packages are unknown.
+    // the graph read are the listing.
     let known = listing.map(|listing| owners(root, listing));
-    let mut stamp: Option<RunnerStamp> = None;
-    let runner = match runner {
-        Some(json) => {
-            let packages = known
-                .as_ref()
-                .map(|owners| owners.packages.iter().map(|package| (package.name.clone(), package.directory.clone())).collect())
-                .unwrap_or_default();
-            let tracked = listing.map(|listing| listing.iter().cloned().collect()).unwrap_or_default();
-            let table = Runner::read(&json, packages, tracked).map_err(fail)?;
-            let mut read: RunnerStamp = serde_json::from_str(&json).map_err(|error| fail(format!("the runner's alias table has no stamp: {error}")))?;
-            read.unread.extend(table.unread.iter().cloned());
-            stamp = Some(read);
-            Some(table)
-        }
-        None => None,
-    };
     let unnamed = at.unread.unwrap_or_else(|| "the recording names no commit".to_owned());
-    let graph = Graph::build(root, &layers, at.commit.as_deref().ok_or(unnamed.as_str()), &seeds, runner.as_ref());
+    let graph = Graph::build(root, &layers, at.commit.as_deref().ok_or(unnamed.as_str()), &seeds);
     let record = record(&journey, &graph).map_err(fail)?;
-    let pool = rayon::ThreadPoolBuilder::new().stack_size(STACK).build().map_err(|error| fail(error.to_string()))?;
-    let helpers = Helpers::default();
-    let walked: Vec<Walked> = pool.install(|| (0..record.tests.len()).into_par_iter().map(|case| walk(&graph, &record, &helpers, case)).collect());
-
     let owners = known.unwrap_or_else(|| owners(root, &graph.files));
-    let (_, names) = shown(&owners);
     let directories: HashMap<&str, u32> =
         owners.packages.iter().enumerate().map(|(at, package)| (package.directory.as_str(), at as u32)).collect();
     let package: Vec<u32> = graph.files.iter().map(|file| owner_of(&owners, &directories, file).unwrap_or(NO_PACKAGE)).collect();
+    let exported = Exported::of(&graph, &record, &owners, &package, builtins.into_iter().collect());
+    let pool = rayon::ThreadPoolBuilder::new().stack_size(STACK).build().map_err(|error| fail(error.to_string()))?;
+    let helpers = Helpers::default();
+    let walked: Vec<Walked> =
+        pool.install(|| (0..record.tests.len()).into_par_iter().map(|case| walk(&graph, &record, &exported, &helpers, case)).collect());
+
+    let (_, names) = shown(&owners);
     let directories: Vec<String> = owners.packages.iter().map(|package| package.directory.clone()).collect();
 
     let mut folded = fold(&record, &walked, &package);
+    let sites = |of: fn(&Walked) -> &Vec<u64>| walked.iter().flat_map(|walked| of(walked).iter().copied()).collect::<HashSet<u64>>().len() as u32;
     let meta = Meta {
         format: FORMAT,
         walk: WALK.to_owned(),
@@ -344,8 +290,9 @@ fn prepare(
         calls: folded.calls.len() as u32,
         flows: folded.flows.len() as u32,
         fell_back: graph.fell_back,
-        aliased: graph.aliased,
-        runner: stamp,
+        recorded: sites(|walked| &walked.recorded),
+        ambiguous: sites(|walked| &walked.ambiguous),
+        ambiguous_cases: walked.iter().filter(|walked| !walked.ambiguous.is_empty()).count() as u32,
         recording_stat,
         index_stat,
     };
