@@ -142,8 +142,8 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
     ...(deleted.length === 0
       ? []
       : [
-          `${deleted.length} deleted since \`${request.since}\`, and so in no graph; a file that imported one is ` +
-            `reached by its own edit or by the file its request lands on now: ${listed(deleted)}`,
+          `${deleted.length} deleted since \`${request.since}\`, and so in no graph; a file that imported one is reached ` +
+            `through its own edit, or through the file its import resolves to now: ${listed(deleted)}`,
         ]),
   ];
 
@@ -174,7 +174,8 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
 
 /**
  * The changed paths the diff deletes, in run coordinates, as git lists them
- * from the same merge base `changedSince` measured from.
+ * from the same merge base `changedSince` measured from, with the same reading
+ * of renames: a renamed file is its new path, and is no deletion.
  *
  * A deleted file is not a gap in the scan: the tree the graph is read from no
  * longer holds it, so no scan could. What it reached lives in the files that
@@ -187,7 +188,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
 async function deletedAt(point: DiffPoint): Promise<readonly string[]> {
   const { stdout } = await promisify(execFile)(
     'git',
-    ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', '--no-renames', '--diff-filter=D', point.base],
+    ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', '--diff-filter=D', point.base],
     { cwd: point.repository, maxBuffer: 32 * 1024 * 1024 },
   );
   const here = process.cwd();
