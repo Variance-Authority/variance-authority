@@ -755,8 +755,10 @@ The review also lists the regions whose cases changed. It compares them with
 the cases the runs at this commit replaced, which the suite keeps beside its
 case index with the commit they were recorded at. What the base's branch changed
 after that commit is left out and named, as in
-[What a change moved](#what-a-change-moved). `--against <record>` compares with
-a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
+[What a change moved](#what-a-change-moved). A test file that ran at this commit
+but recorded no case and did not run to the end, such as one a browser gate
+skips, replaced no case: the review names it and compares nothing for it.
+`--against <record>` compares with a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
 printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
 
@@ -775,7 +777,11 @@ suite, and review after it:
 In the markdown, the test files whose reach moved are also drawn as a Mermaid
 diagram: a test file on the left, a directory of the code it runs on the right,
 and each edge counts the functions it now enters or no longer enters. The same
-lines as the text follow it, folded.
+lines as the text follow it, folded. The markdown lists the first 40 moved
+regions and the first 40 test files whose reach moved, and counts the rest.
+GitHub rejects a comment longer than 65,536 characters, so a longer markdown
+review is cut at a line break before that length, and its last line says how
+many characters are not shown.
 
 A comment shows part of the answer, and `review.json` holds all of it. Upload
 the `--out` directory as an artifact, and anyone with the GitHub CLI can print

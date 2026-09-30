@@ -43,7 +43,7 @@ import { OperatorError } from '../exit.js';
 import { recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { regionState } from './covering-frame.js';
-import { motionAgainst, motionOfLast, type CoveringMotion } from './covering-motion.js';
+import { motionAgainst, motionOfRuns, type CoveringMotion } from './covering-motion.js';
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
@@ -248,7 +248,7 @@ export async function review(request: ParsedReview): Promise<Review> {
     ? await motionAgainst(from, against, ref, root)
     : runs === undefined
       ? undefined
-      : await motionOfLast(full, from, full.tests.filter((test) => runs.files.includes(test.file)).map((test) => test.id), root, undefined, ref);
+      : await motionOfRuns(full, from, runs, root, ref);
 
   const record = await ranAsTree(coverageFile, root, files.filter((file) => file.recorded === true).map((file) => file.file));
   return {

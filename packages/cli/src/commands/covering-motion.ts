@@ -21,6 +21,7 @@ import {
   caseMotion,
   recordedCommit,
   type CaseMotion,
+  type CommitRuns,
   type ExecutionIndex,
   type ExecutionTest,
   type LastCaseRun,
@@ -54,6 +55,13 @@ export interface CoveringMotion {
   readonly base: MotionBase;
   /** Absent when the base holds none of the cases asked about, so there was nothing to compare. */
   readonly moved?: CaseMotion;
+  /**
+   * Test files the runs at this commit ran that wrote nothing to the case
+   * index — no case recorded and none ran to the end, as a file a browser gate
+   * skips — so the base layer holds no cases they replaced and they are not
+   * compared. Absent when every file the runs named wrote its cases.
+   */
+  readonly unwritten?: readonly string[];
 }
 
 /** The motion a request asks for: against `--against`, or under `--cases last` against the run before. */
@@ -105,6 +113,32 @@ export async function motionOfLast(
   return { base, moved: file === undefined ? moved : within(moved, file) };
 }
 
+/**
+ * The runs at one commit against the cases they replaced. Only a run that
+ * wrote the case index laid a before layer beside it, and the last run names
+ * the commit it was made at: when that is not the runs' commit, no run at this
+ * commit wrote one, and the layer there is an earlier commit's, so nothing is
+ * compared. The files a run named that wrote nothing are said, not compared.
+ */
+export async function motionOfRuns(
+  full: ExecutionIndex,
+  from: string,
+  runs: CommitRuns,
+  root: string,
+  since?: string,
+): Promise<CoveringMotion> {
+  const layers = caseLayerFiles(from);
+  const last = await lastRun(layers.last);
+  const wrote = last === undefined
+    ? new Set(runs.files)
+    : last.commit === runs.commit ? new Set(last.files) : new Set<string>();
+  const unwritten = runs.files.filter((file) => !wrote.has(file));
+  const said = unwritten.length === 0 ? {} : { unwritten };
+  if (wrote.size === 0 && unwritten.length > 0) return { base: { from: layers.before, kind: 'before' }, ...said };
+  const cases = full.tests.filter((test) => wrote.has(test.file) && runs.files.includes(test.file)).map((test) => test.id);
+  return { ...(await motionOfLast(full, from, cases, root, undefined, since)), ...said };
+}
+
 /** The current record against the base `--against` names, with what the base's branch moved left out. */
 export async function motionAgainst(
   from: string,
@@ -137,17 +171,24 @@ export async function motionAgainst(
 
 /**
  * The motion, in words, after the answer it was compared for. Cases are named
- * by id unless the caller numbers them.
+ * by id unless the caller numbers them. Given `listed`, no more than that many
+ * regions and that many test files are listed, and the rest are counted.
  */
 export function motionText(
   motion: CoveringMotion | undefined,
   named: (tests: readonly ExecutionTest[]) => string = casesByFile,
+  listed = Infinity,
 ): readonly string[] {
   if (motion === undefined) return [];
   const { base, moved } = motion;
   const at = base.at === undefined ? '' : ` at ${base.at.slice(0, 12)}`;
   const against = base.kind === 'before' ? `the run before it${at}` : `${base.from}${at}`;
-  if (moved === undefined) return ['', `Nothing to compare: ${base.from} holds none of these cases.`];
+  const unwritten = motion.unwritten === undefined || motion.unwritten.length === 0
+    ? []
+    : [`Not compared, no case recorded at this commit and none ran to the end: ${motion.unwritten.join(', ')}.`];
+  if (moved === undefined) {
+    return unwritten.length > 0 ? ['', ...unwritten] : ['', `Nothing to compare: ${base.from} holds none of these cases.`];
+  }
   const lines = [''];
   if (base.kind === 'record' && base.at === undefined) {
     lines.push('The base names no commit, so what its branch moved since cannot be told apart from this change.');
@@ -167,7 +208,7 @@ export function motionText(
       .filter((motion) => counts[motion] > 0)
       .map((motion) => `${counts[motion]} ${motion}`);
     lines.push(`Against ${against}: ${said.join(', ')}.`);
-    for (const region of moved.regions) {
+    for (const region of moved.regions.slice(0, listed)) {
       const why = region.motion === 'gained'
         ? `now ${named(region.now)}`
         : region.motion === 'thinned'
@@ -179,14 +220,16 @@ export function motionText(
               : `was ${named(region.before)}; stopped: ${named(region.stopped)}`;
       lines.push(`  ${region.motion.padEnd(8)} ${place(region)} — ${why}`);
     }
+    lines.push(...notListed(moved.regions.length - listed, 'region'));
   }
-  for (const test of moved.testFiles) {
+  for (const test of moved.testFiles.slice(0, listed)) {
     const reach = [
       ...(test.entered.length === 0 ? [] : [`now enters ${functionsIn(test.entered)}`]),
       ...(test.left.length === 0 ? [] : [`no longer enters ${functionsIn(test.left)}`]),
     ];
     lines.push(`${test.file} ${reach.join(', and ')}.`);
   }
+  lines.push(...notListed(moved.testFiles.length - listed, 'test file'));
   const renumbered = moved.renumbered?.length ?? 0;
   if (renumbered > 0) {
     lines.push(`${renumbered} region${renumbered === 1 ? '' : 's'} renumbered by an edit beside ${
@@ -194,7 +237,14 @@ export function motionText(
     } kept the same cases, so ${renumbered === 1 ? 'it is' : 'they are'} not counted as moved.`);
   }
   if (moved.unread.length > 0) lines.push(`Not compared, the current record has no row for: ${moved.unread.join(', ')}.`);
+  lines.push(...unwritten);
   return lines;
+}
+
+/** The line that counts what a bounded list left out, and says where it is listed. */
+function notListed(more: number, noun: string): readonly string[] {
+  if (more <= 0) return [];
+  return [`... and ${more} more ${noun}${more === 1 ? '' : 's'}, not listed here; \`--format json\` lists every one.`];
 }
 
 /** How many functions a list of regions sits in: a function counts once however many of its branches are listed. */

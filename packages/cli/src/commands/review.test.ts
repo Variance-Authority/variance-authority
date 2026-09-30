@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
+  caseLayerFiles,
   commitRunsFile,
   encodeExecutionIndex,
   testCoverageFile,
@@ -194,6 +195,60 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(formatReview({ ...answer, suite: 4 }, 'markdown')).toContain(
       `🎯 **1 of 4 test files ran** at this commit, 25% of the suite; the other 3 kept the rows recorded before it. ${select}`,
     );
+  });
+
+  it('compares no case against the base when no run at this commit wrote the case index', async () => {
+    const { root, first } = await changed();
+    const change = 'c'.repeat(40);
+    const layers = caseLayerFiles(`${testCoverageFile(root)}.cases.bin`);
+    // The mainline's full run wrote the layers last; the run at this commit skipped its one file and wrote nothing.
+    await writeFile(layers.last, JSON.stringify({ commit: first, at: '2026-09-25T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] }));
+    await writeFile(layers.before, encodeExecutionIndex({
+      tests: [DISCOUNTS],
+      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }],
+    }));
+    const runs = { commit: change, over: first, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1 };
+    await writeFile(commitRunsFile(testCoverageFile(root)), JSON.stringify({ ...runs, files: ['test/skipped.chromium.test.ts'] }));
+
+    const answer = await review(parse(['--root', root]));
+
+    expect(answer.motion).toEqual({ base: { from: layers.before, kind: 'before' }, unwritten: ['test/skipped.chromium.test.ts'] });
+    const markdown = formatReview(answer, 'markdown');
+    expect(markdown).not.toContain('Lost every case');
+    expect(markdown).toContain('The one test file run at this commit recorded no case and did not run to the end, so no case is compared against the base.');
+    expect(formatReview(answer, 'text')).toContain('Not compared, no case recorded at this commit and none ran to the end: test/skipped.chromium.test.ts.');
+
+    // A run at this commit that did write compares its own files, and names the one that did not.
+    await writeFile(layers.last, JSON.stringify({ commit: change, before: first, at: '2026-09-26T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] }));
+    await writeFile(commitRunsFile(testCoverageFile(root)), JSON.stringify({ ...runs, runs: 2, files: ['test/skipped.chromium.test.ts', 'test/total.test.ts'] }));
+
+    const both = await review(parse(['--root', root]));
+
+    expect(both.motion?.unwritten).toEqual(['test/skipped.chromium.test.ts']);
+    expect(both.motion?.moved?.counts).toEqual({ lost: 0, hidden: 0, thinned: 0, gained: 0 });
+  });
+
+  it('lists a bounded number of moved regions in the comment, and cuts the comment to GitHub\'s limit', async () => {
+    const { root, first, against } = await changed();
+    const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
+    const regions = Array.from({ length: 100 }, (_, at) => ({
+      file: 'src/total.ts', startLine: at + 1, endLine: at + 1, kind: 'function' as const, name: `f${at + 1}`,
+      motion: 'lost' as const, before: [DISCOUNTS], now: [],
+    }));
+    const moved = { regions, counts: { lost: 100, hidden: 0, thinned: 0, gained: 0 }, testFiles: [], unread: [] };
+
+    const listed = formatReview({ ...answer, motion: { base: { from: against, kind: 'record' }, moved } }, 'markdown');
+
+    expect(listed).toContain('  lost     src/total.ts 40-40 function f40 — was test/total.test.ts > discounts');
+    expect(listed).not.toContain('function f41 —');
+    expect(listed).toContain('... and 60 more regions, not listed here; `--format json` lists every one.');
+
+    const unwritten = Array.from({ length: 5000 }, (_, at) => `test/skipped-${at}.chromium.test.ts`);
+    const cut = formatReview({ ...answer, motion: { base: { from: against, kind: 'before' }, unwritten } }, 'markdown');
+
+    expect(cut.length).toBeLessThanOrEqual(65_536);
+    expect(cut.startsWith(`${REVIEW_MARKER}\n`)).toBe(true);
+    expect(cut).toMatch(/```\n\n<\/details>\n\n<\/details>\n\n> \d+ characters of this review are not shown, because GitHub rejects a comment longer than 65536\. `--format json` prints the whole review/);
   });
 
   it('writes the answer beside what it prints when given a directory', async () => {
