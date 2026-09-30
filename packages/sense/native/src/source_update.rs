@@ -21,12 +21,14 @@
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::Arc;
 
 use napi_derive::napi;
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
 use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
 use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
@@ -217,6 +219,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     moved.extend(held_directories.keys().filter(|path| !directories.contains_key(**path)));
 
     let folded = fold(&layers);
+    let (root, largest) = (Path::new(&o.root), u64::from(o.largest_file.unwrap_or(LARGEST_FILE)));
     let valid: FxHashMap<&str, At> = folded
         .par_iter()
         .filter(|(file, at)| {
@@ -226,6 +229,11 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             let Some(&index) = tree.at.get(**file) else { return false };
             names_object(digest, &tree.oids[index as usize])
                 && (moved.is_empty() || !records.witnesses_of(stored, row).any(|directory| moved.contains(directory)))
+                // Git's object is the cleaned bytes and a decline was decided on
+                // the checked-out ones, so it holds while those are still over.
+                && records
+                    .unknown_of(stored, row)
+                    .is_none_or(|unknown| !declined_for_size(file, unknown) || still_too_large(root, file, largest))
         })
         .map(|(file, at)| (*file, *at))
         .collect();
@@ -273,9 +281,9 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             .zip(identities.into_par_iter())
             .zip(read.into_par_iter())
             .zip(targets.par_iter())
-            .map(|(((file, identity), (read, _, parsed)), targets)| {
-                let indexed = built(file, &identity, &read, parsed, targets, &settling);
-                Row { indexed, identity, read, parsed }
+            .map(|(((file, identity), (read, _, outcome)), targets)| {
+                let indexed = built(file, &identity, &read, outcome, targets, &settling);
+                Row { indexed, identity, read, parsed: outcome.parsed() }
             })
             .collect();
         walked.extend(files.into_iter().zip(rows));

@@ -101,6 +101,11 @@ export interface NativeReadBatch {
   readonly parses: string[];
   /** One when bytes were parsed, even if parse JSON was not requested. */
   readonly parsed: Buffer;
+  /**
+   * One when the bytes decided the file is not parsed — over the size the scan
+   * opens, or not UTF-8 — rather than a read that failed.
+   */
+  readonly declined: Buffer;
   readonly declareCounts: Uint32Array;
   readonly declares: string[];
 }
@@ -366,9 +371,15 @@ function builtFromBatch(
     declareAt += declareCount;
     const encoded = batch.parses[index] ?? '';
     if (batch.parsed[index] !== 1) {
+      // A file its bytes declined names them; a failed read names nothing, and
+      // is tried again. `built` in `record.rs` is the same rule.
+      const declined = batch.declined[index] === 1
+        ? options.digests[index] ?? asDigest(batch.digests[index])
+        : undefined;
       built.push({
         record: {
           file,
+          ...(declined === undefined ? {} : { digest: declined }),
           ...(batch.unknown[index] === '' ? {} : { unknown: batch.unknown[index] }),
         },
         witnesses: [],

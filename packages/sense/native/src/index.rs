@@ -4,6 +4,7 @@
 
 // compass: variance-authority.reach.source-index
 
+use crate::acquire::Answer;
 use crate::generation::{encode_generation, Deleted, Generation};
 use crate::order;
 use crate::parse_columns::{ParseColumns, ParseRow};
@@ -22,14 +23,14 @@ use crate::segment::{Collected, Strings};
 pub fn parse_segment(
     files: &[String],
     digests: &[String],
-    reads: &[(Read, String, bool)],
+    reads: &[Answer],
 ) -> Vec<u8> {
     let mut rows: Vec<(String, usize)> = files
         .iter()
         .zip(digests)
         .zip(reads)
         .enumerate()
-        .filter(|(_, (_, (_, _, parsed)))| *parsed)
+        .filter(|(_, (_, (_, _, outcome)))| outcome.parsed())
         .map(|(index, ((file, digest), _))| (format!("{digest}\0{}", way(file)), index))
         .collect();
     rows.sort_unstable_by(|left, right| order::code_unit(&left.0, &right.0));

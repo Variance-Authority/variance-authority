@@ -9,10 +9,10 @@ use napi_derive::napi;
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
-use crate::acquire::{read_all, read_git};
+use crate::acquire::{read_all, read_git, Answer, Outcome};
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
-use crate::read::{Kind, Read};
+use crate::read::Kind;
 use crate::resolve::Resolvers;
 
 const RESOLVERS: usize = 6;
@@ -30,6 +30,9 @@ pub struct ReadBatch {
     pub parses: Vec<String>,
     /// One when bytes were parsed, including when JSON was not requested.
     pub parsed: Buffer,
+    /// One when the bytes decided the file is not parsed — over the size the
+    /// scan opens, or not UTF-8 — rather than a read that failed.
+    pub declined: Buffer,
     pub declare_counts: Uint32Array,
     pub declares: Vec<String>,
 }
@@ -47,6 +50,7 @@ pub struct ScanBatch {
     pub kinds: Buffer,
     pub parses: Vec<String>,
     pub parsed: Buffer,
+    pub declined: Buffer,
     pub declare_counts: Uint32Array,
     pub declares: Vec<String>,
     /// Repository-relative target per request, or empty when unresolved.
@@ -187,7 +191,7 @@ pub(crate) struct Walked {
     pub files: Vec<String>,
     /// Git's object name for a file the tree holds, the read digest otherwise.
     pub identities: Vec<String>,
-    pub read: Vec<(Read, String, bool)>,
+    pub read: Vec<Answer>,
     pub targets: Vec<Vec<String>>,
 }
 
@@ -283,7 +287,7 @@ pub(crate) fn walk_beyond(
 fn resolve_all(
     root: &Path,
     files: &[String],
-    read: &[(Read, String, bool)],
+    read: &[Answer],
     resolvers: &Resolvers,
     known: Option<&HashMap<String, u32>>,
 ) -> Vec<Vec<String>> {
@@ -294,8 +298,8 @@ fn resolve_all(
         files
             .par_iter()
             .zip(read.par_iter())
-            .map(|(file, (held, _, parsed))| {
-                if !parsed {
+            .map(|(file, (held, _, outcome))| {
+                if !outcome.parsed() {
                     return Vec::new();
                 }
                 let from = root.join(file);
@@ -332,6 +336,7 @@ fn scan_columns(
         kinds: columns.kinds,
         parses: columns.parses,
         parsed: columns.parsed,
+        declined: columns.declined,
         declare_counts: columns.declare_counts,
         declares: columns.declares,
         targets: targets.into_iter().flatten().collect(),
@@ -345,7 +350,7 @@ pub(crate) fn is_module(file: &str) -> bool {
     )
 }
 
-fn columns(read: Vec<(Read, String, bool)>, include_parses: bool) -> ReadBatch {
+fn columns(read: Vec<Answer>, include_parses: bool) -> ReadBatch {
     let total = read.iter().map(|(held, _, _)| held.requests.len()).sum();
     let mut counts = Vec::with_capacity(read.len());
     let mut unknown = Vec::with_capacity(read.len());
@@ -354,12 +359,14 @@ fn columns(read: Vec<(Read, String, bool)>, include_parses: bool) -> ReadBatch {
     let mut kinds = Vec::with_capacity(total);
     let mut parses = Vec::with_capacity(read.len());
     let mut parsed_flags = Vec::with_capacity(read.len());
+    let mut declined = Vec::with_capacity(read.len());
     let mut declare_counts = Vec::with_capacity(read.len());
     let mut declares = Vec::new();
 
-    for (held, digest, parsed) in read {
-        parsed_flags.push(u8::from(parsed));
-        parses.push(if parsed && include_parses {
+    for (held, digest, outcome) in read {
+        parsed_flags.push(u8::from(outcome.parsed()));
+        declined.push(u8::from(outcome == Outcome::Declined));
+        parses.push(if outcome.parsed() && include_parses {
             serde_json::to_string(&held).unwrap_or_default()
         } else {
             String::new()
@@ -383,6 +390,7 @@ fn columns(read: Vec<(Read, String, bool)>, include_parses: bool) -> ReadBatch {
         kinds: kinds.into(),
         parses,
         parsed: parsed_flags.into(),
+        declined: declined.into(),
         declare_counts: Uint32Array::new(declare_counts),
         declares,
     }

@@ -63,7 +63,7 @@ import {
   type ParseWay,
 } from './files.js';
 import { worldIn, worldOn } from './world.js';
-import { recordFor } from './record.js';
+import { declinedForSize, recordFor, stillTooLarge } from './record.js';
 import { onlyListed } from './repo-path.js';
 import {
   realPath,
@@ -193,6 +193,11 @@ export interface ScanOptions extends ResolveOptions {
  * scan that looked like a scale problem. At the cap a single file costs about a
  * hundred megabytes of arena, which is a budget a scan can hold; at ten times it
  * the same file costs eight hundred.
+ *
+ * A record declined at this limit names the bytes it declined and is kept, and
+ * a run at the default names no limit in its configuration digest (`configOf`
+ * in [`reuse.ts`](./reuse.ts)). So a change to this value bumps `VERSION`
+ * there, or every index keeps the records the old limit declined.
  */
 export const LARGEST_FILE = 1024 * 1024;
 
@@ -278,12 +283,12 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
   // checked against the bytes on disk, so there is nothing to reuse it against.
   const reuse = tree === undefined ? undefined : options.reuse;
+  const largestFile = options.largestFile ?? LARGEST_FILE;
   const shape = tree === undefined ? undefined : await shapeOf({ root, tree, options });
-  // FIXME: under a clean or smudge filter — Git LFS, `core.autocrlf` — a blob and
-  // the file checked out from it are different bytes, and both are parsed under
-  // the blob's digest. Which one a record came from depends on this setting and
-  // on whether its wave was large enough to open the object store, and an index
-  // keeps whichever it read first until the file changes.
+  // FIXME: under a clean or smudge filter — LFS, `core.autocrlf`, `working-tree-encoding` —
+  // a blob and its checked-out file differ, both parse under the blob's digest, and an
+  // index keeps whichever it read first until the blob changes. A decline for size is
+  // checked against the file; one for bytes that are not UTF-8 is not.
   const packed = options.packs === false ? undefined : tree?.native;
   // A native batch over a tree the addon does not hold resolves without Git's
   // listing, so it is handed the part the disk cannot vouch for: the files
@@ -374,7 +379,10 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
       if (built.has(file) || graph?.has(file) || pendingSet.has(file)) continue;
       const digest = frontierDigests?.[head - frontierStart];
       const way = parseWay(file);
-      const remembered = digest === undefined ? undefined : reuse?.getIndexed(file, digest);
+      let remembered = digest === undefined ? undefined : reuse?.getIndexed(file, digest);
+      // A decline for size is decided on the checked-out bytes: `stillTooLarge`.
+      const fits = remembered && declinedForSize(remembered.record) && !(await stillTooLarge(join(root, file), largestFile));
+      if (fits) remembered = undefined;
       if (remembered !== undefined && digest !== undefined) {
         acceptRemembered(file, digest, way, remembered);
         continue;
@@ -397,7 +405,7 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
         cache,
         aliases: shape?.aliases,
         directories: shape?.shape.directories ?? new Map(),
-        largestFile: options.largestFile ?? LARGEST_FILE,
+        largestFile,
         remembering: reuse !== undefined,
         ...(digest === undefined ? {} : { digest }),
       });
@@ -412,7 +420,7 @@ async function scanning(options: ScanOptions): Promise<Scanned> {
         ...(packed === undefined && tree !== undefined ? { listed: listedPaths() } : {}),
         root,
         files: pending,
-        largestFile: options.largestFile ?? LARGEST_FILE,
+        largestFile,
         digests: pendingDigests,
         aliases: shape?.aliases,
         directories: shape?.shape.directories ?? new Map(),
