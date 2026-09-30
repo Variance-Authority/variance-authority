@@ -235,7 +235,8 @@ export async function review(request: ParsedReview): Promise<Review> {
     const change = covered.get(file);
     const ranges = now.get(file) ?? [];
     const created = await point.at(named(file)) === undefined && existsSync(resolve(root, file));
-    const cases = casesMoved(file, comparable(file) ? held : undefined, full, created);
+    // A file no run at this commit wrote has no base, so it has no answer either: absent, not every case added.
+    const cases = comparable(file) ? casesMoved(file, held, full, created) : undefined;
     files.push({
       file,
       ...(created ? { created: true } : read === undefined ? {} : readingOf(read)),

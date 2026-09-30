@@ -274,6 +274,36 @@ describe('a review of what a change did, after the run that recorded it', () => 
     expect(formatReview(answer, 'text')).toContain(`Not compared: ${layers.last} could not be read`);
   });
 
+  it('names no case a test file the change created added, when no run at this commit wrote it', async () => {
+    const { root, first } = await changed();
+    const created = { id: 'test/created.test.ts > counts', file: 'test/created.test.ts', name: 'counts', stopped: false };
+    await writeFile(join(root, 'test/created.test.ts'), "it('counts', () => {});\n");
+    git(root, ['add', '--intent-to-add', 'test/created.test.ts']);
+    await writeFile(`${testCoverageFile(root)}.cases.bin`, encodeExecutionIndex({
+      tests: [DISCOUNTS, ROUNDS, created],
+      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0, 2]), block('round', 5, 7, [])] }],
+    }));
+    const casesOf = (answer: Awaited<ReturnType<typeof review>>) =>
+      answer.files.find((file) => file.file === 'test/created.test.ts');
+
+    await layered(root, '{not json', MAINLINE_BEFORE, CHANGE, ['test/created.test.ts']);
+    const unread = casesOf(await review(parse(['--since', first, '--root', root])));
+
+    expect(unread?.created).toBe(true);
+    expect(unread?.cases).toBeUndefined();
+
+    const last = { commit: CHANGE, before: first, at: '2026-09-26T00:00:00.000Z', files: ['test/total.test.ts'], cases: [] };
+    await layered(root, last, MAINLINE_BEFORE, CHANGE, ['test/created.test.ts', 'test/total.test.ts']);
+    const left = casesOf(await review(parse(['--since', first, '--root', root])));
+
+    expect(left?.cases).toBeUndefined();
+
+    await layered(root, { ...last, files: ['test/created.test.ts', 'test/total.test.ts'] }, MAINLINE_BEFORE, CHANGE, ['test/created.test.ts']);
+    const written = casesOf(await review(parse(['--since', first, '--root', root])));
+
+    expect(written?.cases).toEqual({ added: ['counts'], removed: [] });
+  });
+
   it('lists a bounded number of moved regions and files in the comment, and cuts the comment to GitHub\'s limit', async () => {
     const { root, first, against } = await changed();
     const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
