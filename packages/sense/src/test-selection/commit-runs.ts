@@ -36,7 +36,6 @@
  * they ran, so it is recorded by the same rules as a run.
  */
 
-import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { askCoverageFile } from './coverage-file.js';
 import { layeredCoverage } from './format-layer.js';
@@ -51,11 +50,17 @@ export interface CommitRuns {
   /** The commit the runs were recorded at. Absent outside a checkout, where every run starts the record again. */
   readonly commit?: string;
   /**
-   * The commit of the snapshot the first of these runs was laid over: where a
-   * reading of the change they ran for starts. Absent when there was no
-   * snapshot, when it named no commit, when it was recorded by other probes
-   * and so was replaced rather than laid over, or when git says these runs'
-   * commit does not descend from it.
+   * The commit of the snapshot the first of these runs was laid over. Absent
+   * when there was no snapshot, when it named no commit, or when it was
+   * recorded by other probes and so was replaced rather than laid over.
+   *
+   * A fact about the snapshot, written without asking git. It is where every
+   * test the runs did not observe, and `standing` does not list, last ran, so
+   * `test:since` reads those tests from it whatever the history between the
+   * two commits. It is where the change these runs ran for starts only when
+   * `commit` descends from it, and a review asks git that where it runs: a
+   * landing may be written outside the checkout, or before the other commit
+   * was fetched.
    */
   readonly over?: string;
   /** When the first and the latest of the runs landed. */
@@ -66,8 +71,10 @@ export interface CommitRuns {
   /** Every test file the runs observed, in code-unit order. */
   readonly files: readonly string[];
   /**
-   * The commit each other test in the snapshot last ran at, oldest first, each
-   * with its test files in code-unit order. A test in `files` is not listed.
+   * The commit each other test in the snapshot last ran at, each with its test
+   * files in code-unit order. A test in `files` is not listed. The commits are
+   * in the order their runs landed, earliest first, which is oldest first only
+   * along one line of history: a run may land at a commit older than the last.
    * Absent when the run that wrote this record could not know: the record it
    * replaced did not speak for the snapshot the run was laid over. A reader
    * that falls back, to `over` or to `commit`, says it did.
@@ -101,7 +108,7 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
   const before = await recordedSnapshot(coverageFile);
   const held = await readCommitRuns(coverageFile);
   await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
-  await writeCommitRuns(commitRunsFile(coverageFile), await commitRunsAfter(before, held, current, root));
+  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current));
 }
 
 /**
@@ -112,25 +119,14 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
  * works them out again. A snapshot under other probes is replaced rather than
  * laid over, so it is no base: the record then names none.
  *
- * Nor is a snapshot at a commit `current`'s does not descend from. A review
- * reads `over` as where the change these runs ran for starts, and diffs from
- * it. Main's shards landed over a branch's snapshot, or a run after checking
- * out an older commit, would name the branch's commit as that start, and the
- * review would silently leave out every commit of the branch before it. So
- * `over` is named only when `current`'s commit descends from the snapshot's,
- * and git, asked in `root`, is what says so. When git cannot say — no
- * checkout, a commit this clone does not hold — `over` is named as before: a
- * reader that diffs from it asks the same history, and says it could not.
- *
  * {@link landRun} reads both inputs off the disk. A landing of shard snapshots
  * has already read the snapshot to merge over it, and passes that.
  */
-export async function commitRunsAfter(
+export function commitRunsAfter(
   before: RecordedTests | undefined,
   held: CommitRuns | undefined,
   current: RecordedTests,
-  root: string,
-): Promise<CommitRuns> {
+): CommitRuns {
   const prior = before?.instrumentation === current.instrumentation ? before : undefined;
   const stood = prior?.commit;
   const at = new Date().toISOString();
@@ -138,7 +134,7 @@ export async function commitRunsAfter(
   // The snapshot already stands at this commit and the record says what it
   // stood at before: this run is one more at the commit, not a new change.
   const again = current.commit !== undefined && stood === current.commit && held?.commit === current.commit;
-  const over = again ? held.over : (await descends(root, stood, current.commit)) === false ? undefined : stood;
+  const over = again ? held.over : stood;
   const ran = again ? [...new Set([...held.files, ...files])].sort(codeUnitOrder) : files;
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, current.commit, ran);
   return {
@@ -200,28 +196,13 @@ function standingAfter(
     if (stand === commit) continue;
     grouped.set(stand, [...(grouped.get(stand) ?? []), test]);
   }
-  // Oldest first: the record's own order, then the commit it named, which every
-  // test in `standing` last ran before.
+  // Earliest landing first: the record's own order, then the commit it named,
+  // which landed after every commit in its `standing`. That is not oldest first
+  // when a run landed at a commit older than the one before it.
   const order = [...new Set([...held.standing.map((entry) => entry.commit), stood])];
   return order
     .filter((stand) => grouped.has(stand))
     .map((stand) => ({ commit: stand, files: [...new Set(grouped.get(stand))].sort(codeUnitOrder) }));
-}
-
-/**
- * Whether `to` descends from `from`, as git answers it in `root`: `false` when
- * `from` is not in `to`'s history, and `undefined` when git cannot say. Git's
- * exit code is the answer, so it is read directly: 0 is yes, 1 is no, and
- * anything else — no checkout, a commit this clone does not hold — is neither.
- */
-async function descends(root: string, from: string | undefined, to: string | undefined): Promise<boolean | undefined> {
-  if (from === undefined || to === undefined) return undefined;
-  if (from === to) return true;
-  return new Promise((resolve) => {
-    execFile('git', ['merge-base', '--is-ancestor', from, to], { cwd: root }, (error) =>
-      resolve(error === null ? true : error.code === 1 ? false : undefined),
-    );
-  });
 }
 
 /** The runs recorded into the snapshot at `coverageFile`, or `undefined` when no run has listed itself. */

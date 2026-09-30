@@ -25,10 +25,11 @@ import { landingRecord } from './suite-record.js';
  * whole, and keeps the ones it did not. That is how a fetched baseline lands
  * under local evidence rather than deleting it, and how a full run on the
  * default branch becomes the floor every local run stands on. The runs record
- * beside it names the local snapshot's commit as where the landed run's change
- * starts only when git says the fold's commit descends from it: a fetched
- * baseline is usually older than the local runs, and naming them as its start
- * would have a review leave out every commit before them.
+ * beside it names the local snapshot's commit as the one the fold was laid
+ * over, whatever the history between the two: a fetched baseline is usually
+ * older than the local runs, and whether that commit is where a change starts
+ * is asked of git by the review that reads it, not here, where the landing may
+ * run outside the checkout or before the other commit was fetched.
  *
  * The case index beside the target is part of the same record: `recordings()`
  * and `recordedExecutionFile` read it as the cases of the snapshot beside it.
@@ -137,7 +138,7 @@ export async function landJourneys(
     }
 
     const landed = selection.mergeCoverage(previous, folded);
-    const runs = await selection.commitRunsAfter(previous, held, folded, root);
+    const runs = selection.commitRunsAfter(previous, held, folded);
     try {
       await selection.writeTestCoverage(staged, landed);
       await selection.writeCommitRuns(stagedRuns, runs);

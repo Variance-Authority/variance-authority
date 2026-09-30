@@ -128,26 +128,22 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     expect(runs).not.toHaveProperty('over');
   });
 
-  it('names no base when the shards\' commit does not descend from the snapshot\'s, as git says', async () => {
-    const git = (...args: string[]): string =>
-      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: home, encoding: 'utf8' }).trim();
-    git('init', '-q');
-    git('commit', '-q', '--allow-empty', '-m', 'A');
-    const A = git('rev-parse', 'HEAD');
-    git('commit', '-q', '--allow-empty', '-m', 'L');
-    const L = git('rev-parse', 'HEAD');
-    // The local runs are at L; the main line's shards, fetched, are at A.
-    await landRun(into, run(L, ALL), home);
+  it('names the commit it was laid over as it stands, from a root that is not a checkout', async () => {
+    // `home` is outside any repository, as a landing with `--into` from a CI
+    // job's scratch directory is: nobody here could say which commit is older.
+    expect(() => execFileSync('git', ['rev-parse', '--git-dir'], { cwd: home, stdio: 'ignore' })).toThrow();
+    const local = 'a'.repeat(40);
+    const fetched = 'b'.repeat(40);
+    await landRun(into, run(local, ALL), home);
 
-    await land(run(A, ['other.test.ts']));
+    await land(run(fetched, ['other.test.ts']));
 
-    const runs = await readCommitRuns(into);
-    expect(runs).toMatchObject({ commit: A, files: ['other.test.ts'], standing: [{ commit: L, files: ['far.test.ts', 'near.test.ts'] }] });
-    expect(runs).not.toHaveProperty('over');
-
-    // And a fold that does descend from the snapshot's commit names it.
-    await land(run(L, ['other.test.ts']));
-    expect(await readCommitRuns(into)).toMatchObject({ commit: L, over: A });
+    expect(await readCommitRuns(into)).toMatchObject({
+      commit: fetched,
+      over: local,
+      files: ['other.test.ts'],
+      standing: [{ commit: local, files: ['far.test.ts', 'near.test.ts'] }],
+    });
   });
 
   it('refuses a runs record it cannot read, naming it, and lands nothing', async () => {

@@ -396,6 +396,46 @@ describe('legs at two commits leave each test read from where it last ran', () =
     expect(await readCommitRuns(file)).toMatchObject({ commit: D, over: C, files: ['test/far.test.ts'] });
   });
 
+  it('selects a test for a precondition changed since it ran, when the first run at an older commit is laid over a newer one', async () => {
+    // A worktree at W, behind the primary checkout at P. The primary ran `far`,
+    // which declares `fixture.json`, and `near`; W holds another `fixture.json`.
+    // The worktree's first run lands `near` over a copy of P's snapshot, with
+    // no record of its own. `far` last ran on P's fixture, so the edit back to
+    // W's is a change for it, and nothing but `over` says where it ran.
+    const repo = await repository();
+    const cache = await mkdtemp(resolve(tmpdir(), 'va-since-cache-'));
+    try {
+      const file = resolve(cache, 'coverage.bin');
+      const W = await repo.commit({ ...source('far', 1), ...source('near', 1), 'fixture.json': '{"v":1}\n' }, 'W');
+      const P = await repo.commit({ 'fixture.json': '{"v":2}\n' }, 'P');
+      const fixture = { name: 'fixture.json', digest: digestString('{"v":2}\n') };
+      const atP = run(repo.at, P, ['far', 'near']);
+      await landRun(file, { ...atP, tests: atP.tests.map((test) => (test.file === 'test/far.test.ts' ? { ...test, preconditions: [fixture] } : test)) }, repo.at);
+      await rm(commitRunsFile(file));
+      repo.git('checkout', '-q', W);
+      await landRun(file, run(repo.at, W, ['near']), repo.at);
+
+      const reading = await readChange({
+        root: repo.at,
+        git: repo.git,
+        diffOfNew: () => '',
+        snapshotFile: file,
+        coverage: await readTestCoverage(file),
+        runs: await readCommitRuns(file),
+        ref: undefined,
+        suite: ['test/far.test.ts', 'test/near.test.ts'],
+        stemOf: (path: string) => path,
+        graph: async () => ({}),
+        say: () => {},
+      });
+      expect(reading.decided).toEqual({ selected: ['test/far.test.ts'] });
+      expect(await readCommitRuns(file)).toMatchObject({ commit: W, over: P, files: ['test/near.test.ts'] });
+    } finally {
+      await rm(repo.at, { recursive: true, force: true });
+      await rm(cache, { recursive: true, force: true });
+    }
+  });
+
   it('says what it assumed when it finds nothing to run without the runs record', async () => {
     const { read, file, C, at } = await legs();
     await landRun(file, run(at, C, ['far', 'near']), at);

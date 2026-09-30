@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -66,32 +65,22 @@ describe('the runs recorded at one commit', () => {
     expect((await readCommitRuns(coverageFile))?.over).toBeUndefined();
   });
 
-  it('names no base when git says the run\'s commit does not descend from the snapshot\'s', async () => {
-    // A → B on the main line, and S on a line of its own from A.
-    const root = await mkdtemp(join(tmpdir(), 'variance-commit-runs-'));
-    const git = (...args: string[]): string =>
-      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: root, encoding: 'utf8' }).trim();
-    git('init', '-q');
-    git('commit', '-q', '--allow-empty', '-m', 'A');
-    const A = git('rev-parse', 'HEAD');
-    git('commit', '-q', '--allow-empty', '-m', 'B');
-    const B = git('rev-parse', 'HEAD');
-    git('checkout', '-q', '-b', 'side', A);
-    git('commit', '-q', '--allow-empty', '-m', 'S');
-    const S = git('rev-parse', 'HEAD');
-    const coverageFile = join(root, 'coverage.bin');
-    const over = async (from: string, to: string): Promise<string | undefined> => {
-      await writeTestCoverage(coverageFile, run(from, ['a.test.ts']));
-      await writeFile(commitRunsFile(coverageFile), JSON.stringify({ commit: from, over: 'elsewhere', first: '', latest: '', runs: 1, files: ['a.test.ts'], standing: [] }));
-      await landRun(coverageFile, run(to, ['b.test.ts']), root);
-      return (await readCommitRuns(coverageFile))?.over;
-    };
+  it('names the commit it was laid over whatever the history between the two, and asks git nothing', async () => {
+    // `older` is a name, not a commit: nothing here is a checkout, and no
+    // answer about ancestry is needed to write down what the snapshot stood at.
+    const { root, coverageFile } = await recorded('newer');
+    await writeFile(
+      commitRunsFile(coverageFile),
+      JSON.stringify({ commit: 'newer', over: 'elsewhere', first: '', latest: '', runs: 1, files: ['a.test.ts'], standing: [] }),
+    );
 
-    expect(await over(A, B), 'a descendant').toBe(A);
-    expect(await over(B, A), 'an ancestor').toBeUndefined();
-    expect(await over(B, S), 'another line').toBeUndefined();
-    // Where each test last ran is still carried: `a` ran at B, whatever came after.
-    expect((await readCommitRuns(coverageFile))?.standing).toEqual([{ commit: B, files: ['a.test.ts'] }]);
+    await landRun(coverageFile, run('older', ['b.test.ts']), root);
+
+    expect(await readCommitRuns(coverageFile)).toMatchObject({
+      commit: 'older',
+      over: 'newer',
+      standing: [{ commit: 'newer', files: ['a.test.ts'] }],
+    });
   });
 
   it('carries where each test it did not run last ran, across partial runs at two commits', async () => {

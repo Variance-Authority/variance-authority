@@ -732,6 +732,13 @@ since the previous run. A retry or a second shard at the same commit keeps the
 same starting commit and adds its test files to the list. Shards landed with
 `variance journeys <shard>...` count as one run at the shards' commit.
 
+That commit is a start only when the one you ran at descends from it, and the
+review asks git. A run after checking out an older commit, or mainline shards
+landed over your branch's runs, has no previous commit to start from, and is
+read like the run below. When git cannot tell, because your clone does not
+hold that commit or is shallow, the review is refused and names the commit to
+fetch.
+
 A run in a checkout that had no recording before it, such as a fresh clone,
 has no previous commit to start from. When the root config gives that suite to
 the [share](../../docs/sharing.md) with `"carry": "share"`, the review starts at
