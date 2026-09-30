@@ -203,7 +203,27 @@ describe('journeys read as masks', () => {
       ['put', 2, 1],
     ]);
     expect(journeyMap(root, 'src/api.ts', ['AGAIN'])?.tests.map((test) => test.name)).toEqual(['finds again']);
-    expect(journeyMap(root, 'src/none.ts')?.notRecorded).toBe('the recording holds no src/none.ts');
+  });
+
+  it('says why a file has no map: a test file names the modules its tests ran, and no row is a finding only where the recording lists files', () => {
+    const at = `${testCoverageFile(root)}.cases.bin`;
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, branched());
+
+    expect(journeyMap(root, 'test/api.test.ts')?.notRecorded).toBe(
+      'test/api.test.ts is a test file, and a journey map is drawn around code that tests run. ' +
+        'Ask about one of the modules its 3 recorded tests ran most:\n' +
+        '  src/api.ts  run by 3 of its 3 and 3 of all 3 recorded tests',
+    );
+    expect(journeyMap(root, 'src/none.ts')?.notRecorded).toBe(
+      'No recorded test ran src/none.ts. This is a finding about the tests, not a gap in the recording: ' +
+        'the recording lists 1 file under src/ that its 3 tests loaded, and this file is not one of them.',
+    );
+    expect(journeyMap(root, 'lib/none.ts')?.notRecorded).toBe(
+      'The recording lists no file under lib/, so it cannot say whether a test ran lib/none.ts. ' +
+        'A directory with no listed file is either one that no recorded test loaded or one that the test run does not instrument, ' +
+        'and the recording does not say which.',
+    );
   });
 });
 

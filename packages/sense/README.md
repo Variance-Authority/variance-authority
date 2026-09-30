@@ -1536,8 +1536,15 @@ line.
 
 In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
 and case index into the worktree's own record, so the fold lands over the
-suite's record rather than over nothing. In the primary checkout, or for a file
-you named yourself, it does nothing.
+suite's record rather than over nothing. Beside them it writes a copy of the
+primary checkout's runs record, with no run of the worktree's in it, so a test
+your worktree has not run is read from where it last ran there. A test that
+record does not place is read from where its runs started, and a reading in
+either checkout reports it as assumed. When the primary checkout has no runs
+record, or one naming another commit than its snapshot, nothing is written. The
+copy lists no run of the worktree's, so `variance review` still asks for a run or
+`--since`. In the primary checkout, or for a file you named yourself, it does
+nothing.
 
 The order is what keeps the snapshot and its cases describing the same runs.
 Only a missing snapshot starts the fold from nothing; one that cannot be read
