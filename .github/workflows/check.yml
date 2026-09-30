@@ -374,20 +374,26 @@ jobs:
       options: --ipc=host
 
     steps:
+      # The image carries browsers and Node but neither this checkout's tool nor
+      # a compiler. The checkout tool comes first: without it `actions/checkout`
+      # unpacks an archive with no `.git`, and the cases, which name every file
+      # relative to the repository root, would name them relative to their own
+      # directory instead. The compiler is for the native scanner, which is built
+      # on this machine: without it every case that reads source fails to load by
+      # name. The hosted runners carry all of it, so the other jobs need no step.
+      - name: version control and compiler
+        shell: bash
+        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # The image carries browsers and Node but no compiler, and the native
-      # scanner is compiled on this machine: without it every case that reads
-      # source fails to load by name. The hosted runners carry rustup and a C
-      # compiler, so the other jobs need no such step.
-      - name: toolchain
+      - name: rust
         shell: bash
         run: |
-          apt-get update && apt-get install -y --no-install-recommends build-essential curl ca-certificates
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 

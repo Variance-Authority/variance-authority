@@ -23,8 +23,20 @@ test('without the announcement the negative passes for the wrong reason', async 
   // The modal is coming. Asked now, the screen says it is not there, and a suite
   // records a pass on a branch it never observed. This test passes, and that is
   // the finding: it would pass either way.
-  await page.goto('/?show=yes');
+  //
+  // The decision is held at the network so the moment being asked about is the
+  // same on every machine: the server answers after a random delay, and a fast
+  // one would have drawn the modal before the question.
+  let release;
+  const held = new Promise((resolve) => (release = resolve));
+  await page.route('**/api/decide*', async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto('/?show=yes', { waitUntil: 'commit' });
   await expect(page.getByRole('dialog')).toBeHidden({ timeout: 0 });
+  release();
+  await expect(page.getByRole('dialog')).toBeVisible();
 });
 
 test('a process can be waited to its end', async ({ page, events }) => {
