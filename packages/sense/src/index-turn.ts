@@ -10,9 +10,9 @@
 
 // compass: variance-authority.reach.source-index
 
-import { mkdirSync, readFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { native, nativeRefusal } from './addon.js';
 
 /** Who holds the turn: the process and the checkout it indexes. */
@@ -21,9 +21,30 @@ export interface IndexTurnHolder {
   readonly root: string;
 }
 
-/** The one file every index on this machine takes its turn at, in the user's temporary directory. */
+/**
+ * The one file every index of this user's takes its turn at. Where the
+ * temporary directory is shared between users, as `/tmp` is on Linux, the
+ * directory is named for the user's id, so nobody else's directory is used.
+ */
 export function indexTurnPath(): string {
-  return join(tmpdir(), 'variance-authority', 'index-turn');
+  const uid = process.getuid?.();
+  return join(tmpdir(), uid === undefined ? 'variance-authority' : `variance-authority-${uid}`, 'index-turn');
+}
+
+/**
+ * Make the turn's directory readable by this user alone, and refuse one this
+ * user does not own or that is a link: the lock and the holder are opened by
+ * name, so either would let another user decide what they open.
+ */
+function ownDirectory(directory: string): void {
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const stat = lstatSync(directory);
+  const uid = process.getuid?.();
+  if (stat.isSymbolicLink() || !stat.isDirectory() || (uid !== undefined && stat.uid !== uid)) {
+    throw new Error(
+      `the index turn's directory ${directory} is not a directory this user owns, so no index will lock or write in it: remove it, or set TMPDIR to a directory of your own`,
+    );
+  }
 }
 
 /**
@@ -35,7 +56,7 @@ export async function inIndexTurn<T>(root: string, work: () => Promise<T>, waiti
   const addon = native();
   if (addon === undefined) throw new Error(`the index turn is taken by the native addon, which did not load: ${nativeRefusal()}`);
   const path = indexTurnPath();
-  mkdirSync(join(path, '..'), { recursive: true });
+  ownDirectory(dirname(path));
   const holder = JSON.stringify({ pid: process.pid, root } satisfies IndexTurnHolder);
   let told = false;
   for (;;) {

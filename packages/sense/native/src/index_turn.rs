@@ -42,8 +42,14 @@ pub fn take_index_turn(path: String, holder: String) -> napi::Result<Option<Inde
         Err(TryLockError::WouldBlock) => return Ok(None),
         Err(TryLockError::Error(error)) => return Err(fail(error)),
     }
+    // A crashed process with this id may have left its file behind; a new one
+    // is created rather than an existing path opened, so nothing is followed.
     let written = format!("{path}.holder.{}.tmp", std::process::id());
-    let mut file = File::create(&written).map_err(fail)?;
+    match fs::remove_file(&written) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(fail(error)),
+        _ => {}
+    }
+    let mut file = File::options().write(true).create_new(true).open(&written).map_err(fail)?;
     file.write_all(holder.as_bytes()).map_err(fail)?;
     fs::rename(&written, format!("{path}.holder")).map_err(fail)?;
     Ok(Some(IndexTurn { lock: Some(lock) }))

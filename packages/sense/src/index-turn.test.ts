@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { inIndexTurn, type IndexTurnHolder } from './index-turn.js';
+import { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 
 const machineTemporary = process.env['TMPDIR'];
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
@@ -48,5 +48,18 @@ describe('the index turn', () => {
     const told: IndexTurnHolder[] = [];
     expect(await inIndexTurn('/here', async () => 'ran', (held) => told.push(held))).toBe('ran');
     expect(told).toEqual([]);
+  });
+
+  it('keeps its directory to this user, and refuses one that is a link rather than open the lock through it', async () => {
+    expect(await inIndexTurn('/here', async () => 'ran')).toBe('ran');
+    expect(statSync(dirname(indexTurnPath())).mode & 0o777).toBe(0o700);
+
+    process.env['TMPDIR'] = mkdtempSync(join(tmpdir(), 'va-index-turn-'));
+    const elsewhere = join(process.env['TMPDIR'], 'elsewhere');
+    mkdirSync(elsewhere);
+    symlinkSync(elsewhere, dirname(indexTurnPath()));
+    let ran = false;
+    await expect(inIndexTurn('/here', async () => { ran = true; })).rejects.toThrow('is not a directory this user owns');
+    expect(ran).toBe(false);
   });
 });
