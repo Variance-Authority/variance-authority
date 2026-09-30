@@ -1549,8 +1549,7 @@ removes the staged file if anything before it threw. If the process dies
 first, the staged file stays. The cache's pruning reads the pid in its name and
 removes it, but only in the directories that hold a checkout's record:
 `test-selection/<key>`, its `suites/<suite>` and its `.work/<key>`. Beside a
-`file` anywhere else, removing it is yours to do; `variance journeys` does it
-for the files a dead landing left beside its own target, and names each one.
+`file` anywhere else, it stays until you remove it.
 
 `withIndexLock` on `file` is the lock every seam takes to write the snapshot,
 so no run writes the snapshot while you land. `landCaseIndexes` takes the case

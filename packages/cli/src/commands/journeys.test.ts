@@ -227,7 +227,6 @@ describe('formatLanding', () => {
         commit: '0123456789abcdef0123456789abcdef01234567',
         observations: 342,
         modules: 1204,
-        removed: [],
       }),
     ).toBe(
       'folded 3 snapshots into /cache/variance-authority/test-selection/abc/coverage.bin\n' +
@@ -236,7 +235,7 @@ describe('formatLanding', () => {
   });
 
   it('says what the landing did to the case index beside the fold', () => {
-    const fold = { at: '/tmp/coverage.bin', shards: 2, observations: 2, modules: 1, removed: [] };
+    const fold = { at: '/tmp/coverage.bin', shards: 2, observations: 2, modules: 1 };
     const lines = (cases: LandedJourneys['cases']) => formatLanding({ ...fold, cases }).split('\n').slice(2);
 
     expect(lines({ laid: '/tmp/coverage.bin.cases.bin', shards: 2 })).toEqual([
@@ -253,18 +252,8 @@ describe('formatLanding', () => {
   });
 
   it('leaves the position out when the shards had none', () => {
-    expect(formatLanding({ at: '/tmp/coverage.bin', shards: 1, observations: 1, modules: 1, removed: [] })).toBe(
+    expect(formatLanding({ at: '/tmp/coverage.bin', shards: 1, observations: 1, modules: 1 })).toBe(
       'folded 1 snapshot into /tmp/coverage.bin\n  1 observation over 1 module',
-    );
-  });
-
-  it('names each staged file a dead landing left and this one removed', () => {
-    const staged = '/tmp/coverage.bin.4242-3f0c9a52-7d1e-4b6a-9c2f-5e8d1a0b4c77.tmp';
-    expect(
-      formatLanding({ at: '/tmp/coverage.bin', shards: 1, observations: 1, modules: 1, removed: [staged] }),
-    ).toBe(
-      'folded 1 snapshot into /tmp/coverage.bin\n  1 observation over 1 module\n' +
-        `  removed ${staged}: a landing staged it and stopped before removing it`,
     );
   });
 });
