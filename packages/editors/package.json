@@ -28,6 +28,7 @@
   },
   "files": [
     "src/bin.mjs",
+    "src/run.mjs",
     "src/where.mjs",
     "variance-authority.vsix",
     "variance-authority.jar",

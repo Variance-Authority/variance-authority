@@ -338,6 +338,9 @@ jobs:
       # `docker/linux-verify.sh`'s question, it is open, and a red check here
       # would be the wrong way to ask it.
       #
+      # The cases are the exception: the `cases` job runs them in the Playwright
+      # image `variance.yml` uses. The other browser-gated suites still skip here.
+      #
       # The consequence is that a green check on this workflow is not a green
       # suite, and the skip list in the step above is what keeps the two from
       # being confused.
@@ -346,6 +349,62 @@ jobs:
         shell: bash
         run: |
           echo "::notice::Browser suites skipped: no Chromium installed."
+
+  cases:
+    # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a
+    # real Rstest, and every file in it that needs a Chromium or a built subject
+    # announces a skip when it has neither. In the `suite` job that is all nine
+    # of them, so until this job existed the cases were listed and never ran.
+    #
+    # The pinned Playwright image is the one `variance.yml` observes in, for the
+    # same reason: the browser and its fonts are part of what these cases assert.
+    # Whether the numbers written on a Mac survive this image is what this job
+    # asks, and it is not in `needs` of `check` below until it has answered green
+    # on `main`. A red result here is a finding about the image, not a reason to
+    # weaken a case.
+    #
+    # The cases' own fixture files stay at zero coverage: they run in child
+    # processes and builds that carry no probe. Running them does not move that
+    # figure, and nothing here claims it does.
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      # See `variance.yml`: Chromium's renderers need more shared memory than a
+      # container's default.
+      options: --ipc=host
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - name: build
+        shell: bash
+        run: yarn build
+
+      # The subjects the cases observe, built the way each case's README says.
+      # `storybook-static/` and the others are ignored, so nothing here can be
+      # stale against a committed copy.
+      - name: build the Storybooks
+        shell: bash
+        run: |
+          yarn workspace @variance-authority/case-storybook build-storybook
+          yarn workspace @variance-authority/case-storybook build-storybook:changed
+          yarn workspace @variance-authority/case-storybook build-storybook:a11y
+
+      - name: record the incumbent
+        shell: bash
+        run: yarn workspace @variance-authority/case-incumbent incumbent
+
+      - name: run the cases
+        shell: bash
+        run: yarn vitest run cases
 
   # The one check a branch rule names, and the one line that combines the three
   # above. `needs` alone would skip this job when one of them failed, and a

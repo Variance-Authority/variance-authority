@@ -1,5 +1,17 @@
 {
   "suites": {
     "unit": { "kind": "unit", "carry": "actions-cache" }
+  },
+  "entrypoints": {
+    ".": [
+      ".github/**",
+      "cases/**",
+      "editors/**",
+      "examples/**",
+      "jvm/**",
+      "packages/**",
+      "tools/**",
+      "tribunal-cloudflare/**"
+    ]
   }
 }
