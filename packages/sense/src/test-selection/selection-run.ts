@@ -176,7 +176,33 @@ function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string):
     }
   }
   writeFileSync(id, source, 'utf8');
+  leaveOnExit(run, id);
   return id;
+}
+
+/** Shims on disk that no end of their run has taken off yet, with the run that wrote each. */
+const onDisk = new Map<string, Pick<SelectionRun, 'made'>>();
+let exitHooked = false;
+
+/**
+ * Take `id` off when the process exits, if nothing took it off before.
+ *
+ * The shims are written while the configuration is evaluated, and the end of
+ * the run is what takes them off: the fold, or the server closing. A runner
+ * that fails between the two exits with neither — Vitest rejecting a typecheck
+ * it could not start calls no reporter and closes no server — and the files it
+ * leaves in the project are a trace of a run that recorded nothing. The exit
+ * is the one end every such failure still reaches, and taking a file off is
+ * synchronous, so it can happen there.
+ */
+function leaveOnExit(run: Pick<SelectionRun, 'made'>, id: string): void {
+  if (!exitHooked) {
+    exitHooked = true;
+    process.once('exit', () => {
+      for (const [shim, owner] of onDisk) removeSeamModules(owner, [shim]);
+    });
+  }
+  onDisk.set(id, run);
 }
 
 /**
@@ -192,7 +218,10 @@ function writeShim(run: Pick<SelectionRun, 'made'>, id: string, source: string):
  * platform would not let go of — a lock, a scanner, a read-only mount.
  */
 export function removeSeamModules(run: Pick<SelectionRun, 'made'>, shims: Iterable<string>): void {
-  for (const shim of shims) rmSync(shim, { force: true });
+  for (const shim of shims) {
+    rmSync(shim, { force: true });
+    onDisk.delete(shim);
+  }
   for (const directory of run.made) {
     try {
       rmdirSync(directory);
