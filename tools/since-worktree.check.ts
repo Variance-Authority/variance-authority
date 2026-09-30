@@ -277,7 +277,7 @@ describe('a worktree reads a test it has not run from where the primary checkout
 
   it('seeds no runs record when the primary checkout\'s names another commit than its record, and the reading says what it assumed', async () => {
     const { primary, worktree, cacheRoot, base, own, ranHere, read } = await primaryAndWorktree();
-    // A landing writes the record without listing its run, so the runs beside it still name M.
+    // A landing that renames the record and stops before listing its run leaves the runs beside it at M.
     const L = await commitIn(primary, source('other', 2), 'L');
     await writeTestCoverage(base, run(primary, L, NAMES));
     gitIn(worktree)('merge', '-q', '--ff-only', L);
