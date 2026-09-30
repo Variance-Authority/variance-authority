@@ -113,12 +113,6 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly targets: string[];
 }
 
-/** A segment an immutable-log manifest names: `LogSegment` in `native/src/log.rs`. */
-export interface NativeLogSegment {
-  readonly digest: string;
-  readonly length: number;
-}
-
 export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys {
   /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
@@ -135,21 +129,15 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    */
   encodeSourceIndex(documents: string[]): Buffer;
   /**
-   * One source-index generation from a chain's segments, oldest first: each
-   * layer's deletes and then its puts, the last layer's configuration.
+   * Write a save's `layers` over the source-index chain at `path`, as the save
+   * read it: the first `read.length` segments its manifest names, or the legacy
+   * single-segment file when `legacy`. The addon decides what the next manifest
+   * names (`native/src/append_index.rs`) and is the only writer of the chain.
+   * Why the layers were not written, or `null` when they are.
    */
-  compactSourceIndex(layers: Uint8Array[]): Buffer;
-  /**
-   * Write `segments` after `kept`, then the manifest naming them, then remove
-   * whichever of `replaced` it no longer names: the only writer of an
-   * immutable log. What the file system refused, or `null` when it is written.
-   */
-  publishLog(
-    path: string,
-    kept: NativeLogSegment[],
-    segments: Uint8Array[],
-    replaced: NativeLogSegment[],
-  ): string | null;
+  appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
+  /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
+  seedSourceIndex(path: string, from: string): boolean;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
   seedFiles(root: string, dirs: string[]): string[];

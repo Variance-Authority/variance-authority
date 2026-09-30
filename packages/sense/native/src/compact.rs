@@ -24,8 +24,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use napi::bindgen_prelude::Buffer;
-use napi_derive::napi;
 use rayon::prelude::*;
 
 use crate::generation::{encode_generation, Deleted, Generation};
@@ -34,16 +32,6 @@ use crate::parse_columns::Span;
 use crate::record::Indexed;
 use crate::segment::NONE;
 use crate::stored::{same_length, Stored, U32s};
-
-/// One generation from the layers of a chain, oldest first. A layer this side
-/// cannot read is a defect in whoever handed it over, and throws.
-#[napi(catch_unwind)]
-pub fn compact_source_index(layers: Vec<Buffer>) -> napi::Result<Buffer> {
-    let layers: Vec<&[u8]> = layers.iter().map(|bytes| bytes.as_ref()).collect();
-    compacted(&layers)
-        .map(Into::into)
-        .map_err(|error| napi::Error::from_reason(format!("the source index did not compact: {error}")))
-}
 
 pub(crate) fn compacted(layers: &[&[u8]]) -> Result<Vec<u8>, String> {
     folded(layers, false)

@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 mod acquire;
+mod append_index;
 mod batch;
 mod compact;
 mod conditions;

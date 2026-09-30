@@ -14,8 +14,8 @@ use napi_derive::napi;
 use rayon::prelude::*;
 
 use crate::compact::{compacted, Layer};
-use crate::index_chain::{manifest_digests, read_chain};
-use crate::log::{publish, LogSegment};
+use crate::index_chain::read_chain;
+use crate::log::{written, LogSegment, Over};
 use crate::off_thread::{off_thread, OffThread};
 
 /// The working layer is folded once its rows are this share of the base's. On
@@ -39,7 +39,7 @@ fn readied(index: &str) -> Result<bool, String> {
     }
     let base = chain.segments.len() - chain.working;
     let rows = chain.segments.par_iter().enumerate()
-        .map(|(at, bytes)| Layer::open(bytes).map(|layer| layer.records.file.len() + layer.parses.key.len()).map_err(|error| format!("segment {at}: {error}")))
+        .map(|(at, bytes)| Layer::open(bytes).map(|layer| rows(&layer)).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<Vec<_>, _>>()?;
     let (under, over): (usize, usize) = (rows[..base].iter().sum(), rows[base..].iter().sum());
     if (over as f64) < SHARE * under as f64 {
@@ -47,13 +47,16 @@ fn readied(index: &str) -> Result<bool, String> {
     }
     let layers: Vec<&[u8]> = chain.segments.iter().map(Vec::as_slice).collect();
     let one = compacted(&layers)?;
-    let named: Vec<String> = chain.references.iter().map(|reference| reference.digest.clone()).collect();
-    if manifest_digests(index).as_ref() != Some(&named) {
-        return Ok(false);
-    }
     let references: Vec<LogSegment> = chain.references.iter()
         .map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 })
         .collect();
-    publish(index, &[], &[&one], &references).map_err(|error| error.to_string())?;
-    Ok(true)
+    // A chain another writer moved while this one folded is left as it is.
+    written(index, Over::Published(chain.published()), &[], &[&one], &references, 0).map_err(|error| error.to_string())
+}
+
+/// What a layer carries: the rows it puts and the rows it deletes, since a
+/// layer of deletions is as much for readying to fold as one of puts.
+fn rows(layer: &Layer) -> usize {
+    layer.records.file.len() + layer.parses.key.len()
+        + layer.records.deleted.len() + layer.parses.deleted.len() + layer.directories.deleted.len()
 }

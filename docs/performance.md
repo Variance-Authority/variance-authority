@@ -608,14 +608,16 @@ already has an untracked cache in it and git uses it. Told not to, with
 `-c core.untrackedCache=false`, the same `status` costs 923 ms.
 
 The publish is the smallest of the three because of how little it writes. A run
-that changed nothing writes nothing — the index is an append-only chain of
-immutable segments, and an unchanged run has no segment to append. A run that
-edited four files appends about **14,000 bytes** to a 10.5 MB index. The whole
-of it is re-encoded only when the chain has grown past eight segments, which is
-one publish in eight and costs about 150 ms more than an append. On Kibana four
-edited files append 10,576 bytes to an 81.5 MB index. In a chain of twelve
-publishes timed there, the one re-encode took 1,662 ms and the appends about
-100 ms each, so the re-encode costs about 1,560 ms more than an append.
+that changed nothing writes nothing — the index is a base and one working layer
+of immutable segments, and an unchanged run has no layer to rewrite. A run that
+edited four files writes about **14,000 bytes** beside a 10.5 MB index. A run
+rewrites only the working layer, never the base, so its cost follows what
+changed since the index was readied: on Kibana's 107,163 files a one-file
+update takes 165 ms over an empty working layer, 170 ms over a thousand files
+and 220 ms over eleven thousand. Folding the working layer into the base takes
+620 ms there, and `variance index` does it in the follow-ups it leaves running,
+before work rather than during it, once the working layer reaches a tenth of the
+base.
 
 ### git, and the two accelerators
 

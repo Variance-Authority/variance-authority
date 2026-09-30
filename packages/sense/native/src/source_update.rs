@@ -28,22 +28,18 @@ use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
-use crate::compact::{compacted, merged, Layer};
+use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Generation};
 use crate::git::Oid;
 use crate::index::way;
-use crate::index_chain::{manifest_digests, read_chain};
-use crate::log::{publish, publish_working, LogSegment};
+use crate::index_chain::read_chain;
+use crate::log::{written, LogSegment, Over};
 use crate::order::code_unit;
 use crate::package_graph::{fold, names_object, At};
 use crate::read::Read;
 use crate::record::{built, Indexed, Settling};
 use crate::witness::AliasTable;
-
-/// `MAX_SEGMENTS` in `immutable-log.ts`: a chain with no working layer is
-/// folded whole before one is started over it.
-const MAX_SEGMENTS: usize = 8;
 
 /// What an update needs that only the caller knows.
 #[napi(object)]
@@ -401,11 +397,6 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         deleted: Deleted { parses: &deleted_parses, records: &deleted_records, directories: &deleted_directories },
     });
 
-    // Another writer between the read and here: its chain is not the one this delta is against.
-    let named: Vec<&str> = chain.references.iter().map(|reference| reference.digest.as_str()).collect();
-    if manifest_digests(&o.index).as_deref().map(|now| now.iter().map(String::as_str).collect::<Vec<_>>()) != Some(named) {
-        return Ok(None);
-    }
     let references: Vec<LogSegment> = chain
         .references
         .iter()
@@ -414,17 +405,14 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     // The working layer and this delta become the next working layer: an update
     // rewrites what changed since the index was readied, and never the base.
     let base = references.len() - chain.working;
-    let written = if chain.working == 0 && references.len() + 1 > MAX_SEGMENTS {
-        let mut whole: Vec<&[u8]> = chain.segments.iter().map(Vec::as_slice).collect();
-        whole.push(&delta);
-        let one = compacted(&whole).map_err(fail)?;
-        publish(&o.index, &[], &[&one], &references)
-    } else {
-        let mut working: Vec<&[u8]> = chain.segments[base..].iter().map(Vec::as_slice).collect();
-        working.push(&delta);
-        let working = if working.len() == 1 { delta.clone() } else { merged(&working).map_err(fail)? };
-        publish_working(&o.index, &references[..base], &working, &references[base..])
+    let mut working: Vec<&[u8]> = chain.segments[base..].iter().map(Vec::as_slice).collect();
+    working.push(&delta);
+    let working = if working.len() == 1 { delta.clone() } else { merged(&working).map_err(fail)? };
+    // Another writer between the read and here: its chain is not the one this delta is against.
+    let refused = match written(&o.index, Over::Published(chain.published()), &references[..base], &[&working], &references[base..], 1) {
+        Ok(false) => return Ok(None),
+        Ok(true) => None,
+        Err(error) => Some(format!("{}: {error}", o.index)),
     };
-    let refused = written.err().map(|error| format!("{}: {error}", o.index));
     Ok(Some(Updated { files, reread, published: refused.is_none(), refused }))
 }

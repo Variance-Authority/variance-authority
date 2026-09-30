@@ -1,5 +1,13 @@
-//! Publishing a chain: `publishAll` in `immutable-log.ts` decides what the
-//! next manifest names, and this writes it. It is the only writer of the log.
+//! Publishing a chain: `append_index.rs`, `source_update.rs` and
+//! `ready_index.rs` decide what the next manifest names, and this writes it.
+//! It is the only writer of the log.
+//!
+//! Writers are serialized by an exclusive lock on `<path>.lock`, held from the
+//! check that the chain is still the one the writer read until its manifest is
+//! in place. Each decision is made against a chain read without the lock, so
+//! the check is what makes it safe: a writer that finds the chain moved writes
+//! nothing, and says so, rather than publishing a manifest that drops what the
+//! other writer added.
 //!
 //! The order of the renames is the whole of the protocol: each segment lands
 //! under its digest before the manifest that names it, and the manifest lands
@@ -12,13 +20,11 @@
 // compass: variance-authority.reach.source-index
 
 use std::collections::HashSet;
-use std::fs;
+use std::fs::{self, File};
 use std::io;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use napi::bindgen_prelude::Buffer;
-use napi_derive::napi;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -26,7 +32,6 @@ const MAGIC: &[u8] = b"VAIDXLSM";
 static TEMPORARY: AtomicU64 = AtomicU64::new(0);
 
 /// A segment a manifest names: `SegmentReference` in `immutable-log.ts`.
-#[napi(object)]
 #[derive(Clone, Serialize)]
 pub struct LogSegment {
     pub digest: String,
@@ -57,24 +62,47 @@ fn file_name(directory: &str, digest: &str) -> String {
     format!("{directory}/{}.bin", digest.replacen(':', "-", 1))
 }
 
+/// What a writer expects to find at the chain's path when it publishes.
+#[derive(Clone, Copy)]
+pub(crate) enum Over<'a> {
+    /// Whatever is there: a cold build, which replaces it.
+    Anything,
+    /// Nothing ever published.
+    Nothing,
+    /// These bytes, as `Chain::published` read them.
+    Published(&'a [u8]),
+}
+
 /// Write `segments`, then a manifest at `path` naming `kept` and them, in
 /// that order; then remove every one of `replaced` the manifest no longer
 /// names. A segment already under its digest is the same bytes, and is
-/// written again rather than trusted.
+/// written again rather than trusted. A cold build's: whatever was at `path`
+/// is replaced.
 pub fn publish(path: &str, kept: &[LogSegment], segments: &[&[u8]], replaced: &[LogSegment]) -> io::Result<()> {
-    written(path, kept, segments, replaced, 0)
+    written(path, Over::Anything, kept, segments, replaced, 0).map(drop)
 }
 
-/// `base` kept and `working` written over it as the chain's working layer,
-/// `replaced` — the working layer it folds in — removed once nothing names it.
-/// An update rewrites this one layer rather than appending another, so the
-/// chain stays the base the index was readied with and one layer over it.
-pub fn publish_working(path: &str, base: &[LogSegment], working: &[u8], replaced: &[LogSegment]) -> io::Result<()> {
-    written(path, base, &[working], replaced, 1)
-}
-
-fn written(path: &str, kept: &[LogSegment], segments: &[&[u8]], replaced: &[LogSegment], working: usize) -> io::Result<()> {
+/// [`publish`] under the writer lock, when `path` still holds what `over`
+/// says, and `working` of the segments named the working layer. `false`, with
+/// nothing written, when another writer moved the chain after it was read.
+pub(crate) fn written(path: &str, over: Over, kept: &[LogSegment], segments: &[&[u8]], replaced: &[LogSegment], working: usize) -> io::Result<bool> {
     let directory = format!("{path}.segments");
+    fs::create_dir_all(&directory)?;
+    let lock = File::options().create(true).truncate(false).write(true).open(format!("{path}.lock"))?;
+    lock.lock()?;
+    let now = match fs::read(path) {
+        Ok(bytes) => Some(bytes),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error),
+    };
+    let still = match over {
+        Over::Anything => true,
+        Over::Nothing => now.is_none(),
+        Over::Published(bytes) => now.as_deref() == Some(bytes),
+    };
+    if !still {
+        return Ok(false);
+    }
     let added: Vec<LogSegment> = segments
         .iter()
         .map(|bytes| LogSegment {
@@ -91,7 +119,6 @@ fn written(path: &str, kept: &[LogSegment], segments: &[&[u8]], replaced: &[LogS
     })
     .map_err(io::Error::other)?;
     let mut scratch_files = Scratch(Vec::new());
-    fs::create_dir_all(&directory)?;
     for (reference, bytes) in added.iter().zip(segments) {
         let name = file_name(&directory, &reference.digest);
         let temporary = scratch_files.name(&name);
@@ -110,17 +137,7 @@ fn written(path: &str, kept: &[LogSegment], segments: &[&[u8]], replaced: &[LogS
         // Published already: a segment left behind costs disk, never an answer.
         let _ = fs::remove_file(file_name(&directory, &reference.digest));
     }
-    Ok(())
-}
-
-/// `publishAll`'s write: `segments` appended after `kept`, and `replaced`
-/// removed once nothing names them. What the file system refused, when it
-/// did, as the one line a caller can say; the log is then as it was. Anything
-/// else that goes wrong here is a defect, and throws.
-#[napi(catch_unwind)]
-pub fn publish_log(path: String, kept: Vec<LogSegment>, segments: Vec<Buffer>, replaced: Vec<LogSegment>) -> Option<String> {
-    let segments: Vec<&[u8]> = segments.iter().map(|bytes| bytes.as_ref()).collect();
-    publish(&path, &kept, &segments, &replaced).err().map(|error| format!("{path}: {error}"))
+    Ok(true)
 }
 
 /// Every scratch name handed out, removed when the publish is over whichever

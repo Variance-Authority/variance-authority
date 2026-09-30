@@ -24,7 +24,6 @@ import type { FileRecord, Uses } from '@variance-authority/core/relate';
 import type { Digest } from '@variance-authority/core/format';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { seedPaths } from './files.js';
-import { seedImmutableLog } from './immutable-log.js';
 import type { NativeGitTree } from './native.js';
 import type { RecordCache } from './reuse.js';
 import { scanCount } from './scan.js';
@@ -32,7 +31,7 @@ import { realPath } from './resolve.js';
 import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
 import { updateNatively } from './native-update.js';
 import { markCheckout } from './test-selection/cache-layers.js';
-import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
+import { openSourceIndexFile, seedSourceIndex, type SourceIndexState } from './source-index-file.js';
 import { usesOf } from './uses.js';
 
 /** One published generation, opened for reading. */
@@ -176,7 +175,7 @@ export async function updateSourceIndex(
   const primary = options.index === undefined && was === 'missing'
     ? primarySourceIndexPath(where)
     : undefined;
-  const from = primary !== undefined && await seedImmutableLog(path, primary) ? primary : undefined;
+  const from = primary !== undefined && seedSourceIndex(path, primary) ? primary : undefined;
   if (from !== undefined) source = await openSourceIndex(path);
   // Counted on the record cache, not the parse cache: a cold scan attaches its
   // native parse layer to the parse cache object itself, and a wrapper there

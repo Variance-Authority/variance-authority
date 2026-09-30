@@ -1,8 +1,17 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { native } from './addon.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
+
+/**
+ * Segments written as the addon writes them. With nothing read, a save's layers
+ * are the base, so these bytes are never parsed as an index.
+ */
+function publish(file: string, ...segments: string[]): void {
+  expect(native()!.appendSourceIndex(file, [], false, segments.map((text) => Buffer.from(text)))).toBeNull();
+}
 
 describe('the immutable segment log', () => {
   const made: string[] = [];
@@ -19,17 +28,14 @@ describe('the immutable segment log', () => {
 
   it('returns committed segments in publication order', async () => {
     const file = await path();
-    await (await openImmutableLog(file)).publish(Buffer.from('one'), () => Buffer.from('one'));
-    await (await openImmutableLog(file)).publish(Buffer.from('two'), () => Buffer.from('one-two'));
+    publish(file, 'one', 'two');
 
     expect((await openImmutableLog(file)).segments.map(String)).toEqual(['one', 'two']);
   });
 
   it('keeps the chain up to the first segment that fails its digest', async () => {
     const file = await path();
-    await (await openImmutableLog(file)).publish(Buffer.from('one'), () => Buffer.from('one'));
-    await (await openImmutableLog(file)).publish(Buffer.from('two'), () => Buffer.from('one-two'));
-    await (await openImmutableLog(file)).publish(Buffer.from('three'), () => Buffer.from('all'));
+    publish(file, 'one', 'two', 'three');
     const [, second] = (await openImmutableLog(file)).digests;
     await writeFile(join(`${file}.segments`, `${second!.replace(':', '-')}.bin`), 'changed');
 
@@ -37,7 +43,8 @@ describe('the immutable segment log', () => {
     expect(opened.segments.map(String)).toEqual(['one']);
     expect(opened.dropped).toBe(2);
 
-    await opened.publish(Buffer.from('four'), () => Buffer.from('one-four'));
+    // A save over the prefix it read replaces what the manifest named past it.
+    expect(native()!.appendSourceIndex(file, [...opened.digests], false, [Buffer.from('four')])).toBeNull();
     const next = await openImmutableLog(file);
     expect(next.segments.map(String)).toEqual(['one', 'four']);
     expect(next.dropped).toBe(0);
@@ -45,8 +52,7 @@ describe('the immutable segment log', () => {
 
   it('treats a missing segment as the end of the chain', async () => {
     const file = await path();
-    await (await openImmutableLog(file)).publish(Buffer.from('one'), () => Buffer.from('one'));
-    await (await openImmutableLog(file)).publish(Buffer.from('two'), () => Buffer.from('one-two'));
+    publish(file, 'one', 'two');
     const [, second] = (await openImmutableLog(file)).digests;
     await rm(join(`${file}.segments`, `${second!.replace(':', '-')}.bin`));
 
@@ -62,18 +68,5 @@ describe('the immutable segment log', () => {
 
     await expect(openImmutableLog(notAPath)).rejects.toBeInstanceOf(BadLogPath);
     expect(await readdir(directory)).toEqual([]);
-  });
-
-  it('compacts the ninth layer into one complete segment', async () => {
-    const file = await path();
-    for (let index = 1; index <= 9; index += 1) {
-      const log = await openImmutableLog(file);
-      await log.publish(Buffer.from(`delta-${index}`), () => Buffer.from(`complete-${index}`));
-    }
-
-    const opened = await openImmutableLog(file);
-    expect(opened.segments.map(String)).toEqual(['complete-9']);
-    expect(await readdir(`${file}.segments`)).toHaveLength(1);
-    expect((await readFile(file)).subarray(0, 8).toString('utf8')).toBe('VAIDXLSM');
   });
 });

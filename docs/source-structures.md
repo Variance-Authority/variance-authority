@@ -347,21 +347,32 @@ the materialized copy.
 **Save.** Only the rows this scan read or wrote are kept, so a blob no branch
 contains any more falls out of the next generation — the cache does not grow
 without bound across branch switches. The delta is computed per map against the
-committed state by deep structural equality, O(r) comparisons, and two buffers
-are encoded: the delta alone, and the complete state. Nothing is written when the
-shape is unchanged and both deltas are empty.
+committed state by deep structural equality, O(r) comparisons, and only the delta
+is encoded. Nothing is written when the shape is unchanged and every delta is
+empty.
 
 **Publish.** The segment is written under a scratch name, renamed into the segment
 directory, a scratch manifest written, and that renamed over the manifest path. A
 failure before the manifest rename unlinks the scratch files and leaves the
 previous manifest in place. Cost is O(size of the segment written).
 
-**Compaction.** The chain is at most eight segments long. The publish that would
-make a ninth writes the complete encoding as a single segment instead, points the
-manifest at it alone, and unlinks the segments the previous manifest named.
-Compaction restores generation-wide string interning. There is no trigger for
-this you control and no reason to want one; it is why your index does not
-accumulate segments.
+**Writers.** Every write takes an exclusive lock on a file beside the manifest,
+checks that the manifest is still the one the writer read, and publishes under
+it. A writer that finds the chain moved writes nothing: a save reports the chain
+moved, an update is declined and the next run makes it, and a readying leaves the
+chain as the other writer published it.
+
+**Working layer.** The chain is a base and at most one working layer over it. A
+save folds the working layer it read and its own delta into the next working
+layer, keeping the deletes, because the base beneath still holds what they
+delete, and never rewrites the base. So the cost of a save grows with what
+changed since the base was written, not with the repository.
+
+**Readying.** `variance index` folds the working layer into the base before work
+rather than during it, in the follow-ups it leaves running, once the working
+layer's rows, puts and deletes alike, reach a tenth of the base's. The fold writes the complete encoding
+as a single segment, points the manifest at it alone, and unlinks the segments
+the previous manifest named. It restores generation-wide string interning.
 
 **Cost of a generation.** Encoding sorts parse rows by digest and record rows by
 path and builds one code-unit-sorted dictionary, O(r log r). Decoding is
@@ -485,8 +496,8 @@ is O(degree).
 | scan, cold | O(n + m) queue, O(n) reads and parses, O(n log n) sort | the same, with no index or after a configuration change |
 | encode one segment | O(r log r) | end of a run that changed something |
 | decode one segment | O(bytes) | opening the index |
-| save | O(r) diff, two O(r log r) encodes, at most one segment written | end of every run that opened the index |
-| compaction | one complete segment | the publish that would make a ninth segment; no user trigger |
+| save | O(r) diff, one O(r log r) encode, a fold of the working layer, at most one segment written | end of every run that opened the index |
+| readying | one complete segment | the follow-ups of `variance index`, once the working layer is a tenth of the base |
 | build the graph | O(n log n + m log m) | once per run, in memory |
 | node by name, name by id | O(1) | per question asked of the graph |
 | what a change affected | O(n + m), any number of seeds | `variance run --since <ref>` or `--against <ref>` |

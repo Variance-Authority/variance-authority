@@ -321,10 +321,12 @@ index. To fix an index, delete it.
 operation together. Point reads ask segments newest to oldest and stop at the
 first value or tombstone; iteration materializes them oldest to newest. `save`
 keeps only the rows the scan used or wrote, compares them with what is
-committed, and writes the smallest segment that connects the two. Saves append,
-so a run that changed nothing writes nothing; once the chain has grown enough it
-compacts back to a single segment, and the segments it replaces are removed
-after the new pointer is in place. A write that fails leaves scanning correct
+committed, and writes the smallest segment that connects the two. A save
+rewrites one working layer over the base and never the base itself, so a run
+that changed nothing writes nothing. `variance index` folds the working layer
+back into a single segment before work, once it has grown to a tenth of the
+base, and the segments it replaces are removed after the new pointer is in
+place. A write that fails leaves scanning correct
 and preserves the previous pointer when one exists.
 
 ## The bytes
