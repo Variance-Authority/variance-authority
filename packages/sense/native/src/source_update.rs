@@ -19,11 +19,13 @@
 
 // compass: variance-authority.reach.source-index
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use napi_derive::napi;
 use rayon::prelude::*;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
 use crate::compact::{compacted, Layer};
@@ -93,10 +95,16 @@ struct Row {
 
 /// The files the index reaches from its seeds over the records it holds and
 /// the ones just built; the reached files no record answers for are `need`.
+///
+/// A walk that stops at `need` is resumed from there once they are built,
+/// rather than walked again from the seeds: the second walk would visit every
+/// file the first one did, and on a large checkout that is most of an update.
 struct Reached<'l> {
-    old: HashSet<&'l str>,
+    old: FxHashSet<&'l str>,
     new: HashSet<String>,
     need: Vec<String>,
+    needed: FxHashSet<String>,
+    stack: Vec<Cow<'l, str>>,
 }
 
 /// Node's `extname`.
@@ -108,33 +116,32 @@ fn extname(path: &str) -> &str {
     }
 }
 
-fn reach<'l>(
-    layers: &'l [Layer<'l>],
-    valid: &HashMap<&'l str, At>,
-    walked: &HashMap<String, Row>,
-    seeds: &[String],
-    readable: &HashSet<String>,
-) -> Reached<'l> {
-    let mut reached = Reached { old: HashSet::with_capacity(valid.len()), new: HashSet::new(), need: Vec::new() };
-    let mut needed: HashSet<&str> = HashSet::new();
-    let mut stack: Vec<&str> = seeds.iter().map(String::as_str).collect();
-    while let Some(file) = stack.pop() {
-        if let Some(row) = walked.get(file) {
-            if reached.new.insert(file.to_owned()) {
-                stack.extend(row.indexed.record.edges.iter().flatten().map(|edge| edge.to.as_str()).filter(|to| readable.contains(extname(to))));
-            }
-        } else if let Some((&key, &(layer, at))) = valid.get_key_value(file) {
-            if reached.old.insert(key) {
-                let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-                if let Some(edges) = records.edges_of(stored, at) {
-                    stack.extend(edges.map(|(to, _)| to).filter(|to| readable.contains(extname(to))));
+impl<'l> Reached<'l> {
+    fn from(seeds: &'l [String], capacity: usize) -> Self {
+        let stack = seeds.iter().map(|seed| Cow::Borrowed(seed.as_str())).collect();
+        Reached { old: FxHashSet::with_capacity_and_hasher(capacity, Default::default()), new: HashSet::new(), need: Vec::new(), needed: FxHashSet::default(), stack }
+    }
+
+    /// Walk until the stack is empty, leaving what no record answers for in `need`.
+    fn walk(&mut self, layers: &'l [Layer<'l>], valid: &FxHashMap<&'l str, At>, walked: &FxHashMap<String, Row>, readable: &FxHashSet<String>) {
+        while let Some(file) = self.stack.pop() {
+            if let Some(row) = walked.get(file.as_ref()) {
+                if self.new.insert(file.as_ref().to_owned()) {
+                    let edges = row.indexed.record.edges.iter().flatten().map(|edge| edge.to.as_str());
+                    self.stack.extend(edges.filter(|to| readable.contains(extname(to))).map(|to| Cow::Owned(to.to_owned())));
                 }
+            } else if let Some((&key, &(layer, at))) = valid.get_key_value(file.as_ref()) {
+                if self.old.insert(key) {
+                    let (stored, records) = (&layers[layer].stored, &layers[layer].records);
+                    if let Some(edges) = records.edges_of(stored, at) {
+                        self.stack.extend(edges.map(|(to, _)| to).filter(|to| readable.contains(extname(to))).map(Cow::Borrowed));
+                    }
+                }
+            } else if self.needed.insert(file.as_ref().to_owned()) {
+                self.need.push(file.into_owned());
             }
-        } else if needed.insert(file) {
-            reached.need.push(file.to_owned());
         }
     }
-    reached
 }
 
 /// The parse keys the chain holds under `digests`, as `(digest, way)`: the last
@@ -213,7 +220,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     moved.extend(held_directories.keys().filter(|path| !directories.contains_key(**path)));
 
     let folded = fold(&layers);
-    let valid: HashMap<&str, At> = folded
+    let valid: FxHashMap<&str, At> = folded
         .par_iter()
         .filter(|(file, at)| {
             let (layer, row) = **at;
@@ -226,19 +233,20 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         .map(|(file, at)| (*file, *at))
         .collect();
 
-    let readable: HashSet<String> = o.readable.into_iter().collect();
-    let mut walked: HashMap<String, Row> = HashMap::new();
+    let readable: FxHashSet<String> = o.readable.into_iter().collect();
+    let mut walked: FxHashMap<String, Row> = FxHashMap::default();
+    let mut reached = Reached::from(tree.seeds, valid.len());
     let mut settled: Option<(HashSet<String>, HashSet<String>, HashSet<String>)> = None;
-    let reached = loop {
-        let reached = reach(&layers, &valid, &walked, tree.seeds, &readable);
+    loop {
+        reached.walk(&layers, &valid, &walked, &readable);
         if reached.need.is_empty() {
-            break reached;
+            break;
         }
         // A file the native reader does not open is the JavaScript update's to read.
         if reached.need.iter().any(|file| !is_module(file)) {
             return Ok(None);
         }
-        let need = reached.need;
+        let need = std::mem::take(&mut reached.need);
         let (builtins, code, dirs) = settled.get_or_insert_with(|| {
             (
                 o.builtins.iter().cloned().collect(),
@@ -249,7 +257,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         let Walked { files, identities, read, targets } = walk_beyond(
             GraphOptions {
                 root: o.root.clone(),
-                seeds: need,
+                seeds: need.clone(),
                 largest_file: o.largest_file,
                 readers: o.readers,
                 tsconfig: o.tsconfig.clone(),
@@ -274,10 +282,12 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             })
             .collect();
         walked.extend(files.into_iter().zip(rows));
-        if walked.len() == before {
+        // What was needed is walked on from; a file the walk did not build is the JavaScript update's.
+        if walked.len() == before || need.iter().any(|file| !walked.contains_key(file.as_str())) {
             return Ok(None);
         }
-    };
+        reached.stack.extend(need.into_iter().map(Cow::Owned));
+    }
 
     let files = (reached.old.len() + reached.new.len()) as u32;
     let reread = reached.new.len() as u32;
