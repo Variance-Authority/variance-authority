@@ -46,9 +46,16 @@ export const symbol: Tool<Help> = {
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
 
-    const found = entriesNamed(help, name).filter(
-      ([published, held]) => wanted === undefined || isPackage(published, held, wanted),
-    );
+    // The door the workspace imports the name by leads. Every adapter that
+    // re-exports a core publishes the same declaration, and the first one read
+    // is an alphabetical accident whose own count is usually nothing. Equal
+    // counts fall to the published name, by code unit, so the answer does not
+    // follow the order the workspace's directories were read in.
+    const found = entriesNamed(help, name)
+      .filter(([published, held]) => wanted === undefined || isPackage(published, held, wanted))
+      .sort(([left, leftDoor, a], [right, rightDoor, b]) =>
+        b.usedBy.length - a.usedBy.length || b.uses - a.uses ||
+        byCodeUnit(left.name, right.name) || byCodeUnit(leftDoor.subpath, rightDoor.subpath));
 
     if (found.length === 0 && invocation?.root !== undefined) {
       const at = startPointArg(input, 'from');
@@ -98,3 +105,8 @@ export const symbol: Tool<Help> = {
     return [block(first[0], first[1], first[2]), ...also, ...shown].join('\n');
   },
 };
+
+/** Code-unit order, so a tie never depends on `LANG`. */
+function byCodeUnit(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}

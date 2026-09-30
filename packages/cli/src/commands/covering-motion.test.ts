@@ -9,11 +9,12 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import {
   caseLayerFiles,
   encodeExecutionIndex,
+  type CommitRuns,
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
-import { motionOfLast, motionText } from './covering-motion.js';
+import { motionOfLast, motionOfRuns, motionText, runsWrote } from './covering-motion.js';
 import { indexOutput } from './index-command.js';
 
 const DISCOUNTS = { id: 'total.test.ts > discounts', file: 'total.test.ts', name: 'discounts', stopped: false };
@@ -74,6 +75,32 @@ describe('what the last run moved', () => {
 
     expect(answer.motion?.moved).toBeUndefined();
     expect(formatCovering(answer, 'text')).toContain('Nothing to compare:');
+  });
+});
+
+describe('what the runs at one commit moved', () => {
+  it('compares only the files a run before them recorded, and names the rest', async () => {
+    // TanStack Query's first cycle: a whole run into an empty cache, then the
+    // selected file again. `flow.test.tsx` ran once, over no index, so no case
+    // of it came before, and `round`, which only it enters, gained nothing.
+    const dir = await records();
+    const execution = join(dir, 'cases.bin');
+    const full = index([0], [1]);
+    await writeFile(execution, encodeExecutionIndex(full));
+    await writeFile(caseLayerFiles(execution).last, JSON.stringify({
+      commit: 'c', at: '2026-09-25T00:00:00.000Z', files: ['flow.test.tsx', 'total.test.ts'], unbased: ['flow.test.tsx'], cases: [DISCOUNTS.id],
+    }));
+    await writeFile(caseLayerFiles(execution).before, encodeExecutionIndex({ tests: [DISCOUNTS], modules: [
+      { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [])] },
+    ] }));
+
+    const wrote = await runsWrote(execution, { commit: 'c', files: ['flow.test.tsx', 'total.test.ts'] } as CommitRuns);
+    const motion = await motionOfRuns(full, execution, wrote, dir);
+
+    expect(motion.moved?.regions).toEqual([]);
+    expect(motion.unbased).toEqual(['flow.test.tsx']);
+    expect(motion.unwritten).toEqual([]);
+    expect(motionText(motion)).toContain('Not compared, no case of these was recorded before this commit\'s first run: flow.test.tsx.');
   });
 });
 
