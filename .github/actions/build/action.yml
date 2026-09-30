@@ -1,0 +1,36 @@
+name: build
+description: >-
+  `yarn build`, with the native scanner restored from the cache when nothing it
+  is built from has changed.
+
+# The native scanner is most of what `yarn build` costs on a runner: `cargo`
+# compiles the crate and its dependency graph from nothing, about three minutes,
+# for a binary that is the same one every time `packages/sense/native` is. So
+# the binary is cached, keyed by git's tree id for that directory — every input
+# `cargo` reads lives there, and git already knows whether any of it moved.
+#
+# The cache carries the binary and the tree it was built from. The build script
+# reads that stamp and skips `cargo` only when it matches the checkout, and
+# prints that it did; a miss, or a stamp that does not match, is an ordinary
+# build. Nothing here decides whether to build: this step only puts back what a
+# previous run left, and `build.mjs` owns the decision.
+
+runs:
+  using: composite
+  steps:
+    - name: name the native tree
+      id: native
+      shell: bash
+      run: echo "tree=$(git rev-parse HEAD:packages/sense/native)" >> "$GITHUB_OUTPUT"
+
+    - name: restore the native scanner
+      uses: actions/cache@v4
+      with:
+        path: |
+          packages/sense/npm/*/scan.node
+          packages/sense/npm/*/scan.node.tree
+        key: sense-native-${{ runner.os }}-${{ runner.arch }}-${{ steps.native.outputs.tree }}
+
+    - name: build
+      shell: bash
+      run: yarn build

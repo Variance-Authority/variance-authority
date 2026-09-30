@@ -29,6 +29,7 @@ docs-examples
 # by `native/build.mjs` on a machine or a release runner, and a copy in git would
 # be a fourth answer to which bytes ship.
 packages/sense/npm/*/*.node
+packages/sense/npm/*/scan.node.tree
 
 # The two copies of `dist` the probe-overhead benchmark compares. Inside the
 # package because a bare specifier only resolves from somewhere `node_modules` is

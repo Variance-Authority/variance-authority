@@ -43,10 +43,22 @@
  * dropping them costs five languages while the scanner —
  * git identity, the path set, the oxc parse, resolution, the journey fold —
  * still ships. A build that fails again is a build that failed.
+ *
+ * A host build is skipped when the binary already in place was built from the
+ * tree git holds for this directory. Every input `cargo` reads — the manifest,
+ * the lockfile, the toolchain pin, `src/`, `vendor/`, this script — lives here,
+ * so git's tree id for it is the build's identity, and a full build writes it
+ * beside the binary as `scan.node.tree`. Git owns what the directory contains;
+ * nothing here hashes it again. A directory with uncommitted changes has no
+ * tree id that describes it, and neither does a build narrowed by
+ * `SENSE_TARGET_CPU` or `RUSTFLAGS`, or one that lost the grammars: each of
+ * those builds, and leaves no stamp. That is what lets CI restore a binary and
+ * its stamp from a cache and pay nothing for a crate nobody changed, and it
+ * says so when it skips.
  */
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TARGETS } from './targets.mjs';
@@ -66,6 +78,46 @@ const target = at === -1 ? undefined : process.argv[at + 1];
 if (at !== -1 && (target === undefined || !(target in TARGETS))) {
   console.error(`sense: no such target \`${target}\` — one of ${Object.keys(TARGETS).join(', ')}`);
   process.exit(1);
+}
+
+// A host build lands in its own package when we publish one for this host, and
+// in `dist/native/` when we do not.
+const forHost = Object.values(TARGETS).find(({ package: name }) =>
+  name.startsWith(`${process.platform}-${process.arch}`),
+);
+const published = target === undefined ? forHost?.package : TARGETS[target].package;
+const into =
+  published === undefined ? join(here, '..', 'dist', 'native') : join(here, '..', 'npm', published);
+const stamp = join(into, 'scan.node.tree');
+
+/**
+ * Git's tree id for this directory, or nothing when git cannot vouch for it.
+ *
+ * `HEAD:./` names the committed tree; a change git has not committed — edited,
+ * staged or untracked — means the files on disk are not that tree, so the
+ * answer is nothing rather than an id that describes something else.
+ */
+function builtFrom() {
+  const git = (args) => spawnSync('git', args, { cwd: here, encoding: 'utf8' });
+  const tree = git(['rev-parse', 'HEAD:./']);
+  const dirty = git(['status', '--porcelain', '--', '.']);
+  if (tree.status !== 0 || dirty.status !== 0 || dirty.stdout !== '') return undefined;
+  return tree.stdout.trim();
+}
+
+const tree = builtFrom();
+const plain =
+  target === undefined &&
+  (process.env['SENSE_TARGET_CPU'] ?? '') === '' &&
+  (process.env['RUSTFLAGS'] ?? '') === '';
+const stamped = existsSync(stamp) ? readFileSync(stamp, 'utf8').trim() : undefined;
+
+if (plain && tree !== undefined && stamped === tree && existsSync(join(into, 'scan.node'))) {
+  console.log(
+    `sense: native scanner at ${join(into, 'scan.node')} was built from tree ${tree.slice(0, 12)}, ` +
+      'which is unchanged — not rebuilt',
+  );
+  process.exit(0);
 }
 
 /**
@@ -170,7 +222,10 @@ function buildScanner(cpu) {
   return false;
 }
 
-buildScanner(process.env['SENSE_TARGET_CPU']);
+// Removed before building, so a build that fails or narrows leaves no claim
+// about what the binary in place was built from.
+rmSync(stamp, { force: true });
+const full = buildScanner(process.env['SENSE_TARGET_CPU']);
 
 const from = join(
   here,
@@ -179,15 +234,6 @@ const from = join(
   'release',
   target === undefined ? HOST_ARTIFACT : TARGETS[target].artifact,
 );
-
-// A host build lands in its own package when we publish one for this host, and
-// in `dist/native/` when we do not.
-const forHost = Object.values(TARGETS).find(({ package: name }) =>
-  name.startsWith(`${process.platform}-${process.arch}`),
-);
-const published = target === undefined ? forHost?.package : TARGETS[target].package;
-const into =
-  published === undefined ? join(here, '..', 'dist', 'native') : join(here, '..', 'npm', published);
 
 mkdirSync(into, { recursive: true });
 // Copied beside and renamed over, never written in place: macOS keeps the code
@@ -198,4 +244,5 @@ copyFileSync(from, staging);
 renameSync(staging, join(into, 'scan.node'));
 
 if (!existsSync(join(into, 'scan.node'))) process.exit(1);
+if (plain && full && tree !== undefined) writeFileSync(stamp, `${tree}\n`);
 console.log(`sense: native scanner at ${join(into, 'scan.node')}`);
