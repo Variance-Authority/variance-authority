@@ -197,58 +197,110 @@ describe('a review of what a change did, after the run that recorded it', () => 
     );
   });
 
+  /** The layers a run leaves beside the case index, and the runs at `change` listing `files`. */
+  async function layered(
+    root: string,
+    last: string | object,
+    before: ExecutionIndex,
+    change: string,
+    files: readonly string[],
+  ): Promise<{ readonly last: string; readonly before: string }> {
+    const layers = caseLayerFiles(`${testCoverageFile(root)}.cases.bin`);
+    await writeFile(layers.last, typeof last === 'string' ? last : JSON.stringify(last));
+    await writeFile(layers.before, encodeExecutionIndex(before));
+    await writeFile(commitRunsFile(testCoverageFile(root)), JSON.stringify({
+      commit: change, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1, files,
+    }));
+    return layers;
+  }
+
+  const CHANGE = 'c'.repeat(40);
+  const OLD_NAME = { id: 'test/total.test.ts > old name', file: 'test/total.test.ts', name: 'old name', stopped: false };
+  // What the mainline's run retired before its own: a case main renamed since.
+  const MAINLINE_BEFORE: ExecutionIndex = {
+    tests: [OLD_NAME, DISCOUNTS],
+    modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0, 1])] }],
+  };
+
   it('compares no case against the base when no run at this commit wrote the case index', async () => {
     const { root, first } = await changed();
-    const change = 'c'.repeat(40);
-    const layers = caseLayerFiles(`${testCoverageFile(root)}.cases.bin`);
     // The mainline's full run wrote the layers last; the run at this commit skipped its one file and wrote nothing.
-    await writeFile(layers.last, JSON.stringify({ commit: first, at: '2026-09-25T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] }));
-    await writeFile(layers.before, encodeExecutionIndex({
-      tests: [DISCOUNTS],
-      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }],
-    }));
-    const runs = { commit: change, over: first, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1 };
-    await writeFile(commitRunsFile(testCoverageFile(root)), JSON.stringify({ ...runs, files: ['test/skipped.chromium.test.ts'] }));
+    const mainline = { commit: first, at: '2026-09-25T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] };
+    const layers = await layered(root, mainline, MAINLINE_BEFORE, CHANGE, ['test/skipped.chromium.test.ts']);
 
-    const answer = await review(parse(['--root', root]));
+    const answer = await review(parse(['--since', first, '--root', root]));
 
     expect(answer.motion).toEqual({ base: { from: layers.before, kind: 'before' }, unwritten: ['test/skipped.chromium.test.ts'] });
+    // Nor are a changed test file's cases compared with the names the mainline's layer holds.
+    expect(answer.files.find((file) => file.file === 'test/total.test.ts')?.cases).toBeUndefined();
     const markdown = formatReview(answer, 'markdown');
     expect(markdown).not.toContain('Lost every case');
-    expect(markdown).toContain('The one test file run at this commit recorded no case and did not run to the end, so no case is compared against the base.');
-    expect(formatReview(answer, 'text')).toContain('Not compared, no case recorded at this commit and none ran to the end: test/skipped.chromium.test.ts.');
+    expect(markdown).not.toContain('old name');
+    expect(markdown).toContain('No case index was written at this commit for the one test file run at this commit, so no case is compared against the base.');
+    expect(formatReview(answer, 'text')).toContain('Not compared, no case index was written at this commit for: test/skipped.chromium.test.ts.');
+  });
 
-    // A run at this commit that did write compares its own files, and names the one that did not.
-    await writeFile(layers.last, JSON.stringify({ commit: change, before: first, at: '2026-09-26T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] }));
-    await writeFile(commitRunsFile(testCoverageFile(root)), JSON.stringify({ ...runs, runs: 2, files: ['test/skipped.chromium.test.ts', 'test/total.test.ts'] }));
+  it('compares every test file the runs at this commit wrote, and names the ones they did not', async () => {
+    const { root, first } = await changed();
+    const before = { tests: [DISCOUNTS], modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }] };
+    // Two invocations at this commit wrote; the list of runs restarted after the first, so it names only the second's file.
+    const last = { commit: CHANGE, before: first, at: '2026-09-26T00:00:00.000Z', files: ['test/other.test.ts', 'test/total.test.ts'], cases: [] };
+    await layered(root, last, before, CHANGE, ['test/other.test.ts']);
 
-    const both = await review(parse(['--root', root]));
+    const written = await review(parse(['--since', first, '--root', root]));
+
+    expect(written.motion?.moved?.counts).toEqual({ lost: 0, hidden: 0, thinned: 0, gained: 0 });
+    expect(written.motion?.unwritten).toEqual([]);
+
+    await layered(root, last, before, CHANGE, ['test/skipped.chromium.test.ts', 'test/total.test.ts']);
+
+    const both = await review(parse(['--since', first, '--root', root]));
 
     expect(both.motion?.unwritten).toEqual(['test/skipped.chromium.test.ts']);
     expect(both.motion?.moved?.counts).toEqual({ lost: 0, hidden: 0, thinned: 0, gained: 0 });
   });
 
-  it('lists a bounded number of moved regions in the comment, and cuts the comment to GitHub\'s limit', async () => {
+  it('compares nothing when the run that wrote the case index last cannot be read', async () => {
+    const { root, first } = await changed();
+    const layers = await layered(root, '{not json', MAINLINE_BEFORE, CHANGE, ['test/skipped.chromium.test.ts']);
+
+    const answer = await review(parse(['--since', first, '--root', root]));
+
+    expect(answer.motion).toEqual({ base: { from: layers.before, kind: 'before' }, lastRunUnread: layers.last });
+    expect(answer.files.find((file) => file.file === 'test/total.test.ts')?.cases).toBeUndefined();
+    expect(formatReview(answer, 'markdown')).toContain(
+      'Which test files a run at this commit wrote to the case index could not be read, so no case is compared against the base.',
+    );
+    expect(formatReview(answer, 'text')).toContain(`Not compared: ${layers.last} could not be read`);
+  });
+
+  it('lists a bounded number of moved regions and files in the comment, and cuts the comment to GitHub\'s limit', async () => {
     const { root, first, against } = await changed();
     const answer = await review(parse(['--since', first, '--against', against, '--root', root]));
+    expect(answer.motion?.unwritten).toBeUndefined();
     const regions = Array.from({ length: 100 }, (_, at) => ({
       file: 'src/total.ts', startLine: at + 1, endLine: at + 1, kind: 'function' as const, name: `f${at + 1}`,
       motion: 'lost' as const, before: [DISCOUNTS], now: [],
     }));
-    const moved = { regions, counts: { lost: 100, hidden: 0, thinned: 0, gained: 0 }, testFiles: [], unread: [] };
+    const unread = Array.from({ length: 50 }, (_, at) => `src/unread-${at}.ts`);
+    const moved = { regions, counts: { lost: 100, hidden: 0, thinned: 0, gained: 0 }, testFiles: [], unread };
+    const unwritten = Array.from({ length: 5000 }, (_, at) => `test/skipped-${at}.chromium.test.ts`);
 
-    const listed = formatReview({ ...answer, motion: { base: { from: against, kind: 'record' }, moved } }, 'markdown');
+    const listed = formatReview({ ...answer, motion: { base: { from: against, kind: 'record' }, moved, unwritten } }, 'markdown');
 
     expect(listed).toContain('  lost     src/total.ts 40-40 function f40 — was test/total.test.ts > discounts');
     expect(listed).not.toContain('function f41 —');
-    expect(listed).toContain('... and 60 more regions, not listed here; `--format json` lists every one.');
+    expect(listed).toContain('... and 60 more regions, not listed here; --format json lists every one.');
+    expect(listed).toContain('src/unread-39.ts, and 10 more files, which --format json lists.');
+    expect(listed).toContain('test/skipped-39.chromium.test.ts, and 4960 more test files, which --format json lists.');
+    expect(listed).not.toContain('test/skipped-40.');
 
-    const unwritten = Array.from({ length: 5000 }, (_, at) => `test/skipped-${at}.chromium.test.ts`);
-    const cut = formatReview({ ...answer, motion: { base: { from: against, kind: 'before' }, unwritten } }, 'markdown');
+    const files = Array.from({ length: 3000 }, (_, at) => ({ file: `src/generated/module-${at}.ts`, created: true }));
+    const cut = formatReview({ ...answer, files }, 'markdown');
 
     expect(cut.length).toBeLessThanOrEqual(65_536);
     expect(cut.startsWith(`${REVIEW_MARKER}\n`)).toBe(true);
-    expect(cut).toMatch(/```\n\n<\/details>\n\n<\/details>\n\n> \d+ characters of this review are not shown, because GitHub rejects a comment longer than 65536\. `--format json` prints the whole review/);
+    expect(cut).toMatch(/<\/details>\n\n<\/details>\n\n> \d+ characters of this review are not shown, because GitHub rejects a comment longer than 65536\. `--format json` prints the whole review/);
   });
 
   it('writes the answer beside what it prints when given a directory', async () => {

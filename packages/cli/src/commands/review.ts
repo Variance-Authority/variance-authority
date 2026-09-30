@@ -43,7 +43,7 @@ import { OperatorError } from '../exit.js';
 import { recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { regionState } from './covering-frame.js';
-import { motionAgainst, motionOfRuns, type CoveringMotion } from './covering-motion.js';
+import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
 import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
@@ -222,6 +222,11 @@ export async function review(request: ParsedReview): Promise<Review> {
   );
   const full = await readExecutionIndex(from);
   const held = await baseIndex(against, from, request.against === undefined && against !== undefined ? mainline : undefined);
+  // With no base named, the base is the layer the runs at this commit retired,
+  // and it is theirs only for the test files a run at this commit wrote to the
+  // case index; for any other file it holds an earlier commit's cases.
+  const wrote = against === undefined && runs !== undefined ? await runsWrote(from, runs) : undefined;
+  const comparable = (file: string): boolean => wrote === undefined || ('compared' in wrote && wrote.compared.has(file));
   const near = await nearTests(coverageFile, [...covered.values()].filter((file) => file.recorded).map((file) => file.file), relations);
 
   const files: ReviewFile[] = [];
@@ -230,7 +235,7 @@ export async function review(request: ParsedReview): Promise<Review> {
     const change = covered.get(file);
     const ranges = now.get(file) ?? [];
     const created = await point.at(named(file)) === undefined && existsSync(resolve(root, file));
-    const cases = casesMoved(file, held, full, created);
+    const cases = casesMoved(file, comparable(file) ? held : undefined, full, created);
     files.push({
       file,
       ...(created ? { created: true } : read === undefined ? {} : readingOf(read)),
@@ -246,9 +251,9 @@ export async function review(request: ParsedReview): Promise<Review> {
   const beyond = await installDiff(point, [...changed.keys()]);
   const motion = against !== undefined
     ? await motionAgainst(from, against, ref, root)
-    : runs === undefined
+    : wrote === undefined
       ? undefined
-      : await motionOfRuns(full, from, runs, root, ref);
+      : await motionOfRuns(full, from, wrote, root, ref);
 
   const record = await ranAsTree(coverageFile, root, files.filter((file) => file.recorded === true).map((file) => file.file));
   return {

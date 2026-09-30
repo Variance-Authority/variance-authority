@@ -167,18 +167,19 @@ function calloutMarkdown(review: Review): readonly string[] {
 
 /**
  * The changed code that lost every case against the base, by function, and how
- * much kept fewer. When no test file run at this commit recorded a case, there
- * is no base to lose against, and the line says so instead.
+ * much kept fewer. When no case index written at this commit names the test
+ * files run here, there is no base to lose against, and the line says so instead.
  */
 function lostMarkdown(review: Review): readonly string[] {
   const moved = review.motion?.moved;
   const unwritten = review.motion?.unwritten?.length ?? 0;
+  if (review.motion?.lastRunUnread !== undefined) {
+    return ['', 'Which test files a run at this commit wrote to the case index could not be read, so no case is compared against the base.'];
+  }
   if (moved === undefined) {
     if (unwritten === 0) return [];
-    const files = unwritten === 1
-      ? 'The one test file run at this commit recorded no case and did not run to the end'
-      : `The ${unwritten} test files run at this commit recorded no case and none of them ran to the end`;
-    return ['', `${files}, so no case is compared against the base.`];
+    const files = unwritten === 1 ? 'the one test file run at this commit' : `the ${unwritten} test files run at this commit`;
+    return ['', `No case index was written at this commit for ${files}, so no case is compared against the base.`];
   }
   const lost = moved.regions.filter((region) => region.motion === 'lost' || region.motion === 'hidden');
   const thinned = moved.counts.thinned;
