@@ -204,6 +204,144 @@ describe('what it refuses rather than guesses', () => {
   });
 });
 
+describe('which subpaths an `exports` field opens', () => {
+  /** `[subpath, source]` per entrypoint of the one package in `files`. */
+  const opened = (files: Readonly<Record<string, unknown>>) => {
+    const root = workspace(files);
+    return readOfferings(root)[0]?.entrypoints.map((entry) => [entry.subpath, entry.source.slice(root.length)]);
+  };
+
+  it('keeps every key of a map whose keys all start with `.` as its own subpath', () => {
+    expect(
+      opened({
+        'package.json': { name: 'mapped', exports: { '.': './src/index.ts', './extra': { types: './src/extra.ts' } } },
+        'src/index.ts': 'export const one = 1;\n',
+        'src/extra.ts': 'export const two = 2;\n',
+      }),
+    ).toEqual([
+      ['.', '/src/index.ts'],
+      ['./extra', '/src/extra.ts'],
+    ]);
+  });
+
+  it('finds the declarations of a subpath under conditions nested two deep', () => {
+    expect(
+      opened({
+        'package.json': { name: 'deep', exports: { '.': { node: { import: { types: './dist/index.d.ts' } } } } },
+        'tsconfig.json': { compilerOptions: { rootDir: './src', outDir: './dist' } },
+        'src/index.ts': 'export const one = 1;\n',
+      }),
+    ).toEqual([['.', '/src/index.ts']]);
+  });
+
+  it('reads an object with no `.` key as the conditions of `.`, a custom condition included', () => {
+    // `@tanstack/solid-query`'s shape. Read as subpaths, it published
+    // `@tanstack/solid-querytanstack/custom-condition` and no `.` at all.
+    const exports = {
+      '@tanstack/custom-condition': './src/index.ts',
+      development: { import: { types: './build/index.d.ts', default: './build/dev.js' } },
+      import: { types: './build/index.d.ts', default: './build/index.js' },
+    };
+    expect(
+      opened({
+        'package.json': { name: 'root', private: true, workspaces: ['packages/*'] },
+        'tsconfig.json': { compilerOptions: { customConditions: ['@tanstack/custom-condition'] } },
+        'packages/solid/package.json': { name: 'solid', exports },
+        'packages/solid/tsconfig.json': { extends: '../../tsconfig.json', compilerOptions: { outDir: './dist-ts', rootDir: '.' } },
+        'packages/solid/src/index.ts': 'export const useQuery = 1;\n',
+      }),
+    ).toEqual([['.', '/packages/solid/src/index.ts']]);
+  });
+
+  it('reads the custom condition from a commented config a package specifier `extends` names', () => {
+    expect(
+      opened({
+        'package.json': { name: 'shared', exports: { '@t/source': './src/index.ts', types: './dist/index.d.ts' } },
+        'tsconfig.json': { extends: '@t/tsconfig/base.json' },
+        'node_modules/@t/tsconfig/base.json': '/* shared */\n{ "compilerOptions": { "customConditions": ["@t/source"], }, }\n',
+        'src/index.ts': 'export const one = 1;\n',
+      }),
+    ).toEqual([['.', '/src/index.ts']]);
+  });
+
+  it('reads a condition-only object with no custom condition as `.`', () => {
+    expect(
+      opened({
+        'package.json': { name: 'sugar', exports: { import: './a.js', types: './a.d.ts' } },
+        'tsconfig.json': { compilerOptions: {} },
+        'a.d.ts': 'export declare const a: number;\n',
+      }),
+    ).toEqual([['.', '/a.d.ts']]);
+  });
+
+  it('reads a string `exports` as `.`', () => {
+    expect(
+      opened({ 'package.json': { name: 'string', exports: './src/index.ts' }, 'src/index.ts': 'export const one = 1;\n' }),
+    ).toEqual([['.', '/src/index.ts']]);
+  });
+
+  it('finds the declarations of `.` under nested conditions', () => {
+    expect(
+      opened({
+        'package.json': { name: 'nested', exports: { node: { import: { types: './dist/index.d.ts' } } } },
+        'tsconfig.json': { compilerOptions: { rootDir: './src', outDir: './dist' } },
+        'src/index.ts': 'export const one = 1;\n',
+      }),
+    ).toEqual([['.', '/src/index.ts']]);
+  });
+
+  it('takes the first entry of an array fallback that names something to open', () => {
+    expect(
+      opened({
+        'package.json': { name: 'fallback', exports: [{ worker: './worker.cjs' }, './src/index.ts'] },
+        'src/index.ts': 'export const one = 1;\n',
+      }),
+    ).toEqual([['.', '/src/index.ts']]);
+  });
+
+  it('opens the source a custom condition names before a `types` target the checkout does not hold', () => {
+    // Zod's shape: `index.d.cts` is emitted by its build and ignored by git, so
+    // a fresh clone has only the `@zod/source` branch to read.
+    const condition = (at: string) => ({
+      '@zod/source': `./src/${at}index.ts`,
+      types: `./${at}index.d.cts`,
+      import: `./${at}index.js`,
+    });
+    expect(
+      opened({
+        'package.json': {
+          name: 'zod',
+          exports: {
+            './package.json': './package.json',
+            '.': condition(''),
+            './mini': condition('mini/'),
+            './locales/*': { '@zod/source': './src/locales/*', types: './locales/*' },
+          },
+        },
+        'tsconfig.json': { compilerOptions: { customConditions: ['@zod/source'], noEmit: true } },
+        'src/index.ts': 'export const z = 1;\n',
+        'src/mini/index.ts': 'export const mini = 1;\n',
+        'src/locales/fr.ts': 'export const fr = 1;\n',
+        'src/locales/fr.d.ts': 'export declare const fr: number;\n',
+      }),
+    ).toEqual([
+      ['.', '/src/index.ts'],
+      ['./mini', '/src/mini/index.ts'],
+      // A consumer writes the extension the file is emitted as.
+      ['./locales/fr.js', '/src/locales/fr.ts'],
+    ]);
+  });
+
+  it('refuses an object that mixes subpaths and conditions, naming the manifest', () => {
+    const root = workspace({
+      'package.json': { name: 'mixed', exports: { '.': './src/index.ts', import: './src/index.ts' } },
+      'src/index.ts': 'export const one = 1;\n',
+    });
+    expect(() => readOfferings(root)).toThrow(/package\.json mixes subpaths with the conditions `import`/);
+    expect(readOfferings(root, { tolerant: true })[0]?.unreadable?.[0]).toMatch(/^mixed — .*Node refuses/);
+  });
+});
+
 describe('a repository that is not a monorepo', () => {
   it('is one package, read from the manifest at its root', () => {
     const root = workspace({

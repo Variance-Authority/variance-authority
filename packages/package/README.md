@@ -48,6 +48,9 @@ What it reads to find your packages:
 | A repository with one package and no `workspaces` | Read as a single package. This is a supported case, not a degenerate one. |
 | A repository with no root `package.json` | Publishes nothing, which is an answer rather than an error. `readHelp` still reads every name the source exports. |
 | `private: true` | The only filter. A private package is skipped. |
+| The shape of `exports` | Read as Node reads it. A string, an array of fallbacks, and an object with no key that starts with `.` all open the one subpath `.`. An object whose keys all start with `.` lists subpaths. An object that mixes the two throws an error naming the manifest, because Node refuses to load it. |
+| A custom condition | Taken when the package's `tsconfig.json`, through its `extends` chain, names it in `customConditions` and it is written before `types`. `"@zod/source": "./src/index.ts"` opens that source, not a declaration file only a build writes. |
+| A wildcard target with no extension | `"./v4/locales/*": "./src/v4/locales/*"` opens one subpath per TypeScript file the pattern matches, written with the extension that file is emitted as: `src/v4/locales/fr.ts` is `./v4/locales/fr.js`. |
 | TypeScript `paths` aliases | Not followed. A re-export through an alias records the name with the kind `foreign` rather than the kind behind it. |
 | A built `dist` | Opened only when nothing maps it back to source. A `types` target of `./dist/index.d.ts` is mapped back through that package's own `rootDir` and `outDir` to `src/index.ts`. A declaration file with no such pair to map it through is read from disk, and so is the `dist/index.d.ts` beside a bare `./dist/index.js` export in a package whose tsconfig names no `outDir`. For those subpaths, the answer depends on whether the package was built. |
 
@@ -187,7 +190,9 @@ help.exported.filter((named) => named.name.includes('Viewport'));
 
 `help.deep` is the other half of the same reading: every specifier that imports
 a workspace package past what its `exports` map opens — an import that depends
-on internals the manifest never promised to keep stable.
+on internals the manifest never promised to keep stable. A subpath `exports`
+names exactly is not one of them, even when its source could not be read: that
+subpath is listed in `help.unreadable` instead.
 
 ```json
 [{ "specifier": "@acme/parser/src/parse.js", "by": "@acme/app", "at": "packages/app/src/deepuse.ts", "line": 1 }]
@@ -366,6 +371,7 @@ silently producing a smaller surface:
   throws ``src/index.ts default-exports a `Identifier`, which nothing here names``.
 - A member list that is not a list of globs, as the table under
   [Requirements](#requirements) lists.
+- An `exports` object that mixes subpaths and conditions.
 - A `types` declaration file in a package with no `tsconfig.json`, or one that
   neither maps back to a source file nor is on disk.
 - A name re-exported from a module that does not publish it.

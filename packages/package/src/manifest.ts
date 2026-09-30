@@ -1,7 +1,10 @@
-import { existsSync, globSync, readFileSync } from 'node:fs';
+import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import { subpathsOf } from './exports.js';
 import { members } from './members.js';
+
+export { publishes, requested } from './exports.js';
 
 /**
  * What a workspace publishes, read from the manifests rather than from a build.
@@ -63,24 +66,15 @@ export interface OfferingOptions {
 }
 
 /**
- * A specifier as the pair a manifest can answer.
- *
- * `@variance-authority/core/plan` is a package and a subpath, and only the
- * package half has a manifest to ask. Written as one string because that is what
- * a lookup key wants and because the space cannot occur in either half.
+ * A manifest or a tsconfig, as the object it holds; a `package.yaml` member is
+ * YAML. A tsconfig is JSONC whatever it is named, so a config an `extends`
+ * chain reaches — Kibana's `tsconfig.base.json` — is read as `tsconfig: true`.
  */
-export function requested(specifier: string): string {
-  const parts = specifier.split('/');
-  const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] ?? specifier);
-  return `${name} .${specifier.slice(name.length)}`;
-}
-
-/** A manifest or a tsconfig, as the object it holds; a `package.yaml` member is YAML. */
-function read(path: string): Record<string, unknown> {
+function read(path: string, tsconfig = path.endsWith('tsconfig.json')): Record<string, unknown> {
   const source = readFileSync(path, 'utf8');
   const yaml = path.endsWith('.yaml');
   try {
-    const held: unknown = yaml ? parseYaml(source) : JSON.parse(path.endsWith('tsconfig.json') ? jsonc(source) : source);
+    const held: unknown = yaml ? parseYaml(source) : JSON.parse(tsconfig ? jsonc(source) : source);
     return (held ?? {}) as Record<string, unknown>;
   } catch (error) {
     throw new Error(`${path} is not readable ${yaml ? 'YAML' : 'JSON'}: ${error instanceof Error ? error.message : String(error)}`);
@@ -287,6 +281,32 @@ function emittedInto(dir: string, target: string): boolean {
   return typeof outDir === 'string' && posix.normalize(target).startsWith(posix.normalize(`${outDir}/`));
 }
 
+const EMITTED_AS: Readonly<Record<string, string>> = { ts: 'js', tsx: 'js', mts: 'mjs', cts: 'cjs' };
+
+/**
+ * The subpaths a pattern whose target ends in its wildcard opens in source.
+ *
+ * `"./v4/locales/*": { "@zod/source": "./src/v4/locales/*" }` leaves the
+ * extension to the specifier, so a consumer writes `zod/v4/locales/fr.js` and
+ * TypeScript opens `src/v4/locales/fr.ts` for it. Each TypeScript source file
+ * the pattern matches is one subpath, spelt with the extension it is emitted
+ * as. A pattern that matches no source, such as `./dist/*` in a checkout that
+ * was never built, opens nothing.
+ */
+function namedWithExtension(dir: string, subpath: string, condition: unknown): readonly Entrypoint[] {
+  if (typeof condition !== 'string' || !condition.endsWith('*') || !subpath.endsWith('*')) return [];
+  if ((condition.match(/\*/g)?.length ?? 0) !== 1 || (subpath.match(/\*/g)?.length ?? 0) !== 1) return [];
+  const before = condition.replace(/^\.\//, '').slice(0, -1);
+  return globSync(`${before}*.{ts,tsx,mts,cts}`, { cwd: dir })
+    .filter((matched) => !/\.d\.[mc]?ts$/.test(matched))
+    .sort()
+    .map((matched) => {
+      const found = /\.(ts|tsx|mts|cts)$/.exec(matched)!;
+      const capture = `${matched.slice(before.length, found.index)}.${EMITTED_AS[found[1]!]}`;
+      return { subpath: subpath.replace('*', capture), source: join(dir, matched) };
+    });
+}
+
 function openedBy(dir: string, subpath: string, types: string): readonly Entrypoint[] {
   if (!types.includes('*')) return [{ subpath, source: sourceOf(dir, types) }];
   if ((types.match(/\*/g)?.length ?? 0) !== 1 || (subpath.match(/\*/g)?.length ?? 0) !== 1) {
@@ -304,6 +324,73 @@ function openedBy(dir: string, subpath: string, types: string): readonly Entrypo
       const capture = matched.slice(before.length, matched.length - after.length);
       return { subpath: subpath.replace('*', capture), source: join(dir, matched) };
     });
+}
+
+/**
+ * The export conditions the package's own `tsconfig.json` adds:
+ * `compilerOptions.customConditions`, through its `extends` chain.
+ *
+ * A workspace that exports source under a condition of its own — Zod's
+ * `"@zod/source": "./src/index.ts"`, TanStack's `"@tanstack/custom-condition"` —
+ * says so to TypeScript here, and TypeScript owns what that specifier means
+ * inside the repository. The nearest config that sets the option wins, and
+ * `null` or `[]` clears it, as `tsc` reads it.
+ */
+function customConditionsOf(dir: string): ReadonlySet<string> {
+  const chain = (path: string, seen: ReadonlySet<string>): readonly string[] | undefined => {
+    if (seen.has(path)) return undefined;
+    const config = read(path, true) as { extends?: unknown; compilerOptions?: { customConditions?: unknown } };
+    const own = config.compilerOptions?.customConditions;
+    if (own !== undefined) {
+      return Array.isArray(own) ? own.filter((value): value is string => typeof value === 'string') : [];
+    }
+    const bases = typeof config.extends === 'string' ? [config.extends] : Array.isArray(config.extends) ? config.extends : [];
+    for (const base of [...bases].reverse()) {
+      const found = typeof base === 'string' ? extendedFile(dirname(path), base) : undefined;
+      const inherited = found === undefined ? undefined : chain(found, new Set([...seen, path]));
+      if (inherited !== undefined) return inherited;
+    }
+    return undefined;
+  };
+  const config = join(dir, 'tsconfig.json');
+  return new Set(existsSync(config) ? (chain(config, new Set()) ?? []) : []);
+}
+
+/** The config an `extends` entry names: a path, or a package under a `node_modules` above. */
+function extendedFile(directory: string, specifier: string): string | undefined {
+  const isFile = (path: string) => statSync(path, { throwIfNoEntry: false })?.isFile() === true;
+  const candidates = (at: string) => [at, `${at}.json`, join(at, 'tsconfig.json')];
+  if (specifier.startsWith('.') || specifier.startsWith('/')) {
+    return candidates(resolve(directory, specifier)).find(isFile);
+  }
+  for (let at = directory; ; at = dirname(at)) {
+    const found = candidates(join(at, 'node_modules', specifier)).find(isFile);
+    if (found !== undefined) return found;
+    if (dirname(at) === at) return undefined;
+  }
+}
+
+/**
+ * The branch of a condition TypeScript takes under the `custom` conditions.
+ *
+ * Keys are read in the order the manifest writes them, as Node and TypeScript
+ * read them: the first custom condition is taken unless `types` comes before
+ * it. An array of fallbacks is its first entry that names something to open.
+ * With no custom condition the condition is returned as written, and
+ * {@link declarationsOf} finds its declarations.
+ */
+function followed(dir: string, condition: unknown, custom: ReadonlySet<string>): unknown {
+  if (Array.isArray(condition)) {
+    return condition
+      .map((entry) => followed(dir, entry, custom))
+      .find((entry) => besideOf(dir, entry) !== undefined || declarationsOf(entry) !== undefined);
+  }
+  if (typeof condition !== 'object' || condition === null) return condition;
+  for (const [key, value] of Object.entries(condition)) {
+    if (key === 'types') return condition;
+    if (custom.has(key)) return followed(dir, value, custom);
+  }
+  return condition;
 }
 
 /**
@@ -329,15 +416,26 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
 
     const entrypoints: Entrypoint[] = [];
     const unreadable: string[] = [];
-    const exports = (manifest['exports'] ?? {}) as Record<string, unknown>;
-    for (const [subpath, condition] of Object.entries(exports)) {
+    let subpaths: readonly (readonly [string, unknown])[] = [];
+    try {
+      subpaths = subpathsOf(path, manifest['exports']);
+    } catch (error) {
+      if (options.tolerant !== true) throw error;
+      unreadable.push(`${manifest['name']} — ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const custom = customConditionsOf(dir);
+    for (const [subpath, written] of subpaths) {
+      const condition = followed(dir, written, custom);
       const authored = besideOf(dir, condition);
       if (authored !== undefined && !authored.includes('*')) {
         entrypoints.push({ subpath, source: join(dir, authored) });
         continue;
       }
       const types = authored ?? declarationsOf(condition);
-      if (types === undefined) continue;
+      if (types === undefined) {
+        entrypoints.push(...namedWithExtension(dir, subpath, condition));
+        continue;
+      }
       try {
         entrypoints.push(...openedBy(dir, subpath, types));
       } catch (error) {
