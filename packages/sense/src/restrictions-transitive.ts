@@ -92,13 +92,16 @@ export function restrictedChains(records: readonly FileRecord[], files: readonly
     const judged = relations.names[group[0]!]!;
     const restricted = new Map<NodeId, Decision>();
     for (const id of everyFile) {
-      if (seeded.has(id)) continue;
       const decision = chainBetween(files, judged, relations.names[id]!);
       if (decision?.rule.type === 'restricted') restricted.set(id, decision);
     }
     if (restricted.size === 0) continue;
 
-    const options = { through: EDGE_KINDS, avoid: restricted.keys() };
+    // A shipped file can be where a chain may not arrive and still be walked
+    // from: what it imports is its own package's offering. So the walk stops
+    // at a restricted file only when it arrives there, never at a seed.
+    const walls = [...restricted.keys()].filter((id) => !seeded.has(id));
+    const options = { through: EDGE_KINDS, avoid: walls };
     const walk = dependenciesOf(relations, group, options);
     const { offset, target } = relations.depends;
     for (const at of walk.nodes) {
@@ -108,7 +111,7 @@ export function restrictedChains(records: readonly FileRecord[], files: readonly
         const decision = restricted.get(to);
         if (decision === undefined || arrived.has(to)) continue;
         arrived.add(to);
-        const back = dependentsOf(relations, [at], { through: EDGE_KINDS, avoid: restricted.keys() });
+        const back = dependentsOf(relations, [at], options);
         const seeds = group.filter((seed) => back.mask[seed] === 1).length;
         const chain = trailOf(walk, at).map((id) => relations.names[id]!);
         const key = `${relations.names[at]}\0${relations.names[to]}`;

@@ -74,6 +74,28 @@ describe('restrictedChains', () => {
     ]);
   });
 
+  it('reports a chain arriving in a shipped file the rule restricts, and still walks from that file', () => {
+    const sealed: RuleFile[] = [
+      {
+        directory: '',
+        rules: [
+          { from: 'packages/*', to: 'packages/secret/*', type: 'restricted', transitive: true, message: 'the secret is sealed' },
+          { from: 'packages/*', to: 'tools/*', type: 'restricted', transitive: true, message: 'packages never rest on tools' },
+        ],
+      },
+    ];
+    const graph = [
+      record('packages/app/a.ts', 'packages/app/b.ts'),
+      record('packages/app/b.ts', 'packages/secret/s.ts'),
+      record('packages/secret/s.ts', 'tools/x.ts'),
+    ];
+    const found = restrictedChains(graph, sealed, ['packages/app/a.ts', 'packages/secret/s.ts']);
+    expect(found.map((finding) => [finding.from, finding.to, finding.message, finding.chain])).toEqual([
+      ['packages/app/b.ts', 'packages/secret/s.ts', 'the secret is sealed', ['packages/app/a.ts', 'packages/app/b.ts']],
+      ['packages/secret/s.ts', 'tools/x.ts', 'packages never rest on tools', ['packages/secret/s.ts']],
+    ]);
+  });
+
   it('starts only from the seeds, so a test file that reaches outside is not a finding', () => {
     const tested = [record('packages/cli/a.test.ts', 'tools/fixture.ts'), record('packages/cli/a.ts')];
     expect(restrictedChains(tested, offering, ['packages/cli/a.ts'])).toEqual([]);
