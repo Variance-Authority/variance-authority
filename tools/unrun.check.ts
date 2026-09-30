@@ -146,7 +146,7 @@ describe('the reader is reachable', () => {
     scripts: Record<string, string>;
   };
 
-  it('is a script, because AGENTS.md tells people to run it', () => {
+  it('is a script, because the change reference tells people to run it', () => {
     expect(manifest.scripts['unrun']).toBe('node tools/unrun.mjs');
   });
 

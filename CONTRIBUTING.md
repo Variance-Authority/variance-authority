@@ -224,6 +224,7 @@ from the version rather than typed at release time.
 
 The standards a change is held to — where each kind of writing goes, how a
 status claim is recorded, and how a package is named — are in
-[`AGENTS.md`](AGENTS.md). Unfinished product work lives in
+[`AGENTS.md`](AGENTS.md) and the phase references it routes to in
+[`.agents/references/`](.agents/references/). Unfinished product work lives in
 [`docs/specs`](docs/specs/README.md); the current implementation checkpoint lives
 in [`docs/context/checkpoint.md`](docs/context/checkpoint.md).

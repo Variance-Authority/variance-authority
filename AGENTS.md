@@ -1,407 +1,145 @@
 # Working on this repository
 
-## Before the first command
+A change moves through seven phases, in order. **Refine** settles what the task
+is. The **inner loop** — orient, change, pre-verify, PR — is yours alone and runs
+as often as it takes. The **outer loop** — validate, correct — starts when the PR
+is open and other parties answer: CI, CodeRabbit, the person who asked. Anything
+red sends you back into the inner loop.
 
-Node 22 or newer, and Yarn 4 through Corepack — the root `package.json` pins the
-exact version in `packageManager`. Every command in this file is run from the
-repository root, in a git checkout that has its history: the checks read the
-**index** with `git ls-files`, so a file that is not tracked is a file they
-cannot see.
+Every phase opens with **look around**: questions answered by reading and
+running, before acting. They are not a formality. Each one is there because
+skipping it has already cost somebody a change. Every phase has a reference under
+[`.agents/references/`](.agents/references/) holding its rules and their
+reasons; read it when you enter the phase.
+
+## Setup
+
+Node 22 or newer, and Yarn 4 through Corepack — `packageManager` in the root
+`package.json` pins the version. Every command runs from the repository root, in
+a git checkout that has its history.
 
 ```bash
 yarn install && yarn build
 ```
 
-`build` first, and again after pulling. Nothing here imports another package by
-relative path, so a check asking the CLI what a setting means resolves through
-the manifest's `exports` into `dist/` — the same path a consumer takes. A stale
-`dist/` answers wrongly rather than not at all, which is the expensive failure
-described under **Verifying**.
+Build again after every pull. A stale `dist/` answers questions wrongly rather
+than failing, and the wrong answer looks like a defect in whatever you asked
+about.
 
-`yarn test:since` needs one more thing: a recording. `yarn test` writes it, and
-until `yarn test` has run in this checkout there is nothing for it to read.
+The primary checkout — the first row of `git worktree list` — is shared: people
+commit on `main` in it while you work, and anything you stage there lands in
+their next commit. Never stage in it. Work in a worktree on a branch cut from
+`origin/main`, and give the worktree its own `yarn install && yarn build`.
 
-## Finding your way in the code
+## 1. Refine the task — [refine](.agents/references/refine.md)
 
-Ask before you grep: `yarn variance ask uses --name <name>` lists who imports a
-name, `ask symbol --name <name>` says what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. The
-`variance-authority` skill has the rest.
+Look around:
 
-## Where writing goes
+- What was asked, by whom, and what done means, as a sentence somebody could
+  check.
+- Whether it is a Backlog task. If it is, Backlog governs it (below).
+- For non-local work — crossing a boundary, changing a rule or an invariant,
+  adding a party, building a capability: what the architecture chart in
+  `.compass/` says owns it.
+- What `docs/specs/`, `docs/context/adr/` and `docs/context/journal/` already
+  decided, tried or rejected on the subject.
+- What the field calls it, and who measured it before us:
+  [`docs/context/prior-art.md`](docs/context/prior-art.md) first.
 
-Each kind of writing has one home and one job. A file that does two jobs is
-split, not extended.
+Leave with the sentence of done, the gate it is measured against, and only the
+questions that are the asker's to answer.
 
-| Place | Job | Tense |
-|---|---|---|
-| `docs/*.md` | What the thing **is** and how it is measured. Consumption and advertising material for someone deciding whether to use it. | Present |
-| `docs/specs/` | What is not built. One vacancy per file. | Future |
-| `docs/context/adr/` | One decision, its alternatives, and its cost. | Present, dated |
-| `docs/context/journal/` | What one attempt cost and what it taught. | Past, dated |
-| `docs/context/checkpoint.md` | Current state of the whole. | Present, dated |
-| `README.md`, `packages/*/README.md`, `cases/*/README.md` | Entry points. Route the reader; do not restate a doc. | Present |
-| Source docstrings | Why this code is shaped this way. | Present |
+## Inner loop
 
-## The rules for writing are in `docs/AGENTS.md`
+### 2. Orient — [orient](.agents/references/orient.md)
 
-Who the reader is, what to read before writing, what a `docs/` page may not do,
-the editorial direction, and the register every published sentence is held to:
-all of it lives in [`docs/AGENTS.md`](docs/AGENTS.md). It governs the whole
-published surface — the root `README.md`, `docs/`, package and example
-`README.md` files, the site, CLI output and error messages — so read it before
-writing any of them, not only when the file you are editing sits under `docs/`.
+Look around:
 
+- `yarn variance ask` before grep: who uses a name, what it is, where it is
+  declared.
+- The `// compass:` coordinate at the top of each file you will touch.
+- Whose answer you need — git, the manifest, the parser, or the recording — and
+  whether a stage upstream of your change already computed it.
+- The tests that stand on those files: `yarn variance covering --file <path>`.
+- What landed on `origin/main` since your branch point.
 
-Writing rules live in [`docs/AGENTS.md`](docs/AGENTS.md): who the reader is,
-what to read before writing, the editorial direction, and the register every
-published sentence is held to. They govern the whole published surface — the
-root `README.md`, `docs/`, package and example `README.md` files, the site, CLI
-output and error messages — so read that file before writing any of them, not
-only when the file you are editing sits under `docs/`.
+Leave with the files to change, the owner of every answer the change needs, and
+the tests that will judge it.
 
-## The project reports on itself in code
+### 3. Change — [change](.agents/references/change.md)
 
-How far along the project is — what is written and has never run, what nobody
-has used, what is measured and what was only ever asserted — is a **status
-report**, and it does not go in `docs/` either. `docs/` says what the product
-is. A status report written as prose rots in one direction: its optimistic
-claims get corrected the moment somebody trips over one, and its pessimistic
-claims survive the work landing, because no checker can resolve an absence and
-nothing fails when a negative stops being true. A paragraph saying "nothing is
-licensed" outlives the licence by however long it takes a human to notice.
+Look around:
 
-So a status claim is written at the line that owns it:
+- Whether the behaviour already exists somewhere. A second implementation is a
+  defect.
+- Where each piece of writing goes, and [`docs/AGENTS.md`](docs/AGENTS.md)
+  before any published sentence: a README, `docs/`, the site, CLI output or an
+  error message.
+- The code rules in the reference: absent is not empty, a package is named for
+  what it is for, code-unit sorting, 500 lines per file, a documented export is
+  run by something, every answer has an owner, one browser and one page, no
+  magic and not alone, stop only what you started, a status claim is a marker.
 
-| Marker | What it is for |
-|---|---|
-| `it.todo('…')` | A claim that would hold if something ran. The title is the sentence that becomes true, and it names what would make it run. |
-| `// FIXME:` | A defect in code that ships and works. |
-| `// TODO:` | A limb that is not written. |
+A finding outside the task becomes its own change, not part of this one.
 
-The boundary between `it.todo` and `// TODO:` is mechanical, not a matter of
-taste. An `it.todo` may only live in a file a runner collects — `*.test.*`,
-`*.check.*`, `*.measure.*` — because a todo anywhere else is a function call
-nothing ever makes. So: a gap a runner could state as a sentence goes in the
-collected file that would own it; a gap in a module, a tool or a config is
-`// TODO:` at the line. A todo title is `<the sentence that becomes true> —
-needs <what would make it run>`; the em dash and the word `needs` are the
-checked shape, and a title like "not implemented" fails.
+### 4. Pre-verify — [pre-verify](.agents/references/pre-verify.md)
 
-```bash
-yarn unrun
-```
+Look around:
 
-prints every marker, grouped, with `file:line` — the self-report, generated from
-source, so it cannot disagree with the code:
-
-```
-unrun: 57 gaps in 46 files
-
-@variance-authority/case-storybook
-  cases/storybook-case/src/cli.chromium.test.js:409  todo
-      a `run` over an unmodified build records a quiet run, so `Button`'s churn over the
-      window divides by every run recorded rather than only by the runs it moved in — spec
-      0002 acceptance 3, needs this case pointed at a running
-      `@variance-authority/server`
-```
-
-It has no build step and no dependency, so it reports on a project that does not
-compile. `tools/unrun.check.ts` keeps the
-markers well-formed and the discovery non-vacuous. `yarn test` reports the todo
-count in its own summary line; vitest's default reporter prints no titles for
-todo or skipped tests, which is why the printer exists.
-
-In a browser-gated file — one with `const live = READY ? describe : describe.skip`
-— write the `it.todo` at **column 0**. Vitest reports everything inside a skipped
-block as *skipped*, so a todo nested in the gate leaves the count on exactly the
-machines running least of the suite.
-
-A marker beats a paragraph on all three counts that matter: it sits where the
-reader is already looking, it moves when the code moves, and **closing the gap
-deletes the claim** rather than leaving it to be noticed.
-
-## Architecture chart
-
-The Compass chart root is `.compass/`. It charts the logical system, not the
-repository: its blocks are cut by the question each one answers and
-deliberately do not line up with `packages/`. The `compass` skill, installed at
-`~/.agents/skills/compass`, owns how the chart is read and how it changes; this
-section only routes to it.
-
-For non-local work — crossing a boundary, changing a rule or an invariant,
-adding a party, asking whether something belongs here, or building any
-capability — search the chart first:
-
-```bash
-python3 ~/.agents/skills/compass/scripts/compass_search.py --chart-root .compass "<task terms>"
-```
-
-It prints the matched sections with their heading, file and line range, and says
-which of your terms the chart names:
-
-```
-Found 10 section(s): 1 direct, 9 BM25-related. BM25 is a lexical ranking signal, not confidence or semantic proof.
-Named by a chart heading, slug, or identifier: flake. Named nowhere in the chart: detection.
-[1] variance-authority/GLOSSARY.md:562-572
-    kind=glossary signal=exact term='flake' bm25=8.1512
-    heading=Glossary — variance-authority > Flake
-```
-
-Consult the matched owning sections, then follow the skill's Consume route
-through every chart level present; BM25-related results are leads, not semantic
-proof. For a one-file fix, a rename, or a bug with a stack trace pointing at the
-line, read the code.
-
-The skill's two routes are exclusive. **Consume** reads an existing chart and
-applies it to work done elsewhere. **Create** establishes or changes
-chart-owned state — a chart file, a coordinate, a boundary, this section. Never
-drift from one into the other: Consume never authorizes a chart edit, and a
-Consume task that finds the chart missing, stale or disputed records the finding
-and stops there.
-
-If `~/.agents/skills/compass` is not installed, the chart is still readable
-without it and the work is Consume-only until it is: [`.compass/COMPASS.md`](.compass/COMPASS.md)
-is the registry, [`.compass/README.md`](.compass/README.md) states the scope, and
-every architectural directory's own `README.md` is its identity document. Replace
-the search with `grep -ril "<task terms>" .compass`.
-
-- A source file carries `// compass: <address>` at its top. The address resolves
-  in the chart and locates the implementation; it does not define the boundary.
-- "Why is this code shaped this way?" follows the coordinate first. A reason
-  specific to this implementation lives with the code, not in the chart.
-- When chart and code disagree, classify before changing either side: semantic
-  change, implementation remapping, or implementation violation.
-
-## Standing rules
-
-- **Change `main` through a pull request.** Never push to `main`. Cut a branch
-  from `origin/main`, because local `main` may hold unpushed work, push the
-  branch, and open a PR. `check.yml` on the PR is where the change is tested:
-  it runs the tests the change reached and reports how coverage moved against
-  the mainline's record.
-- **A PR body follows
-  [`.github/pull_request_template.md`](.github/pull_request_template.md).**
-  `gh pr create --body-file` skips the template, so apply it yourself. Before
-  sending, have a subagent with no other context read the body alone, say what
-  the PR is, and quote each sentence it could not follow. Fix those sentences.
-- **A PR is not handed over until its checks are green and CodeRabbit is
-  read.** Opening it is the first of three steps. Wait for every check to
-  finish:
-
-  ```bash
-  gh pr checks <n> --watch
-  ```
-
-  **A red check is yours.** Read its log (`gh run view <run-id> --log-failed`),
-  reconcile the checkout as **Verifying** describes, reproduce it locally,
-  fix it and push to the branch, then wait again. A failure is not called
-  flaky, pre-existing or unrelated on sight: that is a claim, and it needs the
-  same failure on `main`'s latest run to stand. If it does stand, say so with
-  that run's link. Never report a PR as done, ready or passing while any check
-  is red or still running — report which check, what it said, and what you did
-  about it.
-
-  CodeRabbit reports as the `CodeRabbit` check, which reads
-  `Review completed` when it is done. Then read what it left — the inline
-  comments are where the findings are:
-
-  ```bash
-  gh api repos/{owner}/{repo}/pulls/<n>/comments --jq '.[] | select(.user.login == "coderabbitai[bot]") | "\(.path):\(.line)\n\(.body)\n"'
-  ```
-
-  A CodeRabbit comment is a signal, not an instruction. Classify each one
-  against this file and the code: a real defect is fixed in code and pushed to
-  the branch; a finding that contradicts a rule here, or misreads the code, is
-  left as it is. Never reply to a thread, never resolve one, and never tick
-  its autofix checkboxes — report to the person who asked for the change which
-  findings you acted on, which you set aside, and why.
-- **Absent is not empty** (ADR-0002). A thing the run could not determine is
-  missing from the output, never zero, never `[]`.
-- **A package is named for what it is for** (ADR-0042), never for a library it
-  imports. A name comes from a requirement the manifest cannot state, from what
-  the thing is, or from a target, format or protocol it serves — a format is a
-  public interface and a library is not. `tools/boundaries.check.ts` refuses a
-  name that shares a word with one of its own third-party dependencies until
-  somebody has written down which of the two it is.
-- **Code-unit sorting.** Never `localeCompare` in anything that reaches a
-  committed artifact — it makes byte-stability a promise about `LANG`.
-- **500 lines per file**, enforced by `tools/shape.check.ts`.
-- **An export a README names is run by something**, enforced by
-  `tools/docs-exercised.check.ts`. Documented and unexercised is how a second
-  implementation of a shipped behaviour survives — `summarizeObservation` was
-  exported, documented, called by nothing, and drifting from the private copy
-  `playwright-test` had grown for the same job. The rule is deliberately
-  shallow — it asks whether a test *names* the export, not whether the test is
-  about it — and it has no budget and no exemption list: a documented export
-  nothing names is answered with a test or with a deletion.
-- **Every answer has an owner, and computing one yourself is a defect**
-  (ADR-0069). Before writing a loop, name the party that already knows: git owns
-  what files exist, what they contain and what moved; the manifest and the
-  configuration own what a specifier means; the parser owns what a module
-  declares; the recording owns what ran. Four rules follow and none of them need
-  a measurement to apply. **Carry, never recompute** — a value an upstream stage
-  produced is propagated, not derived again at the far end. **Holding an answer
-  and not using it is a bug**: `scan_graph_with_tree` computed every file's
-  object name, spelled an identity out of it, and then opened all of them off the
-  disk. **Never override an owner's configuration** — sense passed
-  `core.fsmonitor=false` to every `status` call, which is the control row of a
-  benchmark script pasted into the shipped path, and it made the watcher
-  `docs/performance.md` tells readers to enable unreachable. **Fall back, never
-  fake**: when the owner cannot answer, compute it and say so — `read_blob` drops
-  to `open_and_parse` on every failure path, and that valve is what makes the
-  other three safe to apply without hedging. The design question is *whose answer
-  are we ignoring*, which is answered by reading; neither defect above would have
-  survived it being asked, and neither was caught by three journals of
-  measurements.
-- **Performance is earned, and isolation is not how it is earned.** A session
-  keeps one browser, one context and one page (ADR-0009), and switches subjects
-  **in place** through the harness's own API — Storybook's story switch, never a
-  reload and never a fresh fixture. Playwright's per-test isolation is rejected
-  here on measurement, not taste: it costs 2.3x to 6.4x the whole subject, the
-  tax falls hardest on the engine that paints fastest, and a benchmark shaped
-  like it reports process setup while claiming to report the engine
-  ([journal 0036](docs/context/journal/0036-the-model-picks-the-engine.md)).
-  Storage and cookies may be cleared between subjects — 0.30 ms, which is the
-  entire price of the objection. On a host that translates instructions the same
-  tax is 8.9x to 28.7x, because translation is expensive at process creation and
-  cheap in steady state — reuse pays it once, a fixture pays it per subject
-  ([journal 0037](docs/context/journal/0037-the-container-is-not-the-tax.md)).
-  A subject that is *unstable* under reuse is a finding: divergence analysis names
-  the writer and the selector that connected them, and **we guide the fix**.
-  Rinsing to make an unstable subject look stable hides the defect and charges
-  every other subject for it.
-- A limitation is a bug or a position, never an apology. Classify it before
-  writing "we cannot".
-- **A status claim is a marker, not a sentence in `docs/`.** `it.todo` for what
-  would run, `// FIXME:` for a defect, `// TODO:` for a limb.
-- **No magic, and not alone.** We are a piece of boring technology, not a
-  magic wand: nothing performs an operation the user did not ask for, in a
-  place they would not look for it. We never keep the user blind, and we never
-  fix an edge case behind their back. Across a boundary we ride what others
-  already carry rather than patching around it or inventing a protocol nobody
-  forwards. We are in this together: the user sees what we did, where, and why.
-
-## Verifying
-
-```bash
-yarn build && yarn verify
-```
-
-`verify` is `yarn lint && yarn check && yarn measure && yarn test`, in that
-order. `check` is the `tools/*.check.ts` suite, which includes the documentation
-checks: every link resolves,
-every path named in prose exists, every `file:line` lands where it says, stated
-counts are the counts, and the CLI command lists match the binary's own table.
-It also runs `yarn measure`, the `*.measure.ts` files that gate on what the
-product costs — separate from the suite because the suite instruments what it
-loads, and a ratio cannot be timed through the thing timing it.
-
-`yarn test` records which test file executed which region of which module.
-`yarn test:since` reads that back and runs the files a change reached:
-
-```bash
-yarn test:since                    # since the commit the snapshot was recorded at
-yarn test:since main               # since the merge base with main
-yarn test:since --dry-run          # decide, explain, run nothing
-yarn test:since --at-distance 0-2  # only the tests within two imports of the change
-yarn test:since --help             # every flag, and the loop below
-```
-
-It selects on what the recording measured, and on nothing else. Each changed
-file is read from both of its texts first, and prints a `read` line saying what
-the edit does. A module added since the recording is read the same way, with
-every export counted as changed, so it selects the tests that entered a function
-reading one. A changed file with no row that reading cannot answer — a
-stylesheet, a page-side module that cannot take a probe — is asked of the import
-graph, and the nearest measured files that import it select their tests; a bumped package is answered
-the same way by its measured importers. A changed path the graph does not list
-either — a README, a fixture — selects nothing by itself and is reported. What
-the harness loads without importing it is declared instead: the seam declares
-`vitest.config.mts` and the local modules it imports, such as
-`tools/page-side.mjs`, and the config names the rest in `preconditions`
-(`tsconfig.base.json`). A change to any of them selects every test. A change
-confined to manifests is read as the install it records, and runs nothing when
-no installed package moved. A fixture a test reads with `fs` is named in
-`preconditions` the same way, or a change to it selects nothing.
-
-The whole suite runs only when the reading itself could not be made — an
-install it could not compare, or a snapshot with no whole observation of any
-file the suite collects — and it says which:
-
-```
-test:since: running the whole suite — the install could not be compared against 03984ae78218.
-  429 files
-```
-
-So a green `test:since` is a smaller claim than a green `verify`: use it in the
-loop, and report against the gate.
-
-The recording is not in git. It sits in [the cache](docs/cache.md), under
-`<cache>/test-selection/`, in a directory keyed by a digest of this
-checkout's absolute path — a worktree's own under `.work/`, layered over the
-primary checkout's, which it reads and never writes. Every `yarn test` folds its
-run into it; that is the whole of the invalidation. Nothing expires and nothing
-is checked for age, so an answer the snapshot gets wrong stays wrong until a run
-replaces it. To force a cold recording, delete that directory and run
-`yarn test`.
-
-**Run the near end first.** Every selected test also carries its distance from
-the change — the number of imports between them, counted through the modules
-that test actually entered. The near ones fail first and for the simplest
-reason, so the loop is:
+- Whether the checkout is reconciled: install and build current, new files
+  tracked.
+- What the change reached: the `read` lines of `yarn test:since --dry-run`.
+- Whether the machine is quiet before you believe a failure: a load average in
+  `uptime` above the core count means re-run later.
 
 ```bash
 yarn test:since --at-distance 0-2   # while the edit is still open
 yarn test:since --at-distance 2-4   # before handing the change over
-yarn verify                         # the gate, and the only green that counts
+yarn build && yarn verify           # the gate, and the only green that counts
 ```
 
-`0-2` is *no more than two imports away*, not *the first two groups*: a change
-whose nearest test is five hops out answers it with nothing, which is the true
-answer. Start at `0` — that is a test whose own source you just edited. The
-overlap at two hops is deliberate: it reconnects the wider run to the boundary
-the edit loop already exercised.
+Leave with a green `yarn verify`, or a failure that survived reconciling the
+checkout and a re-run.
 
-**That loop is not a partition, and does not try to be.** `2-4` leaves anything
-five hops or further out, and every test the reading could not place, to
-`yarn verify` — which is the gate, and runs them. When you do want a partition,
-it is `0-2` then `3-`: a leg whose range is open at the top carries the tests
-with no measurable distance, so those two legs together run every selected file
-exactly once. Either way, every run prints how many selected files the leg it
-took left behind, and the range that runs those further out.
+### 5. Open the PR — [pull request](.agents/references/pull-request.md)
 
-`--at-distance` narrows a reading; it cannot narrow a widening. When the reading
-could not be made the run is the whole suite and the flag is never consulted —
-the message above is the whole output, and no leg of the loop is a shorter run
-than `yarn test` until the install compares or the recording has a whole
-observation.
+Look around:
 
-Two findings arrive whether or not anything failed: an import that reached past
-a directory's own entry point, and a test the change entered by no route it
-imported. Both have an address. [`docs/distance.md`](docs/distance.md) is the
-reference.
+- `git fetch` and rebase onto `origin/main`. What landed since you branched can
+  change every answer CI is about to give. If the rebase brought anything in,
+  pre-verify again.
+- Open PRs touching the same files: `gh pr list --json number,title,files`.
 
-**An out-of-date checkout reports defects, not errors, and that is what makes it
-expensive.** Nothing here imports another package by relative path, so a check
-asking the CLI what a setting means resolves through the manifest's `exports`
-into `dist/` — the same path a consumer takes. A *missing* build announces
-itself. A **stale** one answers every question fluently and answers some of them
-wrong, and the answer arrives dressed as a defect in whatever was asked about:
-`packages/cli/README.md` documenting a setting the parser rejects, run against a
-`dist/` built before that setting existed. A stale `node_modules` does the same
-one layer down — *Invalid hook call … more than one copy of React*, which reads
-as a defect in the runtime layering and is not one.
+Then push the branch, write the body to
+[`.github/pull_request_template.md`](.github/pull_request_template.md), and have
+a subagent with no other context read it cold. Never push to `main`.
 
-Both are worst in a fresh worktree, which starts with neither. So:
+## Outer loop — [validate and correct](.agents/references/outer-loop.md)
 
-```bash
-yarn install && yarn build && yarn verify
-```
+### 6. Validate
 
-The cost is never the red line. It is the change somebody makes to satisfy it —
-correct documentation deleted, working code rewritten — so **reconcile the
-checkout before believing a failure**, and re-run before reporting one.
+Look around:
+
+- Every check, until each has finished: `gh pr checks <n> --watch`.
+- CodeRabbit's inline comments, once its check reads `Review completed`.
+- The coverage and "What this change might do" comments CI posts. Do they
+  describe the change you meant to make?
+
+### 7. Correct
+
+Look around:
+
+- The failing check's log, and the same check on `main`'s latest run.
+- The code each CodeRabbit comment names, read before you decide.
+
+A red check is yours: reproduce it, fix it on the branch and go back to
+pre-verify. A failure is not called flaky, pre-existing or unrelated without the
+same failure on `main`. A CodeRabbit comment is a signal, not an instruction: fix
+what is real, set aside what is not, and never reply to or resolve a thread.
+
+A PR is handed over only when every check is green and every finding is
+classified. The report starts from the task as it was set — where it stands,
+what is not done — and ends with what you need from the person who asked.
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.50.1 -->
