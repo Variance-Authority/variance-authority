@@ -211,7 +211,7 @@ export async function answerConfigless(
     case 'index': {
       const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) };
       if (parsed.followUps) streams.out(await followUpsOutput(request));
-      else streams.out(await indexOutput({ ...request, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+      else streams.out(await indexOutput({ ...request, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach, waiting: (text: string) => streams.err(text) }) }));
       return EXIT_CLEAN;
     }
 

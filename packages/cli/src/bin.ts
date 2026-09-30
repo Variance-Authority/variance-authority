@@ -126,6 +126,9 @@ function relaunch(argv: readonly string[], log: string): number | undefined {
       detached: true,
       stdio: ['ignore', out, out],
     });
+    // A refused spawn has no id and reports it as an event: unheard, that event
+    // ends this process before `index` makes the follow-ups itself.
+    child.once('error', () => undefined);
     child.unref();
     return child.pid;
   } finally {

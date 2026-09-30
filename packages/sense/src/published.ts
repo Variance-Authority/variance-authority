@@ -154,7 +154,8 @@ export async function updateSourceIndex(
   const where = resolve(root);
   const path = options.index ?? sourceIndexPath(where);
   // The addon answers from the chain in place; only what it declines is decoded here.
-  const natively = await updateNatively(realPath(where), path);
+  // It reads Git's object store, so a caller that asked for the working tree is not its to answer.
+  const natively = options.packs === false ? undefined : await updateNatively(realPath(where), path);
   if (natively !== undefined) {
     if (options.index === undefined) markCheckout(realPath(where));
     return {

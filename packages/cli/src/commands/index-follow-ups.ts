@@ -18,7 +18,8 @@
 
 // compass: variance-authority.reach.source-index
 
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 /** The lock, as written beside the index. */
 export interface FollowUpsLock {
@@ -33,8 +34,33 @@ export type Detach = (argv: readonly string[], log: string) => number | undefine
 export const followUpsLockPath = (index: string): string => `${index}.follow-ups`;
 export const followUpsLogPath = (index: string): string => `${index}.follow-ups.log`;
 
+/** Hand the lock to `lock.pid` in one rename, so no reader ever finds it absent or half written. */
 export function holdFollowUps(index: string, lock: FollowUpsLock): void {
-  writeFileSync(followUpsLockPath(index), `${JSON.stringify(lock)}\n`);
+  const written = `${followUpsLockPath(index)}.${process.pid}.tmp`;
+  writeFileSync(written, `${JSON.stringify(lock)}\n`);
+  renameSync(written, followUpsLockPath(index));
+}
+
+/**
+ * Take the lock for this process before the index is written, waiting out any
+ * process that holds it: two `index` runs in one checkout would otherwise each
+ * start a process, and the second would write over the first one's lock while
+ * the first was still making what it names. False when the lock cannot be
+ * written at all: the index beside it cannot be either, and writing it says why.
+ */
+export async function reserveFollowUps(index: string, log: string, waiting: (lock: FollowUpsLock) => void): Promise<boolean> {
+  for (;;) {
+    try {
+      mkdirSync(dirname(index), { recursive: true });
+      writeFileSync(followUpsLockPath(index), `${JSON.stringify({ pid: process.pid, log })}\n`, { flag: 'wx' });
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') return false;
+    }
+    const waited = await awaitFollowUps(index, waiting);
+    // A holder that is gone left nothing this run is not about to make.
+    if (waited.held && !waited.finished) releaseFollowUps(index, waited.lock.pid);
+  }
 }
 
 /** Drop the lock when it is still the one `pid` holds. */

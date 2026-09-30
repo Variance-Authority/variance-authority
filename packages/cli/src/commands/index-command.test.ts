@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { indexOutput } from './index-command.js';
-import { awaitFollowUps, followUpsLockPath, followUpsLogPath, holdFollowUps } from './index-follow-ups.js';
+import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy, holdFollowUps, reserveFollowUps } from './index-follow-ups.js';
 
 /**
  * `variance index`, the pipeline step every graph reader reads after.
@@ -137,7 +137,11 @@ describe('variance index', () => {
     expect(refused.stderr).not.toContain('defect in the tool');
     expect(existsSync(sourceIndexPath(root))).toBe(false);
 
-    expect(spawnSync(process.execPath, [BIN, 'index'], { cwd: root, env, encoding: 'utf8' }).status).toBe(EXIT_CLEAN);
+    const indexed = spawnSync(process.execPath, [BIN, 'index'], { cwd: root, env, encoding: 'utf8' });
+    expect(indexed.status).toBe(EXIT_CLEAN);
+    // Nothing is left running when the step ends: the follow-ups are its own lines.
+    expect(indexed.stdout).not.toContain('follow-ups:');
+    expect(indexed.stdout).toContain('questions: published at');
     const read = spawnSync(process.execPath, [BIN, 'reach', '--since', 'HEAD'], { cwd: root, env, encoding: 'utf8' });
     expect(read.status).toBe(EXIT_CLEAN);
     expect(read.stdout).toBe('src/unit.ts\nsrc/widget.ts\n');
@@ -145,11 +149,13 @@ describe('variance index', () => {
 
   it('leaves a fresh checkout answering `ask search`, which never scans', async () => {
     const root = checkout();
-    const indexed = spawnSync(process.execPath, [BIN, 'index'], { cwd: root, encoding: 'utf8' });
+    // A workstation, whatever runs this suite: `CI=false` is the one answer every vendor's variable yields to.
+    const env = { ...process.env, CI: 'false' };
+    const indexed = spawnSync(process.execPath, [BIN, 'index'], { cwd: root, env, encoding: 'utf8' });
     expect(indexed.status).toBe(EXIT_CLEAN);
     expect(indexed.stdout).toMatch(/^follow-ups: .+ are being made by process \d+, and the next variance command waits for it/mu);
 
-    const searched = spawnSync(process.execPath, [BIN, 'ask', 'search', '--query', 'widget'], { cwd: root, encoding: 'utf8' });
+    const searched = spawnSync(process.execPath, [BIN, 'ask', 'search', '--query', 'widget'], { cwd: root, env, encoding: 'utf8' });
     // The detached process may be done before the question is asked, and then nothing is waited on.
     expect(searched.stderr).toMatch(/^(waiting for process \d+ to finish .+\n)?$/u);
     expect(searched.status).toBe(EXIT_CLEAN);
@@ -185,6 +191,19 @@ describe('variance index', () => {
     expect(waited).toEqual({ held: true, lock: { pid: holder.pid, log: followUpsLogPath(index) }, finished: true });
     expect(told).toEqual([holder.pid]);
     expect(await awaitFollowUps(index, () => told.push(0))).toEqual({ held: false });
+  });
+
+  it('takes the follow-ups only once a live holder lets them go, so a second `index` never writes over the first one\'s process', async () => {
+    const index = join(mkdtempSync(join(tmpdir(), 'va-follow-ups-')), 'source-index.bin');
+    const lock = followUpsLockPath(index);
+    const holder = spawn(process.execPath, ['-e', `setTimeout(() => require('node:fs').rmSync(${JSON.stringify(lock)}), 200)`]);
+    holdFollowUps(index, { pid: holder.pid!, log: followUpsLogPath(index) });
+    const told: number[] = [];
+
+    await reserveFollowUps(index, followUpsLogPath(index), ({ pid }) => told.push(pid));
+
+    expect(told).toEqual([holder.pid]);
+    expect(heldBy(index)).toEqual({ pid: process.pid, log: followUpsLogPath(index) });
   });
 
   it('refuses `--wait` beside `--follow-ups`', async () => {
