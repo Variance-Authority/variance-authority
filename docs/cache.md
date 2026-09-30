@@ -87,6 +87,7 @@ over it, so a repository that names its cache keeps one answer for everyone.
     source-index.bin.map         the code map `variance ask orient` reads
     <label>/                     one record store per runner or plugin
     checkout.json                the checkout this directory belongs to
+    .texts/<hash>                the text a run recorded a module from, when the commit does not hold it
     .run-<pid>-*/                a run in progress, removed when it ends
     .work/<worktree>/            a git worktree's own layer, the same files again
   renders/                       the images a run took, reused while they match

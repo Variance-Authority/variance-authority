@@ -445,13 +445,13 @@ function notesFor(
     ...(stale.length === 0
       ? []
       : [
-          `the recording was not cut from the text ${many(stale.length, 'changed file')} ` +
-            `${stale.length === 1 ? 'has' : 'have'} at the commit it names ` +
+          `the recording was cut from a text of ${many(stale.length, 'changed file')} that neither ` +
+            `the commit it names nor the cache holds ` +
             `(${stale.slice(0, 3).join(', ')}${stale.length > 3 ? ', …' : ''}), so ` +
             `${stale.length === 1 ? 'its line numbers mean' : 'their line numbers mean'} ` +
             'something else here and every subject that covered ' +
-            `${stale.length === 1 ? 'it' : 'them'} is kept. Record once over a clean tree to narrow ` +
-            'by region again.',
+            `${stale.length === 1 ? 'it' : 'them'} is kept. The next run that loads ` +
+            `${stale.length === 1 ? 'it' : 'them'} records ${stale.length === 1 ? 'it' : 'them'} again.`,
         ]),
     ...(ruled === 0
       ? []

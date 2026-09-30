@@ -273,9 +273,12 @@ function unreadNotes(unread: readonly string[]): readonly string[] {
  *
  * `stale` has already widened the reading — every region of such a module was
  * charged — so it cannot make the skip list wrong. It is printed because it is
- * the one number here an operator can act on: it counts modules recorded from a
- * text nobody at that commit has, and it goes to zero by recording once over a
- * clean tree.
+ * the one number here an operator can read the recording by: it counts modules
+ * recorded from a text the commit does not hold and the cache did not keep. A
+ * landing keeps the text of every module it recorded over an edit, so what is
+ * left is a text edited again while the suite ran, a run landed before texts
+ * were kept, or a cache cleared since; the next run that loads the module
+ * records it again.
  */
 function recordingNotes(
   stale: readonly string[],
@@ -295,9 +298,9 @@ function recordingNotes(
     const [first] = stale;
     notes.push(
       `${many(stale.length, 'changed module')} ${stale.length === 1 ? 'was' : 'were'} recorded ` +
-        `from a different text than the one at the journal's own commit (${first}), so every ` +
-        `region of ${stale.length === 1 ? 'it' : 'them'} was charged rather than read; record ` +
-        'once over a clean tree to clear this',
+        `from a text the journal's own commit does not hold and the cache did not keep (${first}), ` +
+        `so every region of ${stale.length === 1 ? 'it' : 'them'} was charged rather than read; the ` +
+        `next run that loads ${stale.length === 1 ? 'it' : 'them'} records ${stale.length === 1 ? 'it' : 'them'} again`,
     );
   }
 

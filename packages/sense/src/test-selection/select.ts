@@ -5,6 +5,7 @@ import { findModules } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
 import { frameOf } from './frame.js';
+import { rebasedChange } from './text-diff.js';
 import { readChange, readRowless, type FileReading } from './reading.js';
 import { bindsOnly } from './inert.js';
 import { disownedIn } from './shadowed.js';
@@ -63,12 +64,15 @@ export interface ExecutionNarrowing {
    * numbers now, which answers with other tests, or with none, and the run is
    * green over a change nothing watched.
    *
-   * Each of these is charged whole instead, which is what the snapshot can
-   * still say honestly about it. Empty is the ordinary state, and a snapshot
-   * recorded over a clean tree keeps it empty. It is listed because the
-   * widening is a fact about the *recording*, not about the diff: a name that
-   * keeps appearing here is a suite being recorded over an edited tree, and it
-   * is fixed by recording once on a clean one, not by changing the query.
+   * A landing keeps the text of every module it recorded over an edit
+   * (`kept-texts.ts`), and a caller that supplies `keptText` has the change
+   * read from that text instead. What is left here is a module whose recorded
+   * text was not kept — a run landed by a build that did not keep texts, a
+   * text edited again while the suite ran, a cache cleared since — or whose
+   * diff does not apply to the commit's text. Each is charged whole, which is
+   * what the snapshot can still say honestly about it, and the next run that
+   * loads it records it again. Empty is the ordinary state. It is listed
+   * because the widening is a fact about the *recording*, not about the diff.
    *
    * Populated only when the caller supplies `sourceAt`. Without it nothing is
    * checked and this is empty because nothing looked — which is not the same
@@ -200,7 +204,8 @@ function readDiff(
   };
   const context = { coverage, options, knownAs, hunks, charge, pick: select };
 
-  for (const [file, ranges] of changed) {
+  for (const [file, lines] of changed) {
+    let ranges = lines;
     // Every row recorded under every name. One build reading a path is one
     // row; two builds reading it are two, each with its own crossings, and the
     // answer is all of them. `instrumented: false` is the build saying it never
@@ -241,7 +246,23 @@ function readDiff(
     // in the text it was cut from. The recorder wrote a digest of that text,
     // so whether these numbers mean anything here is a question the snapshot
     // answers about itself.
-    const frame = frameOf(coverage, knownAs(file), rowsOf, options.sourceAt);
+    let frame = frameOf(coverage, knownAs(file), rowsOf, options.sourceAt, options.keptText);
+    let reader = context;
+    if (typeof frame === 'object' && frame.kept === true && ranges.length > 0) {
+      // The rows were cut from a text the landing kept, and the diff is written
+      // against the commit's. The change the tests have not run is the one from
+      // the kept text to the diff's new side, so that is what is read.
+      const rebased = rebasedChange(file, frame.text, options.sourceAt?.(file, coverage.commit), context.hunks.get(file) ?? []);
+      if (rebased === undefined) frame = 'stale';
+      else if (rebased.ranges.length === 0) {
+        // The tests ran over the text the diff arrives at.
+        readings.push({ file, verdict: 'none', names: [] });
+        continue;
+      } else {
+        ranges = rebased.ranges;
+        reader = { ...context, hunks: new Map([...context.hunks, [file, rebased.hunks]]) };
+      }
+    }
     if (frame === 'stale') {
       for (const [name, rows] of rowsOf) {
         stale.add(name);
@@ -251,7 +272,7 @@ function readDiff(
     }
     if (frame === 'unchecked') readings.push({ file, unread: 'source' });
     else if (ranges.length > 0) {
-      const read = readChange(context, file, ranges, frame, rowsOf);
+      const read = readChange(reader, file, ranges, frame, rowsOf);
       readings.push(read.reading);
       if (read.charged) continue;
     }

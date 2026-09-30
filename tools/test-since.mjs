@@ -359,7 +359,7 @@ async function main() {
     ...(narrowing.stale.length === 0
       ? []
       : [
-          `  stale    ${narrowing.stale.length} recorded name(s) cut from other text: every region charged`,
+          `  stale    ${narrowing.stale.length} recorded name(s) cut from a text neither the commit nor the cache holds: every region charged`,
         ]),
     ...readingLines(narrowing.readings ?? []),
     '',

@@ -64,11 +64,15 @@ numbered.
 
 A recording is made by *running* the suite, so the text its line numbers were
 cut from is whatever was on disk at that moment, while the position written on
-it is `git rev-parse HEAD`. Those agree on a clean tree and nowhere else. Each
-changed module is hashed against the text it stands at in the commit the index
-names, and one whose two do not agree is charged **whole** — every subject that
-ever covered it — and named in the run's notes. Recording once over a clean tree
-is what narrows by region again.
+it is `git rev-parse HEAD`. Those agree on a clean tree and nowhere else, so
+the run that records over an edit also keeps the text of every module git calls
+dirty, in [the cache](cache.md), named by its hash. Each changed module is hashed
+against the text it stands at in the commit the index names, and one whose two
+do not agree is read from the text that run kept instead: the change is the
+diff from what the tests ran over to what is on disk now. A module whose
+recorded text was not kept — edited again while the suite ran, or the cache
+cleared since — is charged **whole**, every subject that ever covered it, and
+named in the run's notes; the next run that loads it records it again.
 
 ```mermaid
 sequenceDiagram

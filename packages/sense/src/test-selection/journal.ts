@@ -399,7 +399,7 @@ export async function recordExecution(
   // onto nothing. A no-op here and after the first run.
   noteSeeded(await seedTestCoverage(coverageFile, root, options.cacheRoot));
   const merged = await withIndexLock(coverageFile, async () => {
-    await landRun(coverageFile, current, root);
+    await landRun(coverageFile, current, root, options.cacheRoot);
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {

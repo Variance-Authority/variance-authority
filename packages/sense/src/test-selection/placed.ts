@@ -1,11 +1,9 @@
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { askCoverageFile } from './coverage-file.js';
 import { frameOf } from './frame.js';
+import { keptTexts } from './kept-texts.js';
 import { findModules } from './lookup.js';
 import { textAtRecording } from './recorded-text.js';
+import { diffTexts } from './text-diff.js';
 
 /** Lines of the text an editor holds, inclusive. */
 export interface HeldLines {
@@ -42,7 +40,8 @@ export interface Placement {
  *
  * The recorder wrote a digest of every module's text beside its rows, so the
  * snapshot answers whether a text is the one it measured; `frameOf` asks it,
- * once for the held text and once for the text at the recorded commit. The
+ * once for the held text and once for the text at the recorded commit — or,
+ * for a run recorded over an edit, the text its landing kept. The
  * line map between the recorded text and the held one is git's: `diff
  * --no-index` over the two, which is the same hunk arithmetic every other
  * reading of a change here takes from git.
@@ -57,7 +56,7 @@ export function placeInText(snapshot: string, root: string, file: string, text: 
     const rowsOf = new Map([[file, rows]]);
     const held = frameOf(coverage, [file], rowsOf, () => text);
     if (held !== 'stale') return { frame: 'recorded' as const, commit: coverage.commit };
-    const recorded = frameOf(coverage, [file], rowsOf, textAtRecording(root, [file]));
+    const recorded = frameOf(coverage, [file], rowsOf, textAtRecording(root, [file]), keptTexts(root));
     return typeof recorded === 'string'
       ? { frame: 'stale' as const, commit: coverage.commit }
       : { frame: 'mapped' as const, commit: coverage.commit, text: recorded.text };
@@ -83,27 +82,7 @@ export interface Hunk {
 }
 
 function hunksBetween(recorded: string, held: string): readonly Hunk[] {
-  const directory = mkdtempSync(join(tmpdir(), 'variance-placed-'));
-  try {
-    writeFileSync(join(directory, 'recorded'), recorded);
-    writeFileSync(join(directory, 'held'), held);
-    let output: string;
-    try {
-      output = execFileSync('git', ['diff', '--no-index', '--no-color', '-U0', 'recorded', 'held'], {
-        cwd: directory,
-        encoding: 'utf8',
-        maxBuffer: 1 << 28,
-      });
-    } catch (error) {
-      // `diff --no-index` exits 1 when the texts differ, which is the case here.
-      const stdout = (error as { stdout?: unknown }).stdout;
-      if (typeof stdout !== 'string') throw error;
-      output = stdout;
-    }
-    return hunksOf(output);
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
+  return hunksOf(diffTexts(recorded, held));
 }
 
 /** The hunk headers of a `-U0` diff, in order. */

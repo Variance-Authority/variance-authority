@@ -334,7 +334,7 @@ function readImporter(
   const [first] = moved.keys();
   // A test file carries no row, so its text needs no frame: nothing is charged
   // by its line numbers, only the test itself.
-  const frame = rowsOf.size === 0 ? undefined : frameOf(coverage, knownAs(importer), rowsOf, options.sourceAt);
+  const frame = rowsOf.size === 0 ? undefined : frameOf(coverage, knownAs(importer), rowsOf, options.sourceAt, options.keptText);
   const text =
     frame === undefined ? options.sourceAt?.(importer, coverage.commit) : typeof frame === 'string' ? undefined : frame.text;
   const found = text === undefined ? null : native()!.moduleReaders!(importer, text, [...moved.keys()], true);

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import {
+  landRun,
   testCoverageFile,
   writeTestCoverage,
   type TestCoverage,
@@ -75,7 +76,7 @@ describe('reading this checkout', () => {
     expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
     // The frame check ran and agreed: the module was read at its line ranges
     // rather than charged whole for being unrecognisable.
-    expect(said.err).not.toContain('recorded from a different text');
+    expect(said.err).not.toContain('was recorded from a text');
   });
 
   it('reads a snapshot named by path, as a recorder in another runtime writes one', async () => {
@@ -136,8 +137,44 @@ describe('reading this checkout', () => {
     // still skipped: a stale frame is a fact about one module's line numbers, so
     // it widens over that module's observers and no further.
     expect(said.out).toBe('test/gamma.test.ts\n');
-    expect(said.err).toContain('1 changed module was recorded from a different text');
-    expect(said.err).toContain('src/widget.ts');
+    expect(said.err).toContain(
+      "1 changed module was recorded from a text the journal's own commit does not hold and the cache did not keep",
+    );
+    expect(said.err).toContain('the next run that loads it records it again');
+    expect(said.err).not.toContain('clean tree');
+  });
+
+  it('reads a change against the text a run recorded over an edit, once the edit is reverted', async () => {
+    // The ordinary loop: edit, run the suite, revert. The run lands over an
+    // edit that moved every line of `widget.ts` down one, so the commit it names
+    // does not hold the text its line numbers count; the landing keeps that
+    // text. A later edit to `other` is read from it, and only `beta` entered
+    // `other`.
+    const { root, head } = checkout();
+    const edited = `// scratch\n${SOURCE}`;
+    writeFileSync(join(root, 'src/widget.ts'), edited);
+    const recorded = snapshot(head);
+    const [module] = recorded.modules;
+    await landRun(testCoverageFile(root), {
+      ...recorded,
+      modules: [{
+        ...module!,
+        sourceDigest: digestString(edited),
+        // The module still starts at line 1; everything inside it moved down one.
+        blocks: module!.blocks.map((block) =>
+          ({ ...block, startLine: block.kind === 'module' ? 1 : block.startLine + 1, endLine: block.endLine + 1 })),
+      }],
+    }, root);
+
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
+    expect(said.err).not.toContain('was recorded from a text');
   });
 
   it('skips a test that mocked the changed module, where it entered only while the module evaluated', async () => {
