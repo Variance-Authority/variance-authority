@@ -10,6 +10,8 @@
  * everything else.
  */
 
+import { reviewCoverageDetails, reviewCoverageSummary } from './review-coverage.js';
+import { formatCoverage } from './coverage-text.js';
 import type { ReviewFormat } from '../review-args.js';
 import { clampComment, COMMENT_CHARACTERS } from './comment-text.js';
 import { functionsIn, motionText } from './covering-motion.js';
@@ -64,6 +66,9 @@ function text(review: Review): string {
       region.name === '' ? region.kind : `${region.kind} ${region.name}`
     } — ${REACH_TEXT[region.reach]}${region.written ? ' (new)' : ''}`));
   if (detail.length > 0) lines.push('', 'Regions not covered by a test one import away:', ...detail);
+  for (const reading of review.coverage ?? []) {
+    lines.push('', 'missed' in reading ? `${reading.suite ?? 'the record'}: coverage unavailable: ${reading.missed}` : formatCoverage(reading, 'text').trimEnd());
+  }
   return `${lines.join('\n')}\n`;
 }
 
@@ -99,10 +104,11 @@ function markdown(review: Review): string {
   const code = (value: string): string => `\`${value}\``;
   const mark = (region: ReviewRegion): string => MARK[region.reach];
   const ran = review.record === 'ran';
-  const lines = [REVIEW_MARKER, `### 🧭 What this change ${ran ? 'did' : 'might do'}`, '', `<sub>${header(review, code, false)}${
+  const lines = [REVIEW_MARKER, review.coverage === undefined ? `### 🧭 What this change ${ran ? 'did' : 'might do'}` : '### Test evidence', '', `<sub>${header(review, code, false)}${
     ran ? '' : ' The record was made before this change, so it names the cases that stood on the changed lines.'
   }</sub>`, ''];
   lines.push(...calloutMarkdown(review), ...(ran ? selectionMarkdown(review, code) : []), ...lostMarkdown(review));
+  if (review.coverage !== undefined) lines.push(...reviewCoverageSummary(review.coverage));
   if (review.before !== undefined && review.before.length > 0) {
     lines.push('', ...review.before.map((file) => `⚙️ ${code(file.file)} changed, and ${
       file.tests !== review.suite ? `${file.tests} of ${review.suite} test files load` : file.tests === 1 ? 'the one test file loads' : `all ${file.tests} test files load`
@@ -110,6 +116,7 @@ function markdown(review: Review): string {
   }
   lines.push(...installLines(review, code, true));
   lines.push(...uncoveredMarkdown(review, mark), ...functionsMarkdown(review, mark), ...casesMarkdown(review.files, code));
+  if (review.coverage !== undefined) lines.push(...reviewCoverageDetails(review.coverage));
   const more: string[] = [];
   const said: string[] = [];
   const unrecorded = unrecordedFiles(review);
@@ -134,7 +141,7 @@ function markdown(review: Review): string {
     for (const file of files) more.push(`| ${code(file.file)} | ${editOf(file, code)} | ${marksOf(file)} |`);
     more.push('', '</details>');
   }
-  if (more.length > 0) lines.push('', `<details><summary>📎 More: ${said.join(', ')}</summary>`, ...more, '', '</details>');
+  if (more.length > 0) lines.push('', `<details><summary>Recording scope and limitations: ${said.join(', ')}</summary>`, ...more, '', '</details>');
   return `${clampComment(lines.join('\n'), COMMENT_CHARACTERS - 1, (dropped) =>
     `\n\n> ${dropped} characters of this review are not shown, because GitHub rejects a comment longer than ${COMMENT_CHARACTERS}. ` +
     '`--format json` prints the whole review, and `--out` writes it to `review.json`.')}\n`;
@@ -200,6 +207,10 @@ function selectionMarkdown(review: Review, code: (value: string) => string): rea
   if (runs === undefined || suite === undefined || suite === 0) return [];
   const ran = runs.files.length;
   const select = code(`variance select --since ${review.from.slice(0, 12)}`);
+  if (review.coverage !== undefined) {
+    const scope = review.recordedSuite === undefined ? '' : `${code(review.recordedSuite)}: `;
+    return ['', `${scope}${ran} test file${ran === 1 ? '' : 's'} ran at this commit.${ran < suite ? ` The other ${suite - ran} retain earlier recordings.` : ' Every test file in the recording ran.'}`];
+  }
   if (ran >= suite) return ['', `🎯 All ${suite} test file${suite === 1 ? '' : 's'} ran at this commit. ${select} lists the ones this change reaches.`];
   return ['', `🎯 **${ran} of ${suite} test files ran** at this commit, ${ran * 100 < suite ? 'under 1' : Math.round((100 * ran) / suite)}% of the suite; the other ${
     suite - ran
