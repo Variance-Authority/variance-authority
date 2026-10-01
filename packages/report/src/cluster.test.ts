@@ -111,13 +111,12 @@ describe('what is not grouped stays visible', () => {
   it('counts subjects with no fingerprint anywhere rather than inventing a change', () => {
     const clustering = clusterChanges([
       changed('story:a', [region({ fingerprint: BRAND })]),
-      changed('story:ephemeral', [region({}), region({})]),
+      changed('story:unread', [region({}), region({})]),
     ]);
 
-    // The ephemeral mode compares without a document, so its regions carry no
-    // shape. Bundling those into one cluster would report a "change" that is
-    // really the absence of one.
-    expect(clustering.ungrouped).toEqual(['story:ephemeral']);
+    // Regions with no fingerprint carry no shape. Bundling those into one
+    // cluster would report a "change" that is really the absence of one.
+    expect(clustering.ungrouped).toEqual(['story:unread']);
     expect(clustering.changes).toHaveLength(1);
     expect(describeClustering(clustering, 2)).toContain('1 could not be grouped');
   });

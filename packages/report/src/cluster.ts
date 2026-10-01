@@ -87,9 +87,12 @@ export interface Clustering {
   /**
    * Subjects that changed and produced no fingerprint anywhere.
    *
-   * Never folded into a catch-all cluster. A run with no document to compare
-   * against — the ephemeral mode, or a raster-only path — produces regions with
-   * no shape, and grouping those together would invent a "change" that is
+   * Never folded into a catch-all cluster. A subject has no shape when the run
+   * read no markup for it — no semantic snapshot, so no region is attributed and
+   * none carries a fingerprint — or when only its accessibility tree changed and
+   * no pixel did. Retention does not decide it: the ephemeral pair and the
+   * durable baseline both attribute regions from whatever snapshot the collector
+   * gave. Grouping those subjects together would invent a "change" that is
    * really the absence of one. Counting them separately is what keeps the
    * headline honest: *N subjects, M changes, and K we could not group*.
    */

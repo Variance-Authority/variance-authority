@@ -77,8 +77,9 @@ export const changes: Tool = {
       return clustering.ungrouped.length === 0
         ? describeClustering(clustering, changed)
         : `${describeClustering(clustering, changed)}. Ungrouped subjects have no difference ` +
-            'shape, which means the run compared without a document — the ephemeral mode, or a ' +
-            `raster-only path: ${clustering.ungrouped.join(', ')}`;
+            'shape, because the run read no markup for them (a raster-only capture, or a ' +
+            'collector that gave only images) or only their accessibility tree changed: ' +
+            clustering.ungrouped.join(', ');
     }
 
     return [
@@ -91,8 +92,8 @@ export const changes: Tool = {
         ? [
             '',
             `Not grouped (${clustering.ungrouped.length}): ${clustering.ungrouped.join(', ')}`,
-            '  These carry no difference shape, so the run compared without a document. ' +
-              'They have to be reviewed one at a time.',
+            '  These carry no difference shape, because the run read no markup for them or ' +
+              'only their accessibility tree changed. They have to be reviewed one at a time.',
           ]
         : []),
     ].join('\n');

@@ -247,6 +247,18 @@ describe('absorbing by shape rather than by place', () => {
     expect(observation.regions[0]?.fingerprint).toMatch(/^v1:/);
   });
 
+  it('names no region when the pair read no markup, so the shape follows the snapshot', async () => {
+    // The pair above and this one both render two documents in one run, the
+    // ephemeral path. Only the snapshot differs, and only it decides the shape.
+    const observation = await observePair(documentFor('before'), documentFor('after'), {
+      renderer: rendererFor(new Map([['before', blank], ['after', image({ x: 80, y: 80, size: 8 })]])),
+      store: createEphemeralStore(),
+    });
+
+    expect(observation.verdict).toBe('changed');
+    expect(observation.regions).toEqual([]);
+  });
+
   it('absorbs the same shape after it moves', async () => {
     // The property no rectangle has. A toast that reappears forty pixels lower is
     // the same artifact, and a coordinate ignore drawn where it was last seen

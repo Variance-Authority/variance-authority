@@ -86,8 +86,8 @@ export interface TribunalChangelog {
   /**
    * Approved subjects no shape could group.
    *
-   * A run that attributed nothing — the ephemeral and raster-only paths — still
-   * approved something, and counting it is how the total stays a total. Dropping
+   * A run that read no markup for a subject attributed nothing in it and still
+   * approved it, and counting it is how the total stays a total. Dropping
    * these would make a changelog that covers eleven of forty approvals look like
    * a changelog of eleven approvals.
    */

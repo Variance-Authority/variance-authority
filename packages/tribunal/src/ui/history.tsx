@@ -124,9 +124,10 @@ export function ChangelogPage({
 /**
  * The grouped changes, and the approvals no shape could group.
  *
- * The second list is not a footnote. The ephemeral and raster-only paths attribute
- * nothing and still approve something, and a reader who cannot see that a third of
- * the entries are unattributed will read the attributed two thirds as the whole.
+ * The second list is not a footnote. A run that read no markup for a subject
+ * attributes nothing in it and still approves it, and a reader who cannot see that
+ * a third of the entries are unattributed will read the attributed two thirds as
+ * the whole.
  */
 export function ChangelogEntries({
   log,
@@ -161,9 +162,9 @@ export function ChangelogEntries({
         <section className="va-ungrouped">
           <h2>{log.ungrouped.length} approved without an attributed shape</h2>
           <p className="va-note">
-            These runs kept no region attribution — an ephemeral or raster-only path — so nothing
-            names what changed in them. Listed rather than dropped: they are approvals, and a total
-            that omits them is not a total.
+            These have no difference shape, because the run read no markup for the subject or only
+            its accessibility tree changed, so nothing names what changed in them. Listed rather
+            than dropped: they are approvals, and a total that omits them is not a total.
           </p>
           <ul>
             {log.ungrouped.map((row: ChangelogRow) => (

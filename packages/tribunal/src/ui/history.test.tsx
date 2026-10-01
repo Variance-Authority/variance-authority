@@ -142,7 +142,7 @@ describe('the changelog groups by shape and still counts what it could not group
     ungrouped: [
       {
         build: 'ci-8',
-        subject: 'story:ephemeral',
+        subject: 'story:unread',
         commit: 'deadbeefcafe',
         by: 'marina',
         at: '2026-08-19T09:00:00.000Z',
@@ -165,7 +165,11 @@ describe('the changelog groups by shape and still counts what it could not group
     // A changelog covering eleven of forty approvals that reads as a changelog
     // of eleven approvals is worse than none.
     expect(markup).toContain('1 approved without an attributed shape');
-    expect(markup).toContain('story:ephemeral');
+    expect(markup).toContain('story:unread');
+    // The reason is what the run read, not its retention: an ephemeral run whose
+    // collector gave a snapshot attributes its regions like any other.
+    expect(markup).toContain('because the run read no markup for the subject');
+    expect(markup).not.toContain('ephemeral');
   });
 
   it('says nothing has been approved rather than rendering an empty list', () => {
