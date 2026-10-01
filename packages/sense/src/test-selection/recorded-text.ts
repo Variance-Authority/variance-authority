@@ -199,10 +199,13 @@ function read(
       ...(fetch ? {} : { env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } }),
     });
   } catch {
-    // Not a checkout, no such commit, no git. Every module then reads as
-    // unverified, which widens rather than narrows, and is the direction this
-    // whole subsystem is allowed to fail in.
-    return { texts, missing };
+    // Git before 2.44 does not answer `missing` for an object lazy fetching
+    // would have fetched: it stops at the first one, fatally. So a read that
+    // did not fetch answers every path missing, and the caller fetches them
+    // together. Otherwise this is not a checkout, no such commit, or no git;
+    // every module then reads as unverified, which widens rather than narrows,
+    // and is the direction this whole subsystem is allowed to fail in.
+    return { texts, missing: fetch ? missing : [...files] };
   }
 
   let at = 0;
