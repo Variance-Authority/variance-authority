@@ -113,4 +113,19 @@ describe('variance restrictions', () => {
       delete process.env['GIT_CEILING_DIRECTORIES'];
     }
   });
+
+  it('reports a git that cannot be started as a defect, not as a directory outside a checkout', async () => {
+    process.chdir(realpathSync(mkdtempSync(join(tmpdir(), 'va-restrict-nogit-'))));
+    const path = process.env['PATH'];
+    process.env['PATH'] = '';
+    try {
+      const failed = await run(['restrictions']);
+
+      expect(failed.code).toBe(EXIT_OPERATOR);
+      expect(failed.err).toContain('does not have a code for');
+      expect(failed.err).not.toContain('is not in a git checkout');
+    } finally {
+      process.env['PATH'] = path;
+    }
+  });
 });

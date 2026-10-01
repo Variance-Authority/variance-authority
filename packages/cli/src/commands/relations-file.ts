@@ -116,12 +116,18 @@ function parseRules(path: string, text: string, tiers: Tiers | undefined): Omit<
   return { rules, caps, ...(tierCaps.length === 0 ? {} : { tierCaps }) };
 }
 
-/** Whether git takes `root` as inside a work tree; asked only after a listing failed, so the happy path pays nothing. */
+/**
+ * Whether git takes `root` as inside a work tree; asked only after a listing
+ * failed, so the happy path pays nothing. git that ran and exited non-zero has
+ * answered no; git that could not be started has not answered, and that error
+ * is thrown as it came.
+ */
 function inCheckout(root: string): boolean {
   try {
     return execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: root, encoding: 'utf8', stdio: 'pipe' }).trim() === 'true';
-  } catch {
-    return false;
+  } catch (error) {
+    if (typeof (error as { status?: unknown }).status === 'number') return false;
+    throw error;
   }
 }
 
