@@ -22,7 +22,7 @@ yarn verify
 repository checks in `tools/*.check.ts` — every link resolves, every path named
 in prose exists, every `file:line` lands where it says, every package declares
 what it imports — the `*.measure.ts` cost gates, and the test suite. Browser
-suites skip with a reason when Chromium is unavailable; install it with:
+tests skip with a reason when Chromium is unavailable; install it with:
 
 ```bash
 npx playwright install chromium
@@ -35,11 +35,46 @@ takes. A missing build says so; a stale one answers every question fluently and
 answers some of them wrong, and the wrong answer arrives dressed as a defect in
 whatever was asked about.
 
+## What runs what, and when
+
+The suite is three slices. The file name puts a test in one, and `yarn test`
+runs them one after another, so each has the machine to itself:
+
+| Slice | Files | What a test may start | Workers | Config |
+| --- | --- | --- | --- | --- |
+| `unit` | `*.test.*` | `git`, `rg`, `ps`, `sw_vers`, `esbuild` | one per core | [`vitest.config.mts`](vitest.config.mts) |
+| `integration` | `*.integration.test.*` | the CLI out of `dist`, or a test runner over a fixture | a quarter of the cores | [`vitest.integration.config.mts`](vitest.integration.config.mts) |
+| `chromium` | `*.chromium.test.*` | Chromium, directly or through Playwright | an eighth of the cores | [`vitest.chromium.config.mts`](vitest.chromium.config.mts) |
+
+They are apart because a file that starts a process or a browser costs several
+cores. Run beside the in-process tests at one fork a core, they held a load
+average three times the core count. A unit test that starts any program outside
+its list fails, naming the program it started and the name the file should have
+([`tools/in-process.ts`](tools/in-process.ts)).
+
+Each slice is a suite declared in [`variance.config.json`](variance.config.json)
+and keeps its own record, because what a test in it can be seen to execute
+differs. The probes are in the test's process. An integration test's record
+holds what the test ran on its way to starting the CLI, and nothing the CLI ran.
+
+```bash
+yarn test               # unit, then integration, then chromium; stops at the first red slice
+yarn test:unit          # one slice; each takes vitest's arguments
+yarn test:integration
+yarn test:chromium
+```
+
+`yarn verify` runs all three on your machine. In CI, the check workflow runs
+them on every pull request and every push to `main`, without Chromium, so the
+chromium slice reports itself skipped there. The coverage comment compares the
+unit slice against `main`'s record, and lists what the integration slice
+executed without a comparison.
+
 ## Running less than the whole suite
 
 `yarn test` records which test file executed which part of which module, and
-writes that to a snapshot. `yarn test:since` reads the snapshot back and runs
-the files your change reached:
+writes that to a snapshot for each slice. `yarn test:since` reads each slice's
+snapshot back, in the same order, and runs the files your change reached:
 
 ```bash
 yarn test:since             # since the commit each test last ran at
@@ -56,12 +91,13 @@ without importing it is declared: the Vitest seam declares `vitest.config.mts`
 and the local modules it imports, and the config names the rest in
 `preconditions`. A change to any of them selects every test.
 
-The whole suite runs only when the reading itself could not be made, and it
-says which:
+A slice runs whole only when its reading could not be made, and it says
+which:
 
 ```
 $ yarn test:since --dry-run
-test:since: running the whole suite — the install could not be compared against 03984ae78218.
+test:since: the unit slice, from vitest.config.mts.
+test:since: running the whole slice — the install could not be compared against 03984ae78218.
   429 files
 ```
 
@@ -194,7 +230,7 @@ process out of `packages/cli/dist`:
 yarn workspace @variance-authority/case-storybook build-storybook
 yarn workspace @variance-authority/case-storybook build-storybook:changed
 yarn build
-yarn vitest run cases/storybook-case/src/cli.chromium.test.js
+yarn test:chromium cases/storybook-case/src/cli.chromium.test.js
 ```
 
 The corpus measurements quoted in the root [`README.md`](README.md) come from two
@@ -202,8 +238,8 @@ files in [`examples/kitchen-sink`](examples/kitchen-sink); the first runs under
 jsdom and needs no browser, the second needs Chromium:
 
 ```bash
-yarn vitest run examples/kitchen-sink/src/measure.test.tsx
-yarn vitest run examples/kitchen-sink/src/measure.chromium.test.tsx
+yarn test:unit examples/kitchen-sink/src/measure.test.tsx
+yarn test:chromium examples/kitchen-sink/src/measure.chromium.test.tsx
 ```
 
 ## Releasing

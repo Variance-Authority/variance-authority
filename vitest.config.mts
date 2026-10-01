@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { nativeSources } from './tools/native-sources.mjs';
 import { probeable } from './tools/page-side.mjs';
@@ -78,23 +78,9 @@ const TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 const instrumentable = (file: string) =>
   (PRODUCT.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file) && probeable(ROOT, file);
 
-/**
- * The suite without the recording, exported so it can be run without it.
- *
- * `tools/uninstrumented.config.mts` is this and nothing else, and it is the arm
- * [journal 0027](docs/context/journal/0027-what-instrumentation-costs.md)
- * compares against — the one measurement that has to be able to take the probes
- * away. Exported rather than restated, so the two arms cannot drift into
- * measuring different suites.
- */
-export const suite = defineConfig({
+/** What every slice runs under. */
+const shared = defineConfig({
   test: {
-    include: [
-      'packages/*/src/**/*.test.{ts,tsx}',
-      'packages/*/test/**/*.test.ts',
-      'examples/*/src/**/*.test.{ts,tsx}',
-      'cases/*/src/**/*.test.{js,ts,tsx}',
-    ],
     // `node` is the default; corpus fixtures opt into jsdom per-file with a
     // `// @vitest-environment jsdom` docblock, so the DOM-free packages stay
     // DOM-free (ADR-0001) and nothing accidentally acquires a `document`.
@@ -124,16 +110,99 @@ export const suite = defineConfig({
 });
 
 /**
- * What the instrument is pointed at, exported so a second arm can record the
- * same suite under different options without restating any of it.
+ * Where tests live. A slice is these places narrowed by a marker in the file
+ * name, so a file says which slice it is in and no list has to.
  */
-export const selection = {
+const PLACES = [
+  'packages/*/src/**/*.test.{ts,tsx}',
+  'packages/*/test/**/*.test.ts',
+  'examples/*/src/**/*.test.{ts,tsx}',
+  'cases/*/src/**/*.test.{js,ts,tsx}',
+];
+
+/** The cores this machine offers, which every worker count below is a share of. */
+const CORES = availableParallelism();
+
+/**
+ * The slices of the suite, in the order `yarn test` runs them, each declared
+ * under `suites` in the root `variance.config.json` and each with a record of
+ * its own.
+ *
+ * They were one run until the run starved the machine it ran on. A file in the
+ * integration slice starts a process: the CLI out of `dist`, or a whole Jest,
+ * rstest or Vitest over a fixture, each of which picks its own worker count. A
+ * file in the chromium slice launches a browser. Run beside four hundred
+ * in-process files at one fork a core, a pull request's `yarn verify` held a
+ * load average three times the core count. Apart, each slice is given the
+ * number of files at once its files can afford, and a slow run says which kind
+ * of test was slow.
+ *
+ * - `unit`: in the test's own process. It may start a program that answers
+ *   and exits, such as `git`, and not Node or a browser; `tools/in-process.ts`
+ *   names the programs and fails a test that starts anything else.
+ * - `integration`: `*.integration.test.*`. Starts a process of ours or a test
+ *   runner over a fixture. What that process executes is not in this record:
+ *   the probes are in this process, so the record says which modules the test
+ *   itself entered on its way to starting it.
+ * - `chromium`: `*.chromium.test.*`. Launches Chromium, directly or through
+ *   Playwright. A file with no Chromium installed reports itself skipped.
+ */
+export const SLICES = {
+  unit: { marker: undefined, workers: undefined },
+  // A file here is two processes at least, and a runner it starts is more.
+  integration: { marker: 'integration', workers: Math.max(1, Math.floor(CORES / 4)) },
+  // A browser is a handful of processes, each busy while a page renders.
+  chromium: { marker: 'chromium', workers: Math.max(1, Math.floor(CORES / 8)) },
+} as const;
+
+export type SliceName = keyof typeof SLICES;
+
+const MARKERS = Object.values(SLICES).flatMap((slice) => (slice.marker === undefined ? [] : [slice.marker]));
+
+/** One slice as a Vitest config, without the recording. */
+export function slice(name: SliceName) {
+  const { marker, workers } = SLICES[name];
+  return mergeConfig(shared, {
+    test: {
+      include: marker === undefined ? PLACES : PLACES.map((place) => place.replace('*.test.', `*.${marker}.test.`)),
+      exclude: [...configDefaults.exclude, ...(marker === undefined ? MARKERS.map((other) => `**/*.${other}.test.*`) : [])],
+      ...(marker === undefined ? { setupFiles: ['tools/in-process.ts'] } : {}),
+      ...(workers === undefined ? {} : { maxWorkers: workers, minWorkers: 1 }),
+    },
+  });
+}
+
+/**
+ * Every slice in one run, without the recording, at the most careful slice's
+ * worker count. `tools/coverage.config.mts` counts what the whole suite
+ * executes in its own processes, which no single slice can answer.
+ */
+export const whole = mergeConfig(shared, {
+  test: { include: PLACES, maxWorkers: SLICES.chromium.workers, minWorkers: 1 },
+});
+
+/**
+ * The unit slice without the recording, exported so it can be run without it.
+ *
+ * `tools/uninstrumented.config.mts` is this and nothing else, and it is the arm
+ * [journal 0027](docs/context/journal/0027-what-instrumentation-costs.md)
+ * compares against — the one measurement that has to be able to take the probes
+ * away. Exported rather than restated, so the two arms cannot drift into
+ * measuring different suites.
+ */
+export const suite = slice('unit');
+
+/**
+ * What the instrument is pointed at in one slice, exported so a second arm can
+ * record the same slice under different options without restating any of it.
+ */
+export const selectionOf = (name: SliceName) => ({
   root: ROOT,
   // The suite this run is, as the root `variance.config.json` declares it.
-  suite: 'unit',
+  suite: name,
   include: instrumentable,
   // What governs every observation rather than any one of them. The seam
-  // declares this file and the local modules it imports, and
+  // declares the config file Vite loaded and the local modules it imports, and
   // `tools/test-since.mjs` reads the manifests and the lockfile as the install
   // they record. What is left is what no import names: the compiler settings
   // the built half is emitted under, and the crate the native addon is built
@@ -142,6 +211,9 @@ export const selection = {
   // precondition retires every inherited crossing. A fixture or a workflow has
   // no row of its own, and selects nothing until it is declared here.
   preconditions: ['tsconfig.base.json', ...nativeSources(ROOT)],
-};
+});
+
+/** The unit slice's, which `tools/native-sources.check.ts` holds to the crate. */
+export const selection = selectionOf('unit');
 
 export default withTestSelection(suite, selection);

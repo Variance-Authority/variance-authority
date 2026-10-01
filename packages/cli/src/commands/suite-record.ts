@@ -29,6 +29,29 @@ export async function suiteRecord(root: string, suite?: string): Promise<string>
 }
 
 /**
+ * {@link suiteRecord} for a read the command runs without: none when more than
+ * one suite is declared and none is named.
+ *
+ * Plain `variance run` reads where its subjects parted in the source, and that
+ * reading refines a report the run makes anyway. Refusing the run over it
+ * would make every repository that declares a second suite pass `--suite` to a
+ * command that never asked for a record.
+ */
+export async function refiningRecord(root: string, suite?: string): Promise<string | undefined> {
+  if (suite === undefined) {
+    const selection = await import('@variance-authority/sense/test-selection');
+    let several: boolean;
+    try {
+      several = (selection.declaredSuites(root)?.length ?? 0) > 1;
+    } catch (error) {
+      throw new OperatorError(messageOf(error), { cause: error });
+    }
+    if (several) return undefined;
+  }
+  return suiteRecord(root, suite);
+}
+
+/**
  * Where a command that writes the record lands it: this checkout's own layer,
  * which is the one layer it may write, whatever {@link suiteRecord} would read.
  */

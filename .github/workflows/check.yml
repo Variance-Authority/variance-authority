@@ -236,7 +236,9 @@ jobs:
             echo "::notice::The mainline's record was not read, so this run has no base: the whole suite runs, and coverage is printed without a comparison."
           fi
 
-      # `vitest run` is the unit suites and the corpus. The package boundary
+      # `yarn test` is the three slices in order: unit, integration, chromium,
+      # each with a record of its own. No browser is installed here, so the
+      # chromium slice reports its files skipped. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
       # 2026-08-04 and now run in the `rules` job. It records which case ran
       # which region at this commit, which is what the review below reads.
@@ -291,8 +293,11 @@ jobs:
           if [ -n "$AGAINST" ]; then
             node packages/cli/dist/bin.js coverage --suite unit --against "$AGAINST" --packages --format markdown >> "$body"
           else
-            node packages/cli/dist/bin.js coverage --packages --format markdown >> "$body"
+            node packages/cli/dist/bin.js coverage --suite unit --packages --format markdown >> "$body"
           fi
+          # No record is carried for the integration slice, so it has no base
+          # and is printed without a comparison.
+          node packages/cli/dist/bin.js coverage --suite integration --packages --format markdown >> "$body"
           cat "$body" >> "$GITHUB_STEP_SUMMARY"
           echo "body=$body" >> "$GITHUB_OUTPUT"
 
@@ -314,6 +319,9 @@ jobs:
       # at, so what `main` moved after that commit is left out of the comparison
       # whichever recording the restore found.
       #
+      # It reads the unit slice, the one record CI compares against `main`'s; the
+      # review reads one suite, and refuses to pick one when several are declared.
+      #
       # The source index is published first. Under CI a reader refuses to build
       # it on demand, and the review asks it which tests import each changed file.
       - name: review the change
@@ -325,7 +333,7 @@ jobs:
           REVIEW: ${{ steps.carry.outputs.review }}
         run: |
           node packages/cli/dist/bin.js index
-          node packages/cli/dist/bin.js review --since "$BASE" \
+          node packages/cli/dist/bin.js review --since "$BASE" --suite unit \
             --out "$REVIEW" --format markdown >> "$GITHUB_STEP_SUMMARY"
 
       - name: keep the review
@@ -543,9 +551,11 @@ jobs:
         shell: bash
         run: yarn workspace @variance-authority/case-incumbent incumbent
 
+      # The cases' own unit tests, then the ones that launch a browser, each
+      # under its slice's config (`vitest.config.mts` says why they are apart).
       - name: run the cases
         shell: bash
-        run: yarn vitest run cases
+        run: yarn test:unit cases && yarn test:chromium cases
 
   # The one check a branch rule names, and the one line that combines the three
   # above. `needs` alone would skip this job when one of them failed, and a

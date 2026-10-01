@@ -51,8 +51,8 @@ const REMEDIES: readonly string[] = ['npx playwright install chromium', 'install
  * The gate, and therefore the files.
  *
  * Every browser-gated suite decides the same way — `existsSync(chromium.executablePath())`
- * — so the gate is what discovers them. A filename convention would not: `harness.test.ts`
- * is gated and carries no `chromium` in its name.
+ * — so the gate is what discovers them. The file name would not: `.chromium.test.`
+ * says which slice a file runs in, and nothing makes a file in that slice gate.
  */
 const GATES: readonly string[] = [
   // `executablePath()`, not `chromium.executablePath()`. The narrower spelling

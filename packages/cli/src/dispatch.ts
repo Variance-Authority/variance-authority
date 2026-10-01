@@ -41,7 +41,7 @@ import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
 import { journeysOutput } from './commands/journeys-command.js';
-import { suiteRecord } from './commands/suite-record.js';
+import { refiningRecord, suiteRecord } from './commands/suite-record.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
@@ -165,8 +165,10 @@ export async function dispatch(
               relationsFor(process.cwd(), dirs, effective.source?.taints, effective.source?.before),
             readJourney: async (diff, relations, packages) =>
               journeyAgainst(process.cwd(), diff, relations, packages, await suiteRecord(process.cwd(), parsed.suite)),
-            readJourneys: async (subjects) =>
-              recordedJourneys(process.cwd(), subjects, await suiteRecord(process.cwd(), parsed.suite)),
+            readJourneys: async (subjects) => {
+              const at = await refiningRecord(process.cwd(), parsed.suite);
+              return at === undefined ? undefined : recordedJourneys(process.cwd(), subjects, at);
+            },
             ...(effective.source?.changes === undefined
               ? {}
               : {

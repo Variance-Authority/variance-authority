@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -37,7 +37,7 @@ import { costLine, describeRange, distanceLines, explain, findingLines, helpLine
  * the snapshot nor the graph lists — prose, a fixture, a workflow — selects
  * nothing on its own and is named in one line above the selection. What the
  * harness loads without importing it is declared rather than guessed at: the
- * seam declares `vitest.config.mts` and the local modules it imports, the
+ * seam declares the slice's config and the local modules it imports, the
  * config names the rest in `preconditions`, and a change to any of them retires
  * every observation that declared it.
  *
@@ -103,15 +103,33 @@ const diffOfNew = (path) =>
  * cache's read layer and names them in `fetched.json` there, where the run this
  * selects lays them under its own record.
  */
-export async function recordToRead(root, cacheRoot, env) {
+export async function recordToRead(root, { cacheRoot, env, suite } = {}) {
   const { mainlineMissed, mainlineRead, primaryRead, suiteBase } = await import('@variance-authority/cli');
-  const base = await suiteBase(root, { ...(cacheRoot === undefined ? {} : { cacheRoot }), ...(env === undefined ? {} : { env }) });
+  const base = await suiteBase(root, {
+    ...(cacheRoot === undefined ? {} : { cacheRoot }),
+    ...(env === undefined ? {} : { env }),
+    ...(suite === undefined ? {} : { suite }),
+  });
   if (base.from === 'mainline') return { ...base, note: mainlineRead(base.mainline) };
   if (base.from === 'primary' && base.missed !== undefined) return { ...base, note: primaryRead(base.missed.suite, base.file, base.missed) };
   return base.missed === undefined ? base : { ...base, note: mainlineMissed(base.missed) };
 }
 
 const say = (...lines) => process.stdout.write(`${lines.join('\n')}\n`);
+
+/**
+ * The slices of the suite, in the order they run, as the root
+ * `variance.config.json` declares them. `vitest.config.mts` says what each is
+ * for; the unit slice is that file, and every other slice is
+ * `vitest.<suite>.config.mts` beside it.
+ */
+export function slicesOf(root) {
+  const { suites } = JSON.parse(readFileSync(resolve(root, 'variance.config.json'), 'utf8'));
+  return Object.keys(suites).map((suite) => ({
+    suite,
+    config: suite === 'unit' ? 'vitest.config.mts' : `vitest.${suite}.config.mts`,
+  }));
+}
 
 /**
  * The stem the snapshot would hold this file under, if it holds it at all.
@@ -154,16 +172,34 @@ async function main() {
   const asked = distanceAt < 0 ? undefined : (argv[distanceAt + 1] ?? '');
   const ref = argv.find((argument, at) => !argument.startsWith('-') && at !== distanceAt + 1);
 
-  const base = await recordToRead(ROOT);
+  // Each slice is read from its own record and run under its own config, in
+  // the order `yarn test` runs them, and the first red slice ends the run: a
+  // unit failure is the cheaper one to read, and the slices after it would
+  // spend minutes saying less.
+  const slices = slicesOf(ROOT);
+  for (const [at, slice] of slices.entries()) {
+    if (at > 0) say('');
+    if (slices.length > 1) say(`test:since: the ${slice.suite} slice, from ${slice.config}.`);
+    const status = await sinceSlice(slice, { dryRun, asked, ref });
+    if (status !== 0) return status;
+  }
+  return 0;
+}
+
+/** One slice's reading and run. */
+async function sinceSlice({ suite: name, config }, { dryRun, asked, ref }) {
+  const vitest = (...files) => spawnSync('yarn', ['vitest', 'run', '--config', config, ...files], { cwd: ROOT, stdio: 'inherit' }).status ?? 1;
+  const base = await recordToRead(ROOT, { suite: name });
   const snapshotFile = base.file;
   if (base.from === 'none' || !existsSync(snapshotFile)) {
+    // No record is no opinion, so the slice runs whole, and the run is what
+    // records it. A slice no record is carried for reads this way in CI.
     say(
-      'test:since: no execution snapshot on disk, so nothing here has an opinion about anything.',
+      'test:since: no execution snapshot on disk, so the whole slice runs, and records itself.',
       `  looked in ${snapshotFile}`,
       ...(base.note === undefined ? [] : [`  mainline ${base.note}`]),
-      '  Run `yarn test` once — it records what each file entered — and ask again.',
     );
-    return 1;
+    return dryRun ? 0 : vitest();
   }
 
   /**
@@ -264,12 +300,12 @@ async function main() {
   }
   let suite;
   try {
-    suite = suiteFiles(ROOT);
+    suite = suiteFiles(ROOT, config);
   } catch (error) {
     // The runner has already printed why on stderr; what is left to say is
     // which question went unanswered and what that stops.
     const status = typeof error?.status === 'number' ? `exited ${error.status}` : `failed: ${String(error?.message ?? error).split('\n')[0]}`;
-    say(`test:since: \`yarn vitest list --filesOnly\` ${status}, so there is no suite to select from.`);
+    say(`test:since: \`yarn vitest list --filesOnly --config ${config}\` ${status}, so there is no slice to select from.`);
     return 1;
   }
   const read = await readChange({
@@ -305,14 +341,14 @@ async function main() {
 
   if (decided.widened !== undefined) {
     say(
-      `test:since: running the whole suite — ${decided.widened}.`,
+      `test:since: running the whole slice — ${decided.widened}.`,
       ...recordLine(base),
       `  ${suite.length} files`,
       costLine(suite, recorded),
       '',
     );
     if (dryRun) return 0;
-    return spawnSync('yarn', ['vitest', 'run'], { cwd: ROOT, stdio: 'inherit' }).status ?? 1;
+    return vitest();
   }
   const { selected } = decided;
 
@@ -389,12 +425,12 @@ async function main() {
     );
     return 0;
   }
-  const result = spawnSync('yarn', ['vitest', 'run', ...running], { cwd: ROOT, stdio: 'inherit' });
+  const status = vitest(...running);
   if (left.length > 0) {
     const further = range.to === Number.MAX_SAFE_INTEGER ? '' : `; \`--at-distance ${range.to + 1}-\` runs those further out`;
     say('', `test:since: ${left.length} selected file(s) were not in this leg${further}.`);
   }
-  return result.status ?? 1;
+  return status;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
