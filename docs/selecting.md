@@ -98,6 +98,76 @@ what the change does, the graph says who uses it, and the record says which test
 ran there. When one of them cannot answer, the run falls back to a coarser
 answer, such as the changed lines instead of the edit, and names the file.
 
+## What a CI checkout needs
+
+Selection asks git for three things, and a checkout of one commit can answer
+none of them:
+
+- **The merge base** of `HEAD` and your mainline. `variance run --since <ref>`
+  diffs from it.
+- **The commit the record was made at.** `variance select` diffs from it,
+  because the record's line ranges are numbered in that commit's text. A record
+  published from the mainline can be any number of commits behind your branch
+  point.
+- **How many commits apart those two are.**
+  [Looking up a published record](sharing.md#looking-up-mainlines-record)
+  counts them, and the count decides whether the record is usable.
+
+When git cannot list the diff, the run stops with an error instead of
+narrowing, because an unreadable diff and an empty one look the same and an
+empty one skips every test.
+
+**Fetch every commit, and no trees.** On GitHub Actions:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+    filter: tree:0
+```
+
+With plain git, that is `git clone --filter=tree:0 <url>`. The clone has the
+full commit graph, so the merge base and the count are exact, and it has the
+trees and files of the commit it checked out. Git fetches the other trees and
+files on the first command that reads them: a diff asks for everything it reads
+in one request. A checkout of a material-ui pull request, measured from one
+laptop:
+
+| What the checkout fetches | Time | `.git` |
+| --- | --- | --- |
+| every commit, tree and file | 42.6 s | 762 MB |
+| every commit and tree, no files (`filter: blob:none`) | 22.5 s | 297 MB |
+| every commit, no trees (`filter: tree:0`) | 20.0 s | 252 MB |
+| the latest commit only (the default `fetch-depth: 1`) | 14.7 s | 231 MB |
+
+On Kibana, whose full history is 17.7 GB, the `tree:0` checkout takes 79 s and
+596 MB, and a depth-1 checkout with `blob:none` takes 97 s and 489 MB.
+
+**The clone keeps its credential.** Every tree git fetches later uses the
+remote's credential, so in a private repository leave `persist-credentials` at
+its default. The job's code can then read the token, so give that job a token
+that can only read, such as `permissions: contents: read`.
+
+**On a pull request, two commits are enough for `run --since`.** The
+`pull_request` event checks out the merge of your branch into the mainline,
+and that commit's first parent is the mainline's tip. With `fetch-depth: 2`,
+`variance run --since HEAD^1` diffs exactly your branch's changes. On Kibana
+that checkout fetches 8 MB in 3.2 s. It has no merge base and no record's
+commit, so it cannot use a published record.
+
+A fixed depth is never safe, because both commits change while the pull request
+is open: the mainline gains commits, and every publish names a new record. The
+other ways to fetch less give a wrong answer or cost more:
+
+- **A depth computed from the compare API** finds the merge base, but a shallow
+  clone counts only the commits it has: 109 where the history has 133 on
+  material-ui, 415 where it has 698 on Kibana.
+- **`--shallow-since` the merge base's date** cuts commits from a branch that
+  merged its mainline in, and the merge base is lost.
+- **Deepening until the merge base appears** is correct only when it also
+  checks that no shallow cut hides a newer common ancestor. On Kibana it took 4
+  to 13 fetches and 13 to 62 s.
+
 ## What a change to a module's top level runs
 
 A line at a module's top level sits in no function, so by its lines alone it is

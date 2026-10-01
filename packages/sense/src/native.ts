@@ -208,6 +208,11 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)).
    */
   resolveSources?(root: string, file: string, sources: string[], listed?: string[]): string[];
+  /**
+   * Fetch in one request the blobs at `commit` of `paths` a partial clone has not fetched yet.
+   * `false` when no remote promised any, so a path a read found missing is absent.
+   */
+  fetchMissingAt?(root: string, commit: string, paths: string[]): boolean;
   /** Of these files, those whose nearest `package.json` declares that loading them does something. */
   declaredEffects?(root: string, files: string[]): string[];
   /** Read, fold, and encode one run's case journals without crossing rows into V8. */

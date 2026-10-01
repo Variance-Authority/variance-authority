@@ -116,3 +116,80 @@ fn a_file_moved_since_the_commit_is_read_under_the_path_the_commit_had() {
     assert_eq!(missing, "commit 0123456789ab is not in this checkout's object store");
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+/// A clone of a five-file history made with `--filter=<filter>`, holding only
+/// what its checkout needed, so the five texts at the first commit are on the
+/// server alone. The server's `upload-pack` appends a line to `requests` for
+/// every request it answers; with `refuse_first`, it refuses the first one made
+/// after the clone.
+#[cfg(unix)]
+fn partial_clone(name: &str, filter: &str, refuse_first: bool) -> (std::path::PathBuf, String, std::path::PathBuf, String) {
+    use std::os::unix::fs::PermissionsExt;
+    let base = std::env::temp_dir().join(format!("sense-journeys-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let (source, clone) = (base.join("source"), base.join("clone"));
+    std::fs::create_dir_all(&source).unwrap();
+    let base = std::fs::canonicalize(base).unwrap();
+    let text = |at: usize, then: bool| format!("export const at{at} = {};\n", if then { at + 1 } else { (at + 1) * 10 });
+    for at in 0..5 {
+        std::fs::write(source.join(format!("f{at}.ts")), text(at, true)).unwrap();
+    }
+    git(&source, &["init", "--quiet"]);
+    git(&source, &["config", "uploadpack.allowFilter", "true"]);
+    git(&source, &["config", "uploadpack.allowAnySHA1InWant", "true"]);
+    git(&source, &["add", "-A"]);
+    git(&source, &["commit", "--quiet", "-m", "then"]);
+    let then = git(&source, &["rev-parse", "HEAD"]);
+    for at in 0..5 {
+        std::fs::write(source.join(format!("f{at}.ts")), text(at, false)).unwrap();
+    }
+    git(&source, &["commit", "--quiet", "-am", "now"]);
+
+    let requests = base.join("requests");
+    let serve = base.join("serve");
+    let refuse = if refuse_first { "[ \"$(wc -l < \"$log\")\" -eq 1 ] && exit 1\n" } else { "" };
+    let script = format!("#!/bin/sh\nlog='{}'\necho request >> \"$log\"\n{refuse}exec git upload-pack \"$@\"\n", requests.display());
+    std::fs::write(&serve, script).unwrap();
+    std::fs::set_permissions(&serve, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let url = format!("file://{}", base.join("source").display());
+    git(&base, &["clone", "--quiet", &format!("--filter={filter}"), &url, clone.to_str().unwrap()]);
+    git(&clone, &["config", "remote.origin.uploadpack", serve.to_str().unwrap()]);
+    std::fs::write(&requests, "").unwrap();
+    let expected = (0..5).map(|at| text(at, true)).collect::<Vec<_>>().join("");
+    (clone, then, requests, expected)
+}
+
+#[cfg(unix)]
+fn read_in_order(texts: &HashMap<String, Option<String>>) -> String {
+    (0..5).map(|at| texts[&format!("f{at}.ts")].clone().unwrap_or_default()).collect()
+}
+
+#[cfg(unix)]
+#[test]
+fn a_partial_clone_fetches_the_texts_at_the_commit_in_one_request() {
+    let (clone, then, requests, expected) = partial_clone("prefetch", "blob:none", false);
+    let texts = text_at(clone.to_str().unwrap(), &then).unwrap();
+    assert_eq!(read_in_order(&texts), expected);
+    assert_eq!(std::fs::read_to_string(&requests).unwrap().lines().count(), 1, "one request for five blobs");
+    std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_refused_prefetch_still_reads_every_text_one_request_at_a_time() {
+    let (clone, then, requests, expected) = partial_clone("refused", "blob:none", true);
+    let texts = text_at(clone.to_str().unwrap(), &then).unwrap();
+    assert_eq!(read_in_order(&texts), expected, "a failed prefetch is not a missing text");
+    assert_eq!(std::fs::read_to_string(&requests).unwrap().lines().count(), 6, "the refused request, then one per blob");
+    std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_treeless_clone_fetches_the_trees_and_then_the_texts_in_two_requests() {
+    let (clone, then, requests, expected) = partial_clone("treeless", "tree:0", false);
+    let texts = text_at(clone.to_str().unwrap(), &then).unwrap();
+    assert_eq!(read_in_order(&texts), expected);
+    assert_eq!(std::fs::read_to_string(&requests).unwrap().lines().count(), 2, "one request for the trees, one for the blobs");
+    std::fs::remove_dir_all(clone.parent().unwrap()).unwrap();
+}

@@ -201,7 +201,8 @@ export async function review(request: ParsedReview): Promise<Review> {
     const whose = mainline === undefined ? '' : `, where mainline ${mainline.mainline} published its record of "${mainline.suite}",`;
     throw new OperatorError(
       `\`${ref}\`${whose} could not be read as a diff. Check the commit is in this checkout's history: ` +
-        'a shallow clone holds only the tip, so fetch the base, or check out with `fetch-depth: 0`.',
+        'a shallow clone has only the tip, so fetch the base, or check out every commit and no trees: ' +
+        '`git clone --filter=tree:0`, or `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`.',
     );
   }
 

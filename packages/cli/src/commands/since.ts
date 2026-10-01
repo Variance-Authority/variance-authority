@@ -73,7 +73,7 @@ export async function changedSince(ref: string, roots: readonly string[] = []): 
       `\`--since ${ref}\` could not list what changed: ${messageOf(error)}. ` +
         'A run that answered this with an empty diff would narrow itself to nothing and report ' +
         'success, so it refuses instead. Check the ref exists and that this is a git checkout ' +
-        '(a shallow CI clone often needs `fetch-depth: 0`).',
+        '(a shallow CI clone needs every commit: `fetch-depth: 0` with `filter: tree:0`).',
     );
   }
 }

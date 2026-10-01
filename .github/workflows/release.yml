@@ -76,7 +76,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           # Full history: `changelog-git` names the commit each changeset arrived
-          # in, and a shallow checkout does not have them.
+          # in, and a shallow checkout does not have them. With its trees: the
+          # answer is a log filtered by path, which reads a tree per commit, and
+          # a clone without them would fetch each one in its own request.
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
