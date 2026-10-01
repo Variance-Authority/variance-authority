@@ -132,7 +132,8 @@ occurs, and the unplaced last, with no `hops`.
   leg whose top is at or past the furthest hop the reading placed, and an open
   top such as `3-` always is. So when nothing was placed beyond two hops, `0-2`
   and `3-` both return them. Take the later leg from `remaining` to run each
-  test once.
+  test once. A reading that placed nothing gives them to an open range only, so
+  `0-2` returns none of them there.
 - A current test file that is **not in `distances` at all** is a different case,
   and `atDistance` cannot return it, because it was never passed in. Your
   integration owns the test inventory: diff it against `distances`, keep the
