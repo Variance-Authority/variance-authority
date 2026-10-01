@@ -40,7 +40,10 @@ export function ask(root: string, args: readonly string[], input?: string): Prom
       const code = error === null ? 0 : typeof error.code === 'number' ? error.code : -1;
       done({ code, out: String(stdout).trim(), said: String(stderr).trim().split('\n')[0] ?? '' });
     });
-    child.stdin?.end(input ?? '');
+    if (input === undefined || child.stdin === null) return;
+    // A git that exits before it reads its input closes the pipe; its exit code is the answer.
+    child.stdin.on('error', () => undefined);
+    child.stdin.end(input);
   });
 }
 
