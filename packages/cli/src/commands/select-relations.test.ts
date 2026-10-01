@@ -105,6 +105,21 @@ describe('selecting by the file graph when the record cannot answer', () => {
     expect(said.err).toContain('--since');
   });
 
+  it('skips nothing for a patch handed in, which names no ref to walk from', async () => {
+    const { root } = checkout();
+    writeFileSync(join(root, 'src/widget.ts'), "export const widget = (): string => 'c';\n");
+    const patch = join(root, '..', `${root.split('/').pop()}.patch`);
+    writeFileSync(patch, execFileSync('git', ['diff'], { cwd: root, encoding: 'utf8' }));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain', diff: patch });
+
+    expect(said.out).toBe('');
+    expect(said.err).toContain('skipping nothing');
+    expect(said.err).toContain('`--diff` names none');
+  });
+
   it('skips nothing when the walk refuses, and gives its reason', async () => {
     // A deleted file is in no graph, so the walk cannot say what it reached —
     // and the test that imported it is the one that has to run.
