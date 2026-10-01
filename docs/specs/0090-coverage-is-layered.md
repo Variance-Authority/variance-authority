@@ -105,10 +105,12 @@ mainline ref is one commit") and the no-history paragraph in
 `docs/sharing.md`, and is recorded in ADR-0084.
 
 **4. A merge queue publishes the snapshot main is about to become.** Only if
-the repository adopts one. A `merge_group` run publishes at its `head_sha`;
-main fast-forwards to that commit, so its snapshot exists when main changes.
-A group the queue ejects leaves a snapshot that is no commit's ancestor, and
-the window drops it. `runLineOf` maps `merge_group` and `gh-readonly-queue/*`
+the repository adopts one. A `merge_group` run publishes at its `head_sha`.
+GitHub's queue builds that commit with the merge method it is configured for and
+moves main to it, so its snapshot exists when main changes; nothing here relies
+on that. A reader takes the snapshot only through item 3's rule, the newest
+snapshot whose commit HEAD contains, so a snapshot whose commit main never
+reached, ejected or rewritten, is no commit's ancestor and the window drops it. `runLineOf` maps `merge_group` and `gh-readonly-queue/*`
 to the mainline instead of refusing them.
 
 ## Decided
