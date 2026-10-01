@@ -168,7 +168,10 @@ jobs:
       recording_unit: ${{ steps.base.outputs.recording_unit }}
       recording_integration: ${{ steps.base.outputs.recording_integration }}
       handed: ${{ steps.hand.outcome == 'success' }}
-      handed_integration: ${{ steps.hand_integration.outcome == 'success' }}
+      # The artifact's id rather than the step's outcome: an upload with no
+      # files succeeds and makes no artifact, which is what a red unit slice
+      # leaves, because `yarn test` then never starts the integration one.
+      handed_integration: ${{ steps.hand_integration.outputs.artifact-id != '' }}
 
     steps:
       # Every commit, because the review below diffs from a base it does not
