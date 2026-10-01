@@ -150,6 +150,20 @@ describe('the milestone under a checkout', () => {
     expect(await readCommitRuns(own)).toMatchObject({ commit: next, over: next, files: ['test/total.test.ts'] });
   });
 
+  it('lays a newer snapshot whole when this checkout recorded under other probes', async () => {
+    const { ci, worktree, own } = await laidWorktree();
+    const next = await publishedNext(ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await landRun(own, { ...ranAlone(next, 'test/total.test.ts'), instrumentation: 'other probes' }, worktree);
+    await refetch(worktree, next);
+
+    const base = await suiteBase(worktree, { env: LOCAL });
+
+    expect(base).toMatchObject({ from: 'own', repin: { repinned: true, kept: [], dropped: ['test/total.test.ts'] }, layer: { ran: [] } });
+    expect(crossers(await readTestCoverage(own))).toEqual(['test/other.test.ts', 'test/total.test.ts']);
+  });
+
   it('is kept when the newer snapshot is of a commit HEAD does not contain', async () => {
     const { ci, first, worktree, own } = await laidWorktree();
     await landRun(own, ranAlone(first, 'test/total.test.ts'), worktree);

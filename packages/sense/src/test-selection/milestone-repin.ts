@@ -90,7 +90,7 @@ function refusal(layer: OwnLayer | undefined, record: LastFetched, root: string)
 async function repin(coverageFile: string, record: LastFetched, root: string, layer: OwnLayer): Promise<Repin> {
   let own: TestCoverage;
   let milestone: Buffer;
-  let comparable: boolean;
+  let instrumentation: string;
   try {
     own = decodeTestCoverage(await readFile(coverageFile));
     milestone = await readFile(record.coverage);
@@ -100,32 +100,41 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
     if (whole === undefined) return { repinned: false, why: 'unreadable' };
     // Rows recorded under other probes cannot be laid over the milestone's:
     // it answers for every test.
-    comparable = whole.view.instrumentation === own.instrumentation;
+    instrumentation = whole.view.instrumentation;
   } catch {
     return { repinned: false, why: 'unreadable' };
   }
   // A state git cannot place is answered by the milestone: a wider read,
-  // never one that skips.
-  const states = comparable ? layer.ran.filter((state) => ancestor(root, record.commit, state.commit) === true) : [];
+  // never one that skips. So is a test the ledger lists and the record holds
+  // no row of, which a run under other probes left behind.
+  const held = new Set(own.tests.map((test) => test.file));
+  const states = instrumentation !== own.instrumentation ? [] : layer.ran
+    .filter((state) => ancestor(root, record.commit, state.commit) === true)
+    .map((state) => ({ ...state, files: state.files.filter((file) => held.has(file)) }))
+    .filter((state) => state.files.length > 0);
   const kept = new Set(states.flatMap((state) => state.files));
   const dropped = [...new Set(layer.ran.flatMap((state) => state.files))].filter((file) => !kept.has(file));
-  const subset = ownSubset(own, kept);
+  // Under the milestone's probes, so a subset of nothing lays the milestone as it is.
+  const subset = { ...ownSubset(own, kept), instrumentation };
   const bytes = layerTestCoverage(milestone, subset, await carriedSources(root, milestone, subset));
 
   const cases = await repinnedCases(coverageFile, record, kept);
   const view = openTestCoverage(bytes);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
-  const runs = repinnedRuns(await readCommitRuns(coverageFile), record, states, recorded, kept);
+  const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, states, recorded, kept);
 
-  // The side files first and the snapshot after them, as a lay writes them; a
-  // case layer's side files describe runs over the old pin and go with it.
+  // The snapshot first: its new rows beside the old runs record read the
+  // milestone's tests from the old pin, which only widens, where the new runs
+  // record beside the old rows would read changes since the old pin as
+  // nobody's. A case layer's side files describe runs over the old pin and go
+  // with it.
+  await writeCoverageBytes(coverageFile, bytes);
   const { last, before } = caseLayerFiles(coverageFile);
   await Promise.all([rm(last, { force: true }), rm(before, { force: true })]);
   if (cases === undefined) await rm(`${coverageFile}.cases.bin`, { force: true });
   else await writeCoverageBytes(`${coverageFile}.cases.bin`, cases);
   if (runs === undefined) await rm(commitRunsFile(coverageFile), { force: true });
   else await writeCommitRuns(commitRunsFile(coverageFile), runs);
-  await writeCoverageBytes(coverageFile, bytes);
   await writeOwnLayer(coverageFile, { pinned: { mainline: record.mainline, commit: record.commit }, ran: states });
   return { repinned: true, from: layer.pinned!.commit, to: record.commit, kept: [...kept], dropped };
 }
@@ -174,16 +183,17 @@ async function repinnedCases(coverageFile: string, record: LastFetched, tests: R
   });
   const fresh = encodeAsSetExecutionIndex({
     tests: cases,
-    modules: index.modules.map((module) => ({
-      ...module,
-      blocks: module.blocks.map((block) => ({
+    // A module no kept case entered keeps the milestone's layout of it.
+    modules: index.modules.flatMap((module) => {
+      const blocks = module.blocks.map((block) => ({
         ...block,
         crossings: block.crossings.flatMap((crossing) => {
           const test = at.get(crossing.test);
           return test === undefined ? [] : [{ ...crossing, test }];
         }),
-      })),
-    })),
+      }));
+      return blocks.some((block) => block.crossings.length > 0) ? [{ ...module, blocks }] : [];
+    }),
   });
   return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true }).merged;
 }
@@ -196,6 +206,7 @@ async function repinnedCases(coverageFile: string, record: LastFetched, tests: R
  */
 function repinnedRuns(
   held: CommitRuns | undefined,
+  commit: string | undefined,
   record: LastFetched,
   states: readonly OwnState[],
   recorded: readonly string[],
@@ -214,7 +225,9 @@ function repinnedRuns(
     if (same === undefined) standing.push({ commit: state.commit, files: rest });
     else standing.splice(standing.indexOf(same), 1, { commit: same.commit, files: [...same.files, ...rest].sort(codeUnitOrder) });
   }
-  return { ...held, over: record.commit, files, standing };
+  // At the snapshot's own commit, which repairs a runs record a crash left
+  // naming another.
+  return { ...held, ...(commit === undefined ? {} : { commit }), over: record.commit, files, standing };
 }
 
 /** Whether `older` is an ancestor of `newer` in `root`, or `undefined` when git cannot say. */
