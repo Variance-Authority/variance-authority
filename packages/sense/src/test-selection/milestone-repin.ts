@@ -41,6 +41,7 @@ export type Repin =
   | { readonly repinned: true; readonly from: string; readonly to: string; readonly kept: readonly string[]; readonly dropped: readonly string[] }
   | { readonly repinned: false; readonly why: RepinRefusal };
 
+/** Why {@link repinOwnLayer} left the record on the milestone it stands on. */
 export type RepinRefusal =
   /** The record has no ledger, or the ledger names no milestone: there is nothing to move. */
   | 'unpinned'

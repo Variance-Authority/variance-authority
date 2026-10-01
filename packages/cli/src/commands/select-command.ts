@@ -49,16 +49,8 @@ import { join } from 'node:path';
 import type { CommitRuns, ExecutionNarrowing, Stand, StandReading } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor } from './execution-input.js';
-import {
-  installDiff,
-  installDiffs,
-  installDiffOfPatch,
-  movedPackages,
-  patchPreimages,
-  withMovedPackages,
-  withoutManifests,
-  type InstallDiff,
-} from './installed.js';
+import { installDiff, installDiffs, installDiffOfPatch, movedPackages, type InstallDiff } from './installed.js';
+import { patchPreimages, withMovedPackages, withoutManifests } from './installed.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
