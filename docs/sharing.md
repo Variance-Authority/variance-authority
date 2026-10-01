@@ -440,9 +440,10 @@ so the next command reads it from disk.
   neither commit descends from the other. A shallow clone that has both
   commits gets this too when its history between them is cut: `git rev-list
   --count` stops at the cut and prints a smaller number, so a count whose walk
-  reaches the cut is not printed. The lookup still answers. Fetch with
-  `fetch-depth: 0`, or deep enough to hold the record's commit and every commit
-  between it and `HEAD`, to get the number.
+  reaches the cut is not printed. The lookup still answers. To get the number,
+  check out every commit and no trees: `fetch-depth: 0` with `filter: tree:0`
+  on `actions/checkout`. No fixed depth is enough, because both commits change
+  while the branch is open.
 
 A distance *past* the merge base means your mainline has changed since you
 branched: update your branch to measure against it.
