@@ -292,12 +292,12 @@ jobs:
           echo '### 📊 Coverage' >> "$body"
           if [ -n "$AGAINST" ]; then
             node packages/cli/dist/bin.js coverage --suite unit --against "$AGAINST" --packages --format markdown >> "$body"
-            # No record is carried for the integration slice, so it has no
-            # base and is printed without a comparison.
-            node packages/cli/dist/bin.js coverage --suite integration --packages --format markdown >> "$body"
           else
             node packages/cli/dist/bin.js coverage --suite unit --packages --format markdown >> "$body"
           fi
+          # No record is carried for the integration slice, so it has no base
+          # and is printed without a comparison.
+          node packages/cli/dist/bin.js coverage --suite integration --packages --format markdown >> "$body"
           cat "$body" >> "$GITHUB_STEP_SUMMARY"
           echo "body=$body" >> "$GITHUB_OUTPUT"
 
