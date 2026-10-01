@@ -92,4 +92,31 @@ describe('a distance in a shallow clone that holds the record', () => {
     expect.soft(await readerMainline(config, {}, clone)).toEqual({ name: 'main' });
     expect.soft(await note(clone, record)).toContain('at a distance this clone cannot count');
   });
+
+  it('is counted exactly when the record is cut and a commit below its cut came in another way', async () => {
+    // root → record, and root → side; merge = (record, side). A clone of the
+    // record one deep, then a plain fetch of the merge: the record stays a cut
+    // commit, and root arrives through side, so `record..merge` walks root.
+    const origin = await mkdtemp(join(tmpdir(), 'variance-clone-cut-porous-'));
+    const clone = await mkdtemp(join(tmpdir(), 'variance-clone-cut-porous-clone-'));
+    made.push(origin, clone);
+    git(origin, 'init', '-q', '-b', 'main');
+    git(origin, 'commit', '-q', '--allow-empty', '-m', 'root');
+    git(origin, 'checkout', '-q', '-b', 'side');
+    git(origin, 'commit', '-q', '--allow-empty', '-m', 'side');
+    git(origin, 'checkout', '-q', 'main');
+    git(origin, 'commit', '-q', '--allow-empty', '-m', 'record');
+    const record = git(origin, 'rev-parse', 'HEAD');
+    git(origin, 'branch', 'record');
+    git(origin, 'merge', '-q', '--no-ff', 'side', '-m', 'merge');
+    git(clone, 'clone', '-q', '--depth', '1', '--branch', 'record', pathToFileURL(origin).href, '.');
+    git(clone, 'fetch', '-q', 'origin', 'main:refs/remotes/origin/main');
+    git(clone, 'checkout', '-q', '--detach', 'origin/main');
+    expect(git(clone, 'rev-parse', '--git-path', 'shallow')).toBeTruthy();
+    // Past the record: side and the merge. Git also counts root, which the record's cut hides from it.
+    expect(Number(git(clone, 'rev-list', '--count', `${record}..HEAD`))).toBe(3);
+
+    expect.soft(await headPast(record, clone)).toBe(2);
+    expect.soft(await note(clone, record)).toContain('2 commit(s) before HEAD');
+  });
 });
