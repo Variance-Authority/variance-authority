@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, realpath, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -102,7 +102,9 @@ function ranAlone(commit: string, file: string): TestCoverage {
 
 async function refetch(worktree: string, commit: string): Promise<void> {
   // The share's line was read within the minute a reader reuses it for.
-  await run('find', [join(home, 'laptop-cache'), '-path', '*/variance-fetched/*', '-type', 'f', '-exec', 'touch', '-t', '200001010000', '{}', '+']);
+  const cache = join(home, 'laptop-cache');
+  const markers = (await readdir(cache, { recursive: true })).filter((path) => path.includes('variance-fetched'));
+  await Promise.all(markers.map((path) => utimes(join(cache, path), 0, 0)));
   const declared = declaredSuites(worktree)?.find((one) => one.name === 'unit');
   expect(await mainlineBase(worktree, declared, { env: LOCAL, refetch: true })).toMatchObject({ commit });
 }
