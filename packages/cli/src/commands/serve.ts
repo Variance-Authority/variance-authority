@@ -34,7 +34,7 @@ import { reportSource } from './report-source.js';
  *
  * ## One `ask`, and one server behind it
  *
- * The nine source questions are on this server too, from the same `HELP_TOOLS`
+ * The source questions are on this server too, from the same `HELP_TOOLS`
  * the CLI mounts on `variance ask`. A workspace that has this package needs
  * nothing from `@variance-authority/help`'s binary, over either transport, and
  * that is the point: two servers answering about one checkout is two connections
@@ -50,7 +50,7 @@ import { reportSource } from './report-source.js';
 /** A run's report, and the workspace reading — whichever of them a question needed. */
 interface Bench {
   readonly report: RunReport;
-  /** Absent until one of the nine is asked; nothing else reads it. */
+  /** Absent until a source question is asked; nothing else reads it. */
   readonly help?: Help;
   /** The mainline's subject costs, read when `variance_costs` is asked and at no other time. */
   readonly costs?: CostsSubject;

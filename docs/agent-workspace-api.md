@@ -211,7 +211,7 @@ The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
 generation. [Ask a run from the command
 line](agent-cli.md#ask-the-code-when-the-name-is-not-in-the-run) shows each one.
 
-The nine are also tools on `variance serve`, under the same names as below, so
+The source questions are also tools on `variance serve`, under the same names as below, so
 a workspace with the CLI declares one server for the run and the source
 together. The rest of this page is that contract, whichever of the two serves
 it.

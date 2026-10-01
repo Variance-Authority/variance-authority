@@ -87,10 +87,10 @@ one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
 
-The same nine are questions on `variance ask` wherever
+The same questions are on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
-is installed — `npx variance ask search --query viewport` — and the same nine
-are tools on `variance serve`, beside the ones about a run. A workspace that
+is installed — `npx variance ask search --query viewport` — and the same
+tools are on `variance serve`, beside the ones about a run. A workspace that
 runs the visual suite needs nothing from this package over either transport.
 This package is for the workspace that does not run one.
 
@@ -394,7 +394,7 @@ Two import specifiers:
 | specifier | needs | exports |
 |---|---|---|
 | `@variance-authority/help` | a stdio pair, to serve | `serveWorkspace` and `writePages` |
-| `@variance-authority/help/tools` | nothing | the six answers, as pure functions from a reading to text |
+| `@variance-authority/help/tools` | nothing | the answers, as pure functions from a reading to text |
 
 The functions in `@variance-authority/help/tools` have no MCP dependency, so
 you can call them directly, test them in isolation, or embed them in another
@@ -420,7 +420,7 @@ for (const file of writePages('.', 'docs/api', {
 }
 ```
 
-`readWorkspace` is the reading the six answers are asked of, for a program that
+`readWorkspace` is the reading the answers are asked of, for a program that
 wants to ask more than one of them or to ask them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
 and who imports it. Eight options, all optional: `index`, the path of the source
