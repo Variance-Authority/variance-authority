@@ -10800,6 +10800,7 @@ __metadata:
     jsdom: "npm:^30.0.1"
     oxc-parser: "npm:^0.144.0"
     oxlint: "npm:^1.77.0"
+    picomatch: "npm:^4.0.7"
     pixelmatch: "npm:^7.2.0"
     pngjs: "npm:^7.0.0"
     react: "npm:^19"

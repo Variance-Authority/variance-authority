@@ -499,6 +499,47 @@ jobs:
             exit 1
           fi
 
+  reach:
+    # Which cases the change reached, decided before `cases` pulls its image. A
+    # case runs this project's built packages in child processes, so no record
+    # says which region of which module it entered and `test:since` cannot select
+    # it; `tools/cases-reached.mjs` selects at the grain of a workspace package
+    # instead, through each case's manifest closure, and says why on the log.
+    #
+    # On a pull request the checkout is the merge commit, so its first parent is
+    # the base the change is measured against. A push to `main` and a manual run
+    # have no such base and run every case: that is the run a pull request's
+    # selection is judged by.
+    runs-on: ubuntu-24.04
+    outputs:
+      cases: ${{ steps.reach.outputs.cases }}
+      paths: ${{ steps.reach.outputs.paths }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - name: what the change reached
+        id: reach
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            node tools/cases-reached.mjs --since HEAD^1 --format github >> "$GITHUB_OUTPUT"
+          else
+            node tools/cases-reached.mjs --format github >> "$GITHUB_OUTPUT"
+          fi
+
   cases:
     # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a
     # real Rstest, and every file in it that needs a Chromium or a built subject
@@ -515,6 +556,12 @@ jobs:
     # The cases' own fixture files stay at zero coverage: they run in child
     # processes and builds that carry no probe. Running them does not move that
     # figure, and nothing here claims it does.
+    #
+    # Only the cases `reach` selected run, and a change that reached none skips
+    # the job before its image is pulled. The Storybooks and the incumbent are
+    # built only for the case that observes them.
+    needs: reach
+    if: ${{ needs.reach.outputs.paths != '' }}
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
@@ -567,6 +614,7 @@ jobs:
       # `storybook-static/` and the others are ignored, so nothing here can be
       # stale against a committed copy.
       - name: build the Storybooks
+        if: ${{ contains(fromJSON(needs.reach.outputs.cases), 'cases/storybook-case') }}
         shell: bash
         run: |
           yarn workspace @variance-authority/case-storybook build-storybook
@@ -574,14 +622,19 @@ jobs:
           yarn workspace @variance-authority/case-storybook build-storybook:a11y
 
       - name: record the incumbent
+        if: ${{ contains(fromJSON(needs.reach.outputs.cases), 'cases/incumbent-case') }}
         shell: bash
         run: yarn workspace @variance-authority/case-incumbent incumbent
 
       # The cases' own unit tests, then the ones that launch a browser, each
       # under its slice's config (`vitest.config.mts` says why they are apart).
+      # A selected case may hold no file of one slice, so neither run fails for
+      # finding none.
       - name: run the cases
         shell: bash
-        run: yarn test:unit cases && yarn test:chromium cases
+        env:
+          CASES: ${{ needs.reach.outputs.paths }}
+        run: yarn test:unit --passWithNoTests $CASES && yarn test:chromium --passWithNoTests $CASES
 
   # The one check a branch rule names, and the one line that combines the three
   # above. `needs` alone would skip this job when one of them failed, and a
@@ -589,8 +642,11 @@ jobs:
   # turns every harness's result into its own colour. Anything but `success`
   # is red, `cancelled` and `skipped` included: a harness that did not finish
   # said nothing about the change.
+  #
+  # `reach` is here although `cases` is not: a selector that failed skips
+  # `cases`, and a skip there must not read as a change that reached no case.
   check:
-    needs: [rules, measure, suite]
+    needs: [reach, rules, measure, suite]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
