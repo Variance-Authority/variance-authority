@@ -26,6 +26,7 @@ import {
   type ShareMiss,
 } from '@variance-authority/core/share';
 import { createDirectoryLineCell, createGitLineCell, gitDescends } from '@variance-authority/store/share';
+import { countPast } from './clone-cut.js';
 import type { Config } from './config.js';
 import { ConfigError } from './config-values.js';
 import { shareRoot } from './commands/resources.js';
@@ -202,7 +203,7 @@ export async function headPast(commit: string, cwd: string = process.cwd()): Pro
     );
   });
   if (contains !== true) return contains;
-  return count(`${commit}..HEAD`, cwd);
+  return countPast(cwd, commit, 'HEAD');
 }
 
 /** How long a reader reuses a fetched line: one editor session asking ten questions fetches once. */
@@ -317,8 +318,8 @@ export async function distanceFrom(
 ): Promise<number | undefined> {
   const base = (await git(['merge-base', 'HEAD', `refs/remotes/${remoteOf(config)}/${mainline}`], cwd))?.trim();
   if (base === undefined || base === '') return undefined;
-  const behind = await count(`${commit}..${base}`, cwd);
-  const ahead = await count(`${base}..${commit}`, cwd);
+  const behind = await countPast(cwd, commit, base);
+  const ahead = await countPast(cwd, base, commit);
   if (behind === undefined || ahead === undefined) return undefined;
   if (ahead === 0) return behind;
   if (behind === 0) return -ahead;
@@ -328,12 +329,7 @@ export async function distanceFrom(
 async function sinceMergeBase(config: Pick<Config, 'share'>, mainline: string, cwd: string): Promise<number | undefined> {
   const base = (await git(['merge-base', 'HEAD', `refs/remotes/${remoteOf(config)}/${mainline}`], cwd))?.trim();
   if (base === undefined || base === '') return undefined;
-  return count(`${base}..HEAD`, cwd);
-}
-
-async function count(range: string, cwd: string): Promise<number | undefined> {
-  const listed = (await git(['rev-list', '--count', range], cwd))?.trim();
-  return listed === undefined || listed === '' ? undefined : Number(listed);
+  return countPast(cwd, base, 'HEAD');
 }
 
 function remoteOf(config: Pick<Config, 'share'> | undefined): string {

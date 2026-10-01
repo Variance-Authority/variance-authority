@@ -436,9 +436,14 @@ so the next command reads it from disk.
   than your merge base.
 - `N commit(s) past the merge base with this checkout` — the record is newer.
 - `at a distance this clone cannot count` — your clone has no
-  `refs/remotes/<remote>/<mainline>`, does not have the record's commit (a
-  shallow clone often does not), or neither commit descends from the other. The
-  lookup still answers.
+  `refs/remotes/<remote>/<mainline>`, does not have the record's commit, or
+  neither commit descends from the other. A shallow clone that has both
+  commits gets this too when its history between them is cut: `git rev-list
+  --count` stops at the cut and prints a smaller number, so a count whose walk
+  reaches the cut is not printed. The lookup still answers. To get the number,
+  check out every commit and no trees: `fetch-depth: 0` with `filter: tree:0`
+  on `actions/checkout`, as [a CI checkout needs](selecting.md#what-a-ci-checkout-needs). No fixed depth is enough, because both commits change
+  while the branch is open.
 
 A distance *past* the merge base means your mainline has changed since you
 branched: update your branch to measure against it.

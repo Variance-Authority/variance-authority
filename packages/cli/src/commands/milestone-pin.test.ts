@@ -179,7 +179,7 @@ describe('the milestone under a checkout', () => {
 
     expect(base).toMatchObject({ from: 'own', repin: { repinned: false, why: 'not-ancestor' }, layer: { pinned: { commit: first } } });
     expect(await readFile(own)).toEqual(laid);
-    expect(checkoutRead('unit', worktree, base as Parameters<typeof checkoutRead>[2])).toContain('HEAD does not contain its commit');
+    expect(await checkoutRead('unit', worktree, base as Parameters<typeof checkoutRead>[2])).toContain('HEAD does not contain its commit');
   });
 
   it('names the tests that ran on another branch as such', async () => {
@@ -190,7 +190,7 @@ describe('the milestone under a checkout', () => {
     await landRun(own, ranAlone(elsewhere, 'test/other.test.ts'), worktree);
     await git(worktree, 'checkout', '--quiet', '--detach', first);
 
-    const note = checkoutRead('unit', worktree, { layer: (await readOwnLayer(own))! });
+    const note = await checkoutRead('unit', worktree, { layer: (await readOwnLayer(own))! });
 
     expect(note).toContain(`over mainline main at ${first.slice(0, 12)}, 0 commit(s) before HEAD`);
     expect(note).toContain(`test/other.test.ts at ${elsewhere.slice(0, 12)}, not on this branch`);
