@@ -105,7 +105,7 @@ describe('what a bulk decision is not allowed to reach', () => {
       .not.toHaveProperty('component');
   });
 
-  it('keeps one silhouette in two components as one change, named for the first', () => {
+  it('keeps one silhouette in two components as one change', () => {
     // The fingerprint is `fingerprintOfMask`: pixels only, no component. So the
     // same-looking change in `Avatar` and in `Badge` is one cluster, and
     // `accept --shape` on it promotes both.
@@ -116,11 +116,15 @@ describe('what a bulk decision is not allowed to reach', () => {
 
     expect(changes).toHaveLength(1);
     expect(changes[0]).toMatchObject({
-      component: 'Avatar',
       subjects: ['story:avatar', 'story:badge'],
       settles: ['story:avatar', 'story:badge'],
     });
   });
+
+  it.todo(
+    'names every component a change spans, not only the first region that names one — ' +
+      'needs `Change` to give a list of components and files, and its readers to print one',
+  );
 });
 
 describe('what is not grouped stays visible', () => {

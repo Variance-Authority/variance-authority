@@ -148,22 +148,11 @@ describe('the page leads with the cause', () => {
   });
 
   it('marks a change no region attributed, without implying a named one is grouped by more', () => {
-    // The fingerprint is a pixel silhouette for every change, named or not, so
-    // the marker says what is missing — a component — and not how the group
-    // was formed.
-    const unattributed = {
-      x: 4,
-      y: 4,
-      width: 16,
-      height: 16,
-      pixels: 86,
-      cause: false,
-      unattributed: true,
-      fingerprint: 'v1:2c4f9a1e0b7d3856a91c4e2f8b06d735',
-    };
-    const html = reportHtml(
-      reportOf({ observations: [{ ...CHANGED, regions: [unattributed] }] }),
-    );
+    // Every change is grouped by a pixel silhouette, named or not, so the marker
+    // says what is missing — a component — and not how the group was formed.
+    const unattributed = { x: 4, y: 4, width: 16, height: 16, pixels: 86, cause: false, unattributed: true };
+    const region = { ...unattributed, fingerprint: 'v1:2c4f9a1e0b7d3856a91c4e2f8b06d735' };
+    const html = reportHtml(reportOf({ observations: [{ ...CHANGED, regions: [region] }] }));
 
     expect(html).toContain('>shape only<');
     expect(html).toContain(
