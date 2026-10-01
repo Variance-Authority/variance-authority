@@ -30,12 +30,15 @@ id `component/button`. The `file:line` is not searched for after the fact: it is
 the source position of the component that drew the changed pixels.
 
 [`artifacts/provenance.json`](artifacts/provenance.json) records the engine that
-painted the two PNGs and the one semantic delta between them:
+painted the two PNGs, the platform it ran on, and the one semantic delta between
+them. The same engine rasterizes text differently on macOS and Linux, so the
+changed-pixel count is checked only on the platform that painted it:
 
 ```json
 {
   "generatedBy": "examples/readme-case/scripts/generate.mjs",
   "engine": "chromium@151.0.7922.34",
+  "raster": "darwin",
   "change": {
     "kind": "style-changed",
     "property": "background-color",

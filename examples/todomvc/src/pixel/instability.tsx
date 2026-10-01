@@ -68,6 +68,15 @@ export interface InstabilityProbe {
    * differ, which cannot both be true.
    */
   readonly expect: { readonly pixels: Arm; readonly content: Arm };
+  /**
+   * The platform `expect` is declared for, when the perturbation is one only
+   * that platform implements, and what the probe does everywhere else. Both are
+   * declared before measuring, so a run on either platform is scored.
+   */
+  readonly declaredOn?: {
+    readonly platform: string;
+    readonly elsewhere: { readonly pixels: Arm; readonly content: Arm };
+  };
   /** Whether the two runs should land in different baseline slots entirely. */
   readonly expectEnvKeyDiffers?: boolean;
   /** Why that is the *correct* answer, not merely the observed one. */
@@ -85,6 +94,12 @@ export interface InstabilityProbe {
   readonly render: (state: ProbeState) => ReactNode;
   /** Runs the `after` state under a second harness at `deviceScaleFactor: 2`. */
   readonly secondHarnessDpr?: boolean;
+}
+
+/** What `probe` declared for a run on `platform`. */
+export function declaredFor(probe: InstabilityProbe, platform: string): InstabilityProbe['expect'] {
+  const { declaredOn } = probe;
+  return declaredOn === undefined || declaredOn.platform === platform ? probe.expect : declaredOn.elsewhere;
 }
 
 export const INSTABILITY_PROBES: readonly InstabilityProbe[] = [
@@ -109,10 +124,12 @@ export const INSTABILITY_PROBES: readonly InstabilityProbe[] = [
      *
      * Real evidence needs two machines rendering one page, which is what
      * `docker/linux-verify.sh` exists for and what a CSS toggle was standing in
-     * for. Left declared as-is and skipped nowhere: a probe that quietly
-     * lowered its expectation on Linux would be the corpus adjusting to the run.
+     * for. The Linux outcome is declared below rather than skipped, so the
+     * suite in the CI image keeps asserting the refutation: if a Linux Chromium
+     * ever honours the property, this probe fails there and says so.
      */
     expect: { pixels: 'moves', content: 'holds' },
+    declaredOn: { platform: 'darwin', elsewhere: { pixels: 'holds', content: 'holds' } },
     absorbedBy: 'construction',
     rationale:
       'Identical text, identical metrics, different rasterization. This is the ' +
