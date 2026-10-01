@@ -100,7 +100,8 @@ describe('createDirectoryLineCell', () => {
     expect(files).toContain(join('mainline', 'main', 'manifest.json'));
   });
 
-  it('tells nothing published from a directory it may not read', async () => {
+  // Root reads a directory whatever its mode, as in the CI image.
+  it.skipIf(process.getuid?.() === 0)('tells nothing published from a directory it may not read', async () => {
     const cell = createDirectoryLineCell(root);
     expect(await readLine(cell, MAIN)).toEqual({ kind: 'absent' });
     await publishLine(cell, MAIN, [entry('report-v1', 'r')], { descends, image });
