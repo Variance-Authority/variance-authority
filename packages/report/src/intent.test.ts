@@ -180,6 +180,17 @@ describe('what the run did that nobody claimed', () => {
     expect(greedy.verdict).toBe('unmet');
   });
 
+  it('names an unattributed change by what is missing, not by how it was grouped', () => {
+    const [entry] = adjudicateRun(report([changed('story:a', [region({ fingerprint: BRAND })])]), [])
+      .unclaimed;
+
+    // Every change is grouped by its pixel shape, named or not, so the sentence
+    // says only that no component was resolved.
+    expect(entry?.because).toBe(
+      '(no component resolved) moved and no claim covers it — 1 subject(s), 100 pixel(s), settles 1 of them',
+    );
+  });
+
   it('never counts a changed subject with no shape as collateral', () => {
     const result = adjudicateRun(report([changed('story:opaque', [region({})])]), []);
 

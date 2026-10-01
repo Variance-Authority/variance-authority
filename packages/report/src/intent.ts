@@ -327,7 +327,7 @@ function undeliveredOutcome(
 }
 
 function unclaimedBecause(change: Change): string {
-  const named = change.component ?? '(no component resolved; grouped by shape alone)';
+  const named = change.component ?? '(no component resolved)';
   const settle =
     change.settles.length === 0
       ? 'nothing it can settle on its own'
