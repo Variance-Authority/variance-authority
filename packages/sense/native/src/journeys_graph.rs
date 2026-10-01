@@ -77,13 +77,14 @@ fn bare(value: &str) -> bool {
 
 /// The text of every source file that differs between `commit` and the
 /// working tree, as it was at `commit`: `None` for a file that did not exist
-/// there. One diff and one `cat-file --batch`; a file not in the map is the
-/// same on disk. Renames are not detected: a file moved since the commit is a
-/// path the commit did not have, and the path it had is read from there under
-/// its own name. When git cannot answer, the reason, which the prepared file
-/// carries, since the graph is then the working tree's.
+/// there. One diff and one `cat-file --batch`, and in a partial clone one fetch
+/// and a second read for what it had not fetched ([`crate::promisor`]); a file
+/// not in the map is the same on disk. Renames are not detected: a file moved
+/// since the commit is a path the commit did not have, and the path it had is
+/// read from there under its own name. When git cannot answer, the reason,
+/// which the prepared file carries, since the graph is then the working tree's.
 pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option<String>>, String> {
-    let args = ["-c", "core.quotePath=false", "diff", "--name-only", "--no-renames", "-z", "--relative", commit];
+    let args = ["-c", "core.quotePath=false", "diff", "--raw", "--no-abbrev", "--no-renames", "-z", "--relative", commit];
     let Some(listed) = crate::git::git(root, &args, None) else {
         let known = crate::git::git(root, &["cat-file", "-e", &format!("{commit}^{{commit}}")], None).is_some();
         return Err(if known {
@@ -92,34 +93,61 @@ pub(crate) fn text_at(root: &str, commit: &str) -> Result<HashMap<String, Option
             format!("commit {} is not in this checkout's object store", short(commit))
         });
     };
-    let changed: Vec<String> = listed
-        .split(|&byte| byte == 0)
-        .filter(|path| !path.is_empty())
-        .map(|path| String::from_utf8_lossy(path).into_owned())
-        .filter(|path| code(path))
+    // `:<mode> <mode> <object> <object> <status>` and then the path, each ended
+    // by a NUL. The first object is the commit's, all zeros where it had none.
+    let fields: Vec<&[u8]> = listed.split(|&byte| byte == 0).collect();
+    let changed: Vec<(String, Option<String>)> = fields
+        .chunks_exact(2)
+        .filter_map(|pair| {
+            let object = pair[0].split(|&byte| byte == b' ').nth(2)?;
+            let object = String::from_utf8_lossy(object).into_owned();
+            Some((String::from_utf8_lossy(pair[1]).into_owned(), Some(object).filter(|object| object.bytes().any(|byte| byte != b'0'))))
+        })
+        .filter(|(path, _)| code(path))
         .collect();
     let mut texts = HashMap::new();
     if changed.is_empty() {
         return Ok(texts);
     }
     let unread = || format!("git could not read the files changed since commit {}", short(commit));
-    let asked: String = changed.iter().map(|file| format!("{commit}:./{file}\n")).collect();
-    let out = crate::git::git(root, &["cat-file", "--batch"], Some(asked.into_bytes())).ok_or_else(unread)?;
+    let files: Vec<&str> = changed.iter().map(|(file, _)| file.as_str()).collect();
+    let mut read = read_at(root, commit, &files, false).ok_or_else(unread)?;
+    let missing: Vec<usize> = (0..changed.len()).filter(|&at| read[at].is_none() && changed[at].1.is_some()).collect();
+    let oids: Vec<String> = missing.iter().filter_map(|&at| changed[at].1.clone()).collect();
+    if !missing.is_empty() && crate::promisor::fetch_missing(root, &oids) {
+        let files: Vec<&str> = missing.iter().map(|&at| changed[at].0.as_str()).collect();
+        for (at, text) in missing.iter().zip(read_at(root, commit, &files, true).ok_or_else(unread)?) {
+            read[*at] = text;
+        }
+    }
+    for ((file, _), text) in changed.into_iter().zip(read) {
+        texts.insert(file, text);
+    }
+    Ok(texts)
+}
+
+/// Each of `files` at `commit` from one `cat-file --batch`, `None` where it
+/// answers `missing`. Without `fetch`, an object a partial clone has not
+/// fetched is answered missing too, rather than fetched on its own.
+fn read_at(root: &str, commit: &str, files: &[&str], fetch: bool) -> Option<Vec<Option<String>>> {
+    let asked: String = files.iter().map(|file| format!("{commit}:./{file}\n")).collect();
+    let env: &[(&str, &str)] = if fetch { &[] } else { &[("GIT_NO_LAZY_FETCH", "1")] };
+    let out = crate::git::git_with(root, &["cat-file", "--batch"], Some(asked.into_bytes()), env)?;
+    let mut read = Vec::with_capacity(files.len());
     let mut at = 0;
-    for file in changed {
-        let end = at + out.get(at..).and_then(|rest| rest.iter().position(|&byte| byte == b'\n')).ok_or_else(unread)?;
+    for _ in files {
+        let end = at + out.get(at..)?.iter().position(|&byte| byte == b'\n')?;
         let head = String::from_utf8_lossy(&out[at..end]).into_owned();
         at = end + 1;
         if head.ends_with(" missing") {
-            texts.insert(file, None);
+            read.push(None);
             continue;
         }
-        let size: usize = head.rsplit(' ').next().and_then(|size| size.parse().ok()).ok_or_else(unread)?;
-        let text = String::from_utf8_lossy(out.get(at..at + size).ok_or_else(unread)?).into_owned();
-        texts.insert(file, Some(text));
+        let size: usize = head.rsplit(' ').next()?.parse().ok()?;
+        read.push(Some(String::from_utf8_lossy(out.get(at..at + size)?).into_owned()));
         at += size + 1;
     }
-    Ok(texts)
+    Some(read)
 }
 
 /// A commit as the output names one.
