@@ -34,7 +34,7 @@ import { distillFiles, formatDistill } from './distill.js';
 import { followUpsOutput, indexOutput } from './index-command.js';
 import type { Detach } from './index-follow-ups.js';
 import { reachOutput } from './reach-command.js';
-import { review } from './review.js';
+import { reviewWithCoverage } from './review-evidence.js';
 import { REVIEW_ARTIFACT, reviewFromRun } from './review-from-run.js';
 import { formatReview } from './review-text.js';
 import { selectOutput } from './select-command.js';
@@ -186,7 +186,7 @@ export async function answerConfigless(
         streams.out(formatReview(await reviewFromRun({ run: parsed.fromRun, artifact: parsed.artifact ?? REVIEW_ARTIFACT, root: parsed.root }), parsed.format));
         return EXIT_CLEAN;
       }
-      const answer = await review(parsed);
+      const answer = await reviewWithCoverage(parsed);
       if (parsed.out !== undefined) {
         await mkdir(parsed.out, { recursive: true });
         // FIXME: review.json is unbounded — every moved region carries its cases in full, and a change that moves

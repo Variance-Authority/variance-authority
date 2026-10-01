@@ -209,11 +209,9 @@ jobs:
       # the ref is missing or does not read, the line says why and the run has
       # no base; nothing older is put in its place.
       #
-      # It is then copied aside, before the suite layers this change onto it,
-      # because it is the base the coverage below is compared with. The case
-      # index sits beside the record as `<recording>.cases.bin`, and the whole
-      # directory is copied because the commit the index was recorded at is read
-      # from its neighbours.
+      # The case index sits beside the record as `<recording>.cases.bin`.
+      # Its presence enables selection; coverage reads the immutable mainline
+      # snapshot through the share after the suite layers this change onto it.
       - name: keep the base record
         id: base
         shell: bash
@@ -232,8 +230,7 @@ jobs:
           ")
           echo "recording=$(dirname "$recording")" >> "$GITHUB_OUTPUT"
           if [ -f "$recording.cases.bin" ]; then
-            cp -R "$(dirname "$recording")" "$RUNNER_TEMP/base-unit"
-            echo "cases=$RUNNER_TEMP/base-unit/$(basename "$recording").cases.bin" >> "$GITHUB_OUTPUT"
+            echo "cases=$recording.cases.bin" >> "$GITHUB_OUTPUT"
           elif [ -f "$recording" ]; then
             echo "::notice::The base record was read without its case index, so this run has nothing to select from or compare with: the whole suite runs, and coverage is printed without a comparison."
           else
@@ -274,45 +271,6 @@ jobs:
             yarn test
           fi
 
-      # How much the suite runs, against the record the mainline saved. The
-      # parts of the change are printed beside each count: regions gained, lost,
-      # written and deleted, and the test files that moved them most, then the
-      # source no suite recorded, counted once per package. Printed to
-      # the job summary on every run, and on a pull request also posted as its
-      # own comment, under a marker this step writes, so it never overwrites the
-      # review's. The source index is published first, because under CI a reader
-      # refuses to build it on demand. `coverage` exits 0 whatever the numbers
-      # are: there is no threshold here, and adding one is a line in this step.
-      - name: report coverage
-        id: coverage
-        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
-        shell: bash
-        env:
-          AGAINST: ${{ steps.base.outputs.cases }}
-        run: |
-          node packages/cli/dist/bin.js index
-          body="$RUNNER_TEMP/coverage.md"
-          echo '<!-- variance-authority:coverage -->' > "$body"
-          echo '### 📊 Coverage' >> "$body"
-          if [ -n "$AGAINST" ]; then
-            node packages/cli/dist/bin.js coverage --suite unit --against "$AGAINST" --packages --format markdown >> "$body"
-          else
-            node packages/cli/dist/bin.js coverage --suite unit --packages --format markdown >> "$body"
-          fi
-          # No record is carried for the integration slice, so it has no base
-          # and is printed without a comparison.
-          node packages/cli/dist/bin.js coverage --suite integration --packages --format markdown >> "$body"
-          cat "$body" >> "$GITHUB_STEP_SUMMARY"
-          echo "body=$body" >> "$GITHUB_OUTPUT"
-
-      - name: post coverage
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.coverage.outcome == 'success' }}
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          BODY: ${{ steps.coverage.outputs.body }}
-        run: node .github/actions/variance/post-comment.mjs --body-file "$BODY" --marker "$(head -n 1 "$BODY")"
-
       # What the change did, read from what the suite just recorded: the edits,
       # the changed regions no case covered or only a distant test covered, the
       # cases added and removed, and what changed before any import and beyond
@@ -323,8 +281,8 @@ jobs:
       # at, so what `main` moved after that commit is left out of the comparison
       # whichever recording the restore found.
       #
-      # It reads the unit slice, the one record CI compares against `main`'s; the
-      # review reads one suite, and refuses to pick one when several are declared.
+      # The changed-code review reads the unit slice; coverage is carried for
+      # every declared suite, each with its own denominator and baseline.
       #
       # The source index is published first. Under CI a reader refuses to build
       # it on demand, and the review asks it which tests import each changed file.
@@ -337,7 +295,7 @@ jobs:
           REVIEW: ${{ steps.carry.outputs.review }}
         run: |
           node packages/cli/dist/bin.js index
-          node packages/cli/dist/bin.js review --since "$BASE" --suite unit \
+          node packages/cli/dist/bin.js review --since "$BASE" --suite unit --coverage \
             --out "$REVIEW" --format markdown >> "$GITHUB_STEP_SUMMARY"
 
       - name: keep the review
