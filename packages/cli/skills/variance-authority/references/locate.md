@@ -115,7 +115,7 @@ Three states look alike, and the header separates them per field:
   `createdBy` everywhere, and a suite that is not React has no components or
   creators to record.
 
-A raster-only capture or a run under ephemeral retention writes no names at
+A run that read no markup, such as a raster-only capture, writes no names at
 all: only subject ids are searched, and the answer says so.
 
 The order of hits is orientation, not evidence: no hit has a verdict or a pixel
