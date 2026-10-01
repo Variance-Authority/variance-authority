@@ -10806,7 +10806,6 @@ __metadata:
     react-dom: "npm:^19"
     typescript: "npm:^7.0.2"
     vitest: "npm:^2.1.8"
-    yaml: "npm:^2.9.0"
   languageName: unknown
   linkType: soft
 

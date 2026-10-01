@@ -34,7 +34,6 @@ permissions:
 # and the older run is cancelled. On `main` every commit's run publishes that
 # commit's record, and a merge that cancels the one before it leaves that commit
 # with none, so there the group is the commit and no run is cancelled by another.
-# `tools/workflow-concurrency.check.ts` evaluates both.
 concurrency:
   group: check-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
