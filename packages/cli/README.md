@@ -2146,6 +2146,18 @@ no path the config already names:
 - run: npx variance run --config variance.config.json
 ```
 
+A suite with `"carry": "share"` gets no key: its record travels through
+[`variance share`](https://variance-authority.dev/docs/sharing). Under
+`--format github` those suites are printed as one line,
+`shared-suites=<name> <name>`, separated by spaces, so a step loops over them
+instead of naming them:
+
+```yaml
+- env:
+    SHARED: ${{ steps.carry.outputs.shared-suites }}
+  run: for suite in $SHARED; do npx variance share --suite "$suite"; done
+```
+
 A key is `variance-<file>:<branch>:<commit>`. The branch is the one a pull
 request targets, so a pull request restores what its target saved and never
 what it saved itself. A save appends the run id, because the Actions cache

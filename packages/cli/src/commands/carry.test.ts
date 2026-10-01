@@ -172,6 +172,26 @@ describe('the output the host reads', () => {
     ]);
   });
 
+  it('names the suites given to the share, in the order they are given, and no other', () => {
+    const suites = [
+      { name: 'unit', kind: 'unit', carry: 'share' },
+      { name: 'chromium', kind: 'e2e', carry: 'actions-cache' },
+      { name: 'integration', kind: 'integration', carry: 'share' },
+      { name: 'local', kind: 'unit' },
+    ] as const;
+    const plan = carryPlan({ direction: 'restore', root, suites, run: PULL, mainlines: MAIN });
+
+    expect(plan.shared).toEqual(['unit', 'integration']);
+    expect(githubOutput(plan)).toContain('\nshared-suites=unit integration\n');
+    expect(githubOutput(carryPlan({ direction: 'restore', root, suites: UNIT, run: PULL, mainlines: MAIN }))).not.toContain('shared-suites');
+  });
+
+  it('refuses a shared suite whose name holds a space, which the loop reading it would split', () => {
+    const plan = carryPlan({ direction: 'restore', root, suites: [{ name: 'two words', kind: 'unit', carry: 'share' }], run: PULL, mainlines: MAIN });
+
+    expect(() => githubOutput(plan)).toThrow(/holds a space/);
+  });
+
   it('refuses a path with a line break, which would write an output of its own', () => {
     const plan = carryPlan({ direction: 'restore', root, config: project({ images: '/r/x\nreport-key=forged' }), run: PULL, mainlines: MAIN });
 

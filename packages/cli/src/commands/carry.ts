@@ -90,6 +90,12 @@ export interface CarryPlan {
   readonly baselinesRoot?: string;
   /** What a reviewer downloads: uploaded as it is, so it has a path and no key. */
   readonly uploads: readonly { readonly name: string; readonly path: string }[];
+  /**
+   * The suites the config gives to the share, in the order the suites are
+   * given: what a workflow reads and publishes a base record for, so it names
+   * none.
+   */
+  readonly shared: readonly string[];
   /** What is carried and not printed, or not carried, and why: said, never silent. */
   readonly notes: readonly string[];
 }
@@ -234,6 +240,7 @@ export function carryPlan(input: CarryInput): CarryPlan {
       ...(config === undefined ? [] : [{ name: 'report', path: config.report }, { name: 'images', path: config.images }]),
       { name: 'review', path: resolve(input.root, REVIEW_OUT) },
     ],
+    shared: (input.suites ?? []).filter((suite) => suite.carry === 'share').map((suite) => suite.name),
     notes,
   };
 }
@@ -257,7 +264,8 @@ function savesRecording(run: HostRun, line: string | undefined, mainlines: Mainl
  * `<artifact>-path`, `<artifact>-key` and, on a restore,
  * `<artifact>-restore-keys`, with the multi-line values in the heredoc form
  * the host reads; then `baselines-root` and the uploads, one path each. An artifact that is not carried this time prints nothing,
- * so a step guarded by `<artifact>-key != ''` does not run.
+ * so a step guarded by `<artifact>-key != ''` does not run. Last, `shared-suites`:
+ * the suites given to the share, separated by spaces, when there are any.
  */
 export function githubOutput(plan: CarryPlan): string {
   const lines: string[] = [];
@@ -278,6 +286,12 @@ export function githubOutput(plan: CarryPlan): string {
   }
   if (plan.baselinesRoot !== undefined) one('baselines-root', plan.baselinesRoot);
   for (const upload of plan.uploads) one(upload.name, upload.path);
+  if (plan.shared.length > 0) {
+    // Read by a shell loop, so a space in a name would split it into two suites.
+    const spaced = plan.shared.find((name) => /\s/u.test(name));
+    if (spaced !== undefined) throw new Error(`a shared suite's name holds a space, which shared-suites cannot carry: ${JSON.stringify(spaced)}`);
+    one('shared-suites', plan.shared.join(' '));
+  }
 
   return `${lines.join('\n')}\n`;
 }

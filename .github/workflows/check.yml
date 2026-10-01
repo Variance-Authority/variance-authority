@@ -165,13 +165,11 @@ jobs:
     # `vitest run`, the unit suites and the corpus.
     runs-on: ubuntu-24.04
     outputs:
-      recording_unit: ${{ steps.base.outputs.recording_unit }}
-      recording_integration: ${{ steps.base.outputs.recording_integration }}
-      handed: ${{ steps.hand.outcome == 'success' }}
+      shared: ${{ steps.carry.outputs.shared-suites }}
+      records: ${{ steps.base.outputs.records }}
       # The artifact's id rather than the step's outcome: an upload with no
-      # files succeeds and makes no artifact, which is what a red unit slice
-      # leaves, because `yarn test` then never starts the integration one.
-      handed_integration: ${{ steps.hand_integration.outputs.artifact-id != '' }}
+      # files succeeds and makes no artifact.
+      handed: ${{ steps.hand.outputs.artifact-id != '' }}
 
     steps:
       # Every commit, because the review below diffs from a base it does not
@@ -193,9 +191,9 @@ jobs:
       - uses: ./.github/actions/build
 
       # Where the change starts, asked of `variance carry` rather than spelled
-      # here. The root `variance.config.json` declares the `unit` and
-      # `integration` suites and gives them to the share, so `carry` names no
-      # cache key for them: their records travel
+      # here. The root `variance.config.json` declares the suites and gives some
+      # to the share, which `carry` names as `shared-suites` and gives no cache
+      # key: their records travel
       # through `variance share`, on this repository's own git remote.
       #
       # The base: on a pull request the checkout is the merge of its head into
@@ -221,16 +219,19 @@ jobs:
       # directory is copied because the commit the index was recorded at is read
       # from its neighbours.
       #
-      # Every suite `variance.config.json` gives to the share is read here, each
-      # into its own `base-<suite>`. Until 2026-10-01 only `unit` was, so every
-      # pull request ran the integration slice whole and printed its coverage
-      # with nothing to compare it to. `chromium` is not given to the share: no
-      # browser runs here, so `main` never records it whole.
+      # Every suite `variance.config.json` gives to the share is read, each into
+      # its own `base-<suite>`, and `variance carry` names them: this file names
+      # none. Where each base's case index is, if it has one, is left in
+      # `against/<suite>` for the coverage step. Every suite's record sits under
+      # one directory, which is what the publish job is handed.
       - name: keep the base record
         id: base
         shell: bash
+        env:
+          SHARED: ${{ steps.carry.outputs.shared-suites }}
         run: |
-          for suite in unit integration; do
+          mkdir -p "$RUNNER_TEMP/against"
+          for suite in $SHARED; do
             recording=$(SUITE="$suite" node --input-type=module -e "
               const cli = await import('@variance-authority/cli');
               const { testCoverageFile } = await import('@variance-authority/sense/test-selection');
@@ -244,16 +245,23 @@ jobs:
               }
               process.stdout.write(testCoverageFile(process.cwd(), { suite }));
             ")
-            echo "recording_$suite=$(dirname "$recording")" >> "$GITHUB_OUTPUT"
+            records=$(dirname "$(dirname "$recording")")
+            if [ -n "${seen:-}" ] && [ "$seen" != "$records" ]; then
+              echo "::error::The $suite record is kept under $records, not beside the others under $seen, so one artifact cannot hand them all to publish."
+              exit 1
+            fi
+            seen=$records
             if [ -f "$recording.cases.bin" ]; then
               cp -R "$(dirname "$recording")" "$RUNNER_TEMP/base-$suite"
-              echo "cases_$suite=$RUNNER_TEMP/base-$suite/$(basename "$recording").cases.bin" >> "$GITHUB_OUTPUT"
+              echo "$RUNNER_TEMP/base-$suite/$(basename "$recording").cases.bin" > "$RUNNER_TEMP/against/$suite"
+              echo "based=true" >> "$GITHUB_OUTPUT"
             elif [ -f "$recording" ]; then
               echo "::notice::The $suite base record was read without its case index, so $suite has nothing to select from or compare with: it runs whole, and its coverage is printed without a comparison."
             else
               echo "::notice::The mainline's $suite record was not read, so $suite has no base: it runs whole, and its coverage is printed without a comparison."
             fi
           done
+          echo "records=${seen:-}" >> "$GITHUB_OUTPUT"
 
       # `yarn test` is the three slices in order: unit, integration, chromium,
       # each with a record of its own. No browser is installed here, so the
@@ -281,7 +289,7 @@ jobs:
         id: test
         shell: bash
         env:
-          SELECT: ${{ github.event_name == 'pull_request' && steps.base.outputs.cases_unit != '' }}
+          SELECT: ${{ github.event_name == 'pull_request' && steps.base.outputs.based == 'true' }}
         run: |
           if [ "$SELECT" = true ]; then
             yarn test:since
@@ -303,17 +311,15 @@ jobs:
         if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
         shell: bash
         env:
-          AGAINST_UNIT: ${{ steps.base.outputs.cases_unit }}
-          AGAINST_INTEGRATION: ${{ steps.base.outputs.cases_integration }}
+          SHARED: ${{ steps.carry.outputs.shared-suites }}
         run: |
           node packages/cli/dist/bin.js index
           body="$RUNNER_TEMP/coverage.md"
           echo '<!-- variance-authority:coverage -->' > "$body"
           echo '### 📊 Coverage' >> "$body"
-          for suite in unit integration; do
-            against="AGAINST_${suite^^}"
-            if [ -n "${!against}" ]; then
-              node packages/cli/dist/bin.js coverage --suite "$suite" --against "${!against}" --packages --format markdown >> "$body"
+          for suite in $SHARED; do
+            if [ -f "$RUNNER_TEMP/against/$suite" ]; then
+              node packages/cli/dist/bin.js coverage --suite "$suite" --against "$(cat "$RUNNER_TEMP/against/$suite")" --packages --format markdown >> "$body"
             else
               node packages/cli/dist/bin.js coverage --suite "$suite" --packages --format markdown >> "$body"
             fi
@@ -380,23 +386,17 @@ jobs:
       # is the one job holding a token that can write to the repository. A red
       # suite on `main` still hands it on: the next change is reviewed against
       # what `main` ran, not against an older record that no longer describes it.
-      - name: hand the record to publish
+      # Every suite's record goes in one artifact, the directory they all sit
+      # under. A slice a red one before it kept from running still holds the
+      # base laid above, and the publish refuses it as recorded at another
+      # commit.
+      - name: hand the records to publish
         id: hand
-        if: ${{ !cancelled() && github.event_name == 'push' && steps.test.outcome != 'skipped' }}
+        if: ${{ !cancelled() && github.event_name == 'push' && steps.test.outcome != 'skipped' && steps.base.outputs.records != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: variance-record-unit
-          path: ${{ steps.base.outputs.recording_unit }}
-          include-hidden-files: true
-          retention-days: 1
-
-      - name: hand the integration record to publish
-        id: hand_integration
-        if: ${{ !cancelled() && github.event_name == 'push' && steps.test.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: variance-record-integration
-          path: ${{ steps.base.outputs.recording_integration }}
+          name: variance-records
+          path: ${{ steps.base.outputs.records }}
           include-hidden-files: true
           retention-days: 1
 
@@ -469,25 +469,28 @@ jobs:
       # checkout's path, which is the same on every runner of this workflow.
       - uses: actions/download-artifact@v4
         with:
-          name: variance-record-unit
-          path: ${{ needs.suite.outputs.recording_unit }}
-
-      - uses: actions/download-artifact@v4
-        if: ${{ needs.suite.outputs.handed_integration == 'true' }}
-        with:
-          name: variance-record-integration
-          path: ${{ needs.suite.outputs.recording_integration }}
+          name: variance-records
+          path: ${{ needs.suite.outputs.records }}
 
       # The test files the runner collects at this commit, asked of the runner:
       # a test file the suite stopped collecting keeps its rows in the record
       # and last ran before this commit, and only the runner can say it no
-      # longer counts against a whole run. Each slice is asked under its own
-      # config, because each collects different files.
+      # longer counts against a whole run. Each shared suite is asked under its
+      # own slice's config, which `slicesOf` in `tools/test-since.mjs` names.
       - name: what the suite collects
         shell: bash
+        env:
+          SHARED: ${{ needs.suite.outputs.shared }}
         run: |
-          yarn vitest list --filesOnly > "$RUNNER_TEMP/collected-unit.txt"
-          yarn vitest list --filesOnly --config vitest.integration.config.mts > "$RUNNER_TEMP/collected-integration.txt"
+          for suite in $SHARED; do
+            config=$(SUITE="$suite" node --input-type=module -e "
+              const { slicesOf } = await import('./tools/test-since.mjs');
+              const slice = slicesOf(process.cwd()).find((one) => one.suite === process.env.SUITE);
+              if (slice === undefined) throw new Error('no slice is declared for ' + process.env.SUITE);
+              process.stdout.write(slice.config);
+            ")
+            yarn vitest list --filesOnly --config "$config" > "$RUNNER_TEMP/collected-$suite.txt"
+          done
 
       # `share --suite` reads the share from the root config, asks the line of
       # this run (`main`, on a push to it), and refuses a record that was not
@@ -500,34 +503,31 @@ jobs:
       # The token reaches git as `GIT_CONFIG_*` variables for this step alone,
       # the same header `actions/checkout` would have written to the clone, and
       # the share's own repository reads it the way it reads the clone's.
-      - name: publish the record
+      #
+      # Every shared suite is published, each beside the others: two suites at
+      # one commit leave both `suite-v1` entries on the line. A refusal of one
+      # does not keep the rest from being published, and still fails the step.
+      - name: publish the records
         shell: bash
         env:
           TOKEN: ${{ github.token }}
+          SHARED: ${{ needs.suite.outputs.shared }}
         run: |
           auth="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
           echo "::add-mask::$auth"
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
-          node packages/cli/dist/bin.js share --suite unit --publish --collected "$RUNNER_TEMP/collected-unit.txt" | tee -a "$GITHUB_STEP_SUMMARY"
-
-      # The integration slice's record, published beside the unit one: two
-      # suites at one commit leave both `suite-v1` entries on the line. Its own
-      # step, so a refusal here is seen as its own and never keeps the unit
-      # record from being published.
-      - name: publish the integration record
-        if: ${{ !cancelled() && needs.suite.outputs.handed_integration == 'true' }}
-        shell: bash
-        env:
-          TOKEN: ${{ github.token }}
-        run: |
-          auth="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
-          echo "::add-mask::$auth"
-          export GIT_CONFIG_COUNT=1
-          export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
-          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
-          node packages/cli/dist/bin.js share --suite integration --publish --collected "$RUNNER_TEMP/collected-integration.txt" | tee -a "$GITHUB_STEP_SUMMARY"
+          refused=
+          for suite in $SHARED; do
+            if ! node packages/cli/dist/bin.js share --suite "$suite" --publish --collected "$RUNNER_TEMP/collected-$suite.txt" | tee -a "$GITHUB_STEP_SUMMARY"; then
+              refused="$refused $suite"
+            fi
+          done
+          if [ -n "$refused" ]; then
+            echo "::error::Not published:$refused."
+            exit 1
+          fi
 
   cases:
     # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a
