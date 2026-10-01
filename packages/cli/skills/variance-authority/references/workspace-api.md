@@ -217,6 +217,9 @@ Imported by path in 1 place:
 A name that is exported without being published and that nothing imports is
 still refused, and the refusal names the file and line that export it.
 
+`symbol` says what a name is and how to call it. For why it exists and what it
+connects to, read [what is written about a name](written-about-a-name.md).
+
 ### 4. `uses <name> [--from <file>] [--package <package>]`
 
 Where the repository already writes it. Same exact matching as `symbol`, and the
