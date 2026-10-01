@@ -16,6 +16,7 @@ await Promise.all([
       {
         generatedBy: 'examples/readme-case/scripts/generate.mjs',
         engine: result.engine,
+        raster: process.platform,
         change: {
           kind: result.semantic.deltas[0]?.kind,
           property: result.semantic.deltas[0]?.property,

@@ -9,7 +9,8 @@
       "carry": "share"
     },
     "chromium": {
-      "kind": "e2e"
+      "kind": "e2e",
+      "carry": "share"
     }
   },
   "share": {

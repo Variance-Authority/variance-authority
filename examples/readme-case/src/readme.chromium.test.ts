@@ -70,7 +70,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the root README example', () => {
   });
 
   it('records which browser and semantic delta produced the artifacts', async () => {
-    const provenance = JSON.parse(
+    const { changedPixels, raster, ...provenance } = JSON.parse(
       await readFile(join(ARTIFACT_ROOT, 'provenance.json'), 'utf8'),
     );
     const delta = result!.semantic.deltas[0]!;
@@ -85,7 +85,18 @@ describe.skipIf(!BROWSER_AVAILABLE)('the root README example', () => {
         to: delta.to,
         impact: delta.impact,
       },
-      changedPixels: result!.comparison.changed.default,
     });
+    expect(['darwin', 'linux', 'win32']).toContain(raster);
+    expect(changedPixels).toBeGreaterThan(0);
+  });
+
+  it('paints the recorded number of pixels on the platform that painted the artifacts', async (context) => {
+    const { changedPixels, raster } = JSON.parse(
+      await readFile(join(ARTIFACT_ROOT, 'provenance.json'), 'utf8'),
+    );
+    // One Chromium build rasterizes text differently on macOS and Linux, so a
+    // count painted on one is not a claim about the other.
+    if (raster !== process.platform) context.skip(`painted on ${raster}, running on ${process.platform}`);
+    expect(changedPixels).toBe(result!.comparison.changed.default);
   });
 });

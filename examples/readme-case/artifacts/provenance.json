@@ -1,6 +1,7 @@
 {
   "generatedBy": "examples/readme-case/scripts/generate.mjs",
   "engine": "chromium@151.0.7922.34",
+  "raster": "darwin",
   "change": {
     "kind": "style-changed",
     "property": "background-color",

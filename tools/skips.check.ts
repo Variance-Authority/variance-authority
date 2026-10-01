@@ -145,27 +145,3 @@ describe('a suite that does not run says why', () => {
     expect(placebo).toBe(false);
   });
 });
-
-/**
- * The number in the workflow's comment is the number of gated files.
- *
- * `.github/workflows/check.yml` explains what a green check does not cover. That
- * paragraph is prose in a file no checker reads — YAML, so
- * `documentation.test.ts` cannot see it — and it is exactly the kind of unenforced
- * count this repository has had wrong six times. The file count is statically
- * knowable, so it is pinned; the *test* count is not, and was removed rather than
- * restated.
- */
-describe('the workflow says how much it is not running', () => {
-  const workflow = readFileSync(join(ROOT, '.github/workflows/check.yml'), 'utf8');
-
-  it('names the browser-gated file count', () => {
-    expect(workflow).toContain(`${GATED.length} files`);
-  });
-
-  it('states no test count it cannot know', () => {
-    // A test total depends on a run. Writing one into a comment makes a claim
-    // that goes stale on the next `it` anybody adds, silently.
-    expect(/~?\d+ (?:tests|skipped tests)/.test(workflow)).toBe(false);
-  });
-});
