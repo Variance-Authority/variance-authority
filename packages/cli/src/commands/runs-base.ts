@@ -24,71 +24,12 @@
  * list, so each is held to the shape of an object name before git sees it.
  */
 
-import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { commitRunsFile, type CommitRuns } from '@variance-authority/sense/test-selection';
+import { ask, cutShort } from '../clone-cut.js';
 import { OperatorError } from '../exit.js';
 
 /** A full object name, SHA-1 or SHA-256: never an option, never a revision expression. */
 const OBJECT_NAME = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-
-/** How git answered one question: its exit code, what it printed, and the first line it wrote to stderr. */
-interface Answer {
-  readonly code: number;
-  readonly out: string;
-  readonly said: string;
-}
-
-/**
- * Ask git one question in `root`. A partial clone would otherwise fetch a
- * commit it does not hold from its promisor to answer, which is a network
- * call a review never asked for; without it, git says it cannot.
- */
-function ask(root: string, args: readonly string[]): Promise<Answer> {
-  const env = { ...process.env, GIT_NO_LAZY_FETCH: '1' };
-  return new Promise((done) => {
-    execFile('git', args, { cwd: root, env, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
-      const code = error === null ? 0 : typeof error.code === 'number' ? error.code : -1;
-      done({ code, out: String(stdout).trim(), said: String(stderr).trim().split('\n')[0] ?? '' });
-    });
-  });
-}
-
-/**
- * The commits a shallow clone's history was cut at, none when it is not
- * shallow, or why that cannot be said. Only a missing `shallow` file means the
- * clone is whole; a file that cannot be found or read may hide a cut.
- */
-async function cut(root: string): Promise<Set<string> | string> {
-  const at = await ask(root, ['rev-parse', '--git-path', 'shallow']);
-  if (at.code !== 0) return `git said: ${at.said}`;
-  try {
-    const text = await readFile(resolve(root, at.out), 'utf8');
-    return new Set(text.split('\n').filter((line) => line !== ''));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Set();
-    return `its shallow list could not be read: ${(error as Error).message}`;
-  }
-}
-
-/**
- * Why git's "no" to `over` being an ancestor of `tip` cannot be trusted, or
- * `undefined` when it can. Grafts only hide parents, so a walk from `tip` that
- * stops at `over`'s own history and never reaches a cut commit saw every
- * ancestor `over` could be; one that reaches the cut may have stopped short.
- * Asked only after a "no", so a clone that is not shallow pays one call.
- */
-async function cutShort(root: string, tip: string, over: string): Promise<string | undefined> {
-  const shallow = await cut(root);
-  if (typeof shallow === 'string') return shallow;
-  if (shallow.size === 0) return undefined;
-  const walked = await ask(root, ['rev-list', tip, `^${over}`, '--']);
-  if (walked.code !== 0) return `git said: ${walked.said}`;
-  return walked.out.split('\n').some((commit) => shallow.has(commit))
-    ? 'this clone is shallow, and its history between them stops at the cut'
-    : undefined;
-}
 
 /**
  * The commit a review of `runs` starts from, or `undefined` when the runs name

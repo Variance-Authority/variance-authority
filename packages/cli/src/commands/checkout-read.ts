@@ -12,15 +12,16 @@
 
 import { execFileSync } from 'node:child_process';
 import type { OwnLayer, OwnState, Repin, RepinRefusal } from '@variance-authority/sense/test-selection';
+import { countPast } from '../clone-cut.js';
 
 /** Test files a state lists by name; past it, a count. */
 const LISTED = 20;
 
-export function checkoutRead(
+export async function checkoutRead(
   suite: string,
   cwd: string,
   base: { readonly layer?: OwnLayer; readonly repin?: Repin },
-): string {
+): Promise<string> {
   const { layer, repin } = base;
   const head = `record of "${suite}": read from this checkout's own`;
   if (layer === undefined) {
@@ -30,7 +31,7 @@ export function checkoutRead(
   const pinned = layer.pinned;
   const over = pinned === undefined
     ? "over the primary checkout's record, which is no mainline record"
-    : `over mainline ${pinned.mainline} at ${short(pinned.commit)}, ${since(cwd, pinned.commit)}`;
+    : `over mainline ${pinned.mainline} at ${short(pinned.commit)}, ${await since(cwd, pinned.commit)}`;
   const moved = repin === undefined ? '' : repin.repinned
     ? `; moved from ${short(repin.from)}${repin.dropped.length === 0 ? '' : `, and ${String(repin.dropped.length)} test file(s) that ran over older code than it are read from it now`}`
     : refused(repin.why);
@@ -61,9 +62,9 @@ function refused(why: RepinRefusal): string {
 }
 
 /** How far HEAD is from `commit`, as a reader would say it. */
-function since(cwd: string, commit: string): string {
-  const count = git(cwd, 'rev-list', '--count', `${commit}..HEAD`);
-  return count === undefined ? 'at a distance this clone cannot count' : `${count} commit(s) before HEAD`;
+async function since(cwd: string, commit: string): Promise<string> {
+  const count = await countPast(cwd, commit, 'HEAD');
+  return count === undefined ? 'at a distance this clone cannot count' : `${String(count)} commit(s) before HEAD`;
 }
 
 function ancestor(cwd: string, commit: string): boolean | undefined {
@@ -72,14 +73,6 @@ function ancestor(cwd: string, commit: string): boolean | undefined {
     return true;
   } catch (error) {
     return (error as { status?: number }).status === 1 ? false : undefined;
-  }
-}
-
-function git(cwd: string, ...args: string[]): string | undefined {
-  try {
-    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    return undefined;
   }
 }
 
