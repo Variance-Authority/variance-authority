@@ -76,13 +76,21 @@ export function mockTaint(options: MockTaintOptions = {}): Taint {
   };
 }
 
+const SETUP = /(^|\/)(setup|setupTests|test-setup|vitest\.setup|jest\.setup)\.[cm]?[jt]sx?$/;
+const STORYBOOK = /(^|\/)\.storybook\//;
+
 /** Where a mock is expected to be written. */
 export function isTestLike(file: string): boolean {
-  return (
-    /\.(test|spec|stories)\.[cm]?[jt]sx?$/.test(file) ||
-    /(^|\/)(setup|setupTests|test-setup|vitest\.setup|jest\.setup)\.[cm]?[jt]sx?$/.test(file) ||
-    /(^|\/)\.storybook\//.test(file)
-  );
+  return /\.(test|spec|stories)\.[cm]?[jt]sx?$/.test(file) || SETUP.test(file) || STORYBOOK.test(file);
+}
+
+/**
+ * A file a test runner loads by name before any test, which no test imports: a
+ * runner's config, a setup module it names, a Storybook preview. Named by
+ * convention, because the config that loads one names it as a string.
+ */
+export function isHarnessLike(file: string): boolean {
+  return /(^|\/)[^/]+\.config\.[cm]?[jt]sx?$/.test(file) || SETUP.test(file) || STORYBOOK.test(file);
 }
 
 /**

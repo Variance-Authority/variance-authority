@@ -120,6 +120,51 @@ describe('selecting by the file graph when the record cannot answer', () => {
     expect(said.err).toContain('`--diff` names none');
   });
 
+  it('keeps a test file whose import the lockfile moved, beside an edit the walk reads', async () => {
+    const { root } = checkout({
+      'src/other.ts': "import leftPad from 'left-pad';\nexport const other = (): string => leftPad('b', 2);\n",
+      'package-lock.json': npmLock('1.3.0'),
+    });
+    writeFileSync(join(root, 'src/widget.ts'), "export const widget = (): string => 'c';\n");
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.4.0'));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain', since: 'HEAD' });
+
+    expect(said.out).toBe('');
+    expect(said.err).not.toContain('skipping nothing');
+  });
+
+  it('skips nothing when the install cannot be compared', async () => {
+    const { root, head } = checkout();
+    writeFileSync(join(root, 'src/widget.ts'), "export const widget = (): string => 'c';\n");
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.4.0'));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain', since: 'HEAD' });
+
+    expect(said.out).toBe('');
+    expect(said.err).toContain('skipping nothing');
+    expect(said.err).toContain(`package-lock.json is not in the tree at ${head.slice(0, 12)}`);
+  });
+
+  it('skips nothing when the change reaches a file a runner loads before every test', async () => {
+    // Nothing imports a setup module: the runner's config names it as a string,
+    // so no edge leads from it to the tests it runs before.
+    const { root } = checkout({ 'test/setup.ts': "globalThis.ready = true;\n" });
+    writeFileSync(join(root, 'test/setup.ts'), "globalThis.ready = false;\n");
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain', since: 'HEAD' });
+
+    expect(said.out).toBe('');
+    expect(said.err).toContain('skipping nothing');
+    expect(said.err).toContain('test/setup.ts');
+  });
+
   it('skips nothing when the walk refuses, and gives its reason', async () => {
     // A deleted file is in no graph, so the walk cannot say what it reached —
     // and the test that imported it is the one that has to run.
@@ -159,4 +204,19 @@ function checkout(files: Readonly<Record<string, string>> = {}): { root: string;
   git(['commit', '--quiet', '-m', 'two modules and a test for each']);
 
   return { root, head: git(['rev-parse', 'HEAD']) };
+}
+
+function npmLock(version: string): string {
+  return JSON.stringify({
+    name: 'fixture',
+    lockfileVersion: 3,
+    packages: {
+      '': { name: 'fixture', dependencies: { 'left-pad': '^1.0.0' } },
+      'node_modules/left-pad': {
+        version,
+        resolved: `https://registry.npmjs.org/left-pad/-/left-pad-${version}.tgz`,
+        integrity: `sha512-${version}==`,
+      },
+    },
+  }, null, 2);
 }

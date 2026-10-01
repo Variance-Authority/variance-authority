@@ -2531,6 +2531,7 @@
         "grainOf": "function",
         "inIndexTurn": "function",
         "indexTurnPath": "function",
+        "isHarnessLike": "function",
         "journeyMap": "function",
         "journeyMaps": "function",
         "journeysAmong": "function",

@@ -1,7 +1,10 @@
 import { dependentsOf, idOf, nodesOfKind } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
+import { installDiffs, movedPackages } from './installed.js';
 import { reachedSince } from './reach-command.js';
+import { listed } from './reach.js';
 import type { Related, SelectInput } from './select.js';
+import { diffPoint, topLevel } from './since.js';
 import { recordedSuite } from './suite-record.js';
 
 /**
@@ -14,7 +17,9 @@ import { recordedSuite } from './suite-record.js';
  * the turn from a run list to a skip list. A file nothing imports is an entry —
  * a test file, a story, a script — and one the walk did not reach is skipped,
  * unless something it loads could not be read whole, because an edge nobody
- * enumerated may lead to the change.
+ * enumerated may lead to the change, or it imports a package the lockfile
+ * moved, which the walk leaves out. A change that reaches a runner's config or
+ * setup, which the runner loads by name before every test, skips nothing.
  *
  * Only a suite whose tests reach their code by import is answered. One declared
  * `integration`, `e2e` or `visual` reaches it through pages, servers and
@@ -60,14 +65,41 @@ async function related(
     throw error;
   }
 
+  // A runner loads its config and setup by name, so no edge leads from one to
+  // the tests it runs before, and a walk that reaches one has reached them all.
+  const { isHarnessLike } = await import('@variance-authority/sense');
+  const harness = reach.files.filter(isHarnessLike);
+  if (harness.length > 0) {
+    return { declined: `the change reaches what a runner loads before every test, which no import leads from: ${listed(harness)}` };
+  }
+
+  // The walk leaves the lockfile out. What it moved is answered here, by the
+  // files that import a bumped package or sit in a package whose manifest moved.
   const { relations } = reach;
+  const here = (await topLevel(request.cwd)) ?? request.cwd;
+  const [installed] = await installDiffs([{ point: await diffPoint(since, [], here), changed: reach.changed }], here);
+  if (installed !== undefined && 'whole' in installed) return { declined: installed.whole };
+  const moved = movedPackages(relations, installed);
+  const bumped = installed?.packages ?? [];
+  const unheld = bumped.filter((name) => idOf(relations, 'package', name) === undefined);
+  if (moved.unplaced.length > 0 || unheld.length > 0) {
+    return {
+      declined:
+        `the install moved what no scanned file imports, and a runner or a tool may load it: ${listed([...moved.unplaced, ...unheld])}`,
+    };
+  }
+  const installs = dependentsOf(relations, [
+    ...bumped.map((name) => idOf(relations, 'package', name)!),
+    ...moved.files.map((file) => idOf(relations, 'file', file)!),
+  ]).mask;
+
   const files = nodesOfKind(relations, 'file');
   const entries = files.filter((id) => relations.dependents.offset[id + 1]! === relations.dependents.offset[id]!);
   const unread = files.filter((id) => relations.unknown[id] === 1);
   const blind = dependentsOf(relations, unread).mask;
   const reached = new Set(reach.files.map((file) => idOf(relations, 'file', file)));
   const skip = entries
-    .filter((id) => blind[id] !== 1 && !reached.has(id))
+    .filter((id) => blind[id] !== 1 && installs[id] !== 1 && !reached.has(id))
     .map((id) => relations.names[id]!);
   return { skip, entries: entries.length, since, notes: reach.notes };
 }

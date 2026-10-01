@@ -1534,8 +1534,8 @@ compared at the diff's base.
 When there is no journal, or one with no whole observation in it, the file graph
 answers instead: the same walk as [`reach`](#reach-what-a-diff-reaches-for-a-pipe),
 from `--since` or the journal's own commit. A file nothing imports, which is
-how a test file sits in the graph, is skipped when the walk did not reach it and
-everything it loads was read whole:
+how a test file sits in the graph, is skipped when the walk did not reach it,
+everything it loads was read whole, and it imports nothing the lockfile moved:
 
 ```
 $ variance select --since origin/main
@@ -1548,8 +1548,12 @@ The graph answers only a suite whose tests reach their code by import: an
 undeclared one, or one declared `unit`. A suite declared `integration`, `e2e`
 or `visual` reaches its code through pages, servers and processes no import
 shows, so only its record rules a test out, and without one `select` skips
-nothing and says why. It also skips nothing when no ref names where to walk
-from, or when `reach` would refuse the walk, and stderr gives the reason.
+nothing and says why. It also skips nothing, and stderr gives the reason, when
+no ref names where to walk from, when `reach` would refuse the walk, when the
+lockfile cannot be compared or moved a package no scanned file imports, and when
+the change reaches a runner's config or setup module: a `*.config.*` file, a
+`setup` or `setupTests` module, or anything under `.storybook/`. The runner loads
+those by name before every test, so no import leads from them to the tests.
 
 A changed file the journal records nothing about is not one of those. Prose, a
 workflow, or a fixture your tests read with `fs` keeps no test in the run, and

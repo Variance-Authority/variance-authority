@@ -41,7 +41,7 @@ depth, could not be read whole, the file stays in the run. `affectedBy` leaves a
 unread edge to a recorded run to answer. Here there is no recorded run, so the
 file stays in.
 
-It answers only when all three hold:
+It answers only when all five hold:
 
 - **The suite reaches its code by import.** It is undeclared, or declared
   `unit`. A suite declared `integration`, `e2e` or `visual` skips nothing, and
@@ -50,6 +50,17 @@ It answers only when all three hold:
   `--since`. A patch handed in with `--diff` names none.
 - **The walk does not refuse.** Each refusal `reach` makes is a decline here,
   with its sentence.
+- **The change reaches no harness.** A runner loads its config and setup by
+  name, so no edge leads from one to the tests it runs before. A walk that
+  reaches a `*.config.*` file, a setup module or `.storybook/` declines. The
+  names are a convention, because a suite declares no harness for the graph to
+  read; the gap that `source.before` closes for a renderer is open
+  here.
+- **The install is answered.** The walk leaves the lockfile out, so its
+  comparison is made here as `select` makes it with a record. A test file
+  that imports a bumped package, or sits below a moved manifest, stays in. A
+  comparison that cannot be made, or a bumped package no scanned file imports,
+  declines.
 
 ## Consequences
 
