@@ -121,8 +121,7 @@ in a tier of their own. Nx's CVE-2025-36852 was a branch and main writing one
 slot.
 
 **A local layer belongs to a change: the commit and the uncommitted edits the
-tests ran over.** The identity it is stored under is open (below); what it
-describes is not.
+tests ran over.** How it is identified is decided below.
 
 **The base is a milestone HEAD contains, and long-running work keeps the one it
 started from** until a newer one is also an ancestor.
@@ -137,31 +136,35 @@ after its last access, has no TTL of its own, and a laptop cannot read it.
 it last ran at, so an older base only widens a selection. Items 2 to 4 buy
 width, not safety, and are built only if the width is measured.
 
+**A change layer is named by a tree and decided by digests.** The per-module
+source digests the record already stores say whether a module changed since a
+test ran: they survive a partial stage and a rebase, cover generated files the
+suite loads (`dist/`), and cost nothing new. The git tree of the working state
+(`GIT_INDEX_FILE` + `add -A` + `write-tree`) is kept only as the state's name,
+for printing and for `git diff`; a tree that `git gc` collected loses nothing.
+
+**Until item 1 lands, the merge over-selects rather than skips.** Demoting
+every unobserved test on an edited region is wider than a diff from each test's
+own text, and a wider run is the price of never skipping a test whose code
+changed.
+
 ## Open
 
 These are the owner's to answer.
 
-1. **The identity of a change layer.** The git tree of the working state
-   (`GIT_INDEX_FILE` + `add -A` + `write-tree`) is recognised exactly when that
-   state is later committed, and `git diff <tree>` works natively. It misses
-   ignored and generated files the suite loads (`dist/`), an exact tree rarely
-   recurs after another edit, and an unreferenced tree is collected by
-   `git gc`. The per-module source digests the record already stores survive a
-   partial stage and a rebase, and cost nothing new. Tree, digests, or the tree
-   as a name over the digests?
-2. **History storage, if item 3 is built.** Several entries per slot in the
+1. **History storage, if item 3 is built.** Several entries per slot in the
    one ref's manifest (works for the `git`, `directory` and `http` kinds alike;
    the git cell already fetches `blob:none`), or one ref per snapshot (git
    only). And the window: seven days, a count K, or both.
-3. **Snapshot deltas instead of whole snapshots.** The newest snapshot whole and
+2. **Snapshot deltas instead of whole snapshots.** The newest snapshot whole and
    a short chain of row-level deltas back from it, a delta over a size bound
    refused and the chain cut there. Worth it only if item 2 shows consecutive
    snapshots do not already compress in git.
-4. **A reader behind every snapshot** gets the newest with the distance
+3. **A reader behind every snapshot** gets the newest with the distance
    printed, or nothing until it rebases.
-5. **The merge queue**, and whether its runs may write the base every pull
+4. **The merge queue**, and whether its runs may write the base every pull
    request trusts.
-6. **External stores.** S3, GCS and R2 already serve as a share through
+5. **External stores.** S3, GCS and R2 already serve as a share through
    `kind: "directory"` with a sync, or `kind: "http"` behind a signer
    (`docs/sharing.md`, "S3 and Google Cloud Storage"). A bucket lifecycle rule
    gives the window a real expiry. Is a bucket the default for repositories
