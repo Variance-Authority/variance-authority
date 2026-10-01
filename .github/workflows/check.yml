@@ -47,7 +47,16 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      # Every commit and no trees: the `changeset` step below asks from where
+      # the branch left its base, and a merge base is exact only when the whole
+      # commit graph is there to find it in. A depth cut can end at an older
+      # common ancestor once a branch has merged its base in. A diff fetches
+      # the trees and blobs it reads, so the history costs megabytes where
+      # `fetch-depth: 0` alone costs the repository.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
 
       # 24, and only 24, which is what `docker/linux-verify.sh` runs on.
       #
@@ -85,17 +94,13 @@ jobs:
       # The version pull request is the one change that removes changesets
       # rather than adding them, so it is not asked. It is recognised by its
       # branch and by coming from this repository: a fork can name a branch
-      # `changeset-release/main` too, and is asked like any other. The history is fetched
-      # because the question is asked from where the branch left its base, and
-      # this checkout holds one commit.
+      # `changeset-release/main` too, and is asked like any other.
       - name: changeset
         if: ${{ github.event_name == 'pull_request' && !(github.head_ref == 'changeset-release/main' && github.event.pull_request.head.repo.full_name == github.repository) }}
         shell: bash
         env:
           BASE: ${{ github.base_ref }}
-        run: |
-          git fetch --no-tags --quiet --unshallow origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"
-          yarn changeset status --since="origin/$BASE"
+        run: yarn changeset status --since="origin/$BASE"
 
       # Build first, and not only to catch type errors: the documentation check
       # compiles each README example against each package's built `.d.ts`,
@@ -174,10 +179,12 @@ jobs:
     steps:
       # Every commit, because the review below diffs from a base it does not
       # choose: the base tip on a pull request, and on `main` the commit the
-      # previous push left, which can be any number of commits back.
+      # previous push left, which can be any number of commits back. No trees,
+      # for the reason written at the checkout in `rules`.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          filter: tree:0
 
       # Node 24, for the reason written at the same step in `rules`.
       - uses: actions/setup-node@v4
@@ -405,6 +412,8 @@ jobs:
       # descends from this one before replacing it. The token that can write
       # is not left in the clone's configuration, where install scripts and
       # the build would run beside it; the publish step hands it to git itself.
+      # The trees come with the commits for the same reason: a clone that
+      # fetches a tree when it reads one needs a credential to fetch it with.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0

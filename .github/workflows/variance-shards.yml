@@ -119,11 +119,12 @@ jobs:
       options: --ipc=host
 
     steps:
-      # Full history, so the mainline's costs are read at a distance this clone
-      # can count from its merge base.
+      # Every commit, so the mainline's costs are read at a distance this clone
+      # can count from its merge base. No trees: the count walks commits only.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          filter: tree:0
 
       - shell: bash
         run: corepack enable && yarn install --immutable
