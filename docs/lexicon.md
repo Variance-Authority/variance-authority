@@ -49,9 +49,10 @@ and the table in [what every record means](information.md#the-words) lists
 the ones a report uses.
 
 **Nothing switches this on.** Every `variance run` that reads the markup writes
-the record search reads: no option, no second pass, no service. A raster-only
-capture and a run under ephemeral retention write no record, so search has the
-subject ids alone, and the answer says that rather than reporting no match. A
+the record search reads: no option, no second pass, no service. A run that read
+no markup — a raster-only capture, or a run under ephemeral retention whose
+collector gave only images — writes no record, so search has the subject ids
+alone, and the answer says that rather than reporting no match. A
 suite built on something other than React has markup and no component
 boundaries: its record has accessible names, visible text and roles, and its
 component fields are read and empty.

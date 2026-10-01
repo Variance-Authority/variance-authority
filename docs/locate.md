@@ -58,11 +58,13 @@ answer lists the fields it read and the fields it did not:
 | declaring files | a [source index](source-index.md) — the map from a component to the files that declare it |
 | custom properties | the CSS cascade those boundaries resolved through |
 
-**Search has only your ids, and says so, on two kinds of run:**
+**Search has only your ids, and says so, on a run that read no markup:**
 
 - **A raster-only capture.** It is an image with no markup behind it.
-- **A run under ephemeral retention.** It renders the baseline inside the run
-  and keeps nothing once the run ends.
+- **A run under ephemeral retention whose collector gives only images.**
+  Ephemeral retention renders the baseline inside the run and keeps nothing
+  once the run ends. When its collector also reads the markup, the run writes
+  the same words as any other run.
 
 On either one the answer says it indexed subject ids and nothing else, so a
 miss is not a miss on names, text or components — none of those was searched.
@@ -434,9 +436,9 @@ observed, and [`variance_explain_verdict {subject}`](agent-questions.md) says
 why a subject was not compared. The answer names two of them under `next:` with
 the id already filled in.
 
-A raster-only capture or a run under ephemeral retention writes no words for
-search, and `locate` still answers on it: on subject ids alone, saying no other
-field was searched. `composition` is absent on those runs and says so, rather
+A run that read no markup — a raster-only capture, or an ephemeral run whose
+collector gave only images — writes no words for search, and `locate` still
+answers on it: on subject ids alone, saying no other field was searched. `composition` is absent on those runs and says so, rather
 than printing an empty graph. A suite that is not React has markup and no
 boundaries: `locate` searches its names, text and roles, and `composition` says
 its subjects name no component.
