@@ -14,7 +14,7 @@ import { symbol } from './tools/symbol.js';
 import { uses } from './tools/uses.js';
 
 /**
- * The nine questions, and the order they are meant to be asked in.
+ * The questions, and the order they are meant to be asked in.
  *
  * `docs_packages` needs nothing and answers with the arguments the next call
  * takes; `docs_entrypoint` and `docs_search` narrow to a name; `docs_symbol`
@@ -44,6 +44,12 @@ import { uses } from './tools/uses.js';
  * `docs_slowest_tests` is about the suite rather than the source: which test
  * files the latest recorded run says took longest, as the runner reported them.
  * It sits here because it reads the same recording `docs_orient` reads.
+ * `docs_journey_map` reads it too, around one file: the code the tests that
+ * entered that file went on to enter, nearest first.
+ *
+ * `docs_stack` answers what a location may import that nobody wrote: the
+ * third-party packages its owning manifest declares, read from the published
+ * dependency lexicon rather than from the source.
  *
  * `docs_gaps` is the one that is not for using the library. It is for the person
  * maintaining it, and it lives here rather than in a lint rule because the
@@ -70,7 +76,7 @@ const DATED_HELP_TOOLS = HELP_TOOLS.map(dated);
 export const SERVER_NAME = 'variance-authority-help';
 export const SERVER_VERSION = '0.0.0';
 
-/** What a server answers with: these nine tools, over one workspace's reading. */
+/** What a server answers with: every tool above, over one workspace's reading. */
 export const HELP: Served<Help> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,

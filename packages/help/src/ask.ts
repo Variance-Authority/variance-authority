@@ -8,7 +8,7 @@ import { searchNames } from './tools/search-answer.js';
 import { answerSearch, search } from './tools/search.js';
 
 /**
- * The six answers as shell verbs, so asking costs nothing to arrange.
+ * The answers as shell verbs, so asking costs nothing to arrange.
  *
  * An MCP server is the right shape for a client that will hold a connection open
  * all session, and the wrong shape for a reader that wants one answer once: it
