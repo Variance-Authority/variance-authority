@@ -52,6 +52,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { native } from '../addon.js';
 
 /**
  * How much text one window may hold, and how many paths the first one guesses at.
@@ -149,16 +150,45 @@ export function textAtRecording(
 }
 
 /**
- * One window of paths at one commit, from one process.
+ * One window of paths at one commit, from one process — and in a partial
+ * clone, a second for the paths it had not fetched yet, after fetching all of
+ * them in one request.
+ *
+ * `cat-file --batch` fetches each object a partial clone lacks in a request of
+ * its own, a network round trip per path. So with the addon at hand the first
+ * read does not fetch, and the addon fetches what it answered missing
+ * together, as `promisor.rs` describes. A path still missing after that is one
+ * the commit does not hold. Without the addon the read fetches as git does by
+ * default: slower in a partial clone, and the same answers.
+ */
+function batch(root: string, commit: string, files: readonly string[]): Map<string, string> {
+  const fetchMissingAt = native()?.fetchMissingAt;
+  const { texts, missing } = read(root, commit, files, fetchMissingAt === undefined);
+  if (missing.length > 0 && fetchMissingAt?.(root, commit, missing) === true) {
+    for (const [file, text] of read(root, commit, missing, true).texts) texts.set(file, text);
+  }
+  return texts;
+}
+
+/**
+ * `files` at `commit` from one `cat-file --batch`, with the paths it answered
+ * missing. Without `fetch`, an object a partial clone has not fetched is
+ * answered missing too.
  *
  * `--batch` writes `<sha> <type> <size>\n<size bytes>\n` per found object and
  * `<spec> missing\n` per absent one, so the sizes are read rather than the
  * newlines guessed at — a source file holding the word `missing` on a line of
  * its own would otherwise end the object early.
  */
-function batch(root: string, commit: string, files: readonly string[]): Map<string, string> {
+function read(
+  root: string,
+  commit: string,
+  files: readonly string[],
+  fetch: boolean,
+): { texts: Map<string, string>; missing: string[] } {
   const texts = new Map<string, string>();
-  if (files.length === 0) return texts;
+  const missing: string[] = [];
+  if (files.length === 0) return { texts, missing };
 
   let output: Buffer;
   try {
@@ -166,12 +196,13 @@ function batch(root: string, commit: string, files: readonly string[]): Map<stri
       cwd: root,
       input: files.map((file) => `${commit}:${file}\n`).join(''),
       maxBuffer: 1 << 30,
+      ...(fetch ? {} : { env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } }),
     });
   } catch {
     // Not a checkout, no such commit, no git. Every module then reads as
     // unverified, which widens rather than narrows, and is the direction this
     // whole subsystem is allowed to fail in.
-    return texts;
+    return { texts, missing };
   }
 
   let at = 0;
@@ -183,7 +214,10 @@ function batch(root: string, commit: string, files: readonly string[]): Map<stri
     // `<spec> missing` carries no size and no body, so the next header starts
     // where this line ended.
     const size = Number(header.slice(header.lastIndexOf(' ') + 1));
-    if (!Number.isFinite(size)) continue;
+    if (!Number.isFinite(size)) {
+      if (header.endsWith(' missing')) missing.push(file);
+      continue;
+    }
     // Advance past the body whatever its type, so one path that is somehow not a
     // blob costs its own answer and not every answer after it.
     if (header.endsWith(` blob ${size}`)) texts.set(file, output.toString('utf8', at, at + size));
@@ -191,5 +225,5 @@ function batch(root: string, commit: string, files: readonly string[]): Map<stri
     at += size + 1;
   }
 
-  return texts;
+  return { texts, missing };
 }

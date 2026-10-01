@@ -99,6 +99,7 @@ mod package_graph;
 mod package_owners;
 mod parse_columns;
 mod path;
+mod promisor;
 mod read;
 mod ready_index;
 mod record;
