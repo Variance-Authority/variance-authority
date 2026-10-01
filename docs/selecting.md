@@ -141,17 +141,12 @@ laptop:
 | the latest commit only (the default `fetch-depth: 1`) | 14.7 s | 231 MB |
 
 On Kibana, whose full history is 17.7 GB, the `tree:0` checkout takes 79 s and
-596 MB, and the default depth-1 checkout with `blob:none` takes 97 s and
-489 MB.
+596 MB, and a depth-1 checkout with `blob:none` takes 97 s and 489 MB.
 
-Two settings decide whether this works:
-
-- **The filter goes on the first fetch.** Git ignores `--filter` on a later
-  fetch into a clone that was made without one. Deepening a depth-1 clone of
-  material-ui downloaded 664 MB.
-- **The clone keeps its credential.** Every tree git fetches later uses the
-  remote's credential. In a private repository, leave `persist-credentials` at
-  its default.
+**The clone keeps its credential.** Every tree git fetches later uses the
+remote's credential, so in a private repository leave `persist-credentials` at
+its default. The job's code can then read the token, so give that job a token
+that can only read, such as `permissions: contents: read`.
 
 **On a pull request, two commits are enough for `run --since`.** The
 `pull_request` event checks out the merge of your branch into the mainline,
