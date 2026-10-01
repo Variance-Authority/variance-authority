@@ -87,15 +87,19 @@ export const composition: Tool = {
  * The absence, said as an absence.
  *
  * `composition` is missing from a report whose collection produced no semantic
- * snapshots, and rendering that as an empty graph would answer *this suite
- * shares nothing* — a different claim, and a false one. Absent is not empty
- * here for the same reason it is not empty anywhere else in this system.
+ * snapshots, and from a report merged from shards, which drops it with a
+ * warning. Rendering either as an empty graph would answer *this suite shares
+ * nothing* — a different claim, and a false one. Absent is not empty here for
+ * the same reason it is not empty anywhere else in this system. The report
+ * names no structured cause, so the answer names both rather than guess.
  */
 const ABSENT =
-  'This run composed nothing, which is not the same as it finding nothing. No subject supplied ' +
-  'a semantic snapshot — a raster-only or ephemeral run compares images and never sees a ' +
-  'component boundary — so there was nothing to join. Nothing here says the suite shares no ' +
-  'components; it says this run cannot tell.';
+  'This report has no composition, which is not the same as it finding nothing. A run that ' +
+  'reads no markup — a raster-only capture, or a run whose collector gives only images — never ' +
+  'sees a component boundary, so it has nothing to join. A report merged from shards drops the ' +
+  'composition its shards had, because two subjects that share a rendering can land in ' +
+  'different shards; run the suite unsharded to ask for it. Nothing here says the suite shares ' +
+  'no components; it says this report cannot tell.';
 
 function whole(composed: CompositionReport): string {
   const unexplained = composed.movements.filter((movement) => movement.cause === 'unexplained');

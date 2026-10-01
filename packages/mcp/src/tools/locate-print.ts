@@ -90,9 +90,9 @@ function headline(located: Located, query: string): string {
     located.idOnly === 0
       ? ''
       : located.idOnly === located.indexed
-        ? '\nThis run indexed subject ids and nothing else — it carries no lexicon, which a ' +
-          'raster-only or ephemeral run does not write — so a miss below is not a miss on ' +
-          'text, names, components or regions; none was searched.'
+        ? '\nThis run indexed subject ids and nothing else. It read no markup — a raster-only ' +
+          'capture, or a run whose collector gave only images — so it has no lexicon, and a ' +
+          'miss below is not a miss on text, names, components or regions; none was searched.'
         : `\n${located.idOnly} subject(s) are indexed by id alone: the run composed nothing for them.`;
 
   return `${first}${scope}\n${read}${unread}${idOnly}`;

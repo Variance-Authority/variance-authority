@@ -68,9 +68,9 @@ baseline costs you the comparison.
 Every publish includes `suite-index-v1`, which is what `variance share` reads,
 and the other entries are published only beside it. A run report has no
 composition section, the part that says which subjects mounted which
-components, when it comes from a raster-only capture (an image with no markup
-behind it), a run under `"retention": "ephemeral"` (two revisions compared with
-no baseline stored), or one shard of a sharded build. It gives no suite index, and a publish of it writes nothing and exits 0.
+components, when it comes from a run that read no markup (a raster-only
+capture, or a run whose collector gave only images), or from one shard of a
+sharded build. It gives no suite index, and a publish of it writes nothing and exits 0.
 
 An image is stored once per share, under `images/<digest>`, and every record
 names it by digest.
