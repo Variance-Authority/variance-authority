@@ -86,9 +86,13 @@ for (const subject of clustering.ungrouped) {
 
 Each **change** in `clustering.changes` is one fingerprint — a digest of the
 shape of the difference, stamped on every region of the diff and built from the
-component responsible, so the same-looking change in `Avatar` and in `Badge`
-stays two changes. `ungrouped` lists subjects that changed and produced no
-fingerprint at all; they are never folded into a catch-all.
+changed pixels alone: the region cropped to its box, resampled onto a fixed
+grid, with its aspect and size bucketed beside it. The component is not part of
+it, so the same-looking change in `Avatar` and in `Badge` is one change, and
+`accept --shape` on it promotes both. `change.component` names the first
+component a region in the change was attributed to. `ungrouped` lists subjects
+that changed and produced no fingerprint at all; they are never folded into a
+catch-all.
 
 ### What you get
 

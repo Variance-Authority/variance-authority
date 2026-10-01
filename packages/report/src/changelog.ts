@@ -81,12 +81,12 @@ export interface ChangelogEntry {
   readonly fingerprint: string;
 
   /**
-   * The component the semantic tier attributed this shape to.
+   * The component the cluster adopted from its first attributed region.
    *
-   * Absent means no region of this shape landed on a component the snapshot
-   * named, so the shape was grouped by silhouette alone. Surfaced
-   * rather than smoothed over, because a later reader asking *what changed in
-   * `Card`* must not be answered from a group that never named one.
+   * The shape is a pixel silhouette and does not include the component. Absent
+   * means no region of this shape landed on a component the snapshot named.
+   * Surfaced rather than smoothed over, because a later reader asking *what
+   * changed in `Card`* must not be answered from a group that never named one.
    */
   readonly component?: string;
 
