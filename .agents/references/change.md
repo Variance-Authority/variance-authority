@@ -35,8 +35,10 @@ selection that already could, and the new walk was a second copy of it.
 
 A behaviour nothing covers is pinned as it is before it is changed: one test per
 edge case, green on the old code, so the change shows up as the tests it turns
-red. `covering` answers from the last recording, so a file it has never seen is
-asked of `yarn test:since --dry-run` instead.
+red, and the test the change is for is still written to fail first. `covering`
+answers from the last recording, so for a file it has never seen, put the edit
+in the tree and read `yarn test:since --dry-run`: it selects from the diff, and
+says nothing about a file that has not changed.
 
 **Is it this task?** A finding outside the task — dead code, a stale doc, a
 defect in a neighbour — becomes its own change with its own PR. Folded into
