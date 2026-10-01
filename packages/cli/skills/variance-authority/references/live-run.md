@@ -6,9 +6,7 @@ listener first, in its own shell.
 
 That listener is a **vantage**: one process that keeps one run in memory and
 answers at the address it prints. `VARIANCE_AUTHORITY_VANTAGE` passes that
-address to the suite's environment. The value is both the opt-in and the name of
-this watcher, so there is no fixed port to hard-code; a fixed port would not
-remove the need for the opt-in.
+address to the suite's environment.
 
 ```bash
 variance watch                     # prints VARIANCE_AUTHORITY_VANTAGE=…, stays up
@@ -40,8 +38,6 @@ variance ask test-signals --at "$VARIANCE_AUTHORITY_VANTAGE" --test <id>
 variance ask diff         --at "$VARIANCE_AUTHORITY_VANTAGE"  # what changed since the last reading
 ```
 
-`--at <address>` names the watcher and defaults to `VARIANCE_AUTHORITY_VANTAGE`.
-
 ## Ask `self` first
 
 `self` answers before any run has arrived:
@@ -51,10 +47,9 @@ Nothing has reported to this vantage yet.
 
 A run reports here when it is started with this in its environment:
 
-  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:64672
+  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:64655
 
-That is the same env block `VARIANCE_AUTHORITY_EVENTS` goes in. The suite needs
-`varianceFixtures` from `@variance-authority/playwright-test` and nothing else.
+That is the same env block `VARIANCE_AUTHORITY_EVENTS` goes in. The suite needs `varianceFixtures` from `@variance-authority/playwright-test` and nothing else — a test that takes no screenshot reports exactly what one that does reports, and a run started without the variable pays nothing.
 ```
 
 A suite reporting to a different address and a suite that never started look
@@ -64,14 +59,6 @@ not permission to reconstruct a trace from source.
 
 ## Nothing is written down
 
-Stop the watcher and the run is gone. The suite must extend `varianceFixtures`
-from `@variance-authority/playwright-test` for any of it to arrive. Once the
-process is gone, the question belongs to a retained file, not to a
-reconstruction.
-
-A watcher failure must not fail the suite it watches: a watcher that was not
-there changes nothing about what the suite did.
-
-Do not add active page callbacks, event replay or browser control to answer an
-inspection question. Those are different capabilities and need an explicit
-product decision.
+Stop the watcher and the run is gone. Once the process is gone, the question
+belongs to a retained file, not to a reconstruction. To wire a suite that sends
+nothing, read [producers](producers.md).

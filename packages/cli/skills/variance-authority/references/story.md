@@ -2,7 +2,9 @@
 
 `variance story` gives the code one test ran, in the order it ran it: each
 function, the branch taken at each `if`, the branches never taken, and loop
-counts, in one answer under 5,000 characters. It reads no config.
+counts, in one answer under 5,000 characters. Of the root
+`variance.config.json` it reads only `suites` and `cacheRoot`, to find where
+stories are kept.
 
 It is for a close look at a few tests, never at a suite. Record one only when
 you can write the question in one line about named tests: which path does this
@@ -40,7 +42,7 @@ Never record:
   for the tests `covering` names, pass their files and names. Never in CI.
 - **A performance test or a benchmark**, or a test for a question about time. A
   loop that runs thousands of times runs many times slower while recorded, and
-  a story holds no times. If a story shows a loop count in the thousands, or
+  a story has no times. If a story shows a loop count in the thousands, or
   says the recording filled up, choose another test.
 - **To find which tests run a line.** That is `covering`, from the record every
   run already keeps.
@@ -78,7 +80,8 @@ variance story --file src/cart.test.ts --name "removes" --format json
 
 `--file` and `--name` match text the test file path and the test name contain.
 When they match several tests, the answer lists them with their visit counts
-and readings and prints no route; narrow the text and ask again.
+and readings and prints no route; narrow the text and ask again. `--root
+<path>` reads the stories of the checkout at that path.
 
 The answer fits a page. It is drawn at the finest level that fits in 5,000
 characters — every step, then steps with other workspace packages passed
@@ -119,40 +122,24 @@ variance story --name "removes the last item" --around 6      # three steps eith
 variance story --name "removes the last item" --whole         # every step, however long
 ```
 
-- A step is one function the test was in — a function, a method, a callback,
-  a module's top level — named by its path in the file, then
-  `file:start-end`. Visits in a row inside one function are one step; coming
-  back to the caller is a step of its own. `×N` after the function is how many
-  times the test called it at that step.
-- Under it, one line per `if`, loop, `switch` or `try`: `if 14  then ✗  else ×1`
-  is an `if` by the line it starts on, both branches, and how many times each
-  ran; `for 18 ×2` is a loop body that ran twice. A `switch` names its cases by
-  line, a `try` its `catch` and `finally`. Code that only continues past an
-  `if` or a loop is not shown.
-- `✗` is a branch the test ran nowhere, before the test or during it. This test
+The answer prints a key for its marks. What the key does not say:
+
+- `✗` is a branch the test ran nowhere, before the test or during it: this test
   does not check that code, and `then ×6  else ✗` is a condition that was true
-  every time. A function not on the route never ran. Whether a test runs one
-  line is `covering`'s question: straight-line code is not listed here.
-- `in 255 then: if 257 …` is an `if` inside the `then` of the `if` at 255. `↑`
-  is a branch the test went into at an earlier step, which this step runs
-  inside.
-- `steps a-b ran N times in all:` is a loop, shown once; the counts under it
-  are all its passes added together.
-- `through <package>, steps a-b: names` is a run of steps inside a workspace
-  package other than the test's own. Open it with `--in <package>`.
-- `… steps 1-2 left out` is what this part leaves out. Ask `--around` a step at
-  its edge to read further.
-- `loaded N files` is modules loaded one inside another; each file is named
-  once.
+  every time. A function not on the route never ran. Straight-line code, and
+  code that only continues past an `if` or a loop, is not listed: whether a test
+  runs one line is `covering`'s question.
+- A `switch` names its cases by line, a `try` its `catch` and `finally`.
 - `before the test` is the code the runner ran outside the test just before
   it, such as code a `beforeEach` or the previous test's `afterEach` called.
   Test files are not recorded by default, so the hook itself is not a step.
-- At the declarations level, `steps 36, 39×6` lists each step the function was
-  at; `39×6` is step 39, repeated six times, as calls or returns.
 - `» text` under a step is a line the code said at that step: a `console` line
   as `console.log …`, an Eyes entry as `eyes …` with a query's arguments and
   what it found, a `vae` announcement as `vae …`. Lines said before the first
   step are in the header.
+- `loaded N files` is modules loaded one inside another. `… steps 1-2 left out`
+  is what this part leaves out; ask `--around` a step at its edge to read
+  further.
 
 ## Compare readings
 

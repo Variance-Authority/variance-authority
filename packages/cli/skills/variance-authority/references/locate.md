@@ -30,7 +30,9 @@ run did record printed beside it. Build the next query out of those.
 ## Hand the description over as words
 
 No word in `--query` is read as syntax, so a product that says *Under review*,
-*Show more* or *Inside sales* is searched for those words:
+*Show more* or *Inside sales* is searched for those words. Ten function words
+are dropped — `the a an in on of with and for to` — so `Sign in` searches
+`sign`. `--limit <n>` sets how many hits are printed; the default is 8:
 
 ```bash
 variance ask locate --query "footer filter chips"
@@ -41,8 +43,7 @@ where to take the id:
 
 ```
 1 of 3 subject(s) match `badge`.
-Read: id, example, names, text, components, createdBy, files, roles, tokens.
-Not read: regions (no execution journal was read).
+Read: id, example, names, text, components, createdBy, files, roles, tokens. Not read: regions (no execution journal was read).
 
 badge/standalone · 1 boundary · example of Badge
   badge: id `badge/standalone`; example `Badge`; components `Badge`
@@ -80,10 +81,8 @@ refused.
 
 **`--inside` is the only relation a run without layout can answer.** The other
 five are decided from the rectangles the run resolved. A run that resolved no
-layout refuses them rather than falling back to document order, and says so:
-*"This run did not resolve layout, so no landmark carries a rectangle and
-nothing here knows what sits beneath what."* Containment needs no rectangle.
-Check the run's layout before you use the other five.
+layout refuses them rather than falling back to document order, and says so.
+Containment needs no rectangle.
 
 On a relation answer, read three things before acting:
 
@@ -110,12 +109,14 @@ Three states look alike, and the header separates them per field:
 - **Read, and nothing matched.** The names exist and your word is not among
   them. Ask again in another kind of name, from the table above.
 - **Not read.** No journal means no regions; no snapshot means no names, text or
-  roles; no source index means no files. Nothing was searched.
+  roles; no source index and no provenance means no files. Nothing was
+  searched.
 - **Read, and empty.** A build with owner links stripped has an empty
-  `createdBy` everywhere.
+  `createdBy` everywhere, and a suite that is not React has no components or
+  creators to record.
 
-Search is absent altogether, and says so, on a raster-only capture, a run under
-ephemeral retention, and a suite that is not React.
+A raster-only capture or a run under ephemeral retention writes no names at
+all: only subject ids are searched, and the answer says so.
 
 The order of hits is orientation, not evidence: no hit has a verdict or a pixel
 count. Read the field each term matched on, narrow, then take the id to

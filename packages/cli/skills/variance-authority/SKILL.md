@@ -29,10 +29,14 @@ It reads no config and no run, so it is the whole install check.
 
 | Command | `variance.config.json` | Other input |
 |---|---|---|
-| `ask` about a run (`summary`, `changes`, `composition`, `locate`, `describe`, …), `adjudicate`, `report`, `changelog`, `accept` | required | the report a finished run left |
+| `ask` about a run (`summary`, `changes`, `composition`, `locate`, `describe`, …), `ask costs`, `adjudicate`, `report`, `changelog`, `accept` | required | the report a finished run left; for `costs`, the mainline's published costs unless you name a report |
 | `ask` about a running suite (`self`, `run-signals`, `waiting`, `test-signals`, `diff --at`) | required, though never read | a watcher's address |
-| `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `orient`, `slowest-tests`, `stack`, `gaps`) | none | the checkout |
-| `watch`, `distill`, `covering`, `story`, `index`, `select`, `reach` | none | see the reference that owns it |
+| `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `gaps`, `orient`, `journey-map`, `stack`, `slowest-tests`) | none | the checkout |
+| `watch`, `distill`, `reach` | none | see the reference that owns it |
+| `index` | none | the checkout; it writes what [test selection](references/test-selection.md) and [orient](references/orient.md) read |
+| `covering`, `story`, `select`, `coverage`, `review` | optional; only the root file's `suites` and `cacheRoot` are read | the test-selection recording; with more than one suite declared, `--suite <name>`; `variance --help` lists the flags of `coverage` and `review` |
+| `carry` | optional; with `--config`, its baselines and report | what the host moves between jobs; `variance --help` lists its flags |
+| `layers`, `restrictions` | none | the checkout; `variance --help` lists their flags |
 
 The config is `variance.config.json` in the working directory, or the file
 `--config <path>` names. There is no search of parent directories and no
@@ -41,8 +45,9 @@ variance.config.json`.
 
 Exit codes: `ask` exits `0` for every answer, including one that describes
 changes. `run`, `report` and `adjudicate` own the verdict and exit `1` when
-something needs review. `2` is an operator error: a crash, a missing config, a
-refused question. Do not read a `1` as a crash.
+something needs review, and `restrictions` exits `1` when a rule is broken.
+`2` is an operator error: a crash, a missing config, a refused question. Do
+not read a `1` as a crash.
 
 ## Open the reference for the question
 
@@ -51,15 +56,16 @@ when its condition holds, not before.
 
 | Question | Read | Then, only if |
 |---|---|---|
-| What did the last run find? What changed? Did my edit land? | [ask a run](references/ask-a-run.md) | you have a description, not a subject id: [locate](references/locate.md) |
+| What did the last run find, and what changed? | [ask a run](references/ask-a-run.md) | you have a description, not a subject id: [locate](references/locate.md) |
 | I changed UI code. Did the edit land, what else moved, and which declaration moved it? | [check an edit](references/check-an-edit.md) | |
 | What is a suite that has not finished doing? | [live run](references/live-run.md) | nothing arrives: [producers](references/producers.md) |
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |
 | Which tests ran this line? What did my change do to the cases? | [covering](references/covering.md) | |
 | Where does this one test, or the few I am looking into, go, and in what order? | [story](references/story.md) | |
-| Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md) |
+| Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md); you need distances, the `because` trail or a diff that is not a ref: [selection API](references/selection-api.md) |
 | What can this test be reduced to? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
 | What does this workspace publish? Where is a name declared, and who imports it? Where are the words of a task, and which packages are they in? | [workspace API](references/workspace-api.md) | you need why a name exists or what it connects to: [what is written about a name](references/written-about-a-name.md) |
+| Where am I in this codebase, what runs here, what can this file import, and which tests are slowest? | [orient](references/orient.md) | |
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |
 
 ## Rules every answer shares
@@ -71,15 +77,10 @@ absent, never `0`. Every answer's header says what it read. Do not reconstruct
 runtime evidence from repository files.
 
 **Matching is lexical, and you expand the query.** `locate` and `search` match
-the characters you typed against the names that were recorded or written. There
-is no synonym list, no stemming and no model, so `auth` does not find a sign-in
-screen whose component is `CredentialGate`. You have the ticket, the
-conversation and the checkout, so you already know that `auth` here may be
-written `login`, `session`, `credential`, `token` or `jwt`. Ask each candidate
-as its own query, and when one comes back unmatched, ask in a different kind of
-name rather than rewording the same one. Two or three short queries cost two or
-three calls, and the first hit tells you the vocabulary this repository uses
-for every question after it.
+the characters you typed, with no synonyms and no model, so `auth` does not find
+a sign-in screen whose component is `CredentialGate`. Ask each likely spelling —
+`login`, `session`, `credential`, `token` — as its own short query, and use the
+vocabulary of the first hit for every question after it.
 
 **Say where you are standing.** On a large repository a common word matches
 everywhere the product says its own name. `--from <path>` narrows to what that
