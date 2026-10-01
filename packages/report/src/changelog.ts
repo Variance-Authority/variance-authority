@@ -83,8 +83,8 @@ export interface ChangelogEntry {
   /**
    * The component the semantic tier attributed this shape to.
    *
-   * Absent means the shape was grouped by silhouette alone — the ephemeral and
-   * raster-only paths, where no document survived to name a cause. Surfaced
+   * Absent means no region of this shape landed on a component the snapshot
+   * named, so the shape was grouped by silhouette alone. Surfaced
    * rather than smoothed over, because a later reader asking *what changed in
    * `Card`* must not be answered from a group that never named one.
    */
@@ -179,9 +179,10 @@ export interface ChangelogRecord {
   /**
    * Accepted subjects that carried no fingerprint anywhere.
    *
-   * Counted, never folded into an entry. A run with no document behind its
-   * baseline produces regions with no shape, and inventing a group for them would
-   * report a change this record cannot describe as one it can.
+   * Counted, never folded into an entry. A subject the run read no markup for,
+   * or whose only change was its accessibility tree, has no region with a shape,
+   * and inventing a group for them would report a change this record cannot
+   * describe as one it can.
    */
   readonly ungrouped: number;
 

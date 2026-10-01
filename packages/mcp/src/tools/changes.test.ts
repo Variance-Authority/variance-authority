@@ -137,7 +137,7 @@ describe('answering about a component that is not in the run', () => {
       ...REPORT,
       observations: [
         {
-          subject: 'story:ephemeral',
+          subject: 'story:unread',
           verdict: 'changed',
           because: 'pixels moved',
           changedPixels: 10,
@@ -149,6 +149,13 @@ describe('answering about a component that is not in the run', () => {
     expect(changes.run(ungrouped, { component: 'Avatar' })).toContain(
       'no grouped changes at all',
     );
+
+    // A shape needs the markup, not a retention mode: an ephemeral pair whose
+    // collector gave a snapshot is grouped like any other run.
+    const unread = changes.run(ungrouped, {});
+    expect(unread).toContain('because the run read no markup for them');
+    expect(unread).toContain('only their accessibility tree changed: story:unread');
+    expect(unread).not.toContain('ephemeral');
   });
 
   it('explains what an ungrouped subject means rather than listing it bare', () => {
@@ -157,7 +164,7 @@ describe('answering about a component that is not in the run', () => {
       observations: [
         ...OBSERVATIONS,
         {
-          subject: 'story:ephemeral',
+          subject: 'story:unread',
           verdict: 'changed',
           because: 'pixels moved',
           changedPixels: 10,
@@ -169,10 +176,12 @@ describe('answering about a component that is not in the run', () => {
     const answer = changes.run(mixed, {});
 
     // "Not grouped" with no explanation reads as a defect in the tool. It is a
-    // property of the run: no document survived, so there is no shape to group
-    // on, and those subjects genuinely have to be read one at a time.
-    expect(answer).toContain('Not grouped (1): story:ephemeral');
-    expect(answer).toContain('compared without a document');
+    // property of the run: it read no markup for the subject, so there is no
+    // shape to group on, and those subjects genuinely have to be read one at a
+    // time. Every run has a document, so the reason is never its absence.
+    expect(answer).toContain('Not grouped (1): story:unread');
+    expect(answer).toContain('because the run read no markup for them');
+    expect(answer).not.toContain('without a document');
   });
 });
 

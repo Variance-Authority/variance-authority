@@ -162,8 +162,9 @@ export function bulkBlocks(report: CliRunReport, limits: CommentLimits): readonl
       : []),
     ...(ungrouped.length > 0
       ? [
-          `${count(ungrouped.length, 'changed subject')} carry no difference shape, so the run ` +
-            'compared without a document and they have to be reviewed one at a time.',
+          `No difference shape for ${count(ungrouped.length, 'changed subject')}: the run read ` +
+            'no markup there, or only the accessibility tree changed, so each one has to be ' +
+            'reviewed on its own.',
         ]
       : []),
   ];

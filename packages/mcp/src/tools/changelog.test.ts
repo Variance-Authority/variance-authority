@@ -64,12 +64,12 @@ const OBSERVATIONS: readonly ObservationRecord[] = [
     },
   },
   {
-    subject: 'story:ephemeral',
+    subject: 'story:unread',
     verdict: 'changed',
     because: 'pixels moved',
     changedPixels: 10,
     regions: [{ x: 0, y: 0, width: 5, height: 2, pixels: 10, cause: false }],
-    images: { after: '.variance/candidates/story:ephemeral.png' },
+    images: { after: '.variance/candidates/story:unread.png' },
   },
   { subject: 'story:calm', verdict: 'unchanged', because: '', changedPixels: 0, regions: [] },
 ];
@@ -125,10 +125,10 @@ describe('reading the record before writing it', () => {
   it('says which subjects would be promoted with nothing recorded about them', () => {
     const answer = changelog.run(REPORT, {});
 
-    // `story:ephemeral` was compared without a document, so no shape names its
+    // The run read no markup for `story:unread`, so no shape names its
     // difference. The record counts it and cannot describe it — and after the
     // commit lands there is nowhere left to ask.
-    expect(answer).toContain('Promoted but not described (1): story:ephemeral');
+    expect(answer).toContain('Promoted but not described (1): story:unread');
     expect(answer).toContain('Nothing later can recover it');
     expect(answer).toContain('+1 unshaped');
   });
