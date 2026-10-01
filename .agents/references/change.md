@@ -5,10 +5,21 @@ where each kind of writing goes.
 
 ## Look around
 
-**Is it already built?** Search for the behaviour, not only the name. A second
-implementation of a shipped behaviour is a defect that drifts:
-`summarizeObservation` was exported, documented, called by nothing, and
-drifting from the private copy `playwright-test` had grown for the same job.
+**Which tests stand on it?** Before an edit, `yarn variance covering --file
+<path>` names the tests that entered the code, and the change starts there:
+
+1. Amend the test that pins the behaviour being changed, or add one beside it,
+   so that it states the behaviour the change is for.
+2. Run it and watch it fail on the code as it is. A test that passes before the
+   change pins nothing the change does.
+3. Change the code until it passes, and the tests `covering` named still pass.
+
+A behaviour nothing covers is pinned as it is before it is changed: one test per
+edge case, green on the old code, so the change shows up as the tests it turns
+red, and the test the change is for is still written to fail first. `covering`
+answers from the last recording, so for a file it has never seen, put the edit
+in the tree and read `yarn test:since --dry-run`: it selects from the diff, and
+says nothing about a file that has not changed.
 
 **Is it this task?** A finding outside the task — dead code, a stale doc, a
 defect in a neighbour — becomes its own change with its own PR. Folded into

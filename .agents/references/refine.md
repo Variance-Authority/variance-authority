@@ -39,11 +39,26 @@ failed for them. A metric the project coins needs its observation class —
 observed, co-occurrence or inferred — and a base rate before anyone reads it as
 evidence.
 
-**Our own words.** When the task names a mechanism — a journey, a divergence,
-sense — search `packages/*/src` and `docs` for the word first
-(`yarn variance ask search --query <words>`, then grep). The project
-usually implements it already, and the industry's term for something similar
-answers a different question.
+**What already does this?** Before the task is a plan, it is a question about
+the code that exists: which command, function or rule already answers it, or
+answers most of it, and how the feature is reached from there — a call, an
+extension, a route from one caller to another. Search for the behaviour, not
+only the name: `yarn variance ask search --query <words>`, then the commands
+`yarn variance --help` lists, then the ADRs that name the subject. When the task
+names a mechanism — a journey, a divergence, sense — the project usually
+implements it already, and the industry's term for something similar answers a
+different question. New code is the exception, and the pull request proves it is
+the only way: it names what exists, and says why none of it could carry the
+change.
+
+A second implementation of a shipped behaviour is a defect that drifts:
+`summarizeObservation` was exported, documented, called by nothing, and
+drifting from the private copy `playwright-test` had grown for the same job.
+The fallback to relations for a suite with no record was started as a new import
+walk in `sense`, with its own tests, before anyone noticed that test selection
+already selects by relations — the graph `affectedBy` in `core/relate` walks. What that
+feature needed was a route from the record that could not answer to the
+selection that already could, and the new walk was a second copy of it.
 
 ## Decide, or ask
 
