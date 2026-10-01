@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import journals from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
-import { foldRun, runJournals, testsOfJournals } from './run-fold.js';
+import { foldCrossingColumns, runJournals, testsOfJournals } from './run-fold.js';
 
 let directory: string;
 
@@ -65,7 +65,7 @@ describe('testsOfJournals', () => {
   });
 });
 
-describe('foldRun', () => {
+describe('foldCrossingColumns', () => {
   it('names the tests that entered a region, and those that had entered it before their first test ran', async () => {
     const modules = new Map([['lib.ts', module('lib.ts', 3)]]);
     const paths = [
@@ -73,7 +73,7 @@ describe('foldRun', () => {
       await frame('2', '/repo/b.test.ts', { 'lib.ts': [1] }),
     ];
     const tests = testsOfJournals(paths, name);
-    const fold = foldRun({ directory, name, modules }, paths, tests);
+    const fold = foldCrossingColumns({ directory, name, modules }, paths, tests);
 
     expect(fold.tests).toEqual(['a.test.ts', 'b.test.ts']);
     expect(fold.passes).toBe(1);
@@ -87,7 +87,7 @@ describe('foldRun', () => {
   it('answers with nothing for a module the run has no record of, or an ordinal it does not have', async () => {
     const modules = new Map([['lib.ts', module('lib.ts', 2)]]);
     const paths = [await frame('1', '/repo/a.test.ts', { 'lib.ts': [0] })];
-    const fold = foldRun({ directory, name, modules }, paths, ['a.test.ts']);
+    const fold = foldCrossingColumns({ directory, name, modules }, paths, ['a.test.ts']);
 
     expect(fold.crossers('other.ts', 0)).toEqual([]);
     expect(fold.crossers('lib.ts', 9)).toEqual([]);
@@ -103,7 +103,7 @@ describe('foldRun', () => {
       await frame('1', '/repo/a.test.ts', { 'lib.ts': [0], 'vendor.js': [] }),
       await frame('2', '/repo/b.test.ts', { 'lib.ts': [0] }),
     ];
-    const fold = foldRun({ directory, name, modules }, paths, testsOfJournals(paths, name));
+    const fold = foldCrossingColumns({ directory, name, modules }, paths, testsOfJournals(paths, name));
 
     expect(fold.uninstrumented('a.test.ts')).toEqual(['vendor.js']);
     expect(fold.uninstrumented('b.test.ts')).toEqual([]);
@@ -120,8 +120,8 @@ describe('foldRun', () => {
       await frame('2', '/repo/b.test.ts', { 'one.ts': [1], 'two.ts': [1] }),
     ];
     const tests = testsOfJournals(paths, name);
-    const whole = foldRun({ directory, name, modules }, paths, tests);
-    const sliced = foldRun({ directory, name, modules, budget: 1 }, paths, tests);
+    const whole = foldCrossingColumns({ directory, name, modules }, paths, tests);
+    const sliced = foldCrossingColumns({ directory, name, modules, budget: 1 }, paths, tests);
 
     expect(sliced.passes).toBeGreaterThan(whole.passes);
     for (const id of ['one.ts', 'two.ts']) {
