@@ -27,9 +27,10 @@ npm install --save-dev @variance-authority/cli
 ## Three more words this page uses
 
 - A **boundary** is one React component enclosing an element on the screen, read
-  off React's owner chain while the page was captured. Boundaries are where the
-  searchable words come from, which is why a suite built on something other than
-  React has none of them.
+  off React's owner chain while the page was captured. Boundaries give the
+  component words — components, creators, the example and custom properties —
+  so a suite built on something other than React has none of those, and is
+  searched on its ids and the words in its markup.
 - A subject's **example** is the component that subject is the clearest single
   rendering of — the shallowest boundary that is not layout structure.
   `createdBy` is the component that mounted a boundary, which is usually one
@@ -50,19 +51,28 @@ answer lists the fields it read and the fields it did not:
 
 | you get these words | when the run took |
 |---|---|
-| ids, components, creators, the example | any run that read boundaries — always there |
+| ids | any run — always there |
+| components, creators, the example | any run that read the markup; empty on a suite that is not React |
 | accessible names, visible text, roles | a reading of the accessibility tree and the text on the page |
 | the regions a subject covered | an [execution journal](journeys.md) — a record of which source regions each test ran through |
 | declaring files | a [source index](source-index.md) — the map from a component to the files that declare it |
 | custom properties | the CSS cascade those boundaries resolved through |
 
-**Search is absent, and says so, on three kinds of run:**
+**Search has only your ids, and says so, on a run that read no markup:**
 
 - **A raster-only capture.** It is an image with no markup behind it.
-- **A run under ephemeral retention.** It renders the baseline inside the run
-  and keeps nothing once the run ends.
-- **A suite built on something other than React.** It leaves no boundaries to
-  read, and so no words beyond the ids you chose.
+- **A run under ephemeral retention whose collector gives only images.**
+  Ephemeral retention renders the baseline inside the run and keeps nothing
+  once the run ends. When its collector also reads the markup, the run writes
+  the same words as any other run.
+
+On either one the answer says it indexed subject ids and nothing else, so a
+miss is not a miss on names, text or components — none of those was searched.
+
+**A suite built on something other than React** is searched on everything but
+the component words. Its markup gives accessible names, visible text and roles.
+It leaves no boundaries, so `components`, `createdBy`, `example` and `tokens`
+are read and empty.
 
 Absent is not empty — see [three answers that look
 alike](#three-answers-that-look-alike).
@@ -411,8 +421,9 @@ The header separates them before the hits, per field:
   index](source-index.md) means no `files`. Nothing was searched, so nothing
   could match. Take the missing reading on the next run and ask again.
 - **Read, and genuinely empty.** A production build with the owner links
-  stripped has an empty `createdBy` on every subject. It was read. There is
-  nothing there.
+  stripped has an empty `createdBy` on every subject. A suite built on something
+  other than React has empty `components`, `createdBy`, `example` and `tokens`.
+  They were read. There is nothing there.
 
 A subject whose values were capped says how many it lost.
 
@@ -425,7 +436,9 @@ observed, and [`variance_explain_verdict {subject}`](agent-questions.md) says
 why a subject was not compared. The answer names two of them under `next:` with
 the id already filled in.
 
-A run that read no component boundaries — a raster-only capture, or a suite that
-is not React — has nothing to search and nothing to compose, so `locate` and
-`composition` are both absent and say so, rather than being present and matching
-nothing.
+A run that read no markup — a raster-only capture, or an ephemeral run whose
+collector gave only images — writes no words for search, and `locate` still
+answers on it: on subject ids alone, saying no other field was searched. `composition` is absent on those runs and says so, rather
+than printing an empty graph. A suite that is not React has markup and no
+boundaries: `locate` searches its names, text and roles, and `composition` says
+its subjects name no component.
