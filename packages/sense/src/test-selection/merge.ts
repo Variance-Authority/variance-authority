@@ -199,6 +199,11 @@ function agree(
  * incomplete. It runs at the next selection regardless of what changed, and that
  * run records it whole again.
  *
+ * A crossing carried onto a region whose digest moved demotes its test the same
+ * way. The rows take the text this run was recorded over, and a reader frames
+ * them by that text, so the edit between the text the carried test ran over and
+ * this one is in no diff a later selection reads.
+ *
  * A module the run never loaded is carried, and its rows are line ranges in the
  * text the module had when it was recorded. The index moves to where this run
  * stands, and a diff is later taken from there, so a carried module whose text
@@ -280,6 +285,9 @@ export function mergeCoverage(
       if (placeable && block !== undefined && module.instrumented && old!.instrumented &&
         reusableBlock(block, before)) {
         surviving.set(block, before);
+        if (block.digest !== before.digest) {
+          for (const test of before.testFiles) if (!currentTests.has(test)) stale.add(test);
+        }
         continue;
       }
       for (const test of before.testFiles) if (!currentTests.has(test)) stale.add(test);

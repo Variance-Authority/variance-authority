@@ -125,6 +125,21 @@ describe('carrying crossings onto repeated addresses', () => {
     expect(merged.modules[0]?.blocks.map((block) => block.startLine)).toEqual([1, 3, 4, 8]);
     expect(merged.tests.every((test) => test.complete)).toBe(true);
   });
+
+  it('demotes a carried test whose region was edited under a run that did not observe it', () => {
+    // Gamma renders the component over an edit to the first effect's body and
+    // fires neither effect. Alpha's crossing is carried onto the edited body,
+    // and the rows now hold the edited text, so no later diff shows alpha the
+    // edit: it is demoted. Beta's body is the text it ran over, and it stays.
+    const edited = WIDGET.replace('open(props.a);', 'open(props.a + 1);');
+    const merged = mergeCoverage(
+      widget(BASELINE, WIDGET, [BOTH, BOTH, ['test/alpha.test.ts'], ['test/beta.test.ts']]),
+      widget(LOCAL, edited, [['test/gamma.test.ts'], ['test/gamma.test.ts'], [], []]),
+    );
+
+    expect(effects(merged)).toEqual([['test/alpha.test.ts'], ['test/beta.test.ts']]);
+    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(['test/alpha.test.ts']);
+  });
 });
 
 const RULES = 'src/rules.ts';
