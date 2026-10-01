@@ -146,10 +146,10 @@ describe('coverage of a repository that declares suites', () => {
   it('prints a table for a pull request', async () => {
     const answer = await ask(['coverage', '--root', root, '--format', 'markdown']);
 
-    expect(answer.out).toContain('| Suite | Kind | Regions run | Share |');
-    expect(answer.out).toContain('| checkout | e2e | unrecorded | |');
-    expect(answer.out).toContain('| 🟡 run by unit alone | 1 | 25.0% |');
-    expect(answer.out).toContain('📊 **');
+    expect(answer.out).toContain('| Suite | Regions executed by cases | Compared with baseline |');
+    expect(answer.out).toContain('| `checkout` | Unrecorded | Not compared |');
+    expect(answer.out).toContain('| unit alone | 1 | 25.0% |');
+    expect(answer.out).toContain('source beyond the recordings');
     expect(answer.out).not.toContain('###');
   });
 
@@ -400,7 +400,7 @@ describe('coverage of a change no suite loads', () => {
 
     const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'markdown']);
 
-    expect(answer.out).toContain('| Suite | Kind | Regions run | Share |');
+    expect(answer.out).toContain('| Suite | Regions executed by cases | Compared with baseline |');
     expect(answer.out).not.toContain('does not load');
   });
 
@@ -410,7 +410,7 @@ describe('coverage of a change no suite loads', () => {
 
     const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'markdown']);
 
-    expect(answer.out).toContain('| Suite | Kind | Regions run | Share |');
+    expect(answer.out).toContain('| Suite | Regions executed by cases | Compared with baseline |');
     expect(answer.out).not.toContain('does not load');
     await expect(access(join(repo, 'diff.txt'))).rejects.toThrow();
   });

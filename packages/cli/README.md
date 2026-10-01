@@ -151,7 +151,7 @@ variance covering --file <path> [--line <n>] [--function <name>] [--at-distance 
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
-variance review  [--since <ref>] [--against <record>] [--suite <name>] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
+variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -780,6 +780,14 @@ compares nothing for them.
 `--against <record>` compares with a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
 printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
+
+`--coverage` includes coverage for every declared suite in the same review.
+The comment leads with the changed-code finding, which test files ran at this
+commit, and the execution changes per suite. Percentages and source inventories
+are folded under **Coverage by suite**. Each suite keeps its own denominator
+and baseline; a missing record or baseline is named rather than counted as zero.
+The coverage readings travel in `review.json`, so `--from-run` prints the same
+evidence without reading the laptop’s recordings.
 
 In CI, restore the recording directory your base branch saved to the runner
 cache (the directory [the cache](https://variance-authority.dev/docs/cache) describes), run the

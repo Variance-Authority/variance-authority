@@ -459,6 +459,21 @@ describe('a review of what a change did, after the run that recorded it', () => 
     await expect(refused).rejects.toThrow('run the suite, which rewrites it; delete it first only if it is a directory.');
   });
 
+  it('carries every declared suite into the saved review when coverage is requested', async () => {
+    const { root, first, against } = await changed({ suites: ['unit', 'browser'] });
+    const out = join(await mkdtemp(join(tmpdir(), 'variance-review-evidence-')), 'review');
+    let printed = '';
+    const status = await main(['review', '--since', first, '--against', against, '--suite', 'unit', '--coverage', '--out', out, '--root', root, '--format', 'markdown'], {
+      out: (text) => { printed += text; }, err: () => {},
+    });
+    expect(status).toBe(0);
+    const saved = JSON.parse(await readFile(join(out, 'review.json'), 'utf8'));
+    expect(saved.coverage.map((reading: { suite?: string; suites?: { suite: string }[] }) => reading.suites?.[0]?.suite ?? reading.suite)).toEqual(['browser', 'unit']);
+    expect(printed).toContain('| `browser` | Unrecorded |');
+    expect(printed).toContain('### Test evidence');
+    expect(await readFile(join(out, 'review.md'), 'utf8')).toBe(printed);
+  });
+
   it('refuses a format it does not write', () => {
     expect(() => parse(['--format', 'html'])).toThrow(/--format must be text, markdown or json/);
   });

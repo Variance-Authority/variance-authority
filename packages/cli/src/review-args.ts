@@ -7,6 +7,8 @@ export type ReviewFormat = 'text' | 'markdown' | 'json';
 
 export interface ParsedReview {
   readonly command: 'review';
+  /** Include every declared suite’s coverage, each compared with its own base. */
+  readonly coverage?: true;
   /** Where the change starts. Absent: where the recording stood before the runs at this commit. */
   readonly since?: string;
   /** A case index recorded at the base, to compare the cases with. */
@@ -36,13 +38,14 @@ export function parseReviewArgs(flags: Flags): ParsedReview {
   const fromRun = flags.values.get('--from-run');
   const artifact = flags.values.get('--artifact');
   if (fromRun !== undefined) {
-    const local = (['--since', '--against', '--suite', '--out'] as const).filter((flag) => flags.values.get(flag) !== undefined);
+    const local = (['--since', '--against', '--suite', '--out', '--coverage'] as const).filter((flag) => flags.values.get(flag) !== undefined);
     if (local.length > 0) throw new OperatorError(`--from-run prints the review the run already made, so ${local.join(' and ')} has nothing to change in it`);
   } else if (artifact !== undefined) {
     throw new OperatorError('--artifact names what `--from-run` downloads, and no `--from-run` was given');
   }
   return {
     command: 'review',
+    ...(flags.present.has('--coverage') ? { coverage: true as const } : {}),
     ...(since === undefined ? {} : { since }),
     ...(against === undefined ? {} : { against: resolve(against) }),
     ...(out === undefined ? {} : { out: resolve(out) }),

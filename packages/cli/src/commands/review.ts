@@ -51,7 +51,7 @@ import { packagesReached, type PackageReach } from './review-install.js';
 import { diffPoint, diffSince } from './since.js';
 import { runsBase } from './runs-base.js';
 import { relationsFor } from './source-graph.js';
-
+import type { ReviewCoverage } from './review-coverage.js';
 /**
  * How a changed region was reached, first match wins.
  *
@@ -112,7 +112,6 @@ export interface ReviewFile {
   /** Case names the file declares now and did not, and the reverse. Absent when there is no base to compare with. */
   readonly cases?: { readonly added: readonly string[]; readonly removed: readonly string[] };
 }
-
 /** A changed file one or more tests declare as a precondition: before the reach of any import. */
 export interface BeforeReach {
   readonly file: string;
@@ -120,6 +119,10 @@ export interface BeforeReach {
 }
 
 export interface Review {
+  /** Optional per-suite evidence carried in the uploaded artifact. */
+  readonly coverage?: readonly ReviewCoverage[];
+  /** The suite whose changed-code evidence and freshness the summary describes. */
+  readonly recordedSuite?: string;
   /** The commit the change is read from. */
   readonly from: string;
   /**
@@ -282,7 +285,6 @@ export async function review(request: ParsedReview): Promise<Review> {
   };
 }
 
-/** The text each changed module had at the base, read before the synchronous reader asks for it. */
 async function prefetch(
   point: DiffPoint,
   files: readonly string[],
@@ -299,7 +301,6 @@ async function prefetch(
 function textsAt(texts: ReadonlyMap<string, string>): (file: string) => string | undefined {
   return (file) => texts.get(file);
 }
-
 /**
  * The lines of the working tree the change wrote, in the record's names.
  *
@@ -358,7 +359,6 @@ function regionOf(
       .sort((left, right) => order(left.file, right.file) || order(left.name, right.name)),
   };
 }
-
 /**
  * Whether the record ran these modules as the tree holds them: the digest it
  * took of each module's text, against the text on disk. A change with no
