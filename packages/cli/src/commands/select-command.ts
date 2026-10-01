@@ -9,29 +9,23 @@
  * ones that decide whether somebody else's suite runs, and they have to be
  * assertable with no cache, no repository and no tests.
  *
- * ## No configuration is read, deliberately
+ * ## Configuration is optional
  *
- * Every other command that touches a store or a baseline loads
- * `variance.config.json` first, and `loadConfig` refuses when it is not there —
- * correctly, because a run that guessed its subjects would be observing
- * something nobody chose. This command has no subjects. It is asked by a
- * repository whose tests are run by `vitest` or `jest` and which may never have
- * configured this tool for anything else, and requiring a config file would put
- * it out of reach in exactly those repositories.
+ * Every other command that touches a store or a baseline refuses without
+ * `variance.config.json`, because a run that guessed its subjects would observe
+ * something nobody chose. This command has no subjects, and is asked by
+ * repositories whose tests `vitest` or `jest` run and which may configure this
+ * tool for nothing else. The root config is read when there is one, for what a
+ * record is — the declared suites, and the share a suite is given to — and for
+ * what each suite rests on before reach: its `before`, and the repository's.
+ * A change anywhere those entries load runs the whole suite
+ * ([`select-before.ts`](./select-before.ts)).
  *
- * The file graph is built anyway, over the whole checkout, because the answer
- * is wrong without it. A test that mocks a module ran that module's source to
- * learn its shape, so the recording holds it, and what the module contains
- * cannot fail that test — only the graph knows the mock is there, and with it a
- * change behind the mock selects nobody who mocked it. The same graph answers a
- * changed stylesheet or asset no probe can sit in by the module that imports
- * it. With no config there are no taint tables beyond the mock reader, which
- * runs unasked.
- *
- * The root `variance.config.json` is read when there is one, and only for what
- * a record is: which suites are declared, and for a suite given to a share,
- * where the share is. That is the file `variance run` recorded by, so it names
- * the record `select` reads.
+ * The file graph is built over the whole checkout, because the answer is wrong
+ * without it. A test that mocks a module ran that module's source to learn its
+ * shape, so the recording holds it, but only the graph knows the mock is there.
+ * The same graph answers a changed stylesheet or asset by the module that
+ * imports it. No taint table is read beyond the mock reader, which runs unasked.
  *
  * The install is compared at the same point the diff is measured from, for
  * the reason `variance run --since` compares it: a bumped package changes no
@@ -56,6 +50,7 @@ import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { many } from './reach.js';
+import { restsOf, restsSaid } from './select-before.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
@@ -215,6 +210,12 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   }, request.noGit);
   // A package whose manifest moved is every file of it, changed whole.
   const moved = new Map([...installs].map(([stand, installed]) => [stand, movedPackages(relations, installed)] as const));
+  // What the suite rests on before reach, moved by any group's diff or bump, runs the whole suite.
+  const suite = (await recordedSuite(here, request.suite, 'landing')).declared?.name;
+  const bumped = [...installs.values()].flatMap((one) => compared(one)?.packages ?? []);
+  const rest = await restsOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.whole)])], bumped);
+  const rested = { ...recorded, ...(rest.notes.length === 0 ? {} : { resting: rest.notes }) };
+  if (rest.rests.length > 0) return said({ ...rested, ground: { kind: 'before', whole: restsSaid(suite, rest.rests) } });
   // The files a stand reads whole leave the hunk diff, so none is also read by
   // its hunks, and each group is charged the packages that moved since it ran.
   const ask = (whole: readonly string[], stand: string | undefined) =>
@@ -242,7 +243,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
           },
         };
 
-  return said({ ...recorded, ground });
+  return said({ ...rested, ground });
 }
 
 /** An install comparison that was made, or `undefined` for one there was nothing to make. */

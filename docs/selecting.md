@@ -271,7 +271,7 @@ answer, such as a stylesheet, a module whose loading does something, or a text
 that does not parse, is answered by the measured files that import it, and one
 nothing measured imports keeps no subject in the run. Two refusals stand over the record, because it
 never saw what they are about — a change to a file named in
-[`source.before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
+[`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.
 
 ## What a skipped subject looks like

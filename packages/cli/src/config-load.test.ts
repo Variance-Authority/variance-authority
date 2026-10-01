@@ -80,6 +80,16 @@ describe('loadConfig and the suites', () => {
     await expect(loadConfig(file)).rejects.toThrow(/`suites` is read from the variance\.config\.json at the repository root/);
   });
 
+  it('refuses `before` in a file below the repository root, which `variance select` does not read', async () => {
+    const at = await repository();
+    const member = resolve(at, 'packages', 'app');
+    await mkdir(member, { recursive: true });
+    const file = resolve(member, 'variance.config.json');
+    await writeFile(file, JSON.stringify({ ...VALID, before: ['.nvmrc'] }));
+
+    await expect(loadConfig(file)).rejects.toThrow(/`before` is read from the variance\.config\.json at the repository root/);
+  });
+
   it('refuses `entrypoints` in a file below the repository root, which `coverage --from` does not read', async () => {
     const at = await repository();
     const member = resolve(at, 'packages', 'app');

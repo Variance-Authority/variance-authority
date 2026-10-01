@@ -196,7 +196,7 @@ export interface Affected {
   readonly whole?: string;
 
   /**
-   * The `source.before` files this diff moves, when they are why the run is
+   * The `before` files this diff moves, when they are why the run is
    * whole — carried from the walk that refused, for a later ground that must
    * not narrow past the same refusal.
    */

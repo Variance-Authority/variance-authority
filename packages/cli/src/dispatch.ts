@@ -162,7 +162,7 @@ export async function dispatch(
             writeSuitePart,
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             scanRelations: async (dirs) =>
-              relationsFor(process.cwd(), dirs, effective.source?.taints, effective.source?.before),
+              relationsFor(process.cwd(), dirs, effective.source?.taints, effective.before),
             readJourney: async (diff, relations, packages) =>
               journeyAgainst(process.cwd(), diff, relations, packages, await suiteRecord(process.cwd(), parsed.suite)),
             readJourneys: async (subjects) => {

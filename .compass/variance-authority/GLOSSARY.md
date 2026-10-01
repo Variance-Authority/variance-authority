@@ -695,8 +695,10 @@ to touch.
 
 ### Implementation aliases
 
-`beforeReach`, `changedBefore`, `BeforeReach`; `source.before` in the operator's
-config, `ScanOptions.before` where those files are seeded
+`beforeReach`, `changedBefore`, `BeforeReach`; `before` at the top of the
+operator's config and beside a suite's kind, `beforeOf` where `select` reads
+them, `restsOf` where it answers, `ScanOptions.before` where those files are
+seeded
 
 ## **Journey**
 

@@ -34,7 +34,7 @@ import { parseSource, type ChangeConfig, type SourceConfig } from './config-sour
 import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
 import { parseNames, type NamesConfig } from './config-names.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
-import { parseSuitesAt, type DeclaredSuite } from './config-suites.js';
+import { parseRestsOn, type RestsOn } from './config-suites.js';
 import { parseDeclaredAt } from './config-declared.js';
 import { checkCarriers, parsePlacement, type Carrier } from './config-placement.js';
 
@@ -101,7 +101,7 @@ export type {
   SubjectsConfig,
 } from './config-sections.js';
 
-export interface Config {
+export interface Config extends RestsOn {
   /**
    * Names this project in a shared history store.
    *
@@ -317,9 +317,6 @@ export interface Config {
    * whole, longest recorded first, and a worker that finishes takes the next.
    */
   readonly workers?: number;
-
-  /** The suites the repository runs, and their kinds; read from the root file only. */
-  readonly suites?: readonly DeclaredSuite[];
 }
 
 /**
@@ -361,7 +358,7 @@ const TOP_LEVEL = [
   'workers',
   'cacheRoot',
   'suites',
-  'entrypoints', 'tiers',
+  'entrypoints', 'tiers', 'before',
 ] as const;
 
 /**
@@ -431,8 +428,8 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const { report, images, reportCarry } = parsePlacement(root, options);
   const intent = optionalText(root, 'intent', options);
   const cacheRoot = path(root, 'cacheRoot', options);
-  const suites = root['suites'] === undefined ? undefined : parseSuitesAt(root['suites'], options);
-  checkCarriers({ share, reportCarry, suites }, options);
+  const rests = parseRestsOn(root, options);
+  checkCarriers({ share, reportCarry, suites: rests.suites }, options);
   const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
   const ignore = root['ignore'] === undefined ? undefined : parseIgnores(root['ignore'], options);
   const blank = root['blank'] === undefined ? undefined : parseBlanks(root['blank'], options);
@@ -494,6 +491,6 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
     ...(concurrency === undefined ? {} : { concurrency }),
     ...(workers === undefined ? {} : { workers }),
-    ...(suites === undefined ? {} : { suites }),
+    ...rests,
   };
 }

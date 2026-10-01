@@ -104,15 +104,17 @@ so it keeps no subject in the run. A CI workflow edited
 beside one component gives the walk a seed, and the run narrows to that
 component, though it never examined the change that seeded it.
 
-Name the files the run rests on and it stops being an accident:
+Name the files the run rests on and it stops being an accident. What every
+suite rests on goes at the top, and what one suite rests on goes beside its
+kind:
 
 ```json
 {
-  "source": {
-    "dirs": ["src"],
-    "relations": true,
-    "before": ["vitest.config.ts", ".github/workflows", ".nvmrc"]
-  }
+  "before": [".github/workflows", ".nvmrc"],
+  "suites": {
+    "unit": { "kind": "unit", "before": ["vitest.config.ts"] }
+  },
+  "source": { "dirs": ["src"], "relations": true }
 }
 ```
 
@@ -125,16 +127,19 @@ it. *Every changed path the graph does not include* would be the README, the
 changelog and the editor settings — a whole run each, forever — and switching
 that off would switch the config files off with it. Declared, it is exact.
 
-`source.before` needs `source.relations: true`, because what an entry point
-buys is everything below it.
+`variance run --since` reads the top-level `before`, and needs
+`source.relations: true` to do it, because what an entry point buys is
+everything below it.
 
-Test selection makes the same declaration on the runner. `variance select` reads
-no `variance.config.json`, so `source.before` does not reach it. The Vitest
-integration declares the config file Vite loaded and the local modules it
-imports; the Vitest, Jest and Rstest integrations take a `preconditions` option
-for the rest, and every test they record declares each file it lists. A change
-to one of those files selects the whole suite. A changed file nothing imports
-and nothing lists selects nothing, and `select` names it.
+`variance select` reads both: the top-level list and the list of the suite whose
+record it reads. A change to anything either one reaches runs that whole suite,
+and `select` names what put it there. A suite with no `before` has nothing
+before its reach, and `select` says so beside its answer. The Vitest
+integration also declares the config file Vite loaded and the local modules it
+imports, and the Vitest, Jest and Rstest integrations take a `preconditions`
+option: every test they record declares each file it lists, and a change to one
+selects every test that declares it. A changed file nothing imports and nothing
+declares selects nothing, and `select` names it.
 
 ## What comes with a declared entry point
 

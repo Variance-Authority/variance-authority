@@ -86,17 +86,18 @@ export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
 /**
  * What the journal answered, or why it did not.
  *
- * Four states rather than an optional reading, because *no snapshot*, *no
- * diff*, *no install to compare* and *a snapshot that answered* are four
- * different claims and only one of them is about the tests. Collapsing the
- * first three into an empty narrowing would make a broken `git` print the same
- * thing as a clean recording.
+ * Five states rather than an optional reading, because *no snapshot*, *no
+ * diff*, *no install to compare*, *a diff that moved what the suite rests on*
+ * and *a snapshot that answered* are five different claims and only the last
+ * is about the tests. Collapsing the first four into an empty narrowing would
+ * make a broken `git` print the same thing as a clean recording.
  */
 export type SelectGround =
   | { readonly kind: 'read'; readonly narrowing: ExecutionNarrowing }
   | { readonly kind: 'no-journal' }
   | { readonly kind: 'no-diff'; readonly from: string }
-  | { readonly kind: 'no-install'; readonly whole: string };
+  | { readonly kind: 'no-install'; readonly whole: string }
+  | { readonly kind: 'before'; readonly whole: string };
 
 /**
  * Whose record was read, for a suite given to a share: this checkout's own, or
@@ -132,6 +133,8 @@ export interface SelectInput {
    * journal. Said after whose record it was, in every outcome.
    */
   readonly standing?: readonly string[];
+  /** What the declared `before` could not cover, or that none is declared. Said after `standing`. */
+  readonly resting?: readonly string[];
   readonly ground: SelectGround;
 }
 
@@ -192,7 +195,7 @@ export function skippableTests(input: SelectInput): TestSelection {
     unread: [] as readonly string[],
     stale: [] as readonly string[],
     // Which record answered is the first note, before any other note about it.
-    notes: [...(input.source === undefined ? [] : [input.source.says]), ...(input.standing ?? [])],
+    notes: [...(input.source === undefined ? [] : [input.source.says]), ...(input.standing ?? []), ...(input.resting ?? [])],
   };
 
   if (input.ground.kind === 'no-journal') {
@@ -216,6 +219,14 @@ export function skippableTests(input: SelectInput): TestSelection {
       ...base,
       widened: input.ground.whole,
       because: 'a package bump shows in no covered line, so every test file runs',
+    };
+  }
+
+  if (input.ground.kind === 'before') {
+    return {
+      ...base,
+      widened: input.ground.whole,
+      because: 'what a suite rests on runs before every test in it, so every test file runs',
     };
   }
 

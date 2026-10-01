@@ -77,7 +77,7 @@ export interface AffectedComponents {
 export interface GraphRefusal {
   readonly whole: string;
   readonly unscanned?: readonly string[];
-  /** The `source.before` files this diff moves, when that is the refusal. */
+  /** The `before` files this diff moves, when that is the refusal. */
   readonly rests?: readonly string[];
 }
 
