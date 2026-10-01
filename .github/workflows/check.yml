@@ -476,20 +476,24 @@ jobs:
       # a test file the suite stopped collecting keeps its rows in the record
       # and last ran before this commit, and only the runner can say it no
       # longer counts against a whole run. Each shared suite is asked under its
-      # own slice's config, which `slicesOf` in `tools/test-since.mjs` names.
+      # own slice's config, which `slicesOf` in `tools/test-since.mjs` names. A
+      # suite whose files cannot be listed is left without a list and the others
+      # are still listed: the publish below refuses that suite alone.
       - name: what the suite collects
         shell: bash
         env:
           SHARED: ${{ needs.suite.outputs.shared }}
         run: |
           for suite in $SHARED; do
-            config=$(SUITE="$suite" node --input-type=module -e "
+            if ! config=$(SUITE="$suite" node --input-type=module -e "
               const { slicesOf } = await import('./tools/test-since.mjs');
               const slice = slicesOf(process.cwd()).find((one) => one.suite === process.env.SUITE);
               if (slice === undefined) throw new Error('no slice is declared for ' + process.env.SUITE);
               process.stdout.write(slice.config);
-            ")
-            yarn vitest list --filesOnly --config "$config" > "$RUNNER_TEMP/collected-$suite.txt"
+            ") || ! yarn vitest list --filesOnly --config "$config" > "$RUNNER_TEMP/collected-$suite.txt"; then
+              rm -f "$RUNNER_TEMP/collected-$suite.txt"
+              echo "::error::The files the $suite suite collects were not listed, so its record is not published."
+            fi
           done
 
       # `share --suite` reads the share from the root config, asks the line of
@@ -520,7 +524,9 @@ jobs:
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
           refused=
           for suite in $SHARED; do
-            if ! node packages/cli/dist/bin.js share --suite "$suite" --publish --collected "$RUNNER_TEMP/collected-$suite.txt" | tee -a "$GITHUB_STEP_SUMMARY"; then
+            if [ ! -f "$RUNNER_TEMP/collected-$suite.txt" ]; then
+              refused="$refused $suite"
+            elif ! node packages/cli/dist/bin.js share --suite "$suite" --publish --collected "$RUNNER_TEMP/collected-$suite.txt" | tee -a "$GITHUB_STEP_SUMMARY"; then
               refused="$refused $suite"
             fi
           done
