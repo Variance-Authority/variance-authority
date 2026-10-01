@@ -1,5 +1,52 @@
 # @variance-authority/cli
 
+## 0.14.0
+
+### Minor Changes
+
+- b71e2ed: A checkout's record moves onto a newer mainline record its HEAD contains
+
+  A checkout's record keeps a ledger beside it, `coverage.layer.json`: the mainline record it was laid on, and the test files its own runs observed with the commit and working tree each ran over. When `select` or `variance share --suite` reads a newer mainline record whose commit HEAD contains, the record moves onto it, and every test file this checkout did not run reads the newer one. A record of a commit HEAD does not contain changes nothing. The `record of "<suite>":` line names the mainline commit, the distance to HEAD, and the test files this checkout ran.
+- 34c5e6b: `variance carry --format github` names the suites given to the share
+
+  When the root `variance.config.json` gives any suite `"carry": "share"`, `variance carry restore --format github` and `variance carry save --format github` print `shared-suites=<name> <name>`: those suites, separated by spaces. A workflow loops over it to read, compare and publish each suite's base record, so it names no suite the config already names. A shared suite whose name holds a space is refused, because the loop reading the line would split it.
+
+### Patch Changes
+
+- 57307e3: A shallow clone no longer prints a distance its history cannot count
+
+  In a shallow clone, `git rev-list --count` stops at the commits the clone was cut at and exits 0 with a smaller number. The distance a mainline lookup prints (`N commit(s) behind the merge base with this checkout`), the `record of "<suite>":` line's `N commit(s) before HEAD`, the merge base a reader uses to pick between mainlines, and how far HEAD is past a branch record all used that number. Each now prints `at a distance this clone cannot count` when the walk between the two commits reaches the cut, and the same number as before in a clone that holds the whole history between them.
+- 73fb12d: A diff that a shallow clone cannot read names the checkout that can
+
+  When `variance run --since` or `variance review` cannot read the diff from the base, the error names a checkout of every commit and no trees: `git clone --filter=tree:0`, or `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`. That checkout has an exact merge base. On material-ui it took 20 s and 252 MB, against 14.7 s and 231 MB for a depth-1 checkout; the cost depends on the repository's history.
+- a7e7c9e: A changed subject with no difference shape is explained by what the run read, not by its retention
+
+  A run fingerprints the regions of a changed subject whenever its collector gives a semantic snapshot, whatever its retention. When a subject has no shape, `variance_changes`, the PR comment and the review service's changelog page said the run compared without a document, in the ephemeral mode or on a raster-only path. They now say the run read no markup for that subject, or only its accessibility tree changed.
+- d567e21: An unattributed change is named by what is missing, not by how it was grouped
+
+  The `title` on the `shape only` marker in `variance report --format html` said the change was "grouped by silhouette alone", as though a change with a component were grouped by more. Every change is grouped by its fingerprint, a digest of the changed pixels that does not include the component. The marker now says that no region with that shape was attributed to a component.
+
+  In the same way, `variance adjudicate` and the `variance_adjudicate` MCP tool named an unclaimed change with no component "(no component resolved; grouped by shape alone)". The line reads "(no component resolved)".
+
+  The `@variance-authority/report` README said a change's fingerprint is built from the component responsible, so the same-looking change in two components stays two changes. It is built from the pixels alone: those two are one change, `accept --shape` on it promotes both, and `change.component` names the first component a region in it was attributed to. The `@variance-authority/tribunal` README's definition of a shape is corrected the same way.
+- 58d3332: The help server and `variance serve` describe every source question they answer
+
+  `variance-authority-help --help` said `serve` answers "all six" questions, and the instructions `variance serve` sends an MCP client said "nine"; both serve eleven. Neither states a count now, and the `variance serve` instructions name the two they had left out: which third-party packages a location can use (`docs_stack`) and which code the recorded tests ran around a file (`docs_journey_map`). The verb list in `--help` is padded to its longest verb, so `slowest-tests` and `journey-map` no longer run into their descriptions.
+
+  The READMEs of both packages link the documentation on variance-authority.dev instead of a repository-relative path, which does not resolve where npm shows them.
+- b29dd6f: `variance restrictions` outside a git checkout is refused in one line
+
+  `variance restrictions` lists the `.relations.json` files git tracks. Run in a directory that is not in a git checkout, it printed git's own error and a stack trace calling itself a defect in the tool. It now exits with code 2 and one line naming the directory, saying it is not in a git checkout and that `--root` names one.
+- ddc33fc: `variance run` no longer refuses to start in a repository that declares more than one suite. Without `--suite`, it does not read where its subjects parted in the source, and its report has no section for that. `--suite <name>` reads that suite's record, as before.
+- 8d3d515: The skill states what the commands do now, in fewer words
+
+  An audit checked every command, flag, exit code and quoted output in the `variance-authority` skill against the code. The skill now covers `journey-map`, `stack`, `costs` and `variations`, the per-suite answer of `covering`, and the `--suite`, `--since`, `--diff` and `--limit` flags it left out. It corrects what `ask` reads when the configured report is absent, the exit codes of `adjudicate` and of a `symbol` miss, the `--root` flag `variance ask` refuses, the recording path and read order when suites are declared or the checkout is a worktree, and which MCP tools a server serves. `orient`, `journey-map`, `stack` and `slowest-tests` move to their own reference, and the selection API moves out of the test-selection reference, so a name lookup loads about half of what it did. Text that restated what a command already prints is gone.
+- 5dfaa50: The skill tells an agent where to look past the comment above a name
+
+  `symbol` prints the comment above a declaration or, when there is none, the nearest README's passage if it names the name; a docs folder, an architecture chart, a decision record or a wiki is never read. The `variance-authority` skill now routes a question about why a name exists or what it connects to to a new reference, `written-about-a-name.md`. It has the agent search those documents for the declaring file's path and then each parent directory, stopping at the first chart or decision record or at the package root, then for the name and its specifier, then open any address the file names, ask a wiki outside the checkout only through a tool the session already has, and say which places it searched.
+- 439b21b: The skill's MCP client config names `variance-authority-help` as its `command`, as the published workspace API page does, instead of a `node_modules/.bin` path.
+- 59b4332: Present test evidence in one PR summary, with execution changes first and coverage inventories folded behind disclosures.
+
 ## 0.13.0
 
 ### Minor Changes

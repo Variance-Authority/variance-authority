@@ -1,5 +1,22 @@
 # @variance-authority/sense
 
+## 0.14.0
+
+### Minor Changes
+
+- b71e2ed: A checkout's record moves onto a newer mainline record its HEAD contains
+
+  A checkout's record keeps a ledger beside it, `coverage.layer.json`: the mainline record it was laid on, and the test files its own runs observed with the commit and working tree each ran over. When `select` or `variance share --suite` reads a newer mainline record whose commit HEAD contains, the record moves onto it, and every test file this checkout did not run reads the newer one. A record of a commit HEAD does not contain changes nothing. The `record of "<suite>":` line names the mainline commit, the distance to HEAD, and the test files this checkout ran.
+
+### Patch Changes
+
+- d5a51ca: A partial clone fetches the texts at a recorded commit in one request
+
+  In a clone made with `--filter`, such as `actions/checkout` with `filter: blob:none`, the files changed since a recording's commit are on the remote until something reads them, and `git cat-file --batch` fetched each one in a request of its own. Reading a recording's text now asks without fetching first, fetches every blob it found missing in one request from the remote that promised them, then reads those again. On a blobless clone of Material UI from GitHub, fifteen texts took 9.0 s fetched one at a time and 0.7 s fetched together. A fetch that fails falls back to fetching one object at a time, as before. A full clone runs nothing extra.
+- cf7d8d4: A test a partial run did not observe runs again after its code was edited under that run
+
+  When a run of some tests lands over an uncommitted edit, the record keeps the edited text and selection reads later changes from it. A test that was not in the run but had entered an edited region kept its crossing and stayed whole, and the next selection, diffing from the kept text, saw no change and skipped it — though it never ran over the edit. Landing now demotes every such test to incomplete, so it runs at the next selection and is recorded again. An edit at a module's top level demotes every test that loaded the module and was not in the run.
+
 ## 0.13.0
 
 ### Minor Changes
