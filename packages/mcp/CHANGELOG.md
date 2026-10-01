@@ -1,5 +1,16 @@
 # @variance-authority/mcp
 
+## 0.14.0
+
+### Patch Changes
+
+- 644520a: `variance_locate` and `variance_composition` name the run that has no lexicon or composition by what it read, not by its retention
+
+  A run writes its lexicon and its composition whenever its collector gives a semantic snapshot, whatever its retention. When a report has neither, `variance_locate` and `variance_composition` said the run was raster-only or ephemeral. They now say the run read no markup: a raster-only capture, or a run whose collector gave only images. `variance_composition` also names the other report with no composition, a report merged from shards, instead of saying that no subject gave a snapshot.
+- a7e7c9e: A changed subject with no difference shape is explained by what the run read, not by its retention
+
+  A run fingerprints the regions of a changed subject whenever its collector gives a semantic snapshot, whatever its retention. When a subject has no shape, `variance_changes`, the PR comment and the review service's changelog page said the run compared without a document, in the ephemeral mode or on a raster-only path. They now say the run read no markup for that subject, or only its accessibility tree changed.
+
 ## 0.13.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
