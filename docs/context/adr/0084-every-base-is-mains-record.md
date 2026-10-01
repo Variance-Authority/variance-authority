@@ -72,10 +72,13 @@ fetched here, and the reader says so.**
    index `coverage.bin.cases.bin`, and the runs record `coverage.runs.json`,
    which says where each test file last ran. A reader diffs each test from
    that commit.
-3. **`check.yml` names a path and a suite.** The `keep the base record` step
-   copies the base to `$RUNNER_TEMP/base-unit`, and the suite `unit` is
-   written into the steps. ADR-0077 says a workflow names no path; this is
-   the exception, and `variance carry` does not answer for it yet.
+3. **`check.yml` names no suite.** `variance carry` prints the suites the
+   root config gives to the share as `shared-suites`, and every step that
+   reads or publishes a base loops over it. The suite job hands every record
+   to the publish job in one artifact, the directory they all sit under. The
+   coverage the review prints reads each suite's base through the share, so
+   no base is copied aside. `chromium` is not given to the share, because no
+   browser runs in CI and `main` never records it whole.
 
 ### What a mainline publish refuses
 
@@ -116,8 +119,6 @@ fetched here, and the reader says so.**
 
 - A reader can be ten minutes behind a push to main.
 - The publish job runs `vitest list` as well as the build.
-- `check.yml` names `$RUNNER_TEMP/base-unit` and `unit`, the literals ADR-0077
-  set out to remove.
 - A developer who never runs `variance share --suite <name>`, `test:since` or
   `select` has never fetched, and their seams lay the primary checkout's
   record. They are told so each time.
