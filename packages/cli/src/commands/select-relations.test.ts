@@ -165,6 +165,23 @@ describe('selecting by the file graph when the record cannot answer', () => {
     expect(said.err).toContain('test/setup.ts');
   });
 
+  it('skips nothing when the lockfile moved a package a setup module imports', async () => {
+    const { root } = checkout({
+      'test/setup.ts': "import leftPad from 'left-pad';\nleftPad('a', 1);\n",
+      'package-lock.json': npmLock('1.3.0'),
+    });
+    writeFileSync(join(root, 'src/widget.ts'), "export const widget = (): string => 'c';\n");
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.4.0'));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain', since: 'HEAD' });
+
+    expect(said.out).toBe('');
+    expect(said.err).toContain('skipping nothing');
+    expect(said.err).toContain('test/setup.ts');
+  });
+
   it('skips nothing when the walk refuses, and gives its reason', async () => {
     // A deleted file is in no graph, so the walk cannot say what it reached —
     // and the test that imported it is the one that has to run.

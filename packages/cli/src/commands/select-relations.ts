@@ -65,14 +65,6 @@ async function related(
     throw error;
   }
 
-  // A runner loads its config and setup by name, so no edge leads from one to
-  // the tests it runs before, and a walk that reaches one has reached them all.
-  const { isHarnessLike } = await import('@variance-authority/sense');
-  const harness = reach.files.filter(isHarnessLike);
-  if (harness.length > 0) {
-    return { declined: `the change reaches what a runner loads before every test, which no import leads from: ${listed(harness)}` };
-  }
-
   // The walk leaves the lockfile out. What it moved is answered here, by the
   // files that import a bumped package or sit in a package whose manifest moved.
   const { relations } = reach;
@@ -94,6 +86,18 @@ async function related(
   ]).mask;
 
   const files = nodesOfKind(relations, 'file');
+
+  // A runner loads its config and setup by name, so no edge leads from one to
+  // the tests it runs before: a change that reaches one, by an edit or through
+  // a package it imports, has reached them all.
+  const { isHarnessLike } = await import('@variance-authority/sense');
+  const harness = [...new Set([...reach.files, ...files.filter((id) => installs[id] === 1).map((id) => relations.names[id]!)])]
+    .filter(isHarnessLike)
+    .sort();
+  if (harness.length > 0) {
+    return { declined: `the change reaches what a runner loads before every test, which no import leads from: ${listed(harness)}` };
+  }
+
   const entries = files.filter((id) => relations.dependents.offset[id + 1]! === relations.dependents.offset[id]!);
   const unread = files.filter((id) => relations.unknown[id] === 1);
   const blind = dependentsOf(relations, unread).mask;
