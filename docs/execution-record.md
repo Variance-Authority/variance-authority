@@ -354,19 +354,23 @@ deleted still has crossings above it, and a diff at the place that function
 was reaches it through them. Only a test that loses every crossing in a module
 is demoted to incomplete and selected whole next time.
 
-**A digest that changed is selection's business, not the merge's.** It says the
+**A digest that changed keeps the crossing and demotes the test.** It says the
 region's own text changed, and the tests to run are the ones recorded against
 that region — which is the crossing. Reading a digest as a reason to discard
 the crossing would throw away the evidence the change is about to be answered
 with, and reading the owners' digests too made any edit at a module's top level
-retire every crossing in the file.
+retire every crossing in the file. But the re-recorded rows hold the text the
+run saw, and selection reads a later change from that text, so the edit
+between the text a carried test ran over and this one is in no diff it will
+read. Each test on such a region that the run did not observe is demoted to
+incomplete; a test the run observed was recorded again over the new text.
 
-| edit | crossings kept | the kept test's row |
+| edit, under a run that did not observe the test | crossings kept | the kept test's row |
 |---|---|---|
-| function added inside `total` | every one | whole |
-| function added at module level | every one | whole |
-| body of one `if` arm edited | every one | whole |
-| `total` renamed | those of the root and `label` | whole |
+| function added inside `total` | every one | incomplete, if it entered `total` |
+| function added at module level | every one | incomplete, if it loaded the module |
+| body of one `if` arm edited | every one | incomplete, if it entered that arm |
+| `total` renamed | those of the root and `label` | incomplete, if it entered `total` |
 
 **A module the run did not load** stays in the record, and its rows are lines
 of the text it had when it was recorded. When that text has since changed, the
@@ -948,8 +952,8 @@ rows.
 did not observe. When the instrumentation id differs the previous record is
 dropped whole. A test the run observed replaces its previous row. A test the
 run did not observe keeps its row, unless no region it crossed survives in the
-new table, in which case it is demoted to incomplete and re-runs on its
-next selection. An unobserved module whose text on disk changed has its rows
+new table or a region it crossed has a new digest, in which case it is demoted
+to incomplete and re-runs on its next selection. An unobserved module whose text on disk changed has its rows
 re-cut over that text, one parse per such module, and only a module whose text
 cannot be parsed demotes every test that crossed it. Both sides are indexed
 before the walk — modules by path, blocks by their address, name path and

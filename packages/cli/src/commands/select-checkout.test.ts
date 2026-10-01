@@ -177,6 +177,60 @@ describe('reading this checkout', () => {
     expect(said.err).not.toContain('was recorded from a text');
   });
 
+  it('runs a test a partial run did not observe, over a body edited since it ran', async () => {
+    // `alpha` runs at the commit and enters `widget`. `widget`'s body is edited
+    // and not committed, and a run of `beta` alone lands over the edit. `beta`
+    // loads the module but not `widget`, so nothing has run the edited body.
+    const { root, head } = checkout();
+    await landRun(testCoverageFile(root), snapshot(head), root);
+
+    const edited = SOURCE.replace("return 'a';", "return 'A';");
+    writeFileSync(join(root, 'src/widget.ts'), edited);
+    const recorded = snapshot(head);
+    const [module] = recorded.modules;
+    await landRun(testCoverageFile(root), {
+      ...recorded,
+      tests: recorded.tests.filter((test) => test.file === 'test/beta.test.ts'),
+      modules: [{
+        ...module!,
+        sourceDigest: digestString(edited),
+        blocks: module!.blocks.map((block) => ({
+          ...block,
+          digest: block.name === 'widget' ? digestString('widget, edited') : block.digest,
+          testFiles: block.testFiles.filter((test) => test === 'test/beta.test.ts'),
+        })),
+      }],
+    }, root);
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).not.toContain('test/alpha.test.ts');
+    expect(said.out).toContain('test/gamma.test.ts');
+  });
+
+  it('runs a test a partial run did not observe, over a body edited in a module the run never loaded', async () => {
+    // As above, but the run is `gamma` alone, which loads nothing: the landing
+    // cuts `widget.ts`'s carried rows again in the edited text.
+    const { root, head } = checkout();
+    await landRun(testCoverageFile(root), snapshot(head), root);
+
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'a';", "return 'A';"));
+    const recorded = snapshot(head);
+    await landRun(testCoverageFile(root), {
+      ...recorded,
+      tests: recorded.tests.filter((test) => test.file === 'test/gamma.test.ts'),
+      modules: [],
+    }, root);
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).not.toContain('test/alpha.test.ts');
+  });
+
   it('charges nothing for a comment deleted above the first statement, beside a changed body', async () => {
     // The recorder starts a module's region at its first statement, so no
     // region holds the comment above it, and deleting the comment ran nothing.

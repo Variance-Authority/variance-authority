@@ -50,7 +50,7 @@ describe('`variance select` in a checkout that recorded nothing', () => {
     expect(there.out).toBe('test/other.test.ts\n');
     expect(there.err).toContain(
       'record of "unit": read from this checkout\'s own, which its runs landed on the base the first of them was laid on; ' +
-        "the mainline's is read only when this checkout has recorded none.",
+        'it was laid before checkouts kept a ledger, so which of its tests ran here is not known',
     );
 
     const clone = await cloneOf(home, ci.origin);

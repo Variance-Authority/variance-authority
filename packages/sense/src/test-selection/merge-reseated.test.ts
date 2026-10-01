@@ -47,7 +47,7 @@ const ONE_ADDED = `export function pick(n) {
 `;
 
 /** The same regions in the same seats, further down the file. */
-const MOVED = `const scale = 2;\n\n${SOURCE}`;
+const MOVED = `// pick\n\n${SOURCE}`;
 
 /**
  * Which tests entered each region of {@link SOURCE}, as running it would have

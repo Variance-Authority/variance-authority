@@ -214,6 +214,9 @@ export function layeredRows(input: {
             files.push(previousTestRows[test]!.file);
           }
           surviving.set(block, { files, loaded: loadedOf(before) });
+          if (block.digest !== view.string(blockDigest[before]!)) {
+            for (const file of files) if (!currentTests.has(file)) stale.add(file);
+          }
           continue;
         }
         for (const test of previousSets.members(blockSet[before]!)) {

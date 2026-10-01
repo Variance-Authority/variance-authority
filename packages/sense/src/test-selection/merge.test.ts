@@ -91,18 +91,18 @@ describe('mergeCoverage', () => {
       .not.toHaveProperty('commit');
   });
 
-  it('keeps a carried test\'s crossing when the region it entered was edited', () => {
+  it('keeps a carried test\'s crossing and demotes it when the region it entered was edited', () => {
     // A full run saw alpha enter the module region. One file was then run by
-    // hand over an edit to that region. Alpha's crossing is what a diff of that
-    // region is answered with — it is the only record that alpha ever reached
-    // the place that just changed — so the edit is the reason to keep it rather
-    // than a reason to retire it.
+    // hand over an edit to that region. Alpha's crossing is the only record that
+    // alpha ever reached the place that just changed, so it is kept. The rows now
+    // hold the edited text, and a reader frames them by it, so no later diff
+    // shows alpha the edit: alpha is demoted, and runs until it is recorded again.
     const merged = mergeCoverage(
       at(BASELINE, 'test/alpha.test.ts'),
       rewritten(at(LOCAL, 'test/beta.test.ts'), 'block:decide-edited'),
     );
 
-    expect(merged.tests.every((test) => test.complete)).toBe(true);
+    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(['test/alpha.test.ts']);
     expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual([
       'test/alpha.test.ts',
       'test/beta.test.ts',

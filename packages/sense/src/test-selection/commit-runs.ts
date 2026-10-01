@@ -48,6 +48,7 @@ import { openTestCoverage } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
 import { keepRecordedTexts } from './kept-texts.js';
+import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
 
 /**
@@ -138,12 +139,24 @@ export async function landRun(coverageFile: string, current: TestCoverage, root:
   // The snapshot's rows are coordinates in the texts on disk now, and the
   // commit it names holds none of the edited ones. Kept after the write, so a
   // text is never kept for a row that did not land.
-  await keepRecordedTexts(root, openTestCoverage(bytes), cacheRoot);
+  const kept = await keepRecordedTexts(root, openTestCoverage(bytes), cacheRoot);
   // FIXME: two writes, and nothing makes them one. A failed record write, or a
   // process killed between them, leaves the snapshot at this run's commit
   // beside the record of the one before: the shape `commitRunsAfter` reads as
   // a retried landing, which the next run here repairs and nothing else does.
   await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current));
+  // The ledger last: it names this run's tests as this checkout's, and a
+  // landing that died before it leaves them read as the milestone's, which a
+  // re-run here corrects. A record with no ledger was laid before there was
+  // one, and gains none here: its rows are nobody's in particular.
+  const layer = await readOwnLayer(coverageFile);
+  if (layer !== undefined && current.commit !== undefined) {
+    // Only a run that kept an edited text ran over uncommitted edits it
+    // recorded, and only then is the working state worth a tree.
+    const tree = kept.length > 0 ? workingTree(root) : undefined;
+    const state = { commit: current.commit, ...(tree === undefined ? {} : { tree }) };
+    await writeOwnLayer(coverageFile, ownLayerAfter(layer, state, current.tests.map((test) => test.file)));
+  }
 }
 
 /**

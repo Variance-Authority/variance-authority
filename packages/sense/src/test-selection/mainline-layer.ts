@@ -32,6 +32,7 @@ import { commitRunsFile, type CommitRuns } from './commit-runs.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { openTestCoverage } from './format-view.js';
+import { writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
 import { declaredSuites } from './suites.js';
 
@@ -181,6 +182,8 @@ export async function layFetchedMainline(record: LastFetched, file: string): Pro
   await place(`${file}.cases.bin`, cases);
   await place(commitRunsFile(file), runs);
   await place(file, coverage);
+  // The ledger names the milestone and no test of this checkout's yet.
+  await writeOwnLayer(file, { pinned: { mainline: record.mainline, commit: record.commit }, ran: [] });
   return true;
 }
 

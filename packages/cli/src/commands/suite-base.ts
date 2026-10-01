@@ -4,7 +4,10 @@
  *
  * 1. **This checkout's own**, whenever a run here has landed one. Its first
  *    run was laid on the base below it, so it is that base plus everything
- *    this branch ran since, and the fresher of the two.
+ *    this branch ran since, and the fresher of the two. Its ledger says which
+ *    milestone it stands on and which tests ran here; for a suite given to the
+ *    share, a mainline record read now whose commit HEAD contains replaces the
+ *    milestone under every test this checkout did not run (`repinOwnLayer`).
  * 2. **The mainline's**, as CI published it, for a suite the root config gives
  *    to the share: fetched now, or the record fetched last on this machine,
  *    which `mainlineBase` reuses for a while and falls back to when the remote
@@ -20,7 +23,8 @@
  * mainline's record as last fetched here, else the primary checkout's, and say
  * which; `mainlineBase` is what leaves a fetched record where they look. So the
  * base a reader measures from and the base the first run lands on are one
- * record, and a checkout that has run keeps measuring from the mainline's.
+ * record, and a checkout that has run keeps measuring from the mainline's,
+ * moving forward with it as HEAD does.
  *
  * `mainlineBase` owns the fetch and the read layer it keeps the bytes in, with
  * the runs record the publishing run carried beside them, and
@@ -29,12 +33,21 @@
  */
 
 import { stat } from 'node:fs/promises';
+import type { LastFetched, OwnLayer, Repin } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
 import { mainlineBase, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
 
 /** Which record a reader measures from, where it is, and why the others were passed over. */
 export type SuiteBase =
-  | { readonly from: 'own'; readonly suite?: string; readonly file: string }
+  | {
+      readonly from: 'own';
+      readonly suite?: string;
+      readonly file: string;
+      /** The record's ledger after any re-pin; absent for a record laid before there was one. */
+      readonly layer?: OwnLayer;
+      /** What a fetched mainline record did to the pin, when one was read. */
+      readonly repin?: Repin;
+    }
   | { readonly from: 'mainline'; readonly suite: string; readonly file: string; readonly mainline: MainlineRecord }
   | { readonly from: 'primary'; readonly suite?: string; readonly file: string; readonly missed?: MainlineMissed }
   | { readonly from: 'none'; readonly suite?: string; readonly file: string; readonly missed?: MainlineMissed };
@@ -63,7 +76,17 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
   // it declares several, is refused before anything is fetched.
   const own = selection.testCoverageFile(root, named);
   const at = suite === undefined ? {} : { suite };
-  if (await exists(own)) return { from: 'own', ...at, file: own };
+  if (await exists(own)) {
+    // The milestone under the checkout moves forward when the mainline's
+    // newest record is one HEAD contains: see `repinOwnLayer`.
+    const read = declared?.carry === 'share' ? await mainlineBase(root, declared, {
+      ...(options.env === undefined ? {} : { env: options.env }),
+      ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
+    }) : undefined;
+    const repin = read === undefined || 'miss' in read ? undefined : await selection.repinOwnLayer(own, fetchedOf(read), root);
+    const layer = await selection.readOwnLayer(own);
+    return { from: 'own', ...at, file: own, ...(layer === undefined ? {} : { layer }), ...(repin === undefined ? {} : { repin }) };
+  }
 
   const read = await mainlineBase(root, declared, {
     ...(options.env === undefined ? {} : { env: options.env }),
@@ -102,19 +125,21 @@ export async function layMainline(
     suite: record.suite,
     ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
   });
-  const laid = await selection.layFetchedMainline(
-    {
-      suite: record.suite,
-      mainline: record.mainline,
-      commit: record.commit,
-      fetched: record.fetched,
-      coverage: record.coverage,
-      ...(record.cases === undefined ? {} : { cases: record.cases }),
-      ...(record.runs === undefined ? {} : { runs: record.runs }),
-    },
-    own,
-  );
+  const laid = await selection.layFetchedMainline(fetchedOf(record), own);
   return laid ? own : undefined;
+}
+
+/** A read of the mainline, as the seams name what was fetched. */
+function fetchedOf(record: MainlineRecord): LastFetched {
+  return {
+    suite: record.suite,
+    mainline: record.mainline,
+    commit: record.commit,
+    fetched: record.fetched,
+    coverage: record.coverage,
+    ...(record.cases === undefined ? {} : { cases: record.cases }),
+    ...(record.runs === undefined ? {} : { runs: record.runs }),
+  };
 }
 
 /** The one suite a root config declares, which a reader that names none reads. */

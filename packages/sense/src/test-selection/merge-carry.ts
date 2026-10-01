@@ -439,7 +439,10 @@ export function lostCrossings(before: CoverageModule, after: CoverageModule): re
  * reader that cares about changed text is selection, which charges the region
  * from the diff and runs every test recorded against it — the crossing is what
  * makes that possible, so discarding it here would remove the evidence the
- * change is about to be answered with. Reading the owners as well made any edit
+ * change is about to be answered with. The callers carry such a crossing and
+ * demote each test on it that the run did not observe: the landing keeps the
+ * edited text and selection frames the rows by it, so the diff from that text
+ * no longer holds the edit those tests never ran over. Reading the owners as well made any edit
  * to a module's top level — an added declaration, a renamed export, a changed
  * constant — move the root's digest and retire every crossing in the file, which
  * is the whole suite demoted for a function nobody calls yet.
