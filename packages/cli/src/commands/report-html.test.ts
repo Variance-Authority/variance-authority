@@ -147,6 +147,20 @@ describe('the page leads with the cause', () => {
     expect(html).toContain('variance again story:toggle');
   });
 
+  it('marks a change no region attributed, without implying a named one is grouped by more', () => {
+    // Every change is grouped by a pixel silhouette, named or not, so the marker
+    // says what is missing — a component — and not how the group was formed.
+    const unattributed = { x: 4, y: 4, width: 16, height: 16, pixels: 86, cause: false, unattributed: true };
+    const region = { ...unattributed, fingerprint: 'v1:2c4f9a1e0b7d3856a91c4e2f8b06d735' };
+    const html = reportHtml(reportOf({ observations: [{ ...CHANGED, regions: [region] }] }));
+
+    expect(html).toContain('>shape only<');
+    expect(html).toContain(
+      'No region with this shape was attributed to a component, so nothing here names the code that drew it.',
+    );
+    expect(html).not.toContain('Grouped by silhouette alone');
+  });
+
   it('carries the renderer identity, because a page is read on another machine', () => {
     const html = reportHtml(reportOf({ observations: [CHANGED], intent: 'restyle the toggle' }));
 

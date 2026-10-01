@@ -98,13 +98,33 @@ describe('what a bulk decision is not allowed to reach', () => {
     ]).changes;
 
     // Taken from the first region that has one, and the *absence* survives when
-    // none does. A pixel fingerprint carries no cause, and a group formed by
-    // silhouette alone is the weaker claim — it must not borrow a component
-    // from a neighbour and start looking like the stronger one.
+    // none does: a cluster with no attributed region must not borrow a component
+    // from outside it.
     expect(pixelOnly?.component).toBe('Button');
     expect(clusterChanges([changed('story:a', [region({ fingerprint: BRAND })])]).changes[0])
       .not.toHaveProperty('component');
   });
+
+  it('keeps one silhouette in two components as one change', () => {
+    // The fingerprint is `fingerprintOfMask`: pixels only, no component. So the
+    // same-looking change in `Avatar` and in `Badge` is one cluster, and
+    // `accept --shape` on it promotes both.
+    const { changes } = clusterChanges([
+      changed('story:avatar', [region({ fingerprint: BRAND, component: 'Avatar' })]),
+      changed('story:badge', [region({ fingerprint: BRAND, component: 'Badge' })]),
+    ]);
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({
+      subjects: ['story:avatar', 'story:badge'],
+      settles: ['story:avatar', 'story:badge'],
+    });
+  });
+
+  it.todo(
+    'names every component a change spans, not only the first region that names one — ' +
+      'needs `Change` to give a list of components and files, and its readers to print one',
+  );
 });
 
 describe('what is not grouped stays visible', () => {

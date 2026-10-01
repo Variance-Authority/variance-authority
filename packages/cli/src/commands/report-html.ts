@@ -388,7 +388,7 @@ function clusters(changes: readonly Change[], ungrouped: readonly string[]): str
         '<li>' +
         '<div class="head">' +
         (change.component === undefined
-          ? '<span class="mark area" title="Grouped by silhouette alone — no component was attributed, so a bulk decision here is the weaker claim.">shape only</span>'
+          ? '<span class="mark area" title="No region with this shape was attributed to a component, so nothing here names the code that drew it.">shape only</span>'
           : `<code class="comp">${text(change.component)}</code>`) +
         (change.file === undefined ? '' : `<span class="file">${text(change.file)}</span>`) +
         `<span class="grow"></span>` +

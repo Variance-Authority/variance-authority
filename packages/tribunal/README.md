@@ -139,7 +139,7 @@ token.
 |---|---|
 | subject | one named UI state you asked for and can ask for again — a story, a route, a fixture — identified by a string id such as `story:card` |
 | verdict | the per-subject outcome a run decided: `unchanged`, `changed`, `new`, `incomparable` or `ignored`. Decided by the CLI, stored here |
-| shape | the digest of one distinct difference, computed from the kind of element that changed, the deltas inside it, and the component responsible. Two subjects that changed the same way share one shape, so one token edit across forty stories is one shape; the same-looking change in `Avatar` and in `Badge` are two |
+| shape | the digest of one distinct difference, computed from the changed pixels alone: the region cropped to its box, resampled onto a fixed grid, with its aspect and size bucketed beside it. Two subjects that changed the same way share one shape, so one token edit across forty stories is one shape. The component is not part of it, so the same-looking change in `Avatar` and in `Badge` is one shape too |
 | cause | a flag on a changed region: the analysis attributed that region to a component's own edit rather than to something upstream of it |
 | collateral | pixels that moved because something else did — every changed region not flagged a cause. Counted once for the build, never split between causes |
 | the record | the history rows every run appends: which component hashes changed for which subject, and the token values resolved at the time. `POST /v1/observations` writes it; the `/v1` reads derive from it |
