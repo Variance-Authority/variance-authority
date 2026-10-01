@@ -48,11 +48,13 @@ model to install.
 and the table in [what every record means](information.md#the-words) lists
 the ones a report uses.
 
-**Nothing switches this on.** Every `variance run` that reads component
-boundaries writes the record search reads: no option, no second pass, no
-service. Where a run read no boundaries — a raster-only capture, or a suite
-built on something other than React — there are no names to write, and the
-answer says that rather than reporting no match.
+**Nothing switches this on.** Every `variance run` that reads the markup writes
+the record search reads: no option, no second pass, no service. A raster-only
+capture and a run under ephemeral retention write no record, so search has the
+subject ids alone, and the answer says that rather than reporting no match. A
+suite built on something other than React has markup and no component
+boundaries: its record has accessible names, visible text and roles, and its
+component fields are read and empty.
 
 A run reads a subject under many vocabularies at once. It takes the component
 names off the fiber, the roles and accessible names off the accessibility tree,
