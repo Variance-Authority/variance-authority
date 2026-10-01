@@ -3,6 +3,12 @@
     "unit": {
       "kind": "unit",
       "carry": "share"
+    },
+    "integration": {
+      "kind": "integration"
+    },
+    "chromium": {
+      "kind": "e2e"
     }
   },
   "share": {

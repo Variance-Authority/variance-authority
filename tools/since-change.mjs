@@ -29,9 +29,9 @@ const paths = (text) => text.split('\0').filter((path) => path !== '');
 
 export const isTest = (path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
 
-/** Every test file the runner would collect, asked of the runner. */
-export function suiteFiles(root) {
-  const listed = execFileSync('yarn', ['vitest', 'list', '--filesOnly'], {
+/** Every test file the runner would collect under one config, asked of the runner. */
+export function suiteFiles(root, config) {
+  const listed = execFileSync('yarn', ['vitest', 'list', '--filesOnly', '--config', config], {
     cwd: root,
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,

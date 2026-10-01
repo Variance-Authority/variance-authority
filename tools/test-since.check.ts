@@ -261,7 +261,7 @@ describe('a worktree that has not run reads the record the primary checkout made
     const { primary, path, cacheRoot } = await layered();
     await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
 
-    const read = await recordToRead(path, cacheRoot);
+    const read = await recordToRead(path, { cacheRoot });
     expect(read).toEqual({ from: 'primary', file: testCoverageFile(primary, { cacheRoot }) });
     expect(read.file).not.toBe(testCoverageFile(path, { cacheRoot }));
     expect(recordLine(read)).toEqual([
@@ -273,7 +273,7 @@ describe('a worktree that has not run reads the record the primary checkout made
     const { primary, path, cacheRoot } = await layered({ suites: { unit: { kind: 'unit' } } });
     await writeTestCoverage(testCoverageFile(primary, { suite: 'unit', cacheRoot }), snapshot);
 
-    expect(await recordToRead(path, cacheRoot)).toEqual({
+    expect(await recordToRead(path, { cacheRoot })).toEqual({
       from: 'primary',
       suite: 'unit',
       file: testCoverageFile(primary, { suite: 'unit', cacheRoot }),
@@ -285,7 +285,7 @@ describe('a worktree that has not run reads the record the primary checkout made
     await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot);
     await writeTestCoverage(testCoverageFile(path, { cacheRoot }), snapshot);
 
-    const read = await recordToRead(path, cacheRoot);
+    const read = await recordToRead(path, { cacheRoot });
     expect(read).toEqual({ from: 'own', file: testCoverageFile(path, { cacheRoot }) });
     expect(recordLine(read)).toEqual([`  record   this checkout's, at ${read.file}`]);
   });

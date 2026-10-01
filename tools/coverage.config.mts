@@ -1,5 +1,5 @@
 import { mergeConfig } from 'vitest/config';
-import { suite } from '../vitest.config.mjs';
+import { whole } from '../vitest.config.mjs';
 
 /**
  * A second instrument over the same suite, owned by somebody else.
@@ -19,7 +19,7 @@ import { suite } from '../vitest.config.mjs';
  * `enforce: 'post'` and returns text without a source map, so a coverage
  * provider reading the probed output would attribute counts to lines the author
  * never wrote — the two instruments would disagree about the file rather than
- * about the code. Reusing `suite` is what keeps them looking at one subject:
+ * about the code. Reusing `whole` is what keeps them looking at one subject:
  * same include globs, same environment, one plugin fewer.
  *
  * No threshold. A percentage that gates turns into a number people write tests
@@ -27,7 +27,7 @@ import { suite } from '../vitest.config.mjs';
  * tell the same story about the same run — not whether either reaches a figure
  * somebody picked.
  */
-export default mergeConfig(suite, {
+export default mergeConfig(whole, {
   test: {
     // Counting costs time, and the browser arms are the only tests in this
     // suite that measure their own wall clock. Under v8's counters three of

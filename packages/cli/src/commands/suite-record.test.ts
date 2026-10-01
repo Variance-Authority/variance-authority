@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { selectOutput } from './select-command.js';
-import { landingRecord, oneRecord, suiteRecord } from './suite-record.js';
+import { landingRecord, oneRecord, refiningRecord, suiteRecord } from './suite-record.js';
 
 async function repository(config?: unknown): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-suite-record-'));
@@ -54,6 +54,28 @@ describe('the record a one-runner command reads', () => {
 
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow('the suite "e2e" is not declared in');
+  });
+});
+
+describe('the record a read the command runs without asks for', () => {
+  test('is none when more than one suite is declared and none is named', async () => {
+    expect(await refiningRecord(await repository(TWO))).toBeUndefined();
+  });
+
+  test('is the named suite when more than one is declared', async () => {
+    const at = await refiningRecord(await repository(TWO), 'unit');
+
+    expect(at?.endsWith('/suites/unit/coverage.bin')).toBe(true);
+  });
+
+  test('is the only declared suite when none is named', async () => {
+    const at = await refiningRecord(await repository({ suites: { stories: { kind: 'visual' } } }));
+
+    expect(at?.endsWith('/suites/stories/coverage.bin')).toBe(true);
+  });
+
+  test('is still refused by name for a suite the root config does not declare', async () => {
+    await expect(refiningRecord(await repository(TWO), 'e2e')).rejects.toThrow('the suite "e2e" is not declared in');
   });
 });
 

@@ -236,7 +236,9 @@ jobs:
             echo "::notice::The mainline's record was not read, so this run has no base: the whole suite runs, and coverage is printed without a comparison."
           fi
 
-      # `vitest run` is the unit suites and the corpus. The package boundary
+      # `yarn test` is the three slices in order: unit, integration, chromium,
+      # each with a record of its own. No browser is installed here, so the
+      # chromium slice reports its files skipped. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
       # 2026-08-04 and now run in the `rules` job. It records which case ran
       # which region at this commit, which is what the review below reads.
@@ -290,6 +292,9 @@ jobs:
           echo '### 📊 Coverage' >> "$body"
           if [ -n "$AGAINST" ]; then
             node packages/cli/dist/bin.js coverage --suite unit --against "$AGAINST" --packages --format markdown >> "$body"
+            # No record is carried for the integration slice, so it has no
+            # base and is printed without a comparison.
+            node packages/cli/dist/bin.js coverage --suite integration --packages --format markdown >> "$body"
           else
             node packages/cli/dist/bin.js coverage --packages --format markdown >> "$body"
           fi
@@ -543,9 +548,11 @@ jobs:
         shell: bash
         run: yarn workspace @variance-authority/case-incumbent incumbent
 
+      # The cases' own unit tests, then the ones that launch a browser, each
+      # under its slice's config (`vitest.config.mts` says why they are apart).
       - name: run the cases
         shell: bash
-        run: yarn vitest run cases
+        run: yarn test:unit cases && yarn test:chromium cases
 
   # The one check a branch rule names, and the one line that combines the three
   # above. `needs` alone would skip this job when one of them failed, and a
