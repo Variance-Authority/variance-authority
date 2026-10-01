@@ -55,12 +55,11 @@ toolByName('variance_composition')?.run(report, { subject: 'page/footer--counts'
 toolByName('variance_locate')?.run(report, { query: 'footer chips' });
 ```
 
-**Absent on two kinds of run: a raster-only capture, or one under ephemeral
-retention.** A raster-only capture is an image with no markup behind it, so
-there is nothing to derive component boundaries from. A run under ephemeral
-retention (`"retention": "ephemeral"` in your config) compares two revisions
-directly with no baseline stored, and composition finds the same absence there.
-Absent is not empty: the tool answers with a sentence saying the run cannot tell,
+**Absent on a run that read no markup: a raster-only capture, or a run whose
+collector gave only images.** An image with no markup behind it has no
+component boundaries to derive. Retention does not decide this: a run under
+`"retention": "ephemeral"` whose collector reads the markup composes like any
+other run. Absent is not empty: the tool answers with a sentence saying the run cannot tell,
 because an empty graph printed there would read as *this suite shares nothing*,
 which is a different claim and a false one.
 

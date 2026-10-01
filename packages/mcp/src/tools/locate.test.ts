@@ -231,6 +231,10 @@ describe('variance_locate — the answer', () => {
     const answer = locate.run(raster, { query: 'checkbox' });
     expect(answer).toContain('No subject of 4 matches `checkbox`.');
     expect(answer).toContain('indexed subject ids and nothing else');
+    // The lexicon is written by any run that read the markup, whatever its
+    // retention, so the reason names the reading and not the retention mode.
+    expect(answer).toContain('It read no markup');
+    expect(answer).not.toContain('ephemeral');
     expect(answer).toContain('Read: id.');
     expect(locate.run(raster, { query: 'footer' })).toContain('page/footer--counts · 0 boundaries');
   });

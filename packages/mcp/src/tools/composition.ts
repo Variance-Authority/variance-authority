@@ -93,9 +93,9 @@ export const composition: Tool = {
  */
 const ABSENT =
   'This run composed nothing, which is not the same as it finding nothing. No subject supplied ' +
-  'a semantic snapshot — a raster-only or ephemeral run compares images and never sees a ' +
-  'component boundary — so there was nothing to join. Nothing here says the suite shares no ' +
-  'components; it says this run cannot tell.';
+  'a semantic snapshot. A run that reads no markup — a raster-only capture, or a run whose ' +
+  'collector gives only images — never sees a component boundary, so there was nothing to ' +
+  'join. Nothing here says the suite shares no components; it says this run cannot tell.';
 
 function whole(composed: CompositionReport): string {
   const unexplained = composed.movements.filter((movement) => movement.cause === 'unexplained');

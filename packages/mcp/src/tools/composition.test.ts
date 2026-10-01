@@ -359,6 +359,10 @@ describe('a run that composed nothing', () => {
     // nothing*, which is different and false. Absent is not empty.
     expect(answer).toContain('not the same as it finding nothing');
     expect(answer).toContain('never sees a component boundary');
+    // A run composes whenever its collector gave a snapshot, whatever its
+    // retention, so the reason names the reading and not the retention mode.
+    expect(answer).toContain('A run that reads no markup');
+    expect(answer).not.toContain('ephemeral');
     expect(answer).toContain('it says this run cannot tell');
     expect(answer).not.toContain('0 component(s)');
   });
