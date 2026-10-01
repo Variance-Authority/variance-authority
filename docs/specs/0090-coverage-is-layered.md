@@ -39,49 +39,12 @@ Folding the two into one file loses the second answer the first time a local
 run lands, and pins the milestone the checkout had then for as long as the
 copy lives.
 
-The same reading found one case where today's merge can select too few tests
-(item 1). It is first in the order because a selection that skips a test whose
-code changed is the one failure this product does not trade for speed.
-
 ## What would discharge it
 
-Items are in the order they should land. Each is one change; 1 to 3 stand
-alone, 5 waits on the measurement in 4.
+Items are in the order they should land. Each is one change; 1 stands alone,
+3 waits on the measurement in 2.
 
-**1. A test the run did not observe is not carried over a region whose text
-changed under it.** Found by reading, not yet reproduced:
-
-1. T1 runs at commit H and covers function `foo` in file f.
-2. `foo`'s body is edited and not committed. Only T2, which also loads f, runs.
-3. The landing re-records f. It carries T1's crossings onto the new rows by
-   name, path and kind alone; the block digest is not compared
-   (`format-layer-rows.ts:205-215`, `reusableBlock` in `merge-carry.ts:435-452`).
-   The rows take the edited text's digest, and `kept-texts.ts` keeps that text.
-4. The run is at the same commit, so `commitRunsAfter` adds T2's file to H's
-   list (`commit-runs.ts:173-174`) and T1 stays standing at H.
-5. The next selection frames f by the kept text (`frame.ts:65-70`). The change
-   from that text to the disk is empty, so the file reads `none`
-   (`select.ts:250-260`), and T1 is skipped. T1 never ran over the edited `foo`.
-
-`reusableBlock`'s comment says selection charges the changed region from the
-diff. A kept-text frame removes that diff.
-
-Discharged by a fixture that runs the five steps and asserts T1 is selected,
-then by the fix that makes it pass: a carried crossing on a block whose digest
-differs from the block it was carried from marks each crosser the run did not
-observe incomplete, as the `stale` set in `format-layer-rows.ts:217-222`
-already does for a block that lost its address. Only the tests that crossed the
-edited region re-run. If the fixture selects T1 without a fix, the fixture lands
-alone and this item says where the reading was wrong.
-
-**2. Every push to `main` publishes its record.** `check.yml` sets
-`concurrency: check-${{ github.ref }}` with `cancel-in-progress: true`, so two
-merges in quick succession cancel the first one's suite run, and that commit is
-never published. On `main` the group is keyed by the commit; on a pull request
-it stays keyed by the ref. A workflow test (or a check on the parsed YAML)
-asserts the two groups.
-
-**3. The milestone under a checkout is pinned, never copied, and a newer one
+**1. The milestone under a checkout is pinned, never copied, and a newer one
 the checkout can reach replaces it.**
 
 - The own layer stores only what this checkout's runs observed: their test
@@ -91,6 +54,12 @@ the checkout can reach replaces it.**
 - A read composes per test: a test this checkout ran is answered by its own
   row, framed and diffed from the state it ran over; every other test is
   answered by the milestone's row, diffed from the milestone's commit.
+  This retires a width the merge pays today: a landing over an edit demotes
+  every test on an edited region that the run did not observe
+  (`format-layer-rows.ts`, `mergeCoverage`), because one frame serves every
+  test. An edit at a module's top level demotes every loader of the module,
+  where a diff from each test's own text charges only the readers of what
+  changed.
 - When `mainlineBase` fetches a snapshot M that is an ancestor of HEAD and
   descends from the pinned one, M becomes the pin. Own rows stay for tests
   whose stand descends from M; the others are answered by M. When git cannot
@@ -109,7 +78,7 @@ tests now stand at it while locally run tests keep their rows; fetch a snapshot
 that is not an ancestor and assert the pin is kept; and switch branches in the
 primary checkout and assert the rows from the other branch are named as such.
 
-**4. The cost of history is measured before it is built.** Two numbers, on
+**2. The cost of history is measured before it is built.** Two numbers, on
 this repository and on one large case:
 
 - how often a pull request's merge base is more than one published snapshot
@@ -118,10 +87,10 @@ this repository and on one large case:
   ones (git already compresses blobs against each other).
 
 Written to `docs/context/journal/` with the method. If the first number is
-small, item 5 is not built and the spec says so.
+small, item 3 is not built and the spec says so.
 
-**5. The share keeps a short history of mainline snapshots, and a reader picks
-the newest one HEAD contains.** Only if item 4 asks for it.
+**3. The share keeps a short history of mainline snapshots, and a reader picks
+the newest one HEAD contains.** Only if item 2 asks for it.
 
 - Write: a publish inserts its snapshot by commit and drops those outside the
   window. The publisher prunes; no reader writes the mainline.
@@ -135,7 +104,7 @@ This amends spec 0074 ("A checkout does not need history"; acceptance 3, "each
 mainline ref is one commit") and the no-history paragraph in
 `docs/sharing.md`, and is recorded in ADR-0084.
 
-**6. A merge queue publishes the snapshot main is about to become.** Only if
+**4. A merge queue publishes the snapshot main is about to become.** Only if
 the repository adopts one. A `merge_group` run publishes at its `head_sha`;
 main fast-forwards to that commit, so its snapshot exists when main changes.
 A group the queue ejects leaves a snapshot that is no commit's ancestor, and
@@ -163,7 +132,7 @@ started from** until a newer one is also an ancestor.
 after its last access, has no TTL of its own, and a laptop cannot read it.
 
 **Correctness does not depend on history.** Each test is diffed from the commit
-it last ran at, so an older base only widens a selection. Items 4 to 6 buy
+it last ran at, so an older base only widens a selection. Items 2 to 4 buy
 width, not safety, and are built only if the width is measured.
 
 ## Open
@@ -178,13 +147,13 @@ These are the owner's to answer.
    `git gc`. The per-module source digests the record already stores survive a
    partial stage and a rebase, and cost nothing new. Tree, digests, or the tree
    as a name over the digests?
-2. **History storage, if item 5 is built.** Several entries per slot in the
+2. **History storage, if item 3 is built.** Several entries per slot in the
    one ref's manifest (works for the `git`, `directory` and `http` kinds alike;
    the git cell already fetches `blob:none`), or one ref per snapshot (git
    only). And the window: seven days, a count K, or both.
 3. **Snapshot deltas instead of whole snapshots.** The newest snapshot whole and
    a short chain of row-level deltas back from it, a delta over a size bound
-   refused and the chain cut there. Worth it only if item 4 shows consecutive
+   refused and the chain cut there. Worth it only if item 2 shows consecutive
    snapshots do not already compress in git.
 4. **A reader behind every snapshot** gets the newest with the distance
    printed, or nothing until it rebases.
@@ -201,21 +170,18 @@ These are the owner's to answer.
 - **Delta layers composed at read time for every run.** A stack of per-run
   files, each framed on its own, multiplies the query by the stack depth and
   gives up the single merge at landing that `format-layer.ts` exists for.
-  Item 3 keeps one own layer over one pinned milestone.
+  Item 1 keeps one own layer over one pinned milestone.
 - **Git notes on mainline commits.** Not fetched or pushed by default, lost
   on a squash or rebase merge unless `notes.rewriteRef` is set, and a ref with
   a history of its own that every reader would fetch.
 
 ## Acceptance
 
-1. The fixture of item 1 selects T1.
-2. After two merges to `main` a minute apart, both commits have a published
-   record.
-3. After any number of local runs, the milestone file under
+1. After any number of local runs, the milestone file under
    `share/read/<suite>/<commit>/` is byte for byte what the fetch wrote, and
    `variance` lists exactly the tests this checkout ran, with the state each
    ran over.
-4. A fetch of a newer snapshot HEAD contains changes the base of every test
+2. A fetch of a newer snapshot HEAD contains changes the base of every test
    this checkout did not run; one HEAD does not contain changes nothing.
-5. The measurement of item 4 is in the journal, and items 5 and 6 are either
+3. The measurement of item 2 is in the journal, and items 3 and 4 are either
    built against it or struck from this spec with its numbers.
