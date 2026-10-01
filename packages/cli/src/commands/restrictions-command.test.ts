@@ -96,4 +96,21 @@ describe('variance restrictions', () => {
     expect(refused.code).toBe(EXIT_OPERATOR);
     expect(refused.err).toContain('core/.relations.json, rule 1');
   });
+
+  it('refuses a directory that is not in a git checkout in one line naming it, and exits 2', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-restrict-bare-')));
+    // git looks upward for a repository; the ceiling keeps a temporary directory inside one from answering.
+    process.env['GIT_CEILING_DIRECTORIES'] = dirname(root);
+    process.chdir(root);
+    try {
+      const refused = await run(['restrictions']);
+
+      expect(refused.code).toBe(EXIT_OPERATOR);
+      expect(refused.err.split('\n')[0]).toBe(
+        `\`variance restrictions\` reads the .relations.json files git tracks, and ${root} is not in a git checkout; run it inside one, or name one with \`--root\`.`,
+      );
+    } finally {
+      delete process.env['GIT_CEILING_DIRECTORIES'];
+    }
+  });
 });

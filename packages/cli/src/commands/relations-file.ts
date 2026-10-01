@@ -116,9 +116,28 @@ function parseRules(path: string, text: string, tiers: Tiers | undefined): Omit<
   return { rules, caps, ...(tierCaps.length === 0 ? {} : { tierCaps }) };
 }
 
+/** Whether git takes `root` as inside a work tree; asked only after a listing failed, so the happy path pays nothing. */
+function inCheckout(root: string): boolean {
+  try {
+    return execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: root, encoding: 'utf8', stdio: 'pipe' }).trim() === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** The tracked rule files git lists, or the refusal that says `root` is not a checkout; any other failure stays a defect. */
+function trackedRuleFiles(root: string): string {
+  try {
+    return execFileSync('git', ['ls-files', '-z', '--', RULE_FILE, `**/${RULE_FILE}`], { cwd: root, encoding: 'utf8', stdio: 'pipe' });
+  } catch (error) {
+    if (inCheckout(root)) throw error;
+    throw new OperatorError(`\`variance restrictions\` reads the ${RULE_FILE} files git tracks, and ${root} is not in a git checkout; run it inside one, or name one with \`--root\`.`);
+  }
+}
+
 /** Every tracked `.relations.json`, read as data, with the directory it governs. */
 export function ruleFiles(root: string, tiers: Tiers | undefined): RuleFile[] {
-  const listed = execFileSync('git', ['ls-files', '-z', '--', RULE_FILE, `**/${RULE_FILE}`], { cwd: root, encoding: 'utf8' });
+  const listed = trackedRuleFiles(root);
   return listed.split('\0').filter((path) => path !== '').map((path) => {
     const directory = dirname(path);
     return { directory: directory === '.' ? '' : directory, ...parseRules(path, readFileSync(join(root, path), 'utf8'), tiers) };
