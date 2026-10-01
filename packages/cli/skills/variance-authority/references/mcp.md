@@ -10,20 +10,21 @@ itself. Each tool returns the same text as the command, from the same function.
 All of them speak MCP over stdio.
 
 ```bash
-variance serve [--config <path>] [--just-answer]    # @variance-authority/cli: the run's variance_* tools and the nine docs_* tools
+variance serve [--config <path>] [--just-answer]    # @variance-authority/cli: the run's variance_* tools, variance_costs and the docs_* tools
 variance-authority-mcp <run-report.json>            # @variance-authority/mcp: the report is the argument
 variance-authority-mcp --watch                      # the live run; prints its address to stderr
-variance-authority-help [root] [--just-answer]      # @variance-authority/help: the nine docs_* tools only
+variance-authority-help [root] [--just-answer]      # @variance-authority/help: the docs_* tools only
 ```
 
-`variance serve` reads the report the config names. `--just-answer` applies to
-the `docs_*` tools, as it does on the command line
-([workspace API](workspace-api.md)).
+`variance serve` reads the report the config names. Its `--just-answer`
+affects only the `docs_*` tools ([workspace API](workspace-api.md)).
 
-`variance-authority-mcp` is the `bin` of `@variance-authority/mcp`, a transitive
-dependency of the CLI, so its binary is on the package runner's path only when
-that package is a direct devDependency. Where it is not, `variance serve` is the
-same server over the same functions and needs nothing more installed.
+`variance-authority-mcp` and `variance-authority-help` are the `bin`s of
+`@variance-authority/mcp` and `@variance-authority/help`. Both are dependencies
+of the CLI, so their binaries are on the package runner's path only when the
+package is also a direct devDependency. Where it is not, `variance serve` is the
+same server over the same functions; it needs `variance.config.json`, as every
+`variance` command that reads a run does.
 
 ## Writing the client config
 
@@ -35,35 +36,41 @@ every client start.
 {
   "mcpServers": {
     "workspace-api": {
-      "command": "variance-authority-help",
+      "command": "node_modules/.bin/variance-authority-help",
       "args": ["."]
     }
   }
 }
 ```
 
-`command` is found on `PATH`. `args` is a bare root and no verb, which is the
-form that starts a stdio server. `.` is the directory the client starts the
-process in, so use an absolute path if that is not the workspace. The server
-reuses a generation for up to an hour, as the command does; add `--just-answer`
-to `args` when the producer owns freshness and every call must only read the
-published generation. Each tool response prints the generation time.
+A client does not run `command` through a package script, so a bare
+`variance-authority-help` is not on its `PATH`; name the installed binary by its
+path. `args` is a bare root and no verb, which is the form that starts a stdio
+server. Both paths are read from the directory the client starts the process
+in, so make them absolute if that is not the workspace. The server
+key, `workspace-api` here, is yours to name.
 
 ## Tool names and arguments
 
-The nine workspace tools are `docs_packages`, `docs_entrypoint`, `docs_symbol`,
-`docs_uses`, `docs_search`, `docs_grep`, `docs_orient`, `docs_slowest_tests` and `docs_gaps`. They take their
-arguments under their schema names (`package`, `subpath`, `name`, `query`,
-`from`, `to`, `limit`), not as
-positionals. Drop the `docs_` prefix, and turn `_` into `-`, and you have the verb.
+| Name | What it is | Where it appears |
+| --- | --- | --- |
+| `@variance-authority/help` | the npm package | a manifest, a package runner |
+| `variance-authority-help` | the binary that package installs | a shell, an MCP `command` |
+| `docs_packages`, `docs_search`, … | the MCP tool names | an MCP client's tool list |
 
-A connection also serves questions the CLI does not ask:
+Drop the `docs_` prefix and turn `_` into `-`, and you have the `variance ask`
+verb: `docs_slowest_tests` is `slowest-tests`, `docs_journey_map` is
+`journey-map`. A tool takes its arguments under their schema names — `package`,
+`subpath`, `name`, `query`, `from`, `to`, `limit`, `offset`, `files`, `area`,
+`file` — not as positionals. `files` is an array.
 
-- **Test distillation:** `variance_distill`, then `variance_test_attention` for
-  the chronology or `variance_source_tests` for an exact source point. Read React
-  update initiators before execution-only opportunities. See
-  [distill](distill.md).
-- **Changed tests:** `variance_changed_tests` is `variance covering --since`,
-  taking the unified diff as an argument. See [covering](covering.md).
-- **Observability:** ask `variance_observability` first when several domains are
-  connected at once, to see which are present.
+## Tools no binary serves
+
+`variance_distill`, `variance_test_attention`, `variance_source_tests`,
+`variance_changed_tests` and `variance_observability` belong to the
+`OBSERVABILITY` tool set that `@variance-authority/mcp/protocol` exports. None
+of the servers above serves them. A host serves them by passing that set to
+`serve` from `@variance-authority/mcp` with its own `ObservabilitySubject`, as
+the package README shows. On such a connection, ask `variance_observability`
+first to see which domains are present; [distill](distill.md) and
+[covering](covering.md) own the questions behind the others.

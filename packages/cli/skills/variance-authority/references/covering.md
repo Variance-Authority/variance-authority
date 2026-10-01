@@ -3,7 +3,8 @@
 `variance covering` is the question to ask before changing a line, and the one
 to ask about a test that may no longer be worth keeping. It reads the per-case
 execution index and names the tests that ran through a file, a line or a
-function. It reads no config. None of it is a verdict: execution says where a
+function. Of the root `variance.config.json` it reads only `suites` and
+`cacheRoot`. None of it is a verdict: execution says where a
 test went, never why the trip was worth taking.
 
 ```bash
@@ -17,8 +18,8 @@ A line or a function is answered per test file first: `total.test.ts — 2/3`
 says two of that file's three cases ran through it, and the cases follow.
 
 - `--hops` puts each test file's import hops beside it and sorts nearest first.
-  It costs a scan of the tree, so ask for it when the list is long, not on every
-  edit.
+  It needs `--line` or `--function`, is refused with `--since`, and costs a scan
+  of the tree, so ask for it when the list is long, not on every edit.
 - `--cases last` answers from the cases the last run recorded; `--cases <test
   file>` from the ones that test file declares.
 - `--format refs` numbers each case once in a table at the end and names every
@@ -36,13 +37,23 @@ the whole command. `--execution <path>` names an index recorded elsewhere, and
 `--root <path>` the project root it was recorded against. Producing the index is
 in [producers](producers.md).
 
+When the root config declares `suites`, the question is asked of each suite's
+record, and the answer is one block per suite, headed `<suite> (<kind>):`.
+`--suite <name>` reads one suite's record alone, and is refused beside
+`--execution`. Under `--format json` the answer is `{"file": …, "suites": [...]}`,
+with `since` in place of `file` for a diff. Each entry is that suite's answer
+with `suite` and `kind` added, or `{suite, kind, refused, reason}` for a suite
+that could not answer.
+
 ## Nothing recorded is refused, not empty
 
 An empty list reads as *no test covers this line*, so a missing index is
-refused: exit `2`, and under `--format json` stdout carries
+refused: exit `2`, and under `--format json` stdout is
 `{"refused":"unrecorded"}`, which tells *nothing recorded* from a failed question
 without reading the sentence. Asking again changes nothing until a wrapped run
-has happened.
+has happened. With suites declared, the refusal is exit `2` only when no suite
+has a record; otherwise the answer exits `0`, and a suite with none says
+`refused` in its own entry.
 
 ## Narrow to the tests nearby
 
@@ -60,10 +71,6 @@ Both print how many of the tests survived the narrowing, because a filtered list
 and a short list look the same and lead to opposite decisions. A test the walk
 could not place is left out and counted. Both measure from one file, so neither
 combines with `--since`.
-
-No call-stack depth is printed beside a test. The recorder writes zero into
-every crossing, so that column was a constant, not a measurement. *How far away
-is this test* is an import count, and it is these two flags.
 
 ## Read the state of every range
 
@@ -113,8 +120,9 @@ regions **one case alone** ran. A changed test file is answered with the named
 cases it declares, since it has no module row. A changed path the index has
 nothing for says so, since *no row* and *no test* are opposite facts. The diff is
 measured from the commit the record was written at, so record before you read.
-`variance_changed_tests` is the same answer over MCP, and takes the unified diff
-as an argument.
+`variance_changed_tests` asks the same over MCP, on a host that serves it
+([MCP](mcp.md#tools-no-binary-serves)), taking the unified diff as an argument, but answers without the file graph: a case whose file mocked the
+changed module can be listed under it.
 
 A review agent reads the same answer with `--format refs`, and adds the base
 branch's case index to see what the change did in files the diff does not name:

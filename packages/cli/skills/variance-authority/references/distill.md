@@ -1,10 +1,13 @@
 # Distill a test, then verify the reduction
 
 `variance distill` reads no config and no report. The two paths are its whole
-input, so it answers in a checkout that has never configured this tool. At least
-one of `--eyes` and `--execution` is required. `--format json` returns the same
-reading as data, and the `variance_distill` MCP tool returns the same
-deterministic reading.
+input, so it answers in a checkout that has never configured this tool.
+`--test <id>` is required, and so is at least one of `--eyes` and
+`--execution`. `--root` (default: the working directory) is the project root
+both producers recorded against: Eyes names files by absolute path and the
+execution index by project-relative path, and a wrong root leaves the two
+unjoined. `--format json` returns the same reading as data, and the
+`variance_distill` MCP tool returns the same deterministic reading.
 
 ```bash
 variance distill --test checkout-submits --eyes eyes.json --execution execution.json
@@ -14,8 +17,8 @@ variance distill --test checkout-submits --eyes eyes.json --execution execution.
 
 **`eyes.json`** is what `writeEyesArchive` wrote (see [producers](producers.md)).
 Version `1`, one entry per test, `complete` a boolean the producer set, and
-`attention` a sequence of `eyes-phase`, `react-commit`, `react-tap-refused` and
-`document-event` entries:
+`attention` a sequence of `eyes-phase`, `react-commit`, `react-tap-refused`,
+`document-event`, `rtl-query` and `playwright-locator` entries:
 
 ```json
 {
@@ -59,9 +62,9 @@ block needs `kind`, `name` (empty for a module root), `path`, `startLine`,
 }
 ```
 
-Under Vitest, a run wrapped in `withTestSelection` writes the index `covering`
-reads, and `--execution` takes that file as it is. Outside Vitest, supply it
-from a runner, debugger, editor integration or collector that already records
+A Vitest, Jest, rstest or Playwright run wrapped in `withTestSelection` writes
+the index `covering` reads, `<recording>.cases.bin`, and `--execution` takes
+that file as it is. Otherwise, supply JSON from a tool that already records
 per-test crossings, or run `distill` with `--eyes` alone.
 
 Those two files, through the command above, answer:
@@ -71,21 +74,21 @@ checkout submits — src/checkout.test.tsx [checkout-submits]
 Eyes journal: complete.
 0 target snapshot(s); 0 had no live React Fiber.
 
-act:
-  components: none attributed by Eyes
-  source: none attributed by Eyes
+Addressed surface: measured empty.
 
 React update initiators: unavailable; no commit evidence was recorded.
 
 Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.
-Runtime journey: 1 source file(s) entered by exact test id.
+Runtime journey: 1 source file(s) covered by exact test id.
   depth 0 — src/checkout.ts
 Covered with no addressed target attributed to the same file: 1.
   distillation opportunity at depth 0 — src/checkout.ts
 
-Loaded but not entered: 0 module(s).
+Loaded but not covered: 0 module(s).
   measured empty
 ```
+
+Two fixed paragraphs follow, the substitution rule and the opportunity rule.
 
 ## The loop, one opportunity at a time
 
@@ -116,8 +119,8 @@ named lines, and compare each with the witness line for line:
   under `outside` on the second reading and not the first fails the condition.
 
 `React update initiators: unavailable; no commit evidence was recorded` means
-none of the three can be decided. Discard the edit rather than keep it on an
-unavailable reading.
+the third condition cannot be decided. Discard the edit rather than keep it on
+an unavailable reading.
 
 Never batch opportunities into one experiment: a passing test would not say
 which substitution was justified. A file the test ran with no addressed
@@ -141,9 +144,6 @@ denominator.
 - Updater paths keep name, key and props digest. Eyes owner paths keep name and
   props digest, so their overlap uses those shared frames. A name match alone
   does not place an updater inside an addressed target.
-- A source file the test ran with no addressed target is a distillation
-  opportunity. It is not proof that the code is unrelated, mockable or
-  removable.
 - Join evidence only on producer identities the tool accepts. Do not fall back
   from a stable test id to a title or a file path.
 

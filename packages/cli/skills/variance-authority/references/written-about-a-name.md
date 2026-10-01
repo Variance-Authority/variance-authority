@@ -1,17 +1,10 @@
 # What is written about a name, and where else
 
-`symbol` answers what a name is and how to call it. It prints the comment above
-the declaration, or, when there is none, the passage of the nearest `README.md`
-above the file, if that one names it, labelled as README prose rather than
-documentation. It stops there: a README further up, a docs folder, an
-architecture chart, a decision record or a wiki is never read, and the `grep`
-verb searches only source files the imports reach. So a missing passage means
-the nearest README does not name it, not that nothing does.
-
-Why a name exists and what it connects to is written in those higher places,
-when it is written at all. When that is your question, search them yourself
-with `git grep` or `rg`, over whatever formats the repository writes documents
-in.
+Why a name exists and what it connects to is written in a README further up, a
+docs folder, an architecture chart, a decision record or a wiki, when it is
+written at all. `symbol` reads none of them, and `grep` searches only the source
+files along the imports. When that is your question, search them yourself with
+`git grep` or `rg`, over whatever formats the repository writes documents in.
 
 ## The queries, in order
 

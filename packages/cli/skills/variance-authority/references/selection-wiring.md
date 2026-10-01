@@ -9,9 +9,7 @@ Some files decide how every test runs and are imported by nothing: the harness
 config, the setup it loads, the bundler setup, the Node version, the CI
 workflow. No walk reaches them, so a diff that changes one beside an ordinary
 source file narrows as if it had not. Naming them is a one-time inventory, and
-it is a job for you rather than for a rule: which paths govern a run is a fact
-about the repository, and every heuristic that guessed was both too wide and too
-narrow on the same diff.
+it is yours to take: which paths govern a run is a fact about the repository.
 
 Take it in this order, and read rather than assume:
 
@@ -49,9 +47,9 @@ directory claims everything under it:
 beyond its own name is everything below it, and that is a walk down the file
 graph.
 
-Then check the answer rather than trust the list. Run a selection over a diff
-that changes one of the named files and one ordinary component, and confirm the
-run comes back whole. A note naming entries the scan does not have is normal for
+Then check the answer rather than trust the list. Run `variance run --since
+<ref>` over a diff that changes one of the named files and one ordinary
+component, and confirm the run comes back whole. A note naming entries the scan does not have is normal for
 a `.nvmrc` or a workflow, which have nothing under them to read. It is not
 normal for the harness config: it means the setup files below it still narrow to
 nothing, and the usual cause is a path that does not exist or an extension the
@@ -70,9 +68,10 @@ produces a green report over work nothing checked, and silently. Expect these:
   narrow: nothing imports them, so there is no edge to walk and no answer
   smaller than the whole suite. It is only *noticed* when something declares
   it: `source.before` for `variance run --since`, and a precondition for the
-  test integrations. The Vitest integration declares the config file Vite loaded
-  and the local modules it imports; Jest and Rstest take the config in
-  `preconditions`. Undeclared, a config edited beside a component file is
+  test integrations. The Vitest integration declares the config file Vite loaded,
+  the local modules it imports and the configured setup files; all three
+  integrations take further files in `preconditions`, and Jest and Rstest need
+  the config named there. Undeclared, a config edited beside a component file is
   invisible.
 - A file below a declared entry point, such as a setup module or a fixture only
   that setup imports, does not narrow either, and neither does a package the
@@ -83,12 +82,13 @@ When an integration reports that it kept the whole suite, read the path it
 names. That is a wiring fact about the project, and usually a fixable one.
 
 Absence is the other direction, and it widens nothing. A changed path the
-recording has no row for is asked of the import graph when you pass
-`relations`, and the nearest measured files that import it select their tests.
-One the graph does not list, such as a README or a fixture, appears under
-`unread` and selects nothing. One it lists whose importers include nothing
-measured selects nothing and is not reported. A bumped package selects the tests
-of its measured importers; one with none selects nothing and is not reported.
+recording has no row for is asked of the import graph when one is passed, and
+the nearest measured files that import it select their tests. One the graph does
+not list, such as a README or a fixture, appears under `unread` and selects
+nothing: if the suite reads that file without importing it, declare it as a
+precondition. One it lists whose importers include nothing measured selects
+nothing and is not reported. A bumped package selects the tests of its measured
+importers; one with none selects nothing and is not reported.
 
 ## A recorded run costs memory, not time
 
@@ -112,7 +112,7 @@ wrap does not:
    stays in the worker until the heap is close to its limit. So each worker
    grows to the limit whether or not the suite is recorded; the probes make each
    file larger, which gets it there sooner. One `beforeAll` per file is enough,
-   and the setup file the wrap adds has two. The flag selects Node's older
+   and the setup file the wrap adds has two hooks. The flag selects Node's older
    implementation, which releases that memory as usual. Jest 29 does not grow
    this way.
 3. Lower the worker count (`--maxWorkers` in Jest and Vitest). A recording run
@@ -121,15 +121,6 @@ wrap does not:
 4. Under Jest, set `workerIdleMemoryLimit` in the configuration, so a worker is
    restarted once it grows past that size. That limits the growth without
    lowering concurrency.
-
-On a 60-file Jest suite, run in band, the heap after a full garbage collection
-at the last file was:
-
-| Run | Default | `--no-async-context-frame` |
-|---|---|---|
-| Plain, one empty `beforeAll` per file | 344 MB | 79 MB |
-| Recorded | 422 MB | 95 MB |
-| Recorded, per case | 471 MB | 90 MB |
 
 Do not remove the wrap to make a run pass, and do not change the repository's
 worker settings or Node options without saying so. Report the memory figures

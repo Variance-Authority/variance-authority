@@ -28,10 +28,10 @@ the installed `@variance-authority/eyes` before wiring either adapter.
 ## Runtime journey
 
 `variance covering`, `variance_source_tests`, `variance_changed_tests` and
-`variance_distill` need an `ExecutionIndex` with stable per-test ids. Under
-Vitest, every run wrapped in `withTestSelection(config)` from
-`@variance-authority/sense/vitest` writes one beside its snapshot, except a run
-whose files run in a page. The test-selection snapshot is per test *file* and
+`variance_distill` need an `ExecutionIndex` with stable per-test ids. Every run wrapped in
+`withTestSelection` writes one beside its snapshot, except a Vitest run whose
+files run in a page; the runners and their imports are in
+[test selection](test-selection.md#check-these-first-in-order). The test-selection snapshot is per test *file* and
 cannot take its place. Any runner, debugger, editor integration or other
 collector that records per-test crossings can supply the index instead.
 
