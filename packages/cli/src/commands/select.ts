@@ -27,15 +27,15 @@
  * [`journey.ts`](./journey.ts) exists to hold apart, met here in the one place
  * where confusing them would be a suite that stopped running with no error.
  *
- * ## The four ways it declines to narrow, each said out loud
+ * ## The four ways the record declines to narrow, each said out loud
  *
  * Skipping nothing is a correct answer and a common one, and it is also what a
  * broken invocation looks like. So every one of them is a sentence on stderr
  * rather than an empty stdout an operator has to interpret:
  *
  * - **No journal.** The ordinary state of a repository whose suite has never
- *   been recorded. Nothing is skipped, and the path a recording would be at is
- *   named, because that is the only way to learn the feature is there.
+ *   been recorded. The path a recording would be at is named, because that is
+ *   the only way to learn the feature is there.
  * - **No diff.** Not a checkout, no such ref, a shallow clone. Refusing to
  *   narrow is the only safe reading: an empty diff and an unobtainable one look
  *   identical, and one of them means *skip everything*.
@@ -47,6 +47,12 @@
  *
  * Each of the four is a reading that could not be made. A reading that was
  * made and found nothing is an answer, and it is given.
+ *
+ * For the first and the last, the file graph answers in the record's place
+ * ([`select-relations.ts`](./select-relations.ts)): it is how selection answers
+ * before anything is recorded, for a suite whose tests reach their code by
+ * import. Where it declines too, its reason joins the notes and nothing is
+ * skipped.
  *
  * ## An unread path is named, and keeps nothing in the run
  *
@@ -133,7 +139,28 @@ export interface SelectInput {
    */
   readonly standing?: readonly string[];
   readonly ground: SelectGround;
+  /**
+   * The file graph's answer, asked only when the journal is missing or holds no
+   * whole observation, for a suite whose tests reach their code by import.
+   */
+  readonly related?: Related;
 }
+
+/**
+ * What the walk `variance reach --since` makes reached, as a skip list: the
+ * files nothing imports that it did not reach. Or why it was not asked, or
+ * refused, which keeps every test in the run.
+ */
+export type Related =
+  | {
+      readonly skip: readonly string[];
+      /** How many files nothing imports, the test files among them. */
+      readonly entries: number;
+      readonly since: string;
+      /** The walk's own sentences: its size, and every path left out of it. */
+      readonly notes: readonly string[];
+    }
+  | { readonly declined: string };
 
 export interface TestSelection {
   /**
@@ -196,8 +223,11 @@ export function skippableTests(input: SelectInput): TestSelection {
   };
 
   if (input.ground.kind === 'no-journal') {
+    const related = relatedSelection(input.related, base, `no execution journal at ${input.at}`);
+    if ('because' in related) return related;
     return {
       ...base,
+      notes: [...base.notes, ...related.declined],
       widened: `no execution journal at ${input.at}`,
       because: 'nothing to narrow by, so every test file runs',
     };
@@ -231,8 +261,11 @@ export function skippableTests(input: SelectInput): TestSelection {
   };
 
   if (whole.length === 0) {
+    const related = relatedSelection(input.related, measured, 'the journal holds no whole observation of any test file');
+    if ('because' in related) return related;
     return {
       ...measured,
+      notes: [...notes, ...related.declined],
       widened: 'the journal holds no whole observation of any test file',
       because: 'nothing recorded whole, so every test file runs',
     };
@@ -247,6 +280,27 @@ export function skippableTests(input: SelectInput): TestSelection {
     because:
       `skipping ${skip.length} of ${many(whole.length, 'test file')} recorded whole: none ` +
       'covered a changed line; every other test file runs',
+  };
+}
+
+/**
+ * The file graph's answer as a selection, or the sentence saying why there is
+ * none, which is a note beside the record's own widening.
+ */
+function relatedSelection(
+  related: Related | undefined,
+  base: Omit<TestSelection, 'because'>,
+  record: string,
+): TestSelection | { readonly declined: readonly string[] } {
+  if (related === undefined) return { declined: [] };
+  if ('declined' in related) return { declined: [related.declined] };
+  return {
+    ...base,
+    skip: related.skip,
+    notes: [...base.notes, ...related.notes],
+    because:
+      `${record}; skipping ${related.skip.length} of ${many(related.entries, 'file')} nothing imports, ` +
+      `by the file graph: none is reached from what changed since ${related.since}; every other test file runs`,
   };
 }
 

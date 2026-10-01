@@ -1528,9 +1528,28 @@ counts and the widening reason together for something that wants to decide for
 itself.
 
 It declines to narrow, out loud on stderr and with an empty stdout, whenever the
-journal cannot speak: nothing recorded on this machine, a diff git would not
-produce, a lockfile that cannot be compared at the diff's base, or a journal
-with no whole observation in it.
+journal cannot speak: a diff git would not produce, or a lockfile that cannot be
+compared at the diff's base.
+
+When there is no journal, or one with no whole observation in it, the file graph
+answers instead: the same walk as [`reach`](#reach-what-a-diff-reaches-for-a-pipe),
+from `--since` or the journal's own commit. A file nothing imports, which is
+how a test file sits in the graph, is skipped when the walk did not reach it and
+everything it loads was read whole:
+
+```
+$ variance select --since origin/main
+no execution journal at <cache>/test-selection/…/coverage.bin; skipping 31 of
+48 files nothing imports, by the file graph: none is reached from what changed
+since origin/main; every other test file runs.
+```
+
+The graph answers only a suite whose tests reach their code by import: an
+undeclared one, or one declared `unit`. A suite declared `integration`, `e2e`
+or `visual` reaches its code through pages, servers and processes no import
+shows, so only its record rules a test out, and without one `select` skips
+nothing and says why. It also skips nothing when no ref names where to walk
+from, or when `reach` would refuse the walk, and stderr gives the reason.
 
 A changed file the journal records nothing about is not one of those. Prose, a
 workflow, or a fixture your tests read with `fs` keeps no test in the run, and
@@ -1565,8 +1584,8 @@ It is named rather than selected, because the missing edge is what you fix.
 The journal's own commit is what the diff is measured from, because its line
 numbers are coordinates in that commit's text. `--since <ref>` names a base only
 for a journal recorded outside a checkout, which names no commit of its own.
-No `variance.config.json` is read, so a repository that uses this tool for
-nothing else can still ask.
+A repository with no `variance.config.json` can still ask; the config is read
+only for its suites.
 
 #### Selecting from a journey file
 

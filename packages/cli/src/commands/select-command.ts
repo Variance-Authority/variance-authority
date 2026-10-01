@@ -56,6 +56,7 @@ import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { many } from './reach.js';
+import { withRelated } from './select-relations.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
@@ -112,8 +113,8 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   }
   const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
   const { at, source } = found;
-  const said = (input: Parameters<typeof saidOf>[0]) =>
-    saidOf(source === undefined ? input : { ...input, source }, request);
+  const said = async (input: Parameters<typeof saidOf>[0]) =>
+    saidOf(await withRelated(source === undefined ? input : { ...input, source }, request), request);
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to

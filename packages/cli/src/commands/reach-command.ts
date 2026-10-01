@@ -54,9 +54,10 @@
 import { execFile } from 'node:child_process';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
+import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import type { DiffPoint } from './installed.js';
-import { affectedFiles, listed, many, refused } from './reach.js';
+import { affectedFiles, listed, many, refused, type AffectedFiles, type MovedExports } from './reach.js';
 import { relationsFor } from './source-graph.js';
 import { changedSince, diffPoint, movedSince } from './since.js';
 
@@ -90,6 +91,55 @@ export interface ReachOutput {
 
 /** Walk the file graph from a diff, and say what it reaches. */
 export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
+  const reach = await reachedSince(request);
+
+  return {
+    out:
+      request.format === 'json'
+        ? `${JSON.stringify(
+            {
+              since: request.since,
+              changed: [...reach.changed],
+              unread: reach.unread,
+              ...(reach.movedExports === undefined
+                ? {}
+                : {
+                    quiet: reach.quiet,
+                    exports: Object.fromEntries([...reach.movedExports].filter(([, exports]) => exports.length > 0)),
+                  }),
+              seeded: reach.seeded,
+              files: reach.files,
+            },
+            undefined,
+            2,
+          )}\n`
+        : `${reach.files.join('\n')}\n`,
+    err: `${reach.notes.join('\n')}\n`,
+  };
+}
+
+/** What the walk from a diff reached, and every sentence a person needs about it. */
+export interface Reached extends AffectedFiles {
+  readonly relations: Relations;
+  readonly changed: readonly string[];
+  /** Changed paths in no language this build reads, left out of the walk. */
+  readonly unread: readonly string[];
+  /** What each changed file moved, or `undefined` under `--whole-files`. */
+  readonly movedExports: MovedExports | undefined;
+  /** Changed files whose edit runs nothing, or `undefined` under `--whole-files`. */
+  readonly quiet: readonly string[] | undefined;
+  /** For stderr: the size of the answer, and every path left out of it. */
+  readonly notes: readonly string[];
+}
+
+/**
+ * The walk `reach` prints, for any caller that needs its answer: every file the
+ * diff since `request.since` affects, or an `OperatorError` naming the reading
+ * it could not make. `variance select` asks it when its record cannot answer.
+ */
+export async function reachedSince(
+  request: Pick<ReachRequest, 'cwd' | 'since' | 'wholeFiles' | 'noGit'>,
+): Promise<Reached> {
   const changed = await changedSince(request.since);
   if (changed.length === 0) {
     // A refusal, not an empty list: an empty run list reads as `run nothing`,
@@ -147,29 +197,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
         ]),
   ];
 
-  return {
-    out:
-      request.format === 'json'
-        ? `${JSON.stringify(
-            {
-              since: request.since,
-              changed: [...changed],
-              unread,
-              ...(movedExports === undefined
-                ? {}
-                : {
-                    quiet,
-                    exports: Object.fromEntries([...movedExports].filter(([, exports]) => exports.length > 0)),
-                  }),
-              seeded: reach.seeded,
-              files: reach.files,
-            },
-            undefined,
-            2,
-          )}\n`
-        : `${reach.files.join('\n')}\n`,
-    err: `${notes.join('\n')}\n`,
-  };
+  return { ...reach, relations, changed, unread, movedExports, quiet, notes };
 }
 
 /**
