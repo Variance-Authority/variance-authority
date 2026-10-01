@@ -296,7 +296,7 @@ jobs:
             # base and is printed without a comparison.
             node packages/cli/dist/bin.js coverage --suite integration --packages --format markdown >> "$body"
           else
-            node packages/cli/dist/bin.js coverage --packages --format markdown >> "$body"
+            node packages/cli/dist/bin.js coverage --suite unit --packages --format markdown >> "$body"
           fi
           cat "$body" >> "$GITHUB_STEP_SUMMARY"
           echo "body=$body" >> "$GITHUB_OUTPUT"
@@ -319,6 +319,9 @@ jobs:
       # at, so what `main` moved after that commit is left out of the comparison
       # whichever recording the restore found.
       #
+      # It reads the unit slice, the one record CI compares against `main`'s; the
+      # review reads one suite, and refuses to pick one when several are declared.
+      #
       # The source index is published first. Under CI a reader refuses to build
       # it on demand, and the review asks it which tests import each changed file.
       - name: review the change
@@ -330,7 +333,7 @@ jobs:
           REVIEW: ${{ steps.carry.outputs.review }}
         run: |
           node packages/cli/dist/bin.js index
-          node packages/cli/dist/bin.js review --since "$BASE" \
+          node packages/cli/dist/bin.js review --since "$BASE" --suite unit \
             --out "$REVIEW" --format markdown >> "$GITHUB_STEP_SUMMARY"
 
       - name: keep the review
