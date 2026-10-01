@@ -70,8 +70,13 @@ the tests that will judge it.
 
 Look around:
 
-- Whether the behaviour already exists somewhere. A second implementation is a
-  defect.
+- What already does this, or most of it. A feature is aligned with the
+  functionality that exists — called, extended, routed to — and new code is
+  the exception: written only when the PR can show nothing existing could carry
+  it. A second implementation is a defect.
+- The tests that stand on the code, from `yarn variance covering --file
+  <path>`. A test is amended or added first, and fails on the code as it is,
+  before the code changes.
 - Where each piece of writing goes, and [`docs/AGENTS.md`](docs/AGENTS.md)
   before any published sentence: a README, `docs/`, the site, CLI output or an
   error message.

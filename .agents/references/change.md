@@ -5,10 +5,38 @@ where each kind of writing goes.
 
 ## Look around
 
-**Is it already built?** Search for the behaviour, not only the name. A second
-implementation of a shipped behaviour is a defect that drifts:
+**What already does this?** A feature is first a question about the code that
+exists: which command, function or rule already answers it, or answers most of
+it, and how the feature is reached from there — a call, an extension, a route
+from one caller to another. Search for the behaviour, not only the name: `yarn
+variance ask search --query <words>`, then the commands `yarn variance --help` lists, then the
+ADRs that name the subject. New code is the exception, and the pull request
+proves it is the only way: it names what exists, and says why none of it could
+carry the change.
+
+A second implementation of a shipped behaviour is a defect that drifts:
 `summarizeObservation` was exported, documented, called by nothing, and
 drifting from the private copy `playwright-test` had grown for the same job.
+The fallback to relations for a suite with no record was started as a new import
+walk in `sense`, three files and twelve tests in, before anyone noticed that test
+selection already selects by relations — the graph `affectedBy` in
+`core/relate` walks — and that a record only narrows it further. What that
+feature needed was a route from the record that could not answer to the
+selection that already could, and the new walk was a second copy of it.
+
+**Which tests stand on it?** Before an edit, `yarn variance covering --file
+<path>` names the tests that entered the code, and the change starts there:
+
+1. Amend the test that pins the behaviour being changed, or add one beside it,
+   so that it states the behaviour the change is for.
+2. Run it and watch it fail on the code as it is. A test that passes before the
+   change pins nothing the change does.
+3. Change the code until it passes, and the tests `covering` named still pass.
+
+A behaviour nothing covers is pinned as it is before it is changed: one test per
+edge case, green on the old code, so the change shows up as the tests it turns
+red. `covering` answers from the last recording, so a file it has never seen is
+asked of `yarn test:since --dry-run` instead.
 
 **Is it this task?** A finding outside the task — dead code, a stale doc, a
 defect in a neighbour — becomes its own change with its own PR. Folded into
