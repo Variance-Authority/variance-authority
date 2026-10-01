@@ -55,9 +55,8 @@ A second implementation of a shipped behaviour is a defect that drifts:
 `summarizeObservation` was exported, documented, called by nothing, and
 drifting from the private copy `playwright-test` had grown for the same job.
 The fallback to relations for a suite with no record was started as a new import
-walk in `sense`, three files and twelve tests in, before anyone noticed that test
-selection already selects by relations — the graph `affectedBy` in
-`core/relate` walks — and that a record only narrows it further. What that
+walk in `sense`, with its own tests, before anyone noticed that test selection
+already selects by relations — the graph `affectedBy` in `core/relate` walks. What that
 feature needed was a route from the record that could not answer to the
 selection that already could, and the new walk was a second copy of it.
 

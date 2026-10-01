@@ -7,7 +7,8 @@ change.
 ## Look around
 
 **What have I done?** Read `git diff origin/main` as the reviewer will, before
-any test runs. Each new function, file or command is asked the question
+the runs below. The failing test the change began with has already run; these
+have not. Each new function, file or command is asked the question
 [refine](refine.md) asked of the task: what already did this? A new walk beside
 an existing one, a helper that repeats a package's export, a fix to a symptom
 whose owner sits upstream — each is thrown away here, while it costs only the
