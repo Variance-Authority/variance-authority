@@ -36,19 +36,17 @@ every client start.
 {
   "mcpServers": {
     "workspace-api": {
-      "command": "node_modules/.bin/variance-authority-help",
+      "command": "variance-authority-help",
       "args": ["."]
     }
   }
 }
 ```
 
-A client does not run `command` through a package script, so a bare
-`variance-authority-help` is not on its `PATH`; name the installed binary by its
-path. `args` is a bare root and no verb, which is the form that starts a stdio
-server. Both paths are read from the directory the client starts the process
-in, so make them absolute if that is not the workspace. The server
-key, `workspace-api` here, is yours to name.
+`command` must resolve the installed binary. `args` is a bare root and no verb,
+which is the form that starts a stdio server. `.` is the directory the client
+starts the process in, so pass the workspace's absolute path if that is not the
+workspace. The server key, `workspace-api` here, is yours to name.
 
 ## Tool names and arguments
 
