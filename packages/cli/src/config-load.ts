@@ -10,7 +10,7 @@
 import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { cacheRootFor, declaredSuites, repositoryRoot } from '@variance-authority/sense/test-selection';
+import { beforeOf, cacheRootFor, declaredSuites, repositoryRoot } from '@variance-authority/sense/test-selection';
 import { ConfigError, messageOf } from './config-values.js';
 import { OperatorError } from './exit.js';
 import { said } from './here.js';
@@ -101,7 +101,16 @@ export async function loadConfig(path: string): Promise<Config> {
   // Again once the root's suites are in: a member file may hold the share, and
   // the suites it would carry are only ever declared at the root.
   if (suites !== undefined) checkCarriers({ share: config.share, reportCarry: undefined, suites }, { source, baseDir });
-  return { ...config, cacheRoot, ...(suites === undefined ? {} : { suites }) };
+  // Inherited the same way: what every suite rests on is declared once, at the
+  // root, and a member config runs those suites. `beforeOf` answers empty only
+  // for a root that declares none, since a declared list is never empty.
+  const before = atRoot ? config.before : beforeOf(baseDir, undefined);
+  return {
+    ...config,
+    cacheRoot,
+    ...(suites === undefined ? {} : { suites }),
+    ...(before === undefined || before.length === 0 ? {} : { before }),
+  };
 }
 
 /** Whether a failed read is the file simply not being there. */

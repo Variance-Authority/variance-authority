@@ -31,7 +31,8 @@ Take it in this order, and read rather than assume:
    are not entry points. Adding them buys whole runs and no information.
 
 Write them into `variance.config.json` as repository-root-relative paths. A
-directory claims everything under it:
+directory claims everything under it, and every file under it is walked as an
+entry point:
 
 ```json
 {

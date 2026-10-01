@@ -119,8 +119,10 @@ kind:
 ```
 
 Each entry is matched against the diff by path, so naming a directory of
-workflows is one line rather than one per file. When one of them changes, the
-run is whole and the report says which file put it there.
+workflows is one line rather than one per file. A directory is also walked: every
+file under it is an entry point, so a `test/` that holds the setup brings in
+what that setup loads, wherever it lives. When one of them changes, the run is
+whole and the report says which file put it there.
 
 Which paths govern a run is a fact about your repository, and no rule derives
 it. *Every changed path the graph does not include* would be the README, the
@@ -132,7 +134,7 @@ that off would switch the config files off with it. Declared, it is exact.
 everything below it.
 
 `variance select` reads both: the top-level list and the list of the suite whose
-record it reads. A change to anything either one reaches runs that whole suite,
+record it reads, or with `--execution` the suite `--suite` names. A change to anything either one reaches runs that whole suite,
 and `select` names what put it there. A suite with no `before` has nothing
 before its reach, and `select` says so beside its answer. The Vitest
 integration also declares the config file Vite loaded and the local modules it

@@ -50,7 +50,7 @@ import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { many } from './reach.js';
-import { restsOf, restsSaid } from './select-before.js';
+import { journeySuite, restingOf } from './select-before.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, recordedSuite } from './suite-record.js';
@@ -213,9 +213,9 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // What the suite rests on before reach, moved by any group's diff or bump, runs the whole suite.
   const suite = (await recordedSuite(here, request.suite, 'landing')).declared?.name;
   const bumped = [...installs.values()].flatMap((one) => compared(one)?.packages ?? []);
-  const rest = await restsOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.whole)])], bumped);
-  const rested = { ...recorded, ...(rest.notes.length === 0 ? {} : { resting: rest.notes }) };
-  if (rest.rests.length > 0) return said({ ...rested, ground: { kind: 'before', whole: restsSaid(suite, rest.rests) } });
+  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.whole)])], bumped);
+  const rested = { ...recorded, ...rest };
+  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } });
   // The files a stand reads whole leave the hunk diff, so none is also read by
   // its hunks, and each group is charged the packages that moved since it ran.
   const ask = (whole: readonly string[], stand: string | undefined) =>
@@ -429,6 +429,10 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     why: 'a whole-file change is answered by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
+  // What the suite rests on, moved by the patch or its bump, runs the whole suite.
+  const { whole, ...rest } = await restingOf(here, await journeySuite(here, request.suite), relations, [...selection.changedLines(text).keys()], installed?.packages ?? []);
+  const base = { at: request.execution, given: true, ...rest };
+  if (whole !== undefined) return saidOf({ ...base, ground: { kind: 'before', whole } }, request);
   // A package whose manifest moved is every file of it, changed whole.
   const moved = movedPackages(relations, installed);
   const changed = selection.changedLines(withMovedPackages(text, moved.files));
@@ -441,10 +445,7 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
   const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
   const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...moved.unplaced].sort();
-  return saidOf(
-    { at: request.execution, given: true, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } },
-    request,
-  );
+  return saidOf({ ...base, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } }, request);
 }
 
 /** A patch handed in by `--diff`: a file, or `-` for stdin. */

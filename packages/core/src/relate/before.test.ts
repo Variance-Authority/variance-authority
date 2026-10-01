@@ -83,6 +83,22 @@ describe('what a run rests on', () => {
     expect(before.files.has('test/setup.ts')).toBe(true);
   });
 
+  it('walks from every file under a declared directory', () => {
+    const before = beforeReach(RELATIONS, ['test/']);
+
+    // `test/` holds the setup, and the setup loads `src/theme.ts` and what that
+    // loads: a directory names its files as entry points, not only as paths to
+    // match, so a change outside it that the setup reaches is before reach too.
+    expect([...before.files].sort()).toEqual([
+      'src/theme.ts',
+      'src/tokens.css',
+      'test/fixtures.ts',
+      'test/kinds.ts',
+      'test/setup.ts',
+    ]);
+    expect(before.unread).toEqual([]);
+  });
+
   it('answers nothing for no entry points, which is the repository that declared none', () => {
     const before = beforeReach(RELATIONS, []);
 

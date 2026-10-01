@@ -78,3 +78,38 @@ export function restsSaid(suite: string | undefined, rests: readonly string[]): 
   const whose = suite === undefined ? 'every suite here' : `the suite ${suite}`;
   return `${whose} rests on ${listed(rests)} before any test imports ${rests.length === 1 ? 'it' : 'them'}, and this diff moves ${rests.length === 1 ? 'it' : 'them'}`;
 }
+
+/** What a selection carries from {@link restsOf}: its notes, and the reason for a whole run when the diff moved what the suite rests on. */
+export interface Resting {
+  readonly resting?: readonly string[];
+  readonly whole?: string;
+}
+
+/** {@link restsOf}, said: the notes as a selection carries them, and the sentence a whole run gives. */
+export async function restingOf(
+  root: string,
+  suite: string | undefined,
+  relations: Relations,
+  changed: readonly string[],
+  packages: readonly string[],
+): Promise<Resting> {
+  const rest = await restsOf(root, suite, relations, changed, packages);
+  return {
+    ...(rest.notes.length === 0 ? {} : { resting: rest.notes }),
+    ...(rest.rests.length === 0 ? {} : { whole: restsSaid(suite, rest.rests) }),
+  };
+}
+
+/**
+ * The suite a journey file speaks for: the one named, or the only one declared.
+ *
+ * Undefined otherwise, and then only the repository's own `before` is read. A
+ * journey file is not kept per suite, so several suites with none named is not
+ * refused here as it is where a record is read; it reads what all of them rest on.
+ */
+export async function journeySuite(root: string, named: string | undefined): Promise<string | undefined> {
+  if (named !== undefined) return named;
+  const selection = await import('@variance-authority/sense/test-selection');
+  const declared = selection.declaredSuites(root);
+  return declared?.length === 1 ? declared[0]!.name : undefined;
+}

@@ -121,6 +121,17 @@ describe('loadConfig and the suites', () => {
     expect((await loadConfig(file)).suites?.map((suite) => suite.name)).toEqual(['stories', 'unit']);
   });
 
+  it('gives a config below the root what its repository declares before reach', async () => {
+    const at = await repository();
+    await writeFile(resolve(at, 'variance.config.json'), JSON.stringify({ before: ['.nvmrc', '.github/workflows'] }));
+    const member = resolve(at, 'packages', 'app');
+    await mkdir(member, { recursive: true });
+    const file = resolve(member, 'variance.config.json');
+    await writeFile(file, JSON.stringify(VALID));
+
+    expect((await loadConfig(file)).before).toEqual(['.nvmrc', '.github/workflows']);
+  });
+
   it('refuses a kind outside the closed list, naming the field', async () => {
     const at = await repository();
     const file = resolve(at, 'variance.config.json');

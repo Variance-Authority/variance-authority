@@ -131,11 +131,19 @@ export function beforeReach(
     if (node?.kind === 'file') held.set(node.name, id);
   }
 
+  // A declared directory is every file the graph holds under it, each walked
+  // as an entry point: a setup under `test/` loads what it loads whether the
+  // operator named the file or the directory it sits in.
   const seeds: NodeId[] = [];
   for (const entry of entries) {
     const id = held.get(entry);
-    if (id === undefined) unread.push(entry);
-    else seeds.push(id);
+    if (id !== undefined) {
+      seeds.push(id);
+      continue;
+    }
+    const under = [...held].filter(([name]) => within(name, [entry]));
+    if (under.length === 0) unread.push(entry);
+    else for (const [, below] of under) seeds.push(below);
   }
   if (seeds.length === 0) return { entries, files, packages, unread };
 
