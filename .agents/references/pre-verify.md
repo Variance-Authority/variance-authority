@@ -6,6 +6,13 @@ change.
 
 ## Look around
 
+**What have I done?** Read `git diff origin/main` as the reviewer will, before
+any test runs. Each new function, file or command is asked the question
+[refine](refine.md) asked of the task: what already did this? A new walk beside
+an existing one, a helper that repeats a package's export, a fix to a symptom
+whose owner sits upstream — each is thrown away here, while it costs only the
+time already spent. Green tests do not answer this; a duplicate passes its own.
+
 **Is the checkout reconciled?** An out-of-date checkout reports defects, not
 errors, and that is what makes it expensive. Nothing here imports another
 package by relative path, so a check asking the CLI what a setting means

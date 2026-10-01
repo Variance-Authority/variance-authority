@@ -45,8 +45,12 @@ Look around:
   decided, tried or rejected on the subject.
 - What the field calls it, and who measured it before us:
   [`docs/context/prior-art.md`](docs/context/prior-art.md) first.
+- What already does this, or most of it. A feature is aligned with the
+  functionality that exists — called, extended, routed to — and new code is
+  the exception: written only when the PR can show nothing existing could carry
+  it. A second implementation is a defect.
 
-Leave with the sentence of done, the gate it is measured against, and only the
+Leave with the sentence of done, what existing code it is reached from, the gate it is measured against, and only the
 questions that are the asker's to answer.
 
 ## Inner loop
@@ -70,10 +74,6 @@ the tests that will judge it.
 
 Look around:
 
-- What already does this, or most of it. A feature is aligned with the
-  functionality that exists — called, extended, routed to — and new code is
-  the exception: written only when the PR can show nothing existing could carry
-  it. A second implementation is a defect.
 - The tests that stand on the code, from `yarn variance covering --file
   <path>`. A test is amended or added first, and fails on the code as it is,
   before the code changes. Behaviour nothing covers is pinned green first, in
@@ -96,6 +96,9 @@ A finding outside the task becomes its own change, not part of this one.
 
 Look around:
 
+- What you have done, read as the diff a reviewer will read: does any of it
+  repeat what already existed, or answer a question the task did not ask? It is
+  not too late to throw it away, and it is cheaper here than in review.
 - Whether the checkout is reconciled: install and build current, new files
   tracked.
 - What the change reached: the `read` lines of `yarn test:since --dry-run`.
