@@ -32,7 +32,7 @@ asset relations, not function calls. `uses` reports where a name is imported,
 not where code calls it at runtime.
 
 It answers from a dated generation published through a [source
-index](../../docs/source-index.md). Most of its questions are about exported
+index](https://variance-authority.dev/docs/source-index). Most of its questions are about exported
 names; the rest run ripgrep over the files a path imports, start from the words
 of a task before you know any name, list the third-party packages a location
 can already use, map the code the recorded tests ran around one file, and list
@@ -49,7 +49,7 @@ produced. It performs no Git status or refresh, and refuses if there is no
 generation to read. `search` always behaves this way: it is a lookup, and
 producing the generation is the job of the step before it. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
-index](../../docs/agent-workspace-api.md#choose-the-cheapest-entrance).
+index](https://variance-authority.dev/docs/agent-workspace-api#choose-the-cheapest-entrance).
 
 It answers two different questions about a name. What the name is supposed to be
 comes off the declaration — its signature and the block comment above it. How
@@ -151,7 +151,7 @@ stays available without taking space from the first answer.
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
-| `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](../../docs/orientation.md#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
+| `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files and cases have none |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version and how many times the code imports it |
@@ -309,7 +309,7 @@ npx @variance-authority/help search session --root ../shadow
 Install it where you will ask more than once, and use `npx` where you will
 not: a checkout you are passing through, a colleague's repository, a tree you
 are reading to decide whether to work in it. The index survives either way — it
-is kept per checkout in [your cache](../../docs/cache.md), not inside the tree
+is kept per checkout in [your cache](https://variance-authority.dev/docs/cache), not inside the tree
 being read — so a second `npx` run answers
 out of what the first one learned.
 

@@ -261,7 +261,7 @@ nothing else.
 #### A checkout with no run of its own
 
 When the configured report is not on disk, `ask` and `serve` answer from the
-report CI published to the [share](../../docs/sharing.md): the line for your
+report CI published to the [share](https://variance-authority.dev/docs/sharing): the line for your
 branch first, then your mainline's. A pull request from a fork reads the
 mainline only, because a branch line of the same name belongs to a branch of
 the base repository. CI publishes the report when its config sets
@@ -276,7 +276,7 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
   rebase, or before you pull, the answer says it is *another run of* the
   branch, and it still answers.
 - **The configured `report` path is never written.** The record is kept in
-  [the cache](../../docs/cache.md) under its digest, at the same path relative
+  [the cache](https://variance-authority.dev/docs/cache) under its digest, at the same path relative
   to the repository as your configured report, or as `run.json` when that
   report is outside the repository. A second question about the same record
   reads the kept copy. The next `variance run` writes your own report where it
@@ -746,7 +746,7 @@ and names the commit to fetch.
 
 A run in a checkout that had no recording before it, such as a fresh clone,
 has no previous commit to start from. When the root config gives that suite to
-the [share](../../docs/sharing.md) with `"carry": "share"`, the review starts at
+the [share](https://variance-authority.dev/docs/sharing) with `"carry": "share"`, the review starts at
 the commit your mainline published its record at, compares cases with that
 record's, and says so in its first line:
 
@@ -782,7 +782,7 @@ printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
 
 In CI, restore the recording directory your base branch saved to the runner
-cache (the directory [the cache](../../docs/cache.md) describes), run the
+cache (the directory [the cache](https://variance-authority.dev/docs/cache) describes), run the
 suite, and review after it:
 
 ```yaml
@@ -884,7 +884,7 @@ add up to the change in the count. The test files whose regions changed most
 are named under the table.
 
 Each suite's base is the record its mainline published to the
-[share](../../docs/sharing.md), for a suite the root config gives to it with
+[share](https://variance-authority.dev/docs/sharing), for a suite the root config gives to it with
 `"carry": "share"`. For one suite, `--suite <name> --against <record>` names a
 case index instead. The comparison is printed only when every recorded suite has
 a base, because every share is taken over the regions all the suites loaded,
@@ -893,7 +893,7 @@ suite with no base is named with the reason.
 
 A record holds only the modules some suite loaded, so a file that no suite
 loaded is in no record. `coverage` reads the rest from the
-[source index](../../docs/cache.md), which stores the size of every JavaScript
+[source index](https://variance-authority.dev/docs/cache), which stores the size of every JavaScript
 and TypeScript file it parsed: its bytes, the lines that hold code, the regions the recording would
 cut it into, and how many names it exports. The files no suite recorded are
 listed by directory, and the share is printed again over every region in the
@@ -914,7 +914,7 @@ recording instruments them.
 
 *Before reach* is what the test harness loads: the files the runner's config
 reaches through its imports, as the recording names it
-([changes before and beyond reach](../../docs/changes-before-and-beyond.md)).
+([changes before and beyond reach](https://variance-authority.dev/docs/changes-before-and-beyond)).
 Only the part of it the scope's entry points reach is counted, so the config
 itself is in no scope. Those files ran under every test and no record holds a
 region of them, so the second share counts them as run and says how much of
@@ -1406,7 +1406,7 @@ journal both read.
 
 `select`, `reach`, `covering --since` and `run --since` all answer from the
 import graph of your checkout. None of them scans for it. They read the
-[source index](../../docs/source-index.md), and `variance index` is the one
+[source index](https://variance-authority.dev/docs/source-index), and `variance index` is the one
 command that writes it:
 
 ```bash
@@ -1434,7 +1434,7 @@ written prints `code map: not prepared: …`; in both cases the index is
 published. Each line after those two describes one suite's journeys, which it walks from that suite's latest
 recording and writes beside the index, and which `variance ask orient --files`
 reads for the calls into and out of a file and the
-[package flows](../../docs/orientation.md#choose-the-entrance-from-what-you-have)
+[package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have)
 its tests take. A checkout with no declared suites prints one `journeys:` line.
 A suite with no recording prints `not prepared: nothing is recorded at …`. The
 last two lines are what `variance ask` answers from, and each says why when it
@@ -1489,8 +1489,8 @@ and no `--suite`, it stops and lists them. `variance run --since` and
 
 When your checkout has not recorded the suite, as in a fresh clone, `select`
 reads the record your mainline published, if the root config gives that suite
-to the [share](../../docs/sharing.md) with `"carry": "share"`. The record is
-kept in [the cache](../../docs/cache.md), never where the suite records, and
+to the [share](https://variance-authority.dev/docs/sharing) with `"carry": "share"`. The record is
+kept in [the cache](https://variance-authority.dev/docs/cache), never where the suite records, and
 stderr says which of the two `select` read:
 
 ```text
@@ -1647,7 +1647,7 @@ are not that kind of edit, because the compiler writes both into what runs. A
 file whose edit changed only some of its exports is walked from those exports:
 a file that imports `label` from it is left out when only `total` changed, and
 stderr names `total`.
-[How different languages are handled](../../docs/polyglot.md#walked-from-what-the-edit-changed)
+[How different languages are handled](https://variance-authority.dev/docs/polyglot#walked-from-what-the-edit-changed)
 says where the walk stays whole. Everything else a person needs goes there too,
 including how many files were reached from how many. `--format json` gives
 the same facts for something that wants to decide for itself.
@@ -1704,7 +1704,7 @@ variance share --publish shard-1/report.json shard-2/report.json shard-3/report.
 It publishes nothing when a report has no part beside it or a shard is missing,
 and names which. An unsharded run publishes its own index and needs no merge.
 
-The lookup is the same one the [suite index](../../docs/sharing.md#looking-up-mainlines-record)
+The lookup is the same one the [suite index](https://variance-authority.dev/docs/sharing#looking-up-mainlines-record)
 uses, and every shard of one build reads the same line, so they place alike. A
 checkout with no share, or a line that holds no costs, places by checksum.
 
@@ -2106,7 +2106,7 @@ moves it to the next machine:
 - `actions-cache`: the host's cache, from one job to a later one in the same
   repository.
 - `share`: `variance share --publish`, to the line a checkout on another
-  machine reads back. [Sharing](../../docs/sharing.md) says where a line lives
+  machine reads back. [Sharing](https://variance-authority.dev/docs/sharing) says where a line lives
   and who may write it.
 
 A file with no `carry` stays on the machine that wrote it.
