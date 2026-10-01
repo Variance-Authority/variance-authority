@@ -196,7 +196,7 @@ is not a package name and the registry will report it missing. `--root` is the
 workspace to read; omit it when you are standing in that workspace.
 
 A workspace that already has `@variance-authority/cli` installed needs neither
-this package nor its binary, over either transport. The nine questions are on
+this package nor its binary, over either transport. The same questions are on
 `variance ask`, beside the questions about a run, and read the checkout under
 the working directory:
 

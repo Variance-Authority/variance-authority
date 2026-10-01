@@ -25,20 +25,23 @@ import { writePages } from './write.js';
  * one of them would be a fourth source of truth nobody asked for.
  */
 
+/** The longest verb and a gap, so a verb added later never runs into its description. */
+const VERB_WIDTH = Math.max(...verbs().map(([verb]) => verb.length)) + 1;
+
 const USAGE = [
   'usage: variance-authority-help <verb> [argument] [--root <dir>] [--just-answer] [--format text|json]',
   '       variance-authority-help [root] [--just-answer]',
   '       variance-authority-help write [root] [--out <dir>] [--base <url>]',
   '',
   'Ask one question:',
-  ...verbs().map(([verb, description]) => `  ${verb.padEnd(11)}${description.split('. ')[0]}.`),
+  ...verbs().map(([verb, description]) => `  ${verb.padEnd(VERB_WIDTH)}${description.split('. ')[0]}.`),
   '',
   '  --root  The workspace to read. Default: the working directory.',
   '  --just-answer  Use the last published generation without inspecting the checkout.',
   '  --format json  Answer `search` as data rather than text.',
   '',
   'Or:',
-  '  serve  Answer all six over MCP on stdio. The default with no verb.',
+  '  serve  Answer every question above over MCP on stdio. The default with no verb.',
   '  write  Write llms.txt, help-index.md, help-gaps.md and help.json.',
   '',
   '  --out   Where the written files go. Default: docs/api under the root.',

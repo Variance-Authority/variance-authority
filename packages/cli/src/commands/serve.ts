@@ -124,9 +124,10 @@ const BENCH: Served<Bench> = {
   ],
   instructions: (bench) =>
     `${REPORTS.instructions?.(bench.report) ?? ''} ` +
-    'The same connection answers nine questions about the source — what this repository ' +
+    'The same connection answers questions about the source — what this repository ' +
     'publishes, where a name is declared, who imports it, which lines match a pattern ' +
     'in the files a path imports, which files and packages the words of a task are in, ' +
+    'which third-party packages a location can use, which code the recorded tests ran around a file, ' +
     'and which recorded test files took longest — read from the checkout, ' +
     'with no run required. `variance_costs` says which files and subjects the suite spends its time on, ' +
     'from the times the mainline\'s last build published.',
