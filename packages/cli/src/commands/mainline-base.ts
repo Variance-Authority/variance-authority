@@ -363,15 +363,6 @@ export function mainlineMissed(missed: MainlineMissed): string {
 }
 
 /**
- * The note a reader gives when this checkout's own record won: its first run
- * was laid on the base, so it is that base plus what ran here since.
- */
-export function checkoutRead(suite: string): string {
-  return `record of "${suite}": read from this checkout's own, which its runs landed on the base the first of them was laid on; ` +
-    "the mainline's is read only when this checkout has recorded none";
-}
-
-/**
  * The note a reader gives when it fell back to the primary checkout's record:
  * this worktree has recorded none, the mainline's was not read now and none was
  * fetched earlier on this machine. It names the file and why the mainline's is

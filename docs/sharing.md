@@ -597,6 +597,21 @@ checkout's own, so `variance review` finds no run listed until your first one,
 which starts your change at that commit. With none fetched, a worktree's
 first run copies the primary checkout's, and says so.
 
+That copy stays the mainline's. Your runs are laid over it, and beside the
+checkout's record a ledger, `coverage.layer.json`, lists the test files your
+runs observed and the commit each ran at, with the working tree's git tree when
+it had uncommitted edits. When `select` or `variance share --suite` reads a
+newer mainline record whose commit your HEAD contains, the checkout's record
+moves onto it: every test file you did not run reads the newer record, and a
+file you ran keeps your rows if it ran at that commit or after it. A newer
+record of a commit your branch does not contain changes nothing, so long work
+keeps the record it started from until you merge or rebase. The answer names
+both:
+
+```text
+record of "unit": read from this checkout's own, over mainline main at 3f1c9a2…, 4 commit(s) before HEAD; 2 test file(s) ran here, every other is the mainline's: test/cart.test.ts, test/total.test.ts at 8e01b44…
+```
+
 A [miss](#when-a-share-fails), or an execution record that names no commit or
 was recorded at a commit other than the one it was published at, is not used,
 and the `record of "<suite>":` line says why. With no execution record, `select`

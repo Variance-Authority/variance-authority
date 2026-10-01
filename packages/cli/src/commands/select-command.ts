@@ -61,7 +61,8 @@ import {
 } from './installed.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
-import { checkoutRead, mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
+import { checkoutRead } from './checkout-read.js';
+import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { many } from './reach.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
@@ -365,7 +366,7 @@ async function recordedOrMainline(
   const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
   if (suite === undefined) return { at: recorded.file, held: await exists(recorded.file) };
   const base = await suiteBase(request.cwd, { suite });
-  if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: checkoutRead(suite) } };
+  if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: checkoutRead(suite, request.cwd, base) } };
   if (base.from === 'mainline') {
     const read = base.mainline;
     const distance = read.distance === undefined ? {} : { distance: read.distance };

@@ -1,16 +1,16 @@
 # Spec 0090 — coverage is layered
 
-**Missing:** the whole capability. A checkout's first run copies the mainline
-record it last fetched into its own layer (`layFetchedMainline`,
-`packages/sense/src/test-selection/mainline-layer.ts`), every later run merges
-into that copy (`mergeCoverage`, `landRun`), and once the copy exists
-`suiteBase` never reads the mainline again
-(`packages/cli/src/commands/suite-base.ts:66`). The base and the work done over
-it are one file, so nothing can say which rows are the mainline's and which are
-this checkout's, and a newer mainline record never replaces the base under a
-checkout that has run. The share keeps one snapshot per line
-(`docs/sharing.md`, "A share keeps no history"), so a branch cut before main's
-latest publish can read its own base only if this machine fetched it then.
+**Missing:** the per-test read of item 1, and items 2 to 4. A checkout's
+record is still one file, the milestone it was laid on with its runs folded in,
+so a landing over an edit still demotes every test on an edited region the run
+did not observe (`format-layer-rows.ts`, `mergeCoverage`). Which rows are whose
+is now kept beside it: the ledger `coverage.layer.json`
+(`packages/sense/src/test-selection/own-layer.ts`) names the pinned milestone
+and the tests each run observed, with the state they ran over, and
+`repinOwnLayer` (`milestone-repin.ts`) moves the record onto a newer snapshot
+HEAD contains. The share keeps one snapshot per line (`docs/sharing.md`, "A
+share keeps no history"), so a branch cut before main's latest publish can read
+its own base only if this machine fetched it then.
 **Built on:** [ADR-0084](../context/adr/0084-every-base-is-mains-record.md)
 (every base is main's record; proposed),
 [ADR-0078](../context/adr/0078-the-cache-is-pruned-by-its-owners.md) (pruning),
@@ -72,11 +72,18 @@ the checkout can reach replaces it.**
   distance to it, and the tests this checkout answers itself, each with the
   state it ran over.
 
+Built: the ledger, the re-pin under `suiteBase` for a suite given to the
+share, and the reader's note (`packages/cli/src/commands/checkout-read.ts`).
+Remaining: the per-test read, which needs the own rows apart from the
+milestone's at read time rather than folded at landing.
+
 Discharged by tests that: land a local run and read the milestone file back
 byte for byte unchanged; fetch a newer ancestor snapshot and assert untouched
 tests now stand at it while locally run tests keep their rows; fetch a snapshot
 that is not an ancestor and assert the pin is kept; and switch branches in the
-primary checkout and assert the rows from the other branch are named as such.
+primary checkout and assert the rows from the other branch are named as such
+(`packages/cli/src/commands/milestone-pin.test.ts`), and a test that edits a
+module's top level and asserts only the readers of what changed are demoted.
 
 **2. The cost of history is measured before it is built.** Two numbers, on
 this repository and on one large case:

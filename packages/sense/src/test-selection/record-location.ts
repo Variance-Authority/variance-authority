@@ -21,6 +21,7 @@ import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
 import { layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
+import { writeOwnLayer } from './own-layer.js';
 import { declaredSuite } from './suites.js';
 
 export interface RecordLocationOptions {
@@ -171,6 +172,9 @@ export async function seedTestCoverage(
     if (openSetExecutionIndex(bytes) === undefined) decodeExecutionTests(bytes);
   });
   await seedCommitRuns(file, resolve(layers.base, inside), snapshot);
+  // The primary checkout's record is no milestone: nothing is pinned, and no
+  // fetch moves it. Its tests are not this checkout's.
+  await writeOwnLayer(file, { ran: [] });
   return { from: 'primary', file: resolve(layers.base, inside), ...(shared === undefined ? {} : { shared }) };
 }
 

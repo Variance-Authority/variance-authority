@@ -153,7 +153,13 @@ describe('the record a worktree that has run nothing measures from', () => {
     // The mainline's runs record, as a seed: none of its runs are this checkout's.
     const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
     expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });
-    expect(await suiteBase(fresh, { env: LOCAL })).toEqual({ from: 'own', suite: 'unit', file: own });
+    expect(await suiteBase(fresh, { env: LOCAL })).toEqual({
+      from: 'own',
+      suite: 'unit',
+      file: own,
+      layer: { pinned: { mainline: 'main', commit: base.mainline.commit }, ran: [] },
+      repin: { repinned: false, why: 'current' },
+    });
     expect(await layMainline(fresh, base.mainline)).toBeUndefined();
   });
 
