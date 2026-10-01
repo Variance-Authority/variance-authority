@@ -165,8 +165,10 @@ jobs:
     # `vitest run`, the unit suites and the corpus.
     runs-on: ubuntu-24.04
     outputs:
-      recording: ${{ steps.base.outputs.recording }}
+      recording_unit: ${{ steps.base.outputs.recording_unit }}
+      recording_integration: ${{ steps.base.outputs.recording_integration }}
       handed: ${{ steps.hand.outcome == 'success' }}
+      handed_integration: ${{ steps.hand_integration.outcome == 'success' }}
 
     steps:
       # Every commit, because the review below diffs from a base it does not
@@ -188,8 +190,9 @@ jobs:
       - uses: ./.github/actions/build
 
       # Where the change starts, asked of `variance carry` rather than spelled
-      # here. The root `variance.config.json` declares the `unit` suite and gives
-      # it to the share, so `carry` names no cache key for it: its record travels
+      # here. The root `variance.config.json` declares the `unit` and
+      # `integration` suites and gives them to the share, so `carry` names no
+      # cache key for them: their records travel
       # through `variance share`, on this repository's own git remote.
       #
       # The base: on a pull request the checkout is the merge of its head into
@@ -214,31 +217,40 @@ jobs:
       # index sits beside the record as `<recording>.cases.bin`, and the whole
       # directory is copied because the commit the index was recorded at is read
       # from its neighbours.
+      #
+      # Every suite `variance.config.json` gives to the share is read here, each
+      # into its own `base-<suite>`. Until 2026-10-01 only `unit` was, so every
+      # pull request ran the integration slice whole and printed its coverage
+      # with nothing to compare it to. `chromium` is not given to the share: no
+      # browser runs here, so `main` never records it whole.
       - name: keep the base record
         id: base
         shell: bash
         run: |
-          recording=$(node --input-type=module -e "
-            const cli = await import('@variance-authority/cli');
-            const { testCoverageFile } = await import('@variance-authority/sense/test-selection');
-            const base = await cli.suiteBase(process.cwd(), { suite: 'unit' });
-            if (base.from === 'mainline') {
-              await cli.layMainline(process.cwd(), base.mainline);
-              console.error(cli.mainlineRead(base.mainline));
-            } else if ('missed' in base && base.missed !== undefined) {
-              console.error(cli.mainlineMissed(base.missed));
-            }
-            process.stdout.write(testCoverageFile(process.cwd(), { suite: 'unit' }));
-          ")
-          echo "recording=$(dirname "$recording")" >> "$GITHUB_OUTPUT"
-          if [ -f "$recording.cases.bin" ]; then
-            cp -R "$(dirname "$recording")" "$RUNNER_TEMP/base-unit"
-            echo "cases=$RUNNER_TEMP/base-unit/$(basename "$recording").cases.bin" >> "$GITHUB_OUTPUT"
-          elif [ -f "$recording" ]; then
-            echo "::notice::The base record was read without its case index, so this run has nothing to select from or compare with: the whole suite runs, and coverage is printed without a comparison."
-          else
-            echo "::notice::The mainline's record was not read, so this run has no base: the whole suite runs, and coverage is printed without a comparison."
-          fi
+          for suite in unit integration; do
+            recording=$(SUITE="$suite" node --input-type=module -e "
+              const cli = await import('@variance-authority/cli');
+              const { testCoverageFile } = await import('@variance-authority/sense/test-selection');
+              const suite = process.env.SUITE;
+              const base = await cli.suiteBase(process.cwd(), { suite });
+              if (base.from === 'mainline') {
+                await cli.layMainline(process.cwd(), base.mainline);
+                console.error(cli.mainlineRead(base.mainline));
+              } else if ('missed' in base && base.missed !== undefined) {
+                console.error(cli.mainlineMissed(base.missed));
+              }
+              process.stdout.write(testCoverageFile(process.cwd(), { suite }));
+            ")
+            echo "recording_$suite=$(dirname "$recording")" >> "$GITHUB_OUTPUT"
+            if [ -f "$recording.cases.bin" ]; then
+              cp -R "$(dirname "$recording")" "$RUNNER_TEMP/base-$suite"
+              echo "cases_$suite=$RUNNER_TEMP/base-$suite/$(basename "$recording").cases.bin" >> "$GITHUB_OUTPUT"
+            elif [ -f "$recording" ]; then
+              echo "::notice::The $suite base record was read without its case index, so $suite has nothing to select from or compare with: it runs whole, and its coverage is printed without a comparison."
+            else
+              echo "::notice::The mainline's $suite record was not read, so $suite has no base: it runs whole, and its coverage is printed without a comparison."
+            fi
+          done
 
       # `yarn test` is the three slices in order: unit, integration, chromium,
       # each with a record of its own. No browser is installed here, so the
@@ -266,7 +278,7 @@ jobs:
         id: test
         shell: bash
         env:
-          SELECT: ${{ github.event_name == 'pull_request' && steps.base.outputs.cases != '' }}
+          SELECT: ${{ github.event_name == 'pull_request' && steps.base.outputs.cases_unit != '' }}
         run: |
           if [ "$SELECT" = true ]; then
             yarn test:since
@@ -288,20 +300,21 @@ jobs:
         if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
         shell: bash
         env:
-          AGAINST: ${{ steps.base.outputs.cases }}
+          AGAINST_UNIT: ${{ steps.base.outputs.cases_unit }}
+          AGAINST_INTEGRATION: ${{ steps.base.outputs.cases_integration }}
         run: |
           node packages/cli/dist/bin.js index
           body="$RUNNER_TEMP/coverage.md"
           echo '<!-- variance-authority:coverage -->' > "$body"
           echo '### 📊 Coverage' >> "$body"
-          if [ -n "$AGAINST" ]; then
-            node packages/cli/dist/bin.js coverage --suite unit --against "$AGAINST" --packages --format markdown >> "$body"
-          else
-            node packages/cli/dist/bin.js coverage --suite unit --packages --format markdown >> "$body"
-          fi
-          # No record is carried for the integration slice, so it has no base
-          # and is printed without a comparison.
-          node packages/cli/dist/bin.js coverage --suite integration --packages --format markdown >> "$body"
+          for suite in unit integration; do
+            against="AGAINST_${suite^^}"
+            if [ -n "${!against}" ]; then
+              node packages/cli/dist/bin.js coverage --suite "$suite" --against "${!against}" --packages --format markdown >> "$body"
+            else
+              node packages/cli/dist/bin.js coverage --suite "$suite" --packages --format markdown >> "$body"
+            fi
+          done
           cat "$body" >> "$GITHUB_STEP_SUMMARY"
           echo "body=$body" >> "$GITHUB_OUTPUT"
 
@@ -370,7 +383,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: variance-record-unit
-          path: ${{ steps.base.outputs.recording }}
+          path: ${{ steps.base.outputs.recording_unit }}
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: hand the integration record to publish
+        id: hand_integration
+        if: ${{ !cancelled() && github.event_name == 'push' && steps.test.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-record-integration
+          path: ${{ steps.base.outputs.recording_integration }}
           include-hidden-files: true
           retention-days: 1
 
@@ -444,15 +467,24 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: variance-record-unit
-          path: ${{ needs.suite.outputs.recording }}
+          path: ${{ needs.suite.outputs.recording_unit }}
+
+      - uses: actions/download-artifact@v4
+        if: ${{ needs.suite.outputs.handed_integration == 'true' }}
+        with:
+          name: variance-record-integration
+          path: ${{ needs.suite.outputs.recording_integration }}
 
       # The test files the runner collects at this commit, asked of the runner:
       # a test file the suite stopped collecting keeps its rows in the record
       # and last ran before this commit, and only the runner can say it no
-      # longer counts against a whole run.
+      # longer counts against a whole run. Each slice is asked under its own
+      # config, because each collects different files.
       - name: what the suite collects
         shell: bash
-        run: yarn vitest list --filesOnly > "$RUNNER_TEMP/collected-unit.txt"
+        run: |
+          yarn vitest list --filesOnly > "$RUNNER_TEMP/collected-unit.txt"
+          yarn vitest list --filesOnly --config vitest.integration.config.mts > "$RUNNER_TEMP/collected-integration.txt"
 
       # `share --suite` reads the share from the root config, asks the line of
       # this run (`main`, on a push to it), and refuses a record that was not
@@ -476,6 +508,23 @@ jobs:
           export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
           node packages/cli/dist/bin.js share --suite unit --publish --collected "$RUNNER_TEMP/collected-unit.txt" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The integration slice's record, published beside the unit one: two
+      # suites at one commit leave both `suite-v1` entries on the line. Its own
+      # step, so a refusal here is seen as its own and never keeps the unit
+      # record from being published.
+      - name: publish the integration record
+        if: ${{ !cancelled() && needs.suite.outputs.handed_integration == 'true' }}
+        shell: bash
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          auth="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          node packages/cli/dist/bin.js share --suite integration --publish --collected "$RUNNER_TEMP/collected-integration.txt" | tee -a "$GITHUB_STEP_SUMMARY"
 
   cases:
     # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a

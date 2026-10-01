@@ -5,7 +5,8 @@
       "carry": "share"
     },
     "integration": {
-      "kind": "integration"
+      "kind": "integration",
+      "carry": "share"
     },
     "chromium": {
       "kind": "e2e"
