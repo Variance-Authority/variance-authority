@@ -1,50 +1,57 @@
 // compass: variance-authority/runtime/attention
-import { readEyesArchive } from '@variance-authority/eyes/archive';
+import { existsSync } from 'node:fs';
+import { parseEyesJournal } from '@variance-authority/eyes/archive';
 import {
   distill,
   formatDistillation,
   type Distillation,
+  type EyesAttempt,
 } from '@variance-authority/distill';
+import { keepsEyes, recordedEyesAt, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { readExecutionIndex } from './execution-input.js';
 
 export interface DistillOptions {
   readonly test: string;
-  readonly eyes?: string;
+  /** The record to read; the checkout's own, `testCoverageFile(root)`, when unnamed. */
   readonly execution?: string;
-  /**
-   * The project root both producers recorded against.
-   *
-   * Eyes names a component's source with an absolute path and Sense names an
-   * entered module relative to the project root, so the two are compared
-   * against this. When it is wrong the reading says so rather than reporting
-   * every entered file as an opportunity.
-   */
-  readonly root?: string;
+  /** The checkout whose record is read, and the root the record's paths are relative to. */
+  readonly root: string;
 }
 
-/** Read portable observations and produce one test's deterministic distillation. */
+/**
+ * Read one case out of a record and produce its deterministic distillation.
+ *
+ * The record holds the case index and, when the run opted into Eyes, every
+ * attempt's journal. A record named with `--execution` may also be a case
+ * index on its own, which has no journals to read.
+ */
 export async function distillFiles(options: DistillOptions): Promise<Distillation> {
-  if (options.eyes === undefined && options.execution === undefined) {
-    throw new OperatorError('distill needs --eyes <path>, --execution <path>, or both');
+  const record = options.execution ?? testCoverageFile(options.root);
+  if (!existsSync(record)) {
+    throw new OperatorError(`distill reads a record, and nothing is recorded at ${record}`);
   }
   try {
-    const [eyes, execution] = await Promise.all([
-      options.eyes === undefined ? undefined : readEyesArchive(options.eyes),
-      options.execution === undefined
-        ? undefined
-        : readExecutionIndex(options.execution),
-    ]);
+    const execution = await readExecutionIndex(record);
+    const eyes = keepsEyes(record) ? journalsAt(record) : undefined;
     return distill({
       test: options.test,
-      ...(options.root === undefined ? {} : { root: options.root }),
+      root: options.root,
+      execution,
       ...(eyes === undefined ? {} : { eyes }),
-      ...(execution === undefined ? {} : { execution }),
     });
   } catch (error) {
     if (error instanceof OperatorError) throw error;
     throw new OperatorError(error instanceof Error ? error.message : String(error));
   }
+}
+
+function journalsAt(record: string): readonly EyesAttempt[] {
+  return (recordedEyesAt(record) ?? []).map((row) => ({
+    case: row.case,
+    attempt: row.attempt,
+    journal: parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`),
+  }));
 }
 
 export function formatDistill(result: Distillation, format: 'text' | 'json'): string {
