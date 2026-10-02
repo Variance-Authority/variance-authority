@@ -83,6 +83,10 @@ export interface EnteredModule {
    * entered. `import { A } from './B'` where `A` is never called reads exactly
    * like this, whether the call site was replaced by a spy or a branch never
    * chose it.
+   *
+   * False when the module declares nothing below its top level — constants, a
+   * barrel of re-exports: loading it ran everything it has, so there is no
+   * declaration the test left alone and nothing for a mock to take away.
    */
   readonly loadedOnly: boolean;
   /** Regions the test called into, nearest first. */
@@ -389,15 +393,16 @@ function enteredModule(
     });
   }
   if (crossed.length === 0) return [];
+  const unentered = outermost(missed).map(regionOf);
   return [{
     file: module.file,
     distance: Math.min(...crossed.map(({ distance }) => distance)),
-    loadedOnly: crossed.every(({ loaded }) => loaded),
+    loadedOnly: unentered.length > 0 && crossed.every(({ loaded }) => loaded),
     entered: crossed
       .filter(({ loaded }) => !loaded)
       .sort((left, right) => left.distance - right.distance || left.block.startLine - right.block.startLine)
       .map(({ block, distance }) => ({ ...regionOf(block), distance })),
-    unentered: outermost(missed).map(regionOf),
+    unentered,
   }];
 }
 
