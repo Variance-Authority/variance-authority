@@ -49,8 +49,8 @@ function shard(files: readonly string[]): TestCoverage {
   };
 }
 
-describe('`variance journeys <shard.bin>... --suite` with no project config', () => {
-  it('lands the shards on the suite\'s record and reads it whole, exit 0', async () => {
+describe('`variance journeys` and the project config', () => {
+  it('under `--suite`, is not read: the shards land on the suite\'s record, which is read whole, exit 0', async () => {
     const shards = [join(root, 'a.bin'), join(root, 'b.bin')];
     await writeTestCoverage(shards[0]!, shard(['a.test.ts']));
     await writeTestCoverage(shards[1]!, shard(['b.test.ts']));
@@ -70,7 +70,30 @@ describe('`variance journeys <shard.bin>... --suite` with no project config', ()
     expect(out).toContain('the whole journal, because `--suite` reads no project config');
   });
 
-  it('takes no `--config`, because the root config declares the suite', () => {
+  it('without `--suite`, is read, and the reading names the report it would narrow to', async () => {
+    await writeFile(
+      join(root, 'variance.config.json'),
+      JSON.stringify({
+        cacheRoot: '.cache',
+        project: 'web',
+        profile: 'chromium',
+        viewport: { width: 1280, height: 800 },
+        retention: 'ephemeral',
+        subjects: { kind: 'list', ids: ['cart/empty'], collector: './collector.mjs' },
+        fonts: [],
+        report: '.variance/report.json',
+      }),
+    );
+    await writeTestCoverage(testCoverageFile(root), shard(['a.test.ts']));
+    let out = '';
+
+    const code = await main(['journeys'], { out: (text) => { out += text; }, err: () => {} });
+
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain(`because there is no report at ${join(root, '.variance', 'report.json')}`);
+  });
+
+  it('is refused by name beside `--suite`, because the root config declares the suite', () => {
     expect(() => parseArgs(['journeys', 'a.bin', '--suite', 'unit', '--config', 'web.json'])).toThrow(
       '`journeys --suite` reads the suite from the root variance.config.json, so it takes no `--config`',
     );
