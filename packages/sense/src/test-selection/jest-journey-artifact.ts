@@ -120,10 +120,6 @@ export async function stitchJourneyArtifacts(
       `stitching journey coverage requires the Sense native addon: ${whyAbsent('stitchJourneysTo')}`,
     );
   }
-  // FIXME: the native stitch writes no precondition column, so a stitched
-  // journey file holds no case's preconditions and `--where` reads it as
-  // unmeasured — needs the stitch in the addon to carry the column through
-  // `preconditionsAcross`'s merge.
   return stitchTo(inputs, resolve(journeyFile));
 }
 

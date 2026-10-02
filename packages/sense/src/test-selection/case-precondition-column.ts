@@ -146,7 +146,12 @@ export function preconditionsFrom(
 ): { readonly preconditions?: readonly CasePrecondition[] } {
   const word = held?.[at];
   if (word === undefined || word === UNHEARD) return {};
-  const parsed = JSON.parse(string(word)) as unknown;
+  return preconditionsSpelled(string(word));
+}
+
+/** One case's preconditions off the string the column stores them as. */
+export function preconditionsSpelled(text: string): { readonly preconditions: readonly CasePrecondition[] } {
+  const parsed = JSON.parse(text) as unknown;
   if (!Array.isArray(parsed)) throw new Error('not a variance-authority execution index');
   return {
     preconditions: parsed.map((said: unknown): CasePrecondition => {

@@ -175,7 +175,53 @@ describe('the bounded case fold', () => {
     });
   });
 
-  it.todo('lays what each case said on the rows of a Jest journey artifact — needs the native fold in `journey_journal.rs` to resolve the sixth field of a frame owner');
+  it.runIf(nativeAvailable())('lays what each case said on the rows of a Jest journey artifact, as the object fold does', async () => {
+    const cases = await directory();
+    const file = '/repo/test/pay.test.ts';
+    const level = preconditions.CASE_LEVEL;
+    const owner = (name: string, said?: Parameters<typeof preconditions.packSaid>[1]) =>
+      said === undefined ? packCase(file, name, name) : preconditions.packSaid(packCase(file, name, name), said);
+    await writeFile(resolve(cases, 'a.vac'), packFrames([
+      // The body overrides the file's `beforeEach`, and a nested one overrides it too.
+      journalFormat.encodeJournal(owner('mocked', [
+        ['network', 'live', `${file}:3`, 0],
+        ['network', 'mocked', 'file:///repo/test/pay.test.ts:9', level],
+        ['clock', 'real', `${file}:4`, 0],
+        ['clock', 'frozen', `${file}:7`, 1],
+      ]), new Map()),
+      // Two `beforeEach` at one depth that disagree: both are kept.
+      journalFormat.encodeJournal(owner('flips', [
+        ['flag', 'ff-on', `${file}:12`, 1],
+        ['flag', 'ff-off', `${file}:14`, 1],
+        ['retries', 2, `${file}:15`, 1],
+        ['retries', '2', `${file}:16`, 1],
+      ]), new Map()),
+      journalFormat.encodeJournal(owner('silent', []), new Map()),
+      journalFormat.encodeJournal(owner('unheard'), new Map()),
+    ]));
+    const output = resolve(cases, '..', 'journeys.bin');
+
+    native()!.foldJourneyTo!(cases, '/repo', [], 'sense:instrument/presence-v5', output);
+    const answered = decodeExecutionIndex(await readFile(output));
+    const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map(), 64)).bytes);
+
+    const row = (index: typeof folded) => Object.fromEntries(index.tests.map((test) => [test.name, test.preconditions]));
+    expect(row(answered)).toEqual(row(folded));
+    expect(row(answered)).toEqual({
+      flips: [
+        { name: 'flag', value: 'ff-off', site: 'test/pay.test.ts:14', level: 1 },
+        { name: 'flag', value: 'ff-on', site: 'test/pay.test.ts:12', level: 1 },
+        { name: 'retries', value: 2, site: 'test/pay.test.ts:15', level: 1 },
+        { name: 'retries', value: '2', site: 'test/pay.test.ts:16', level: 1 },
+      ],
+      mocked: [
+        { name: 'clock', value: 'frozen', site: 'test/pay.test.ts:7', level: 1 },
+        { name: 'network', value: 'mocked', site: 'test/pay.test.ts:9', level },
+      ],
+      silent: [],
+      unheard: undefined,
+    });
+  });
 
   it('represents a four-million-crossing run without allocating one entry per crossing', async () => {
     const cases = await directory();
@@ -235,8 +281,8 @@ describe('the bounded case fold', () => {
         new Map([['src/branch.ts', counters(3, [0, 1])]]),
       ),
       journalFormat.encodeJournal(
-        // A settled case with a journey and what it said: the native fold reads
-        // the journey as the fifth field, and the sixth is not part of it.
+        // A settled case with a journey and what it said: the journey is the
+        // fifth field, what the case said the sixth.
         preconditions.packSaid(
           journalFormat.packJourney(journalFormat.settledCase(packCase('/repo/test/branch.test.ts', 'beta', '2'), false), 'a'.repeat(32)),
           [['network', 'mocked', '/repo/test/branch.test.ts:4', preconditions.CASE_LEVEL]],
@@ -247,9 +293,6 @@ describe('the bounded case fold', () => {
 
     const run = await inspectCaseRun(cases, '/repo');
     const oracle = await foldCaseRun(run, new Map([['src/branch.ts', module]]), 64);
-    const { tests, ...rest } = decodeExecutionIndex(oracle.bytes);
-    // FIXME: the native fold drops what a case said; see `journey_of` in `journey_journal.rs`.
-    const unsaid = { ...rest, tests: tests.map(({ preconditions: _, ...test }) => test) };
     const answered = native()!.foldJourney!(
       cases,
       '/repo',
@@ -258,7 +301,7 @@ describe('the bounded case fold', () => {
       1,
     );
 
-    expect(decodeExecutionIndex(answered.bytes)).toEqual(unsaid);
+    expect(decodeExecutionIndex(answered.bytes)).toEqual(decodeExecutionIndex(oracle.bytes));
     expect(answered).toMatchObject({ tests: 2, modules: 1, crossings: 4 });
   });
 

@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::case_preconditions::{self, Precondition};
 use crate::order;
 
 const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02];
@@ -19,6 +20,8 @@ pub struct Test {
     pub name: String,
     /// How the case settled: [`UNSETTLED`], [`FINISHED`] or [`STOPPED`].
     pub settled: u8,
+    /// What the case said it arranged, resolved; `None` where nobody listened.
+    pub preconditions: Option<Vec<Precondition>>,
 }
 
 /// The `tests.stopped` column's three states, as `execution-set-format.ts`
@@ -68,6 +71,7 @@ struct Coordinate {
     id: String,
     settled: u8,
     journey: String,
+    said: Option<Vec<Precondition>>,
     frame: usize,
 }
 
@@ -108,6 +112,7 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
             file: coordinate.file,
             name: coordinate.name,
             settled: coordinate.settled,
+            preconditions: coordinate.said.map(case_preconditions::resolve),
         });
     }
     let mut tests_by_file = HashMap::new();
@@ -248,6 +253,7 @@ impl Visitor for InspectVisitor<'_> {
                 id: id.to_owned(),
                 settled,
                 journey: journey_of(packed).to_owned(),
+                said: case_preconditions::said_of(packed)?.map(|said| case_preconditions::checkout(self.root, said)),
                 frame: self.frame,
             });
             self.frame += 1;
@@ -430,10 +436,8 @@ pub fn unpack_case(packed: &str) -> (&str, &str, &str, u8) {
 
 /// The journey a frame belongs to: the fifth field of its owner, after the
 /// settling, empty when the case never handed one out. `packJourney` in
-/// `journal-format.cts`. A sixth field, what the case said it arranged
-/// (`packSaid` in `case-preconditions.cts`), is not part of it.
-// FIXME: the native fold drops the sixth field, so a journey artifact's cases
-// carry no preconditions — needs `resolve` from `case-preconditions.cts` here.
+/// `journal-format.cts`. A sixth field, what the case said it arranged, is
+/// [`case_preconditions::said_of`]'s.
 pub fn journey_of(packed: &str) -> &str {
     packed.split('\0').nth(4).unwrap_or("")
 }
