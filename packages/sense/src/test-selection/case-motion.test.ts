@@ -104,13 +104,18 @@ describe('a region paired through the diff from the base', () => {
   const diff = new Map([['src/total.ts', [{ oldStart: 1, oldCount: 4, newStart: 0, newCount: 0 }]]]);
 
   it('is named as renumbered when its lines pair it with a row its occurrence does not', () => {
-    // The first of three `.filter` callbacks is deleted, and the cases of the two left do not tell them apart.
+    // The first of three `.filter` callbacks is deleted. The callback now on line 1 is run by `a`'s case, which ran
+    // the deleted one: by occurrence or by cases it is the deleted one's, by its lines it is the second's.
     const base = index([A, B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [1]), block('pick/filter.arg0', 9, [1])]);
-    const now = index([A, B], [block('pick/filter.arg0', 1, [1]), block('pick/filter.arg0', 5, [1])]);
+    const now = index([A, B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [1])]);
 
     const motion = caseMotion(base, now, { diff });
 
     expect(motion.regions).toEqual([]);
+    expect(motion.testFiles).toEqual([
+      { file: 'a.test.ts', entered: [expect.objectContaining({ startLine: 1 })], left: [] },
+      { file: 'b.test.ts', entered: [], left: [expect.objectContaining({ startLine: 1 })] },
+    ]);
     expect(motion.renumbered.map((region) => region.startLine)).toEqual([1, 5]);
   });
 
