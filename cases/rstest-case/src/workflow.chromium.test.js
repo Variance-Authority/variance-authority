@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 /**
  * One runner, two adoptions, both driven by the real `rstest` CLI.
@@ -48,11 +48,24 @@ let directory;
 let config;
 let environment;
 
+/**
+ * Rstest adds its `github-actions` reporter when `GITHUB_ACTIONS` is `true`, and
+ * that reporter appends to the file `GITHUB_STEP_SUMMARY` names. A child run here
+ * is a fixture — one of them fails on purpose — so it inherits neither, and the
+ * job summary carries only the outer suite's results.
+ */
+function childEnvironment(extra) {
+  const environment = { ...process.env, ...extra };
+  delete environment.GITHUB_ACTIONS;
+  delete environment.GITHUB_STEP_SUMMARY;
+  return environment;
+}
+
 function rstest(where, arguments_, extra) {
   return new Promise((settle, fail) => {
     const child = spawn(process.execPath, [RSTEST, 'run', '-c', 'rstest.config.mjs', ...arguments_], {
       cwd: join(CASE, where),
-      env: { ...process.env, ...extra },
+      env: childEnvironment(extra),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
@@ -150,6 +163,24 @@ live('an rstest suite that drives playwright', () => {
       expect(unchanged, unchanged.output).toMatchObject({ code: 0 });
       expect(unchanged.output).toContain('cart.e2e.test.mjs :: cart > empty');
     } finally {
+      await rm(baselines, { recursive: true, force: true });
+    }
+  }, 180_000);
+
+  it('keeps a failing child run out of the GitHub job summary', async () => {
+    const baselines = await mkdtemp(join(tmpdir(), 'variance-rstest-e2e-'));
+    const summary = join(baselines, 'step-summary.md');
+    vi.stubEnv('GITHUB_ACTIONS', 'true');
+    vi.stubEnv('GITHUB_STEP_SUMMARY', summary);
+    try {
+      // An agent running this suite would get Rstest's agent reporter instead of
+      // its CI defaults, so the child is told it has none — as on the runner.
+      const unapproved = await rstest('e2e', [], { VA_BASELINES: baselines, RSTEST_NO_AGENT: '1' });
+      expect(unapproved.code, unapproved.output).toBe(1);
+      expect(existsSync(summary)).toBe(false);
+      expect(unapproved.output).not.toContain('::error');
+    } finally {
+      vi.unstubAllEnvs();
       await rm(baselines, { recursive: true, force: true });
     }
   }, 180_000);
