@@ -287,7 +287,7 @@ describe('the Jest integration', () => {
     const recorded = async (into: string): Promise<unknown> => {
       const { tests, ...rest } = decodeTestCoverage(await readFile(resolve(into, 'coverage.bin')));
       expect(tests.every((test) => test.duration !== undefined)).toBe(true);
-      const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin.cases.bin')));
+      const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin')));
       expect(cases.tests.length).toBeGreaterThan(0);
       expect(cases.tests.every((test) => test.duration !== undefined)).toBe(true);
       return {

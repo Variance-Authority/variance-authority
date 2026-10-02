@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { formatSlowest, limitOf, scopeOf, SLOWEST, slowestTests, spent } from './slowest-tests.js';
 
 const ANYWHERE = { unrecorded: [] };
-const NO_CASES = { recording: '/cache/coverage.bin.cases.bin', unread: 'nothing is recorded there' };
+const NO_CASES = { recording: '/cache/coverage.bin', unread: 'nothing is recorded there' };
 const CASES_UNREAD =
-  'Slowest recorded test cases: none read from /cache/coverage.bin.cases.bin, nothing is recorded there. ' +
+  'Slowest recorded test cases: none read from /cache/coverage.bin, nothing is recorded there. ' +
   'A recorded test run writes it.';
 
 describe('the slowest recorded test files, as printed', () => {
@@ -21,7 +21,7 @@ describe('the slowest recorded test files, as printed', () => {
         untimed: 2,
         scope: ANYWHERE,
         cases: {
-          recording: '/cache/suites/unit/coverage.bin.cases.bin',
+          recording: '/cache/suites/unit/coverage.bin',
           slowest: [{ file: 'test/b.test.ts', name: 'reads > twice', duration: 900 }],
           timed: 8,
           untimed: 0,
@@ -34,7 +34,7 @@ describe('the slowest recorded test files, as printed', () => {
       '  40 ms  test/a.test.ts',
       '2 of 5 timed file(s) shown; 2 recorded file(s) have no duration.',
       '',
-      'Slowest recorded test cases, suite unit, as their runner reported them, from /cache/suites/unit/coverage.bin.cases.bin:',
+      'Slowest recorded test cases, suite unit, as their runner reported them, from /cache/suites/unit/coverage.bin:',
       '  900 ms  test/b.test.ts  reads > twice',
       '1 of 8 timed case(s) shown.',
     ].join('\n'));

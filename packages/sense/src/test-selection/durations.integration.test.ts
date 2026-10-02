@@ -115,7 +115,7 @@ describe('the duration a recording keeps', () => {
       expect(test.duration).toBe(Math.round(duration!));
     }
 
-    const cases = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`)).tests;
+    const cases = decodeExecutionIndex(await readFile(coverageFile)).tests;
     expect(cases.length).toBeGreaterThan(0);
     for (const test of cases) {
       const said = reported.get(test.file)?.cases.filter((held) => held.name === test.name) ?? [];
@@ -127,7 +127,7 @@ describe('the duration a recording keeps', () => {
 
   it('is scoped by the readers `variance covering` asks, and the two records agree on who entered a module', async () => {
     const { coverageFile } = await recorded();
-    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    const index = decodeExecutionIndex(await readFile(coverageFile));
     expect(index.modules.length).toBeGreaterThan(0);
 
     for (const module of index.modules) {

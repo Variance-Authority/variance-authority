@@ -98,7 +98,7 @@ describe('the Rstest integration', () => {
     await run('rstest.cases.config.mjs', directory);
 
     // Beside the snapshot, never inside it.
-    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    const index = decodeExecutionIndex(await readFile(coverageFile));
     // `globals` is off here, so the registrars under test are the ones on the
     // object an import of `@rstest/core` compiles to, and the coordinate is
     // read off `expect.getState()` at call time. Two of
@@ -142,7 +142,7 @@ describe('the Rstest integration', () => {
     // about, and a placement no configuration exercises is one that records
     // nothing without saying so — which is how the equivalent hole in the Jest
     // seam survived until somebody outside the project read the page.
-    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    const index = decodeExecutionIndex(await readFile(coverageFile));
     expect(index.tests.map((test) => test.id)).toEqual([
       at('test/gamma.injected.ts > takes the gamma path with the registrars on the realm'),
     ]);
@@ -184,7 +184,7 @@ describe('the Rstest integration', () => {
     const recorded = async (into: string): Promise<unknown> => {
       const { tests, ...rest } = decodeTestCoverage(await readFile(resolve(into, 'coverage.bin')));
       expect(tests.every((test) => test.duration !== undefined)).toBe(true);
-      const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin.cases.bin')));
+      const cases = decodeExecutionIndex(await readFile(resolve(into, 'coverage.bin')));
       expect(cases.tests.length).toBeGreaterThan(0);
       expect(cases.tests.every((test) => test.duration !== undefined)).toBe(true);
       return {

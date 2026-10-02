@@ -24,7 +24,7 @@ import { type CrossingSetsPool } from './crossing-sets.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import {
   DURATION,
-  FORMAT,
+  UNTIMED_FORMAT,
   KINDS,
   NAMES,
   NO_OWNER,
@@ -150,7 +150,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   const head = buffered(file.read(0, 4 + headerLength));
   const header = JSON.parse(head.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
   if (!readableFormat(header.version)) throw new Error(`unsupported test coverage version: ${header.version}`);
-  const timed = header.version === FORMAT;
+  const timed = header.version !== UNTIMED_FORMAT;
   const base = 4 + headerLength;
   if (!validSections(header.sections, file.length - base)) throw invalid();
   const found = new Map(header.sections.map((section) => [section.name, section]));

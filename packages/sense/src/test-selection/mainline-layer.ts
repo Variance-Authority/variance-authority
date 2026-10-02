@@ -29,6 +29,7 @@ import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { cacheRootFor, primaryCheckout } from './cache-layers.js';
 import { commitRunsFile, type CommitRuns } from './commit-runs.js';
+import { caseSectionsOf } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { openTestCoverage } from './format-view.js';
@@ -52,10 +53,8 @@ export interface FetchedMainline {
 /** The mainline's record of one suite, as the last fetch on this machine kept it. */
 export interface LastFetched extends FetchedMainline {
   readonly suite: string;
-  /** The coverage record. */
+  /** The record: its coverage, and its cases when the publishing run kept them. */
   readonly coverage: string;
-  /** Its per-case index, when the fetch kept one. */
-  readonly cases?: string;
   /** The runs record the publishing run wrote, when the entry carried one. */
   readonly runs?: string;
 }
@@ -119,13 +118,11 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
     if (pointer === undefined || (newest !== undefined && newest.fetched >= pointer.fetched)) continue;
     const coverage = join(readRoot, pointer.commit, 'coverage.bin');
     if (!existsSync(coverage)) continue;
-    const cases = `${coverage}.cases.bin`;
     const runs = commitRunsFile(coverage);
     const found: LastFetched = {
       ...pointer,
       suite: name,
       coverage,
-      ...(existsSync(cases) ? { cases } : {}),
       ...(existsSync(runs) ? { runs } : {}),
     };
     // One this build does not read, fetched by another version of it, is no
@@ -144,8 +141,8 @@ function fetchCaches(root: string, cacheRoot: string | undefined): readonly stri
 }
 
 /**
- * Copy `record` into the own layer at `file`: the coverage record and its case
- * index unaltered, and its runs record as a seed, and nothing else. Nothing is
+ * Copy `record` into the own layer at `file`: the record unaltered, its cases
+ * with it, and its runs record as a seed, and nothing else. Nothing is
  * laid over a record already there, and a record whose bytes this build does
  * not read is not laid. Says whether it laid.
  *
@@ -156,8 +153,8 @@ function fetchCaches(root: string, cacheRoot: string | undefined): readonly stri
  * own change there rather than counting as one more of CI's — see `landRun` —
  * and a review before that run finds none listed. A runs record naming another
  * commit than its snapshot describes neither, and is not laid.
- * A case index or runs record already in the own layer beside no snapshot
- * describes nothing, and is replaced or removed with the lay.
+ * A runs record already in the own layer beside no snapshot describes
+ * nothing, and is replaced or removed with the lay.
  */
 export async function layFetchedMainline(record: LastFetched, file: string): Promise<boolean> {
   try {
@@ -167,19 +164,16 @@ export async function layFetchedMainline(record: LastFetched, file: string): Pro
     if ((error as NodeJS.ErrnoException | undefined)?.code !== 'ENOENT') throw error;
   }
   let coverage: Uint8Array;
-  let cases: Uint8Array | undefined;
   let runs: Uint8Array | undefined;
   try {
     coverage = await readFile(record.coverage);
-    cases = record.cases === undefined ? undefined : await readFile(record.cases);
-    const held = opensFetched(coverage, cases, record.runs === undefined ? undefined : await readFile(record.runs));
+    const held = opensFetched(coverage, record.runs === undefined ? undefined : await readFile(record.runs));
     runs = held === undefined ? undefined : seeded(held);
   } catch {
     return false;
   }
-  // The index and the runs record first and the snapshot last: a reader finds
-  // them by the snapshot's path, and what is already beside it answers for it.
-  await place(`${file}.cases.bin`, cases);
+  // The runs record first and the snapshot last: a reader finds it by the
+  // snapshot's path, and what is already beside it answers for it.
   await place(commitRunsFile(file), runs);
   await place(file, coverage);
   // The ledger names the milestone and no test of this checkout's yet.
@@ -196,7 +190,6 @@ function fetchedMainlineReads(record: LastFetched): boolean {
   try {
     opensFetched(
       readFileSync(record.coverage),
-      record.cases === undefined ? undefined : readFileSync(record.cases),
       record.runs === undefined ? undefined : readFileSync(record.runs),
     );
     return true;
@@ -213,11 +206,11 @@ function fetchedMainlineReads(record: LastFetched): boolean {
  */
 function opensFetched(
   coverage: Uint8Array,
-  cases: Uint8Array | undefined,
   runs: Uint8Array | undefined,
 ): CommitRuns | undefined {
   const { commit } = openTestCoverage(coverage);
-  if (cases !== undefined && openSetExecutionIndex(cases) === undefined) decodeExecutionTests(cases);
+  const { index } = caseSectionsOf(coverage);
+  if (index !== undefined && openSetExecutionIndex(index) === undefined) decodeExecutionTests(index);
   if (runs === undefined) return undefined;
   const held: unknown = JSON.parse(Buffer.from(runs).toString('utf8'));
   if (typeof held !== 'object' || held === null || Array.isArray(held)) throw new Error('the runs record is not a JSON object');

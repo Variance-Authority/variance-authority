@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { prepareJourneys, recordedCases, recordedDurations, updateSourceIndex } from '@variance-authority/sense';
 import {
   commitRunsFile,
+  keepsCases,
   readCommitRuns,
   readTestCoverage,
   seedTestCoverage,
@@ -113,7 +113,7 @@ describe('a worktree that has not run', () => {
     );
   });
 
-  it('lands shards over the primary checkout\'s record on its first `variance land`, and drops the copied case index a shard left no cases for', async () => {
+  it('lands shards over the primary checkout\'s record on its first `variance land`, and drops the copied cases a shard left none for', async () => {
     const { primary, worktree, first } = await worktreeOf(true);
     const shard = join(home, 'shard-1.bin');
     await writeTestCoverage(shard, {
@@ -134,15 +134,15 @@ describe('a worktree that has not run', () => {
       'test/third.test.ts',
       'test/total.test.ts',
     ]);
-    // The shard finished `test/third.test.ts` and left no case index beside
-    // it, so the copy of the primary checkout's index cannot answer for it.
-    expect(existsSync(`${own}.cases.bin`)).toBe(false);
+    // The shard finished `test/third.test.ts` and kept no cases in its record,
+    // so the cases copied with the primary checkout's record cannot answer for it.
+    expect(keepsCases(own)).toBe(false);
     await expect(recordedExecutionFile(worktree, 'unit')).rejects.toMatchObject({ kind: 'unrecorded' });
-    expect(landed.cases).toEqual({ unanswered: `${own}.cases.bin`, shard, removed: true });
-    expect(existsSync(`${testCoverageFile(primary, { suite: 'unit' })}.cases.bin`)).toBe(true);
+    expect(landed.cases).toEqual({ unanswered: own, shard, removed: true });
+    expect(keepsCases(testCoverageFile(primary, { suite: 'unit' }))).toBe(true);
   });
 
-  it('answers no case question from the primary checkout\'s index once a landing removed its own, and does not copy it again', async () => {
+  it('answers no case question from the primary checkout\'s cases once a landing dropped its own, and does not copy them again', async () => {
     const { primary, worktree, first } = await worktreeOf(true);
     const shard = join(home, 'shard-1.bin');
     await writeTestCoverage(shard, {
@@ -154,26 +154,25 @@ describe('a worktree that has not run', () => {
     });
     await landJourneys(worktree, [shard]);
     const own = testCoverageFile(worktree, { suite: 'unit' });
-    const cases = `${own}.cases.bin`;
-    expect(existsSync(`${testCoverageFile(primary, { suite: 'unit' })}.cases.bin`)).toBe(true);
+    expect(keepsCases(testCoverageFile(primary, { suite: 'unit' }))).toBe(true);
 
-    // Each reader opens the index beside the snapshot it reads, which is the
+    // Each reader opens the cases in the snapshot it reads, which is the
     // worktree's own; the primary checkout's cases are for a snapshot the
     // landing replaced here.
     expect(recordedCases(worktree, ['src/total.ts'], 1)).toEqual([
-      { suite: 'unit', recording: cases, unread: 'nothing is recorded there' },
+      { suite: 'unit', recording: own, unread: 'no run kept its cases there' },
     ]);
     expect(recordedDurations(worktree, 5)[0]).toMatchObject({
       recording: own,
-      cases: { recording: cases, unread: 'nothing is recorded there' },
+      cases: { recording: own, unread: 'no run kept its cases there' },
     });
     expect(await prepareJourneys(worktree)).toMatchObject([
-      { suite: 'unit', unprepared: `nothing is recorded at ${cases}` },
+      { suite: 'unit', unprepared: `nothing is recorded at ${own}` },
     ]);
 
     // The snapshot is already the worktree's own, so a later seed copies no
-    // index to sit beside it.
+    // cases into it.
     await seedTestCoverage(own, worktree);
-    expect(existsSync(cases)).toBe(false);
+    expect(keepsCases(own)).toBe(false);
   });
 });

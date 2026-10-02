@@ -54,7 +54,7 @@ async function record(args: readonly string[], only?: string) {
     (error: { stdout: string; stderr: string }) => ({ passed: false, text: `${error.stdout}${error.stderr}` }),
   );
   const coverage = decodeTestCoverage(await readFile(coverageFile));
-  const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+  const index = decodeExecutionIndex(await readFile(coverageFile));
   const readers = (file: string, line: number): readonly string[] =>
     coveringTests(index, { file, line }).map((test) => test.name);
   const blocks = coverage.modules.filter((module) => module.file === price).flatMap((module) => module.blocks);

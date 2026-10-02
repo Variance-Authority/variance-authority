@@ -81,13 +81,6 @@ export interface ExecutionRecording {
    */
   readonly origin?: string;
   /**
-   * Where the execution index — which individual test entered which region —
-   * goes, for the worker that has no reporter to fold it.
-   * Defaults beside the snapshot: `<coverage file>.cases.bin`; a name ending
-   * `.json` is written as JSON instead, at the size JSON costs.
-   */
-  readonly executionFile?: string;
-  /**
    * The probe recipe the build placed, matching `testSelectionProbes()`'s
    * `mode`. `presence` when absent, as it is there.
    *
@@ -479,9 +472,6 @@ export function createExecutionRecorder(
         : { preconditions: recording.preconditions }),
       ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
       ...(cases.size === 0 ? {} : { cases: observedCases() }),
-      ...(recording.executionFile === undefined
-        ? {}
-        : { executionFile: resolve(start, recording.executionFile) }),
     });
     if (!record.recorded) {
       process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);

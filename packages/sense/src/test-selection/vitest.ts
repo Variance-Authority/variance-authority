@@ -89,15 +89,6 @@ export interface TestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
-  /**
-   * Where the per-case execution index goes. Defaults to `<coverageFile>.cases.bin`;
-   * a name ending `.json` is written as JSON instead, at the size JSON costs.
-   *
-   * Every run writes it. A file of a hundred cases usually tests several
-   * behaviours, and only the case record tells the half that walked a changed
-   * branch from the half that did not.
-   */
-  readonly executionFile?: string;
 }
 
 interface ConfigPlugin {
@@ -165,10 +156,7 @@ export function withTestSelection(
   // governs, which for the one that describes the run is every test.
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
-  const executionFile = options.executionFile === undefined
-    ? `${coverageFile}.cases.bin`
-    : resolve(configRoot, options.executionFile);
-  const settle = foldRun(run, { coverageFile, executionFile, shims: [setupId, runnerId] });
+  const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   const reporter = selectionReporter(run, settle);
   const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
 

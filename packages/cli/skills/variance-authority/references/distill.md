@@ -65,7 +65,7 @@ block needs `kind`, `name` (empty for a module root), `path`, `startLine`,
 ```
 
 A Vitest, Jest, rstest or Playwright run wrapped in `withTestSelection` writes
-the index `covering` reads, `<recording>.cases.bin`, and `distill` reads it
+the index `covering` reads into its record, and `distill` reads that record
 without being told where. Otherwise, pass `--execution` JSON from a tool that
 already records per-test crossings, or run `distill` with `--eyes` alone.
 

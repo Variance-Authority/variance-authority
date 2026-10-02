@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { mainlineMissed } from './mainline-base.js';
 import { cloneOf, git, parseReview, publishRaw, published, ranHere, recordIn, selectedIn, BEFORE, DISCOUNTS } from './mainline-fixture.js';
 import { review } from './review.js';
@@ -35,6 +35,12 @@ afterEach(async () => {
 
 /** The read layer the clone's cache keeps the mainline's records in. */
 const readLayer = () => join(home, 'laptop-cache', 'share', 'read');
+
+/** The record CI made in `dir`, its case index swapped for bytes no index reader reads. */
+async function unreadCases(dir: string): Promise<void> {
+  const record = testCoverageFile(dir, { suite: 'unit' });
+  await writeFile(record, withCaseSections(await readFile(record), { index: Buffer.from('not an index') }));
+}
 
 /** A clone with its own cache, and the change `select` is asked about. */
 async function laptop(origin: string): Promise<string> {
@@ -123,7 +129,7 @@ describe('`variance select` when the mainline\'s record is not read', () => {
   });
 
   it('selects from the record, and says the cases were left out, when only its per-case index does not read', async () => {
-    const ci = await published(home, { record: (dir) => writeFile(`${testCoverageFile(dir, { suite: 'unit' })}.cases.bin`, 'not an index') });
+    const ci = await published(home, { record: unreadCases });
 
     const said = await selectedIn(await laptop(ci.origin));
 
@@ -172,7 +178,7 @@ describe('`variance review` when the mainline\'s record is not read', () => {
   });
 
   it('starts at the record, and says its cases are not compared, when only its per-case index does not read', async () => {
-    const ci = await published(home, { record: (dir) => writeFile(`${testCoverageFile(dir, { suite: 'unit' })}.cases.bin`, 'not an index') });
+    const ci = await published(home, { record: unreadCases });
     const clone = await laptop(ci.origin);
     await ranHere(clone, ci.first);
 

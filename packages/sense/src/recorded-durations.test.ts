@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { recordedDurations, recordedPaths } from './recorded-durations.js';
+import { withCaseSections } from './test-selection/case-record.js';
 import { encodeExecutionIndex } from './test-selection/execution-format.js';
 import { encodeTestCoverage } from './test-selection/format.js';
 import { testCoverageFile } from './test-selection/record-location.js';
@@ -60,12 +61,12 @@ afterEach(() => {
 function record(snapshot: TestCoverage, cases?: ExecutionIndex): string {
   const at = testCoverageFile(root);
   mkdirSync(dirname(at), { recursive: true });
-  writeFileSync(at, encodeTestCoverage(snapshot));
-  if (cases !== undefined) writeFileSync(`${at}.cases.bin`, encodeExecutionIndex(cases));
+  const bytes = encodeTestCoverage(snapshot);
+  writeFileSync(at, cases === undefined ? bytes : withCaseSections(bytes, { index: encodeExecutionIndex(cases) }));
   return at;
 }
 
-const NO_CASES = { unread: 'nothing is recorded there' };
+const NO_CASES = { unread: 'no run kept its cases there' };
 
 describe('the slowest recorded test files', () => {
   it('lists the slowest first, breaks ties by path, and counts the untimed apart', () => {
@@ -88,7 +89,7 @@ describe('the slowest recorded test files', () => {
         timed: 4,
         untimed: 1,
         scope: { unrecorded: [] },
-        cases: { recording: `${at}.cases.bin`, ...NO_CASES },
+        cases: { recording: at, ...NO_CASES },
       },
     ]);
   });
@@ -98,7 +99,7 @@ describe('the slowest recorded test files', () => {
       {
         recording: testCoverageFile(root),
         unread: 'nothing is recorded there',
-        cases: { recording: `${testCoverageFile(root)}.cases.bin`, ...NO_CASES },
+        cases: { recording: testCoverageFile(root), ...NO_CASES },
       },
     ]);
   });
@@ -133,7 +134,7 @@ describe('the slowest recorded test cases', () => {
     const [suite] = recordedDurations(root, 2);
 
     expect(suite?.cases).toEqual({
-      recording: `${at}.cases.bin`,
+      recording: at,
       slowest: [
         { file: 'test/b.test.ts', name: 'reads > once', duration: 480 },
         { file: 'test/b.test.ts', name: 'reads > twice', duration: 480 },

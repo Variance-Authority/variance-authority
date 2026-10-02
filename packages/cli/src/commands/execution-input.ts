@@ -1,11 +1,12 @@
 // compass: variance-authority/runtime/attention
-import { access, readFile } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { parseExecutionIndex } from '@variance-authority/distill';
 import { OperatorError } from '../exit.js';
 import {
+  caseSectionsAt,
   decodeExecutionIndex,
   isEncodedExecutionIndex,
+  keepsCases,
   projectJourneyFile,
   readableTestCoverage,
   type ExecutionIndex,
@@ -22,7 +23,8 @@ import {
  * field, because nothing here recorded it.
  *
  * The first byte separates them: JSON opens on `{` or the whitespace before
- * it, and columns open on the little-endian length of a header.
+ * it, and columns open on the little-endian length of a header. A coverage
+ * record is read as the case index it carries.
  */
 export async function readExecutionIndex(file: string): Promise<ExecutionIndex> {
   return executionIndexOf(await readFile(file));
@@ -32,6 +34,20 @@ export async function readExecutionIndex(file: string): Promise<ExecutionIndex> 
 export function executionIndexOf(bytes: Uint8Array): ExecutionIndex {
   if (isEncodedExecutionIndex(bytes)) return decodeExecutionIndex(bytes);
   return parseExecutionIndex(JSON.parse(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('utf8')));
+}
+
+/**
+ * The cases the latest run at `record` replaced, which is what an edit to a
+ * test is compared with. Absent when that run replaced none, or the record does
+ * not read: there is then nothing to compare with, which is not an error.
+ */
+export function replacedCases(record: string): ExecutionIndex | undefined {
+  try {
+    const { before } = caseSectionsAt(record);
+    return before === undefined ? undefined : decodeExecutionIndex(before);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -53,35 +69,29 @@ export async function readExecutionFor(
 }
 
 /**
- * Where a recorded run left the index, for the question asked without a path.
+ * The record a recorded run left its cases in, for the question asked without a path.
  *
- * Columns are what a run writes now. The JSON name is still answered when the
- * columns are not there, because a cache recorded by an earlier version still
- * holds the answer and re-recording a suite to ask one question about one line
- * is not a reasonable price for a format change.
- *
- * With no record named, the index is the one beside the record a reader reads:
- * the nearest that holds it, which in a checkout that has not run is the
- * mainline's as last fetched here, else, in a worktree, the primary checkout's.
+ * A run writes its case index into the record its coverage is (spec 0094), so
+ * the index is the record: with none named, the one a reader reads — the
+ * nearest that holds it, which in a checkout that has not run is the mainline's
+ * as last fetched here, else, in a worktree, the primary checkout's.
  */
 export async function defaultExecutionFile(
   root: string,
   suite?: string,
   record?: string,
 ): Promise<string> {
-  const beside = record ?? (await readableTestCoverage(root, { suite }));
-  const columns = `${beside}.cases.bin`;
-  if (await readable(columns)) return columns;
-  const json = `${beside}.cases.json`;
-  return (await readable(json)) ? json : columns;
+  return record ?? (await readableTestCoverage(root, { suite }));
 }
 
 /**
- * The index a recorded run left, refused as `unrecorded` when no run left one.
+ * The record holding a recorded run's cases, refused as `unrecorded` when no
+ * run kept any.
  *
  * Told apart from an index that is there and cannot be read: that one is a
  * defect somebody fixes, and this one is a project that never ran the recorder,
- * which a program asking on every edit has to be able to recognise.
+ * which a program asking on every edit has to be able to recognise. A record
+ * written before records carried cases is one of these.
  */
 export async function recordedExecutionFile(
   root: string,
@@ -89,19 +99,10 @@ export async function recordedExecutionFile(
   record?: string,
 ): Promise<string> {
   const file = await defaultExecutionFile(root, suite, record);
-  if (await readable(file)) return file;
+  if (keepsCases(file)) return file;
   throw new OperatorError(
-    `nothing is recorded in \`${root}\`: no run left a per-case index at \`${file}\`. ` +
+    `nothing is recorded in \`${root}\`: no run left a per-case index in \`${file}\`. ` +
       'Run the suite with `withTestSelection` and ask again.',
     { kind: 'unrecorded' },
   );
-}
-
-async function readable(file: string): Promise<boolean> {
-  try {
-    await access(file, constants.R_OK);
-    return true;
-  } catch {
-    return false;
-  }
 }

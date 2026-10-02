@@ -39,8 +39,8 @@ Two cases need an ignore entry, and you create both. Set `cacheRoot` to a path
 inside the checkout, and ignore that directory as [the cache](cache.md) page
 shows. Or pass `coverageFile` to a runner integration to put the snapshot at a
 path you name, typically inside the repository so CI can upload it as an
-artifact, and ignore that path. The same run writes a second file at
-`<coverageFile>.cases.bin`, under the same rule.
+artifact, and ignore that path. The record carries the run's cases too, so
+there is no second file to upload.
 
 Two more things live under that directory. Each instrumenting build keeps a
 store of module records under a `<label>` of its own, and a run in progress keeps a
@@ -73,8 +73,7 @@ from the runner, because a Playwright suite can be `e2e` or `visual` and only
 you know which one you meant.
 
 Each declared suite has its own record, at
-`<repository-digest>/suites/<name>/coverage.bin`, with its `.cases.bin` and its
-runs log beside it. Name the suite in the runner integration with the `suite`
+`<repository-digest>/suites/<name>/coverage.bin`, with its runs log beside it. Name the suite in the runner integration with the `suite`
 option, and `testCoverageFile(root, { suite })` returns its path. A Playwright
 run then never replaces what the unit suite recorded, and each record keeps the
 commit its own suite last ran at. The [source index](source-index.md)

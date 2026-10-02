@@ -8,7 +8,7 @@ const EVERY = ['configure > honours a second driver', 'configure > reports failu
 
 const WHOLE_FILE: Covering = {
   file: 'packages/ioc/src/reset/index.ts',
-  from: 'coverage.bin.cases.bin',
+  from: 'coverage.bin',
   ranges: [
     { startLine: 1, endLine: 5, state: 'walked', tests: EVERY },
     { startLine: 59, endLine: 61, state: 'alone', tests: [EVERY[2]!] },

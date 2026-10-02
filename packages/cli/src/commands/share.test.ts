@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RunReport } from '@variance-authority/report';
-import { commitRunsFile, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseSectionsOf, commitRunsFile, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { parseShare } from '../config-share.js';
 import type { Env } from '../share-lines.js';
@@ -106,8 +106,9 @@ describe('publishing a run', () => {
     await writeFile(join(repository.dir, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share: config.share }));
     const record = testCoverageFile(repository.dir, { suite: 'unit' });
     await mkdir(dirname(record), { recursive: true });
-    await writeTestCoverage(record, { version: 3, instrumentation: 'fixture', commit: repository.commits[1]!, tests: [], modules: [] });
-    await writeFile(`${record}.cases.bin`, 'cases');
+    // Cases, and the parts that name this checkout's last run, which a share leaves behind.
+    const cases = { index: Buffer.from('cases'), before: Buffer.from('before'), last: Buffer.from('{}') };
+    await writeTestCoverage(record, { version: 3, instrumentation: 'fixture', commit: repository.commits[1]!, tests: [], modules: [] }, cases);
     await writeFile(commitRunsFile(record), JSON.stringify({ commit: repository.commits[1]!, first: '', latest: '', runs: 1, files: [], standing: [] }));
     await writeFile(join(home, 'collected.txt'), '');
 
@@ -115,8 +116,7 @@ describe('publishing a run', () => {
     expect(await publishSuite(repository.dir, 'unit', { env: PUSH }, { collected: join(home, 'collected.txt') })).toMatchObject({ published: { written: ['suite-v1/unit'] } });
     const found = await mainlineSuite(config, 'unit', { env: LOCAL, cwd: repository.dir });
     expect(found).toMatchObject({ mainline: 'main', commit: repository.commits[1]!, distance: 0 });
-    expect('coverage' in found && Buffer.from(found.coverage).equals(await readFile(record))).toBe(true);
-    expect('coverage' in found && new TextDecoder().decode(found.cases)).toBe('cases');
+    expect('coverage' in found && caseSectionsOf(found.coverage)).toEqual({ index: new Uint8Array(cases.index) });
     expect('coverage' in found && JSON.parse(new TextDecoder().decode(found.runs))).toMatchObject({ standing: [] });
     expect(await mainlineSuite(config, 'e2e', { env: LOCAL, cwd: repository.dir })).toEqual({ mainline: 'main', miss: { kind: 'absent' }, holds: ['suite-index-v1', 'suite-v1/unit'] });
   });

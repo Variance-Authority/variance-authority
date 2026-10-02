@@ -67,7 +67,7 @@ export default withTestSelection(
 );
 ```
 
-Every wrapped run writes the per-case recording beside its per-file snapshot,
+Every wrapped run writes the per-case recording into its per-file snapshot,
 and `variance distill` reads it from there. A test file that runs in a page is
 recorded per file only, so a browser-mode run does not write the recording
 `distill` needs.
@@ -193,16 +193,17 @@ import { distill, formatDistillation } from '@variance-authority/distill';
 
 const eyes = await readEyesArchive('.variance/eyes.json');
 const execution = decodeExecutionIndex(
-  await readFile(`${testCoverageFile(process.cwd())}.cases.bin`),
+  await readFile(testCoverageFile(process.cwd())),
 );
 
 console.log(formatDistillation(distill({ file: 'test/checkout.test.tsx', test: 'submits', eyes, execution })));
 ```
 
-An index another tool wrote as JSON goes through `parseExecutionIndex` instead,
-which validates untyped JSON at the process boundary and throws naming the
-offending field. Pass an `ExecutionIndex` you already have and it returns it
-unchanged.
+`decodeExecutionIndex` reads the case index out of the record. For an index
+another tool spelled as JSON, `parseExecutionIndex` from
+`@variance-authority/distill` validates it at the process boundary and throws
+naming the offending field. Pass an `ExecutionIndex` you already have and it
+returns it unchanged.
 
 ## What you get
 

@@ -15,7 +15,6 @@
 // compass: variance-authority.reach.relations
 
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { checkoutListing, checkoutPath, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './native.js';
@@ -24,6 +23,7 @@ import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJour
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
+import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { defaultInclude } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
@@ -72,12 +72,12 @@ export function journeysPath(index: string, suite?: string): string {
   return suite === undefined ? `${index}.journeys` : `${index}.${encodeURIComponent(suite)}.journeys`;
 }
 
-/** One suite's recording, found the way every reader of one finds it: the case index beside the nearest snapshot. */
+/** One suite's recording, found the way every reader of one finds it: the nearest snapshot, when it carries its cases. */
 function recordings(root: string): readonly { readonly suite?: string; readonly recording?: string; readonly looked: string }[] {
   const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
   return suites.map((suite) => {
-    const looked = `${nearestTestCoverage(root, { suite })}.cases.bin`;
-    return { ...(suite === undefined ? {} : { suite }), ...(existsSync(looked) ? { recording: looked } : {}), looked };
+    const looked = nearestTestCoverage(root, { suite });
+    return { ...(suite === undefined ? {} : { suite }), ...(keepsCases(looked) ? { recording: looked } : {}), looked };
   });
 }
 
@@ -107,7 +107,7 @@ function knownOf(root: string, file: string, recording: string, listing: Checkou
   // names only the latest run's, so a row laid by an older run is judged against
   // a commit it was not made at. The commit each test file last ran at is in
   // commit-runs' `standing`; carry that instead.
-  const at = commitOf(recording.slice(0, -'.cases.bin'.length));
+  const at = commitOf(recording);
   if (at.commit == null) return { module, ...now, ...(at.unread == null ? {} : { unread: at.unread }) };
   const then = gitLists(root, ['ls-tree', '--name-only', at.commit, '--', file]);
   return typeof then === 'boolean'
@@ -158,7 +158,7 @@ export async function prepareJourneys(
       prepared.push({ ...named, out, prepared: kept });
       continue;
     }
-    const at = commitOf(recording.slice(0, -'.cases.bin'.length));
+    const at = commitOf(recording);
     const made = walk(root, index, recording, at, out, BUILTINS);
     prepared.push(made === null ? { ...named, out, unprepared: 'there is no source index' } : { ...named, out, prepared: made });
   }

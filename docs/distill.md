@@ -213,7 +213,9 @@ Distill separates the two. Every covered module is read
 [region by region](execution-record.md#blocks):
 [`loadedOnly`](../packages/distill/README.md#api)
 marks a module whose only crossings are the consequence of loading
-it, and `unentered` names the declarations the test never reached.
+it, and `unentered` names the declarations the test never reached. A module
+that declares nothing below its top level, such as a file of constants or a
+barrel of re-exports, is not marked: loading it ran everything it has.
 
 ```text
 Loaded but not covered: 1 module(s).

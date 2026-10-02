@@ -42,6 +42,8 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { layCases, type FreshCases } from './case-landing.js';
+import { casesRecordedOver, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
 import { layeredCoverage } from './format-layer.js';
 import { openTestCoverage } from './format-view.js';
@@ -127,14 +129,27 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
  * Lay `current` over the snapshot, add it to the runs at its commit, and keep
  * the text of every module it recorded over an edit (`kept-texts.ts`).
  *
+ * `cases` is the run's own case index, laid over the cases the record holds
+ * (`case-landing.ts`) and written with the coverage, in the same write. A run
+ * that kept no cases carries the record's as they were.
+ *
  * The caller holds the index lock: the base read here, the write after it and
  * the record of both are one read-modify-write, so two processes finishing
- * together each add their files.
+ * together each add their files and their cases.
  */
-export async function landRun(coverageFile: string, current: TestCoverage, root: string, cacheRoot?: string): Promise<void> {
+export async function landRun(
+  coverageFile: string,
+  current: TestCoverage,
+  root: string,
+  cacheRoot?: string,
+  cases?: FreshCases,
+): Promise<void> {
   const before = await recordedSnapshot(coverageFile);
   const held = await heldCommitRuns(coverageFile);
-  const bytes = await layeredCoverage(coverageFile, current, root);
+  const previous = casesRecordedOver(coverageFile);
+  const laid = cases === undefined ? previous : layCases(previous, cases.fresh, root, cases.run);
+  const coverage = await layeredCoverage(coverageFile, current, root);
+  const bytes = Object.values(laid).every((part) => part === undefined) ? coverage : withCaseSections(coverage, laid);
   await writeCoverageBytes(coverageFile, bytes);
   // The snapshot's rows are coordinates in the texts on disk now, and the
   // commit it names holds none of the edited ones. Kept after the write, so a

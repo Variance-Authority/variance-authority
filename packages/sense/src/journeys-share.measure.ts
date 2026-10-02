@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { prepareJourneys } from './journeys.js';
 import { updateSourceIndex } from './published.js';
+import { keepsCases } from './test-selection/case-record.js';
 import { nearestTestCoverage, testCoverageFile } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
 
@@ -29,16 +30,16 @@ import { declaredSuites } from './test-selection/suites.js';
  * `VARIANCE_AUTHORITY_SHARE_DOCUSAURUS`, or from `~/dev/material-ui` and
  * `~/dev/variance-authority-examples/docusaurus`. The recording is found
  * where that checkout's own reader finds it, unless
- * `VARIANCE_AUTHORITY_SHARE_<NAME>_CACHE` names another cache. A checkout or a
- * recording that is not there is skipped and listed as a todo rather than
- * passed. The recording is copied into a cache of the measurement's own, so the
+ * `VARIANCE_AUTHORITY_SHARE_<NAME>_CACHE` names another cache. A checkout, a
+ * recording, or a recording that kept no cases is skipped and listed as a todo
+ * rather than passed. The recording is copied into a cache of the measurement's own, so the
  * index and the journeys are built cold and nothing is written beside the
  * checkout's recording.
  */
 
 const HERE = fileURLToPath(new URL('../../..', import.meta.url));
 const EXAMPLES = join(homedir(), 'dev', 'variance-authority-examples');
-const RECORDED = ['coverage.bin', 'coverage.bin.cases.bin', 'coverage.runs.json'] as const;
+const RECORDED = ['coverage.bin', 'coverage.runs.json'] as const;
 
 interface Corpus {
   readonly name: string;
@@ -72,7 +73,7 @@ function recordingsOf({ root, cache }: Corpus): readonly { readonly suite?: stri
   const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
   return suites.flatMap((suite) => {
     const from = nearestTestCoverage(root, { suite, cacheRoot: cache });
-    return RECORDED.every((file) => existsSync(join(dirname(from), file)))
+    return RECORDED.every((file) => existsSync(join(dirname(from), file))) && keepsCases(from)
       ? [{ ...(suite === undefined ? {} : { suite }), from }]
       : [];
   });

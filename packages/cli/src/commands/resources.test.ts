@@ -23,8 +23,8 @@ const { readTestCoverage, writeTestCoverage } = vi.hoisted(() => ({
   writeTestCoverage: vi.fn(),
 }));
 
-// A real directory: the snapshots are stood in for, and the lock a landing
-// takes on the record, and the case index it keeps beside it, are on disk.
+// A real directory: the snapshots are stood in for, the cases they keep with
+// them, and the lock a landing takes on the record is on disk.
 const DISK = join(tmpdir(), `variance-resources-${process.pid}`);
 const CACHED = join(DISK, 'cache/variance-authority/test-selection/abc/coverage.bin');
 
@@ -35,6 +35,8 @@ vi.mock('@variance-authority/sense/test-selection', async (importOriginal) => ({
   readableTestCoverage: async () => CACHED,
   readTestCoverage,
   writeTestCoverage,
+  // A stood-in snapshot keeps no cases, whatever the stand-in left on disk.
+  caseSectionsAt: () => ({}),
   journeyDivergences: () => [],
 }));
 
@@ -216,10 +218,10 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
 
     const landed = await landJourneys('/repo', ['/ci/shard-1.bin', '/ci/shard-2.bin']);
 
-    // No shard left cases beside it, and there is no index here to drop.
+    // No shard kept cases in its record, and there are none here to drop.
     expect(landed).toEqual({
       at: CACHED, shards: 2, commit: 'c0ffee', observations: 2, modules: 1,
-      cases: { unanswered: `${CACHED}.cases.bin`, shard: '/ci/shard-1.bin', removed: false },
+      cases: { unanswered: CACHED, shard: '/ci/shard-1.bin', removed: false },
     });
     const written = landedAt(CACHED);
     expect(written.tests.map((test) => test.file)).toEqual(['story:a', 'story:b']);

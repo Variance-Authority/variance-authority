@@ -128,7 +128,7 @@ A review agent reads the same answer with `--format refs`, and adds the base
 branch's case index to see what the change did in files the diff does not name:
 
 ```bash
-variance covering --since origin/main --against base/coverage.bin.cases.bin --format refs
+variance covering --since origin/main --against base/coverage.bin --format refs
 ```
 
 - **lost** — cases ran it at the base, none do now, and every case that could
