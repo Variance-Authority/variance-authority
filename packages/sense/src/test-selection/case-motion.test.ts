@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import { caseMotion } from './case-motion.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionTest } from './reverse.js';
 
@@ -96,6 +97,47 @@ describe('a region an edit beside it renumbered', () => {
 
     expect(motion.regions.map((region) => [region.startLine, region.motion])).toEqual([[5, 'lost']]);
     expect(motion.renumbered).toEqual([]);
+  });
+});
+
+describe('a region nobody walks any more, read with the file graph', () => {
+  // `a.test.ts` imports `src/total.ts`; `b.test.ts` imports nothing of it.
+  const relations = relationsOfFiles([
+    { file: 'src/total.ts' },
+    { file: 'a.test.ts', edges: [{ to: 'src/total.ts', kind: 'imports' as const }] },
+    { file: 'b.test.ts' },
+  ]);
+
+  it('is hidden, and names the stopped cases whose files import it as the ones that could have reached it', () => {
+    const base = index([A, B], [block('apply', 1, [0])]);
+    const now = index([{ ...A, stopped: true }, B], [block('apply', 1, [])]);
+
+    const [region] = caseMotion(base, now, { relations }).regions;
+
+    expect(region!.motion).toBe('hidden');
+    expect(region!.stopped?.map((test) => test.id)).toEqual([A.id]);
+  });
+
+  it('is lost when the only case that stopped imports nothing of it', () => {
+    const base = index([A, B], [block('apply', 1, [0])]);
+    const now = index([A, { ...B, stopped: true }], [block('apply', 1, [])]);
+
+    const [region] = caseMotion(base, now, { relations }).regions;
+
+    expect(region!.motion).toBe('lost');
+    expect(region!.stopped).toBeUndefined();
+  });
+
+  it('is hidden, naming no case, when no test file imports it at all', () => {
+    // The graph holds `src/total.ts`, so it can answer, and its answer is that no test file loads it.
+    const unimported = relationsOfFiles([{ file: 'src/total.ts' }, { file: 'a.test.ts' }, { file: 'b.test.ts' }]);
+    const base = index([A, B], [block('apply', 1, [0])]);
+    const now = index([A, { ...B, stopped: true }], [block('apply', 1, [])]);
+
+    const [region] = caseMotion(base, now, { relations: unimported }).regions;
+
+    expect(region!.motion).toBe('hidden');
+    expect(region!.stopped).toBeUndefined();
   });
 });
 
