@@ -154,6 +154,21 @@ describe('what the last run moved', () => {
     });
     await expect(refused).rejects.toThrow(`git fetch origin ${ABSENT}`);
   });
+
+  it('compares nothing with cases it retired that do not read', async () => {
+    const { first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+      index: encodeExecutionIndex(index([0, 1], [1])),
+      before: Buffer.from('not a case index'),
+      last: Buffer.from(JSON.stringify({ commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] })),
+    });
+
+    const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
+
+    expect(answer.motion?.base).toEqual({ from: execution, kind: 'before', at: first });
+    expect(answer.motion?.moved).toBeUndefined();
+  });
 });
 
 describe('what the runs at one commit moved', () => {
@@ -306,6 +321,28 @@ describe('what a change moved against the base', () => {
       exitCode: 2,
       message: expect.stringContaining(`The base \`${against}\` names no commit it was recorded at`),
     });
+  });
+
+  it('refuses cases it retired when the base\'s branch shares no history with this one', async () => {
+    const { root, first } = await checkout();
+    git(root, ['checkout', '--quiet', '--orphan', 'elsewhere']);
+    git(root, ['commit', '--quiet', '-m', 'unrelated']);
+    git(root, ['checkout', '--quiet', 'main']);
+    const execution = join(await records(), 'coverage.bin');
+    const now = index([0], [1]);
+    await keep(execution, now, {
+      before: index([0], [1]),
+      last: { commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] },
+    });
+
+    const refused = motionOfLast(now, execution, [DISCOUNTS.id, CHECKS_OUT.id], root, undefined, 'elsewhere');
+
+    await expect(refused).rejects.toMatchObject({
+      exitCode: 2,
+      kind: 'undiffed',
+      message: expect.stringContaining(`What the branch of \`elsewhere\` changed after ${first} could not be read, so the base is not compared:`),
+    });
+    await expect(refused).rejects.toThrow('fetch-depth: 0');
   });
 
   it('refuses `--against` without a diff', () => {
