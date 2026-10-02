@@ -35,7 +35,6 @@
 
 import globals = require('@jest/globals');
 import fs = require('node:fs');
-import crypto = require('node:crypto');
 import install = require('./jest-globals.cjs');
 import journals = require('./journal-format.cjs');
 import type { ModuleId } from '../instrument/index.js';
@@ -70,7 +69,7 @@ afterAll(() => {
   const testFile = expect.getState().testPath;
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
 
-  const stamp = `${process.pid}-${crypto.randomUUID()}`;
+  const stamp = journals.writtenName();
   const { modules, frames } = collector.finish(testFile);
   fs.mkdirSync(runDirectory, { recursive: true });
   fs.writeFileSync(`${runDirectory}/${stamp}.va`, journals.encodeJournal(testFile, modules, loaded));

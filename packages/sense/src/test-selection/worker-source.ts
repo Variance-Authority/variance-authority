@@ -80,7 +80,6 @@ export function setupSource(
   return `
 import { afterAll, beforeAll, expect } from ${JSON.stringify(shim.runner ?? 'vitest')};
 import { mkdir, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
 const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
@@ -108,7 +107,7 @@ let loaded = new Map();
 beforeAll(() => { loaded = seal(testPath()); });
 afterAll(async () => {
   const testFile = testPath();
-  const stamp = process.pid + '-' + randomUUID();
+  const stamp = journalFormat.writtenName();
   const { modules, frames } = finish(testFile);
   await mkdir(${JSON.stringify(runDirectory)}, { recursive: true });
   await writeFile(
@@ -243,9 +242,9 @@ import { VitestTestRunner } from 'vitest/runners';
 import { getFn, getHooks } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
 import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
 import { mkdir, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 
+const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
 ${recording}
 // The runner's own tree, cut to what the fold reads a file's outcome from. The
 // reporter is handed the same tree, and a command-line \`--reporter\` replaces
@@ -327,7 +326,7 @@ export default class extends VitestTestRunner {
     await mkdir(finished, { recursive: true });
     const runnerSkipped = Boolean(this.config?.testNamePattern) || this.cancelRun === true;
     await writeFile(
-      finished + '/' + process.pid + '-' + randomUUID() + '.json',
+      finished + '/' + journalFormat.writtenName() + '.json',
       JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
     );
   }

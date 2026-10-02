@@ -382,7 +382,8 @@ export async function readCaseJournals(
     throw error;
   }
   const journals: CaseJournal[] = [];
-  for (const name of names) {
+  // In the order the processes wrote them, which their names carry.
+  for (const name of [...names].sort(codeUnitOrder)) {
     for (const frame of unpackFrames(await readFile(resolve(directory, name)))) {
       const read = journalFormat.decodeJournal(frame);
       const { file, name: caseName, id, stopped } = unpackCase(read.testFile);

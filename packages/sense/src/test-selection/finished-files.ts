@@ -20,6 +20,7 @@ import { digestString } from '../digest.js';
 import type { ModuleId } from '../instrument/index.js';
 import journalFormat from './journal-format.cjs';
 import {
+  codeUnitOrder,
   isMissing,
   projectPath,
   type CapturedModule,
@@ -466,7 +467,7 @@ interface WrittenFile extends RunnerTask {
 export async function readFinished(directory: string): Promise<readonly FinishedFile[]> {
   let names: readonly string[];
   try {
-    names = await readdir(directory);
+    names = (await readdir(directory)).sort(codeUnitOrder);
   } catch (error) {
     if (isMissing(error)) return [];
     throw error;
@@ -485,7 +486,7 @@ export async function readFinished(directory: string): Promise<readonly Finished
 export async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
   let names: readonly string[];
   try {
-    names = await readdir(directory);
+    names = (await readdir(directory)).sort(codeUnitOrder);
   } catch (error) {
     if (isMissing(error)) return [];
     throw error;

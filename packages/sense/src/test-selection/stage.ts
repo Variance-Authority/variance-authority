@@ -10,11 +10,11 @@
 
 import { mkdirSync, rmSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { heardAcross, heardOf } from './case-precondition-column.js';
 import { packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
 import { codeUnitOrder, isMissing } from './instrumented-modules.js';
+import journalFormat from './journal-format.cjs';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
 
 /**
@@ -70,25 +70,17 @@ export function openStage(directory: string): void {
 }
 
 /**
- * Write one process's contribution under a name no other process will choose,
- * led by when it was written.
- *
- * The fold reads contributions in name order, and that order reaches what it
- * computes: a retry is folded after the attempt it retried, and the heads are
- * listed as they arrived. A name that is only unique folds one run's
- * contributions in a different order from the next's. The monotonic clock is
- * one clock for every process on the machine, and the workers that share a
- * stage share a machine, so its reading at the write orders the names as the
- * writes happened; padded to the width of its largest value, code-unit order
- * is numeric order.
+ * Write one process's contribution under a name that sorts where it was
+ * written, `writtenName`'s: the fold reads contributions in name order, and that
+ * order reaches what it computes — a retry is folded after the attempt it
+ * retried, and the heads are listed as they arrived.
  */
 export async function stageExecution(
   directory: string,
   staged: StagedExecution,
 ): Promise<void> {
   await mkdir(directory, { recursive: true });
-  const written = process.hrtime.bigint().toString().padStart(20, '0');
-  const temporary = resolve(directory, `.${written}-${process.pid}-${randomUUID()}.tmp`);
+  const temporary = resolve(directory, `.${journalFormat.writtenName()}.tmp`);
   await writeFile(temporary, JSON.stringify(staged));
   // Named last, so the fold never reads a contribution that is still arriving.
   await rename(temporary, `${temporary.slice(0, -4)}.json`);
