@@ -40,7 +40,7 @@ import { costsToPlace, publishedCostsLine } from './commands/costs.js';
 import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
-import { journeysOutput } from './commands/journeys-command.js';
+import { runJourneys } from './commands/journeys-command.js';
 import { refiningRecord, selectingRecord } from './commands/suite-record.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
@@ -90,6 +90,7 @@ export async function dispatch(
   // A suite's record alone: the root config declares the suite and its share,
   // and no project config is read.
   if (parsed.command === 'share' && parsed.suite !== undefined) return runSuiteShare({ ...parsed, suite: parsed.suite }, streams);
+  if (parsed.command === 'journeys' && parsed.suite !== undefined) return runJourneys(parsed, streams);
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {
@@ -318,25 +319,8 @@ export async function dispatch(
       return EXIT_CLEAN;
     }
 
-    case 'journeys': {
-      streams.out(
-        await journeysOutput({
-          cwd: process.cwd(),
-          report: config.report,
-          all: parsed.all,
-          shards: parsed.shards,
-          ...(parsed.into !== undefined ? { into: parsed.into } : {}),
-          ...(parsed.suite !== undefined ? { suite: parsed.suite } : {}),
-          ...(parsed.file !== undefined ? { file: parsed.file } : {}),
-          ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
-        }),
-      );
-
-      // `changelog`'s rule. A parting is where to look, not a verdict: every
-      // suite with two stories per component has them legitimately, and a
-      // command that gated on one would be red on every healthy project.
-      return EXIT_CLEAN;
-    }
+    case 'journeys':
+      return runJourneys(parsed, streams, config.report);
 
     case 'push': {
       if (config.review === undefined) {

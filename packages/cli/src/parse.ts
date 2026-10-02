@@ -165,7 +165,7 @@ export type Parsed =
       /** Shard snapshots to fold and land before reading, and `--into <path>`, where they land; this repository's cache otherwise. */
       readonly shards: readonly string[];
       readonly into?: string;
-      /** `--suite <name>`: whose record is read, and where shards land; beside `--into`, refused. */
+      /** `--suite <name>`: whose record is read, and where shards land, with no project config; beside `--into`, refused. */
       readonly suite?: string;
     }
   | {
@@ -454,6 +454,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
       }
       const suite = flags.values.get('--suite');
       oneRecord(suite, into, '--into');
+      if (suite !== undefined && flags.values.has('--config'))
+        throw new OperatorError('`journeys --suite` reads the suite from the root variance.config.json, so it takes no `--config`');
 
       return {
         command: 'journeys',
