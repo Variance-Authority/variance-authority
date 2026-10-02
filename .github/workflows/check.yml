@@ -378,11 +378,15 @@ jobs:
       # Every commit, because the review below diffs from a base it does not
       # choose: the base tip on a pull request, and on `main` the commit the
       # previous push left, which can be any number of commits back. No trees,
-      # for the reason written at the checkout in `rules`.
+      # for the reason written at the checkout in `rules`. Nothing here pushes,
+      # so the token is not left in the clone beside the install scripts and
+      # the build; the comment step hands its own token to the script that
+      # posts.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           filter: tree:0
+          persist-credentials: false
 
       # Node 24, for the reason written at the same step in `rules`.
       - uses: actions/setup-node@v4
