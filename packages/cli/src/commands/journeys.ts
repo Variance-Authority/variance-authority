@@ -78,7 +78,8 @@ export type RecordedJourneys = JourneysReport;
 export type JourneyPool =
   | { readonly kind: 'run'; readonly named: number }
   | { readonly kind: 'all' }
-  | { readonly kind: 'unasked'; readonly report: string };
+  /** `report` is the report that was not there; absent under `--suite`, which reads none. */
+  | { readonly kind: 'unasked'; readonly report?: string };
 
 /**
  * One look at the cache, whether or not anything was there.
@@ -226,10 +227,10 @@ function poolSentence(pool: JourneyPool, recorded: RecordedJourneys): string {
       return `${whole}: the whole journal, as --all asked, so a deleted subject still counts`;
 
     case 'unasked':
-      return (
-        `${whole}: the whole journal, because there is no report at ${pool.report}, so a ` +
-        'deleted subject still counts; run once to narrow it to this run, or pass --all'
-      );
+      return pool.report === undefined
+        ? `${whole}: the whole journal, because \`--suite\` reads no project config and has no report to narrow it by; a deleted subject still counts`
+        : `${whole}: the whole journal, because there is no report at ${pool.report}, so a ` +
+            'deleted subject still counts; run once to narrow it to this run, or pass --all';
   }
 }
 
