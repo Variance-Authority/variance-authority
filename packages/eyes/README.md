@@ -116,9 +116,12 @@ export default defineConfig({
 });
 ```
 
-The Vitest and Jest recording seams install no case that takes a journal, so
-under them `close` hands the journal nowhere and the record keeps none. The
-journal `close` returns is still yours to read in the same hook.
+Under Vitest and Jest, the recording seam holds each attempt's case from before
+its first `beforeEach` until its last `afterEach`, so a journal closed in
+teardown lands under that case and attempt, and a retried case keeps every
+attempt. Rstest's seam installs no case that takes a journal, so under Rstest
+`close` hands it nowhere and the record keeps none. Either way, the journal
+`close` returns is still yours to read in the same hook.
 
 A harness that keeps its own journals passes `watchTest` an identity, `{ id,
 title, file }`, and `close` then returns a journal carrying it and hands it to

@@ -19,8 +19,9 @@ relative to the repository root, as the case index's are.
 The Playwright fixture and `watchTest` hand their journal to the case the
 recording runs, never to `testInfo.testId`. The RTL `watchTest`, given no id,
 returns the journal and hands it to the running case where the recording seam's
-case scope takes one; the Vitest and Jest seams install none, so under them the
-record keeps no RTL journal. A run that opts in lists every case it watched in
+case scope takes one. The Vitest and Jest seams hold each attempt's case from
+before its `beforeEach` until after its `afterEach`, so a journal closed in
+teardown lands under that case and attempt; the Rstest seam takes none. A run that opts in lists every case it watched in
 the section, so a watched case that handed no journal reads apart from a case
 whose run did not opt in. Two different journals for one case and attempt keep
 the one whose JSON sorts first, and the run still records.

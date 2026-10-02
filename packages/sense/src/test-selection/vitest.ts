@@ -199,7 +199,7 @@ export function withTestSelection(
         writeSeamModule(
           run,
           setupId,
-          setupSource(run.runDirectory, run.caseDirectory, { continuations, story }),
+          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root }),
         ),
         ...setupFiles,
       ],

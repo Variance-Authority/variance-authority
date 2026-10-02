@@ -119,6 +119,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
+import eyesFrames from './eyes-frame.cjs';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import { codeUnitOrder, isMissing, projectPath } from './instrumented-modules.js';
@@ -407,6 +408,8 @@ export async function readCaseJournals(
   const journals: CaseJournal[] = [];
   for (const name of names) {
     for (const frame of unpackFrames(await readFile(resolve(directory, name)))) {
+      // An Eyes journal rides the same file; it is the fold's, not a case frame.
+      if (eyesFrames.decodeEyesFrame(frame) !== undefined) continue;
       const read = journalFormat.decodeJournal(frame);
       const { file, name: caseName, id, stopped } = unpackCase(read.testFile);
       journals.push({

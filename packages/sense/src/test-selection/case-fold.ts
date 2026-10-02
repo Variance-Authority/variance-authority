@@ -13,6 +13,8 @@ import {
 } from './instrumented-modules.js';
 import { AMBIENT, caseIds, caseKey, inCaseOrder, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
+import eyesFrames from './eyes-frame.cjs';
+import type { EyesSection, RecordedEyes } from './eyes-record.js';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 
@@ -27,6 +29,8 @@ export interface CaseRun {
   readonly moduleIds: readonly ModuleId[];
   /** Half-open test-row range for each test file; test ordering makes it contiguous. */
   readonly testsByFile: ReadonlyMap<string, readonly [number, number]>;
+  /** The cases that opened Eyes journals and what they handed over; absent when none did. */
+  readonly eyes?: EyesSection;
 }
 
 export interface CaseFold {
@@ -69,9 +73,23 @@ export async function inspectCaseRun(
   const paths = [...names].sort(codeUnitOrder).map((name) => resolve(directory, name));
   const coordinates = new Map<string, Coordinate>();
   const moduleIds = new Set<ModuleId>();
+  // What Eyes handed each case, by coordinate key, in the order it arrived.
+  const looked = new Map<string, Omit<RecordedEyes, 'case'>[]>();
   let frame = 0;
   for (const path of paths) {
     for (const bytes of unpackFrames(await readFile(path))) {
+      const eyes = eyesFrames.decodeEyesFrame(bytes);
+      if (eyes !== undefined) {
+        const coordinate = unpackCase(eyes.case);
+        const file = projectPath(root, coordinate.file);
+        const key = `${file}\0${coordinate.name}\0${coordinate.id}`;
+        // A case that watched is a case, whether or not it crossed anything.
+        if (!coordinates.has(key)) coordinates.set(key, { file, name: coordinate.name, id: coordinate.id, frames: [] });
+        const rows = looked.get(key) ?? [];
+        if (eyes.journal !== undefined) rows.push({ attempt: eyes.attempt, journal: eyes.journal });
+        looked.set(key, rows);
+        continue;
+      }
       scanJournal(bytes, {
         test(packed) {
           const coordinate = unpackCase(packed);
@@ -127,7 +145,11 @@ export async function inspectCaseRun(
     testsByFile.set(tests[first]!.file, [first, last]);
     first = last;
   }
-  return { root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile };
+  const eyes = looked.size === 0 ? undefined : {
+    watched: [...looked.keys()].map((key) => ids.get(key)!),
+    journals: [...looked].flatMap(([key, rows]) => rows.map((row) => ({ case: ids.get(key)!, ...row }))),
+  };
+  return { root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile, ...(eyes === undefined ? {} : { eyes }) };
 }
 
 const DEFAULT_BUDGET = 128 * 1_048_576;
@@ -170,7 +192,11 @@ export async function freshCases(
   const inspected = await inspectCaseRun(directory, root, run.durations);
   if (inspected.tests.length === 0 && !finished) return undefined;
   const fresh = (await foldCaseRun(inspected, modules)).bytes;
-  return { fresh, run: { tests: run.tests, ...(run.commit === undefined ? {} : { commit: run.commit }) } };
+  return {
+    fresh,
+    run: { tests: run.tests, ...(run.commit === undefined ? {} : { commit: run.commit }) },
+    ...(inspected.eyes === undefined ? {} : { eyes: inspected.eyes }),
+  };
 }
 
 /** What a run tells the case index about itself. */
@@ -289,7 +315,9 @@ export async function foldCaseRun(
       },
     };
     for (const path of run.paths) {
-      for (const frame of unpackFrames(await readFile(path))) scanJournal(frame, visit);
+      for (const frame of unpackFrames(await readFile(path))) {
+        if (eyesFrames.decodeEyesFrame(frame) === undefined) scanJournal(frame, visit);
+      }
     }
     if (caseFrame !== run.frameTests.length) {
       throw new Error('case journal replay changed while it was being folded');

@@ -99,9 +99,3 @@ describe('an RTL test watched without naming it', () => {
   });
 });
 
-// FIXME: Sense's Vitest and Jest seams install a case scope with no `eyes`, so
-// under `testSelectionProbes` an RTL journal reaches no record yet. The seams
-// need an attempt count per case, a way to hold a journal handed over in
-// `afterEach` (Vitest enters the case around the body only), and a sibling of
-// the case frame the fold reads into `FreshCases.eyes`.
-it.todo('an RTL journal handed over under Vitest or Jest recording lands in the record — needs a case scope in those seams that takes a journal');

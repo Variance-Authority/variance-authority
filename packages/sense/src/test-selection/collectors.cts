@@ -16,6 +16,7 @@
 import async_hooks = require('node:async_hooks');
 import crypto = require('node:crypto');
 import journals = require('./journal-format.cjs');
+import eyesFrames = require('./eyes-frame.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
 import storyTap = require('../instrument/story-tap.cjs');
 import stories = require('../story/format.cjs');
@@ -223,8 +224,10 @@ function flat(holder: Holder): Collector {
  * a variable, and mark the cases whose work outlived them.
  * @param story Where each case's story goes as the case settles, when the run
  * asked for stories.
+ * @param root The checkout the record names files against. Given, the scope
+ * also keeps what Eyes hands each case, as `eyes-frame.cts` describes.
  */
-function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Collector {
+function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, root?: string): Collector {
   const engine = attach(holder, continuations, story !== undefined);
   const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
   if (tap !== undefined) storyTap.listen(tap, holder);
@@ -360,6 +363,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     }
     const bucket = bucketFor(key);
     bucket.open = true;
+    attention?.entered(key);
     const carried = trace;
     const run = carried === undefined
       ? body
@@ -372,13 +376,21 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
   // The case running now, asked from inside it: the async store where there is
   // one, the variable where there is not, and no case at all in the ambient
   // bucket or once the file is tangled.
-  const journey = (): string | undefined => {
-    if (tangled) return undefined;
+  const running = (): string | undefined => {
     const bucket = scopes === undefined ? current : scopes.getStore();
     if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT) return undefined;
-    return journeyOf(bucket.key);
+    return bucket.key;
   };
-  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey };
+  const journey = (): string | undefined => {
+    if (tangled) return undefined;
+    const key = running();
+    return key === undefined ? undefined : journeyOf(key);
+  };
+  // A tangled file writes no case frame, so it keeps no journal either.
+  const attention = root === undefined
+    ? undefined
+    : eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
+  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey, ...attention?.scope };
 
   const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
   return {

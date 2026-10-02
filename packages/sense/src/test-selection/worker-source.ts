@@ -69,6 +69,8 @@ export interface SetupShim {
   readonly continuations?: boolean;
   /** Where each case's story goes, when the run asked for stories. */
   readonly story?: string | undefined;
+  /** The checkout the record names files against; given, the case scope keeps Eyes journals. */
+  readonly root?: string;
 }
 
 export function setupSource(
@@ -88,7 +90,7 @@ const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').sco
     shim.story === undefined
       ? 'undefined'
       : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
-  });
+  }, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)});
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);
 const runaways = () => collector.runaways();
@@ -281,6 +283,17 @@ export default class extends VitestTestRunner {
       finished + '/' + process.pid + '-' + randomUUID() + '.json',
       JSON.stringify(files.map((file) => ({ filepath: file.filepath, runnerSkipped, ...tree(file) }))),
     );
+  }
+
+  // An attempt is its hooks as well as its body, and Eyes hands a journal over
+  // in \`afterEach\`: the scope attends the case from here until the test's
+  // \`onFinished\` callbacks, which run once its \`afterEach\` hooks are done.
+  async onBeforeTryTask(test, options) {
+    await super.onBeforeTryTask?.(test, options);
+    const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
+    if (typeof scope?.begin !== 'function') return;
+    scope.begin();
+    (test.onFinished ??= []).push(() => scope.leave());
   }
 
   runTask(test) {
