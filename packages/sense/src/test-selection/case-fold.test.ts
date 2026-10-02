@@ -50,19 +50,14 @@ function counters(length: number, called: readonly number[], loaded: readonly nu
   return values;
 }
 
-/**
- * What a reader asks an index for: who entered each region that anything
- * reached, by test id, and whether only a load reached it.
- */
+/** What a reader asks an index for: who entered each region anything reached, and whether a load reached it. */
 function reach(index: ExecutionIndex): Record<string, { readonly entered: readonly string[]; readonly loaded?: true }> {
   const held: Record<string, { entered: string[]; loaded?: true }> = {};
   for (const module of index.modules) {
     for (const [ordinal, block] of module.blocks.entries()) {
       if (block.crossings.length === 0 && block.loaded !== true) continue;
-      held[`${module.file}#${ordinal}`] = {
-        entered: block.crossings.map((crossing) => index.tests[crossing.test]!.id),
-        ...(block.loaded === true ? { loaded: true as const } : {}),
-      };
+      const entered = block.crossings.map((crossing) => index.tests[crossing.test]!.id);
+      held[`${module.file}#${ordinal}`] = block.loaded === true ? { entered, loaded: true } : { entered };
     }
   }
   return held;
