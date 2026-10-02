@@ -4,6 +4,8 @@ import {
   encodeExecutionIndex,
   isEncodedExecutionIndex,
 } from './execution-format.js';
+import { CrossingSets } from './crossing-sets.js';
+import { encodeSetExecutionIndex } from './execution-set-format.js';
 import type { ExecutionIndex } from './reverse.js';
 
 describe('the execution index as columns', () => {
@@ -228,5 +230,45 @@ describe('the duration each case carries', () => {
     const back = decodeExecutionIndex(Buffer.concat([bytes.subarray(0, 4), older, bytes.subarray(4 + headerLength)]));
 
     expect(back.tests.map((test) => 'duration' in test)).toEqual([false, false, false]);
+  });
+});
+
+describe('the preconditions each case named', () => {
+  const said: ExecutionIndex = {
+    tests: [
+      {
+        id: 'a.test.ts > one', file: 'a.test.ts', name: 'one',
+        preconditions: [
+          { name: 'flag', value: 'ff-on', site: 'a.test.ts:4' },
+          { name: 'retries', value: 3, site: 'a.test.ts:5' },
+          { name: 'seeded', value: true, site: 'a.test.ts:2' },
+        ],
+      },
+      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', preconditions: [] },
+      { id: 'a.test.ts > three', file: 'a.test.ts', name: 'three' },
+    ],
+    modules: [],
+  };
+
+  it('keeps every name, value and site, a case that named none, and a case nobody listened to', () => {
+    const back = decodeExecutionIndex(encodeExecutionIndex(said));
+
+    expect(back.tests).toEqual(said.tests);
+    expect(back.tests[1]!.preconditions).toEqual([]);
+    expect('preconditions' in back.tests[2]!).toBe(false);
+  });
+
+  it('writes no column when no case was listened to, so an older index reads as unmeasured', () => {
+    const silent: ExecutionIndex = { tests: said.tests.map(({ preconditions: _, ...test }) => test), modules: [] };
+    const bytes = encodeExecutionIndex(silent);
+
+    expect(bytes.toString('utf8')).not.toContain('tests.casePreconditions');
+    expect(decodeExecutionIndex(bytes).tests.map((test) => 'preconditions' in test)).toEqual([false, false, false]);
+  });
+
+  it('crosses the set spelling the record lays its cases in', () => {
+    const bytes = encodeSetExecutionIndex({ tests: said.tests, modules: [], sets: new CrossingSets(3).pool() });
+
+    expect(decodeExecutionIndex(bytes).tests).toEqual(said.tests);
   });
 });

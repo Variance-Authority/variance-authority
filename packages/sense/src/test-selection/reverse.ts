@@ -22,6 +22,22 @@ export interface ExecutionTest {
    * which is not zero.
    */
   readonly duration?: number;
+  /**
+   * The state the case said it arranged, with `variancePrecondition`, resolved
+   * across its scopes: the narrowest level that named each precondition. Two
+   * entries under one name are a contradiction the case said. Empty is a case
+   * a listening recorder heard nothing from; absent is a producer that never
+   * listened, which says nothing either way. Never read to select a test.
+   */
+  readonly preconditions?: readonly CasePrecondition[];
+}
+
+/** One precondition a case named: what it said, and the call that said it. */
+export interface CasePrecondition {
+  readonly name: string;
+  readonly value: string | number | boolean;
+  /** The repository-relative `file:line` of the call. */
+  readonly site: string;
 }
 
 export interface ExecutionCrossing {

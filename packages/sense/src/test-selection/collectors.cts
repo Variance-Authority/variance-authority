@@ -16,6 +16,7 @@
 import async_hooks = require('node:async_hooks');
 import crypto = require('node:crypto');
 import journals = require('./journal-format.cjs');
+import preconditions = require('./case-preconditions.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
 import storyTap = require('../instrument/story-tap.cjs');
 import stories = require('../story/format.cjs');
@@ -257,16 +258,31 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     }
     return id;
   };
+  // The case running now, asked from inside it: the async store where there is
+  // one, the variable where there is not, and no case at all in the ambient
+  // bucket or once the file is tangled. Declared before the buckets it reads
+  // because the recorder holds it.
+  const running = (): string | undefined => {
+    if (tangled) return undefined;
+    const bucket = scopes === undefined ? current : scopes.getStore();
+    if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT) return undefined;
+    return bucket.key;
+  };
+  const recorder = preconditions.recorder(holder, running, journals.unpackCase);
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     const view = engine.close(bucket);
     const settled = stopped.get(bucket.key);
     const journey = journeys.get(bucket.key);
+    // What the case said it arranged; the file's own bucket is no case.
+    const said = bucket.key === AMBIENT ? undefined : recorder.take(bucket.key);
     // A case that stopped before it crossed anything is still a case that
-    // stopped: its frame is what tells a reader the journey was cut short.
-    if (view.rows.length === 0 && settled !== true && journey === undefined) return undefined;
-    const owner = settled === undefined ? name : journals.settledCase(name, settled);
-    frames.push(journals.encodeLog(journey === undefined ? owner : journals.packJourney(owner, journey), view));
+    // stopped: its frame is what tells a reader the journey was cut short. One
+    // that only named its preconditions still has them to carry.
+    if (view.rows.length === 0 && settled !== true && journey === undefined && !said?.length) return undefined;
+    const settledOwner = settled === undefined ? name : journals.settledCase(name, settled);
+    const owner = journey === undefined ? settledOwner : journals.packJourney(settledOwner, journey);
+    frames.push(journals.encodeLog(said === undefined ? owner : preconditions.packSaid(owner, said), view));
     foldInto(union, view);
     return view;
   };
@@ -350,6 +366,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     ) as unknown as Result;
   };
   const enter = <Result,>(key: string, body: () => Result): Result => {
+    recorder.entered(key);
     if (tangled) return body();
     if (scopes === undefined && current !== ambient) {
       tangled = true;
@@ -369,16 +386,12 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     engine.use(bucket);
     return settling(bucket, run);
   };
-  // The case running now, asked from inside it: the async store where there is
-  // one, the variable where there is not, and no case at all in the ambient
-  // bucket or once the file is tangled.
   const journey = (): string | undefined => {
-    if (tangled) return undefined;
-    const bucket = scopes === undefined ? current : scopes.getStore();
-    if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT) return undefined;
-    return journeyOf(bucket.key);
+    const key = running();
+    return key === undefined ? undefined : journeyOf(key);
   };
-  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey };
+  const { phase, within, where, declare } = recorder;
+  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey, phase, within, where, declare };
 
   const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
   return {
@@ -405,6 +418,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
         if (bucket.open && key !== AMBIENT) stopped.set(key, true);
         close(bucket, key === AMBIENT ? ambientKey(testFile) : key);
       }
+      recorder.finish();
       return { modules: union, frames: tangled ? undefined : frames };
     },
     runaways: () => [...late].map(nameOf),
