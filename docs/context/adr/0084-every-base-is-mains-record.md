@@ -50,8 +50,10 @@ fetched here, and the reader says so.**
   Either way it prints which (`noteSeeded`). A test run never opens a
   connection, and a plain `yarn test` in a fresh worktree gets the same base
   `test:since` would have read.
-- **A fetch is reused for ten minutes** (`MAINLINE_REUSE_MS`), and a remote
-  that did not answer is not asked again for ten minutes (`unreached.json`).
+- **A fetch is reused for ten minutes** (`MAINLINE_REUSE_MS`), and so is a
+  line's answer that it gave no record, unreachable, holding none, or holding
+  one that does not read (`missed.json`): every reader of a sitting, and every
+  CI job handed the read root, reads the same answer.
   Past the window, a remote that does not answer leaves the record fetched
   earlier as the base, and the reader names when it was fetched and why it was
   not fetched now. `variance share --suite <name>` always asks.
