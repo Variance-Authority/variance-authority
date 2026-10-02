@@ -8,8 +8,9 @@ A record without coverage
 A run that keeps its cases and instruments no module writes `coverage.bin` with
 its case sections and none of the coverage sections. A record already at the
 path keeps its coverage as it was, under the new run's cases; a run that keeps
-no cases and instruments nothing writes nothing. Its warning now says the run
-recorded no coverage and narrows no later selection.
+no cases and instruments nothing writes nothing. A file it could not finish
+measuring is still recorded incomplete, which selects it. Its warning now says
+the run recorded no coverage and narrows no later selection.
 
 Such a record is unmeasured, not a record of tests that reach nothing.
 `readTestCoverage` refuses it with `RecordWithoutCoverage`, and selection

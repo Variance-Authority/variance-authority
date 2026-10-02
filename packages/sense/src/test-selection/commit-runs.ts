@@ -132,7 +132,9 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
  * `cases` is the run's own case index, laid over the cases the record holds
  * (`case-landing.ts`) and written with the coverage, in the same write. A run
  * that kept no cases carries the record's as they were. A run that instrumented
- * no module lands its cases and nothing else ({@link landUncovered}).
+ * no module lands its cases and nothing else ({@link landUncovered}), except a
+ * file it could not finish measuring: probes that fired where nothing could
+ * place them leave the file incomplete, which selects it, and that row lands.
  *
  * The caller holds the index lock: the base read here, the write after it and
  * the record of both are one read-modify-write, so two processes finishing
@@ -145,7 +147,15 @@ export async function landRun(
   cacheRoot?: string,
   cases?: FreshCases,
 ): Promise<void> {
-  if (current.modules.length === 0) return landUncovered(coverageFile, root, cases);
+  if (current.modules.length === 0) {
+    // A complete row over no module would say its file reaches nothing. An
+    // incomplete one says its file must run, which is true without a module.
+    const selecting = current.tests.filter((test) => !test.complete);
+    if (selecting.length === 0) return landUncovered(coverageFile, root, cases);
+    if (selecting.length < current.tests.length) {
+      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases);
+    }
+  }
   const before = await recordedSnapshot(coverageFile);
   const held = await heldCommitRuns(coverageFile);
   const previous = casesRecordedOver(coverageFile);

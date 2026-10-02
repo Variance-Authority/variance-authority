@@ -980,7 +980,10 @@ and never the bytes between.
 no module still writes the file, with the case sections and none of the
 coverage sections: no strings, snapshot, tests, modules, blocks or sets. A
 record already at the path keeps its coverage as it was, under the new run's
-cases. A run that keeps no cases and instruments nothing writes nothing.
+cases. A run that keeps no cases and instruments nothing writes nothing. A
+file whose probes fired where nothing could place them is the exception: it is
+recorded incomplete, which selects it on the next run, and that row lands as
+coverage does.
 
 ## What a reader refuses
 

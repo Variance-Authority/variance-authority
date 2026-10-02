@@ -15,6 +15,7 @@ import {
   writeTestCoverage,
   type ExecutionBlock,
   type ExecutionIndex,
+  type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import type { Config } from '../config.js';
@@ -45,6 +46,20 @@ const TOTAL = "import { applyDiscount } from '../src/total';\nit('discounts', ()
 const OTHER = "it('stands alone', () => {});\n";
 export const DISCOUNTS = { id: 'test/total.test.ts > discounts', file: 'test/total.test.ts', name: 'discounts', stopped: false };
 export const ROUNDS = { id: 'test/total.test.ts > rounds', file: 'test/total.test.ts', name: 'rounds', stopped: false };
+
+/**
+ * The one module a fixture run instrumented, entered by `files`. A run that
+ * instruments no module records no coverage and no runs, so a run that stands
+ * for one carries this.
+ */
+export function probedModule(files: readonly string[]): TestCoverage['modules'][number] {
+  return {
+    file: 'src/probed.ts',
+    sourceDigest: 'probed',
+    instrumented: true,
+    blocks: [{ ordinal: 0, kind: 'module', digest: 'probed', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: [...files].sort() }],
+  };
+}
 
 export interface Published {
   readonly dir: string;

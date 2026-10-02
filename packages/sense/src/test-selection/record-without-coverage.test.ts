@@ -84,6 +84,23 @@ describe('an uninstrumented run that keeps cases', () => {
     expect(caseSectionsAt(record).index).toBeDefined();
   });
 
+  it('lands a file it could not finish measuring, which selects it, and not the files it finished', async () => {
+    // Probes fired in `b.test.ts` where nothing could place them: the fold left
+    // it incomplete, so a later run may not skip it on the earlier record.
+    await writeTestCoverage(record, {
+      ...uninstrumented,
+      tests: [{ file: 'b.test.ts', complete: true, preconditions: [] }],
+      modules: [{ file: 'src/b.ts', sourceDigest: 'd', instrumented: false, blocks: [] }],
+    });
+
+    await landRun(record, {
+      ...uninstrumented,
+      tests: [{ file: 'a.test.ts', complete: true, preconditions: [] }, { file: 'b.test.ts', complete: false, preconditions: [] }],
+    }, root);
+
+    expect(decodeTestCoverage(readFileSync(record)).tests.map((test) => [test.file, test.complete])).toEqual([['b.test.ts', false]]);
+  });
+
   it('writes nothing when it keeps no cases and there is no record to land over', async () => {
     await landRun(record, uninstrumented, root);
     expect(existsSync(record)).toBe(false);
