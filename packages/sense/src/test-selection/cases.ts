@@ -204,6 +204,36 @@ export interface CaseJournal {
 }
 
 /**
+ * Each case's id, for cases ordered by file, name and the runner's id: `<file>
+ * > <name>`, and `#n` on the `n`-th further case of that file and name.
+ *
+ * A name is the coordinate, so the identity is the name and not the runner's
+ * positional id, which moves when a case is inserted above it. A suite whose
+ * second `pays` would take the id of a case named `pays#1` is refused: one id
+ * cannot hold two cases' journeys. The native fold numbers with `CaseIds` in
+ * `case_id.rs`, and refuses in the same words.
+ */
+export function caseIdsInOrder(cases: readonly { readonly file: string; readonly name: string }[]): string[] {
+  const repeated = new Map<string, number>();
+  // The name of the case holding each id handed out.
+  const held = new Map<string, string>();
+  return cases.map(({ file, name }) => {
+    const named = `${file} > ${name}`;
+    const repeat = repeated.get(named) ?? 0;
+    repeated.set(named, repeat + 1);
+    const id = repeat === 0 ? named : `${named}#${repeat}`;
+    const holder = held.get(id);
+    if (holder !== undefined) {
+      const literal = id.slice(file.length + 3);
+      const numbered = holder === literal ? name : holder;
+      throw new Error(`cannot number the cases of ${file}: "${literal}" is the name of one case and the number of a repeated "${numbered}". Rename one of them.`);
+    }
+    held.set(id, name);
+    return id;
+  });
+}
+
+/**
  * Fold case frames and the inventory into the index `coveringTests` reads.
  *
  * The ambient bucket of a file is folded into every case of that file: nothing
@@ -249,21 +279,14 @@ export function executionIndexFrom(
     codeUnitOrder(left.id, right.id),
   );
 
-  // A name is the coordinate, so the identity is the name and not the runner's
-  // positional id — which moves when a case is inserted above it. Two cases in
-  // one file may share a name; the repeat is numbered, in the order above, so
-  // the second is `name#1` rather than indistinguishable.
-  const seen = new Map<string, number>();
-  const tests: ExecutionTest[] = ordered.map((journal) => {
-    const coordinate = `${journal.file} > ${journal.name}`;
-    const repeat = seen.get(coordinate) ?? 0;
-    seen.set(coordinate, repeat + 1);
+  const ids = caseIdsInOrder(ordered);
+  const tests: ExecutionTest[] = ordered.map((journal, at) => {
     // One owner or the other: a driver that carries the time on the case has no
     // end-of-run report to join, and a runner that reports at the end writes
     // frames that carry none.
     const duration = durations(journal.file, journal.name, journal.id) ?? journal.duration;
     return {
-      id: repeat === 0 ? coordinate : `${coordinate}#${repeat}`,
+      id: ids[at]!,
       file: journal.file,
       name: journal.name,
       ...(journal.stopped === undefined ? {} : { stopped: journal.stopped }),

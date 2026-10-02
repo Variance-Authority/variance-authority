@@ -137,6 +137,14 @@ describe('folding case frames into an execution index', () => {
     ]);
   });
 
+  it('refuses a repeated name numbered onto a case literally named so', () => {
+    expect(() => executionIndexFrom([
+      journal('test/branch.case.ts', 'same', 'a', [1]),
+      journal('test/branch.case.ts', 'same', 'b', [2]),
+      journal('test/branch.case.ts', 'same#1', 'c', [1]),
+    ], inventory)).toThrow('cannot number the cases of test/branch.case.ts: "same#1" is the name of one case and the number of a repeated "same". Rename one of them.');
+  });
+
   it('joins the frame a case wrote on settling to the one its outliving work wrote later', () => {
     const index = executionIndexFrom([
       journal('test/branch.case.ts', 'takes alpha', '1_0', [1]),

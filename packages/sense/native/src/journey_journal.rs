@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::case_id::{self, CaseIds};
 use crate::case_preconditions::{self, Precondition};
 use crate::order;
 
@@ -18,6 +19,8 @@ pub struct Test {
     pub id: String,
     pub file: String,
     pub name: String,
+    /// The id its runner gave the case, which tells two of one name apart; `None` from a shard written before it was carried.
+    pub runner: Option<String>,
     /// How the case settled: [`UNSETTLED`], [`FINISHED`] or [`STOPPED`].
     pub settled: u8,
     /// What the case said it arranged, resolved; `None` where nobody listened.
@@ -91,13 +94,11 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
     };
     replay(&paths, &mut visitor)?;
     visitor.coordinates.sort_by(|left, right| {
-        order::code_unit(&left.file, &right.file)
-            .then_with(|| order::code_unit(&left.name, &right.name))
-            .then_with(|| order::code_unit(&left.id, &right.id))
+        case_id::order((&left.file, &left.name, &left.id), (&right.file, &right.name, &right.id))
     });
 
     let mut frame_tests = vec![0; visitor.frame];
-    let mut repeated: HashMap<String, u32> = HashMap::new();
+    let mut ids = CaseIds::default();
     let mut journey_tests: HashMap<String, Vec<u32>> = HashMap::new();
     let mut tests = Vec::with_capacity(visitor.coordinates.len());
     for (at, coordinate) in visitor.coordinates.into_iter().enumerate() {
@@ -107,18 +108,11 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
         for journey in coordinate.journeys {
             journey_tests.entry(journey).or_default().push(at as u32);
         }
-        let name = format!("{} > {}", coordinate.file, coordinate.name);
-        let repeat = repeated.entry(name.clone()).or_default();
-        let id = if *repeat == 0 {
-            name
-        } else {
-            format!("{name}#{repeat}")
-        };
-        *repeat += 1;
         tests.push(Test {
-            id,
+            id: ids.next(&coordinate.file, &coordinate.name)?,
             file: coordinate.file,
             name: coordinate.name,
+            runner: Some(coordinate.id),
             settled: coordinate.settled,
             preconditions: coordinate.said.map(case_preconditions::resolve),
         });
