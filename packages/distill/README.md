@@ -136,16 +136,21 @@ A test with no phase markers still works. Its observations are reported under
 
 ## Run it
 
-From the command line, in the checkout that ran the test, where
-`<recorded-test-id>` is a case id the record holds:
+From the command line, in the checkout that ran the test, naming the case and
+the file that declares it:
 
 ```bash
-variance distill --test '<recorded-test-id>'
+variance distill --file test/checkout.spec.ts --test submits
 ```
 
-`distill` reads the checkout's own record. `--execution <path>` names another
-record, or a case index another tool exported as JSON. Add `--format json` for
-the analyzer result instead of the text.
+`--test` takes the case's id, its exact title, or a part of the title.
+`--file` takes any part of the test file's path. When more than one case fits,
+the command prints their ids and stops, and you pass one of them to `--test`.
+
+`distill` reads the record `covering` reads; `--suite <name>` picks one declared
+suite's, and `--execution <path>` names another record, or a case index another
+tool exported as JSON. Add `--format json` for the analyzer result instead of
+the text.
 
 From Node, `distill` takes the readings already in hand. Here a case index
 another tool exported as JSON, and one journal for its only attempt:
@@ -265,13 +270,15 @@ a measured-empty addressed surface.
 
 | Export | What it is |
 | --- | --- |
-| `distill(input)` | `DistillInput` in, `Distillation` out. Throws when the execution index holds no case with the named id. |
+| `distill(input)` | `DistillInput` in, `Distillation` out. Throws when the execution index holds no case that fits `test` and `file`, or more than one. |
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
 
-`DistillInput` is made of `test`, the `execution` index, an optional `root`,
+`DistillInput` names the case by `test`, `file`, or both — `file` alone when
+the file holds one case — and carries the `execution` index, an optional `root`,
 and optional `eyes`: one `EyesAttempt` per recorded attempt, each a `case`, an
-`attempt` numbered from 1, and its `journal`. `attempts` on the result carries
+`attempt` numbered from 1, and its `journal`. The case is found in the index
+alone, and the journals are read by its id. `attempts` on the result carries
 each attempt's attention. `Distillation` is a plain data result: `attention` is the per-phase
 `AddressedPhase` and `UpdatePhase` records, and `execution` lists `EnteredFile`
 by file and `EnteredModule` region by region. A `Region` is one instrumented

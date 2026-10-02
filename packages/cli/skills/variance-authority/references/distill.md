@@ -1,14 +1,18 @@
 # Distill a test, then verify the reduction
 
-`variance distill` reads no config and no report. Its input is one record: the
-checkout's own `coverage.bin`, or the file `--execution` names, so it answers in
-a checkout that has never configured this tool. `--test <id>` is required and is
-matched exactly. `--root` (default: the working directory) is the root the
-record's paths are relative to. `--format json` returns the same reading as
-data, and the `variance_distill` MCP tool returns the same deterministic reading.
+`variance distill` reads no report, and from the root `variance.config.json`
+only the declared suites, to find the record `--suite` names; a checkout that
+has never configured this tool gets the same answer. Its input is one record:
+the one `covering` reads, the declared suite's `--suite` names, or the file
+`--execution` names. `--test` takes a case id, an exact title or a part of one,
+and `--file` a part of the test file's path; give either or both. More than one
+fitting case is refused with their ids. `--root` (default: the working
+directory) is the root the record's paths are relative to. `--format json`
+returns the same reading as data, and the `variance_distill` MCP tool returns
+the same deterministic reading.
 
 ```bash
-variance distill --test 'src/checkout.test.tsx > checkout submits'
+variance distill --file checkout.test.tsx --test submits
 ```
 
 ## The record
