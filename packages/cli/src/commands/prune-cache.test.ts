@@ -18,6 +18,10 @@ import { cacheFinding, formatCache } from './doctor-cache.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 const DAY = 24 * 60 * 60 * 1000;
+
+// A read-only parent is how a removal is refused here, and permission bits
+// bind neither the superuser nor Windows: there, nothing refuses.
+const refuses = process.platform !== 'win32' && process.getuid?.() !== 0;
 const NOW = Date.UTC(2026, 8, 27);
 
 async function put(path: string, age: number): Promise<string> {
@@ -133,7 +137,7 @@ test('pruneCacheWhenDue prunes once a day and says what it took', async () => {
   expect(existsSync(join(cacheRoot, 'scans'))).toBe(true);
 });
 
-test('a prune that could not remove an entry names it and the error, and exits as the operator\'s to fix', async () => {
+test.runIf(refuses)('a prune that could not remove an entry names it and the error, and exits as the operator\'s to fix', async () => {
   const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
   const scans = join(cacheRoot, 'scans');
   await put(join(scans, 'scan.bin'), 0);

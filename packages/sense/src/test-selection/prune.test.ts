@@ -17,6 +17,10 @@ import {
 import { testCoverageFile } from './record-location.js';
 
 const DAY = 24 * 60 * 60 * 1000;
+
+// A read-only parent is how a removal is refused here, and permission bits
+// bind neither the superuser nor Windows: there, nothing refuses.
+const refuses = process.platform !== 'win32' && process.getuid?.() !== 0;
 const NOW = Date.UTC(2026, 8, 27);
 
 /** A cache under a temporary root, with every file dated by the test rather than the clock. */
@@ -201,7 +205,7 @@ describe('applyPrune and pruneWhenDue', () => {
     expect(prunedLine({ root, removed: [], unremoved: [], freed: 0 })).toBe('');
   });
 
-  test('an entry that could not be removed is reported with its path and the error, and is not counted as freed', async () => {
+  test.runIf(refuses)('an entry that could not be removed is reported with its path and the error, and is not counted as freed', async () => {
     const root = await cache();
     const selection = join(root, 'test-selection');
     const stuck = join(selection, 'aaa');
