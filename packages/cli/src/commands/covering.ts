@@ -49,15 +49,15 @@ import {
   type LineRange,
   type ExecutionIndex,
   type RangeState,
-  type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
-import { hopsToTests, nearbyWitnesses, type Narrowing } from './covering-reach.js';
+import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
+import { namesAt, twinsOf, whereCases, type CoveringTwin, type CoveringWhere } from './covering-where.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
@@ -118,6 +118,10 @@ export interface Covering {
   readonly from: string;
   /** Present under `--cases`: the cases the answer was read from, which are not the suite. */
   readonly scope?: CoveringScope;
+  /** Under `--where`: how many cases said it, of how many, and what could not be read. */
+  readonly where?: CoveringWhere;
+  /** Under `--where` with `names.axes`: each listed case's twin one step toward the base. */
+  readonly twins?: readonly CoveringTwin[];
   /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
   readonly motion?: CoveringMotion;
   /** The commit the record stands at, when it says. The diff is measured from it. */
@@ -148,14 +152,28 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   let scope: CoveringScope | undefined;
   let full: ExecutionIndex | undefined;
   let whole: ExecutionIndex | undefined;
-  const answer = await ask(request, async (from, changed) => {
+  let where: CoveringWhere | undefined;
+  const names = request.where === undefined ? undefined : await namesAt(request.root);
+  let reached: readonly CoveringTest[] | undefined;
+  const reader: IndexReader = async (from, changed) => {
     const read = await readIndex(from, changed);
     whole = read.index;
-    if (request.cases === undefined) return read;
-    const cut = await scopeCases((full = read.index), from, request.cases, request.root);
-    scope = cut.scope;
-    return { index: cut.index, files: read.files };
+    let index = read.index;
+    if (request.cases !== undefined) {
+      ({ index, scope } = await scopeCases((full = read.index), from, request.cases, request.root));
+    }
+    if (request.where === undefined) return { index, files: read.files };
+    const kept = whereCases(index, request.where, names);
+    where = kept.where;
+    return { index: kept.index, files: read.files, before: index };
+  };
+  const answer = await ask(request, reader, (tests) => {
+    reached = tests;
   });
+  // The twin is looked up among every case the question reached before `--where` narrowed it.
+  const twins = names === undefined || answer.tests === undefined
+    ? undefined
+    : twinsOf(answer.tests, reached ?? [], names);
   const motion = await motionFor(request, answer.from, scope, full);
   const files = answer.tests === undefined || whole === undefined
     ? undefined
@@ -166,11 +184,21 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     ...answer,
     ...(files === undefined ? {} : { files }),
     ...(scope === undefined ? {} : { scope }),
+    ...(where === undefined ? {} : { where }),
+    ...(twins === undefined || twins.length === 0 ? {} : { twins }),
     ...(motion === undefined ? {} : { motion }),
   };
 }
 
-async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Covering> {
+/**
+ * @param reach Handed the cases a line or function question reached before
+ * `--where` narrowed them, read off the same graph, when it narrowed them.
+ */
+async function ask(
+  request: ParsedCovering,
+  readIndex: IndexReader,
+  reach?: (tests: readonly CoveringTest[]) => void,
+): Promise<Covering> {
   const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
   const record = await snapshotFor(request);
 
@@ -195,7 +223,7 @@ async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Cov
   }
 
   const file = request.file;
-  const { index, files } = await readIndex(from, new Map([[file, []]]));
+  const { index, files, before } = await readIndex(from, new Map([[file, []]]));
   const module = index.modules.find((candidate) => candidate.file === file);
   if (module === undefined) {
     throw new OperatorError(
@@ -238,6 +266,7 @@ async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Cov
     const graph = await loadersFor(index, target, request.root);
     const found = coveringTests(index, target, graph);
     const kept = near.whole ? found : found.filter(near.keep);
+    if (before !== undefined) reach?.(coveringTests(before, target, graph).filter(near.keep));
     const stopped = stoppedBefore(index, target, graph);
     return {
       file: file,
@@ -270,6 +299,7 @@ async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Cov
     const graph = await loadersFor(index, target, request.root);
     const found = coveringTests(index, target, graph);
     const kept = near.whole ? found : found.filter(near.keep);
+    if (before !== undefined) reach?.(coveringTests(before, target, graph).filter(near.keep));
     const stopped = stoppedBefore(index, target, graph);
     return {
       file: file,
@@ -309,47 +339,6 @@ function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTes
 function stated(region: CoveringRegion): StatedRegion {
   const state = regionState(region);
   return state === undefined ? region : { ...region, state };
-}
-
-/**
- * Re-fold ranges a filter has just changed the answer of.
- *
- * `coveringTestsInFile` folds adjacent lines whose witness lists are identical,
- * so a range boundary is a place where the claim on the code changes. Filtering
- * the lists afterwards can make two neighbours agree that did not, and leaving
- * them apart would print a boundary where nothing happens — the one thing the
- * folding rule exists to prevent.
- */
-function refold(ranges: readonly SourceTestRange[]): readonly SourceTestRange[] {
-  const folded: SourceTestRange[] = [];
-  for (const range of ranges) {
-    const previous = folded.at(-1);
-    if (
-      previous !== undefined &&
-      previous.endLine + 1 === range.startLine &&
-      previous.tests.length === range.tests.length &&
-      previous.tests.every((test, at) => test.id === range.tests[at]?.id) &&
-      sameStopped(previous.stopped, range.stopped)
-    ) {
-      folded[folded.length - 1] = { ...previous, endLine: range.endLine };
-      continue;
-    }
-    folded.push(range);
-  }
-  return folded;
-}
-
-function sameStopped(
-  left: readonly ExecutionTest[] | undefined,
-  right: readonly ExecutionTest[] | undefined,
-): boolean {
-  if (left === undefined || right === undefined) return left === right;
-  return left.length === right.length && left.every((test, at) => test.id === right[at]?.id);
-}
-
-/** How many distinct named tests a set of ranges names. */
-function identities(ranges: readonly SourceTestRange[]): number {
-  return new Set(ranges.flatMap((range) => range.tests.map((test) => test.id))).size;
 }
 
 /** The narrowing's own report, when there was a narrowing. */
@@ -407,7 +396,11 @@ async function changeSince(
   return changed;
 }
 
-type IndexReader = typeof readIndex;
+/** {@link readIndex}, and under `--where` the index before it narrowed the cases. */
+type IndexReader = (
+  from: string,
+  changed: ReadonlyMap<string, readonly LineRange[]>,
+) => Promise<{ readonly index: ExecutionIndex; readonly files: readonly string[]; readonly before?: ExecutionIndex }>;
 
 /**
  * The index, read for the files a question is about.

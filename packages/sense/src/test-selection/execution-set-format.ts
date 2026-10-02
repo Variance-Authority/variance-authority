@@ -12,6 +12,7 @@ import {
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import { CrossingSets, type CrossingSetsPool, type SetId } from './crossing-sets.js';
 import { codeUnitOrder, intern } from '@variance-authority/core/segment';
+import { PRECONDITIONS_COLUMN, preconditionColumn, preconditionStrings, preconditionsFrom } from './case-precondition-column.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 
 /**
@@ -109,6 +110,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
     'tests.stopped': column(stoppedColumn(index.tests)),
     'tests.duration': column(durationColumn(index.tests)),
+    ...preconditionColumn(index.tests, id),
     'modules.file': column(moduleFile),
     'modules.blocks': column(moduleBlocks),
     'blocks.kind': column(blockKind),
@@ -274,6 +276,9 @@ function testsOf(opened: OpenedSections, strings: readonly string[]): ExecutionT
   const testDuration = opened.found.has('tests.duration') ? words('tests.duration') : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testId.length) throw invalid();
+  // Written since a case carries the preconditions it named; a file without it listened to none.
+  const said = opened.found.has(PRECONDITIONS_COLUMN) ? words(PRECONDITIONS_COLUMN) : undefined;
+  if (said !== undefined && said.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
   for (let at = 0; at < testId.length; at += 1) {
     tests.push({
@@ -282,6 +287,7 @@ function testsOf(opened: OpenedSections, strings: readonly string[]): ExecutionT
       name: string(testName[at]!),
       ...stoppedFrom(testStopped, at),
       ...durationFrom(testDuration, at),
+      ...preconditionsFrom(said, at, string),
     });
   }
   return tests;
@@ -348,6 +354,7 @@ function dictionary(index: SetExecutionIndex): ReadonlySet<string> {
     held.add(test.file);
     held.add(test.name);
   }
+  for (const text of preconditionStrings(index.tests)) held.add(text);
   for (const module of index.modules) {
     held.add(module.file);
     for (const block of module.blocks) {

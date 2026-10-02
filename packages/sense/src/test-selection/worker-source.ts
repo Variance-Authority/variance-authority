@@ -14,6 +14,7 @@
  */
 
 import { CASE_SCOPE } from './cases.js';
+import { scopeGlobalsSource } from './precondition-source.js';
 import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
 import type { InstrumentMode } from '../instrument/index.js';
 
@@ -241,7 +242,7 @@ export function caseRunnerSource(
 // \`VitestTestRunner\` at all. The notice is the cost of the only entry that
 // answers on 2, 3 and 4 alike.
 import { VitestTestRunner } from 'vitest/runners';
-import { getFn } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
+import { getFn, getHooks } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
 import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -273,7 +274,55 @@ const tree = (task) => ({
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
 
+const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection.cases')];
+// The declaration path under the file, which is what a reader recognises a
+// case by. The runner's own \`test.id\` is unique and is carried beside it,
+// because it is positional and moves when a case is inserted above.
+const caseKey = (test) => {
+  const names = getNames(test);
+  const file = test.file?.filepath ?? names[0] ?? '';
+  return file + '\\u0000' + names.slice(1).join(' > ') + '\\u0000' + test.id;
+};
+
+// Where a \`variancePrecondition\` call stands. Hooks are wrapped when their
+// suite starts, each knowing its depth and, for a \`beforeEach\`, the case it
+// runs for. A \`beforeAll\` or an \`afterAll\` runs for no one case, and a call
+// in one throws, as a call while the file collects does.
+const WRAPPED = Symbol('variance-authority.wrapped-hook');
+const hookAt = (kind, depth, args) => {
+  if (kind === 'afterEach') return { kind: 'after' };
+  if (kind !== 'beforeEach') {
+    return { kind: 'outside', because: 'ran in ' + (kind === 'beforeAll' ? 'a beforeAll' : 'an afterAll') + ', which runs for no one case' };
+  }
+  const test = args[0]?.task;
+  return test === undefined
+    ? { kind: 'outside', because: 'ran in a beforeEach Vitest named no case for' }
+    : { kind: 'each', depth, case: caseKey(test) };
+};
+
 export default class extends VitestTestRunner {
+  async onBeforeRunSuite(suite) {
+    await super.onBeforeRunSuite?.(suite);
+    const scope = caseScope();
+    const hooks = scope?.within === undefined ? undefined : getHooks(suite);
+    if (hooks === undefined) return;
+    const depth = getNames(suite).length - 1;
+    for (const kind of ['beforeAll', 'beforeEach', 'afterEach', 'afterAll']) {
+      const registered = hooks[kind] ?? [];
+      const kept = [];
+      for (const hook of registered) {
+        if (hook[WRAPPED] === true) {
+          kept.push(hook);
+          continue;
+        }
+        kept.push(Object.assign(function (...args) {
+          return scope.within(hookAt(kind, depth, args), () => hook.apply(this, args));
+        }, { [WRAPPED]: true }));
+      }
+      registered.splice(0, registered.length, ...kept);
+    }
+  }
+
   async onAfterRunFiles(files) {
     await super.onAfterRunFiles?.(files);
     if (finished === null) return;
@@ -301,15 +350,7 @@ export default class extends VitestTestRunner {
     if (!fn) throw new Error('variance-authority: Vitest gave a task with no function');
     const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
     if (scope === undefined) return fn();
-    const names = getNames(test);
-    const file = test.file?.filepath ?? names[0] ?? '';
-    // The declaration path under the file, which is what a reader recognises a
-    // case by. The runner's own \`test.id\` is unique and is carried beside it,
-    // because it is positional and moves when a case is inserted above.
-    return scope.enter(
-      file + '\\u0000' + names.slice(1).join(' > ') + '\\u0000' + test.id,
-      fn,
-    );
+    return scope.enter(caseKey(test), fn);
   }
 }
 `;
@@ -354,16 +395,28 @@ let caseOrdinal = 0;
 const wrapCase = (api, depth) => {
   if (typeof api !== 'function' || depth > 4) return api;
   const out = function (...args) {
-    // \`(name, fn, timeout)\`, or \`(name, options, fn)\` for a case that names
-    // its own retry or timeout.
-    const at = typeof args[1] === 'function' ? 1 : 2;
-    const fn = args[at];
-    if (typeof fn === 'function') {
+    // The body is second, or third behind an options object.
+    const at = typeof args[1] === 'function' ? 1 : typeof args[2] === 'function' ? 2 : -1;
+    if (at !== -1) {
+      const fn = args[at];
       const ordinal = String((caseOrdinal += 1));
+      // The describe path it was registered under, from the describe wrap below.
+      const path = scopeCurrent;
       args[at] = function (...given) {
         const state = expect.getState();
-        const key = (state.testPath ?? '') + '\\u0000' + (state.currentTestName ?? '') + '\\u0000' + ordinal;
-        return caseScope.enter(key, () => fn.apply(this, given));
+        // Concurrent cases share the one \`expect\`, which names whichever case
+        // set it last; the case's own context names the case, under the path
+        // it was registered at.
+        const own = given[0]?.task?.name;
+        const name = typeof own !== 'string' || state.currentTestName === own ||
+          state.currentTestName?.endsWith(' > ' + own) === true
+          ? state.currentTestName ?? ''
+          : [...path, own].join(' > ');
+        const key = (state.testPath ?? '') + '\\u0000' + name + '\\u0000' + ordinal;
+        // The context the runner hands the body is the one it handed the
+        // case's \`beforeEach\`es, so it joins what they said to this case
+        // when cases run concurrently.
+        return caseScope.enter(key, () => fn.apply(this, given), given[0]);
       };
     }
     const answered = api.apply(this, args);
@@ -378,7 +431,7 @@ for (const holder of [${holders}]) {
     if (typeof holder[name] === 'function') holder[name] = wrapCase(holder[name], 0);
   }
 }
-`;
+${scopeGlobalsSource(holders)}`;
 }
 
 /**

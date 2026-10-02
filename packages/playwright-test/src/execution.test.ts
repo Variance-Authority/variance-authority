@@ -18,6 +18,9 @@ import {
   type ExecutionRecorder,
 } from './execution.js';
 import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
+import type { PreconditionStanding } from '@variance-authority/sense/journal';
+import { caseKey } from './test-coordinate.js';
 
 const INSTRUMENTATION = 'sense:instrument/presence-v5';
 
@@ -325,6 +328,37 @@ describe('a worker that is one of several', () => {
       const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((one) => one.duration)).toEqual([200]);
       expect((await readTestCoverage(coverageFile)).tests[0]!.duration).toBe(200);
+    });
+  });
+
+  it('lays what a case said, in its beforeEach and its body, on its row, and a case that only said something is a case', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+      const pays = { name: 'pays', id: 'one' };
+      const refunds = { name: 'refunds', id: 'two' };
+
+      let standing: PreconditionStanding = { at: 'beforeEach', key: caseKey(owner, pays.id), depth: 1 };
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile }, undefined, () => standing);
+      variancePrecondition('network', 'live');
+      standing = { at: 'case', key: caseKey(owner, pays.id) };
+      variancePrecondition('network', 'mocked');
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
+        owner,
+        pays,
+      );
+      recorder.mark(owner, true, pays);
+      standing = { at: 'case', key: caseKey(owner, refunds.id) };
+      variancePrecondition('seeded');
+      recorder.mark(owner, true, refunds);
+      await recorder.close();
+
+      const index = decodeExecutionIndex(await readFile(coverageFile));
+      expect(index.tests.map((one) => [one.name, one.preconditions?.map(({ name, value, level }) => [name, value, level])]))
+        .toEqual([['pays', [['network', 'mocked', 0xffff]]], ['refunds', [['seeded', true, 0xffff]]]]);
+      expect(index.tests[0]!.preconditions![0]!.site).toMatch(/execution\.test\.ts:\d+$/);
     });
   });
 

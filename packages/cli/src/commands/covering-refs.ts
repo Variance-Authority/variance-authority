@@ -14,17 +14,19 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { narrowedText, scopeText, staleText } from './covering-text.js';
 import type { Covering, StatedRegion } from './covering.js';
+import { heldText, twinText, whereText, type CoveringTwin } from './covering-where.js';
 
-type Case = Pick<ExecutionTest, 'id' | 'file' | 'name'>;
+type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'preconditions'>;
 
 /** Say the answer with every case numbered once. */
 export function formatCoveringRefs(answer: Covering): string {
-  const table = new Table(everyCase(answer));
+  const table = new Table(everyCase(answer), answer.twins);
   const body = answer.frame === 'stale' ? [staleText(answer)] : bodyOf(answer, table);
   // Numbered before the table is read, which is when it knows every case it holds.
   const motion = motionText(answer.motion, (tests) => table.refs(tests));
   return `${[
     ...scopeText(answer),
+    ...whereText(answer.where),
     ...body,
     ...narrowedText(answer),
     ...table.lines(),
@@ -106,8 +108,10 @@ class Table {
   private readonly number = new Map<string, number>();
   private readonly cases: readonly Case[];
   private starred = false;
+  private readonly twins: ReadonlyMap<string, CoveringTwin>;
 
-  constructor(named: readonly Case[]) {
+  constructor(named: readonly Case[], twins: readonly CoveringTwin[] = []) {
+    this.twins = new Map(twins.map((twin) => [twin.case, twin]));
     const unique = new Map<string, Case>();
     for (const test of named) if (!unique.has(test.id)) unique.set(test.id, test);
     this.cases = [...unique.values()].sort((left, right) =>
@@ -134,7 +138,9 @@ class Table {
       if (test.file !== file) lines.push((file = test.file));
       lines.push(`  ${this.number.get(test.id)} ${
         test.id === `${test.file} > ${test.name}` ? test.name : `${test.name} [${test.id}]`
-      }`);
+      }${heldText(test.preconditions)}`);
+      const twin = this.twins.get(test.id);
+      if (twin !== undefined) lines.push(twinText(twin, (id) => id.slice(id.indexOf(' > ') + 3), '      '));
     }
     return lines;
   }

@@ -124,6 +124,8 @@ import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import { codeUnitOrder, isMissing, projectPath } from './instrumented-modules.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
+import { checkoutSaid, heardAcross, heardOf, type Said } from './case-precondition-column.js';
+import preconditions from './case-preconditions.cjs';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 
@@ -190,6 +192,11 @@ export interface CaseJournal {
    * carried them on the case itself rather than in a report at the run's end.
    */
   readonly duration?: number;
+  /**
+   * What the case said it arranged, each site named from the checkout; absent
+   * where the frame's writer never listened.
+   */
+  readonly said?: Said;
   readonly modules: readonly {
     readonly id: ModuleId;
     readonly hits: readonly number[];
@@ -276,6 +283,7 @@ export function executionIndexFrom(
       modules: [...first.modules, ...journal.modules],
       ...settledAcross(first.stopped, journal.stopped),
       ...timedAcross(first.duration, journal.duration),
+      ...heardOf(heardAcross(first.said, journal.said)),
     });
   }
   const cases = [...byCase.values()];
@@ -293,6 +301,7 @@ export function executionIndexFrom(
       name: journal.name,
       ...(journal.stopped === undefined ? {} : { stopped: journal.stopped }),
       ...(duration === undefined ? {} : { duration }),
+      ...(journal.said === undefined ? {} : { preconditions: preconditions.resolve(journal.said) }),
     };
   });
 
@@ -412,11 +421,13 @@ export async function readCaseJournals(
       if (eyesFrames.decodeEyesFrame(frame) !== undefined) continue;
       const read = journalFormat.decodeJournal(frame);
       const { file, name: caseName, id, stopped } = unpackCase(read.testFile);
+      const said = preconditions.saidOf(read.testFile);
       journals.push({
         file: projectPath(root, file),
         name: caseName,
         id,
         ...(stopped === undefined ? {} : { stopped }),
+        ...(said === undefined ? {} : { said: checkoutSaid(root, said) }),
         modules: read.modules,
       });
     }

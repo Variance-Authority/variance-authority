@@ -2338,6 +2338,10 @@
           "types": "./dist/test-selection/journey.d.ts",
           "default": "./dist/test-selection/journey.js"
         },
+        "./precondition": {
+          "types": "./dist/test-selection/precondition.d.ts",
+          "default": "./dist/test-selection/precondition.js"
+        },
         "./story": {
           "types": "./dist/story/index.d.ts",
           "default": "./dist/story/index.js"
@@ -2880,6 +2884,8 @@
         "ObservedCase": "interface",
         "ObservedEyes": "interface",
         "ObservedSubject": "interface",
+        "PreconditionListener": "interface",
+        "PreconditionStanding": "type",
         "RecordExecutionOptions": "interface",
         "STAGE_VARIABLE": "const",
         "StagedExecution": "interface",
@@ -2890,6 +2896,7 @@
         "executionCollectorSource": "function",
         "foldStage": "function",
         "joinObservations": "function",
+        "listenForPreconditions": "function",
         "openStage": "function",
         "preconditionOf": "function",
         "recordExecution": "function",
@@ -2921,6 +2928,10 @@
         "sentry": "const",
         "stitchJourneys": "function",
         "unsettledScopes": "function"
+      },
+      "./precondition": {
+        "PreconditionValue": "type",
+        "variancePrecondition": "function"
       },
       "./story": {
         "Arm": "interface",

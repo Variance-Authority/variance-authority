@@ -20,6 +20,7 @@ import type { Page, TestInfo } from '@playwright/test';
 import {
   drainExecution,
   joinObservations,
+  listenForPreconditions,
   preconditionOf,
   recordExecution,
   stageExecution,
@@ -31,6 +32,7 @@ import {
   type ObservedCase,
   type ObservedEyes,
   type ObservedSubject,
+  type PreconditionStanding,
 } from '@variance-authority/sense/journal';
 import {
   journeyReportFrom,
@@ -43,7 +45,7 @@ import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/s
 import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { listen, type Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
-import { ownerOf, type ObservedTest } from './test-coordinate.js';
+import { caseKey, ownerOf, type ObservedTest } from './test-coordinate.js';
 
 export { ownerOf, testOf, type ObservedTest } from './test-coordinate.js';
 
@@ -182,9 +184,14 @@ const SETTLING_MS = 5_000;
 export function createExecutionRecorder(
   recording: ExecutionRecording = {},
   wire?: Wire,
+  standing?: () => PreconditionStanding,
 ): ExecutionRecorder {
   const start = resolve(recording.root ?? process.cwd());
   const root = repositoryRoot(start);
+  // What each case said it arranged, where a runner says where a call stands:
+  // taken when the case is marked, which is after its `afterEach` ran.
+  const listener = standing === undefined ? undefined : listenForPreconditions(root, standing);
+  const heard = new Map<string, NonNullable<ObservedCase['said']>>();
   const owners = new Map<string, Accumulated>();
   // Kept beside the owners rather than derived from them: a case is a window
   // inside a file's window, and both are wanted whole. The key carries all
@@ -279,8 +286,14 @@ export function createExecutionRecorder(
     mark: (owner, complete, subject, duration) => {
       if (duration !== undefined) add(owner, duration);
       if (subject !== undefined) {
-        const key = `${owner}\u0000${subject.id}`;
+        const key = caseKey(owner, subject.id);
         if (duration !== undefined) add(key, duration);
+        const said = listener?.take(key) ?? [];
+        if (said.length > 0) {
+          heard.set(key, [...(heard.get(key) ?? []), ...said]);
+          // A case that only said something is still a case.
+          caseOf(owner, subject);
+        }
         stopped.set(key, stopped.get(key) === false ? false : !complete);
         // A case that stopped before the page had anything to drain is still a
         // case, and the one a reader most needs to hear about.
@@ -301,6 +314,7 @@ export function createExecutionRecorder(
 
     close: async () => {
       try {
+        listener?.close();
         await settled();
         await contribute();
       } finally {
@@ -368,8 +382,10 @@ export function createExecutionRecorder(
       const settled = stopped.get(key);
       const duration = spent.get(key);
       const eyes = looked.get(key);
+      const said = listener === undefined ? undefined : (heard.get(key) ?? []);
       return {
         ...held.of,
+        ...(said === undefined ? {} : { said }),
         ...(settled === undefined ? {} : { stopped: settled }),
         ...(duration === undefined ? {} : { duration }),
         ...(eyes === undefined ? {} : { eyes }),
