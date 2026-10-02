@@ -25,27 +25,34 @@ afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 
-/** Each module's regions as kind, name and the test files that entered it, in ordinal order. */
+/** Each module's regions as ordinal, owner, kind, name and the test files that entered it, in ordinal order. */
 async function regionsAt(dir: string) {
   const coverage = await readTestCoverage(testCoverageFile(dir, { suite: 'unit' }));
-  return coverage.modules.map((module) => [module.file, module.blocks.map((block) => [block.kind, block.name, block.testFiles])]);
+  return coverage.modules.map((module) => [
+    module.file,
+    module.blocks.map((block) => [block.ordinal, block.owner, block.kind, block.name, block.testFiles]),
+  ]);
 }
+
+/** `src/total.ts` as a run records it: the module region, and `applyDiscount` inside it. */
+const TOTAL_REGIONS = [
+  ['src/total.ts', [
+    [0, undefined, 'module', '', ['test/total.test.ts']],
+    [1, 0, 'function', 'applyDiscount', ['test/total.test.ts']],
+  ]],
+];
 
 describe('the mainline fixture\'s records', () => {
   it('reads whole the record CI makes, its module opening on a module region that holds `applyDiscount`', async () => {
     const { dir } = await published(home, { publish: false });
 
-    expect(await regionsAt(dir)).toEqual([
-      ['src/total.ts', [['module', '', ['test/total.test.ts']], ['function', 'applyDiscount', ['test/total.test.ts']]]],
-    ]);
+    expect(await regionsAt(dir)).toEqual(TOTAL_REGIONS);
   });
 
   it('reads whole the record a run over a change makes', async () => {
     const { dir } = await published(home, { publish: false });
     await ranHere(dir, 'b'.repeat(40));
 
-    expect(await regionsAt(dir)).toEqual([
-      ['src/total.ts', [['module', '', ['test/total.test.ts']], ['function', 'applyDiscount', ['test/total.test.ts']]]],
-    ]);
+    expect(await regionsAt(dir)).toEqual(TOTAL_REGIONS);
   });
 });
