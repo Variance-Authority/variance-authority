@@ -118,9 +118,7 @@ function regionLines(modules: readonly EnteredModule[]): readonly string[] {
       ? ['  measured empty']
       : loaded.flatMap((module) => [
           `  ${module.file} — the import ran its top level and this test covered nothing below it`,
-          ...(module.unentered.length === 0 ? [] : [
-            `    never covered: ${module.unentered.map(named).join(', ')}`,
-          ]),
+          `    never covered: ${module.unentered.map(named).join(', ')}`,
           `    substitution to try: vi.mock('${module.file}') — jest.mock and sb.mock say the same thing`,
         ])),
     ...(partial.length === 0 ? [] : [
