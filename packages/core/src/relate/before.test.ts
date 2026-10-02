@@ -9,15 +9,13 @@ import { beforeReach, changedBefore, relationsOfFiles, within, type FileRecord }
  * run over a surface nobody looked at. Too wide only costs time, and every case
  * here that could go either way is asserted in that direction.
  *
- * `vitest.config.ts` loads `test/setup.ts`, which loads a fixture and rests on
- * `jest-environment-jsdom`; the install says that package rests on `jsdom`. The
- * setup also imports `src/theme.ts`, which the component scan already holds.
+ * `vitest.config.ts` loads `test/setup.ts`, which loads a fixture and
+ * `src/theme.ts`, a file the component scan already holds.
  */
 const SUITE: readonly FileRecord[] = [
   {
     file: 'vitest.config.ts',
     edges: [{ to: 'test/setup.ts', kind: 'imports' }],
-    packages: [{ to: 'jest-environment-jsdom', kind: 'imports' }],
   },
   {
     file: 'test/setup.ts',
@@ -34,7 +32,7 @@ const SUITE: readonly FileRecord[] = [
   { file: 'src/Button.tsx', declares: ['Button'], edges: [{ to: 'src/theme.ts', kind: 'imports' }] },
 ];
 
-const RELATIONS = relationsOfFiles(SUITE, { depends: [['jest-environment-jsdom', 'jsdom']] });
+const RELATIONS = relationsOfFiles(SUITE);
 
 describe('what a run rests on', () => {
   it('walks down from a declared entry point and collects what it loads', () => {
@@ -42,14 +40,6 @@ describe('what a run rests on', () => {
 
     expect([...before.files].sort()).toEqual(['test/fixtures.ts', 'test/setup.ts', 'vitest.config.ts']);
     expect(before.unread).toEqual([]);
-  });
-
-  it('carries into the package layer, transitively', () => {
-    const before = beforeReach(RELATIONS, ['vitest.config.ts'], { sensed: ['src'] });
-
-    // The mixed case in one line: no file in the repository writes the word
-    // `jsdom`, and a bump of it moves the environment the whole suite runs in.
-    expect([...before.packages].sort()).toEqual(['jest-environment-jsdom', 'jsdom']);
   });
 
   it('stops at the first file the scan already answers for', () => {
@@ -103,7 +93,6 @@ describe('what a run rests on', () => {
     const before = beforeReach(RELATIONS, []);
 
     expect([...before.files]).toEqual([]);
-    expect([...before.packages]).toEqual([]);
   });
 });
 
@@ -118,12 +107,8 @@ describe('what a diff changed before reach', () => {
     expect(changedBefore(before, ['.github/workflows/ci.yml'])).toEqual(['.github/workflows/ci.yml']);
   });
 
-  it('names a package the harness rests on, and leaves the rest of the install alone', () => {
-    expect(changedBefore(before, [], ['jsdom', 'react'])).toEqual(['jsdom']);
-  });
-
   it('is empty when the diff changed nothing the run rests on', () => {
-    expect(changedBefore(before, ['src/Button.tsx'], ['react'])).toEqual([]);
+    expect(changedBefore(before, ['src/Button.tsx'])).toEqual([]);
   });
 });
 

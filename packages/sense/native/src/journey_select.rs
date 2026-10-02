@@ -14,9 +14,8 @@
 //! runs, and module evaluation — the one box where a runner evaluates the real
 //! module to shape a mock — is the region's `loaded` flag, credited to no case
 //! and answered by the graph, which is where the mocks are.
-//! A package whose install moved changes no line, so it is answered by the
-//! graph: every test file whose imports reach it, and every case the record saw
-//! enter a module that does.
+//! A bumped package arrives as the files that import it, changed whole
+//! (`beyondReach`), and is answered as they are.
 //!
 //! Only the regions a change lands on have their sets expanded, and each test is
 //! looked at once per module, so the cost follows the change and not the day of
@@ -142,26 +141,12 @@ impl<'a> Selecting<'a> {
         }
         Ok(None)
     }
-
-    fn bumped(&mut self, name: &str) -> Result<(), String> {
-        let Some(files) = self.graph.as_ref().and_then(|graph| graph.package_importers(name)) else { return Ok(()) };
-        for file in files {
-            if let Some(test) = self.held.get(file).copied() {
-                self.entered.insert(test);
-            }
-            if let Some(module) = self.journey.module_of(file)? {
-                self.every_entrant(module)?;
-            }
-        }
-        Ok(())
-    }
 }
 
 fn select(
     file: &str,
     changed: &[JourneyChange],
     graph: Option<&JourneyGraph>,
-    packages: &[String],
 ) -> Result<JourneySelection, String> {
     let journey = Journey::open(file)?;
     let tests = journey.test_file_names()?;
@@ -181,9 +166,6 @@ fn select(
             unread.push(file);
         }
     }
-    for name in packages {
-        selecting.bumped(name)?;
-    }
     Ok(JourneySelection {
         whole: selecting.held.iter().map(|test| (*test).to_owned()).collect(),
         entered: selecting.entered.iter().map(|test| (*test).to_owned()).collect(),
@@ -192,14 +174,12 @@ fn select(
 }
 
 /// The test files `changed` needs, read off the journey file at `file` and,
-/// when given, the file graph; `packages` are the names whose install moved.
-/// Unsorted: the caller orders by code unit.
+/// when given, the file graph. Unsorted: the caller orders by code unit.
 #[napi(catch_unwind)]
 pub fn select_journeys(
     file: String,
     changed: Vec<JourneyChange>,
     graph: Option<JourneyGraph>,
-    packages: Option<Vec<String>>,
 ) -> napi::Result<JourneySelection> {
-    select(&file, &changed, graph.as_ref(), &packages.unwrap_or_default()).map_err(napi::Error::from_reason)
+    select(&file, &changed, graph.as_ref()).map_err(napi::Error::from_reason)
 }

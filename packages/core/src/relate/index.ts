@@ -36,6 +36,8 @@ export {
   type BeforeReachOptions,
 } from './before.js';
 
+export { beyondReach, type BeyondReach, type InstallMoved } from './beyond.js';
+
 export { type EdgeUse, type Uses } from './narrow.js';
 
 export {

@@ -57,17 +57,12 @@
  *
  * ## Where the two ends meet
  *
- * The same walk carries into the package layer, and that is the whole of the
- * mixed case. A setup imports `jest-environment-jsdom`, which rests on
- * `jsdom`; `jsdom` is bumped; the install comparison names it. It is a package
- * the harness reaches, so the run does not narrow — and no file in the
- * repository ever wrote the word. A change beyond reach, arriving before it.
- *
- * That cost is real and is the operator's to spend: a config that imports a
- * bundler reaches everything the bundler rests on, so a bump inside that set
- * widens. It is the correct answer — the harness did change — and a repository
- * that finds it too wide narrows what it declares rather than what this
- * concludes.
+ * Not here. A setup imports `jest-environment-jsdom`, which rests on `jsdom`;
+ * `jsdom` is bumped. [`beyond.ts`](./beyond.ts) reads that bump back into the
+ * file whose import rests on it, the setup, before this stage is asked, so the
+ * closure holds files alone and a bump the harness rests on arrives as the
+ * harness file it changed. No file in the repository ever wrote the word, and
+ * the run still does not narrow.
  */
 
 import { nodeAt, type NodeId, type Relations } from './graph.js';
@@ -85,8 +80,6 @@ export interface BeforeReach {
   readonly entries: readonly string[];
   /** Files below the entry points that the scan does not otherwise sense. */
   readonly files: ReadonlySet<string>;
-  /** Packages they rest on, direct and transitive. */
-  readonly packages: ReadonlySet<string>;
   /**
    * Declared entry points the graph does not hold, and so has no closure for.
    *
@@ -125,9 +118,8 @@ export function beforeReach(
   options: BeforeReachOptions = {},
 ): BeforeReach {
   const files = new Set<string>();
-  const packages = new Set<string>();
   const unread: string[] = [];
-  if (entries.length === 0) return { entries, files, packages, unread };
+  if (entries.length === 0) return { entries, files, unread };
 
   const sensed = options.sensed ?? [];
   const held = new Map<string, NodeId>();
@@ -150,7 +142,7 @@ export function beforeReach(
     if (under.length === 0) unread.push(entry);
     else for (const [, below] of under) seeds.push(below);
   }
-  if (seeds.length === 0) return { entries, files, packages, unread };
+  if (seeds.length === 0) return { entries, files, unread };
 
   // Avoided before the walk rather than filtered after it. A sensed file is not
   // a step on the way to something else here: whatever it imports, it imports
@@ -164,20 +156,15 @@ export function beforeReach(
 
   for (const id of dependenciesOf(relations, seeds, { avoid }).nodes) {
     const node = nodeAt(relations, id);
-    if (node === undefined) continue;
-    if (node.kind === 'file') files.add(node.name);
-    else if (node.kind === 'package') packages.add(node.name);
+    if (node?.kind === 'file') files.add(node.name);
   }
 
-  return { entries, files, packages, unread };
+  return { entries, files, unread };
 }
 
 /**
- * Which of a diff's own inputs the harness rests on, as they were named.
- *
- * Files and packages together and in that order, because the caller's next act
- * is to print them in one sentence and a reader does not care which list a name
- * came out of. Empty is a real answer: the diff changed nothing the run rests on.
+ * Which of a diff's changed files the harness rests on, as they were named.
+ * Empty is a real answer: the diff changed nothing the run rests on.
  *
  * A declared entry claims every path under it, so naming a directory of
  * workflows is one line of configuration rather than one per file. A file the
@@ -185,15 +172,8 @@ export function beforeReach(
  * widening it to its directory would put its neighbours before reach without
  * anybody saying they were.
  */
-export function changedBefore(
-  before: BeforeReach,
-  changed: readonly string[],
-  packages: readonly string[] = [],
-): readonly string[] {
-  return [
-    ...changed.filter((file) => before.files.has(file) || within(file, before.entries)),
-    ...packages.filter((name) => before.packages.has(name)),
-  ];
+export function changedBefore(before: BeforeReach, changed: readonly string[]): readonly string[] {
+  return changed.filter((file) => before.files.has(file) || within(file, before.entries));
 }
 
 /**

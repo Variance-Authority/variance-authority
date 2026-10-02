@@ -151,8 +151,10 @@ describe('selecting from a journey file', () => {
     writeFileSync(join(root, 'change.patch'), git('diff', 'HEAD~1', 'HEAD'));
     const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
     expect(said.out).toBe('');
-    expect(said.err).toContain('every suite here rests on deep');
+    expect(said.err).toContain('every suite here rests on test/setup.ts');
   });
+
+  it.todo('names the bump that moved the file the suite rests on — needs the chain `beyondReach` returns carried into the whole-run sentence');
 
   it('runs every test when a manifest that moved changes how the declared setup loads', async () => {
     root = await declaring({ before: ['test/setup.ts'] }, {

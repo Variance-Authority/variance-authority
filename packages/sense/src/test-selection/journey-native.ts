@@ -43,7 +43,7 @@ export async function selectJourneyFile(
   const select = native()?.selectJourneys;
   if (select === undefined || (await headerVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const graph = options.relations === undefined ? undefined : flatten(options.relations);
-  const selected = select(file, nativeChange(changed, options.read), graph, [...(options.packages ?? [])]);
+  const selected = select(file, nativeChange(changed, options.read), graph);
   return {
     whole: [...selected.whole].sort(codeUnitOrder),
     entered: [...selected.entered].sort(codeUnitOrder),

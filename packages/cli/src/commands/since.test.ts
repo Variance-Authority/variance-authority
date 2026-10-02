@@ -288,10 +288,10 @@ describe('narrowing a run to what a diff could have changed', () => {
 
     it('observes the subjects that entered an importer of a package the lockfile bumped', async () => {
       // The diff moved the lockfile and no line of source, so a journal read over
-      // the hunks alone reaches nobody. The bumped name is answered by the
-      // measured modules that import it, which needs the graph from the start.
+      // the hunks alone reaches nobody. The bump is read as the file that
+      // imports it, changed whole, and only the graph says which file that is.
       const lock = ['--- a/yarn.lock', '+++ b/yarn.lock', '@@ -1,1 +1,1 @@'].join('\n');
-      const asked: Array<readonly string[] | undefined> = [];
+      const asked: string[] = [];
 
       const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
         since: {
@@ -301,10 +301,10 @@ describe('narrowing a run to what a diff could have changed', () => {
           diff: lock,
         },
         scanSource: async () => SOURCE,
-        scanRelations: async () => relationsOfFiles([]),
-        readJourney: async (_diff, relations, packages) => {
-          asked.push(relations === undefined ? undefined : packages);
-          const answered = relations !== undefined && packages?.includes('left-pad') === true;
+        scanRelations: async () => relationsOfFiles([{ file: 'src/Button.tsx', packages: [{ to: 'left-pad', kind: 'imports' }] }]),
+        readJourney: async (diff, relations) => {
+          asked.push(relations === undefined ? 'no graph' : diff);
+          const answered = diff.includes('diff --git a/src/Button.tsx b/src/Button.tsx');
           return {
             whole: ['fixture:a', 'fixture:b'],
             entered: answered ? ['fixture:a'] : [],
@@ -315,7 +315,7 @@ describe('narrowing a run to what a diff could have changed', () => {
         },
       });
 
-      expect(asked).toEqual([['left-pad']]);
+      expect(asked).toHaveLength(1);
       expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
       // The comparison answered the lockfile, so the journal's silence about it
       // is not news.

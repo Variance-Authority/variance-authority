@@ -8,6 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { beyondReach } from '@variance-authority/core/relate';
 import {
   askPerStand,
   distanceByExecution,
@@ -18,7 +19,7 @@ import {
   withoutFiles,
 } from '@variance-authority/sense/test-selection';
 import { inSnapshotCoordinates } from './since-diff.mjs';
-import { isManifest, movedManifests, movedPackageFiles, movedPackages } from './since-graph.mjs';
+import { isManifest, movedManifests, movedPackages } from './since-graph.mjs';
 
 /**
  * The paths of one git answer asked with `-z`, as git wrote them. Without `-z`,
@@ -173,14 +174,18 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
     coverage.commit === undefined ? undefined : textAtRecording(root, consequential.filter((path) => byStem.has(stemOf(path))));
 
   const { relations, enumerated, named, faces } = await graph();
+  // The install each group stands on, read back into files: a bump is the files
+  // that import what rests on it, a moved manifest every file of its package.
   // Named with no hunk, each is every region it has, and a file with no row is
   // answered by its importers.
-  const packageFiles = (at) => (relations === undefined ? [] : movedPackageFiles(relations, manifestsAt.get(at)));
+  const installedAt = (at, packages) =>
+    relations === undefined ? [] : beyondReach(relations, { packages, moved: manifestsAt.get(at) }).files;
+  const beyondAt = new Map(groups.map((at) => [at, installedAt(at, movedAt.get(at) ?? [])]));
   if (manifests.length > 0) {
     say(
       `test:since: ${manifests.length} manifest(s) moved what the install does not read ` +
         `(${manifests.slice(0, 3).join(', ')}${manifests.length > 3 ? ', …' : ''}); ` +
-        `${new Set(groups.flatMap(packageFiles)).size} file(s) of their packages are read as changed whole.`,
+        `${new Set(groups.flatMap((at) => installedAt(at, []))).size} file(s) of their packages are read as changed whole.`,
     );
   }
   const options = {
@@ -193,14 +198,13 @@ export async function readChange({ root, git, diffOfNew, snapshotFile, coverage,
   };
   // Asked once per stand, each answer kept for that stand's tests; the files a
   // stand charges whole leave the hunk diff, so none is also read by its hunks,
-  // and each is charged the packages that moved since it ran.
+  // and each is charged the files the install moved under it since it ran.
   const { narrowing, distances } = await askPerStand(stands, (whole, stand) => {
-    const at = stand ?? base;
-    const moved = movedAt.get(at) ?? [];
+    const charged = [...new Set([...whole, ...beyondAt.get(stand ?? base)])];
     return distanceByExecution(
       snapshotFile,
-      inSnapshotCoordinates([withoutFiles(hunks, whole), ...[...whole, ...packageFiles(at)].map(wholeEntry)].join('\n'), byStem),
-      moved.length === 0 ? options : { ...options, packages: moved },
+      inSnapshotCoordinates([withoutFiles(hunks, charged), ...charged.map(wholeEntry)].join('\n'), byStem),
+      options,
     );
   });
 

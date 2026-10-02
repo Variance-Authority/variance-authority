@@ -73,37 +73,6 @@ export interface ExecutionNarrowingOptions {
    */
   readonly relations?: Relations;
   /**
-   * Packages whose installed version moved, by name.
-   *
-   * The far end of the same line. A bumped dependency is not a changed path —
-   * the lockfile that records it is one, and it is the wrong one: a workspace
-   * version rewrite repaints hundreds of its lines and moves no installed
-   * byte, while a transitive bump three levels down moves real code and may
-   * touch no line a diff would show as interesting. So the install is compared
-   * at the two revisions and what arrives here is the answer: these packages
-   * are not the packages that were there.
-   *
-   * A package has no row of its own — nothing instrumented `node_modules` —
-   * so it is answered the way an asset is, by walking to the files that import
-   * it. Unlike an asset that walk follows every runtime edge, because there is
-   * no row further along to be more precise than it: the question *which tests
-   * entered a module that imports this* is the whole of what the record can
-   * say. `type` edges are not walked, so `import type { Theme } from '@mui/material'`
-   * selects nothing on a `@mui/material` bump, which is right — the import is
-   * erased before anything runs.
-   *
-   * A name is never `unread`. One the graph does not hold is imported by
-   * nothing here, and one whose importers the record never measured is
-   * imported by nothing the suite ran: either way nothing it does can be
-   * observed here, and it selects nobody. Each measured importer answers for
-   * itself, however many beside it were never measured.
-   *
-   * Names, not instances. Which copy of a package a resolver handed a
-   * particular importer is not answerable without reproducing that resolver,
-   * and a selector that guessed would skip on the guess.
-   */
-  readonly packages?: readonly string[];
-  /**
    * Every name the snapshot may hold a graph file under. Identity when absent.
    *
    * A package's own tests load its `src`; every other package loads its built
@@ -211,8 +180,7 @@ export function answerByImporters(
   also: ReadonlySet<string> = new Set(),
 ): ImporterAnswer {
   const { relations } = options;
-  const moved = options.packages ?? [];
-  if (relations === undefined || (changed.length === 0 && moved.length === 0)) {
+  if (relations === undefined || changed.length === 0) {
     return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also]) };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
@@ -323,24 +291,6 @@ export function answerByImporters(
       importersUntil(relations, id, walk, (other, trail) =>
         read(other, trail.map((step) => relations.names[step]!), seed, file),
       );
-    }
-  }
-
-  // The same walk from the other end of the line. A package is a node like any
-  // other and carries no row, so what the record can say about a bump is what
-  // its importers say — and unlike an asset chain there is nothing further
-  // along to be more precise, so every runtime edge is followed. A name the
-  // graph does not hold reaches nothing: nothing here imports it.
-  for (const name of moved) {
-    const id = idOf(relations, 'package', name);
-    if (id === undefined) continue;
-    const traversal = dependentsOf(relations, [id]);
-    for (const other of traversal.nodes) {
-      // Packages the walk passed through on its way up from a transitive
-      // dependency, and the components a reached file declares: steps, not
-      // ends. Only a file can have been measured.
-      if (other === id || nodeAt(relations, other)?.kind !== 'file') continue;
-      read(other, trailOf(traversal, other).map((step) => relations.names[step]!), [name], undefined);
     }
   }
 

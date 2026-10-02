@@ -334,7 +334,6 @@ export async function runWith(
     readJourney?: (
       diff: string,
       relations?: Relations,
-      packages?: readonly string[],
     ) => Promise<ExecutionNarrowing | undefined>;
     readJourneys?: (subjects: readonly string[]) => Promise<JourneyReading>;
     shard?: Shard;

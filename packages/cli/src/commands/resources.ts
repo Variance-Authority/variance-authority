@@ -151,9 +151,8 @@ export function cacheOf(config: Pick<Config, 'cacheRoot'>): string {
  * With `relations`, a changed file the journal holds no row for is asked of
  * the graph: its importers, and theirs, until one is a test or has a row with
  * probes behind it. Without, that file stays `unread`, which keeps no subject
- * in the run and is named in its notes. `packages` are the names the install
- * comparison says moved, and they are answered by the measured files that
- * import them, so they are only heard when `relations` is given too.
+ * in the run and is named in its notes. A bumped package arrives in `diff` as
+ * the files that import it, changed whole.
  *
  * Every changed module is checked against the text it was recorded from before
  * its line ranges are read, because a snapshot is recorded by being *run* and a
@@ -170,7 +169,6 @@ export async function journeyAgainst(
   root: string,
   diff: string,
   relations?: Relations,
-  packages: readonly string[] = [],
   /** A snapshot somewhere other than this repository's cache — one named by `--execution`. */
   at?: string,
   checkout: string = root,
@@ -185,7 +183,6 @@ export async function journeyAgainst(
       keptText: selection.keptTexts(checkout),
       root,
       ...(relations === undefined ? {} : { relations }),
-      ...(packages.length === 0 ? {} : { packages }),
     });
   } catch (error) {
     if (isMissing(error)) return undefined;

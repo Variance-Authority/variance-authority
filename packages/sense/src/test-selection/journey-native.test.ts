@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { relationsOfFiles, type FileRecord, type Relations } from '@variance-authority/core/relate';
+import { beyondReach, relationsOfFiles, type FileRecord, type Relations } from '@variance-authority/core/relate';
 import { CrossingSets } from './crossing-sets.js';
 import type { LineRange } from './diff-lines.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -112,14 +112,20 @@ const BUMPS: readonly (readonly [string, readonly string[]])[] = [
   ['a package nothing names', ['nowhere']],
 ];
 
+/** A bump as the selector hears it: the files it changed, each changed whole. */
+function bumpedFiles(relations: Relations | undefined, packages: readonly string[]): Map<string, readonly LineRange[]> {
+  if (relations === undefined) return new Map();
+  return new Map(beyondReach(relations, { packages, moved: [] }).files.map((file) => [file, []]));
+}
+
 describe('selecting off a journey file in the addon', () => {
   const index = decodeExecutionIndex(readFileSync(FILE));
 
   for (const [graph, relations] of [['mocks', mocked], ['no mocks', plain], ['no graph', undefined]] as const) {
     for (const [what, packages] of BUMPS) {
       it(`answers ${what} bumped as narrowByJourneys does, with ${graph}`, async () => {
-        const options = { ...(relations === undefined ? {} : { relations: relations as Relations }), packages };
-        const changed = new Map<string, readonly LineRange[]>();
+        const options = relations === undefined ? {} : { relations: relations as Relations };
+        const changed = bumpedFiles(options.relations, packages);
         expect(await selectJourneyFile(FILE, changed, options)).toEqual(narrowByJourneys(index, changed, options));
       });
     }
@@ -127,7 +133,7 @@ describe('selecting off a journey file in the addon', () => {
 
   it('traces a bump through the install to the files importing it, and to every case the record saw enter one', async () => {
     const bumped = async (name: string) =>
-      (await selectJourneyFile(FILE, new Map(), { relations: mocked, packages: [name] }))?.entered;
+      (await selectJourneyFile(FILE, bumpedFiles(mocked, [name]), { relations: mocked }))?.entered;
     // `card.test.ts` reaches `http.ts` only through its mock of `api.ts`, and
     // one of its cases called `send` anyway: the call is the record's word.
     expect(await bumped('ky-core')).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);

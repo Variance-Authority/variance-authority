@@ -12,12 +12,12 @@
  *
  * Nothing is walked here that the graph does not already say. The chain is the
  * walk's own trail, the shortest one, which is the one `test:since` prints for
- * the tests it selects; the test files are the case index's answer to the same
- * package, asked through `narrowByJourneys`, which is how a selection over a
- * journey file hears a bump.
+ * the tests it selects; the test files are the case index's answer to the files
+ * the bump changed (`beyondReach`), each changed whole, asked through
+ * `narrowByJourneys`, which is how a selection over a journey file hears a bump.
  */
 
-import { affectedBy, EDGE_KINDS, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, beyondReach, EDGE_KINDS, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { narrowByJourneys, type ExecutionIndex } from '@variance-authority/sense/test-selection';
 import type { Review } from './review.js';
 
@@ -85,7 +85,8 @@ export function packagesReached(
     const imported = [...importers]
       .map(([id, by]) => ({ chain: chainOf(id), importers: by.sort(order) }))
       .sort((left, right) => left.chain.length - right.chain.length || order(left.chain.join('\0'), right.chain.join('\0')));
-    const tests = files.length === 0 ? [] : narrowByJourneys(index, new Map(), { relations, packages: [name] }).entered;
+    const changed = new Map(beyondReach(relations, { packages: [name], moved: [] }).files.map((file) => [file, []] as const));
+    const tests = changed.size === 0 ? [] : narrowByJourneys(index, changed, { relations }).entered;
     const running = new Set(tests);
     return { name, imported, files: files.filter((file) => !running.has(file)).length, tests };
   });
