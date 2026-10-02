@@ -247,8 +247,8 @@ jobs:
       # the ref is missing or does not read, the line says why and the run has
       # no base; nothing older is put in its place.
       #
-      # The case index sits beside the record as `<recording>.cases.bin`.
-      # Its presence enables selection; coverage reads the immutable mainline
+      # The case index is a section of the record, and `keepsCases` reads it
+      # off the header. Its presence enables selection; coverage reads the immutable mainline
       # snapshot through the share after the suite layers this change onto it.
       #
       # Every suite `variance.config.json` gives to the share is read, and
@@ -280,7 +280,11 @@ jobs:
               exit 1
             fi
             seen=$records
-            if [ -f "$recording.cases.bin" ]; then
+            cased=$(RECORDING="$recording" node --input-type=module -e "
+              const { keepsCases } = await import('@variance-authority/sense/test-selection');
+              process.stdout.write(String(keepsCases(process.env.RECORDING)));
+            ")
+            if [ "$cased" = true ]; then
               echo "based=true" >> "$GITHUB_OUTPUT"
             elif [ -f "$recording" ]; then
               echo "::notice::The $suite base record was read without its case index, so $suite has nothing to select from or compare with: it runs whole, and its coverage is printed without a comparison."
