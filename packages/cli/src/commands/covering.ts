@@ -58,6 +58,7 @@ import { hopsToTests, nearbyWitnesses, type Narrowing } from './covering-reach.j
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
+import { namesAt, twinsOf, whereCases, type CoveringTwin, type CoveringWhere } from './covering-where.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
@@ -118,6 +119,10 @@ export interface Covering {
   readonly from: string;
   /** Present under `--cases`: the cases the answer was read from, which are not the suite. */
   readonly scope?: CoveringScope;
+  /** Under `--where`: how many cases said it, of how many, and what could not be read. */
+  readonly where?: CoveringWhere;
+  /** Under `--where` with `names.axes`: each listed case's twin one step toward the base. */
+  readonly twins?: readonly CoveringTwin[];
   /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
   readonly motion?: CoveringMotion;
   /** The commit the record stands at, when it says. The diff is measured from it. */
@@ -148,14 +153,25 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   let scope: CoveringScope | undefined;
   let full: ExecutionIndex | undefined;
   let whole: ExecutionIndex | undefined;
-  const answer = await ask(request, async (from, changed) => {
+  let where: CoveringWhere | undefined;
+  const names = request.where === undefined ? undefined : await namesAt(request.root);
+  const reader = (narrow: boolean): IndexReader => async (from, changed) => {
     const read = await readIndex(from, changed);
     whole = read.index;
-    if (request.cases === undefined) return read;
-    const cut = await scopeCases((full = read.index), from, request.cases, request.root);
-    scope = cut.scope;
-    return { index: cut.index, files: read.files };
-  });
+    let index = read.index;
+    if (request.cases !== undefined) {
+      ({ index, scope } = await scopeCases((full = read.index), from, request.cases, request.root));
+    }
+    if (!narrow || request.where === undefined) return { index, files: read.files };
+    const kept = whereCases(index, request.where, names);
+    where = kept.where;
+    return { index: kept.index, files: read.files };
+  };
+  const answer = await ask(request, reader(true));
+  // The twin is looked up among every case the question reached before `--where` narrowed it.
+  const twins = names === undefined || answer.tests === undefined
+    ? undefined
+    : twinsOf(answer.tests, (await ask(request, reader(false))).tests ?? [], names);
   const motion = await motionFor(request, answer.from, scope, full);
   const files = answer.tests === undefined || whole === undefined
     ? undefined
@@ -166,6 +182,8 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     ...answer,
     ...(files === undefined ? {} : { files }),
     ...(scope === undefined ? {} : { scope }),
+    ...(where === undefined ? {} : { where }),
+    ...(twins === undefined || twins.length === 0 ? {} : { twins }),
     ...(motion === undefined ? {} : { motion }),
   };
 }

@@ -15,13 +15,14 @@ import type { CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { formatCoveringRefs } from './covering-refs.js';
+import { heldText, twinText, whereText, type CoveringTwin } from './covering-where.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
 /** Say the answer in the shape the caller asked for. */
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...scopeText(answer), text(answer), ...motionText(answer.motion)].join('\n')}\n`;
+  return `${[...scopeText(answer), ...whereText(answer.where), text(answer), ...motionText(answer.motion)].join('\n')}\n`;
 }
 
 function text(answer: Covering): string {
@@ -43,7 +44,7 @@ function text(answer: Covering): string {
     `${tests.length} named test${tests.length === 1 ? '' : 's'} covered ${where} of ${answer.file}${
       answer.state === 'alone' ? ', and it is the only case that could have' : ''
     }:`,
-    ...caseLines(tests, '  ', answer.files),
+    ...caseLines(tests, '  ', answer.files, answer.twins),
     ...legend(tests),
     ...narrowedText(answer),
   ].join('\n');
@@ -163,6 +164,8 @@ export function narrowedText(answer: Covering): readonly string[] {
  * index was read from, and the commit it stands at.
  */
 function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
+  // FIXME: the case lines print no preconditions or twins here, where refs and
+  // json carry them — needs `formatCoveringChange` to take what a case said.
   return formatCoveringChange(changed, {
     ...(answer.since === undefined ? {} : { since: answer.since }),
     from: answer.from,
@@ -185,7 +188,10 @@ function caseLines(
   tests: readonly CoveringTest[],
   indent: string,
   files: readonly CoveringFile[] = [],
+  twins: readonly CoveringTwin[] = [],
 ): readonly string[] {
+  const twinOf = new Map(twins.map((twin) => [twin.case, twin]));
+  const names = new Map(tests.map((test) => [test.id, caseName(test)]));
   const byFile = new Map<string, CoveringTest[]>(files.map((row) => [row.file, []]));
   for (const test of tests) {
     const held = byFile.get(test.file);
@@ -195,7 +201,13 @@ function caseLines(
   const rows = new Map(files.map((row) => [row.file, row]));
   return [...byFile].flatMap(([file, cases]) => [
     `${indent}${file}${fileCount(rows.get(file))}`,
-    ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}`),
+    ...cases.flatMap((test) => {
+      const twin = twinOf.get(test.id);
+      return [
+        `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test.preconditions)}`,
+        ...twin === undefined ? [] : [twinText(twin, (id) => names.get(id) ?? id.slice(id.indexOf(' > ') + 3), `${indent}    `)],
+      ];
+    }),
   ]);
 }
 

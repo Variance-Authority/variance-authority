@@ -147,7 +147,7 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
@@ -539,6 +539,41 @@ src/checkout/total.test.ts no longer enters applyDiscount in src/checkout/total.
 ```
 
 The words are the ones `--against` uses below.
+
+#### Reading the cases that arranged a state
+
+A case that says what it arranged with
+[`variancePrecondition`](../sense#name-what-a-case-arranged) carries it on its
+row, and every case `covering` lists prints it with the call that said it.
+`--where` keeps the cases that said it, in every form of the question:
+
+```bash
+variance covering --file src/checkout/total.ts --line 48 --where network=mocked
+```
+
+```text
+Kept the 2 of 6 cases that said network=mocked.
+2 named tests covered line 48 of src/checkout/total.ts:
+  src/checkout/total.test.ts — 2/6
+    pays — network=mocked (src/checkout/total.test.ts:12)
+    refunds behind a flag — flag=ff-on (src/checkout/total.test.ts:31), network=mocked (src/checkout/total.test.ts:12)
+      twin at flag=ff-off: refunds
+```
+
+`--where network` keeps every value of `network`, and every repeated `--where`
+must hold. Two values said at one level print as a contradiction, and match a
+`--where` naming either. A record made before cases said anything answers
+`unmeasured` rather than an empty list, and a case nobody listened to is counted
+apart from the cases that said nothing.
+
+When `names.axes` in `variance.config.json` declares the name, the value is
+read on that axis. `values[0]` is the base, and a case that never said the name
+stands at it, so `--where flag=ff-off` keeps it. A value outside the axis is
+printed by name with its site, and kept. Beside each case is its twin: the case
+one step toward the base on its last declared axis, holding every other
+precondition the same, looked up among every case the question reached before
+`--where` narrowed it. Several twins are printed with their count, and none as
+`no twin recorded`.
 
 #### Asking about the text you hold
 

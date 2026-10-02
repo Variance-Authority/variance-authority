@@ -36,6 +36,10 @@ type Recorder = (named: unknown, value: unknown, called: Error) => void;
 export function variancePrecondition(name: string, value?: PreconditionValue): void;
 /** Say several preconditions at once: `{ flag: 'ff-on', colour: 'green' }`. */
 export function variancePrecondition(preconditions: Readonly<Record<string, PreconditionValue>>): void;
+/**
+ * Hand the call to the recording's listener, with an error whose stack names
+ * the call site; without a recording, return.
+ */
 export function variancePrecondition(
   named: string | Readonly<Record<string, PreconditionValue>>,
   value?: PreconditionValue,

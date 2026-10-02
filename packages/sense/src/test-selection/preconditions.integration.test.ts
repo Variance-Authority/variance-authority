@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { decodeExecutionIndex } from './execution-format.js';
-import type { CasePrecondition, ExecutionIndex } from './reverse.js';
+import type { CasePrecondition } from './case-precondition-column.js';
+import type { ExecutionIndex } from './reverse.js';
 
 // One test file per runner says the same things from the same places — a file
 // default, a describe-scoped `beforeEach`, a describe callback, a `beforeAll`

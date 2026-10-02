@@ -28,6 +28,13 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\npackages/playwright-test preconditions: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
+
 describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its preconditions', () => {
   let directory: string;
   let index: ExecutionIndex;

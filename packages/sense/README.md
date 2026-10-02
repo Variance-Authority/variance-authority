@@ -1894,6 +1894,48 @@ produced 28.8 MB of the JSON above against a 681 KB snapshot. The index answers
 a coding agent asking which five of two hundred cases walked the branch you just
 changed; selecting test files over every region there is reads the snapshot.
 
+### Name what a case arranged
+
+A case that mocks the network, turns a flag on or seeds a cart leaves no trace
+of it in the code it ran. Say it, and the state lands on the case's row in the
+`cases` section, with the `file:line` of the call that said it:
+
+```ts
+import { variancePrecondition } from '@variance-authority/sense/precondition';
+
+beforeEach(() => {
+  variancePrecondition('network', 'mocked');
+});
+
+it('refunds behind a flag', () => {
+  variancePrecondition({ flag: 'ff-on' });
+  // …
+});
+```
+
+Said in a case body, it is that case's. Said in a `beforeEach`, it reaches the
+cases that hook ran for and no sibling `describe`. A narrower scope overrides
+a wider one, and two values said at one level are kept as a contradiction, not
+resolved. A call in `afterEach` is reported with its site and lands on no case.
+`variancePrecondition('seeded')` holds `true`.
+
+The entry imports nothing. Without a recording the call is one property read
+and does nothing, in Node and in a page. A row says `preconditions: []` for a
+case that was listened to and said nothing, and has no `preconditions` for a
+case nobody listened to. A named precondition never selects or excludes a
+test: nothing in a checkout changes it, so it is read and never diffed.
+
+Vitest, Jest and Rstest hear a call wherever a case scope exists, `describe`
+callbacks and the file's top level included. Under Playwright, the body and a
+`beforeEach` are heard; a call in a `beforeAll` is reported and lands on no
+case, and one in a `describe` callback or at the file's top level is not
+heard. A seam that drives its own recorder calls `listenForPreconditions(root,
+standing)` from `@variance-authority/sense/journal`, where `standing` says
+which case a call stands in at the moment it is made.
+
+`variance covering --where network=mocked` keeps the cases that said it — see
+[`variance covering`](../cli#reading-the-cases-that-arranged-a-state).
+
 ### Ask the index about a diff
 
 `coveringChange` joins changed lines to the cases that went there, and
@@ -1967,6 +2009,7 @@ same under every host:
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^2.1.9` and product tests |
 | `@variance-authority/sense/jest` | the same around the transformer your project already uses | Jest 30 and product tests |
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
+| `@variance-authority/sense/precondition` | `variancePrecondition`, to say what state the running case arranged | nothing; a call outside a recording does nothing |
 | `@variance-authority/sense/case-journey` | the running case's journey id, to put on a request to a service | a case recorded by `withJourneyCoverage` |
 | `@variance-authority/sense/rstest` | the same as an Rspack loader and a reporter, for a suite Rstest bundles | Rstest `^0.12.0` and product tests |
 | `@variance-authority/sense/rstest-loader` | the loader `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |

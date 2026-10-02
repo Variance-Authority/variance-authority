@@ -3,7 +3,18 @@ import { fileURLToPath } from 'node:url';
 import preconditions from './case-preconditions.cjs';
 import { column, type Stored } from './format-layout.js';
 import { projectPath } from './instrumented-modules.js';
-import type { CasePrecondition, ExecutionTest } from './reverse.js';
+import type { ExecutionTest } from './reverse.js';
+
+/**
+ * One precondition a case named: what it said, and the call that said it. Two
+ * under one name on a row are a contradiction the case said.
+ */
+export interface CasePrecondition {
+  readonly name: string;
+  readonly value: string | number | boolean;
+  /** The repository-relative `file:line` of the call. */
+  readonly site: string;
+}
 
 /** What a frame owner carries: the calls as the realm heard them. */
 export type Said = NonNullable<ReturnType<typeof preconditions.saidOf>>;
