@@ -79,6 +79,20 @@ export async function landJourneys(
   } catch (error) {
     throw new OperatorError(messageOf(error), { cause: error });
   }
+  // A shard that measured nothing names its commit in the run that laid its
+  // cases, and is held to the fold's rule: one run, one commit. One that names
+  // none, as a record that crossed a checkout does, disagrees with nobody.
+  const named = read.flatMap(({ path, coverage }) => {
+    const commit = coverage?.commit ?? selection.lastCaseRunOf(selection.caseSectionsAt(path))?.commit;
+    return commit === undefined ? [] : [{ path, commit }];
+  });
+  const other = named.find((shard) => shard.commit !== named[0]!.commit);
+  if (other !== undefined) {
+    throw new OperatorError(
+      `${named[0]!.path} and ${other.path} disagree about the commit (\`${named[0]!.commit}\` against ` +
+        `\`${other.commit}\`), so they are not shards of one run and cannot be folded into one.`,
+    );
+  }
 
   // A checkout's first landing starts from the base its first `yarn test`
   // would: the mainline's record as last fetched here, else the primary

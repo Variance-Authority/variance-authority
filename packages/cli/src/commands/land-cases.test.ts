@@ -104,8 +104,8 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
    * as its cases, and instrumented nothing: the record its seam writes, the
    * cases and the run that laid them, and no coverage.
    */
-  async function uncoveredShard(commit: string, index: Uint8Array): Promise<string> {
-    const shard = join(home, 'shard-uncovered.bin');
+  async function uncoveredShard(commit: string, index: Uint8Array, name = 'shard-uncovered.bin'): Promise<string> {
+    const shard = join(home, name);
     const last = { commit, at: '2026-01-01T00:00:00.000Z', files: ['test/total.test.ts'], began: true, cases: [] };
     await writeFile(shard, recordOfCases({ index, last: Buffer.from(JSON.stringify(last)) }));
     expect(withoutCoverage(shard)).toBe(true);
@@ -175,6 +175,20 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     const landed = await landJourneys(dir, [shard], record);
 
     expect(landed.cases).toEqual({ laid: record, shards: 0 });
+    expect(await readFile(record)).toEqual(before);
+  });
+
+  it('refuses shards whose runs name different commits, as a fold of measured ones does, and writes nothing', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const before = await readFile(record);
+    const index = caseSectionsAt(record).index!;
+    const at = await uncoveredShard(first, index, 'shard-a.bin');
+    const other = await uncoveredShard('b'.repeat(40), index, 'shard-b.bin');
+
+    await expect(landJourneys(dir, [at, other], record)).rejects.toThrow(
+      `${at} and ${other} disagree about the commit (\`${first}\` against \`${'b'.repeat(40)}\`), so they are not shards of one run and cannot be folded into one.`,
+    );
     expect(await readFile(record)).toEqual(before);
   });
 
