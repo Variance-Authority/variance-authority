@@ -5,7 +5,13 @@ import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { instrument, type InstrumentMode } from '../instrument/index.js';
 import { priorMap, type TransformingContext } from './probes.js';
-import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
+import {
+  cleanId,
+  defaultInclude,
+  projectPath,
+  recordedReading,
+  type CapturedModule,
+} from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame } from './source-lines.js';
 import {
@@ -271,7 +277,7 @@ function selectionPlugin(
   declared: readonly string[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
 ): VitePlugin {
-  const { modules } = run;
+  const { modules, readings } = run;
   let closing: Promise<void> | undefined;
   return {
     name: 'variance-authority:test-selection',
@@ -341,19 +347,20 @@ function selectionPlugin(
       const name = projectPath(root, wrote);
       const moduleId = name;
       const done = instrument(code, name, moduleId, { mode });
-      if (done === undefined) {
-        modules.set(moduleId, { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] });
-        return null;
-      }
-
-      modules.set(moduleId, {
-        file: name,
-        id: moduleId,
-        sourceDigest,
-        instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
-      });
-      return { code: done.code, map: null };
+      // A source and its build both answer to the name: see `recordedReading`.
+      const held = readings.get(name) ?? new Map<string, CapturedModule>();
+      readings.set(name, held);
+      held.set(projectPath(root, file), done === undefined
+        ? { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] }
+        : {
+            file: name,
+            id: moduleId,
+            sourceDigest,
+            instrumented: true,
+            blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+          });
+      modules.set(moduleId, recordedReading(name, held));
+      return done === undefined ? null : { code: done.code, map: null };
     },
   };
 }
