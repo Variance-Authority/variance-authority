@@ -290,6 +290,29 @@ describe('the bounded case fold', () => {
     expect((await readFile(resolve(cases, 'journeys.bin'))).byteLength).toBe(folded.bytes.byteLength);
   }, 30_000);
 
+  it.runIf(nativeAvailable())('steps over the Eyes frames beside the case frames of a Jest journey artifact, as the object fold does', async () => {
+    const cases = await directory();
+    const owner = preconditions.packSaid(packCase('/repo/test/pay.test.ts', 'pays', '1'), [
+      ['network', 'mocked', '/repo/test/pay.test.ts:9', preconditions.CASE_LEVEL],
+    ]);
+    await writeFile(resolve(cases, 'a.vac'), packFrames([
+      eyesFrames.encodeEyesFrame({ case: owner, attempt: 1 }),
+      journalFormat.encodeJournal(owner, new Map([['src/pay.ts', counters(2, [1])]])),
+      eyesFrames.encodeEyesFrame({ case: owner, attempt: 1, journal: { steps: ['act'] } }),
+    ]));
+    const output = resolve(cases, '..', 'journeys.bin');
+
+    native()!.foldJourneyTo!(cases, '/repo', [], 'sense:instrument/presence-v5', output);
+    const answered = decodeExecutionIndex(await readFile(output));
+    const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map(), 64)).bytes);
+
+    const row = (index: typeof folded) => index.tests.map((test) => [test.id, test.preconditions]);
+    expect(row(answered)).toEqual(row(folded));
+    expect(row(answered)).toEqual([
+      ['test/pay.test.ts > pays', [{ name: 'network', value: 'mocked', site: 'test/pay.test.ts:9', level: preconditions.CASE_LEVEL }]],
+    ]);
+  });
+
   it.runIf(nativeAvailable())('agrees with the native compressed fold', async () => {
     const cases = await directory();
     const store = resolve(cases, '..', 'store');
