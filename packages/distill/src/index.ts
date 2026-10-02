@@ -9,6 +9,7 @@ import type {
   ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 import { attribute } from './attribution.js';
+import { caseOf } from './case.js';
 
 type Phase = EyesPhase | 'unphased';
 type OwnerPath = Extract<TargetSnapshot['provenance'], { status: 'resolved' }>['provenance']['owners'];
@@ -25,8 +26,14 @@ export interface EyesAttempt {
 }
 
 export interface DistillInput {
-  /** The case id, exactly as the record's case index spells it. */
-  readonly test: string;
+  /**
+   * The case to read: its id as the record's case index spells it, its exact
+   * title, or a part of the title only one case has. Absent, `file` has to name
+   * a file with one case.
+   */
+  readonly test?: string;
+  /** A part of the path of the file that declares the case, which narrows `test`. */
+  readonly file?: string;
   /** The record's case index: the cases, and the regions each one crossed. */
   readonly execution: ExecutionIndex;
   /**
@@ -166,25 +173,17 @@ export { parseExecutionIndex } from './execution-json.js';
 const PHASES = ['unphased', 'arrange', 'act', 'assert'] as const;
 
 /**
- * How many recorded ids a refusal shows.
- *
- * Enough for a reader to see the shape their own id should have had, and few
- * enough that an index of four thousand cases does not answer with four
- * thousand lines.
- */
-const AVAILABLE_SHOWN = 5;
-
-/**
  * Distil one case's record into deterministic reduction opportunities.
  *
- * The case is found by its exact id and nothing else: a title or a file is not
- * a case, and an id the index does not hold is refused with the ids it does.
+ * The case is found in the record's case index alone, by id, title or file, and
+ * everything else is read by the id found there: no journal or region is joined
+ * to a case by its title. A question no case fits is refused with the ids the
+ * index holds, and one that more than one case fits with theirs.
  * Each attempt is read on its own, and a file any attempt addressed counts as
  * addressed, so a retry that touched a component is never told it could lose it.
  */
 export function distill(input: DistillInput): Distillation {
-  const test = input.execution.tests.findIndex((candidate) => candidate.id === input.test);
-  if (test < 0) throw new Error(unresolved(input.execution, input.test));
+  const test = caseOf(input);
   const identity = input.execution.tests[test]!;
   const attempts = input.eyes
     ?.filter((row) => row.case === identity.id)
@@ -209,26 +208,6 @@ export function distill(input: DistillInput): Distillation {
       input.watched === undefined || input.watched.includes(identity.id),
     ),
   };
-}
-
-/**
- * The refusal for an id the index does not hold, showing the ids it does.
- *
- * Naming only the missing id leaves nothing to compare it against, and the
- * usual cause is an id spelled some other way. A handful of recorded ids shows
- * the shape in one glance, and an index of thousands answers in a few lines.
- */
-function unresolved(index: ExecutionIndex, asked: string): string {
-  const total = index.tests.length;
-  if (total === 0) return `The record holds no case with id ${asked}: it records no cases at all.`;
-  const shown = index.tests.slice(0, AVAILABLE_SHOWN).map((candidate) => `  ${candidate.id}`);
-  return [
-    `The record holds no case with id ${asked}. No title or file join was guessed.`,
-    `It records ${total} case id(s), of which:`,
-    ...shown,
-    ...(total > shown.length ? [`  and ${total - shown.length} more.`] : []),
-    'A case id is `<repository-relative file> > <describe path and name>`, exactly.',
-  ].join('\n');
 }
 
 function attentionOf(attempt: number, test: EyesJournal): AttemptAttention {
