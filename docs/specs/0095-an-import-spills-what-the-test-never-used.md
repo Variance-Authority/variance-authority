@@ -1,0 +1,146 @@
+# Spec 0095 — an import spills what the test never used
+
+**Missing:** nothing names the import that made a test file load code its tests
+never used. `variance distill` lists the files one test loaded and never called
+into, and proposes mocking each of them by its own path. The path is usually a
+file deep behind the test's own imports, reached through a barrel, so the
+proposal is unreadable as a cause and wrong as a fix: a test that mocks a file
+its own code never names has taken a dependency on an internal.
+**Built on:** the test-selection recording, which keeps a load apart from an
+execution per declaration
+([spec 0027](0027-a-test-is-selected-by-what-it-executed.md)); `scanRelations`
+in `@variance-authority/sense` and the `Relations` built from it, with runtime
+edges and mock shadows; distill's `loadedOnly`, which needs a declaration the
+test never executed; and the dominator pass of
+[spec 0092](0092-a-choke-point-is-read-twice.md).
+
+## Purpose
+
+A test that writes `import { Button } from '@app/ui'` meant one component. If
+`@app/ui` is a barrel, evaluating it evaluates every file it re-exports, and
+everything those files import. The test file pays for loading all of it on
+every run, and an edit to the top level of any of it selects the file's tests.
+Nothing in the test says so, and nothing in a report does either: the cost
+arrives as a long list of files with no import of the test's own at the head of
+it.
+
+The fix is decided at an import someone wrote:
+
+- **Delete the import, or mock it**, when nothing behind it is used. An import
+  kept for its side effects is mocked with a factory; an automock loads the real
+  module to read its shape and saves nothing.
+- **Split the barrel and depend on what is needed**, when something behind it
+  is used, so the import that brings `Button` stops bringing everything else.
+
+The reading is deterministic and cheap. It reads the recording and the import
+graph a run already left, runs no test, needs no Eyes journal and no browser,
+and gives the same answer every time it is asked of the same record.
+
+## Definition
+
+The unit is the test file. A runner evaluates a module once per test file, when
+it collects the file, so a load belongs to the file and not to any one of its
+cases. For a test file F:
+
+- **Used** files are F itself and every file in which any case of F executed a
+  declaration below the top level.
+- **Weight** is every file F loaded that declares something below its top level
+  and in which no case of F executed any of it.
+- A file that declares nothing below its top level is never weight. A barrel, a
+  file of constants, a polyfill or a registry runs everything it has when it is
+  loaded, and a read of a constant is not recorded, so the recording cannot say
+  F did without it. Such a file passes weight through and is not proposed for
+  removal.
+
+Loads come from the recording, never from the graph alone: a transform that
+defers re-exports, such as a lazy CommonJS mode, loads less than the graph
+says. The graph is used only to attribute what was loaded, read by request
+rather than by name, because a barrel evaluates all of its re-exports whichever
+name was asked for. Spec 0092 sees a barrel through by name; the difference
+between the two readings is the spill.
+
+### Attribution
+
+An import, as its importer wrote it, **owns** a weight file when every runtime
+path from F to that file passes through it: the dominator relation of spec
+0092, rooted at F, with mocks with a factory cutting their edge. An owned file
+is freed by removing the import that owns it, so an import's size is what a fix
+would save. Weight that no single import owns, because two imports reach it, is
+reported once as **shared**, with the imports that reach it, and counted to
+none of them.
+
+| Owning import | Reading | Proposal |
+|---|---|---|
+| In F, with only weight behind it | **A dead import.** F loaded everything behind it and used none of it. | Delete it, or mock it with a factory if it is there for its side effects. |
+| In F or a used file, with a barrel behind it that leads to used and weight files | **A barrel spill.** F used some of what the barrel re-exports and loaded the rest. | Split the barrel into entries that name what F uses, and import from the entry. |
+| In a used file other than F | **An import F does not write.** A file F used imports something F never needed. | None at the test. The import is named with the file that writes it, as a fact about that file. |
+
+A spill is reported by its size, the files and lines it owns that F loaded and
+never executed, and by the number of other test files the same import spills
+into.
+
+### Least knowledge
+
+The boundary is the package. A proposal names only a specifier F already
+writes, a path inside the importer's own package, or an entry point another
+package declares. It never names a file inside another package by a path its
+`exports` do not declare, and it never proposes rewriting an import to such a
+path. A barrel spill whose only narrower import would cross that line proposes
+the split to the barrel's package, and F keeps its import until the entry
+exists.
+
+This replaces distill's proposal of `vi.mock('<loaded file>')` for each file
+loaded and not covered. The per-file reading stays as evidence, and the
+proposal moves to the import.
+
+### Absent is not empty
+
+- With no recording, the reading is **unmeasured**, never "no spill".
+- A weight file with no runtime path from F on the graph was loaded by
+  something the scan cannot see: a dynamic import, a harness file, a specifier
+  that is not a literal. It is named as **unseen**, owned by no import, and given
+  no proposal.
+- A mock with a factory cuts its edge, and nothing behind it is loaded. A mock
+  that did not take is `auditTaints`' finding, not this one's.
+
+## Where it is read
+
+- **Its own question, for one test file and for the suite.** For one file it
+  lists the spilling imports, each with its line, the barrel on its path, and
+  the weight it owns, largest first. For the suite it ranks imports and barrels
+  by the weight they spill and the test files they spill into: the barrel that
+  puts four thousand unused lines into two hundred test files is the first line
+  of the answer.
+- **In `variance distill`**, which heads its loaded-but-not-covered reading with
+  the spilling imports of the test's file, in place of a proposal per loaded
+  file.
+
+## The slower reading
+
+In a React codebase, executed is not the same as needed. A component rendered
+by the tree runs its function whether the test addresses it or not, so the
+recording reports it used. Telling the components a test works with from the
+ones it only renders needs the Eyes journal joined to the same case, which is
+[0054](0054-eyes-attention-is-read-as-test-steps.md). It is a second reading on
+top of this one, per case rather than per file, and is not part of this spec.
+
+## What would discharge it
+
+1. Weight per test file from the recording, with the top-level-only rule.
+   Fixtures: a constants file, a polyfill, and a file whose declarations no case
+   in the file executed while one case in a second file did.
+2. Ownership over the runtime graph by request, rooted at the test file, with
+   factory mocks cutting. Fixtures for a dead import, a barrel spill, an import
+   the test file does not write, a diamond whose shared weight is counted to
+   neither import, a dynamic import read as unseen, and an automock that still
+   loads.
+3. The least-knowledge rule, with a fixture whose only narrower import is a path
+   into another package that its `exports` do not declare, so the proposal goes
+   to the barrel's package and none names the internal.
+4. Distill's proposal at the import in place of the loaded file, in text and in
+   `--format json`.
+5. The question for one file and for the suite, measured on this repository and
+   on the seven-MUI corpus, with its time stated against the time `covering`
+   takes on the same record. One test file answers in under a second.
+6. The public page: [`optimize-a-test.md`](../optimize-a-test.md) states the
+   reading and lands its terms before any output prints them.
