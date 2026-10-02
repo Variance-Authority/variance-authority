@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { parseExecutionIndex } from '@variance-authority/distill';
 import { OperatorError } from '../exit.js';
 import {
+  caseSectionsAt,
   decodeExecutionIndex,
   isEncodedExecutionIndex,
   keepsCases,
@@ -33,6 +34,20 @@ export async function readExecutionIndex(file: string): Promise<ExecutionIndex> 
 export function executionIndexOf(bytes: Uint8Array): ExecutionIndex {
   if (isEncodedExecutionIndex(bytes)) return decodeExecutionIndex(bytes);
   return parseExecutionIndex(JSON.parse(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('utf8')));
+}
+
+/**
+ * The cases the latest run at `record` replaced, which is what an edit to a
+ * test is compared with. Absent when that run replaced none, or the record does
+ * not read: there is then nothing to compare with, which is not an error.
+ */
+export function replacedCases(record: string): ExecutionIndex | undefined {
+  try {
+    const { before } = caseSectionsAt(record);
+    return before === undefined ? undefined : decodeExecutionIndex(before);
+  } catch {
+    return undefined;
+  }
 }
 
 /**

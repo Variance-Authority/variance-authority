@@ -28,5 +28,8 @@ collector, along with the JSON it could write. `decodeExecutionIndex`,
 `distill --execution` read the index out of a record; JSON stays readable as
 the spelling a foreign tool supplies. `landCaseIndexes` is replaced by
 `landCases`, which returns the sections for the record you write, and
-`caseSectionsAt`, `caseSectionsOf`, `withCaseSections`, `keepsCases` and
-`sharedRecord` read and write them.
+`lastCaseRunOf` reads the run they name. `caseLayerFiles` and
+`executionIndexBytes`, which named and read the file beside the record, are
+removed. `CaseSections`, `caseSectionsAt`, `caseSectionsOf`, `caseIndexOf`,
+`recordedCases`, `withCaseSections`, `keepsCases` and `sharedRecord` read and
+write the sections.
