@@ -56,13 +56,16 @@ pub(crate) struct Read {
     pub closures: Vec<Closure>,
     /// Every counted file that is not the tests' side, in code-unit order.
     pub shipped: Vec<String>,
+    /// The tests' side files a catalog shows (`orient_map_catalogued.rs`), in
+    /// code-unit order.
+    pub catalogued: Vec<String>,
     /// Packages whose manifest offers no counted file of their own, so their
     /// shipped code starts at the files its own code never imports (`tests`).
     pub undeclared: Vec<bool>,
 }
 
 /// What a path says of a file: a test, its fixtures, or the harness's config.
-const TEST_BY_PATH: &str = r"(?i)\.(test|spec|stories|story)\.[cm]?[jt]sx?$|(^|/)(__tests?__|__mocks__|__fixtures?__|__jest__|__stories__|\.storybook|fixtures|test|tests|test_helpers?|e2e|test-cases|[^/]*\.test)/|(^|/)[^/]*\.config\.[cm]?[jt]s$|(^|/)(vitest|jest|karma|playwright)[._-][^/]*$|(^|/)(setup[._-]?tests?|tests?[._-]?setup)\.[cm]?[jt]sx?$";
+const TEST_BY_PATH: &str = r"(?i)\.(test|spec|stories|story|examples)\.[cm]?[jt]sx?$|(^|/)(__tests?__|__mocks__|__fixtures?__|__jest__|__stories__|\.storybook|fixtures|test|tests|test_helpers?|e2e|test-cases|[^/]*\.test)/|(^|/)[^/]*\.config\.[cm]?[jt]s$|(^|/)(vitest|jest|karma|playwright)[._-][^/]*$|(^|/)(setup[._-]?tests?|tests?[._-]?setup)\.[cm]?[jt]sx?$";
 /// A `storybook/` directory inside a package holds its stories' decorators and
 /// mocks, as Kibana's plugins keep them; read against the path inside the
 /// package, so a package that is itself named `storybook` is not its own
@@ -181,7 +184,14 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     // A test is never an entry, whatever the manifest offers.
     entries.iter_mut().for_each(|entries| entries.retain(|&at| !named_by_path[at]));
     let undeclared: Vec<bool> = entries.iter().map(Vec::is_empty).collect();
-    let (test, roots) = tests(&files, &counted, &named_by_path, &entries);
+    let outgoing: Vec<Vec<usize>> = files
+        .iter()
+        .enumerate()
+        .map(|(at, file)| file.requests.iter().filter_map(|request| counted.get(request.to?).copied()).filter(|&to| to != at).collect())
+        .collect();
+    let (test, roots) = tests(&files, &outgoing, &named_by_path, &entries);
+    let paths: Vec<&str> = files.iter().map(|file| file.path).collect();
+    let catalogued = crate::orient_map_catalogued::catalogued(&paths, &outgoing, &named_by_path, &test);
     let targets: Vec<Vec<Option<u32>>> =
         files.par_iter().map(|file| file.requests.iter().map(|request| request.to.and_then(&owner_of)).collect()).collect();
 
@@ -233,7 +243,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     edges.sort_unstable();
     let closures = closures(&loads(&files, &counted, &roots, &named), n);
     let shipped = files.iter().zip(&test).filter(|(_, &test)| !test).map(|(file, _)| file.path.to_owned()).collect();
-    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped, undeclared }
+    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped, catalogued, undeclared }
 }
 
 /// The graph a closure is walked over: every counted file, and what it loads.
@@ -310,12 +320,7 @@ fn heads(n: usize, uses: HashMap<(u32, &str), (u32, HashSet<u32>)>) -> Vec<Vec<S
 // TODO: this walks the index's targets alone, so a file a test reaches only
 // through a specifier the index left unresolved can land on the wrong side;
 // which files a test loaded is the recording's to say, and it is not read here.
-fn tests(files: &[File], counted: &HashMap<&str, usize>, named: &[bool], declared: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
-    let outgoing: Vec<Vec<usize>> = files
-        .iter()
-        .enumerate()
-        .map(|(at, file)| file.requests.iter().filter_map(|request| counted.get(request.to?).copied()).filter(|&to| to != at).collect())
-        .collect();
+fn tests(files: &[File], outgoing: &[Vec<usize>], named: &[bool], declared: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
     let mut imported = vec![false; files.len()];
     for (from, to) in outgoing.iter().enumerate().filter(|&(from, _)| !named[from]) {
         for &to in to.iter().filter(|&&to| files[to].owner == files[from].owner) {

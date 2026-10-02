@@ -50,6 +50,8 @@ const PARSED: Parsed = {
       line: 3,
       signature: { start: 18, end: 42 },
       doc: { start: 2, end: 15 },
+      // Both bits, so a round trip that kept one of them fails here.
+      roles: ['testOnly', 'production'],
     },
     { from: './button.js', imported: '*', type: false, line: 9, signature: { start: 80, end: 108 } },
   ],

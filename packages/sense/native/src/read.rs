@@ -10,6 +10,7 @@ use oxc_syntax::module_record::{ExportExportName, ExportImportName, ImportImport
 use regex::Regex;
 use serde::Serialize;
 
+use crate::declared_role::DeclaredRoles;
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
 use crate::members::{members_in, Member};
 use crate::mocks::{mocks_in, Mocks};
@@ -75,6 +76,9 @@ pub struct Export {
     pub(crate) signature: Option<TextSpan>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) doc: Option<TextSpan>,
+    /// The role tags its doc declares, as `declared_role` bits.
+    #[serde(rename = "roles", skip_serializing_if = "is_zero", serialize_with = "crate::declared_role::serialize")]
+    pub(crate) tags: u8,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -143,7 +147,8 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
     let parsed = Parser::new(allocator, source, source_type).parse();
     let record = &parsed.module_record;
     let lines = Lines::new(source);
-    let harvest = Harvest::new(&parsed.program, source, &lines, symbols);
+    let mut harvest = Harvest::new(&parsed.program, source, &lines, symbols);
+    let roles = DeclaredRoles::new(&parsed.program, std::mem::take(&mut harvest.tagged));
     let mut requests = Vec::new();
     let mut imports: Vec<ImportGroup> = Vec::new();
     // A request's kind is the statement's keyword and never its names, for the
@@ -228,6 +233,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         // a reader follows through this file's imports to where it comes from.
         let local = entry.local_name.name().map(|name| name.to_string());
 
+        let tags = roles.of(entry.statement_span.start, local.as_deref());
         exports.push(Export {
             exported: exported.clone(),
             local,
@@ -237,6 +243,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
             line,
             signature: Some(harvest.span(entry.statement_span)),
             doc: harvest.doc(entry.statement_span.start),
+            tags,
         });
 
         let Some(value) = from else { continue };
@@ -327,6 +334,10 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
 
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+fn is_zero(value: &u8) -> bool {
+    *value == 0
 }
 
 fn import_name(name: &ImportImportName<'_>) -> String {

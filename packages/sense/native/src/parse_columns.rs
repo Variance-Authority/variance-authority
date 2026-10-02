@@ -63,6 +63,7 @@ pub struct ParseColumns {
     export_line: Vec<u32>,
     export_signature: [Vec<u32>; 2],
     export_doc: [Vec<u32>; 2],
+    export_tags: Vec<u8>,
     symbols: Vec<u32>,
     symbol_name: Vec<u32>,
     symbol_kind: Vec<u32>,
@@ -138,7 +139,7 @@ impl ParseColumns {
 
     /// One export; each name is an id or `NONE`.
     #[allow(clippy::too_many_arguments, reason = "one column each, in the encoder's order")]
-    pub fn export(&mut self, names: [u32; 4], type_only: bool, line: u32, signature: Span, doc: Span) {
+    pub fn export(&mut self, names: [u32; 4], type_only: bool, line: u32, signature: Span, doc: Span, tags: u8) {
         let [exported, local, from, imported] = names;
         self.export_exported.push(exported);
         self.export_local.push(local);
@@ -148,6 +149,7 @@ impl ParseColumns {
         self.export_line.push(line);
         span(&mut self.export_signature, signature);
         span(&mut self.export_doc, doc);
+        self.export_tags.push(tags);
     }
 
     pub fn symbol(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span) {
@@ -222,6 +224,7 @@ impl ParseColumns {
             u32s("exports.signature-end", export_signature_end),
             u32s("exports.doc-start", export_doc_start),
             u32s("exports.doc-end", export_doc_end),
+            u8s("exports.tags", self.export_tags),
             u32s("parses.mocks-minus", self.mocks_minus),
             u32s("parses.mocks-plus", self.mocks_plus),
             u32s("mocks.minus", self.mock_minus),

@@ -94,6 +94,7 @@ impl ParseRow for Read {
                 export.line,
                 span(export.signature),
                 span(export.doc),
+                export.tags,
             );
         }
         for symbol in &self.symbols {

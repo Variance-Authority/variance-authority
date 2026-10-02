@@ -285,7 +285,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool) ->
     std::fs::write(&written, text)
         .and_then(|()| std::fs::rename(&written, &path))
         .map_err(|error| fail(format!("{path} was not written: {error}")))?;
-    crate::orient_map_shipped::write(index, &stored.index, &read.shipped).map_err(fail)?;
+    crate::orient_map_shipped::write(index, &stored.index, &read.shipped, &read.catalogued).map_err(fail)?;
     Ok(Some(OrientMapPrepared { map: stored.made.map(Into::into), unmade: stored.unmade, walked, unmarked, relisted }))
 }
 

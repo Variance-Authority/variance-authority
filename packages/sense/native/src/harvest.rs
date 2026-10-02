@@ -67,6 +67,8 @@ impl Offsets {
 pub struct Harvest {
     pub symbols: Vec<SourceSymbol>,
     docs: HashMap<u32, TextSpan>,
+    /// The role tags a doc declares, by where its subject starts; only docs that declare one.
+    pub tagged: HashMap<u32, u8>,
     offsets: Offsets,
 }
 
@@ -74,6 +76,7 @@ impl Harvest {
     pub fn new(program: &Program<'_>, source: &str, lines: &Lines, symbols: bool) -> Self {
         let offsets = Offsets::new(source);
         let mut docs = HashMap::new();
+        let mut tagged = HashMap::new();
         for comment in &program.comments {
             let start = comment.span.start as usize;
             if !comment.is_block()
@@ -91,6 +94,12 @@ impl Harvest {
                 }
                 subject += character.len_utf8();
             }
+            let tags = source
+                .get(start + 3..(comment.span.end as usize).saturating_sub(2))
+                .map_or(0, crate::declared_role::tags_in);
+            if tags != 0 {
+                tagged.insert(subject as u32, tags);
+            }
             docs.insert(
                 subject as u32,
                 offsets.span(Span::new(comment.span.start + 2, comment.span.end - 2)),
@@ -100,6 +109,7 @@ impl Harvest {
         let mut harvest = Self {
             symbols: Vec::new(),
             docs,
+            tagged,
             offsets,
         };
         if symbols {

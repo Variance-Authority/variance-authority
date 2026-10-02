@@ -10,6 +10,10 @@
  * run it. A package whose known lines fit its budget while part of its closure
  * could not be sized is printed as undecided and does not fail the gate: the
  * rule cannot say it broke.
+ *
+ * The roles docs declare with `@testOnly` and `@production` are checked here
+ * too, with or without a rule file: a shipped file running a test-only name, a
+ * production name nothing shipped reaches, and a doc declaring both.
  */
 
 // compass: variance-authority.reach.relations
@@ -19,6 +23,7 @@ import { isCI } from 'ci-info';
 import {
   cappedLayers,
   cappedTiers,
+  declaredRoles,
   packageLayers,
   publishedSources,
   restrictedChains,
@@ -26,6 +31,7 @@ import {
   shippedFiles,
   type CapViolation,
   type ChainViolation,
+  type DeclaredRoleFinding,
   type RuleFile,
   type TierCapFinding,
   type TierCapReport,
@@ -63,6 +69,16 @@ function budgeted(root: string, files: readonly RuleFile[], tiers: Tiers | undef
   return cappedTiers(mapped(root, 'maxTier', true), files, tiers);
 }
 
+/** What contradicts the roles docs declare; a stale or missing code map is an error once any role is declared. */
+async function roles(root: string): Promise<readonly DeclaredRoleFinding[]> {
+  const check = await declaredRoles(root);
+  if (check === undefined || check.declared === 0) return [];
+  if (!check.current) {
+    throw new OperatorError(`${plural(check.declared, 'export')} declare${check.declared === 1 ? 's' : ''} a role, but no code map folded from the current source index says which files packages ship; \`variance index\` folds one.`);
+  }
+  return check.findings;
+}
+
 /** The shipped files a transitive rule is walked from, read only when one is written. */
 function seeds(root: string, files: readonly RuleFile[]): readonly string[] {
   if (!files.some((file) => file.rules.some((rule) => rule.transitive === true))) return [];
@@ -89,6 +105,14 @@ interface Found {
   readonly chains: readonly ChainViolation[];
   readonly capped: readonly CapViolation[];
   readonly tiers: TierCapReport;
+  readonly roles: readonly DeclaredRoleFinding[];
+}
+
+function roleLine(v: DeclaredRoleFinding): string {
+  const at = `${v.file}:${v.line}`;
+  if (v.kind === 'contradiction') return `${at} ${v.name} is declared both @testOnly and @production`;
+  if (v.kind === 'production-unshipped') return `${at} ${v.name} is declared @production, but only tests reach it`;
+  return `${at} ships ${v.name}, declared @testOnly at ${v.declared ?? '?'}:${v.declaredLine}`;
 }
 
 function budgetLine(v: TierCapFinding, verdict: string): string {
@@ -98,13 +122,19 @@ function budgetLine(v: TierCapFinding, verdict: string): string {
 
 /** The prose report: one line per finding, then the counts, or the sentence that says nothing broke. */
 function text(found: Found, files: number): string {
-  if (files === 0) return `No ${RULE_FILE} is tracked in this checkout, so nothing is restricted.\n`;
+  const roleLines = found.roles.map(roleLine);
+  const roleCount = found.roles.length > 0 ? `${plural(found.roles.length, 'declared role')} contradicted` : '';
+  if (files === 0) {
+    const none = `No ${RULE_FILE} is tracked in this checkout, so nothing is restricted`;
+    return roleLines.length === 0 ? `${none}.\n` : `${roleLines.join('\n')}\n${roleCount}. ${none}.\n`;
+  }
   const lines = [
     ...found.imports.map((v) => `${v.from} → ${v.to}${because(v.message, v.directory)}`),
     ...found.chains.map((v) => `${[...v.chain, v.to].join(' → ')}${because(v.message, v.directory)}; ${plural(v.seeds, 'shipped file')} reach${v.seeds === 1 ? 'es' : ''} ${v.from}`),
     ...found.capped.map((v) => `${v.package} is layer ${v.layer}, above the ceiling of ${v.maxLayer}${because(v.message, v.directory)}`),
     ...found.tiers.violated.map((v) => budgetLine(v, 'over')),
     ...found.tiers.undecided.map((v) => `${budgetLine(v, 'within')}; undecided`),
+    ...roleLines,
   ];
   const counts = [
     found.imports.length > 0 ? `${plural(found.imports.length, 'restricted import')}` : '',
@@ -112,6 +142,7 @@ function text(found: Found, files: number): string {
     found.capped.length > 0 ? `${plural(found.capped.length, 'package')} above a layer ceiling` : '',
     found.tiers.violated.length > 0 ? `${plural(found.tiers.violated.length, 'package')} over a tier budget` : '',
     found.tiers.undecided.length > 0 ? `${plural(found.tiers.undecided.length, 'package')} undecided` : '',
+    roleCount,
   ].filter((part) => part !== '');
   if (lines.length === 0) return `Nothing breaks the rules in ${plural(files, `${RULE_FILE} file`)}.\n`;
   return `${lines.join('\n')}\n${counts.join(', ')}.\n`;
@@ -131,10 +162,11 @@ export async function restrictionsOutput(request: ParsedRestrictions): Promise<{
     chains: restrictedChains(published.records, files, seeds(request.root, files)),
     capped: cappedPackages(request.root, files),
     tiers: budgeted(request.root, files, tiers),
+    roles: await roles(request.root),
   };
   const out = request.format === 'json'
-    ? `${JSON.stringify({ violations: found.imports, chains: found.chains, capped: found.capped, tiers: found.tiers })}\n`
+    ? `${JSON.stringify({ violations: found.imports, chains: found.chains, capped: found.capped, tiers: found.tiers, roles: found.roles })}\n`
     : text(found, files.length);
-  const failed = found.imports.length + found.chains.length + found.capped.length + found.tiers.violated.length > 0;
+  const failed = found.imports.length + found.chains.length + found.capped.length + found.tiers.violated.length + found.roles.length > 0;
   return { out, code: failed ? EXIT_REVIEW : EXIT_CLEAN };
 }
