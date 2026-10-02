@@ -4,6 +4,8 @@ import {
   journeysOf,
   type JourneyPool,
 } from './journeys.js';
+import { EXIT_CLEAN, type ExitCode } from '../exit.js';
+import type { Parsed } from '../parse.js';
 import { landJourneys } from './land.js';
 import { recordedJourneys } from './resources.js';
 import { subjectsInReport } from './run-report.js';
@@ -12,8 +14,11 @@ import { landingRecord, suiteRecord } from './suite-record.js';
 /** What `variance journeys` was asked for, once the flags are off the command line. */
 export interface JourneysRequest {
   readonly cwd: string;
-  /** Where the run's own report is, for the subjects a reading is narrowed to. */
-  readonly report: string;
+  /**
+   * Where the run's own report is, for the subjects a reading is narrowed to;
+   * absent under `--suite`, which reads no project config and so has no report.
+   */
+  readonly report?: string;
   /** Every recorded subject rather than this run's. */
   readonly all: boolean;
   /** Shard directories to land before anything is read. */
@@ -44,11 +49,11 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
       : await landJourneys(request.cwd, request.shards, request.into ?? (await landingRecord(request.cwd, request.suite)));
   const record = landed?.at ?? request.into ?? (await suiteRecord(request.cwd, request.suite));
 
-  const named = request.all ? undefined : await subjectsInReport(request.report);
+  const named = request.all || request.report === undefined ? undefined : await subjectsInReport(request.report);
   const pool: JourneyPool = request.all
     ? { kind: 'all' }
     : named === undefined
-      ? { kind: 'unasked', report: request.report }
+      ? { kind: 'unasked', ...(request.report !== undefined ? { report: request.report } : {}) }
       : { kind: 'run', named: named.length };
 
   const reading = formatJourneys(
@@ -61,4 +66,37 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
   );
 
   return `${landed === undefined ? '' : `${formatLanding(landed)}\n\n`}${reading}\n`;
+}
+
+/** The reading `variance journeys` takes, without a fold-only operation. */
+type JourneysCommand = Extract<Parsed, { command: 'journeys'; operation?: undefined }>;
+
+/**
+ * `variance journeys`, with the project config's report when one was read.
+ *
+ * `--suite` reads no project config: the root config declares the suite, and a
+ * repository that runs only a unit suite has no visual project to configure.
+ */
+export async function runJourneys(
+  parsed: JourneysCommand,
+  streams: { out(text: string): void },
+  report?: string,
+): Promise<ExitCode> {
+  streams.out(
+    await journeysOutput({
+      cwd: process.cwd(),
+      ...(report !== undefined ? { report } : {}),
+      all: parsed.all,
+      shards: parsed.shards,
+      ...(parsed.into !== undefined ? { into: parsed.into } : {}),
+      ...(parsed.suite !== undefined ? { suite: parsed.suite } : {}),
+      ...(parsed.file !== undefined ? { file: parsed.file } : {}),
+      ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
+    }),
+  );
+
+  // `changelog`'s rule. A parting is where to look, not a verdict: every
+  // suite with two stories per component has them legitimately, and a
+  // command that gated on one would be red on every healthy project.
+  return EXIT_CLEAN;
 }
