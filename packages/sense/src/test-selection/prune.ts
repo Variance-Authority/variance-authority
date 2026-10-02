@@ -218,10 +218,12 @@ export async function applyPrune<Reason extends string>(plan: PrunePlan<Reason>)
 /**
  * Prune, when the last prune of this cache was more than a day ago.
  *
- * Called where a run ends, after its record is written and its lock is
- * released. The stamp is claimed before the walk, so two runs ending together
- * do not both walk. Never throws: a cache that could not be pruned is a cache
- * that is pruned tomorrow, and a run must not fail over it.
+ * Called by `variance run` as it ends, after every suite it started has folded
+ * its record. A test runner's own fold never calls it: the run removes only its
+ * own scratch, and a cache shared beyond it is pruned by a command. The stamp is
+ * claimed before the walk, so two runs ending together do not both walk. Never
+ * throws: a cache that could not be pruned is a cache that is pruned tomorrow,
+ * and a run must not fail over it.
  */
 export async function pruneWhenDue(
   cacheRoot: string,

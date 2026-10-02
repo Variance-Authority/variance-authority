@@ -5,14 +5,7 @@ import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { instrument, type InstrumentMode } from '../instrument/index.js';
 import { priorMap, type TransformingContext } from './probes.js';
-import {
-  cleanId,
-  defaultInclude,
-  projectPath,
-  heldReading,
-  recordedReading,
-  type CapturedModule,
-} from './instrumented-modules.js';
+import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame } from './source-lines.js';
 import {
@@ -279,7 +272,7 @@ function selectionPlugin(
   declared: readonly string[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
 ): VitePlugin {
-  const { modules, readings } = run;
+  const { modules } = run;
   let closing: Promise<void> | undefined;
   return {
     name: 'variance-authority:test-selection',
@@ -323,19 +316,13 @@ function selectionPlugin(
     // A file changed on disk, so its reading describes text the disk no longer
     // holds, and a rerun transforms it again only if a test still loads it.
     // So does every reading named after it: a build's regions sit on the lines
-    // the file had when the build was made. Nothing else goes: Vite serves an
-    // unchanged file from its cache, and a reading of it is the text that runs.
+    // the file had when the build was made, and a rerun would join them to the
+    // file's new ones. Nothing else goes: Vite serves an unchanged file from
+    // its cache, and a reading of it is the text that runs.
     watchChange(id) {
       const changed = projectPath(root, cleanId(id));
-      for (const [name, held] of readings) {
-        if (name === changed) held.clear();
-        else if (!held.delete(changed)) continue;
-        const kept = heldReading(name, held);
-        if (kept !== undefined) modules.set(name, kept);
-        else {
-          readings.delete(name);
-          modules.delete(name);
-        }
+      for (const [moduleId, module] of modules) {
+        if (moduleId === changed || module.file === changed) modules.delete(moduleId);
       }
     },
     transform(code, id) {
@@ -359,18 +346,18 @@ function selectionPlugin(
         (at) => readFileSync(at, 'utf8'),
       );
 
-      // Under its path, the same one every other seam instruments under, so a
-      // journal reads the same whoever produced it. Vitest re-transforms every
-      // run in this process, so the records stay in this map rather than going
-      // to the store a build needs — writing two hundred thousand files to read
-      // them back a second later is ceremony, not durability.
+      // Named after the file its map leads to, the same name every other seam
+      // instruments under, so a journal reads the same whoever produced it. Its
+      // probes report under the file the transform was handed: a source and its
+      // build both answer to the name, each with its own regions, and the fold
+      // joins them (see `joinReadings`). Vitest re-transforms every run in this
+      // process, so the records stay in this map rather than going to the store
+      // a build needs — writing two hundred thousand files to read them back a
+      // second later is ceremony, not durability.
       const name = projectPath(root, wrote);
-      const moduleId = name;
+      const moduleId = projectPath(root, file);
       const done = instrument(code, name, moduleId, { mode });
-      // A source and its build both answer to the name: see `recordedReading`.
-      const held = readings.get(name) ?? new Map<string, CapturedModule>();
-      readings.set(name, held);
-      modules.set(moduleId, recordedReading(name, held, projectPath(root, file), done === undefined
+      modules.set(moduleId, done === undefined
         ? { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] }
         : {
             file: name,
@@ -378,7 +365,7 @@ function selectionPlugin(
             sourceDigest,
             instrumented: true,
             blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
-          }));
+          });
       return done === undefined ? null : { code: done.code, map: null };
     },
   };

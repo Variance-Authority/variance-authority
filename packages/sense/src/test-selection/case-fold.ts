@@ -19,6 +19,7 @@ import { heardAcross, preconditionsHeard, type Said } from './case-precondition-
 import preconditions from './case-preconditions.cjs';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
+import type { Reading } from './readings.js';
 
 /** What the first, allocation-free pass over a case-journal directory learned. */
 export interface CaseRun {
@@ -196,11 +197,12 @@ export async function freshCases(
   root: string,
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   run: CaseRunTests,
+  readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
   const inspected = await inspectCaseRun(directory, root, run.durations);
   if (inspected.tests.length === 0 && !finished) return undefined;
-  const fresh = (await foldCaseRun(inspected, modules)).bytes;
+  const fresh = (await foldCaseRun(inspected, modules, DEFAULT_BUDGET, readings)).bytes;
   return {
     fresh,
     run: { tests: run.tests, ...(run.commit === undefined ? {} : { commit: run.commit }) },
@@ -225,6 +227,7 @@ export async function foldCaseRun(
   run: CaseRun,
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   budget = DEFAULT_BUDGET,
+  readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<CaseFold> {
   const shaped = [...modules.entries()].sort(([leftId, left], [rightId, right]) =>
     codeUnitOrder(left.file, right.file) || codeUnitOrder(leftId, rightId),
@@ -287,6 +290,8 @@ export async function foldCaseRun(
     let testFirst = 0;
     let testLast = 0;
     let moduleRow = -1;
+    // A joined reading's ordinals, read in its file's record: see `joinReadings`.
+    let lands: readonly (number | undefined)[] | undefined;
 
     const visit: JournalVisitor = {
       test(packed) {
@@ -303,9 +308,11 @@ export async function foldCaseRun(
         }
       },
       wants(id) {
-        const row = rowOf.get(id);
+        const reading = readings.get(id);
+        const row = rowOf.get(reading?.id ?? id);
         if (row === undefined || row < first || row >= last || testFirst === testLast) return false;
         moduleRow = row;
+        lands = reading?.lands;
         return true;
       },
       module(_id, hits, shared) {
@@ -313,12 +320,13 @@ export async function foldCaseRun(
         const span = ordinalOffsets[moduleRow + 1]! - ordinalBase;
         let sharedAt = 0;
         for (let at = 0; at < hits.length; at += 1) {
-          const ordinal = hits[at]!;
+          const hit = hits[at]!;
+          while (sharedAt < shared.length && shared[sharedAt]! < hit) sharedAt += 1;
+          const ordinal = lands === undefined ? hit : lands[hit] ?? span;
           if (ordinal >= span) continue;
-          while (sharedAt < shared.length && shared[sharedAt]! < ordinal) sharedAt += 1;
           const block = ordinalBlocks[ordinalBase + ordinal]!;
           if (block < 0) continue;
-          if (shared[sharedAt] === ordinal) loaded[block] = 1;
+          if (shared[sharedAt] === hit) loaded[block] = 1;
           else markRange(called, (block - firstBlock) * words, words, testFirst, testLast);
         }
       },

@@ -143,6 +143,9 @@ function variance(...args) {
 function varianceWith(config, ...args) {
   const result = spawnSync(process.execPath, [BIN, ...args, '--config', config], {
     cwd: process.cwd(),
+    // A cache of this file's own, so every run starts from the same cache
+    // whatever other runs on this machine left in theirs.
+    env: { ...process.env, VARIANCE_AUTHORITY_CACHE: join(workspace, 'cache') },
     encoding: 'utf8',
     // Generous, and finite. A hang here is the first defect above coming back,
     // and a suite that waits forever for it reports nothing at all.

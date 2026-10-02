@@ -5,9 +5,12 @@
  * restated: `assign` in `packages/cli/src/commands/shard.ts`. A test file is a
  * group of one; with the durations the record carries, files go longest first
  * onto the least-loaded shard, and without them a checksum of the file decides.
- * Either way it is a function of the leg and the shard count, so every job of a
- * slice computes the same placement from the same reading without talking to
- * the others, and their union is the leg.
+ * Either way it is a function of the leg, the shard count and the durations, so
+ * every job of a slice that reads the same record computes the same placement
+ * without talking to the others, and their union is the leg. Jobs that each
+ * fetch the mainline's record do not read the same one: the line moves when a
+ * push to `main` publishes, so `check.yml` reads it once, in `base`, and hands
+ * that read to every job.
  *
  * A shard's run records into a cache of its own (`--record-into`), so its
  * record holds that run alone. Folding shards is `variance journeys <shard.bin>…

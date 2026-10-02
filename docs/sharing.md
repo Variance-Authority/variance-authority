@@ -579,7 +579,8 @@ Records are read in this order:
 2. **The mainline's record.** It is kept at
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
    run writes, so it is never read as your checkout's own. One fetch is reused
-   for 10 minutes. After that, when the remote does not answer, the record
+   for 10 minutes, and so is the line's answer that it has none for you, with
+   the time it gave it. After that, when the remote does not answer, the record
    fetched earlier is read, and the answer says when it was fetched and why it
    was not fetched again.
 3. **In a worktree, the primary checkout's record**, only when no mainline

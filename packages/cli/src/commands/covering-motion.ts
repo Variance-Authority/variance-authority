@@ -149,24 +149,28 @@ export async function motionOfLast(
 ): Promise<CoveringMotion> {
   const last = lastRun(from);
   const at = last === 'unreadable' ? undefined : last?.before;
-  return againstBefore(full, from, cases, root, { at, file, since });
+  const asked = new Set(cases);
+  const ran = new Set(last === 'unreadable' || last === undefined ? full.tests.filter((test) => asked.has(test.id)).map((test) => test.file) : last.files);
+  return againstBefore(full, from, cases, root, { at, file, since, ran });
 }
 
 /**
  * Cases against the before layer the record keeps. Given `files`, only
  * those test files' cases are read on either side, so a file the layer holds
- * and the cases asked about leave out is not read as lost.
+ * and the cases asked about leave out is not read as lost. `ran` is every test
+ * file the runs at this commit ran; any other file's cases retain earlier ones.
  */
 async function againstBefore(
   full: ExecutionIndex,
   from: string,
   cases: readonly string[],
   root: string,
-  { at, file, since, files }: {
+  { at, file, since, files, ran }: {
     readonly at: string | undefined;
     readonly file?: string | undefined;
     readonly since?: string | undefined;
     readonly files?: ReadonlySet<string>;
+    readonly ran: ReadonlySet<string>;
   },
 ): Promise<CoveringMotion> {
   const parting = at === undefined || since === undefined ? undefined : await movedOnBase(at, since, root);
@@ -185,9 +189,13 @@ async function againstBefore(
     return { base };
   }
   if (files !== undefined) held = keepFiles(held, files);
-  const now = keepCases(full, new Set(cases));
+  const asked = new Set(cases);
+  const now = keepCases(full, asked);
+  // A case of a file no run here ran retains an earlier recording, which stands
+  // at both ends. A case a run here recorded says nothing of what came before.
+  const retained = keepCases(full, new Set(full.tests.filter((test) => !asked.has(test.id) && !ran.has(test.file)).map((test) => test.id)));
   const exclude = new Set(parting?.files ?? []);
-  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, ...(await diffFromBase(at, root)) });
+  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, retained, ...(await diffFromBase(at, root)) });
   return { base, moved: file === undefined ? moved : within(moved, file) };
 }
 
@@ -223,7 +231,8 @@ export async function motionOfRuns(
   };
   if (wrote.compared.size === 0) return { base, ...said };
   const cases = full.tests.filter((test) => wrote.compared.has(test.file)).map((test) => test.id);
-  return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared })), ...said };
+  const ran = new Set([...wrote.compared, ...(wrote.unwritten ?? []), ...(wrote.unbased ?? [])]);
+  return { ...(await againstBefore(full, from, cases, root, { at: wrote.at, since, files: wrote.compared, ran })), ...said };
 }
 
 /** The current record against the base `--against` names, with what the base's branch moved left out. */

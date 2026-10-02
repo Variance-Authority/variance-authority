@@ -192,8 +192,9 @@ export type Parsed =
     }
   | ParsedPush
   | { readonly command: 'watch' }
+  | { readonly command: 'prune' }
   | { readonly command: 'serve'; readonly config: string; readonly justAnswer?: boolean }
-  | { readonly command: 'doctor'; readonly config: string; readonly prune?: boolean }
+  | { readonly command: 'doctor'; readonly config: string }
   | ParsedComment
   | {
       readonly command: 'help';
@@ -477,8 +478,9 @@ export function parseArgs(argv: readonly string[]): Parsed {
     // baseline or a report path, and requiring one would put a watcher out of
     // reach in exactly the directories where somebody most wants to start one.
     case 'watch':
-      noPositionals(flags.positionals, 'watch');
-      return { command: 'watch' };
+    case 'prune':
+      noPositionals(flags.positionals, first);
+      return { command: first };
 
     case 'serve':
       noPositionals(flags.positionals, 'serve');
@@ -490,7 +492,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
     case 'doctor':
       noPositionals(flags.positionals, 'doctor');
-      return { command: 'doctor', config, ...(flags.present.has('--prune') ? { prune: true as const } : {}) };
+      return { command: 'doctor', config };
 
     case 'comment': return parseCommentArgs(flags, config);
   }

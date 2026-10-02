@@ -340,50 +340,6 @@ export function projectPath(root: string, file: string): string {
   return relative(root, file).split(sep).join('/');
 }
 
-/**
- * The record of a name two transforms both answer to, as a function of every
- * reading of it and not of which arrived last.
- *
- * A package's own tests load `src/thing.ts`, and another package's tests reach
- * it as `dist/thing.js`, whose map `recordedFrame` follows back to the
- * same name. Each is cut from its own text, so the two block tables differ, and
- * a runner transforms them in whatever order its workers ask: a record that
- * kept the last one varied from run to run over the same code and tests.
- *
- * The source reading wins — the one whose host file is the name itself —
- * because it is the reading every run of the name has: a run that never loads
- * the build records it, and a run that does must not record something else for
- * the same text. Its regions are also cut from the text a diff's lines number,
- * with no build's map between them. Readings with no source among them fall to
- * the first host in code-unit order.
- *
- * It holds `reading` in `readings` under `host`, the file the transform was
- * handed, repository-relative, so a re-transform of one host replaces its own
- * reading and no other.
- */
-// FIXME: the losing reading's probes still report under the same id, so its
-// ordinals are read against the winner's table. Joining needs each reading to
-// report under an id of its own and the fold to reconcile one file's tables, as
-// `reconcileRegions` in `execution-merge.ts` does across shards.
-export function recordedReading(
-  name: string,
-  readings: Map<string, CapturedModule>,
-  host: string,
-  reading: CapturedModule,
-): CapturedModule {
-  readings.set(host, reading);
-  return heldReading(name, readings)!;
-}
-
-/**
- * The reading {@link recordedReading} records of `name` from the readings it
- * holds, or nothing once none is held.
- */
-export function heldReading(name: string, readings: ReadonlyMap<string, CapturedModule>): CapturedModule | undefined {
-  const [first] = [...readings.keys()].sort(codeUnitOrder);
-  return readings.get(name) ?? (first === undefined ? undefined : readings.get(first));
-}
-
 /** What one test file's run counted, per module, under the ids the modules reported. */
 export interface ReadJournal {
   readonly testFile: string;
@@ -456,6 +412,27 @@ export function loadedOf(
 
 export function codeUnitOrder(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/**
+ * Every file in a directory, as its bytes, ordered by what they hold; nothing
+ * where there is no directory.
+ *
+ * What concurrent processes wrote carries no order of its own — no clock
+ * orders two workers the same way twice — and a reader that folds it sums,
+ * joins and lists in the order it reads. Its bytes are the one order that is
+ * the same in every run that wrote the same things.
+ */
+export async function readWritten(directory: string): Promise<readonly Buffer[]> {
+  let names: readonly string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    if (isMissing(error)) return [];
+    throw error;
+  }
+  const written = await Promise.all(names.map((name) => readFile(resolve(directory, name))));
+  return written.sort(Buffer.compare);
 }
 
 export function isMissing(error: unknown): boolean {

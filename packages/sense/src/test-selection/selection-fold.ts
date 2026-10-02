@@ -25,6 +25,7 @@ import {
   type ReadJournal,
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
+import { joinedJournals, joinReadings } from './readings.js';
 import { freshCases } from './case-fold.js';
 import { caseDurations } from './case-durations.js';
 import {
@@ -37,8 +38,7 @@ import {
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { removeSeamModules, type SelectionRun } from './selection-run.js';
 import { governingPreconditions } from './governing-config.js';
-import { cacheRootFor, markCheckout } from './cache-layers.js';
-import { prunedLine, pruneWhenDue } from './prune.js';
+import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import {
   noteSeeded,
@@ -97,9 +97,13 @@ export function foldRun(
       ...await readJournals(runDirectory),
       ...finished.flatMap((file) => (file.journal === undefined ? [] : [file.journal])),
     ];
-    const { journals, unplaced } = destination.stores === undefined
+    const placed = destination.stores === undefined
       ? { journals: written, unplaced: new Set<string>() }
       : await placeFrom(destination.stores, written, modules, root, instrumentationId(mode));
+    const { unplaced } = placed;
+    // A file the run read twice is one record, and every row is read in it.
+    const joined = joinReadings(modules);
+    const journals = joinedJournals(placed.journals, joined.readings);
     const files = finished.map((file) =>
       unplaced.has(projectPath(root, file.filepath)) ? { ...file, complete: false } : file);
     // A journal names modules by id, so nothing here re-keys paths; the id is
@@ -120,7 +124,7 @@ export function foldRun(
     // about 2.5 s of a fold that needs to read each of them once.
     const tests = await Promise.all(
       oneRowPerFile(files, root).map((file) =>
-        coverageTest(file, root, governingPreconditions(run, file.configs), journals, modules),
+        coverageTest(file, root, governingPreconditions(run, file.configs), journals, joined.modules),
       ),
     );
     const commit = await commitOf(root);
@@ -129,7 +133,7 @@ export function foldRun(
       instrumentation: instrumentationId(mode),
       ...(commit === undefined ? {} : { commit }),
       tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
-      modules: [...modules]
+      modules: [...joined.modules]
         .map(([id, module]): CoverageModule => coverageModule(
           module,
           (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])],
@@ -147,11 +151,11 @@ export function foldRun(
     // loaded this seam's modules — has none to lay, and the record's cases
     // stay as they were.
     const cases = run.cases
-      ? await freshCases(caseDirectory, root, modules, {
+      ? await freshCases(caseDirectory, root, joined.modules, {
           tests,
           ...(commit === undefined ? {} : { commit }),
           durations: caseDurations(files, root),
-        })
+        }, joined.readings)
       : undefined;
     const merged = await withIndexLock(coverageFile, async () => {
       await landRun(coverageFile, current, root, undefined, cases);
@@ -176,9 +180,6 @@ export function foldRun(
       // A watching runner loads them again for every rerun; its close takes them off.
       if (!run.watching) removeSeamModules(run, destination.shims);
     }
-    // After the lock is released, and at most once a day: see `prune.ts`.
-    const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));
-    if (pruned !== '') console.warn(pruned);
   };
 }
 

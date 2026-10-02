@@ -84,7 +84,9 @@ beforeAll(async () => {
   if (!READY) return;
   directory = await mkdtemp(join(tmpdir(), 'variance-rstest-workflow-'));
   config = join(directory, 'variance.config.json');
-  environment = { VARIANCE_CAPTURE_DIRECTORY: join(directory, 'captures') };
+  // A cache of this file's own, so the suite and every `variance run` below
+  // start from the same cache whatever other runs on this machine left in theirs.
+  environment = { VARIANCE_CAPTURE_DIRECTORY: join(directory, 'captures'), VARIANCE_AUTHORITY_CACHE: join(directory, 'cache') };
 
   await writeFile(
     config,
