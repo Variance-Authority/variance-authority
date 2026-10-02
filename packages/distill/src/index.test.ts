@@ -89,6 +89,9 @@ describe('distill', () => {
     const elsewhere = [{ ...EYES[0]!, case: 'another-case' }];
     const unwatched = distill({ test: 'redraw-test', eyes: elsewhere, watched: ['another-case'], execution: EXECUTION });
     expect(unwatched.execution.withheld).toBe('this case\'s run did not opt into Eyes.');
+    expect(formatDistillation(unwatched))
+      .toContain('Eyes attention: unavailable; this case\'s run did not opt into Eyes.');
+    expect(formatDistillation(unwatched)).not.toContain('keeps no Eyes journal for this case');
     const watched = distill({
       test: 'redraw-test', eyes: elsewhere, watched: ['another-case', 'redraw-test'], execution: EXECUTION,
     });

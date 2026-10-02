@@ -5,7 +5,7 @@ import type { AttemptAttention, Distillation, EnteredModule, Region, UpdatePhase
 export function formatDistillation(result: Distillation): string {
   return [
     `${result.test.title} — ${result.test.file ?? 'file not supplied'} [${result.test.id}]`,
-    ...attemptsLines(result.attempts),
+    ...attemptsLines(result.attempts, result.execution.withheld),
     '',
     ...executionLines(result.execution),
     '',
@@ -17,10 +17,19 @@ export function formatDistillation(result: Distillation): string {
 /**
  * Each attempt on its own, named. A retry that addressed something else is a
  * different reading, and folding the two would say neither.
+ *
+ * A case with no attempt prints the reason the comparison was withheld for, so
+ * a case its run never watched is not also called a watched case missing its
+ * journal.
  */
-function attemptsLines(attempts: readonly AttemptAttention[] | undefined): readonly string[] {
+function attemptsLines(
+  attempts: readonly AttemptAttention[] | undefined,
+  withheld: string | undefined,
+): readonly string[] {
   if (attempts === undefined) return ['Eyes attention: unavailable; the record keeps no Eyes journals.'];
-  if (attempts.length === 0) return ['Eyes attention: unavailable; the record keeps no Eyes journal for this case.'];
+  if (attempts.length === 0) {
+    return [`Eyes attention: unavailable; ${withheld ?? 'the record keeps no Eyes journal for this case.'}`];
+  }
   return attempts.flatMap((attention, at) => [
     ...(at === 0 ? [] : ['']),
     attention.complete

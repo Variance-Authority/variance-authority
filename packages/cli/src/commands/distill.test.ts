@@ -94,8 +94,10 @@ describe('the CLI distillation boundary', () => {
     const root = await checkout();
     try {
       await recorded(root, [], []);
-      expect(formatDistill(await distillFiles({ test: CASE, root }), 'text'))
-        .toContain('this case\'s run did not opt into Eyes.');
+      const unwatched = formatDistill(await distillFiles({ test: CASE, root }), 'text');
+      expect(unwatched).toContain('this case\'s run did not opt into Eyes.');
+      // One reason, said once: an unwatched case is not a watched one missing its journal.
+      expect(unwatched).not.toContain('keeps no Eyes journal for this case');
       await recorded(root, []);
       expect(formatDistill(await distillFiles({ test: CASE, root }), 'text'))
         .toContain('the record keeps no Eyes journal for this case.');
