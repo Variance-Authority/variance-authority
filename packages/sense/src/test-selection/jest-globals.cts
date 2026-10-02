@@ -61,6 +61,12 @@ const CONTINUATIONS = 'VARIANCE_AUTHORITY_TEST_SELECTION_CONTINUATIONS';
 /** Set beside them to where stories go, when the run asked. Mirrors `STORY_DIRECTORY_VARIABLE`. */
 const STORY_DIRECTORY = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY';
 
+/**
+ * Set beside them to the checkout the record names files against, so a journal
+ * Eyes hands a case is spelled the same way. Mirrors `ROOT_VARIABLE` in `jest-reporter.ts`.
+ */
+const ROOT = 'VARIANCE_AUTHORITY_TEST_SELECTION_ROOT';
+
 /** This realm's collector, so a second evaluation of this file finds the first. */
 const COLLECTOR = Symbol.for('variance-authority.test-selection.collector');
 
@@ -76,6 +82,7 @@ function install(): Collector {
       holder,
       process.env[CONTINUATIONS] !== undefined,
       process.env[STORY_DIRECTORY] === undefined ? undefined : stories.storyWriter(process.env[STORY_DIRECTORY]),
+      process.env[ROOT],
     );
   holder[COLLECTOR] = collector;
   return collector;

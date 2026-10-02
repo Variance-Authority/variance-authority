@@ -1,30 +1,50 @@
 // compass: variance-authority/runtime/attention
-import type { Distillation, EnteredModule, Region, UpdatePhase } from './index.js';
+import type { AttemptAttention, Distillation, EnteredModule, Region, UpdatePhase } from './index.js';
 
 /** Render a distillation for a person or agent. */
 export function formatDistillation(result: Distillation): string {
-  const attention = result.attention;
-  const execution = result.execution;
   return [
     `${result.test.title} — ${result.test.file ?? 'file not supplied'} [${result.test.id}]`,
-    ...(attention === undefined ? ['Eyes attention: unavailable.'] : [
-      attention.complete ? 'Eyes journal: complete.' : `Eyes journal: partial — ${attention.because}`,
-      `${attention.targets} target snapshot(s); ${attention.withoutFiber} had no live React Fiber.`,
-      '',
-      ...(attention.phases.length === 0 ? ['Addressed surface: measured empty.'] : attention.phases.flatMap((phase) => [
-        `${phase.phase}:`,
-        `  components: ${values(phase.components, 'none attributed by Eyes')}`,
-        `  source: ${values(phase.files, 'none attributed by Eyes')}`,
-      ])),
-      '',
-      ...updateLines(attention.updates),
-    ]),
+    ...attemptsLines(result.attempts, result.execution.withheld),
     '',
-    ...executionLines(execution, result.test.id),
+    ...executionLines(result.execution),
     '',
     'Opportunity rule: a covered file with no addressed target attribution is a distillation ' +
       'opportunity only. The evidence does not establish that it is safe to mock, replace, or remove.',
   ].join('\n');
+}
+
+/**
+ * Each attempt on its own, named. A retry that addressed something else is a
+ * different reading, and folding the two would say neither.
+ *
+ * A case with no attempt prints the reason the comparison was withheld for, so
+ * a case its run never watched is not also called a watched case missing its
+ * journal.
+ */
+function attemptsLines(
+  attempts: readonly AttemptAttention[] | undefined,
+  withheld: string | undefined,
+): readonly string[] {
+  if (attempts === undefined) return ['Eyes attention: unavailable; the record keeps no Eyes journals.'];
+  if (attempts.length === 0) {
+    return [`Eyes attention: unavailable; ${withheld ?? 'the record keeps no Eyes journal for this case.'}`];
+  }
+  return attempts.flatMap((attention, at) => [
+    ...(at === 0 ? [] : ['']),
+    attention.complete
+      ? `Eyes journal, attempt ${attention.attempt}: complete.`
+      : `Eyes journal, attempt ${attention.attempt}: partial — ${attention.because}`,
+    `${attention.targets} target snapshot(s); ${attention.withoutFiber} had no live React Fiber.`,
+    '',
+    ...(attention.phases.length === 0 ? ['Addressed surface: measured empty.'] : attention.phases.flatMap((phase) => [
+      `${phase.phase}:`,
+      `  components: ${values(phase.components, 'none attributed by Eyes')}`,
+      `  source: ${values(phase.files, 'none attributed by Eyes')}`,
+    ])),
+    '',
+    ...updateLines(attention.updates),
+  ]);
 }
 
 function updateLines(updates: readonly UpdatePhase[]): readonly string[] {
@@ -39,18 +59,10 @@ function updateLines(updates: readonly UpdatePhase[]): readonly string[] {
   ])];
 }
 
-function executionLines(execution: Distillation['execution'], id: string): readonly string[] {
-  if (execution === undefined) {
-    return ['Runtime journey: unavailable; no covered-versus-addressed comparison was made.'];
-  }
-  if (!execution.joined) return [
-    `Runtime journey: supplied, but it contains no test with exact id ${id}.`,
-    'No title or file join was guessed.',
-    ...availableLines(execution.available ?? [], execution.availableTotal ?? 0),
-  ];
+function executionLines(execution: Distillation['execution']): readonly string[] {
   return [
     'Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.',
-    `Runtime journey: ${execution.entered.length} source file(s) covered by exact test id.`,
+    `Runtime journey: ${execution.entered.length} source file(s) covered by exact case id.`,
     ...(execution.entered.length === 0 ? ['  measured empty'] : execution.entered.map(({ file, distance }) =>
       `  depth ${distance} — ${file}`)),
     ...opportunityLines(execution),
@@ -71,7 +83,7 @@ function opportunityLines(
 ): readonly string[] {
   if (execution.opportunities === undefined) return [
     'Distillation opportunities: unavailable; ' +
-      (execution.withheld ?? 'Eyes attention was not supplied.'),
+      (execution.withheld ?? 'the record keeps no Eyes journals.'),
   ];
   const missing = execution.addressedNotEntered ?? [];
   return [
@@ -87,25 +99,7 @@ function opportunityLines(
 }
 
 /**
- * What the index does hold, so a failed join reads as a mismatch.
- *
- * Naming only the id that was missing leaves the reader with nothing to compare
- * it against, and the usual cause is two producers keying the same test
- * differently. A handful of recorded ids shows that in one glance.
- */
-function availableLines(available: readonly string[], total: number): readonly string[] {
-  if (total === 0) return ['It records no tests at all.'];
-  return [
-    `It records ${total} test id(s), of which:`,
-    ...available.map((recorded) => `  ${recorded}`),
-    ...(total > available.length ? [`  and ${total - available.length} more.`] : []),
-    'A test id must be identical on both sides. Sense keys a case by its coordinate, ' +
-      '`<project-relative file> > <describe path and name>`, so give Eyes that same string.',
-  ];
-}
-
-/**
- * The part of the reading that survives having no Eyes archive and no addressed
+ * The part of the reading that survives having no Eyes journal and no addressed
  * surface: which regions of a covered file this test was actually inside.
  */
 function regionLines(modules: readonly EnteredModule[]): readonly string[] {

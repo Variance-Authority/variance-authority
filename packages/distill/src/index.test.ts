@@ -1,7 +1,7 @@
-import type { EyesArchive, TargetSnapshot } from '@variance-authority/eyes';
+import type { TargetSnapshot } from '@variance-authority/eyes';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import { distill, formatDistillation, parseExecutionIndex } from './index.js';
+import { distill, formatDistillation, parseExecutionIndex, type EyesAttempt } from './index.js';
 
 const TARGET: TargetSnapshot = {
   nodeName: 'button', role: 'button', ariaLabel: 'Redraw',
@@ -11,8 +11,8 @@ const TARGET: TargetSnapshot = {
   } },
 };
 
-const EYES: EyesArchive = { eyesVersion: 1, tests: [{
-  id: 'redraw-test', title: 'redraws', complete: true,
+const EYES: readonly EyesAttempt[] = [{
+  case: 'redraw-test', attempt: 1, journal: { complete: true,
   attention: [
     { kind: 'eyes-phase', phase: 'act', sequence: 0 },
     { kind: 'document-event', event: 'click', trusted: false, target: TARGET, sequence: 1 },
@@ -20,8 +20,8 @@ const EYES: EyesArchive = { eyesVersion: 1, tests: [{
       { path: [{ name: 'DrawingPanel', key: null, propsDigest: 'props' }] },
       { path: [{ name: 'Clock', key: null, propsDigest: 'clock-props' }] },
     ] }, sequence: 2 },
-  ],
-}] };
+  ] },
+}];
 
 const EXECUTION: ExecutionIndex = { tests: [
   { id: 'redraw-test', file: 'test/redraw.test.tsx', name: 'redraws' },
@@ -33,10 +33,9 @@ const EXECUTION: ExecutionIndex = { tests: [
 ] };
 
 /** The same test, with its addressed component named by the given source files. */
-const addressedAt = (...files: readonly string[]): EyesArchive => ({
-  eyesVersion: 1,
-  tests: [{
-    id: 'redraw-test', title: 'redraws', complete: true,
+const addressedAt = (...files: readonly string[]): readonly EyesAttempt[] => [{
+  case: 'redraw-test', attempt: 1, journal: {
+    complete: true,
     attention: files.map((file, at) => ({
       kind: 'document-event', event: 'click', trusted: false, sequence: at,
       target: { ...TARGET, provenance: { status: 'resolved', provenance: {
@@ -44,24 +43,22 @@ const addressedAt = (...files: readonly string[]): EyesArchive => ({
         source: { file, line: 7, column: 3 },
       } } },
     })),
-  }],
-});
+  },
+}];
 
 describe('distill', () => {
   it('separates addressed source, outside update initiators, and opportunities', () => {
     const result = distill({ test: 'redraw-test', eyes: EYES, execution: EXECUTION });
-    expect(result.attention?.phases[0]).toEqual({
+    expect(result.attempts?.[0]?.phases[0]).toEqual({
       phase: 'act', components: ['DrawingPanel'], files: ['src/panel.tsx'],
     });
-    expect(result.attention?.updates[0]).toMatchObject({ inside: ['DrawingPanel'], outside: ['Clock'] });
+    expect(result.attempts?.[0]?.updates[0]).toMatchObject({ inside: ['DrawingPanel'], outside: ['Clock'] });
     expect(result.execution?.opportunities).toEqual([{ file: 'src/top-nav.tsx', distance: 5 }]);
     expect(formatDistillation(result)).toContain('distillation opportunity at depth 5 — src/top-nav.tsx');
   });
 
   it('keeps a non-React test useful and calls its addressed surface measured empty', () => {
-    const eyes: EyesArchive = { eyesVersion: 1, tests: [{
-      id: 'plain', title: 'parses', complete: true, attention: [],
-    }] };
+    const eyes: readonly EyesAttempt[] = [{ case: 'plain', attempt: 1, journal: { complete: true, attention: [] } }];
     const execution: ExecutionIndex = { tests: [{ id: 'plain', file: 'parse.test.ts', name: 'parses' }],
       modules: [{ file: 'parse.ts', blocks: [{ kind: 'function', name: 'parse', path: 'entry',
         startLine: 1, endLine: 2, source: true, crossings: [{ test: 0, distance: 1 }] }] }] };
@@ -75,14 +72,59 @@ describe('distill', () => {
     expect(result.execution?.entered).toHaveLength(2);
     expect(result.execution?.opportunities).toBeUndefined();
     expect(formatDistillation(result)).toContain(
-      'Distillation opportunities: unavailable; Eyes attention was not supplied.',
+      'Distillation opportunities: unavailable; the record keeps no Eyes journals; the run did not opt into Eyes.',
     );
   });
 
-  it('shows the ids the index does hold when the join finds none', () => {
-    const eyes: EyesArchive = { eyesVersion: 1, tests: [{
-      id: '875862714_0', title: 'redraws', complete: true, attention: [],
-    }] };
+  it('tells a record without Eyes from a case the record kept no journal for', () => {
+    const elsewhere = [{ ...EYES[0]!, case: 'another-case' }];
+    const result = distill({ test: 'redraw-test', eyes: elsewhere, execution: EXECUTION });
+    expect(result.attempts).toEqual([]);
+    expect(result.execution.withheld).toBe('the record keeps no Eyes journal for this case.');
+    expect(formatDistillation(result))
+      .toContain('Eyes attention: unavailable; the record keeps no Eyes journal for this case.');
+  });
+
+  it('tells a case whose run did not watch it from a watched case that handed no journal', () => {
+    const elsewhere = [{ ...EYES[0]!, case: 'another-case' }];
+    const unwatched = distill({ test: 'redraw-test', eyes: elsewhere, watched: ['another-case'], execution: EXECUTION });
+    expect(unwatched.execution.withheld).toBe('this case\'s run did not opt into Eyes.');
+    expect(formatDistillation(unwatched))
+      .toContain('Eyes attention: unavailable; this case\'s run did not opt into Eyes.');
+    expect(formatDistillation(unwatched)).not.toContain('keeps no Eyes journal for this case');
+    const watched = distill({
+      test: 'redraw-test', eyes: elsewhere, watched: ['another-case', 'redraw-test'], execution: EXECUTION,
+    });
+    expect(watched.execution.withheld).toBe('the record keeps no Eyes journal for this case.');
+  });
+
+  it('reads a retried case attempt by attempt, and counts what any attempt addressed', () => {
+    // Attempt 1 addressed the panel; the retry addressed the navigation too.
+    const navigation: TargetSnapshot = { ...TARGET, provenance: { status: 'resolved', provenance: {
+      owners: [{ name: 'TopNav', propsDigest: 'nav' }],
+      source: { file: 'src/top-nav.tsx', line: 3, column: 1 },
+    } } };
+    const retried: readonly EyesAttempt[] = [
+      { case: 'redraw-test', attempt: 2, journal: { complete: true, attention: [
+        { kind: 'document-event', event: 'click', trusted: false, target: navigation, sequence: 0 },
+      ] } },
+      EYES[0]!,
+    ];
+    const result = distill({ test: 'redraw-test', eyes: retried, execution: EXECUTION });
+
+    expect(result.attempts?.map((attempt) => attempt.attempt)).toEqual([1, 2]);
+    expect(result.attempts?.[1]?.phases).toEqual([
+      { phase: 'unphased', components: ['TopNav'], files: ['src/top-nav.tsx'] },
+    ]);
+    // Neither file is an opportunity: some attempt addressed each of them.
+    expect(result.execution.opportunities).toEqual([]);
+
+    const text = formatDistillation(result);
+    expect(text).toContain('Eyes journal, attempt 1: complete.');
+    expect(text).toContain('Eyes journal, attempt 2: complete.');
+  });
+
+  it('refuses an id the record does not hold, showing the ids it does', () => {
     const execution: ExecutionIndex = {
       tests: Array.from({ length: 8 }, (_unused, at) => ({
         id: `test/redraw.test.tsx > case ${at}`,
@@ -91,26 +133,30 @@ describe('distill', () => {
       })),
       modules: [],
     };
-    const result = distill({ test: '875862714_0', eyes, execution });
-    expect(result.execution).toMatchObject({ joined: false, availableTotal: 8 });
-    expect(result.execution?.available).toHaveLength(5);
-
-    const text = formatDistillation(result);
-    expect(text).toContain('no test with exact id 875862714_0');
-    expect(text).toContain('It records 8 test id(s), of which:');
-    expect(text).toContain('  test/redraw.test.tsx > case 0');
-    expect(text).toContain('  and 3 more.');
-    expect(text).toContain('give Eyes that same string');
+    // Playwright's opaque test id, the spelling a record never uses.
+    const refusal = (() => {
+      try {
+        distill({ test: '875862714_0', execution });
+        return '';
+      } catch (error) {
+        return (error as Error).message;
+      }
+    })();
+    expect(refusal).toContain('The record holds no case with id 875862714_0.');
+    expect(refusal).toContain('It records 8 case id(s), of which:');
+    expect(refusal).toContain('  test/redraw.test.tsx > case 0');
+    expect(refusal).toContain('  and 3 more.');
+    expect(refusal).not.toContain('case 5');
   });
 
-  it('says the index records nothing rather than listing an empty sample', () => {
-    const eyes: EyesArchive = { eyesVersion: 1, tests: [{
-      id: 'plain', title: 'parses', complete: true, attention: [],
-    }] };
-    const text = formatDistillation(
-      distill({ test: 'plain', eyes, execution: { tests: [], modules: [] } }),
-    );
-    expect(text).toContain('It records no tests at all.');
+  it('says the record holds no cases rather than listing an empty sample', () => {
+    expect(() => distill({ test: 'plain', execution: { tests: [], modules: [] } }))
+      .toThrow('it records no cases at all');
+  });
+
+  it('refuses a title where an id belongs', () => {
+    expect(() => distill({ test: 'redraws', eyes: EYES, execution: EXECUTION }))
+      .toThrow('The record holds no case with id redraws.');
   });
 
   it('joins an absolute addressed path to a project-relative entered module', () => {

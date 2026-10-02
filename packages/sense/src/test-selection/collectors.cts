@@ -16,6 +16,7 @@
 import async_hooks = require('node:async_hooks');
 import crypto = require('node:crypto');
 import journals = require('./journal-format.cjs');
+import eyesFrames = require('./eyes-frame.cjs');
 import preconditions = require('./case-preconditions.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
 import storyTap = require('../instrument/story-tap.cjs');
@@ -224,8 +225,10 @@ function flat(holder: Holder): Collector {
  * a variable, and mark the cases whose work outlived them.
  * @param story Where each case's story goes as the case settles, when the run
  * asked for stories.
+ * @param root The checkout the record names files against. Given, the scope
+ * also keeps what Eyes hands each case, as `eyes-frame.cts` describes.
  */
-function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Collector {
+function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, root?: string): Collector {
   const engine = attach(holder, continuations, story !== undefined);
   const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
   if (tap !== undefined) storyTap.listen(tap, holder);
@@ -390,6 +393,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     }
     const bucket = bucketFor(key);
     bucket.open = true;
+    attention?.entered(key);
     const carried = trace;
     const run = carried === undefined
       ? body
@@ -403,8 +407,21 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     const key = running();
     return key === undefined ? undefined : journeyOf(key);
   };
-  const { phase, within, where, begin } = recorder;
-  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey, phase, within, where, begin };
+  // A tangled file writes no case frame, so it keeps no journal either.
+  const attention = root === undefined
+    ? undefined
+    : eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
+  const { phase, within, where } = recorder;
+  // One edge starts an attempt for both: what a `beforeEach` said for a case
+  // that never ran is forgotten, and Eyes attends the attempt from here.
+  const begin = (token?: unknown): void => {
+    recorder.begin(token);
+    attention?.scope.begin();
+  };
+  const leave = (): void => attention?.scope.leave();
+  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {
+    enter, journey, phase, within, where, ...attention?.scope, begin, leave,
+  };
 
   const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
   return {

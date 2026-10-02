@@ -6,6 +6,9 @@ use crate::case_preconditions::{self, Precondition};
 use crate::order;
 
 const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02];
+/// `VAEYS`: an Eyes frame rides beside the case frames (`eyes-frame.cts`) and
+/// crosses nothing, so every fold steps over it.
+const EYES_MAGIC: [u8; 8] = [0x56, 0x41, 0x45, 0x59, 0x53, 0x00, 0x00, 0x01];
 /// A module is named by its path: tag `1`, then the path. Tag `0`, a numbered
 /// module, is refused as damage — nothing writes one (ADR-0056, amended).
 const NAMED: u8 = 1;
@@ -343,6 +346,9 @@ fn frames(
 }
 
 fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
+    if raw.starts_with(&EYES_MAGIC) {
+        return Ok(());
+    }
     let mut read = Reader::new(raw);
     for expected in MAGIC {
         if read.byte()? != expected {

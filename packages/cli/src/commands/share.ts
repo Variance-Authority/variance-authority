@@ -20,7 +20,7 @@ import {
 } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
 import { costsEntryOf } from './costs-entry.js';
-import { REPORT_ENTRY, readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
+import { REPORT_ENTRY, entryCarriesEyes, readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
 import {
   descendsOf,
   distanceFrom,
@@ -114,6 +114,8 @@ export interface Here {
  * written, and names each image the report names that this machine could not
  * read, as the absolute path it was looked for at. `unpublished` is present
  * when a suite's record here was not published, and says for each why.
+ * `eyes` names each suite entry whose record carries its cases' Eyes journals,
+ * which went with it.
  */
 export type RunPublish =
   | ({
@@ -121,6 +123,7 @@ export type RunPublish =
       readonly published: Published;
       readonly leftOut?: readonly string[];
       readonly unpublished?: readonly string[];
+      readonly eyes?: readonly string[];
     } & NoMainline)
   | ({ readonly line: ShareLine; readonly miss: MainlineMiss } & NoMainline)
   | { readonly none: string };
@@ -188,6 +191,7 @@ export async function publishKept(
     leftOut = carried.leftOut;
   }
   const unpublished: string[] = [];
+  const eyes: string[] = [];
   // A report that timed nothing has no costs to give, the way a machine with no
   // record of a suite has no suite to give, and neither is news.
   const costs = await costsEntryOf(config, from.report, at);
@@ -197,7 +201,10 @@ export async function publishKept(
     const entry = await suiteEntryOf(cwd, suite.name, at, { whole: run.line.kind === 'mainline' });
     if (entry === undefined) continue;
     if ('unpublished' in entry) unpublished.push(`${suiteEntry(suite.name)}: ${entry.unpublished}`);
-    else entries.push(entry);
+    else {
+      entries.push(entry);
+      if (entryCarriesEyes(entry)) eyes.push(entry.name);
+    }
   }
 
   const byDigest = new Map(images.map((image) => [image.digest, image.path]));
@@ -216,8 +223,15 @@ export async function publishKept(
     // A report the line kept is not this run's, so what this run left out of it is not news.
     ...(leftOut !== undefined && published.written.includes(REPORT_ENTRY) ? { leftOut } : {}),
     ...(unpublished.length === 0 ? {} : { unpublished }),
+    ...eyesWritten(eyes, published.written),
     ...noMainline,
   };
+}
+
+/** The entries among `written` whose records carried Eyes journals; a kept entry uploaded nothing. */
+export function eyesWritten(eyes: readonly string[], written: readonly string[]): { readonly eyes?: readonly string[] } {
+  const went = eyes.filter((name) => written.includes(name));
+  return went.length === 0 ? {} : { eyes: went };
 }
 
 /**
@@ -444,6 +458,8 @@ export function describePublish(config: Pick<Config, 'share'>, done: RunPublish)
           `left out ${String(leftOut.length)} image(s) the report names and this machine could not read, the first at ${leftOut[0]!}.`,
         ]),
     ...(done.unpublished ?? []).map((why) => `left out ${why}.`),
+    ...(done.eyes ?? []).map((name) =>
+      `${name} carried its cases' Eyes journals: the record's eyes section went with it.`),
   ];
 }
 

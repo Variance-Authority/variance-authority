@@ -27,10 +27,10 @@ import { isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import { publishLine } from '@variance-authority/core/share';
 import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
-import { suiteEntry, suiteEntryOf } from '../share-entries.js';
+import { entryCarriesEyes, suiteEntry, suiteEntryOf } from '../share-entries.js';
 import { descendsOf, lineCellOf, lineOfRun } from '../share-lines.js';
 import { mainlineBase, mainlineMissed, mainlineRead, rootShare } from './mainline-base.js';
-import { describePublish, type Here, type RunPublish } from './share.js';
+import { describePublish, eyesWritten, type Here, type RunPublish } from './share.js';
 
 /** What `share --suite` was asked to do. */
 export interface SuiteShareOptions {
@@ -104,7 +104,8 @@ async function publishOnLine(
     },
   });
   if ('kind' in published) return on({ line: run.line, miss: published, ...noMainline });
-  return on({ line: run.line, published, ...noMainline });
+  const eyes = entryCarriesEyes(entry) ? eyesWritten([entry.name], published.written) : {};
+  return on({ line: run.line, published, ...eyes, ...noMainline });
 }
 
 /**

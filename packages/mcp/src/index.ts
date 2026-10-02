@@ -31,5 +31,6 @@ export type { Located, LocateHit, LocateMatch, LocateField } from './tools/locat
 
 export type { ObservabilitySubject } from './observability-subject.js';
 
-export { serve, serveEyesArchive, serveReportFile, serveVantage } from './server.js';
+export { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
+export { serve, serveEyesRecord, serveReportFile, serveVantage } from './server.js';
 export type { ReportFileOptions, ServerOptions, ServedVantage } from './server.js';

@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseEyesArchive, readEyesArchive } from './archive.js';
+import { parseEyesArchive, parseEyesJournal, readEyesArchive } from './archive.js';
 
 describe('portable Eyes evidence', () => {
   it('validates phase-bearing test attention from JSON', () => {
@@ -87,6 +87,13 @@ describe('portable Eyes evidence', () => {
     }
   });
 
+  it('carries which tests were watched across the boundary, and leaves it absent when the producer did not say', () => {
+    const test = { id: 'test-1', title: 'redraws', complete: true, attention: [] };
+    expect(parseEyesArchive({ eyesVersion: 1, watched: ['test-1', 'test-2'], tests: [test] }).watched).toEqual(['test-1', 'test-2']);
+    expect(parseEyesArchive({ eyesVersion: 1, tests: [test] })).not.toHaveProperty('watched');
+    expect(() => parseEyesArchive({ eyesVersion: 1, watched: 'test-1', tests: [] })).toThrow('eyes archive watched must be an array');
+  });
+
   it('refuses unsupported versions and invented empty partial evidence', () => {
     expect(() => parseEyesArchive({ eyesVersion: 2, tests: [] })).toThrow(/unsupported/);
     expect(() => parseEyesArchive({
@@ -111,5 +118,13 @@ describe('portable Eyes evidence', () => {
         }],
       }],
     })).toThrow(/owners must be an array/);
+  });
+
+  it('refuses a journal a record carries when it cannot say whether it is complete, or holds no attention list', () => {
+    expect(parseEyesJournal({ complete: true, attention: [] })).toEqual({ complete: true, attention: [] });
+    expect(() => parseEyesJournal({ complete: 'yes', attention: [] }, 'journal'))
+      .toThrow('journal complete must be boolean');
+    expect(() => parseEyesJournal({ complete: true, attention: {} }, 'journal'))
+      .toThrow('journal attention must be an array');
   });
 });

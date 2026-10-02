@@ -4,16 +4,14 @@ import type {
   PlaywrightTestArgs,
   PlaywrightWorkerArgs,
 } from '@playwright/test';
-import { relative, sep } from 'node:path';
 import {
   createEyesLog,
-  eyesTestAttention,
+  eyesJournal,
   type AttentionDraft,
   type EyesLog,
   type TargetSnapshot,
 } from './access.js';
-import { recordEyesTest } from './collect.js';
-import { eyesStage } from './stage.js';
+import { handToRunningCase, watchRunningCase } from './case.js';
 import { bundleEyesAgent } from './bundle.js';
 import {
   EYES_AGENT,
@@ -26,7 +24,7 @@ import { instrumentPage } from './playwright-proxy.js';
 export interface EyesFixtures {
   /**
    * Attention collected for this test. The page fixture writes it, and teardown
-   * publishes it when `@variance-authority/eyes/reporter` is installed.
+   * hands it to the case the run is recording, when the run records.
    */
   readonly eyes: EyesLog;
 }
@@ -72,26 +70,15 @@ export const eyesFixtures: Fixtures<
 
   // Closed at teardown, after `page` — which depends on it and is therefore torn
   // down first — so every entry the page reported is in before the journal is.
-  // Published only when a run named a stage: without the reporter there is no
-  // process to fold into, and the journal stays the test's own to drain.
+  // Handed to the case the run is recording, which names the case and the
+  // attempt; a run that does not record has no case to hand it to, and the
+  // journal stays the test's own to drain.
   // eslint-disable-next-line no-empty-pattern
-  eyes: async ({}, use, testInfo) => {
+  eyes: async ({}, use) => {
     const log = createEyesLog();
+    watchRunningCase();
     await use(log);
-    const stage = eyesStage();
-    if (stage === undefined) return;
-    await recordEyesTest(
-      stage.directory,
-      eyesTestAttention(
-        {
-          id: testInfo.testId,
-          attempt: testInfo.retry,
-          title: testInfo.title,
-          file: relative(stage.root, testInfo.file).split(sep).join('/'),
-        },
-        log.drain(),
-      ),
-    );
+    handToRunningCase(eyesJournal(log.drain()));
   },
 
   page: async ({ page, eyes, eyesBundle }, use) => {

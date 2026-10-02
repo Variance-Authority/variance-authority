@@ -531,7 +531,7 @@ members. Native tools remain available on the same connection:
 
 | tool | evidence | answers |
 |---|---|---|
-| `variance_test_attention` | an **Eyes archive** — what [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes) recorded about which DOM elements each test addressed, and which React component rendered each | one test's selectors, Locator consumption, DOM events, synchronous Fiber attribution, and authored AAA markers |
+| `variance_test_attention` | the **Eyes journals a record keeps** — what [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes) recorded about which DOM elements each case addressed, and which React component rendered each, read from the run's `coverage.bin` by `readEyesRecord` | one test's selectors, Locator consumption, DOM events, synchronous Fiber attribution, and authored AAA markers |
 | `variance_presentations` | presentation reports | full presentation graphs, telemetry, semantic evidence, measured structures, and findings |
 | `variance_source_tests` | a Sense execution index, as above | which named tests covered source and their minimum observed distance |
 | `variance_changed_tests` | a Sense execution index and a unified diff | every changed region with the cases that covered it, and the ones nothing covered |
@@ -539,7 +539,7 @@ members. Native tools remain available on the same connection:
 | `variance_waiting`, `variance_continue` | Vantage state | which tests have stopped for you to look at them, and letting one go on |
 | visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |
 | `variance_scenarios` | scenario manifests | the witnessed Arrange state and observed or unobserved Act outcomes |
-| `variance_distill` | an Eyes archive and/or a Sense execution index | one test's addressed AAA surface, React update initiators, and source reduction opportunities |
+| `variance_distill` | a Sense execution index, and the Eyes journals the same record keeps | one test's addressed AAA surface, React update initiators, and source reduction opportunities |
 
 `variance_distill` is the deliberate cross-domain answer. It maps the
 DOM owners and source locations a test addressed in each authored phase, then
@@ -572,7 +572,7 @@ the producer and route for every unavailable domain:
 | presentation readings | `@variance-authority/presentation/playwright` | call `sensePresentation` on the live subject and supply the returned full graph; see [presentation](https://variance-authority.dev/docs/presentation) |
 | runtime journey | a Vitest run wrapped with `withTestSelection`, or any other per-test collector | supply an `ExecutionIndex` with stable per-test ids; see [record which case covered a region](https://variance-authority.dev/reference/packages/sense#record-which-case-covered-a-region) |
 | live journey and events | `@variance-authority/playwright-test` plus a watcher | compose `varianceFixtures`, start the watcher first, then pass its exact `VARIANCE_AUTHORITY_VANTAGE` assignment to the suite; see [inspect a live run](https://variance-authority.dev/docs/agent-live-run) |
-| Eyes attention | `@variance-authority/eyes` | compose the host adapter, author AAA phase markers, retain per-test journals with their completion state under stable runner ids, and install React observation before `react-dom`; see the [Eyes integration reference](https://variance-authority.dev/reference/packages/eyes) |
+| Eyes attention | `@variance-authority/eyes` | compose the host adapter in a recording run, so each case's journal lands in its record under the case's id, author AAA phase markers, and install React observation before `react-dom`; see the [Eyes integration reference](https://variance-authority.dev/reference/packages/eyes) |
 | scenario AAA | `@variance-authority/scenario` | record host-produced semantic snapshots and authored Acts, then use the archive entrypoint when the evidence must survive the process; see the [scenario reference](https://variance-authority.dev/reference/packages/scenario) |
 
 The full mechanics stay with each producer. The MCP answer states the minimum
@@ -585,7 +585,7 @@ so an integration does not need the combined surface to receive it.
 
 | entrypoint | requires | exports |
 |---|---|---|
-| `.` | stdio | `serve`, `serveReportFile` and `serveVantage`, and the subject locator |
+| `.` | stdio | `serve`, `serveReportFile`, `serveEyesRecord` and `serveVantage`, `readEyesRecord` and `RecordKeepsNoEyes`, and the subject locator |
 | `./tools` | nothing | observability answers as pure functions over their native evidence |
 | `./protocol` | nothing | MCP framing, as a pure function from a request to a response |
 
@@ -595,7 +595,7 @@ and it stops being asked the moment answering it requires speaking a protocol
 over a pipe.
 
 What a producer *wrote* is not here either. Reports, execution indexes, live
-state, Eyes archives, and scenario manifests belong to their producing
+state, Eyes journals, and scenario manifests belong to their producing
 packages. MCP reads those contracts; it owns none.
 ## Serve a custom subject
 
