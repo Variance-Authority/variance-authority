@@ -5,9 +5,8 @@ use std::path::Path;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use crate::journey_columns;
 use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
-use crate::case_owner;
+use crate::{case_owner, journey_columns};
 use crate::journey_journal::{self, CaseRun, ModuleId, Visitor};
 use crate::journey_output;
 use crate::journey_record::{self, Module};
