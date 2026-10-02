@@ -77,6 +77,23 @@ describe('a share of a record that kept Eyes journals', () => {
     expect(done.lines[0]).toContain('wrote suite-v1/unit');
     expect(await uploadedEyes()).toEqual([]);
   });
+
+  it('says nothing of Eyes when the section is one this build cannot read, which the share drops', async () => {
+    const { dir, commit } = await recorded({ eyes: 'newer' });
+    const done = await suiteShare(dir, { suite: 'unit', publish: true, collected: join(home, 'collected.txt') }, { env: PUSH });
+    expect(done.lines.join('\n')).not.toContain('Eyes');
+    expect(done.lines[0]).toContain('wrote suite-v1/unit');
+    const config = {
+      project: 'web',
+      report: join(home, 'report.json'),
+      share: { kind: 'directory', root: join(home, 'share'), mainlines: ['main'] },
+      suites: [{ name: 'unit', carry: 'share' }],
+    } as unknown as Config;
+    const lines = await shareLines(config, { publish: true, report: await reportAt(commit) }, { env: await pullRequest(commit), cwd: dir });
+    expect(lines[0]).toContain('suite-v1/unit');
+    expect(lines.join('\n')).not.toContain('Eyes');
+    expect(await uploadedEyes()).toEqual([]);
+  });
 });
 
 /** The Eyes section of every record the share holds, read back from the bytes it was given. */
@@ -98,7 +115,7 @@ async function uploadedEyes(): Promise<readonly unknown[]> {
 }
 
 /** A checkout at one pushed commit, holding a record of `unit` given to a directory share. */
-async function recorded(options: { readonly eyes: boolean }): Promise<{ dir: string; commit: string }> {
+async function recorded(options: { readonly eyes: boolean | 'newer' }): Promise<{ dir: string; commit: string }> {
   const dir = await mkdtemp(join(home, 'repo-'));
   const origin = await mkdtemp(join(home, 'origin-'));
   await git(origin, 'init', '--bare', '--quiet');
@@ -115,12 +132,13 @@ async function recorded(options: { readonly eyes: boolean }): Promise<{ dir: str
   await writeFile(join(dir, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share }));
   const record = testCoverageFile(dir, { suite: 'unit' });
   await mkdir(dirname(record), { recursive: true });
-  const eyes = Buffer.from(`${JSON.stringify({ version: 1, ...EYES })}\n`);
+  // A later build's section, which this build keeps on the machine and never reads.
+  const eyes = Buffer.from(`${JSON.stringify(options.eyes === 'newer' ? { version: 2, journals: 'elsewhere' } : { version: 1, ...EYES })}\n`);
   const index = encodeExecutionIndex({ tests: [{ id: CASE, file: 'test/cart.test.ts', name: 'adds one item' }], modules: [] });
   await writeTestCoverage(
     record,
     { version: 3, instrumentation: 'fixture', commit, tests: [], modules: [] },
-    { index, ...(options.eyes ? { eyes } : {}) },
+    { index, ...(options.eyes === false ? {} : { eyes }) },
   );
   await writeFile(commitRunsFile(record), JSON.stringify({ commit, first: '', latest: '', runs: 1, files: [], standing: [] }));
   await writeFile(join(home, 'collected.txt'), '');

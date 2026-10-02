@@ -27,7 +27,7 @@ import { isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import { publishLine } from '@variance-authority/core/share';
 import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
-import { suiteEntry, suiteEntryOf, suiteKeepsEyes } from '../share-entries.js';
+import { entryCarriesEyes, suiteEntry, suiteEntryOf } from '../share-entries.js';
 import { descendsOf, lineCellOf, lineOfRun } from '../share-lines.js';
 import { mainlineBase, mainlineMissed, mainlineRead, rootShare } from './mainline-base.js';
 import { describePublish, eyesWritten, type Here, type RunPublish } from './share.js';
@@ -104,7 +104,7 @@ async function publishOnLine(
     },
   });
   if ('kind' in published) return on({ line: run.line, miss: published, ...noMainline });
-  const eyes = suiteKeepsEyes(root, suite) ? eyesWritten([entry.name], published.written) : {};
+  const eyes = entryCarriesEyes(entry) ? eyesWritten([entry.name], published.written) : {};
   return on({ line: run.line, published, ...eyes, ...noMainline });
 }
 

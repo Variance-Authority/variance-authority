@@ -20,7 +20,7 @@ import {
 } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
 import { costsEntryOf } from './costs-entry.js';
-import { REPORT_ENTRY, readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, suiteKeepsEyes, type NamedImage } from '../share-entries.js';
+import { REPORT_ENTRY, entryCarriesEyes, readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
 import {
   descendsOf,
   distanceFrom,
@@ -203,7 +203,7 @@ export async function publishKept(
     if ('unpublished' in entry) unpublished.push(`${suiteEntry(suite.name)}: ${entry.unpublished}`);
     else {
       entries.push(entry);
-      if (suiteKeepsEyes(cwd, suite.name)) eyes.push(entry.name);
+      if (entryCarriesEyes(entry)) eyes.push(entry.name);
     }
   }
 
