@@ -329,8 +329,9 @@ five of their ids and stops; pass one of them to `--test`. With `--eyes`, the
 test is looked up in the archive first, and the execution index is then read
 by that test's exact `id`, so the two recordings must use the same ids to join.
 
-`distill` does not read project configuration. It reports addressed targets by authored Arrange/Act/Assert
-phase, React update initiators inside and outside those target paths, and files
+From the root `variance.config.json`, `distill` reads only the declared suites,
+to find the record `--suite` names; no other setting changes its answer. It
+reports addressed targets by authored Arrange/Act/Assert phase, React update initiators inside and outside those target paths, and files
 covered by the exact test id without addressed source attribution:
 
 ```text

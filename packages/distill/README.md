@@ -300,8 +300,8 @@ a measured-empty addressed surface.
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
 
-`DistillInput` is made of `test` plus an optional `eyes` archive and `execution`
-index. `Distillation` is a plain data result: `attention` is the per-phase
+`DistillInput` names the test by `test`, `file`, or both — `file` alone when the
+file holds one test — plus an optional `eyes` archive and `execution` index. `Distillation` is a plain data result: `attention` is the per-phase
 `AddressedPhase` and `UpdatePhase` records, and `execution` lists `EnteredFile`
 by file and `EnteredModule` region by region. A `Region` is one instrumented
 declaration — a module's top level, or a function — with its name and line
