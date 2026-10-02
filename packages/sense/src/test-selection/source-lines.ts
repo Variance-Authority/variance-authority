@@ -47,6 +47,11 @@ interface Segment {
   readonly column: number;
   readonly source: number;
   readonly line: number;
+  /**
+   * Opens its generated line with the origin the segment before it ended on:
+   * the statement above continuing, not something written here.
+   */
+  readonly carried: boolean;
 }
 
 /**
@@ -67,6 +72,16 @@ interface Segment {
  * on, so its first line is the origin of the first thing after its start; that
  * origin sits inside the region, because its end has one and its start does
  * not.
+ *
+ * The last thing before a start is not always something written before it.
+ * esbuild opens a generated line that continues a statement with that
+ * statement's origin repeated, so the `else` of an `if` on the line above
+ * carries the `if`'s line, and the nested `if` after it has no segment of its
+ * own. A region opening there answers with the line above, strictly contains
+ * the regions on its own line, and a line query drops it as the outer one. So
+ * when what precedes a start on its own generated line is such a carried
+ * origin, the start is the origin of the first thing written in the region on
+ * that line.
  */
 export function sourceLines(
   code: string,
@@ -92,7 +107,11 @@ export function sourceLines(
   return (start, last) => {
     const closes = nearest(lines, ...at(last), only);
     if (closes === undefined) return undefined;
-    const opens = nearest(lines, ...at(start), only) ?? following(lines, ...at(start), only) ?? closes;
+    const opens =
+      opening(lines, at(start), at(last), only) ??
+      nearest(lines, ...at(start), only) ??
+      following(lines, ...at(start), only) ??
+      closes;
     return [opens + 1, closes + 1];
   };
 }
@@ -260,6 +279,32 @@ function nearest(
 }
 
 /**
+ * The first origin written inside a region on the line it opens, when the only
+ * origin before its start there is one carried over from the line above.
+ * `undefined` otherwise, and the start is then {@link nearest}'s.
+ */
+function opening(
+  lines: readonly (readonly Segment[])[],
+  [line, column]: readonly [number, number],
+  [lastLine, lastColumn]: readonly [number, number],
+  only: number | undefined,
+): number | undefined {
+  let before: Segment | undefined;
+  for (const segment of lines[line] ?? []) {
+    if (only !== undefined && segment.source !== only) continue;
+    if (segment.column === column) return undefined;
+    if (segment.column < column) {
+      before = segment;
+      continue;
+    }
+    if (before?.carried !== true) return undefined;
+    if (line === lastLine && segment.column > lastColumn) return undefined;
+    return segment.line;
+  }
+  return undefined;
+}
+
+/**
  * The first segment at or after a position, for a position that has none
  * before it. Only the prologue asks, so the walk ends at the first line of
  * origins it meets.
@@ -317,6 +362,8 @@ function decode(mappings: string): readonly (readonly Segment[])[] {
   let column = 0;
   let source = 0;
   let line = 0;
+  let original = 0;
+  let previous: { readonly source: number; readonly line: number; readonly original: number } | undefined;
   let index = 0;
 
   while (index < mappings.length) {
@@ -342,12 +389,21 @@ function decode(mappings: string): readonly (readonly Segment[])[] {
     source += second.value;
     const third = vlq(mappings, second.next);
     line += third.value;
-    // The original column, decoded so the cursor lands on the next field and
-    // discarded because a diff's unit is the line.
-    index = vlq(mappings, third.next).next;
+    // The original column. A diff's unit is the line, so it only tells a
+    // carried origin from a new one on the same line.
+    const fourth = vlq(mappings, third.next);
+    original += fourth.value;
+    index = fourth.next;
     if (!boundary(mappings, index)) index = vlq(mappings, index).next;
 
-    segments.push({ column, source, line });
+    const carried =
+      segments.length === 0 &&
+      previous !== undefined &&
+      previous.source === source &&
+      previous.line === line &&
+      previous.original === original;
+    previous = { source, line, original };
+    segments.push({ column, source, line, carried });
   }
 
   lines.push(segments);

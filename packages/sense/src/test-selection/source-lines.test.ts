@@ -159,6 +159,42 @@ describe('what the build seam writes down', () => {
     expect(arrow?.endLine).toBe(5);
   });
 
+  it('opens an `else if` on its own line, not on the line its `if` continues', async () => {
+    // esbuild carries the outer `if`'s origin to the start of the `else` line
+    // and gives the nested `if` no segment of its own. The `else` region opens
+    // at that `if`, so the last origin before it is line 3: recorded there,
+    // the region strictly contains the nested `then`, a line query keeps the
+    // inner of the two, and line 4 loses every test that ran the `else`. The
+    // text and map are vite 5's esbuild output, verbatim.
+    const code = [
+      'export function modes(a, b) {',
+      '  const out = [];',
+      '  if (a) out.push("a");',
+      '  else if (b) out.push("b");',
+      '  return out;',
+      '}',
+      '',
+    ].join('\n');
+    const plugin = testSelectionProbes({ root: '/repo', cacheRoot });
+    const context: TransformingContext = {
+      getCombinedSourcemap: () => ({
+        sources: ['app/src/a.ts'],
+        mappings:
+          'AAAO,gBAAS,MAAM,GAAY,GAAsB;AACtD,QAAM,MAAgB,CAAC;AACvB,MAAI,EAAG,KAAI,KAAK,GAAG;AAAA,WACV,EAAG,KAAI,KAAK,GAAG;AACxB,SAAO;AACT;',
+      }),
+    };
+
+    plugin.transform.call(context, code, '/repo/app/src/a.ts');
+
+    const blocks = (await recorded())?.blocks ?? [];
+
+    expect(blocks.map((block) => [block.path, block.startLine, block.endLine])).toContainEqual([
+      'if#0/else',
+      4,
+      4,
+    ]);
+  });
+
   it('survives a bundler that answers the map request by throwing', async () => {
     // Rollup without a sourcemap chain does exactly this, and losing the
     // record over it would lose the whole run's selection.
