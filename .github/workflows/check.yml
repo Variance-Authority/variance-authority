@@ -107,6 +107,7 @@ jobs:
       # because that is the file a consumer's editor resolves (ADR-0014). A
       # checker reading `src` would pass on things the published types refuse.
       - uses: ./.github/actions/build
+        id: build
 
       # Before the checks because it is the fastest of the two and its failures
       # are the cheapest to act on: an unused import is a one-line fix.
@@ -132,10 +133,45 @@ jobs:
       # lengthens nothing, and `suite` stays the unit suite's harness. The step
       # runs after a red rule too, because a failing link check says nothing
       # about the crate.
+      #
+      # On a pull request that leaves the crate as its base had it, the step
+      # skips, and says so. The tests read nothing outside
+      # `packages/sense/native` but the command that runs them, so the crate's
+      # tree id, which the build action already names, and the `test:native`
+      # script in `packages/sense/package.json` are the whole of what can move
+      # their answer. When both match the base's, the answer is the base's.
+      # `HEAD` here is the pull request merged into its base, so the tree
+      # matches exactly when the pull request changed nothing in the crate.
+      #
+      # The toolchain file names `stable`, not a version, so a Rust release can
+      # change the answer with no file moving. A push to `main` therefore always
+      # runs, and so does a pull request whose base cannot be read: a base that
+      # is not there is not a base that matches.
       - name: native unit tests
         if: ${{ !cancelled() }}
         shell: bash
-        run: yarn workspace @variance-authority/sense test:native
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          TREE: ${{ steps.build.outputs.native-tree }}
+        run: |
+          command_at() {
+            git show "$1:packages/sense/package.json" 2>/dev/null | node -e '
+              const script = JSON.parse(require("fs").readFileSync(0, "utf8")).scripts?.["test:native"];
+              if (typeof script !== "string") process.exit(1);
+              console.log(script);
+            ' 2>/dev/null
+          }
+          if [ -n "$BASE" ] && [ -n "$TREE" ]; then
+            git cat-file -e "$BASE^{commit}" 2>/dev/null || git fetch --no-tags --quiet --depth=1 origin "$BASE" || true
+            base_tree=$(git rev-parse --verify --quiet "$BASE:packages/sense/native" || true)
+            base_command=$(command_at "$BASE" || true)
+            head_command=$(command_at HEAD || true)
+            if [ -n "$base_tree" ] && [ "$base_tree" = "$TREE" ] && [ -n "$base_command" ] && [ "$base_command" = "$head_command" ]; then
+              echo "native unit tests skipped: packages/sense/native is tree $TREE and test:native is \`$head_command\` both here and at the base $BASE"
+              exit 0
+            fi
+          fi
+          yarn workspace @variance-authority/sense test:native
 
   measure:
     # Timed on a machine nothing else is running on. The suite instruments every
