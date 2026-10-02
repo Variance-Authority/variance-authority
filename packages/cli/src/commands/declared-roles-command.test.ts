@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
-import { EXIT_CLEAN, EXIT_REVIEW } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW } from '../exit.js';
 
 /** `variance restrictions` over the roles docs declare with `@testOnly` and `@production`, with no rule file written. */
 
@@ -21,7 +22,7 @@ afterEach(() => {
 
 const FIXTURE = '/**\n * Builds a fixture.\n * @testOnly\n */\nexport function makeFixture() {\n  return 1;\n}\n';
 
-function checkout(files: Record<string, string>): void {
+function checkout(files: Record<string, string>): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-roles-')));
   const all: Record<string, string> = {
     '.gitignore': 'node_modules\n',
@@ -45,6 +46,7 @@ function checkout(files: Record<string, string>): void {
   git(['add', '-A']);
   git(['commit', '--quiet', '-m', 'the checkout']);
   process.chdir(root);
+  return root;
 }
 
 async function run(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
@@ -84,6 +86,16 @@ describe('variance restrictions over declared roles', () => {
     ].join('\n'));
   });
 
+  it('names a shipped file that re-exports test-only names under a namespace', async () => {
+    checkout({ 'lib/src/index.ts': "export * as fixtures from './fixture';\nexport const run = () => 1;\n" });
+    await run(['index']);
+
+    const found = await run(['restrictions']);
+
+    expect(found.code).toBe(EXIT_REVIEW);
+    expect(found.out.split('\n')[0]).toBe('lib/src/index.ts:1 ships makeFixture, declared @testOnly at lib/src/fixture.ts:5');
+  });
+
   it('names a production name only tests reach, and a doc that declares both roles', async () => {
     checkout({
       'lib/src/index.ts': "import { both } from './both';\nexport const run = () => both;\n",
@@ -96,10 +108,28 @@ describe('variance restrictions over declared roles', () => {
     const found = await run(['restrictions', '--format', 'json']);
 
     expect(found.code).toBe(EXIT_REVIEW);
+    expect((await run(['restrictions'])).out).toBe([
+      'lib/src/both.ts:2 both is declared both @testOnly and @production',
+      'lib/src/index.ts:1 ships both, declared @testOnly at lib/src/both.ts:2',
+      'lib/src/kept.ts:3 kept is declared @production, but only tests reach it',
+      '3 declared roles contradicted. No .relations.json is tracked in this checkout, so nothing is restricted.',
+      '',
+    ].join('\n'));
     expect(JSON.parse(found.out).roles).toEqual([
       { kind: 'contradiction', file: 'lib/src/both.ts', line: 2, name: 'both', declaredLine: 0 },
       { kind: 'test-only-shipped', file: 'lib/src/index.ts', line: 1, name: 'both', declared: 'lib/src/both.ts', declaredLine: 2 },
       { kind: 'production-unshipped', file: 'lib/src/kept.ts', line: 3, name: 'kept', declaredLine: 0 },
     ]);
+  });
+
+  it('refuses to check a declared role without a code map that says which files ship', async () => {
+    const root = checkout({ 'lib/src/index.ts': 'export const run = () => 1;\n' });
+    await run(['index']);
+    rmSync(`${sourceIndexPath(root)}.shipped`);
+
+    const found = await run(['restrictions']);
+
+    expect(found.code).toBe(EXIT_OPERATOR);
+    expect(found.err).toContain('1 export declares a role, but no code map folded from the current source index says which files packages ship');
   });
 });

@@ -148,6 +148,9 @@ fn facts<'a>(layers: &'a [Layer], crossing: &Crossing<'a>) -> Facts<'a> {
             }
             if imported != "*" {
                 facts.uses.push(Use { target, name: Some(imported), local: Some(local), line: parses.binding_line.at(binding) });
+            } else if kind == "reexports" {
+                // `export * as ns from` runs every name of the target, like `export *`.
+                facts.uses.push(Use { target, name: None, local: None, line });
             }
         }
         for member in parses.members.range(row) {
@@ -156,7 +159,7 @@ fn facts<'a>(layers: &'a [Layer], crossing: &Crossing<'a>) -> Facts<'a> {
                 facts.uses.push(Use { target, name: Some(name), local: Some(name), line: parses.member_line.at(member) });
             }
         }
-        if kind == "reexports" && parses.request_bindings.range(request).len() == 0 {
+        if kind == "reexports" && parses.request_bindings.range(request).is_empty() {
             facts.uses.push(Use { target, name: None, local: None, line });
         }
     }
