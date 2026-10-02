@@ -1,8 +1,8 @@
 //! The files a catalog shows, read off the tests' side of the code map.
 //!
-//! A catalog — a `*.stories.*` or `*.examples.*` file — is a test by its path,
-//! so a file only catalogs reach lands on the tests' side (`tests` in
-//! `orient_map_read.rs`). The component a catalog shows is not test code,
+//! A catalog — a `*.stories.*`, `*.story.*` or `*.examples.*` file — is a test
+//! by its path, so a file only catalogs reach lands on the tests' side (`tests`
+//! in `orient_map_read.rs`). The component a catalog shows is not test code,
 //! though: it is written for the product, wired in or not yet. Which import is
 //! that component is read by collocation, never from the catalog's own format:
 //! the import beside the catalog that carries its stem (`Button.stories.tsx`
@@ -15,7 +15,7 @@
 use regex::Regex;
 
 /// A catalog by its path: the directory it is in, and the stem it shows.
-const CATALOG: &str = r"(?i)^(.*/)?([^/]+)\.(?:stories|examples)\.[cm]?[jt]sx?$";
+const CATALOG: &str = r"(?i)^(.*/)?([^/]+)\.(?:stories|story|examples)\.[cm]?[jt]sx?$";
 
 /// The files on the tests' side that a catalog's component reaches, the
 /// component included, in the order of `paths`. The walk stops at a file that
@@ -61,6 +61,10 @@ mod tests {
     fn a_catalog_shows_the_import_beside_it_that_carries_its_stem() {
         assert!(shows("src/", "Button", "src/Button.tsx"));
         assert!(shows("src/", "Button", "src/Button/index.ts"));
+        let catalog = Regex::new(CATALOG).unwrap();
+        for path in ["src/Button.stories.tsx", "src/Button.story.tsx", "src/Button.examples.jsx"] {
+            assert_eq!(&catalog.captures(path).unwrap()[2], "Button", "{path}");
+        }
         assert!(shows("", "Button", "Button.jsx"));
         assert!(!shows("src/", "Button", "src/ButtonGroup.tsx"));
         assert!(!shows("src/", "Button", "src/Button.styles.ts"));
