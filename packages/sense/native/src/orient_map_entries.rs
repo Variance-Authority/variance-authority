@@ -3,8 +3,11 @@
 //!
 //! What a package ships is its manifest's to say. `exports`, `main`, `module`
 //! and `bin` are what a consumer loads, and a runtime loads nothing else of it,
-//! so a file they name is an entry whoever else imports it: a package whose
-//! every source file its own tests also import still ships them. A path under
+//! so a file they name is an entry whoever else imports it and whatever its
+//! path says: a package whose every source file its own tests also import
+//! still ships them, and so does one offering `./src/jest.ts` as `./jest`. The
+//! exception is a package inside a test's fixtures, which offers its files to
+//! that test (`read` in `orient_map_read.rs`). A path under
 //! a build's output is read back through the `tsconfig` that emits it
 //! (`emitted.rs`), by the same resolver the scan resolves an import with, so
 //! `./dist/index.js` is `src/index.ts` whether or not the build ran.

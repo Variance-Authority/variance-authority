@@ -120,10 +120,14 @@ the checkout. A file of the package that no entry loads, such as dead code or a
 build script, is not counted. Blank lines and comments are not counted. A type-only
 import is not followed, because nothing loads it at runtime. An `import()` is
 followed, because something does. Test files, and files only tests import, are
-not part of what a package ships.
+not part of what a package ships, unless an entry names or loads them.
 
 A package's entries are the files its `package.json` names in `exports`,
-`main`, `module` or `bin`, whoever else imports them. A subpath pattern such as
+`main`, `module` or `bin`, whoever else imports them and whatever their names
+say: `./src/jest.ts` offered as `./jest` is an entry and ships with every file
+it loads, though a file named for a test runner is otherwise read as part of
+the tests. A package inside a test's fixtures directory ships nothing, because
+its manifest is written for that test. A subpath pattern such as
 `"./*": "./src/*/index.ts"` names every file it matches. A path under the
 build's output is read as the source file the `tsconfig` builds it from, so
 `./dist/index.js` is `src/index.ts` whether or not you have built. A package

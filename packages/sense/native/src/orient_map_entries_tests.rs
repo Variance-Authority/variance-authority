@@ -44,6 +44,14 @@ const FILES: &[(&str, &str, &[&str])] = &[
     ("packages/emitted/package.json", r#"{"name": "@t/emitted", "exports": {"./*": {"types": "./dist/*.d.ts", "default": "./dist/*.js"}}}"#, &[]),
     ("packages/emitted/tsconfig.json", r#"{"compilerOptions": {"outDir": "./dist", "rootDir": "./src"}}"#, &[]),
     ("packages/emitted/src/a/b.ts", "export const make = 1;\n", &[]),
+    // Offers files a runner's name is on, and what they load ships with them.
+    ("packages/runner/package.json", r#"{"name": "@t/runner", "exports": {"./jest": "./src/jest.ts"}}"#, &[]),
+    ("packages/runner/src/jest.ts", "import { make } from './jest-environment.ts';\n", &["packages/runner/src/jest-environment.ts"]),
+    ("packages/runner/src/jest-environment.ts", "export const make = 1;\n", &[]),
+    ("packages/runner/src/jest.test.ts", "import { make } from './jest.ts';\n", &["packages/runner/src/jest.ts"]),
+    // A package inside a test's fixtures offers its file to the test, not to a consumer.
+    ("packages/runner/src/__fixtures__/pkg/package.json", r#"{"name": "@t/fixture", "main": "./index.ts"}"#, &[]),
+    ("packages/runner/src/__fixtures__/pkg/index.ts", "export const make = 1;\n", &[]),
 ];
 
 fn publish(index: &str) {
@@ -59,7 +67,9 @@ fn publish(index: &str) {
             .iter()
             .map(|_| r#"{"value": "./index.ts", "kind": "imports", "line": 1, "bindings": [{"imported": "make", "local": "make", "type": false, "line": 1}]}"#.to_owned())
             .collect();
-        parses.push(format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [{}], "size": {{"bytes": 30, "lines": 1}}}}]"#, requests.join(", ")));
+        // Keyed the way the scan keys a parse, which a test file's name changes.
+        let way = crate::index::way(file).replace('\0', "\\u0000");
+        parses.push(format!(r#"["{digest}\u0000{way}", {{"requests": [{}], "size": {{"bytes": 30, "lines": 1}}}}]"#, requests.join(", ")));
     }
     let document = format!(r#"{{"records": [{}], "parses": [{}], "deletedRecords": [], "deletedParses": []}}"#, records.join(", "), parses.join(", "));
     let segment = merged(&[], &Delta::of(vec![document]).unwrap());
@@ -109,8 +119,22 @@ fn a_manifest_that_offers_nothing_starts_at_the_files_nothing_of_its_own_ships_i
 #[test]
 fn a_package_named_storybook_ships_and_its_own_storybook_directory_does_not() {
     let (_root, read) = folded("storybook");
-    // A test its manifest offers as a `bin` is still a test.
-    assert_eq!(package(&read, "@t/storybook"), (1, 1, false, vec!["packages/storybook/src/index.ts".to_owned()]));
+    // A file its manifest offers as a `bin` ships whatever its name says.
+    let shipped = ["packages/storybook/src/index.test.ts", "packages/storybook/src/index.ts"];
+    assert_eq!(package(&read, "@t/storybook"), (2, 2, false, shipped.map(str::to_owned).to_vec()));
+}
+
+#[test]
+fn a_file_its_manifest_offers_ships_with_what_it_loads_though_a_runner_is_named_on_both() {
+    let (_root, read) = folded("runner");
+    let shipped = ["packages/runner/src/jest-environment.ts", "packages/runner/src/jest.ts"];
+    assert_eq!(package(&read, "@t/runner"), (2, 2, false, shipped.map(str::to_owned).to_vec()));
+}
+
+#[test]
+fn a_package_inside_a_tests_fixtures_ships_nothing_its_manifest_offers() {
+    let (_root, read) = folded("fixture");
+    assert_eq!(package(&read, "@t/fixture"), (0, 0, true, Vec::new()));
 }
 
 #[test]
