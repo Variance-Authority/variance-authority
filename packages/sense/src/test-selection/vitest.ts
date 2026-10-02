@@ -110,6 +110,7 @@ interface VitePlugin extends ConfigPlugin {
     id: string,
   ) => { code: string; map: null } | null;
   readonly closeBundle: () => Promise<void>;
+  readonly watchChange: (id: string) => void;
 }
 
 /**
