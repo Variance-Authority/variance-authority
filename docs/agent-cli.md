@@ -220,14 +220,17 @@ an answer may be taken to claim are one boundary whichever transport asks:
 ## Distill one completed test
 
 ```bash
-variance distill --test 'test/checkout.spec.ts > checkout > submits'
+variance distill --file test/checkout.spec.ts --test submits
 ```
 
-This command does not read `variance.config.json`. It reads one case out of the
-checkout's record, or the one `--execution` names, and combines the case's
-authored AAA attention, React update initiators and covered source for every
-attempt the record keeps. A record without Eyes journals still gives the covered
-source; the absent attention is not replaced by an empty one. The deterministic
+This command does not read `variance.config.json` beyond its declared suites. It
+reads one case out of the checkout's record, the declared suite's that `--suite`
+names, or the one `--execution` names, and combines the case's authored AAA
+attention, React update initiators and covered source for every attempt the
+record keeps. `--test` takes the case's id, its exact title or a part of the
+title, and `--file` a part of the test file's path; more than one fitting case
+is refused with their ids. A record without Eyes journals still gives the
+covered source; the absent attention is not replaced by an empty one. The deterministic
 reading and the skill's counterfactual verification loop are described in
 [distill a test](distill.md).
 

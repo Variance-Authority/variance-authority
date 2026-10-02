@@ -425,10 +425,11 @@ use, and re-approve under it. See [placement](placement.md).
 **Test evidence joins on the case.** Sense writes the execution record, and
 Eyes writes each case's journal into the same record, under the case the
 recording runs and its attempt. Titles and file paths are presentation and are
-never used as a fallback identity. `variance distill --test <id>` is where you
-read the two together: it takes the exact case id the record holds, refuses any
-other and lists the ids it does hold, and says when the record keeps no Eyes
-journal rather than reading that as an empty one.
+never used as a fallback identity: two readings join only on the case id the
+record holds. `variance distill` is where you read the two together: `--test`
+and `--file` find one case in the record's case index, by its id, its title or
+a part of either, and everything else is read by that case's id. It says when
+the record keeps no Eyes journal rather than reading that as an empty one.
 
 Within a joined test, three things stay distinct and are not read as each
 other: which DOM the test attended to, which React components re-rendered

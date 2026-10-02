@@ -1,12 +1,17 @@
 import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
+import { oneRecord } from './commands/suite-record.js';
 
 export interface ParsedDistill {
   readonly command: 'distill';
-  readonly test: string;
+  readonly test?: string;
+  /** A part of the test file's path; with no `test`, the file's one case. */
+  readonly file?: string;
   /** The record to read, when it is not the checkout's own. */
   readonly execution?: string;
+  /** The one declared suite whose record is read. */
+  readonly suite?: string;
   /** The checkout whose record is read; defaults to the working directory. */
   readonly root: string;
   readonly format: 'text' | 'json';
@@ -16,17 +21,24 @@ export interface ParsedDistill {
 export function parseDistill(flags: Flags): ParsedDistill {
   noPositionals(flags.positionals, 'distill');
   const test = flags.values.get('--test');
-  if (test === undefined) throw new OperatorError('distill needs `--test <id>`');
+  const file = flags.values.get('--file');
+  if (test === undefined && file === undefined) {
+    throw new OperatorError('distill needs `--test <name>`, `--file <path>`, or both');
+  }
   const format = flags.values.get('--format') ?? 'text';
   if (format !== 'text' && format !== 'json') {
     throw new OperatorError(`--format must be text or json, not \`${format}\``);
   }
   const execution = flags.values.get('--execution');
+  const suite = flags.values.get('--suite');
+  oneRecord(suite, execution, '--execution');
   return {
     command: 'distill',
-    test,
+    ...(test === undefined ? {} : { test }),
+    ...(file === undefined ? {} : { file }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
+    ...(suite === undefined ? {} : { suite }),
     format,
   };
 }

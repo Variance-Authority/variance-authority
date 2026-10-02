@@ -142,7 +142,7 @@ describe('distill', () => {
         return (error as Error).message;
       }
     })();
-    expect(refusal).toContain('The record holds no case with id 875862714_0.');
+    expect(refusal).toContain('The record holds no case matching `875862714_0`.');
     expect(refusal).toContain('It records 8 case id(s), of which:');
     expect(refusal).toContain('  test/redraw.test.tsx > case 0');
     expect(refusal).toContain('  and 3 more.');
@@ -154,9 +154,10 @@ describe('distill', () => {
       .toThrow('it records no cases at all');
   });
 
-  it('refuses a title where an id belongs', () => {
-    expect(() => distill({ test: 'redraws', eyes: EYES, execution: EXECUTION }))
-      .toThrow('The record holds no case with id redraws.');
+  it('finds a case by its exact title, and reads its journals by its id', () => {
+    const result = distill({ test: 'redraws', eyes: EYES, execution: EXECUTION });
+    expect(result.test.id).toBe('redraw-test');
+    expect(result.attempts).toHaveLength(EYES.length);
   });
 
   it('joins an absolute addressed path to a project-relative entered module', () => {
@@ -334,5 +335,30 @@ describe('a named import nothing ever calls', () => {
     expect(() => parseExecutionIndex({ ...execution, modules: [{ file: 'x', blocks: [
       region('module', '', 1, 1, [{ test: 0, distance: 0, loaded: 'yes' } as never]),
     ] }] })).toThrow('loaded must be boolean');
+  });
+});
+
+describe('naming the test', () => {
+  const recorded: ExecutionIndex = { tests: [
+    { id: 'test/checkout.test.tsx > checkout > submits', file: 'test/checkout.test.tsx', name: 'checkout > submits' },
+    { id: 'test/checkout.test.tsx > checkout > cancels', file: 'test/checkout.test.tsx', name: 'checkout > cancels' },
+    { id: 'test/cart.test.tsx > cart > submits', file: 'test/cart.test.tsx', name: 'cart > submits' },
+  ], modules: [] };
+
+  it('finds a recorded test by a part of its name within a file', () => {
+    expect(distill({ file: 'checkout.test', test: 'submits', execution: recorded }).test.id)
+      .toBe('test/checkout.test.tsx > checkout > submits');
+    expect(distill({ file: 'cart', execution: recorded }).test.id).toBe('test/cart.test.tsx > cart > submits');
+  });
+
+  it('refuses a name more than one test fits, and names each one by its id', () => {
+    expect(() => distill({ test: 'SUBMITS', execution: recorded })).toThrow(
+      '2 recorded cases matching `SUBMITS`: test/checkout.test.tsx > checkout > submits, '
+        + 'test/cart.test.tsx > cart > submits; name one by its id',
+    );
+    expect(() => distill({ file: 'checkout', execution: recorded })).toThrow('2 recorded cases in `checkout`');
+    expect(() => distill({ file: 'nowhere', test: 'submits', execution: recorded }))
+      .toThrow('The record holds no case matching `submits` in `nowhere`.');
+    expect(() => distill({ execution: recorded })).toThrow('name a test, a file, or both');
   });
 });
