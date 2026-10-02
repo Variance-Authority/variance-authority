@@ -649,3 +649,48 @@ M-tr6 was not the fusion the owner meant. BM25 also chooses from a set. The inte
   - M-tr12 weights: pairs 19/35, alone 0.435.
 - Without the reach lean, the trained Julia's content judgement is about 60% on the hard pairs, against BM25's 83%. M-tr11's 28/35 was mostly the reach prior.
 - **Standing verdict:** after 13 moves, no Julia row beats BM25 on content. The Next stays NEEDS-HUMAN-DECISION: an owner-labelled gauge spread across blocks, or a change to the goal.
+
+# Clef-flash runs, 2026-10-02
+
+## Owner redirect 2026-10-02: "I don't care about Julia. I care about things working." The outcome is now: a decision model routes work to its owner materially better than BM25. Candidate: Clef-flash (Cloudflare, 9B Qwen3.5 backbone with a joint schema head), run locally on MPS, approved by the owner.
+
+## M-cf1 Arrange (pre-registered)
+- Same 44 gold specs. The state is the first 12 lines of the spec.
+- G1 is primary. One `choice` over all 11 blocks; each option's criteria text is that block's Responsibility and Boundary. Read top-1 and MRR.
+  - Bars: BM25 31/44, MRR 0.883. Always picking the most common block scores MRR 0.783.
+- G2: a `choice` between BM25's top two, on the 35 pairs where exactly one of the two is gold.
+  - Bars: BM25 29/35. The prior rule "reach if offered" scores 32/35.
+- G3: a `noul` per boundary question: does this sentence put the work outside block X? There are 152 discriminating questions.
+  - Bar: always-exclude 90/152; on non-`reach` blocks, 88/112.
+- Expected (works): G1 top-1 ≥ 35/44 **and** G2 ≥ 32/35.
+- Disconfirming: G1 top-1 ≤ 31 **and** G2 ≤ 29.
+- Anything between the two is Mixed. G3 is diagnostic only.
+- Wording is not to be tuned after a result. Any second variant is reported as a second variant.
+- Amendment before any run: G3 is scored per question. A question is right when "outside" equals "block not gold". It covers every word-overlapping boundary sentence of the top 3, and its bar is always-exclude computed on that same set. It replaces the 152-question oracle definition, which judges a steer rather than the answer. Still diagnostic only.
+
+## M-cf1 result: Disconfirming
+- G1 (11-way): Clef-flash top-1 is 17/44 and MRR 0.510, against BM25's 31/44 and 0.883. Its picks pile onto `adjudication` (16 of 44).
+- G2 (BM25's top two): 16/36, below a coin flip. This set has 36 pairs, not the 35 pre-registered, because the BM25 lists came from M-or4. It is not position bias: Clef picked the BM25-first option 19/36 and the alphabetical-first 12/36. It is confidently wrong, with a median confidence of 0.71.
+- G3 (boundary): 96/202, against always-exclude at 120. Outside `reach`: 77/161, against 118.
+- Reading: on this chart a 9B general decision model does worse than the 144M Julia did, and far worse than BM25. Model size is not the missing piece. A general model reading block prose cannot route this project's work; the project's own vocabulary is what routes it, and BM25 exploits that.
+- Epitaph: off-the-shelf decision models as the router. Resurrect only for a model fine-tuned on owner-labelled items.
+
+### Post-hoc on M-cf1 (labelled post-hoc; not pre-registered)
+- Equal text: BM25 over Responsibility+Boundary only (what Clef saw) = 7/44, MRR 0.392. Clef G1 = 17/44, 0.510. Clef reads better than BM25 on equal text; BM25's lead comes from the rest of the README (coordinates, package names specs repeat).
+- Same 12-line spec query, BM25 full README = 31/44, MRR 0.831 (0.883 was the oracle's query). RRF(k=60) of BM25 and Clef G1 = 20/44, 0.616: fusion hurts.
+- Full READMEs = 13,863 Clef tokens: fits 16,384.
+
+### M-cf2 Arrange (post-hoc variant, pre-registered before run)
+- Move: Clef-flash G1 11-way, criteria = full plain README per block, same query. Writes clef_cf2.json.
+- Bar: BM25 same query 31/44, MRR 0.831.
+- Expected: ≥ 33/44 or MRR ≥ 0.86. Disconfirming: ≤ 31/44 and MRR ≤ 0.831.
+
+### M-cf2 result — Disconfirming
+- 4/44, MRR 0.274 against BM25 31/44, 0.831. Picks collapse: stability 39, normalization 4, presentation 1. ~41 s/spec.
+- With the whole chart in context, Clef-flash stops discriminating; a choice over 11 long criteria degenerates to one option.
+- Epitaph (all Clef variants): off-the-shelf Clef-flash does not route specs to chart blocks better than BM25 — 17/44 short criteria, 4/44 full criteria, 20/44 fused with BM25. Resurrect if: a Clef fine-tune on labelled routing items, or a larger Clef tier via cloud.
+
+- Critic on M-cf2: not a harness bug. Inputs were 14,233–14,414 tokens, under the 16,384 limit, with nothing truncated or dropped. Clef averages each option over its whole span, so a 1,000–1,600-token option dilutes the words that separate blocks about tenfold. The probabilities came out nearly flat (mean top 0.142 against 0.091 uniform), and `stability`, sorted last and so next to the token the head summarises from, won the near-ties.
+- Correction to the M-cf1 reading: "model size is not the missing piece" overstates it. On equal text Clef beat BM25 (17 against 7); what BM25 has and Clef did not see is the rest of each README.
+
+### M-cf3 (chunked options, order-balanced): stopped by the owner after 7 of 44 specs, no result

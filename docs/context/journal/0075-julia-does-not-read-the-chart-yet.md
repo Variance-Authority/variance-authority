@@ -11,7 +11,8 @@ blocks). The bar was BM25 over every chart README, which puts the owner first or
 second for most specs.
 
 It did not get there. Across thirteen pre-registered runs, Julia beat random
-choice and never beat BM25 on content. Every script, rank file and the run-by-run
+choice and never beat BM25 on content. A 9B decision model, Clef-flash, did
+not beat it either. Every script, rank file and the run-by-run
 notebook are in [the lab directory](0075-julia-does-not-read-the-chart-yet/).
 
 ## The numbers
@@ -59,6 +60,36 @@ of BM25's top two blocks is a real owner. BM25 picks the right one 29 times.
 - **Synthetic queries alone do not fix it.** Spec-shaped proposals written
   from the chart, the remedy the retrieval literature gives for training on
   document text (DSI-QG, InPars, GPL), collapsed the model onto one block.
+
+## A larger model did not get there either
+
+Two days later the same 44 specs went to Clef-flash, Cloudflare's 9B decision
+model, run locally. It answers a choice by scoring each option's text against
+the work. The query was each spec's first twelve lines, which puts BM25 at 31
+of 44 first and MRR 0.831.
+
+| Clef saw | First | MRR |
+|---|---|---|
+| each block's Responsibility and Boundary | 17/44 | 0.510 |
+| the same, fused with BM25's rank (RRF, k = 60) | 20/44 | 0.616 |
+| each block's whole README | 4/44 | 0.274 |
+
+- **On equal text Clef read better than BM25.** BM25 over only the
+  Responsibility and Boundary sections put the owner first 7 times. Its 31
+  come from the rest of each README, the implementation coordinates and package
+  names that specs repeat.
+- **Giving Clef the rest made it worse.** With whole READMEs as options it put
+  `stability` first for 39 specs. Nothing was truncated. Clef averages each
+  option over its whole length, so a long option dilutes the words that tell
+  blocks apart, the answers came out nearly flat, and the last option listed
+  won the ties.
+- **Clef on BM25's top two** picked the owner 16 times in 36, worse than a coin
+  flip, at a median confidence of 0.71. Asked per boundary sentence whether it
+  put the work outside a block, it was right 96 times in 202, where always
+  answering "outside" is right 120 times.
+
+A run with each README cut into short options, scored in both orders, was
+stopped after 7 specs and has no result.
 
 ## What would settle it
 

@@ -14,3 +14,11 @@ These are the scripts, inputs and rank files behind
 
 The scripts expect `S` to point at a scratch directory holding `dom/`, and a
 Python environment with `julia_mlx`. Model weights are not included.
+
+The Clef-flash runs are `clef_cf1.py` (short criteria, three question shapes) and
+`clef_cf2.py` (whole READMEs), with their answers in `clef_cf1.json` and
+`clef_cf2.json`. `clef_score.py` scores the first, and `clef_bm25.py` puts BM25
+and a fusion of the two beside it. They read BM25's shortlists from
+`clef_bm25_lists.json`, expected at `$S/orient/oracle_chart.json`, and need
+Cloudflare's `joint_schema_model.py` and the Clef-flash weights, which are not
+included.
