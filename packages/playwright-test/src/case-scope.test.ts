@@ -70,10 +70,13 @@ describe('the case a Playwright test runs as', () => {
       expect(index.tests.map((test) => [test.id, test.name])).toEqual([
         ['tests/checkout.spec.ts > checkout > pays', 'checkout > pays'],
       ]);
-      expect(recordedEyesAt(coverageFile)).toEqual([
-        { case: 'tests/checkout.spec.ts > checkout > pays', attempt: 1, journal: { complete: true, attention: [], seen: 0 } },
-        { case: 'tests/checkout.spec.ts > checkout > pays', attempt: 2, journal: { complete: true, attention: [], seen: 1 } },
-      ]);
+      expect(recordedEyesAt(coverageFile)).toEqual({
+        watched: ['tests/checkout.spec.ts > checkout > pays'],
+        journals: [
+          { case: 'tests/checkout.spec.ts > checkout > pays', attempt: 1, journal: { complete: true, attention: [], seen: 0 } },
+          { case: 'tests/checkout.spec.ts > checkout > pays', attempt: 2, journal: { complete: true, attention: [], seen: 1 } },
+        ],
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

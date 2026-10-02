@@ -47,7 +47,7 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
 }
 
 function journalsAt(record: string): readonly EyesAttempt[] {
-  return (recordedEyesAt(record) ?? []).map((row) => ({
+  return (recordedEyesAt(record)?.journals ?? []).map((row) => ({
     case: row.case,
     attempt: row.attempt,
     journal: parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`),

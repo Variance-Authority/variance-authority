@@ -79,7 +79,7 @@ live('Eyes in a recording Playwright run', () => {
 
       // The retry is a second attempt of one case, never a second case: both
       // attempts join the id the index gives it, and the attempt is a column.
-      const rows = recordedEyesAt(record)!;
+      const rows = recordedEyesAt(record)!.journals;
       expect(rows.map((row) => [row.case, row.attempt])).toEqual([
         [`${SPEC} > adds one item`, 1],
         [`${SPEC} > passes on its second attempt`, 1],

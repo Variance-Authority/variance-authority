@@ -395,13 +395,14 @@ export async function recordExecution(
   // suite's cases stay. A Storybook row is a story, not a file, so its cases are
   // laid over by id and never replaced by file.
   const observed = options.cases ?? [];
+  const eyes = eyesOfCases(observed);
   const cases =
     observed.length === 0
       ? undefined
       : {
           fresh: encodeAsSetExecutionIndex(executionIndexFrom(caseJournals(observed), byId)),
           run: { tests, ...(commit === undefined ? {} : { commit }) },
-          eyes: eyesOfCases(observed),
+          ...(eyes === undefined ? {} : { eyes }),
         };
   const merged = await withIndexLock(coverageFile, async () => {
     await landRun(coverageFile, current, root, options.cacheRoot, cases);

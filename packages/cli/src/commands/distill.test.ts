@@ -46,7 +46,7 @@ async function recorded(root: string, journals?: readonly unknown[]): Promise<st
       ],
     }),
     ...(journals === undefined ? {} : {
-      eyes: Buffer.from(`${JSON.stringify({ version: 1, journals })}\n`),
+      eyes: Buffer.from(`${JSON.stringify({ version: 1, watched: [CASE], journals })}\n`),
     }),
   }));
   return at;

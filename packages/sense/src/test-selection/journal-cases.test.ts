@@ -21,7 +21,7 @@ import { readTestCoverage, selectTestFiles } from './index.js';
 import { coveringChange, coveringTests, ranWhileLoading, type ExecutionIndex } from './reverse.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { caseIndexOf } from './case-record.js';
-import { recordedEyesAt } from './eyes-record.js';
+import { recordedEyesAt } from './case-record.js';
 import {
   INITIALIZING,
   LABEL_PLAIN_LINE,
@@ -337,11 +337,14 @@ describe('a driver whose cases kept Eyes journals', () => {
 
       const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       expect(index.tests.map((test) => test.id)).toEqual(['e2e/price.spec.ts > case', 'e2e/price.spec.ts > case#1']);
-      expect(recordedEyesAt(coverageFile)).toEqual([
-        { case: 'e2e/price.spec.ts > case', attempt: 1, journal: journal('act') },
-        { case: 'e2e/price.spec.ts > case', attempt: 2, journal: journal('assert') },
-        { case: 'e2e/price.spec.ts > case#1', attempt: 1, journal: journal('arrange') },
-      ]);
+      expect(recordedEyesAt(coverageFile)).toEqual({
+        watched: ['e2e/price.spec.ts > case', 'e2e/price.spec.ts > case#1'],
+        journals: [
+          { case: 'e2e/price.spec.ts > case', attempt: 1, journal: journal('act') },
+          { case: 'e2e/price.spec.ts > case', attempt: 2, journal: journal('assert') },
+          { case: 'e2e/price.spec.ts > case#1', attempt: 1, journal: journal('arrange') },
+        ],
+      });
       await closeStage(directory);
     });
   });
@@ -360,6 +363,23 @@ describe('a driver whose cases kept Eyes journals', () => {
       });
 
       expect(recordedEyesAt(coverageFile)).toBeUndefined();
+    });
+  });
+
+  it('keeps a section naming the case for a run that opened a journal and handed none over', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+      await recordExecution({
+        root,
+        cacheRoot: resolve(root, 'cache'),
+        coverageFile,
+        subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium }],
+        cases: [{ file: 'e2e/price.spec.ts', name: 'case', id: 'a', journal: run.premium, eyes: [] }],
+      });
+
+      expect(recordedEyesAt(coverageFile)).toEqual({ watched: ['e2e/price.spec.ts > case'], journals: [] });
     });
   });
 });

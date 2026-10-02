@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { caseSectionsOf, keepsCases, recordedCases, sharedRecord, withCaseSections } from './case-record.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
+import { encodeRecordedEyes } from './eyes-record.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import type { ExecutionIndex } from './execution-format.js';
 import type { TestCoverage } from './index.js';
@@ -45,7 +46,7 @@ function at(bytes: Uint8Array): string {
 
 describe('a record that carries its cases', () => {
   const index = encodeExecutionIndex(INDEX);
-  const eyes = Buffer.from('{"version":1,"journals":[]}\n');
+  const eyes = Buffer.from(encodeRecordedEyes({ watched: [], journals: [] }));
   const record = withCaseSections(encodeTestCoverage(COVERAGE), { index, before: index, last: LAST, eyes });
 
   it('reads as the coverage it carried and as the case index it carried', () => {

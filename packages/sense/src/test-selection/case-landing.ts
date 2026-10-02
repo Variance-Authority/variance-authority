@@ -14,7 +14,7 @@ import { layerBefore, layerCaseIndex } from './case-layer.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
-import { decodeRecordedEyes, layEyes, type RecordedEyes } from './eyes-record.js';
+import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoverageTest } from './index.js';
 
@@ -30,8 +30,8 @@ export interface LaidRun {
 export interface FreshCases {
   readonly fresh: Uint8Array;
   readonly run: LaidRun;
-  /** The Eyes journals the run's cases handed over; none when no case composed Eyes. */
-  readonly eyes?: readonly RecordedEyes[];
+  /** The cases that opened Eyes journals and the journals they handed over; absent when no case composed Eyes. */
+  readonly eyes?: EyesSection;
 }
 
 /**
@@ -77,8 +77,8 @@ export interface LastCaseRun {
  * one more invocation of the same suite, not a new change, so what the runs
  * before it retired stays under what this one retired.
  *
- * `eyes` are the run's Eyes journals, laid by {@link layEyes}: a case that ran
- * has its journals replaced by the run's, and has none when the run kept none.
+ * `eyes` are the run's Eyes, laid by {@link layEyes}: a case that ran has its
+ * journals replaced by the run's, and has none when the run opened none.
  *
  * Nothing is written here. The caller writes the result into the record with
  * the coverage it lands, in one write under the record's lock, so the two
@@ -89,7 +89,7 @@ export function layCases(
   fresh: Uint8Array,
   root: string,
   run: LaidRun,
-  eyes: readonly RecordedEyes[] = [],
+  eyes?: EyesSection,
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const { merged, last, before: retired } = layerCaseIndex(previous.index, fresh, {
@@ -192,7 +192,11 @@ export function landCases(
       // FIXME: each shard is laid as a run of its own, so the last-run layer
       // names only the last shard's cases, and `covering --cases last` after a
       // landing answers from that shard rather than from the whole fold.
-      sections = layCases(sections, fresh, root, shard.coverage, kept.eyes === undefined ? [] : decodeRecordedEyes(kept.eyes));
+      // FIXME: the shard's whole Eyes section is laid as its run's, as its
+      // whole index is: journals its seed carried from the mainline for cases
+      // it never ran land as fresh, and can stand in for a newer shard's.
+      // A section this build cannot read is laid as a shard that opened none.
+      sections = layCases(sections, fresh, root, shard.coverage, readableEyes(kept.eyes));
       laid += 1;
     } else if (shard.coverage.tests.some((test) => test.complete)) {
       const removed = Object.values(previous).some((part) => part !== undefined);

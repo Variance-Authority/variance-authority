@@ -191,11 +191,12 @@ export {
   keepsCases,
   keepsEyes,
   recordedCases,
+  recordedEyesAt,
   sharedRecord,
   withCaseSections,
   type CaseSections,
 } from './case-record.js';
-export { recordedEyesAt, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
+export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
 export {
   commitRunsAfter,
   commitRunsFile,
