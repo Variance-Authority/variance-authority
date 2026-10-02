@@ -109,6 +109,19 @@ describe('what the last run moved', () => {
     expect(answer.motion?.moved).toBeUndefined();
     expect(formatCovering(answer, 'text')).toContain('Nothing to compare:');
   });
+
+  it('refuses a record whose retired cases do not read, rather than saying it holds none', async () => {
+    const dir = await records();
+    const execution = join(dir, 'coverage.bin');
+    await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+      index: encodeExecutionIndex(index([0], [])),
+      before: Buffer.from('not a case index'),
+      last: Buffer.from(JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] })),
+    });
+
+    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution])))
+      .rejects.toThrow(new RegExp(`the cases the last run retired in ${execution.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')} do not read`, 'u'));
+  });
 });
 
 describe('what the runs at one commit moved', () => {

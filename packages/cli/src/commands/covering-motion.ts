@@ -180,13 +180,13 @@ async function againstBefore(
     ...(at === undefined ? {} : { at }),
     ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }),
   };
+  const before = caseSectionsAt(from).before;
+  if (before === undefined) return { base }; // kept no before layer: nothing to compare, unlike one that does not read
   let held: ExecutionIndex;
   try {
-    const before = caseSectionsAt(from).before;
-    if (before === undefined) return { base };
     held = decodeExecutionIndex(before);
-  } catch {
-    return { base };
+  } catch (error) {
+    throw new OperatorError(`the cases the last run retired in ${from} do not read (${error instanceof Error ? error.message : String(error)}), so what the run moved cannot be compared.`);
   }
   if (files !== undefined) held = keepFiles(held, files);
   const asked = new Set(cases);
