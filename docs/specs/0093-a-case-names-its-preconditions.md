@@ -6,8 +6,9 @@ recording. The only preconditions recorded are files: a test file's own source,
 its setup and configuration, each held by digest.
 **Built on:** the per-file `preconditions` in the coverage record
 (`CoveragePrecondition`, `name` and `digest`), the case scope every producer
-already enters (`CASE_SCOPE` in `@variance-authority/sense`), the case sidecar
-`cases.bin`, and the `names` grammar of
+already enters (`CASE_SCOPE` in `@variance-authority/sense`), the case
+sections of the one record [spec 0094](0094-a-run-writes-one-record.md) gives a
+run, and the `names` grammar of
 [ADR-0046](../context/adr/0046-a-name-may-be-told-what-its-words-mean.md).
 
 ## Purpose
@@ -25,7 +26,11 @@ The static reading of mocks (`vi.mock`, `jest.mock` read from the AST into
 fact about a test file, not about a case, and it cannot see a state the test
 arranged by calling code: `server.use(...)`, `setFlag(...)`, a fixture argument.
 An announcement from `@variance-authority/event` is no substitute: it says *when*
-the code decided something and carries no value by design.
+the code decided something and carries no value by design. Neither is a runtime
+scenario ([ADR-0047](../context/adr/0047-a-runtime-scenario-is-a-witnessed-path.md)).
+Its Arrange is a subject whose semantic state a harness observed and handed to
+`@variance-authority/scenario`. A case precondition is what a test *says* it
+arranged, with no observation, on a case the coverage recording already holds.
 
 ## The call
 
@@ -85,9 +90,10 @@ recording's commit. The body itself is never copied.
 
 ## What is recorded
 
-A case-level precondition is `{ name, value, site }`, held on the case row in
-`cases.bin` beside `stopped` and `duration`, through the string table every
-other column uses. It travels in the journal beside the case frame, which is a
+A case-level precondition is `{ name, value, site }`, laid on the case rows of
+the record (spec 0094) beside `stopped` and `duration`, through the string
+table every other section uses. It is layered, seeded, sharded and shared with
+the coverage the same run recorded, by the same code. It travels in the journal beside the case frame, which is a
 change to the journal format, and is not part of the case key, so a case's
 identity does not move when its preconditions do. A case that named a
 precondition has a row even when it crossed nothing: a passing case that only
@@ -142,7 +148,7 @@ declared it".
    file-level default overridden by a case, a same-level contradiction, a call
    in `afterEach`, a `test.concurrent` pair under `continuations`, and a retry
    that changes a value.
-3. The `cases.bin` column and its journal frame, with the size it adds to this
+3. The record's precondition sections and their journal frame, with the size it adds to this
    repository's recording stated, and the unmeasured answer for an older record.
    A fixture for a passing case that names a precondition and crosses nothing,
    found by `--where`.

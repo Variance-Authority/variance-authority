@@ -4,12 +4,15 @@ title: A case names its preconditions
 status: To Do
 assignee: []
 created_date: '2026-10-02 05:26'
+updated_date: '2026-10-02 06:01'
 labels: []
-dependencies: []
+dependencies:
+  - TASK-24.1
 references:
   - docs/context/adr/0046-a-name-may-be-told-what-its-words-mean.md
 documentation:
   - docs/specs/0093-a-case-names-its-preconditions.md
+  - docs/specs/0094-a-run-writes-one-record.md
 ordinal: 50000
 ---
 
