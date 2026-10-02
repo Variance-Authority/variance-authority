@@ -76,6 +76,20 @@ describe('the CLI distillation boundary', () => {
     expect(answer.err).toContain(`nothing is recorded in \`${root}\``);
   });
 
+  it('reads an Eyes archive alone when nothing is recorded', async () => {
+    const root = checkout();
+    const eyes = join(root, 'eyes.json');
+    writeFileSync(eyes, JSON.stringify({
+      eyesVersion: 1,
+      tests: [{ id: 'plain', title: 'works', file: 'plain.test.ts', complete: true, attention: [] }],
+    }));
+
+    const answer = await run(['distill', '--test', 'plain', '--eyes', eyes]);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(answer.out).toContain('Runtime journey: unavailable');
+  });
+
   it('takes the recorded index or a named one, never both', async () => {
     checkout();
 
