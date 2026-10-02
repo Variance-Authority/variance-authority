@@ -68,6 +68,15 @@ describe('variance restrictions over declared roles', () => {
     });
   });
 
+  it('passes a shipped file that uses a test-only name only as a type', async () => {
+    checkout({
+      'lib/src/index.ts': "import type { makeFixture } from './fixture';\nimport { type makeFixture as again } from './testing';\nexport type Made = ReturnType<typeof makeFixture> | ReturnType<typeof again>;\nexport const run = () => 1;\n",
+    });
+    await run(['index']);
+
+    expect((await run(['restrictions'])).code).toBe(EXIT_CLEAN);
+  });
+
   it('names a shipped file that runs a test-only name, directly or through a barrel, and where the name is declared', async () => {
     checkout({
       'lib/src/index.ts': "import { makeFixture } from './fixture';\nimport { viaBarrel } from './barrel-user';\nexport const run = () => makeFixture() + viaBarrel();\n",
