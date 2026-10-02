@@ -202,6 +202,68 @@ jobs:
         shell: bash
         run: yarn measure
 
+  base:
+    # The mainline's record of every shared suite, read once for the whole run
+    # and handed to every job that reads one. `refs/variance/mainline/main` is
+    # a line, and a line is its latest: the `publish` job of the previous push
+    # to `main` can move it while this run's suite jobs are starting. Read by
+    # each job on its own, two shards of one slice read two records, place the
+    # slice by two sets of durations, and run some files twice and others not
+    # at all; `record` then refuses to fold them. Read here once, every job
+    # places from the same durations and lays the same base.
+    runs-on: ubuntu-24.04
+
+    steps:
+      # Every commit, because the read says how far behind HEAD the record was
+      # published. No trees, for the reason written at the checkout in `rules`.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+          persist-credentials: false
+
+      # Node 24, for the reason written at the same step in `rules`.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      # `mainlineBase` keeps what it reads under the cache's read root, one
+      # directory per suite with a pointer to the commit it read, and that root
+      # is what the jobs below are handed. A suite whose record was not read
+      # leaves no pointer, and each job asks the line itself and says why.
+      - name: read the mainline once
+        id: read
+        shell: bash
+        run: |
+          read=$(node --input-type=module -e "
+            const cli = await import('@variance-authority/cli');
+            const selection = await import('@variance-authority/sense/test-selection');
+            const root = process.cwd();
+            for (const { name, carry } of selection.declaredSuites(root) ?? []) {
+              if (carry !== 'share') continue;
+              const base = await cli.suiteBase(root, { suite: name });
+              if (base.from === 'mainline') console.error(cli.mainlineRead(base.mainline));
+              else if ('missed' in base && base.missed !== undefined) console.error(cli.mainlineMissed(base.missed));
+            }
+            process.stdout.write(selection.cacheRootFor(root) + '/share/read');
+          ")
+          echo "dir=$read" >> "$GITHUB_OUTPUT"
+
+      - name: hand the read on
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-base
+          path: ${{ steps.read.outputs.dir }}
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+
   suite:
     # One slice, or one shard of one, per job, in the pinned Playwright image
     # `cases` and `variance.yml` run in. The image carries the browser, so the
@@ -223,11 +285,13 @@ jobs:
     #
     # Shards are placed by `tools/since-shard.mjs`, with the placement
     # `variance run --shard` makes: longest first by the durations the record
-    # carries. Every shard of a slice reads the same record and the same change,
-    # so they agree on the placement without talking to each other.
+    # carries. Every shard of a slice reads the same change and the record
+    # `base` read once, so they agree on the placement without talking to each
+    # other.
     #
     # Not `fail-fast`: a red unit shard says nothing about chromium, and a
     # cancelled job reports nothing.
+    needs: base
     name: suite (${{ matrix.suite }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
     strategy:
       fail-fast: false
@@ -282,7 +346,19 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # The mainline's record of this slice, fetched from
+      # The mainline's records as `base` read them. A missing artifact is a
+      # read that missed there, and the step below asks the line itself.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: variance-base
+          path: ${{ runner.temp }}/base
+
+      - name: take the base
+        shell: bash
+        run: node tools/take-base.mjs "$RUNNER_TEMP/base"
+
+      # The mainline's record of this slice, read by `base` from
       # `refs/variance/mainline/main` on `origin`, where the `publish` job
       # leaves it after every push to `main`. `suiteBase` reads it and
       # `layMainline` lays it, with the runs record its publishing run carried
@@ -401,7 +477,7 @@ jobs:
     # review of the change, and on a push to `main` the records handed to
     # `publish`. It runs when a suite job failed too, for the reason written
     # at the upload steps above.
-    needs: suite
+    needs: [base, suite]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     outputs:
@@ -455,9 +531,21 @@ jobs:
           pattern: variance-s*-*
           path: ${{ runner.temp }}/ran
 
+      # The mainline's records as `base` read them, for the reason and with the
+      # fallback written at the same steps in `suite`.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: variance-base
+          path: ${{ runner.temp }}/base
+
+      - name: take the base
+        shell: bash
+        run: node tools/take-base.mjs "$RUNNER_TEMP/base"
+
       # Each slice's record, as the suite job that ran it would have left it in
-      # this checkout. The mainline's record is laid first, as the suite jobs
-      # laid it. A slice that ran whole in one job handed its record on already
+      # this checkout. The mainline's record is laid first, the one the suite
+      # jobs laid. A slice that ran whole in one job handed its record on already
       # layered, and it replaces the base. A sharded slice's shards are folded
       # and landed over the base by `variance journeys --suite`, which is what a
       # sharded suite's fan-in runs anywhere. A slice nothing handed on keeps
@@ -782,7 +870,7 @@ jobs:
   # is red, `cancelled` and `skipped` included: a harness that did not finish
   # said nothing about the change.
   check:
-    needs: [rules, measure, suite, record]
+    needs: [rules, measure, base, suite, record]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
