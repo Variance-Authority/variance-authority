@@ -156,6 +156,7 @@ describe('parseArgs', () => {
       });
     expect(parseArgs(['distill', '--test', 'redraw', '--execution', 'coverage.bin', '--root', 'elsewhere']))
       .toMatchObject({ execution: resolve('coverage.bin'), root: resolve('elsewhere') });
+    expect(parseArgs(['distill', '--test', 'redraw'])).not.toHaveProperty('execution');
     // The archive flag is gone, not ignored: a journal is read from the record.
     expect(attempt(['distill', '--test', 'redraw', '--eyes', 'eyes.json']).message).toContain('--eyes');
     expect(attempt(['distill', '--execution', 'execution.json']).message).toContain('--test');

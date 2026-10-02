@@ -44,16 +44,24 @@ exercises the same behaviour. Initialization may supply something the test
 needs, and a component can influence the result without being directly used.
 Distill identifies candidates; the confirming run establishes which ones can go.
 
-Replace `<recorded-test-id>` below with the id of a case in your checkout's
-[execution record](execution-record.md).
+Name the case with `--test` and the file that declares it with `--file`.
+`--test` takes the recorded id, the case's exact title, or a part of the title;
+`--file` takes any part of the test file's path:
 
 ```bash
-variance distill --test '<recorded-test-id>'
+variance distill --file test/checkout.spec.ts --test submits
 ```
 
-Distill reads the record your last recorded run wrote, `coverage.bin`, from
-the checkout you run it in. Pass `--execution <path>` to read another record,
-or a case index another tool exported as JSON.
+When more than one case fits, Distill prints the ids of up to five of them and
+stops. Pass one of those ids to `--test`. `--file` without `--test` reads the
+file's only case, or prints the ids of its cases when it has more than one.
+
+Distill reads the record your last recorded run wrote, `coverage.bin`, and finds
+it the way [test selection](selecting.md) does. With more than one declared
+suite, name the one to read with `--suite <name>`. Pass `--execution <path>` to
+read another record, or a case index another tool exported as JSON. Whatever
+names the case, Distill finds it in the record's case index and reads the
+journals and the covered source by its id.
 
 The command is deterministic. The same inputs produce the same ordering and
 the same answer; it does not open a browser, run a test, or edit source.
@@ -217,7 +225,7 @@ keep it.
 
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
-| CLI | the run recorded in this checkout, or a record you name | `variance distill --test <id> [--execution <path>]` |
+| CLI | the run recorded in this checkout, or a record you name | `variance distill --file <path> --test <title> [--suite <name> \| --execution <path>]` |
 | [MCP](agent-questions.md#distill-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
 | [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 
