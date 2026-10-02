@@ -235,7 +235,7 @@ describe('the Eyes journals a run lays', () => {
   });
 
   it('keeps one of two different journals two shards hold for one attempt, and lands the rest', async () => {
-    // Shard 2 ran only `b`, and its section still carries the `c` journal its seed held.
+    // Both shards ran `c`, and each closed a different journal for its first attempt.
     const acted = await shard('shard-1.bin', index({ 'c.test.ts > three': ['alpha'] }), looked(journal('c.test.ts > three', 1, 'act')));
     const carried = await shard('shard-2.bin', index({ 'b.test.ts > two': ['gamma'], 'c.test.ts > three': ['alpha'] }), looked(
       journal('b.test.ts > two', 1),
@@ -244,7 +244,7 @@ describe('the Eyes journals a run lays', () => {
 
     const { landing, sections } = landCases(record, previous, root, [
       { path: acted, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
-      { path: carried, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } },
+      { path: carried, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts'), whole('c.test.ts')] } },
     ]);
 
     expect(landing).toEqual({ laid: record, shards: 2 });
@@ -252,6 +252,22 @@ describe('the Eyes journals a run lays', () => {
       ['b.test.ts > two', 1],
       ['c.test.ts > three', 1],
     ]);
+  });
+
+  it('lands no journal a shard\'s seed carried for a case it did not run, so an older one cannot stand in for a newer', async () => {
+    // Shard 1 ran `c`; shard 2 ran only `b`, and its seed holds an older `c` journal that sorts first.
+    const ran = await shard('shard-1.bin', index({ 'c.test.ts > three': ['alpha'] }), looked(journal('c.test.ts > three', 1, 'assert')));
+    const seeded = await shard('shard-2.bin', index({ 'b.test.ts > two': ['gamma'], 'c.test.ts > three': ['alpha'] }), {
+      watched: ['b.test.ts > two', 'c.test.ts > three', 'd.test.ts > four'],
+      journals: [journal('b.test.ts > two', 1), journal('c.test.ts > three', 1, 'act')],
+    });
+
+    const { sections } = landCases(record, previous, root, [
+      { path: ran, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
+      { path: seeded, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } },
+    ]);
+
+    expect(decodeRecordedEyes(sections.eyes!)).toEqual(looked(journal('b.test.ts > two', 1), journal('c.test.ts > three', 1, 'assert')));
   });
 
   it('keeps the same one of two journals for one attempt whichever order they are handed in', () => {

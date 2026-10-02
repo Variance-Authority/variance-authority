@@ -28,6 +28,11 @@ export interface CaseLayers {
   /** The cases this run recorded, by id: the run {@link CaseRunFiles} laid over the rest. */
   readonly last: readonly string[];
   /**
+   * The cases of `last` whose files the run announced. A shard's index also
+   * holds what its seed carried, which the shard did not run.
+   */
+  readonly announced: readonly string[];
+  /**
    * The cases the index held for the files this run announced, as they were
    * before it: the base an edit to a test is compared against. Absent when
    * there was no index to take them from.
@@ -70,6 +75,7 @@ export function layerCaseIndex(
   const run = openSetExecutionIndex(fresh);
   if (run === undefined) throw new Error('a case fold wrote an index it cannot open');
   const last = run.tests.map((test) => test.id);
+  const announced = run.tests.filter((test) => files.ran.has(test.file)).map((test) => test.id);
   const held = openPrevious(previous);
   // FIXME: no index is read as no other cases, and a landing that removed the
   // index leaves exactly that. The next local run then writes its own files'
@@ -77,7 +83,7 @@ export function layerCaseIndex(
   // snapshot that still holds every file — the state `seedTestCoverage` keeps a
   // worktree's first run out of. An index that is absent beside a snapshot that
   // is not should be laid only over what it can answer for.
-  if (held === undefined) return { merged: Buffer.from(fresh), cases: last, last };
+  if (held === undefined) return { merged: Buffer.from(fresh), cases: last, last, announced };
 
   const gone = (file: string): boolean => files.finished.has(file) || !files.present(file);
   const byId = new Map<string, ExecutionTest>();
@@ -118,6 +124,7 @@ export function layerCaseIndex(
     merged: encodeSetExecutionIndex({ tests, modules, sets: merged.pool() }),
     cases: tests.map((test) => test.id),
     last,
+    announced,
     before: beforeRun(held, new Set([...files.ran, ...run.tests.map((test) => test.file)])),
   };
 }

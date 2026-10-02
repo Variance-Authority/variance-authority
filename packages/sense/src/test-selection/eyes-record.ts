@@ -100,7 +100,8 @@ export function readableEyes(bytes: Uint8Array | undefined): EyesSection | undef
  * `cases` are the ids of the index the run leaves in the record, and `ran` the
  * cases the run recorded. A case that ran has its journals, and whether it was
  * watched, replaced by the run's: every attempt, and none when the run opened
- * none for it. `fresh` is `undefined` for a run that did not compose Eyes. A
+ * none for it. What `fresh` holds of a case the run did not record, as a
+ * shard's seed carries it, is not the run's and is not laid. `fresh` is `undefined` for a run that did not compose Eyes. A
  * case the index no longer holds loses its journals with it. Every other case
  * keeps what it had. A section this build cannot read is laid over as none.
  *
@@ -122,8 +123,8 @@ export function layEyes(
   }
   const replaced = new Set(ran);
   const kept = (id: string): boolean => held.has(id) && !replaced.has(id);
-  const watched = [...(prior?.watched.filter(kept) ?? []), ...(fresh?.watched.filter((id) => held.has(id)) ?? [])];
-  const journals = [...(prior?.journals.filter((row) => kept(row.case)) ?? []), ...(fresh?.journals ?? [])];
+  const watched = [...(prior?.watched.filter(kept) ?? []), ...(fresh?.watched.filter((id) => replaced.has(id)) ?? [])];
+  const journals = [...(prior?.journals.filter((row) => kept(row.case)) ?? []), ...(fresh?.journals.filter((row) => replaced.has(row.case)) ?? [])];
   return watched.length === 0 && journals.length === 0 ? undefined : encodeRecordedEyes({ watched, journals });
 }
 

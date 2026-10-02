@@ -92,7 +92,7 @@ export function layCases(
   eyes?: EyesSection,
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
-  const { merged, cases, last, before: retired } = layerCaseIndex(previous.index, fresh, {
+  const { merged, cases, last, announced, before: retired } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present: (test) => existsSync(resolve(root, test)),
@@ -120,7 +120,7 @@ export function layCases(
     ...(retired === undefined || began ? { began: true } : {}),
     cases: last,
   };
-  const journals = layEyes(previous.eyes, eyes, cases, last);
+  const journals = layEyes(previous.eyes, eyes, cases, announced);
   return {
     index: merged,
     last: Buffer.from(`${JSON.stringify(named, null, 2)}\n`),
@@ -192,9 +192,6 @@ export function landCases(
       // FIXME: each shard is laid as a run of its own, so the last-run layer
       // names only the last shard's cases, and `covering --cases last` after a
       // landing answers from that shard rather than from the whole fold.
-      // FIXME: the shard's whole Eyes section is laid as its run's, as its
-      // whole index is: journals its seed carried from the mainline for cases
-      // it never ran land as fresh, and can stand in for a newer shard's.
       // A section this build cannot read is laid as a shard that opened none.
       sections = layCases(sections, fresh, root, shard.coverage, readableEyes(kept.eyes));
       laid += 1;
