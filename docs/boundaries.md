@@ -401,9 +401,18 @@ src/format.ts:12 price is declared @production, but only tests reach it
 ```
 
 A file counts as test code when its name marks it as a test, or when tests
-import it and no shipped file does. Every other file counts as shipped. A file
-whose exports are all `@testOnly`, such as a `testing` entry that re-exports
-the fixtures, is test code by declaration, so its own imports are not listed.
+import it and no shipped file does. Every other file counts as shipped. A
+component a story or an example shows is the exception: `Button.tsx` beside
+`Button.stories.tsx` or `Button.examples.tsx` is written for the product,
+wired in yet or not, so it and what it imports are held to their roles as
+shipped code is. The check takes the shown component to be the import beside
+the catalog that carries its stem, `./Button` or `./Button/index.tsx`, and
+does not read the story format. The catalog's other imports, such as a
+decorator or a mock, stay test code.
+
+A file whose exports are all `@testOnly`, such as a `testing` entry that
+re-exports the fixtures, is test code by declaration, so its own imports are
+not listed.
 A `@testOnly` export used through a type import is not listed, because the
 type import runs nothing.
 

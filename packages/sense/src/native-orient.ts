@@ -183,10 +183,15 @@ export interface NativeOrientPackageLayer {
 
 /** The files the code map read as shipped: every counted file not on the tests' side. */
 export interface NativeOrientShipped {
-  /** Whether the list was read from the index as it stands now. */
+  /** Whether the lists were read from the index as it stands now. */
   readonly current: boolean;
   /** In code-unit order. */
   readonly files: readonly string[];
+  /**
+   * The files on the tests' side that a story or an example shows, in code-unit
+   * order; absent from a list kept before they were read, which is not current.
+   */
+  readonly catalogued?: readonly string[];
 }
 
 /** A role a doc declares that the graph contradicts: `check_declared_roles` in the addon. */

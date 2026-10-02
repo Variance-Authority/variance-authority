@@ -167,6 +167,24 @@ describe('variance restrictions over declared roles', () => {
     ]);
   });
 
+  it('holds a component a story or an example is collocated with to its role, and passes what the catalog only imports', async () => {
+    checkout({
+      'lib/src/index.ts': 'export const run = () => 1;\n',
+      'lib/src/Button.tsx': "import { makeFixture } from './fixture';\nexport const Button = () => makeFixture();\n",
+      'lib/src/Button.stories.tsx': "import { Button } from './Button';\nimport { decorate } from './decorate';\nexport default { component: Button, decorators: [decorate] };\n",
+      'lib/src/decorate.ts': "import { makeFixture } from './fixture';\nexport const decorate = () => makeFixture();\n",
+      'lib/src/Card.tsx': '/** @production */\nexport const Card = () => 1;\n',
+      'lib/src/Card.examples.tsx': "import { Card } from './Card';\nexport const plain = Card;\n",
+    });
+    await run(['index']);
+
+    expect((await run(['restrictions'])).out).toBe([
+      'lib/src/Button.tsx:1 ships makeFixture, declared @testOnly at lib/src/fixture.ts:5',
+      '1 declared role contradicted. No .relations.json is tracked in this checkout, so nothing is restricted.',
+      '',
+    ].join('\n'));
+  });
+
   it('refuses to check a declared role without a code map that says which files ship', async () => {
     const root = checkout({ 'lib/src/index.ts': 'export const run = () => 1;\n' });
     await run(['index']);

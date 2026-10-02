@@ -1,7 +1,9 @@
 //! Whether the roles docs declare hold over the graph the index records.
 //!
 //! A role is derived first: a shipped file is one the code map read as
-//! reachable from what a package publishes, and the rest is the tests' side.
+//! reachable from what a package publishes, and the rest is the tests' side,
+//! except what a story or an example shows (`orient_map_catalogued.rs`), which
+//! is held to a role as shipped code is.
 //! `@testOnly` and `@production` settle a name the derivation leaves mixed, and
 //! each is checked against reachability alone — never against how test-heavy
 //! the name's use is, since that share moves with every change.
@@ -10,7 +12,7 @@
 //!   the file exports at runtime is itself test-only: a testing entry a package
 //!   ships may build on other test-only code.
 //! - A `@production` name in a file on the tests' side — a test reaches it and
-//!   nothing shipped does — is a declaration the graph contradicts.
+//!   nothing shipped or shown does — is a declaration the graph contradicts.
 //! - One doc declaring both is a contradiction in the doc.
 //!
 //! A tag travels with the name through re-exports, so importing a test-only
@@ -70,7 +72,12 @@ fn checking(index: &str) -> napi::Result<Option<DeclaredRoleCheck>> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(fail)?;
     let current = shipped.as_ref().is_some_and(|shipped| shipped.current);
-    let files: HashSet<&str> = shipped.iter().flat_map(|shipped| shipped.files.iter().map(String::as_str)).collect();
+    // A file a catalog shows is not test code, so it answers to `@testOnly` as a
+    // shipped one does.
+    let files: HashSet<&str> = shipped
+        .iter()
+        .flat_map(|shipped| shipped.files.iter().chain(shipped.catalogued.iter().flatten()).map(String::as_str))
+        .collect();
     let (declared, findings) = check(&layers, current.then_some(&files));
     Ok(Some(DeclaredRoleCheck { declared, current, findings }))
 }

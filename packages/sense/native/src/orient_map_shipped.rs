@@ -6,6 +6,11 @@
 //! split is written down once, where it is made, and read back rather than
 //! decided a second time by a path pattern. It is a file of its own because
 //! the map's pages are read a page at a time and this list is read whole.
+//!
+//! Beside it is the list of files on the tests' side that a catalog shows
+//! (`orient_map_catalogued.rs`): not shipped, and not test code either. A
+//! list kept before that one existed does not say which files those are, so
+//! it is not current.
 
 // compass: variance-authority.reach.relations
 
@@ -17,12 +22,14 @@ struct Stored {
     /// sha256 of the index manifest the list was read from.
     index: String,
     files: Vec<String>,
+    catalogued: Option<Vec<String>>,
 }
 
 /// The index digest alone, read without the list.
 #[derive(Deserialize)]
 struct Kept {
     index: String,
+    catalogued: Option<serde::de::IgnoredAny>,
 }
 
 fn shipped_path(index: &str) -> String {
@@ -35,13 +42,14 @@ pub(crate) fn kept(index: &str, digest: &str) -> bool {
     std::fs::read(shipped_path(index))
         .ok()
         .and_then(|bytes| serde_json::from_slice::<Kept>(&bytes).ok())
-        .is_some_and(|kept| kept.index == digest)
+        .is_some_and(|kept| kept.index == digest && kept.catalogued.is_some())
 }
 
-/// Write `files` beside the index at `index`, replacing what was there in one rename.
-pub(crate) fn write(index: &str, digest: &str, files: &[String]) -> Result<(), String> {
+/// Write `files` and `catalogued` beside the index at `index`, replacing what
+/// was there in one rename.
+pub(crate) fn write(index: &str, digest: &str, files: &[String], catalogued: &[String]) -> Result<(), String> {
     let path = shipped_path(index);
-    let stored = Stored { index: digest.to_owned(), files: files.to_vec() };
+    let stored = Stored { index: digest.to_owned(), files: files.to_vec(), catalogued: Some(catalogued.to_vec()) };
     let text = serde_json::to_vec(&stored).map_err(|error| error.to_string())?;
     let written = format!("{path}.{}", std::process::id());
     std::fs::write(&written, text)
@@ -51,10 +59,13 @@ pub(crate) fn write(index: &str, digest: &str, files: &[String]) -> Result<(), S
 
 #[napi(object)]
 pub struct OrientShipped {
-    /// Whether the list was read from the index as it stands now.
+    /// Whether the lists were read from the index as it stands now.
     pub current: bool,
     /// Every counted file not on the tests' side, in code-unit order.
     pub files: Vec<String>,
+    /// The files on the tests' side that a catalog shows, in code-unit order;
+    /// `undefined` from a list kept before they were read, which is not current.
+    pub catalogued: Option<Vec<String>>,
 }
 
 /// The shipped files kept beside the index at `index`. `undefined` when no
@@ -69,6 +80,6 @@ pub fn orient_shipped(index: String) -> napi::Result<Option<OrientShipped>> {
     };
     let stored: Stored =
         serde_json::from_slice(&bytes).map_err(|error| napi::Error::from_reason(format!("{path} did not read: {error}")))?;
-    let current = crate::orient_map::manifest_digest(&index).as_deref() == Some(stored.index.as_str());
-    Ok(Some(OrientShipped { current, files: stored.files }))
+    let current = stored.catalogued.is_some() && crate::orient_map::manifest_digest(&index).as_deref() == Some(stored.index.as_str());
+    Ok(Some(OrientShipped { current, files: stored.files, catalogued: stored.catalogued }))
 }
