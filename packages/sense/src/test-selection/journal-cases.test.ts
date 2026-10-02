@@ -349,6 +349,35 @@ describe('a driver whose cases kept Eyes journals', () => {
     });
   });
 
+  it('joins the journals of a case a driver handed over twice to the one case the index holds', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+      // One case, drained twice: once for each page it drove.
+      await recordExecution({
+        root,
+        cacheRoot: resolve(root, 'cache'),
+        coverageFile,
+        subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium }],
+        cases: [
+          { file: 'e2e/price.spec.ts', name: 'case', id: 'a', journal: run.premium, eyes: [{ attempt: 1, journal: journal('act') }] },
+          { file: 'e2e/price.spec.ts', name: 'case', id: 'a', journal: run.plain, eyes: [{ attempt: 2, journal: journal('assert') }] },
+        ],
+      });
+
+      const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
+      expect(index.tests.map((test) => test.id)).toEqual(['e2e/price.spec.ts > case']);
+      expect(recordedEyesAt(coverageFile)).toEqual({
+        watched: ['e2e/price.spec.ts > case'],
+        journals: [
+          { case: 'e2e/price.spec.ts > case', attempt: 1, journal: journal('act') },
+          { case: 'e2e/price.spec.ts > case', attempt: 2, journal: journal('assert') },
+        ],
+      });
+    });
+  });
+
   it('keeps no Eyes section for a run whose cases kept none', async () => {
     await inRoot(async (root) => {
       const coverageFile = resolve(root, 'coverage.bin');

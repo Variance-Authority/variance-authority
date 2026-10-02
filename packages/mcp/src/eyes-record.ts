@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { createEyesArchive, type EyesArchive } from '@variance-authority/eyes';
 import { parseEyesJournal } from '@variance-authority/eyes/archive';
-import { decodeExecutionIndex, keepsEyes, recordedEyesAt } from '@variance-authority/sense/test-selection';
+import { decodeExecutionIndex, recordedEyesAt } from '@variance-authority/sense/test-selection';
 
 /**
  * The Eyes journals a record keeps, as the archive the attention tools read.
@@ -14,11 +14,10 @@ import { decodeExecutionIndex, keepsEyes, recordedEyesAt } from '@variance-autho
  */
 export async function readEyesRecord(record: string): Promise<EyesArchive> {
   const bytes = await readFile(record);
-  if (!keepsEyes(record)) {
+  const section = recordedEyesAt(record);
+  if (section === undefined) {
     throw new Error(`the record at ${record} keeps no Eyes journals: the run that wrote it did not opt into Eyes`);
   }
-  const section = recordedEyesAt(record);
-  if (section === undefined) throw new Error(`the record at ${record} keeps an Eyes section that does not read`);
   const cases = new Map(decodeExecutionIndex(bytes).tests.map((test) => [test.id, test]));
   return createEyesArchive(section.journals.map((row) => {
     const named = cases.get(row.case);

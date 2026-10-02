@@ -92,7 +92,7 @@ export function layCases(
   eyes?: EyesSection,
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
-  const { merged, last, before: retired } = layerCaseIndex(previous.index, fresh, {
+  const { merged, cases, last, before: retired } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present: (test) => existsSync(resolve(root, test)),
@@ -120,7 +120,7 @@ export function layCases(
     ...(retired === undefined || began ? { began: true } : {}),
     cases: last,
   };
-  const journals = layEyes(previous.eyes, eyes, merged, last);
+  const journals = layEyes(previous.eyes, eyes, cases, last);
   return {
     index: merged,
     last: Buffer.from(`${JSON.stringify(named, null, 2)}\n`),

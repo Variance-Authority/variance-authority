@@ -208,7 +208,8 @@ function repinnedEyes(
   merged: Uint8Array | undefined,
   tests: ReadonlySet<string>,
 ): Uint8Array | undefined {
-  if (merged === undefined || openSetExecutionIndex(merged) === undefined) return undefined;
+  const index = merged === undefined ? undefined : openSetExecutionIndex(merged);
+  if (index === undefined) return undefined;
   const ran = own.index === undefined || openSetExecutionIndex(own.index) === undefined
     ? []
     : decodeSetExecutionIndex(own.index).tests.filter((test) => tests.has(test.file)).map((test) => test.id);
@@ -218,7 +219,7 @@ function repinnedEyes(
     watched: held.watched.filter((id) => ours.has(id)),
     journals: held.journals.filter((row) => ours.has(row.case)),
   };
-  return layEyes(milestone, fresh, merged, ran);
+  return layEyes(milestone, fresh, index.tests.map((test) => test.id), ran);
 }
 
 /**

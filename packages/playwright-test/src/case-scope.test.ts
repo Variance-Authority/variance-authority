@@ -124,4 +124,31 @@ describe('the case a Playwright test runs as', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('leaves the realm\'s scope as it found it, and a scope something installed during the test where it put it', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-playwright-case-scope-'));
+    const holder = globalThis as { [CASE_SCOPE]?: unknown };
+    const found = holder[CASE_SCOPE];
+    try {
+      const recorder = createExecutionRecorder({
+        root, cacheRoot: resolve(root, 'cache'), coverageFile: resolve(root, 'coverage.bin'),
+      });
+      const installed = { root: 'another collector' };
+      holder[CASE_SCOPE] = installed;
+      await ran(recorder, root, {}, async () => {
+        expect(scopeNow()!.root).toBe(root);
+      });
+      expect(holder[CASE_SCOPE]).toBe(installed);
+
+      const replaced = { root: 'installed by the test' };
+      await ran(recorder, root, {}, async () => {
+        holder[CASE_SCOPE] = replaced;
+      });
+      expect(holder[CASE_SCOPE]).toBe(replaced);
+    } finally {
+      holder[CASE_SCOPE] = found;
+      if (found === undefined) delete holder[CASE_SCOPE];
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

@@ -23,6 +23,8 @@ export interface CaseRunFiles {
 export interface CaseLayers {
   /** The whole suite: this run laid over what the index held. */
   readonly merged: Buffer;
+  /** The id of every case `merged` holds, in its order. */
+  readonly cases: readonly string[];
   /** The cases this run recorded, by id: the run {@link CaseRunFiles} laid over the rest. */
   readonly last: readonly string[];
   /**
@@ -75,7 +77,7 @@ export function layerCaseIndex(
   // snapshot that still holds every file — the state `seedTestCoverage` keeps a
   // worktree's first run out of. An index that is absent beside a snapshot that
   // is not should be laid only over what it can answer for.
-  if (held === undefined) return { merged: Buffer.from(fresh), last };
+  if (held === undefined) return { merged: Buffer.from(fresh), cases: last, last };
 
   const gone = (file: string): boolean => files.finished.has(file) || !files.present(file);
   const byId = new Map<string, ExecutionTest>();
@@ -114,6 +116,7 @@ export function layerCaseIndex(
 
   return {
     merged: encodeSetExecutionIndex({ tests, modules, sets: merged.pool() }),
+    cases: tests.map((test) => test.id),
     last,
     before: beforeRun(held, new Set([...files.ran, ...run.tests.map((test) => test.file)])),
   };

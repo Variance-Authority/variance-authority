@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { caseSectionsOf, keepsCases, recordedCases, sharedRecord, withCaseSections } from './case-record.js';
+import { caseSectionsOf, keepsCases, keepsEyes, recordedCases, sharedRecord, withCaseSections } from './case-record.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
-import { encodeRecordedEyes } from './eyes-record.js';
+import { decodeRecordedEyes, encodeRecordedEyes } from './eyes-record.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import type { ExecutionIndex } from './execution-format.js';
 import type { TestCoverage } from './index.js';
@@ -92,6 +92,11 @@ describe('a record that kept no cases', () => {
     expect(keepsCases(join(dir ?? tmpdir(), 'absent.bin'))).toBe(false);
   });
 
+  it('says so when it is cut short of the length its header opens with', () => {
+    expect(keepsCases(at(Buffer.from([1, 0])))).toBe(false);
+    expect(keepsEyes(at(Buffer.alloc(0)))).toBe(false);
+  });
+
   it('is handed to the index reader as it is, which refuses it on its own terms', () => {
     expect(recordedCases(record)).toBe(record);
   });
@@ -106,5 +111,15 @@ describe('a case index on its own', () => {
     const index = encodeExecutionIndex(INDEX);
     expect(recordedCases(index)).toBe(index);
     expect(decodeExecutionIndex(index)).toEqual(decodeExecutionIndex(recordedCases(index)));
+  });
+});
+
+describe('an Eyes section', () => {
+  it('refuses a row that names no case and attempt, rather than keeping a journal nothing can join', () => {
+    const section = (row: unknown) => Buffer.from(JSON.stringify({ version: 1, watched: [], journals: [row] }));
+    expect(decodeRecordedEyes(section({ case: 'a', attempt: 1, journal: {} })).journals).toHaveLength(1);
+    for (const row of [{ case: '', attempt: 1, journal: {} }, { case: 'a', attempt: 0, journal: {} }, { case: 'a', attempt: 1 }]) {
+      expect(() => decodeRecordedEyes(section(row))).toThrow('holds a row that names no case and attempt');
+    }
   });
 });

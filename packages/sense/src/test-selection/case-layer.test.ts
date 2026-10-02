@@ -131,7 +131,7 @@ describe('layerCaseIndex', () => {
   it('writes the run alone, and no before, when there is no index to lay it over', () => {
     const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
 
-    const alone = { merged: fresh, last: ['a.test.ts > one'] };
+    const alone = { merged: fresh, cases: ['a.test.ts > one'], last: ['a.test.ts > one'] };
     expect(layerCaseIndex(undefined, fresh, ran(['a.test.ts']))).toEqual(alone);
     expect(layerCaseIndex(Buffer.from('not an index'), fresh, ran(['a.test.ts']))).toEqual(alone);
   });

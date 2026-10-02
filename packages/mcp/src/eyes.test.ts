@@ -213,6 +213,34 @@ describe('an Eyes archive a run produced', () => {
     }
   });
 
+  it('keeps answering from the record it last read while the record does not read', async () => {
+    const directory = await scratch();
+    try {
+      const log = createEyesLog();
+      recorded(log);
+      const path = await written(directory, log);
+      const input = new PassThrough();
+      const output = new PassThrough();
+      const lines = readLines(output);
+      const stop = await serveEyesRecord(path, { input, output });
+      try {
+        // A run rewriting the record, caught between the two halves of its write.
+        await writeFile(path, 'not a record');
+        input.write(`${JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'variance_test_attention', arguments: { test: 'redraw-test' } },
+        })}\n`);
+        expect(await lines()).toContain('redraws the canvas');
+      } finally {
+        stop();
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('names each journal by its case, with the title and the file the case index gives', async () => {
     const directory = await scratch();
     try {
