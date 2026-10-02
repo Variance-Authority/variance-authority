@@ -43,6 +43,16 @@ const plain = {
   }] }],
 };
 
+async function recorded(at: string, execution: typeof plain): Promise<void> {
+  await writeTestCoverage(at, {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: 'plain.test.ts', complete: true, preconditions: [] }],
+    modules: [],
+  });
+  writeFileSync(at, withCaseSections(readFileSync(at), { index: encodeExecutionIndex(execution) }));
+}
+
 describe('the CLI distillation boundary', () => {
   it('reads execution JSON without a project config and preserves missing attention', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'variance-distill-'));
@@ -58,13 +68,7 @@ describe('the CLI distillation boundary', () => {
 
   it('reads the index a recorded run left, naming the test by file and title', async () => {
     const at = testCoverageFile(checkout());
-    await writeTestCoverage(at, {
-      version: 3,
-      instrumentation: 'fixture-instrumentation',
-      tests: [{ file: 'plain.test.ts', complete: true, preconditions: [] }],
-      modules: [],
-    });
-    writeFileSync(at, withCaseSections(readFileSync(at), { index: encodeExecutionIndex(plain) }));
+    await recorded(at, plain);
 
     const answer = await run(['distill', '--file', 'plain.test', '--test', 'work', '--format', 'json']);
 
@@ -94,6 +98,20 @@ describe('the CLI distillation boundary', () => {
 
     expect(answer.code).toBe(EXIT_CLEAN);
     expect(answer.out).toContain('Runtime journey: unavailable');
+  });
+
+  it('reads the record of the suite `--suite` names', async () => {
+    const root = checkout();
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, e2e: { kind: 'e2e' } } }));
+    const unit = { ...plain, modules: [{ ...plain.modules[0]!, file: 'unit.ts' }] };
+    const e2e = { ...plain, modules: [{ ...plain.modules[0]!, file: 'e2e.ts' }] };
+    await recorded(testCoverageFile(root, { suite: 'unit' }), unit);
+    await recorded(testCoverageFile(root, { suite: 'e2e' }), e2e);
+
+    const answer = await run(['distill', '--test', 'plain', '--suite', 'unit', '--format', 'json']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'unit.ts', distance: 1 }]);
   });
 
   it('takes the recorded index or a named one, never both', async () => {
