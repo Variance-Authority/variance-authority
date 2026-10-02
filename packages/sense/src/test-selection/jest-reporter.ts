@@ -28,8 +28,7 @@ import { commitOf } from './commit.js';
 import { noteAnEmptyRecord, readJournals, reportedDuration } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { landRun } from './commit-runs.js';
-import { cacheRootFor, markCheckout } from './cache-layers.js';
-import { prunedLine, pruneWhenDue } from './prune.js';
+import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import {
   codeUnitOrder,
@@ -246,9 +245,6 @@ class JestCoverageReporter {
     else noteABusyIndex(coverageFile);
     if (caseDirectory !== undefined) await rm(caseDirectory, { recursive: true, force: true });
     await rm(runDirectory, { recursive: true, force: true });
-    // After the lock is released, and at most once a day: see `prune.ts`.
-    const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));
-    if (pruned !== '') console.warn(pruned);
   }
 }
 

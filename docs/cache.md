@@ -190,15 +190,21 @@ until nothing in them has been written for 30 days. `share/<digest>.git` is
 not removed.
 
 `variance run` checks `renders/` at the end of every run, as
-[the render cache](placement.md#the-cache-prunes-itself) describes. Everything
-else is checked at the end of a test run or a `variance run`, at most once a
-day, and each part prints one line when it removed something:
+[the render cache](placement.md#the-cache-prunes-itself) describes, and
+everything else at its end too, at most once a day. Each part prints one line
+when it removed something:
 
 ```
 cache: freed 17.8 MiB in <cache>/test-selection: 218 runs whose processes are gone, 7 worktrees git no longer lists
 cache: freed 4.1 MiB in <cache>: 12 commits more than 200 behind HEAD
 ```
 
+A test run removes its own scratch and nothing else, so what one run leaves for
+another to clear stays until something checks. `variance prune` checks now,
+whenever the last check was, and prints the same lines, or
+`cache: nothing to prune`. It reads no project configuration, so a repository
+that only runs its test suites keeps its cache bounded with it: in a CI cleanup
+step, a scheduled job, or by hand.
+
 `variance doctor` prints what the next check would remove, by rule, and what it
-keeps because git or the process table could not answer. `variance doctor
---prune` removes it now.
+keeps because git or the process table could not answer.

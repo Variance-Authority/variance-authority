@@ -163,7 +163,8 @@ variance changelog [--config <path>] [--component <text>] [--subject <id>] [--li
 variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
-variance doctor  [--config <path>] [--prune]
+variance doctor  [--config <path>]
+variance prune
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]
 variance carry   restore | save [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
@@ -183,7 +184,8 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `changelog` | reads back why the baselines are what they are |
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
-| `doctor` | says what this machine can observe, before a run, not after one, and with `--prune` removes cache entries whose checkout, worktree, process or commit is gone |
+| `doctor` | says what this machine can observe, before a run, not after one |
+| `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
 | `share` | says what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
