@@ -64,6 +64,7 @@ export const distillTool: Tool<ObservabilitySubject> = {
         execution: subject.execution,
         ...(subject.eyes === undefined ? {} : {
           eyes: subject.eyes.tests.map((test) => ({ case: test.id, attempt: test.attempt ?? 1, journal: test })),
+          ...(subject.eyes.watched === undefined ? {} : { watched: subject.eyes.watched }),
         }),
       }));
     } catch (error) {

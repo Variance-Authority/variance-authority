@@ -108,6 +108,18 @@ export function recordedEyesAt(coverageFile: string): EyesSection | undefined {
 }
 
 /**
+ * What the record held in `bytes` keeps of Eyes; `undefined` when it kept none,
+ * as a case index on its own keeps none. A reader that also takes the index
+ * reads both off the same bytes, so they are one run's even when a landing
+ * replaces the file between two reads of it.
+ */
+export function recordedEyesOf(bytes: Uint8Array): EyesSection | undefined {
+  if (peeked(bytes)?.sections.some((section) => section.name === PARTS.eyes) !== true) return undefined;
+  const { eyes } = partsOf(opened({ length: bytes.length, read: (from, to) => bytes.subarray(from, to) }), ['eyes']);
+  return decodeRecordedEyes(eyes!);
+}
+
+/**
  * The case index `bytes` hold: the `cases` section when they are a record that
  * carries one, and `bytes` themselves otherwise, which the index reader then
  * reads or refuses on its own terms. `native/src/journey_columns.rs` answers

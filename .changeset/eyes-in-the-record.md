@@ -46,11 +46,16 @@ and `parseEyesJournal` reads one back. In `@variance-authority/distill`,
 `Distillation` reports `attempts` as `AttemptAttention` in place of
 `attention`, `joined` and `available`; `watched` names the cases a run that
 opted in watched, and distill says which of them kept no journal. The sense
-test-selection entry adds `keepsEyes`, `recordedEyesAt`, `RecordedEyes`,
+test-selection entry adds `keepsEyes`, `recordedEyesAt`, `recordedEyesOf`, `RecordedEyes`,
 `ObservedEyes`, `EyesSection` and `encodeAsSetExecutionIndex`. In
 `@variance-authority/mcp`, `serveEyesRecord` replaces `serveEyesArchive` and
-serves the journals a record keeps, read by `readEyesRecord`; the MCP `distill`
-tool needs the runtime journey and reads a case by its exact id.
+serves the journals a record keeps, read by `readEyesRecord` off one read of
+the record. A record a later run wrote without Eyes leaves it no journals to
+answer from; `readEyesRecord` refuses such a record with `RecordKeepsNoEyes`.
+`EyesArchive` carries `watched`, which `createEyesArchive` takes and
+`parseEyesArchive` reads, so the MCP `distill` tool tells an unwatched case
+from a watched one that kept no journal. That tool needs the runtime journey
+and reads a case by its exact id.
 
 Under Rstest, a case declared `it(name, options, fn)` is recorded per case, as
 `it(name, fn)` already was.

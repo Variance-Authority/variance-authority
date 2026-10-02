@@ -1,5 +1,5 @@
 import type { Readable, Writable } from 'node:stream';
-import type { EyesArchive } from '@variance-authority/eyes';
+import { createEyesArchive, type EyesArchive } from '@variance-authority/eyes';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
 import { attachVantage } from '@variance-authority/vantage/attach';
@@ -13,7 +13,7 @@ import {
   wantsTree,
   type JsonRpcRequest,
 } from './protocol.js';
-import { readEyesRecord } from './eyes-record.js';
+import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
 import { continuing } from './tools/continue.js';
 import type { Served } from './tools/tool.js';
 import { readTree, type Tree } from './tools/tree.js';
@@ -225,7 +225,8 @@ export async function serveReportFile(
  *
  * `record` is the coverage record a recording run writes, `coverage.bin`; its
  * journals are read the way `variance distill` reads them. A record whose run
- * did not opt into Eyes is refused at startup.
+ * did not opt into Eyes is refused at startup; written later, it leaves no
+ * journals to answer from.
  */
 export async function serveEyesRecord(
   record: string,
@@ -240,9 +241,13 @@ export async function serveEyesRecord(
     subject: async () => {
       try {
         cached = await readEyesRecord(record);
-      } catch {
-        // Mid-write, most likely. The previous record is stale, not wrong, and
-        // taking the server down would lose the answer as well as the update.
+      } catch (error) {
+        // A later run that did not opt into Eyes leaves no journals to answer
+        // from, and the previous run's would describe the code before it.
+        if (error instanceof RecordKeepsNoEyes) cached = createEyesArchive([]);
+        // Otherwise mid-write, most likely. The previous record is stale, not
+        // wrong, and taking the server down would lose the answer as well as
+        // the update.
       }
       return cached;
     },

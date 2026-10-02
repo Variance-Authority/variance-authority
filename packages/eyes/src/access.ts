@@ -162,6 +162,12 @@ export type EyesTestAttention =
 /** Serializable, test-scoped attention evidence for readers in another process. */
 export interface EyesArchive {
   readonly eyesVersion: 1;
+  /**
+   * The ids of the tests whose run opened a journal, handed one over or not.
+   * Absent when the producer did not say, and then every test is read as
+   * watched.
+   */
+  readonly watched?: readonly string[];
   readonly tests: readonly EyesTestAttention[];
 }
 
@@ -190,8 +196,12 @@ export function createEyesLog(): EyesLog {
   };
 }
 
-/** Copy complete or explicitly partial test journals into one portable value. */
-export function createEyesArchive(tests: readonly EyesTestAttention[]): EyesArchive {
+/**
+ * Copy complete or explicitly partial test journals into one portable value,
+ * with the ids of the tests whose run opened a journal when the producer knows
+ * them.
+ */
+export function createEyesArchive(tests: readonly EyesTestAttention[], watched?: readonly string[]): EyesArchive {
   const ids = new Set<string>();
   const copied = tests.map((test) => {
     if (test.id === '' || test.title === '') throw new Error('eyes test id and title are required');
@@ -217,7 +227,7 @@ export function createEyesArchive(tests: readonly EyesTestAttention[]): EyesArch
       attention: test.attention.map((entry) => ({ ...entry })),
     };
   });
-  return { eyesVersion: 1, tests: copied };
+  return { eyesVersion: 1, ...(watched === undefined ? {} : { watched: [...watched] }), tests: copied };
 }
 
 /** How a runner names the test whose journal this is. */

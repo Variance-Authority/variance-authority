@@ -15,14 +15,16 @@ import {
 } from '@variance-authority/eyes';
 import { parseEyesArchive, readEyesArchive } from '@variance-authority/eyes/archive';
 import {
+  decodeExecutionIndex,
   encodeExecutionIndex,
   testCoverageFile,
   withCaseSections,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { readEyesRecord } from './eyes-record.js';
+import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
 import { serveEyesRecord } from './server.js';
 import { eyesToolByName } from './tools.js';
+import { distillTool } from './tools/observability.js';
 
 /**
  * The tool answering from a file a run wrote, rather than from a literal.
@@ -241,6 +243,36 @@ describe('an Eyes archive a run produced', () => {
     }
   });
 
+  it('stops answering from the record it last read once a later run writes one without Eyes', async () => {
+    const directory = await scratch();
+    try {
+      const log = createEyesLog();
+      recorded(log);
+      const path = await written(directory, log);
+      const input = new PassThrough();
+      const output = new PassThrough();
+      const lines = readLines(output);
+      const stop = await serveEyesRecord(path, { input, output });
+      try {
+        // A later run that did not opt into Eyes, written whole.
+        await written(directory, undefined);
+        input.write(`${JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'variance_test_attention', arguments: { test: 'redraw-test' } },
+        })}\n`);
+        const answer = await lines();
+        expect(answer).not.toContain('redraws the canvas');
+        expect(answer).toContain('0 test(s) are recorded');
+      } finally {
+        stop();
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('names each journal by its case, with the title and the file the case index gives', async () => {
     const directory = await scratch();
     try {
@@ -255,6 +287,35 @@ describe('an Eyes archive a run produced', () => {
     }
   });
 
+  it('tells the distill tool a case its run did not watch from a watched case that handed no journal', async () => {
+    const directory = await scratch();
+    try {
+      const log = createEyesLog();
+      recorded(log);
+      const path = await written(directory, log);
+      // One more case in the index, which the run did not watch.
+      const index = encodeExecutionIndex({
+        tests: [
+          { id: 'quiet-test', file: 'test/drawing.test.tsx', name: 'stays quiet' },
+          { id: 'redraw-test', file: 'test/drawing.test.tsx', name: 'redraws the canvas' },
+        ],
+        modules: [],
+      });
+      writeFileSync(path, withCaseSections(readFileSync(path), {
+        index,
+        eyes: Buffer.from(`${JSON.stringify({ version: 1, watched: ['redraw-test'], journals: [] })}\n`),
+      }));
+
+      const subject = { eyes: await readEyesRecord(path), execution: decodeExecutionIndex(readFileSync(path)) };
+      const unwatched = distillTool.run(subject, { test: 'quiet-test' });
+      expect(unwatched).toContain('this case\'s run did not opt into Eyes.');
+      expect(unwatched).not.toContain('keeps no Eyes journal for this case');
+      expect(distillTool.run(subject, { test: 'redraw-test' })).toContain('the record keeps no Eyes journal for this case.');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('refuses at startup when nothing is recorded at the path', async () => {
     await expect(serveEyesRecord(join(tmpdir(), 'variance-mcp-eyes-absent.bin'))).rejects.toThrow();
   });
@@ -264,6 +325,7 @@ describe('an Eyes archive a run produced', () => {
     try {
       const path = await written(directory, undefined);
       await expect(serveEyesRecord(path)).rejects.toThrow('the run that wrote it did not opt into Eyes');
+      await expect(readEyesRecord(path)).rejects.toBeInstanceOf(RecordKeepsNoEyes);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

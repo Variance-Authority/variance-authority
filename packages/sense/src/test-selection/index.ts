@@ -192,6 +192,7 @@ export {
   keepsEyes,
   recordedCases,
   recordedEyesAt,
+  recordedEyesOf,
   sharedRecord,
   withCaseSections,
   type CaseSections,

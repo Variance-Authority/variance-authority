@@ -585,7 +585,7 @@ so an integration does not need the combined surface to receive it.
 
 | entrypoint | requires | exports |
 |---|---|---|
-| `.` | stdio | `serve`, `serveReportFile`, `serveEyesRecord` and `serveVantage`, `readEyesRecord`, and the subject locator |
+| `.` | stdio | `serve`, `serveReportFile`, `serveEyesRecord` and `serveVantage`, `readEyesRecord` and `RecordKeepsNoEyes`, and the subject locator |
 | `./tools` | nothing | observability answers as pure functions over their native evidence |
 | `./protocol` | nothing | MCP framing, as a pure function from a request to a response |
 

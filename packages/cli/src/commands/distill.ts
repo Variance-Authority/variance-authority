@@ -1,5 +1,6 @@
 // compass: variance-authority/runtime/attention
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { parseEyesJournal } from '@variance-authority/eyes/archive';
 import {
   distill,
@@ -7,9 +8,9 @@ import {
   type Distillation,
   type EyesAttempt,
 } from '@variance-authority/distill';
-import { keepsEyes, recordedEyesAt, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { recordedEyesOf, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { readExecutionIndex } from './execution-input.js';
+import { executionIndexOf } from './execution-input.js';
 
 export interface DistillOptions {
   readonly test: string;
@@ -32,8 +33,10 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     throw new OperatorError(`distill reads a record, and nothing is recorded at ${record}`);
   }
   try {
-    const execution = await readExecutionIndex(record);
-    const section = keepsEyes(record) ? recordedEyesAt(record) : undefined;
+    // One read: the index and the journals are then one run's, whatever lands between.
+    const bytes = await readFile(record);
+    const execution = executionIndexOf(bytes);
+    const section = recordedEyesOf(bytes);
     return distill({
       test: options.test,
       root: options.root,
@@ -46,7 +49,7 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   }
 }
 
-function journalsOf(journals: NonNullable<ReturnType<typeof recordedEyesAt>>['journals']): readonly EyesAttempt[] {
+function journalsOf(journals: NonNullable<ReturnType<typeof recordedEyesOf>>['journals']): readonly EyesAttempt[] {
   return journals.map((row) => ({
     case: row.case,
     attempt: row.attempt,

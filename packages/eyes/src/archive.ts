@@ -43,7 +43,8 @@ export function parseEyesArchive(value: unknown): EyesArchive {
       ...checkedJournal(test, `eyes test ${id}`),
     };
   });
-  return createEyesArchive(tests);
+  const watched = archive['watched'] === undefined ? undefined : strings(archive['watched'], 'eyes archive watched');
+  return createEyesArchive(tests, watched);
 }
 
 /**

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { caseSectionsOf, keepsCases, keepsEyes, recordedCases, sharedRecord, withCaseSections } from './case-record.js';
+import { caseSectionsOf, keepsCases, keepsEyes, recordedCases, recordedEyesOf, sharedRecord, withCaseSections } from './case-record.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
 import { decodeRecordedEyes, encodeRecordedEyes } from './eyes-record.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
@@ -55,6 +55,10 @@ describe('a record that carries its cases', () => {
     expect(Buffer.from(recordedCases(record))).toEqual(index);
   });
 
+  it('reads its Eyes off the bytes it is held in, so the index and the journals are one run\'s', () => {
+    expect(recordedEyesOf(record)).toEqual({ watched: [], journals: [] });
+  });
+
   it('says it keeps cases from its header', () => {
     expect(keepsCases(at(record))).toBe(true);
   });
@@ -99,6 +103,11 @@ describe('a record that kept no cases', () => {
 
   it('is handed to the index reader as it is, which refuses it on its own terms', () => {
     expect(recordedCases(record)).toBe(record);
+  });
+
+  it('keeps no Eyes, as a case index on its own keeps none', () => {
+    expect(recordedEyesOf(record)).toBeUndefined();
+    expect(recordedEyesOf(encodeExecutionIndex(INDEX))).toBeUndefined();
   });
 
   it('crosses as it is', () => {

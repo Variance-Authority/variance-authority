@@ -87,6 +87,13 @@ describe('portable Eyes evidence', () => {
     }
   });
 
+  it('carries which tests were watched across the boundary, and leaves it absent when the producer did not say', () => {
+    const test = { id: 'test-1', title: 'redraws', complete: true, attention: [] };
+    expect(parseEyesArchive({ eyesVersion: 1, watched: ['test-1', 'test-2'], tests: [test] }).watched).toEqual(['test-1', 'test-2']);
+    expect(parseEyesArchive({ eyesVersion: 1, tests: [test] })).not.toHaveProperty('watched');
+    expect(() => parseEyesArchive({ eyesVersion: 1, watched: 'test-1', tests: [] })).toThrow('eyes archive watched must be an array');
+  });
+
   it('refuses unsupported versions and invented empty partial evidence', () => {
     expect(() => parseEyesArchive({ eyesVersion: 2, tests: [] })).toThrow(/unsupported/);
     expect(() => parseEyesArchive({
