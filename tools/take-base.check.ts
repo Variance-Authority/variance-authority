@@ -1,8 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { readMissedMainline } from '@variance-authority/cli';
 import { mainlineReadRoot, readFetchedMainline } from '@variance-authority/sense/test-selection';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -14,7 +15,9 @@ import { afterEach, describe, expect, it } from 'vitest';
  * place the slice by two sets of durations, and the fold refuses a file both
  * ran. `check.yml` reads the line once and hands the read root on; this is the
  * step that takes it, and a handed pointer older than the reuse window would
- * send the job back to the line, so it is stamped as read now.
+ * send the job back to the line, so it is stamped as read now. A miss is an
+ * answer too, handed and stamped the same way; and a job told an artifact was
+ * uploaded that cannot find it stops, rather than ask the line itself.
  */
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -31,8 +34,8 @@ async function temporary(prefix: string): Promise<string> {
   return dir;
 }
 
-function take(handed: string, cache: string): string {
-  return execFileSync('node', ['tools/take-base.mjs', handed], {
+function take(handed: string, cache: string, uploaded: 'true' | 'false' = 'true'): string {
+  return execFileSync('node', ['tools/take-base.mjs', handed, uploaded], {
     cwd: ROOT,
     encoding: 'utf8',
     env: { ...process.env, VARIANCE_AUTHORITY_CACHE: cache },
@@ -59,14 +62,44 @@ describe('take-base', () => {
     expect(existsSync(join(readRoot, OLD, 'coverage.bin'))).toBe(true);
   });
 
-  it('leaves a suite the base job read nothing for to ask the line itself', async () => {
+  it('lays the line\'s answer that it gave no record, and stamps it as given now', async () => {
+    const handed = await temporary('va-handed-');
+    const cache = await temporary('va-cache-');
+    const anHourAgo = new Date(Date.now() - 3_600_000).toISOString();
+    const miss = { kind: 'absent' };
+    await mkdir(join(handed, 'unit'), { recursive: true });
+    await writeFile(join(handed, 'unit', 'missed.json'), `${JSON.stringify({ mainline: 'main', at: anHourAgo, miss, holds: ['suite-index-v1'] })}\n`);
+    const before = Date.now();
+
+    take(handed, cache);
+
+    const note = readMissedMainline(mainlineReadRoot(cache, 'unit'));
+    expect(note).toMatchObject({ mainline: 'main', miss, holds: ['suite-index-v1'] });
+    expect(Date.parse(note!.at)).toBeGreaterThanOrEqual(before - 1000);
+  });
+
+  it('leaves a suite the base job read nothing for alone, and a run that uploaded nothing to ask the line itself', async () => {
     const handed = await temporary('va-handed-');
     const cache = await temporary('va-cache-');
     await mkdir(join(handed, 'chromium'), { recursive: true });
 
     take(handed, cache);
-    take(join(handed, 'absent'), cache);
+    expect(take(join(handed, 'absent'), cache, 'false')).toBe('');
 
     expect(existsSync(mainlineReadRoot(cache, 'chromium'))).toBe(false);
+  });
+
+  it('stops when the base job uploaded its read and the job cannot find it', async () => {
+    const handed = await temporary('va-handed-');
+    const cache = await temporary('va-cache-');
+
+    const ran = spawnSync('node', ['tools/take-base.mjs', join(handed, 'absent'), 'true'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      env: { ...process.env, VARIANCE_AUTHORITY_CACHE: cache },
+    });
+
+    expect(ran.status).toBe(1);
+    expect(ran.stderr).toContain(`take-base: the base job uploaded its read, and ${join(handed, 'absent')} holds none of it`);
   });
 });

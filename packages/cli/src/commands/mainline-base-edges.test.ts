@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { publishLine } from '@variance-authority/core/share';
 import {
@@ -16,17 +16,17 @@ import type { Config } from '../config.js';
 import { EXIT_CLEAN } from '../exit.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
-import { MAINLINE_REUSE_MS, mainlineBase } from './mainline-base.js';
-import { GIT_SHARE, PUSH, git, gitPublished } from './mainline-fixture.js';
+import { MAINLINE_REUSE_MS, mainlineBase, mainlineMissed } from './mainline-base.js';
+import { GIT_SHARE, PUSH, collectedBoth, git, gitPublished } from './mainline-fixture.js';
 import { suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare } from './suite-share.js';
 
 /**
  * The edges of reading the mainline's record that the readers' own tests do
- * not reach: a remote that did not answer a moment ago, a note of that which
- * does not hold, a cache that cannot keep the note, an entry whose record
- * keeps no cases and that carries no runs, a record path that cannot be asked,
- * and a suite not given to the share at all.
+ * not reach: a line that did not answer, or answered with no record, a moment
+ * ago, a note of that which does not hold, a cache that cannot keep the note,
+ * an entry whose record keeps no cases and that carries no runs, a record path
+ * that cannot be asked, and a suite not given to the share at all.
  */
 
 const LOCAL: Env = {};
@@ -55,26 +55,57 @@ async function laptop(origin: string) {
   return { dir, readRoot, base, reach, nowhere: join(home, 'nowhere.git') };
 }
 
-describe('a remote that did not answer a moment ago', () => {
-  it('is not asked again for ten minutes when nothing was fetched earlier, and the miss says when it was asked', async () => {
+/** Take back the git cell's held answers under `cache`, as a minute passing would. */
+async function forgetLineAnswers(cache: string): Promise<void> {
+  const held = (await readdir(cache, { recursive: true })).filter((path) => basename(path) === 'variance-fetched');
+  for (const dir of held) await rm(join(cache, dir), { recursive: true, force: true });
+  expect(held).not.toEqual([]);
+}
+
+describe('a line that gave no record a moment ago', () => {
+  it('is not asked again for ten minutes when nothing was fetched earlier, and the miss says when the line answered', async () => {
     const { origin, first } = await gitPublished(home);
     const { readRoot, base, reach, nowhere } = await laptop(origin);
     await reach(nowhere);
 
     const missed = await base(NOW);
-    if (missed === undefined || !('miss' in missed) || !('detail' in missed.miss)) throw new Error(`expected a miss, read ${JSON.stringify(missed)}`);
+    if (missed === undefined || !('miss' in missed)) throw new Error(`expected a miss, read ${JSON.stringify(missed)}`);
     expect(missed).toMatchObject({ suite: 'unit', mainline: 'main', miss: { kind: 'unreachable' } });
-    expect(existsSync(join(readRoot, 'unreached.json'))).toBe(true);
+    expect(existsSync(join(readRoot, 'missed.json'))).toBe(true);
     // Reachable again, and not asked: the note answers until the window closes.
     await reach(origin);
 
-    expect(await base(NOW + MAINLINE_REUSE_MS - 1)).toEqual({
-      suite: 'unit',
-      mainline: 'main',
-      miss: { kind: 'unreachable', detail: `${missed.miss.detail}, at ${at(NOW)}; asked again 10 minutes after that` },
-    });
+    expect(await base(NOW + MAINLINE_REUSE_MS - 1)).toEqual({ suite: 'unit', mainline: 'main', miss: missed.miss, asked: at(NOW) });
     expect(await base(NOW + MAINLINE_REUSE_MS)).toMatchObject({ commit: first, fetched: at(NOW + MAINLINE_REUSE_MS) });
-    expect(existsSync(join(readRoot, 'unreached.json'))).toBe(false);
+    expect(existsSync(join(readRoot, 'missed.json'))).toBe(false);
+  });
+
+  it('is not asked again for ten minutes when it answered that it holds none, so a record published since waits for the window', async () => {
+    // Every job of one CI run reads the same answer: the one `base` read, held
+    // or not, never a record the line came to hold while the run was starting.
+    const { ci, origin, first } = await gitPublished(home, { publish: false });
+    const { readRoot, base } = await laptop(origin);
+
+    const missed = await base(NOW);
+    if (missed === undefined || !('miss' in missed)) throw new Error(`expected a miss, read ${JSON.stringify(missed)}`);
+    expect(missed.miss.kind).toBe('absent');
+    const laptopCache = process.env['VARIANCE_AUTHORITY_CACHE'];
+    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+    const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
+    process.env['VARIANCE_AUTHORITY_CACHE'] = laptopCache;
+    expect(done).toMatchObject({ published: { written: [suiteEntry('unit')] } });
+    // The git cell holds its own answer for a minute of the wall clock; this
+    // read is minutes later on the reader's clock, so that one is gone.
+    await forgetLineAnswers(join(home, 'laptop-cache'));
+
+    const again = await base(NOW + MAINLINE_REUSE_MS - 1);
+
+    expect(again).toEqual({ ...missed, asked: at(NOW) });
+    expect(mainlineMissed(again as typeof missed)).toBe(
+      `${mainlineMissed(missed)}; that was the line's answer at ${at(NOW)}, which stands for 10 minutes`,
+    );
+    expect(existsSync(join(readRoot, 'missed.json'))).toBe(true);
+    expect(await base(NOW + MAINLINE_REUSE_MS)).toMatchObject({ commit: first, fetched: at(NOW + MAINLINE_REUSE_MS) });
   });
 
   it('is not asked again when a record was fetched earlier, and that record stands with the note\'s miss', async () => {
@@ -88,23 +119,23 @@ describe('a remote that did not answer a moment ago', () => {
 
     const kept = await base(later + 1);
 
-    expect(kept).toMatchObject({ commit: first, fetched: at(NOW), earlier: { unanswered: { kind: 'unreachable' } } });
-    const detail = kept !== undefined && 'earlier' in kept && kept.earlier !== undefined && 'unanswered' in kept.earlier && 'detail' in kept.earlier.unanswered
-      ? kept.earlier.unanswered.detail
-      : undefined;
-    expect(detail).toMatch(new RegExp(`, at ${at(later)}; asked again 10 minutes after that$`, 'u'));
+    expect(kept).toMatchObject({ commit: first, fetched: at(NOW), earlier: { unanswered: { kind: 'unreachable' }, asked: at(later) } });
   });
 
   it('is asked when the note does not read, has the wrong shape, or is another mainline\'s', async () => {
     const { origin, first } = await gitPublished(home);
     const { readRoot, base } = await laptop(origin);
     await mkdir(readRoot, { recursive: true });
-    const notes = ['{', JSON.stringify({ mainline: 'main', at: at(NOW) }), JSON.stringify({ mainline: 'release', at: at(NOW), detail: 'gone' })];
+    const notes = [
+      '{',
+      JSON.stringify({ mainline: 'main', at: at(NOW) }),
+      JSON.stringify({ mainline: 'release', at: at(NOW), miss: { kind: 'unreachable', detail: 'gone' } }),
+    ];
 
     for (const [step, note] of notes.entries()) {
       // Each past the window of the record fetched before it, so only the note could stop the ask.
       const now = NOW + step * 2 * MAINLINE_REUSE_MS;
-      await writeFile(join(readRoot, 'unreached.json'), note.replace(at(NOW), at(now)));
+      await writeFile(join(readRoot, 'missed.json'), note.replace(at(NOW), at(now)));
 
       const read = await base(now);
 
@@ -124,7 +155,7 @@ describe('a remote that did not answer a moment ago', () => {
     const again = await base(NOW + 1);
 
     expect(again).toMatchObject({ miss: { kind: 'unreachable' } });
-    expect(JSON.stringify(again)).not.toContain('asked again');
+    expect(again).not.toHaveProperty('asked');
   });
 });
 
