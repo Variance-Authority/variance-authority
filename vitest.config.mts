@@ -1,10 +1,8 @@
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
-import { pruneWhenDue } from '@variance-authority/sense/test-selection';
 import { withTestSelection } from '@variance-authority/sense/vitest';
-import { pruneCacheWhenDue } from './packages/cli/dist/commands/prune-cache.js';
 import { nativeSources } from './tools/native-sources.mjs';
 import { probeable } from './tools/page-side.mjs';
 
@@ -80,36 +78,6 @@ const TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 const instrumentable = (file: string) =>
   (PRODUCT.test(file) || BUILT.test(file)) && MODULE.test(file) && !TEST.test(file) && probeable(ROOT, file);
 
-/**
- * A cache of the run's own, for the workers only, already pruned for the day.
- *
- * A test that folds, saves or indexes a fixture it made in a temporary
- * directory otherwise writes a layer keyed by that directory into this
- * machine's cache, and the directory is gone before anything can say whose the
- * layer was: one machine held seven thousand of them. The recording is folded
- * in the main process, which does not read `env`, so it still lands in the real
- * cache.
- *
- * Every fold that ends inside a test calls `pruneWhenDue` on this cache, and the
- * prune runs once a day per cache. Left due, it ran in whichever test file ended
- * a fold first, and the recording credited that file with the walk: which file
- * that was depended on scheduling, so the prune's regions moved between files
- * from one run to the next. Pruned here, as it is made, it is due in no test
- * file. `variance run` keeps a second stamp, which a case under `cases/` reaches
- * from a process of its own that inherits this cache, and it is claimed here
- * too. `prune.test.ts` and `prune-cache.test.ts` exercise the two prunes on
- * purpose, each in a cache of its own, and `tools/suite-cache.check.ts` holds
- * this one to never being due.
- */
-async function runCache(): Promise<string> {
-  const cache = mkdtempSync(join(tmpdir(), 'va-test-cache-'));
-  // `pruneWhenDue` stamps only a cache that holds a `test-selection` directory.
-  mkdirSync(join(cache, 'test-selection'));
-  await pruneWhenDue(cache);
-  await pruneCacheWhenDue({ cacheRoot: cache });
-  return cache;
-}
-
 /** What every slice runs under. */
 const shared = defineConfig({
   test: {
@@ -117,7 +85,13 @@ const shared = defineConfig({
     // `// @vitest-environment jsdom` docblock, so the DOM-free packages stay
     // DOM-free (ADR-0001) and nothing accidentally acquires a `document`.
     environment: 'node',
-    env: { VARIANCE_AUTHORITY_CACHE: await runCache() },
+    // A cache of the run's own, for the workers only. A test that folds, saves
+    // or indexes a fixture it made in a temporary directory otherwise writes a
+    // layer keyed by that directory into this machine's cache, and the
+    // directory is gone before anything can say whose the layer was: one
+    // machine held seven thousand of them. The recording is folded in the main
+    // process, which does not read `env`, so it still lands in the real cache.
+    env: { VARIANCE_AUTHORITY_CACHE: mkdtempSync(join(tmpdir(), 'va-test-cache-')) },
     // A temporary directory of each test's own, so the machine's index turn a
     // test takes is its own and no other test's or developer's index waits on
     // it, or it on them. The file says why a turn made the recording depend on

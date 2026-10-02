@@ -46,7 +46,9 @@ beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'variance-unit-workflow-'));
   const captures = join(directory, 'captures');
   config = join(directory, 'variance.config.json');
-  environment = { ...process.env, VARIANCE_CAPTURE_DIRECTORY: captures };
+  // A cache of this file's own, so every `variance run` below starts from the
+  // same cache whatever other runs on this machine left in theirs.
+  environment = { ...process.env, VARIANCE_CAPTURE_DIRECTORY: captures, VARIANCE_AUTHORITY_CACHE: join(directory, 'cache') };
 
   await writeFile(
     config,

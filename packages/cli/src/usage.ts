@@ -36,6 +36,7 @@ export const COMMANDS = [
   'push',
   'serve',
   'doctor',
+  'prune',
   'share',
   'carry',
   'comment',
@@ -127,7 +128,8 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   review: ['--coverage', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
-  doctor: ['--prune'],
+  doctor: [],
+  prune: [],
   share: ['--mainline', '--publish', '--suite', '--collected'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
@@ -156,7 +158,8 @@ export const USAGE = [
   'variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>',
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
-  'variance doctor  [--config <path>] [--prune]',
+  'variance doctor  [--config <path>]',
+  'variance prune',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]',
   'variance carry   restore | save [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',
@@ -172,11 +175,13 @@ export const USAGE = [
  * `select` and `reach` do not read project configuration. One holds a live
  * listener; the next five read evidence a run left behind, named on the command line or found
  * where a run puts it; the last three are asked by a repository whose tests another runner runs, and
- * which may have configured this tool for nothing else. `carry` is on the list
+ * which may have configured this tool for nothing else. `prune` reads the
+ * repository's cache, which the root config or `VARIANCE_AUTHORITY_CACHE` names
+ * whether or not a project is configured. `carry` is on the list
  * for the same reason and names `--config` itself: the suites it carries are
  * the repository root's, and a project is read only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'reach', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'reach', 'prune', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

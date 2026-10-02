@@ -1,10 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
+import { CHECKOUT_MARKER } from './cache-layers.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { decodeTestCoverage } from './format.js';
@@ -21,6 +23,8 @@ const fixture = resolve(repository, 'packages/sense/test/fixtures/external-runne
 // Recorded names are relative to the checkout, and the fixture sits inside it.
 const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
 const temporary: string[] = [];
+/** Past the largest pid Linux or macOS hands out, so no process has it. */
+const NO_PROCESS = 2 ** 22 + 1;
 
 afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
@@ -30,6 +34,11 @@ afterEach(async () => {
 async function record(...flags: string[]): Promise<{ coverageFile: string; stderr: string }> {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-runner-'));
   temporary.push(directory);
+  return await recordInto(directory, ...flags);
+}
+
+/** The same run, with `directory` as its cache, so a test can put something there first. */
+async function recordInto(directory: string, ...flags: string[]): Promise<{ coverageFile: string; stderr: string }> {
   const coverageFile = resolve(directory, 'coverage.bin');
   const { [RECORDING_VARIABLE]: _open, ...environment } = process.env;
   const { stderr } = await execute(process.execPath, [resolve(fixture, 'run.mjs'), ...flags], {
@@ -140,6 +149,24 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
       [at('test/alpha.case.mjs'), false],
       [at('test/beta.case.mjs'), false],
     ]);
+  }, 60_000);
+
+  it('leaves what other runs left in the cache where it is, however long ago the cache was pruned', async () => {
+    const cache = await mkdtemp(resolve(tmpdir(), 'variance-authority-runner-'));
+    temporary.push(cache);
+    // A layer of a checkout that is still there, holding the scratch of a run
+    // whose process has exited: what a prune removes. No stamp, so one is due.
+    const layer = resolve(cache, 'test-selection', 'elsewhere');
+    await mkdir(layer, { recursive: true });
+    await writeFile(resolve(layer, CHECKOUT_MARKER), JSON.stringify({ checkout: cache, primary: cache }));
+    const dead = resolve(layer, `.run-${NO_PROCESS}-left`);
+    await mkdir(dead);
+    const hoursAgo = (Date.now() - 2 * 60 * 60 * 1000) / 1000;
+    await utimes(dead, hoursAgo, hoursAgo);
+
+    await recordInto(cache);
+
+    expect(existsSync(dead)).toBe(true);
   }, 60_000);
 
   it('does nothing outside a recording, so the runner code is the same either way', () => {
