@@ -14,7 +14,9 @@ interface HeldCrossing {
   readonly loaded: boolean;
 }
 
-type Shape = Omit<ExecutionBlock, 'crossings'>;
+/** A region as every inventory of one file can name it: by its place and its identity, not its ordinal. */
+export type RegionShape = Omit<ExecutionBlock, 'crossings'>;
+type Shape = RegionShape;
 
 /**
  * Assemble independently recorded execution indexes into one deterministic relation.
@@ -107,11 +109,19 @@ export function mergeExecutionIndexes(indexes: readonly ExecutionIndex[]): Execu
  * does. That is where a changed line resolves: a shared region is in every
  * inventory and one inventory's regions nest, so every case that ran the line
  * is credited on the region the change will find. The native stitch applies
- * the same rule; this is its reading for indexes already in memory.
+ * the same rule; this is its reading for indexes already in memory, and for the
+ * readings of one file that one run's transforms cut.
+ *
+ * The blocks it keeps are the base inventory's own objects, so a caller whose
+ * regions carry more than a shape finds them again by identity. `whole` makes
+ * the one region it cuts itself into the caller's kind.
  */
 // TODO: keep each build's own regions and read a case's ordinals against the build that cut them — needs the case journal to name that build.
-function reconcileRegions(inventories: readonly (readonly Shape[])[]): {
-  readonly blocks: readonly Shape[];
+export function reconcileRegions<Region extends Shape = Shape>(
+  inventories: readonly (readonly Region[])[],
+  whole: (shape: Shape) => Region = (shape) => shape as Region,
+): {
+  readonly blocks: readonly Region[];
   readonly lands: readonly (readonly number[])[];
 } {
   if (inventories.length === 1) {
@@ -119,7 +129,7 @@ function reconcileRegions(inventories: readonly (readonly Shape[])[]): {
   }
   const base = [...inventories].sort(inventoryOrder)[0] ?? [];
   const held = inventories.map((inventory) => new Set(inventory.map(regionKey)));
-  const blocks: Shape[] = [];
+  const blocks: Region[] = [];
   const at = new Map<string, number>();
   for (const block of base) {
     const key = regionKey(block);
@@ -129,12 +139,12 @@ function reconcileRegions(inventories: readonly (readonly Shape[])[]): {
     }
   }
   const shared = blocks.slice();
-  let whole: number | undefined;
+  let spanning: number | undefined;
   const lands = inventories.map((inventory) => inventory.map((block) => {
     const found = at.get(regionKey(block)) ?? enclosing(shared, block);
     if (found !== undefined) return found;
-    whole ??= blocks.push(wholeFile(inventories, base[0])) - 1;
-    return whole;
+    spanning ??= blocks.push(whole(wholeFile(inventories, base[0]))) - 1;
+    return spanning;
   }));
   return { blocks, lands };
 }
@@ -149,6 +159,7 @@ function enclosing(shared: readonly Shape[], block: Shape): number | undefined {
   return best;
 }
 
+/** The one region spanning the file every inventory cut: the module, from its first source line to its last. */
 function wholeFile(inventories: readonly (readonly Shape[])[], first: Shape | undefined): Shape {
   const sourced = inventories.flat().filter((block) => block.source);
   const source = sourced.length > 0;

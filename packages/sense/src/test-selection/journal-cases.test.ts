@@ -22,6 +22,7 @@ import { coveringChange, coveringTests, ranWhileLoading, type ExecutionIndex } f
 import { decodeExecutionIndex } from './execution-format.js';
 import { caseIndexOf } from './case-record.js';
 import { recordedEyesAt } from './case-record.js';
+import preconditions from './case-preconditions.cjs';
 import {
   INITIALIZING,
   LABEL_PLAIN_LINE,
@@ -66,6 +67,12 @@ function twoCases(root: string, source = SOURCE): {
 
 const named = (index: ExecutionIndex, line: number): readonly string[] =>
   coveringTests(index, { file: 'price.js', line }).map((test) => test.name);
+
+/** Two things a case can say it arranged, as a driver hands them over and as the index lays them on its row. */
+const MOCKED = ['network', 'mocked', 'e2e/price.spec.ts:3', preconditions.CASE_LEVEL] as const;
+const FROZEN = ['clock', 'frozen', 'e2e/price.spec.ts:4', preconditions.CASE_LEVEL] as const;
+const HEARD_MOCKED = { name: 'network', value: 'mocked', site: 'e2e/price.spec.ts:3', level: preconditions.CASE_LEVEL };
+const HEARD_FROZEN = { name: 'clock', value: 'frozen', site: 'e2e/price.spec.ts:4', level: preconditions.CASE_LEVEL };
 
 describe('a driver that can tell its cases apart', () => {
   it('names the case that walked the branch, inside the record the snapshot is', async () => {
@@ -285,6 +292,70 @@ describe('a run recorded by more than one process', () => {
       const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       expect(index.tests.map(({ stopped, duration }) => ({ stopped, duration }))).toEqual([{ stopped: false, duration: 500 }]);
       await closeStage(directory);
+    });
+  });
+
+  it('joins what a retried case said in each process, and gives attempts nobody timed no time', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+      const directory = resolve(root, '.stage');
+      openStage(directory);
+
+      // The same case in two workers, neither timed, each saying one thing.
+      for (const [journal, said] of [[run.premium, MOCKED], [run.plain, FROZEN]] as const) {
+        await stageExecution(directory, {
+          subjects: [{ owner: 'e2e/price.spec.ts', journal, complete: true }],
+          cases: [{ file: 'e2e/price.spec.ts', name: 'case a', id: 'a', said: [said], journal }],
+        });
+      }
+      const staged = await foldStage(directory);
+      // Whichever worker's contribution is read first, the case holds both.
+      expect(staged.cases!.map((observed) => observed.name)).toEqual(['case a']);
+      expect(staged.cases![0]!.said).toHaveLength(2);
+      expect(staged.cases![0]!.said).toEqual(expect.arrayContaining([MOCKED, FROZEN]));
+      expect(staged.cases![0]).not.toHaveProperty('duration');
+
+      await recordExecution({ root, cacheRoot: resolve(root, 'cache'), coverageFile, subjects: staged.subjects, cases: staged.cases! });
+      const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
+      expect(index.tests[0]).not.toHaveProperty('duration');
+      expect(index.tests.map((test) => test.preconditions)).toEqual([[HEARD_FROZEN, HEARD_MOCKED]]);
+      expect(named(index, PREMIUM_LINE)).toEqual(['case a']);
+      expect(named(index, PLAIN_LINE)).toEqual(['case a']);
+      await closeStage(directory);
+    });
+  });
+
+  it('joins a case a driver handed over twice: the regions of both, their time summed and what each said', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+
+      await recordExecution({
+        root,
+        cacheRoot: resolve(root, 'cache'),
+        coverageFile,
+        subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium }],
+        cases: [
+          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 300, said: [MOCKED], journal: run.premium },
+          { file: 'e2e/price.spec.ts', name: 'case a', id: 'a', duration: 200, said: [FROZEN], journal: run.plain },
+          // Handed over twice and never timed: no time, rather than none summed to zero.
+          { file: 'e2e/price.spec.ts', name: 'case b', id: 'b', journal: run.premium },
+          { file: 'e2e/price.spec.ts', name: 'case b', id: 'b', journal: run.premium },
+        ],
+      });
+
+      const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
+      expect(index.tests.map(({ name, duration, preconditions }) => ({ name, duration, preconditions }))).toEqual([
+        { name: 'case a', duration: 500, preconditions: [HEARD_FROZEN, HEARD_MOCKED] },
+        { name: 'case b', duration: undefined, preconditions: undefined },
+      ]);
+      expect(index.tests[1]).not.toHaveProperty('duration');
+      // The second frame adds to the first: `case a` walked both branches.
+      expect(named(index, PREMIUM_LINE)).toEqual(['case a', 'case b']);
+      expect(named(index, PLAIN_LINE)).toEqual(['case a']);
     });
   });
 

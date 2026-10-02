@@ -11,7 +11,9 @@
  *
  * The addon answers with one verdict per file, and each charges differently:
  *
- * - `none`: the runtime text is equal. Nothing is charged.
+ * - `none`: the runtime text is equal. Nothing is charged. A `none` marked
+ *   `kept` is not the addon's: the selection found the diff's new side equal
+ *   to the text the recorded tests ran over, and asked no parser.
  * - `bodies`: what the module does as it loads is equal, and every binding it
  *   makes holds the same value. The regions the lines map to are charged,
  *   without the module's own region.
@@ -78,6 +80,12 @@ export type FileReading =
        * it started or stopped binding loads, directly or through what it imports.
        */
       readonly effects?: readonly string[];
+      /**
+       * A `none` the parser never decided: the record kept the text its tests
+       * ran over, and the diff's new side is that text, so nothing is left for
+       * them to run (`rebasedChange`). Absent for every verdict the parser gave.
+       */
+      readonly kept?: true;
     }
   | {
       readonly file: string;

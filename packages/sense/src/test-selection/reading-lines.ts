@@ -34,7 +34,7 @@ export function readingLines(readings: readonly FileReading[]): readonly string[
     return GLOSS[key];
   };
   return readings.flatMap((reading) => [
-    `read ${reading.file}: ${verdictOf(reading)}${once(reading.verdict ?? 'unread')}`,
+    `read ${reading.file}: ${verdictOf(reading)}${reading.verdict !== undefined && reading.kept === true ? '' : once(reading.verdict ?? 'unread')}`,
     ...(reading.verdict === undefined ? [] : (reading.unseen ?? [])).map(
       (test) => `unseen ${test}: loaded ${reading.file}${once('unseen')}`,
     ),
@@ -43,6 +43,9 @@ export function readingLines(readings: readonly FileReading[]): readonly string[
 
 function verdictOf(reading: FileReading): string {
   if (reading.verdict === undefined) return `unread (${UNREAD[reading.unread]})`;
+  // No parser compared two texts here, so the parser's gloss would be a claim
+  // nothing made; the reason is printed on every line, as `unread`'s is.
+  if (reading.kept === true) return `${reading.verdict} (the recorded tests already ran this text)`;
   if (reading.verdict === 'values' && reading.names.length > 0) return `values (${reading.names.join(', ')})`;
   if (reading.verdict === 'load' && reading.effects !== undefined) {
     return `load (\`sideEffects\` declares ${reading.effects.join(', ')})`;

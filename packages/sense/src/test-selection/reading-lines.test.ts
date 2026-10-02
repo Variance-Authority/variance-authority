@@ -31,4 +31,18 @@ describe('what a selector prints about each changed file', () => {
     ]);
     expect(readingLines([])).toEqual([]);
   });
+
+  it('tells a text the recorded tests already ran apart from a runtime text the parser found equal', () => {
+    expect(
+      readingLines([
+        { file: 'src/kept.ts', verdict: 'none', names: [], kept: true },
+        { file: 'src/equal.ts', verdict: 'none', names: [] },
+        { file: 'src/again.ts', verdict: 'none', names: [], kept: true },
+      ]),
+    ).toEqual([
+      'read src/kept.ts: none (the recorded tests already ran this text)',
+      'read src/equal.ts: none — the runtime text is equal',
+      'read src/again.ts: none (the recorded tests already ran this text)',
+    ]);
+  });
 });
