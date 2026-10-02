@@ -1,7 +1,7 @@
 import { readFile, realpath, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsAt,
   encodeAsSetExecutionIndex,
@@ -37,7 +37,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
@@ -74,11 +74,11 @@ function coveringOf(argv: readonly string[]) {
 
 describe('a record laid from the mainline', () => {
   it('carries the regions, the case preconditions and the Eyes journals CI published, and reads each back', async () => {
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
     const ci = await published(home, { record: attributed });
     const made = testCoverageFile(ci.dir, { suite: 'unit' });
     const clone = await cloneOf(home, ci.origin);
-    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'clone-cache');
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'clone-cache'));
     const base = await suiteBase(clone, { env: {} });
     if (base.from !== 'mainline') throw new Error(`expected the mainline's record, read ${JSON.stringify(base)}`);
 
