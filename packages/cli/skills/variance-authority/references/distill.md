@@ -1,7 +1,8 @@
 # Distill a test, then verify the reduction
 
-`variance distill` reads no config and no report, so it answers in a checkout
-that has never configured this tool. `--test` takes a recorded id, an exact title or a part of one, and
+`variance distill` reads no report, and from the root `variance.config.json`
+only the declared suites, to find the record `--suite` names; a checkout that
+has never configured this tool gets the same answer. `--test` takes a recorded id, an exact title or a part of one, and
 `--file` a part of the test file's path; give either or both. More than one
 fitting test is refused with their ids. The execution
 half is the index the last recorded run left, unless `--execution <path>` names
