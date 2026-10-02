@@ -7,7 +7,7 @@ import {
   type SetExecutionModule,
 } from './execution-set-format.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { addressKey } from './merge-carry.js';
+import { addressKey, sameNumbering } from './merge-carry.js';
 import type { ExecutionTest } from './reverse.js';
 
 /** What a run knows about the test files it was handed. */
@@ -182,8 +182,15 @@ function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetEx
   return entered ? { ...module, called } : undefined;
 }
 
-/** For each region recorded now, the held region its cases carry from, or -1. */
+/**
+ * For each region recorded now, the held region its cases carry from, or -1.
+ *
+ * An address is half a seat among siblings: a function written in front of an
+ * anonymous one takes the seat it held. Where the two cuts filled a counter
+ * differently, an address names another region, and every region is -1.
+ */
 function landing(recorded: SetExecutionModule, before: SetExecutionModule): Int32Array {
+  if (!sameNumbering(before.blocks, recorded.blocks)) return new Int32Array(recorded.blocks.length).fill(-1);
   const seen = new Map<string, number>();
   const heldAt = new Map<string, number>();
   for (const [at, block] of before.blocks.entries()) {
