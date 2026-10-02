@@ -128,3 +128,8 @@ describe('a region paired through the diff from the base', () => {
     expect(motion.regions).toEqual([]);
   });
 });
+
+// Without the diff — a base whose commit is unknown or not in the clone — a sibling written before another whose
+// cases also changed takes that one's occurrence: the address pairs the displaced row with the new region (lost) and
+// the next row with the displaced region (gained). `coverage-sibling.test.ts` shows the diff pairing it truly.
+it.todo('reports no motion for a sibling neither the diff nor its cases can tell from its neighbour — needs a rule for what an ambiguous occurrence pairing is reported as, without a diff to pair it');
