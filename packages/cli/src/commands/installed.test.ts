@@ -182,15 +182,6 @@ describe('which changed manifests the install does not speak for', () => {
     expect(await installDiffOfPatch(git('diff'), repo)).toEqual({ packages: [], manifests: ['package.json'], moved: ['packages/ds/package.json'] });
   });
 
-  it('carries a manifest whose `type` moved in a checkout that keeps no lockfile', async () => {
-    const repo = await mkdtemp(join(tmpdir(), 'va-install-'));
-    await mkdir(join(repo, 'packages/ds'), { recursive: true });
-    await writeFile(join(repo, 'packages/ds/package.json'), text({ ...MANIFEST, type: 'module' }), 'utf8');
-    const diff = await installDiff(pointWith(repo, { 'packages/ds/package.json': text(MANIFEST) }), ['packages/ds/package.json'], repo);
-
-    expect(diff).toEqual({ packages: [], manifests: ['package.json'], moved: ['packages/ds/package.json'] });
-  });
-
   it('carries a manifest the base did not have, since it makes a package', async () => {
     const repo = await workspace(MANIFEST);
     const diff = await installDiff(pointWith(repo, { 'yarn.lock': BEFORE }), ['packages/ds/package.json'], repo);

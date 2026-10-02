@@ -125,8 +125,7 @@ export async function installDiffs(
   from: string = process.cwd(),
 ): Promise<readonly (InstallDiff | undefined)[]> {
   const found = await lockfileNear(from);
-  // No lockfile is no install to compare, and a manifest's `exports` or `type` still moves.
-  if (found === undefined) return await Promise.all(asked.map(({ point, changed }) => manifestsAlone(point, changed, from)));
+  if (found === undefined) return asked.map(() => undefined);
   let parsed: Promise<Lockfile> | undefined;
   const lock = () => import('@variance-authority/sense/lock');
   const after = () => (parsed ??= lock().then((read) => read.readLockfile(found.file, found.text)));
@@ -177,11 +176,6 @@ async function movedSince(point: DiffPoint, changed: readonly string[], from: st
     const named = relative(point.repository, at);
     return Promise.all([named.startsWith('..') ? undefined : point.at(named), readFile(at, 'utf8').catch(() => undefined)]);
   });
-}
-
-async function manifestsAlone(point: DiffPoint | undefined, changed: readonly string[], from: string): Promise<InstallDiff | undefined> {
-  const moved = point === undefined ? [] : await movedSince(point, changed, from);
-  return moved.length === 0 ? undefined : { packages: [], manifests: [MANIFEST], moved };
 }
 
 /**

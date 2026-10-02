@@ -16,8 +16,7 @@ moved. A directory in either list is walked from every file under it. `select
 --execution` reads the same lists for the suite `--suite` names, the only one
 declared, or every declared suite when none is named; beside a snapshot
 `--execution`, `--suite` is refused, since both name the record. A manifest move
-is read when the diff leaves every lockfile alone, and in a checkout that keeps
-no lockfile. A
+is read when the diff leaves every lockfile alone. A
 config below the repository root inherits the root's `before`, as it inherits
 its suites. A suite that declares nothing has nothing before its reach, and
 `select` says so.
