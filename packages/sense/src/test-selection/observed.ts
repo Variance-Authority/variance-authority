@@ -11,6 +11,7 @@
 
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { AMBIENT, type CaseJournal } from './cases.js';
+import type { ObservedEyes } from './eyes-record.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ExecutionJournal } from './probes.js';
@@ -75,6 +76,12 @@ export interface ObservedCase {
   /** {@link ExecutionTest.duration}: the runner's milliseconds, summed over the attempts this source saw. */
   readonly duration?: number;
   readonly journal: ExecutionJournal;
+  /**
+   * The Eyes journals the case handed over, one per attempt this source saw.
+   * Absent when the case composed no Eyes, which is not the same as a journal
+   * that recorded nothing.
+   */
+  readonly eyes?: readonly ObservedEyes[];
 }
 
 /**

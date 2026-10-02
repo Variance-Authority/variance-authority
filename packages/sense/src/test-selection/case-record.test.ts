@@ -45,7 +45,8 @@ function at(bytes: Uint8Array): string {
 
 describe('a record that carries its cases', () => {
   const index = encodeExecutionIndex(INDEX);
-  const record = withCaseSections(encodeTestCoverage(COVERAGE), { index, before: index, last: LAST });
+  const eyes = Buffer.from('{"version":1,"journals":[]}\n');
+  const record = withCaseSections(encodeTestCoverage(COVERAGE), { index, before: index, last: LAST, eyes });
 
   it('reads as the coverage it carried and as the case index it carried', () => {
     expect(decodeTestCoverage(record)).toEqual(decodeTestCoverage(encodeTestCoverage(COVERAGE)));
@@ -64,6 +65,11 @@ describe('a record that carries its cases', () => {
     expect(parts.last).toBeUndefined();
     expect(Buffer.from(parts.index ?? [])).toEqual(index);
     expect(decodeTestCoverage(shared)).toEqual(decodeTestCoverage(record));
+  });
+
+  it('keeps its Eyes journals when it crosses, because a crossing is the same person\'s or one they made', () => {
+    expect(Buffer.from(caseSectionsOf(record).eyes ?? [])).toEqual(eyes);
+    expect(Buffer.from(caseSectionsOf(sharedRecord(record)).eyes ?? [])).toEqual(eyes);
   });
 
   it('is refused by a fold when it holds a section this build does not know, rather than losing it', () => {

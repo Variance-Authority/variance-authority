@@ -2,10 +2,11 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { landCases, lastCaseRunOf } from './case-landing.js';
+import { landCases, lastCaseRunOf, layCases } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
+import { decodeRecordedEyes, encodeRecordedEyes, type RecordedEyes } from './eyes-record.js';
 import {
   encodeAsSetExecutionIndex,
   encodeSetExecutionIndex,
@@ -45,9 +46,12 @@ function read(bytes: Uint8Array | undefined): Record<string, string[]> {
 const whole = (file: string) => ({ file, complete: true });
 
 /** A shard's record, carrying the cases its seam kept. */
-async function shard(name: string, cases: Uint8Array): Promise<string> {
+async function shard(name: string, cases: Uint8Array, eyes?: readonly RecordedEyes[]): Promise<string> {
   const at = join(root, name);
-  await writeTestCoverage(at, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, { index: cases });
+  await writeTestCoverage(at, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
+    index: cases,
+    ...(eyes === undefined ? {} : { eyes: encodeRecordedEyes(eyes) }),
+  });
   return at;
 }
 
@@ -156,5 +160,55 @@ describe('landCases', () => {
 
     expect(landing).toEqual({ unanswered: record, shard: at, removed: false });
     expect(sections).toEqual({});
+  });
+});
+
+/** A journal as Eyes closes one: what the case addressed, here a single phase. */
+function journal(caseId: string, attempt: number, phase = 'act'): RecordedEyes {
+  return { case: caseId, attempt, journal: { complete: true, attention: [{ kind: 'eyes-phase', phase, sequence: 0 }] } };
+}
+
+describe('the Eyes journals a run lays', () => {
+  it('lays each case\'s journals by case and attempt beside the index, and keeps the cases that did not run', () => {
+    const held = { ...previous, eyes: encodeRecordedEyes([journal('a.test.ts > one', 1), journal('b.test.ts > two', 1)]) };
+
+    const sections = layCases(held, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] }, [
+      journal('b.test.ts > two', 2, 'assert'),
+      journal('b.test.ts > two', 1, 'arrange'),
+    ]);
+
+    expect(decodeRecordedEyes(sections.eyes!)).toEqual([
+      journal('a.test.ts > one', 1),
+      journal('b.test.ts > two', 1, 'arrange'),
+      journal('b.test.ts > two', 2, 'assert'),
+    ]);
+  });
+
+  it('retires a case\'s journals when it ran again without Eyes, and leaves no section when none is left', () => {
+    const held = { ...previous, eyes: encodeRecordedEyes([journal('b.test.ts > two', 1)]) };
+
+    const sections = layCases(held, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] });
+
+    expect(sections.eyes).toBeUndefined();
+  });
+
+  it('refuses a journal whose case the run did not record, rather than keep a reference nothing answers', () => {
+    expect(() => layCases(previous, index({ 'b.test.ts > two': ['gamma'] }), root, { tests: [whole('b.test.ts')] }, [
+      journal('b.test.ts > two (title)', 1),
+    ])).toThrow('an Eyes journal names a case the run did not record: b.test.ts > two (title)');
+  });
+
+  it('carries each shard\'s journals into the record it lands, and one journal two shards both hold once', async () => {
+    const first = await shard('shard-1.bin', index({ 'b.test.ts > two': ['gamma'] }), [journal('b.test.ts > two', 1)]);
+    const second = await shard('shard-2.bin', index({ 'c.test.ts > three': ['alpha'] }), [journal('c.test.ts > three', 1)]);
+
+    const { sections } = landCases(record, previous, root, [
+      { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } },
+      { path: second, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
+    ]);
+
+    expect(decodeRecordedEyes(sections.eyes!)).toEqual([journal('b.test.ts > two', 1), journal('c.test.ts > three', 1)]);
+    expect(() => encodeRecordedEyes([journal('c.test.ts > three', 1), journal('c.test.ts > three', 1, 'assert')]))
+      .toThrow('two different Eyes journals for c.test.ts > three, attempt 1');
   });
 });

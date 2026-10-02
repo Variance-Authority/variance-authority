@@ -21,6 +21,7 @@ import { readTestCoverage, selectTestFiles } from './index.js';
 import { coveringChange, coveringTests, ranWhileLoading, type ExecutionIndex } from './reverse.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { caseIndexOf } from './case-record.js';
+import { recordedEyesAt } from './eyes-record.js';
 import {
   INITIALIZING,
   LABEL_PLAIN_LINE,
@@ -303,6 +304,62 @@ describe('a run recorded by more than one process', () => {
       openStage(directory);
       expect(await foldStage(directory)).toMatchObject({ subjects: [] });
       await closeStage(directory);
+    });
+  });
+});
+
+describe('a driver whose cases kept Eyes journals', () => {
+  const journal = (phase: string) => ({ complete: true, attention: [{ kind: 'eyes-phase', phase, sequence: 0 }] });
+
+  it('lays each attempt of a case retried in another worker beside the case, joined by the id the index gives it', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+      const directory = resolve(root, '.stage');
+      openStage(directory);
+
+      // Attempt 1 failed in one worker and attempt 2 passed in another; a
+      // second case shares the first one's name, so the index numbers it.
+      await stageExecution(directory, {
+        subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium, complete: false }],
+        cases: [{ file: 'e2e/price.spec.ts', name: 'case', id: 'a', stopped: true, journal: run.premium, eyes: [{ attempt: 1, journal: journal('act') }] }],
+      });
+      await stageExecution(directory, {
+        subjects: [{ owner: 'e2e/price.spec.ts', journal: run.plain, complete: true }],
+        cases: [
+          { file: 'e2e/price.spec.ts', name: 'case', id: 'a', stopped: false, journal: run.premium, eyes: [{ attempt: 2, journal: journal('assert') }] },
+          { file: 'e2e/price.spec.ts', name: 'case', id: 'b', journal: run.plain, eyes: [{ attempt: 1, journal: journal('arrange') }] },
+        ],
+      });
+      const staged = await foldStage(directory);
+      await recordExecution({ root, cacheRoot: resolve(root, 'cache'), coverageFile, subjects: staged.subjects, cases: staged.cases! });
+
+      const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
+      expect(index.tests.map((test) => test.id)).toEqual(['e2e/price.spec.ts > case', 'e2e/price.spec.ts > case#1']);
+      expect(recordedEyesAt(coverageFile)).toEqual([
+        { case: 'e2e/price.spec.ts > case', attempt: 1, journal: journal('act') },
+        { case: 'e2e/price.spec.ts > case', attempt: 2, journal: journal('assert') },
+        { case: 'e2e/price.spec.ts > case#1', attempt: 1, journal: journal('arrange') },
+      ]);
+      await closeStage(directory);
+    });
+  });
+
+  it('keeps no Eyes section for a run whose cases kept none', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+      await recordExecution({
+        root,
+        cacheRoot: resolve(root, 'cache'),
+        coverageFile,
+        subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium }],
+        cases: [{ file: 'e2e/price.spec.ts', name: 'case', id: 'a', journal: run.premium }],
+      });
+
+      expect(recordedEyesAt(coverageFile)).toBeUndefined();
     });
   });
 });

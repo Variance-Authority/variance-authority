@@ -16,7 +16,9 @@ import type { Bytes } from './columns.js';
  *   writes;
  * - `cases.before` is what the index held for the last run's files before it
  *   landed, the base an edit to a test is compared against;
- * - `cases.last` names that run, as JSON.
+ * - `cases.last` names that run, as JSON;
+ * - `eyes` holds the Eyes journals of the cases that kept one, by case and
+ *   attempt (`eyes-record.ts`).
  *
  * FIXME: `cases` and `cases.before` each carry a module and block table of
  * their own, re-encoding the files and blocks the record's coverage sections
@@ -30,9 +32,10 @@ export interface CaseSections {
   readonly index?: Uint8Array;
   readonly before?: Uint8Array;
   readonly last?: Uint8Array;
+  readonly eyes?: Uint8Array;
 }
 
-const PARTS = { index: 'cases', before: 'cases.before', last: 'cases.last' } as const;
+const PARTS = { index: 'cases', before: 'cases.before', last: 'cases.last', eyes: 'eyes' } as const;
 const KNOWN: ReadonlySet<string> = new Set<string>([...NAMES, DURATION, ...Object.values(PARTS)]);
 
 /**
@@ -108,21 +111,26 @@ export function recordedCases(bytes: Uint8Array): Uint8Array {
 
 /** Whether the record at `coverageFile` carries a case index, read off its header alone. */
 export function keepsCases(coverageFile: string): boolean {
+  return headerNames(coverageFile)?.includes(PARTS.index) === true;
+}
+
+/** The section names the record at `coverageFile` holds, read off its header alone. */
+function headerNames(coverageFile: string): readonly string[] | undefined {
   let fd: number;
   try {
     fd = openSync(coverageFile, 'r');
   } catch (error) {
-    if (isMissing(error)) return false;
+    if (isMissing(error)) return undefined;
     throw error;
   }
   try {
     const file = descriptor(fd);
     const head = file.read(0, Math.min(file.length, 4));
-    if (head.length < 4) return false;
+    if (head.length < 4) return undefined;
     const length = Buffer.from(head.buffer, head.byteOffset, 4).readUInt32LE(0);
-    if (length > file.length - 4) return false;
+    if (length > file.length - 4) return undefined;
     const header = Buffer.concat([head, file.read(4, 4 + length)]);
-    return peeked(header)?.sections.some((section) => section.name === PARTS.index) === true;
+    return peeked(header)?.sections.map((section) => section.name);
   } finally {
     closeSync(fd);
   }
@@ -172,18 +180,31 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
 }
 
 /**
- * `record` as another checkout takes it: the case index kept, and the parts
- * that name this checkout's last run dropped, because that run is not the
- * taker's. Every crossing — a seed, a repin, a share — goes through here.
+ * `record` as another checkout takes it: the case index and its Eyes journals
+ * kept, and the parts that name this checkout's last run dropped, because that
+ * run is not the taker's. Every crossing — a seed, a repin, a share — goes
+ * through here.
+ *
+ * The journals cross because every crossing is one a person made: a seed is
+ * the same machine's worktree, and a share or a carry names the Eyes section
+ * among what it uploads before it does (spec 0094).
  */
 export function sharedRecord(record: Uint8Array): Uint8Array {
-  const { index, before, last } = caseSectionsOf(record);
+  const { index, before, last, eyes } = caseSectionsOf(record);
   if (before === undefined && last === undefined) return record;
-  return withCaseSections(record, index === undefined ? {} : { index });
+  return withCaseSections(record, {
+    ...(index === undefined ? {} : { index }),
+    ...(eyes === undefined ? {} : { eyes }),
+  });
+}
+
+/** Whether the record at `coverageFile` carries Eyes journals, read off its header alone. */
+export function keepsEyes(coverageFile: string): boolean {
+  return headerNames(coverageFile)?.includes(PARTS.eyes) === true;
 }
 
 function isCasePart(name: string): boolean {
-  return name === PARTS.index || name === PARTS.before || name === PARTS.last;
+  return (Object.values(PARTS) as string[]).includes(name);
 }
 
 interface Opened {
@@ -211,11 +232,10 @@ function opened(file: Bytes): Opened {
 }
 
 function partsOf(file: Opened): CaseSections {
-  const parts: { index?: Uint8Array; before?: Uint8Array; last?: Uint8Array } = {};
-  for (const section of file.header.sections) {
-    if (section.name === PARTS.index) parts.index = file.read(section);
-    else if (section.name === PARTS.before) parts.before = file.read(section);
-    else if (section.name === PARTS.last) parts.last = file.read(section);
+  const parts: { -readonly [part in keyof CaseSections]: Uint8Array } = {};
+  for (const [part, name] of Object.entries(PARTS) as [keyof CaseSections, string][]) {
+    const section = file.header.sections.find((candidate) => candidate.name === name);
+    if (section !== undefined) parts[part] = file.read(section);
   }
   return parts;
 }

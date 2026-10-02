@@ -14,6 +14,7 @@ import { layerBefore, layerCaseIndex } from './case-layer.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { decodeRecordedEyes, layEyes, type RecordedEyes } from './eyes-record.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoverageTest } from './index.js';
 
@@ -29,6 +30,8 @@ export interface LaidRun {
 export interface FreshCases {
   readonly fresh: Uint8Array;
   readonly run: LaidRun;
+  /** The Eyes journals the run's cases handed over; none when no case composed Eyes. */
+  readonly eyes?: readonly RecordedEyes[];
 }
 
 /**
@@ -74,11 +77,20 @@ export interface LastCaseRun {
  * one more invocation of the same suite, not a new change, so what the runs
  * before it retired stays under what this one retired.
  *
+ * `eyes` are the run's Eyes journals, laid by {@link layEyes}: a case that ran
+ * has its journals replaced by the run's, and has none when the run kept none.
+ *
  * Nothing is written here. The caller writes the result into the record with
  * the coverage it lands, in one write under the record's lock, so the two
  * always answer for the same runs.
  */
-export function layCases(previous: CaseSections, fresh: Uint8Array, root: string, run: LaidRun): CaseSections {
+export function layCases(
+  previous: CaseSections,
+  fresh: Uint8Array,
+  root: string,
+  run: LaidRun,
+  eyes: readonly RecordedEyes[] = [],
+): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const { merged, last, before: retired } = layerCaseIndex(previous.index, fresh, {
     ran,
@@ -108,11 +120,13 @@ export function layCases(previous: CaseSections, fresh: Uint8Array, root: string
     ...(retired === undefined || began ? { began: true } : {}),
     cases: last,
   };
+  const journals = layEyes(previous.eyes, eyes, merged, last);
   return {
     index: merged,
     last: Buffer.from(`${JSON.stringify(named, null, 2)}\n`),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
+    ...(journals === undefined ? {} : { eyes: journals }),
   };
 }
 
@@ -172,12 +186,13 @@ export function landCases(
   let sections = previous;
   let laid = 0;
   for (const shard of shards) {
-    const fresh = layableIndex(caseSectionsAt(shard.path).index);
+    const kept = caseSectionsAt(shard.path);
+    const fresh = layableIndex(kept.index);
     if (fresh !== undefined) {
       // FIXME: each shard is laid as a run of its own, so the last-run layer
       // names only the last shard's cases, and `covering --cases last` after a
       // landing answers from that shard rather than from the whole fold.
-      sections = layCases(sections, fresh, root, shard.coverage);
+      sections = layCases(sections, fresh, root, shard.coverage, kept.eyes === undefined ? [] : decodeRecordedEyes(kept.eyes));
       laid += 1;
     } else if (shard.coverage.tests.some((test) => test.complete)) {
       const removed = Object.values(previous).some((part) => part !== undefined);

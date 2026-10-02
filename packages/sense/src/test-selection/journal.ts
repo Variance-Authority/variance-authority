@@ -46,6 +46,7 @@ import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { executionIndexFrom } from './cases.js';
+import { eyesOfCases } from './eyes-record.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import {
   caseJournals,
@@ -399,6 +400,7 @@ export async function recordExecution(
       : {
           fresh: encodeAsSetExecutionIndex(executionIndexFrom(caseJournals(observed), byId)),
           run: { tests, ...(commit === undefined ? {} : { commit }) },
+          eyes: eyesOfCases(observed),
         };
   const merged = await withIndexLock(coverageFile, async () => {
     await landRun(coverageFile, current, root, options.cacheRoot, cases);

@@ -11,7 +11,7 @@ import {
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { AMBIENT, settledAcross, unpackCase, unpackFrames } from './cases.js';
+import { AMBIENT, caseIds, caseKey, inCaseOrder, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
@@ -106,21 +106,14 @@ export async function inspectCaseRun(
     }
   }
 
-  const ordered = [...coordinates.values()].sort((left, right) =>
-    codeUnitOrder(left.file, right.file) ||
-    codeUnitOrder(left.name, right.name) ||
-    codeUnitOrder(left.id, right.id),
-  );
+  const ordered = inCaseOrder(coordinates.values());
+  const ids = caseIds(ordered);
   const frameTests = new Uint32Array(frame);
-  const seen = new Map<string, number>();
   const tests = ordered.map((coordinate, at): ExecutionTest => {
     for (const written of coordinate.frames) frameTests[written] = at;
-    const name = `${coordinate.file} > ${coordinate.name}`;
-    const repeat = seen.get(name) ?? 0;
-    seen.set(name, repeat + 1);
     const duration = durations(coordinate.file, coordinate.name, coordinate.id);
     return {
-      id: repeat === 0 ? name : `${name}#${repeat}`,
+      id: ids.get(caseKey(coordinate))!,
       file: coordinate.file,
       name: coordinate.name,
       ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
