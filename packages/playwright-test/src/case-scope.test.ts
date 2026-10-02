@@ -145,6 +145,13 @@ describe('the case a Playwright test runs as', () => {
         holder[CASE_SCOPE] = replaced;
       });
       expect(holder[CASE_SCOPE]).toBe(replaced);
+
+      // A realm with no scope is left with none, not with one set to `undefined`.
+      delete holder[CASE_SCOPE];
+      await ran(recorder, root, {}, async () => {
+        expect(scopeNow()!.root).toBe(root);
+      });
+      expect(CASE_SCOPE in holder).toBe(false);
     } finally {
       holder[CASE_SCOPE] = found;
       if (found === undefined) delete holder[CASE_SCOPE];
