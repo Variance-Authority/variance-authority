@@ -21,6 +21,7 @@ use std::sync::{Arc, OnceLock};
 mod acquire;
 mod append_index;
 mod batch;
+mod case_owner;
 mod case_preconditions;
 mod compact;
 mod conditions;

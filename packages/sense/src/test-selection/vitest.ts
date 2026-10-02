@@ -5,7 +5,14 @@ import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { instrument, type InstrumentMode } from '../instrument/index.js';
 import { priorMap, type TransformingContext } from './probes.js';
-import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
+import {
+  cleanId,
+  defaultInclude,
+  projectPath,
+  heldReading,
+  recordedReading,
+  type CapturedModule,
+} from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame } from './source-lines.js';
 import {
@@ -110,6 +117,7 @@ interface VitePlugin extends ConfigPlugin {
     id: string,
   ) => { code: string; map: null } | null;
   readonly closeBundle: () => Promise<void>;
+  readonly watchChange: (id: string) => void;
 }
 
 /**
@@ -271,7 +279,7 @@ function selectionPlugin(
   declared: readonly string[],
   settle: (files: readonly FinishedFile[]) => Promise<void>,
 ): VitePlugin {
-  const { modules } = run;
+  const { modules, readings } = run;
   let closing: Promise<void> | undefined;
   return {
     name: 'variance-authority:test-selection',
@@ -312,6 +320,24 @@ function selectionPlugin(
       }
     },
     configResolved: declareConfig(run, declared, [setupId, runnerId]),
+    // A file changed on disk, so its reading describes text the disk no longer
+    // holds, and a rerun transforms it again only if a test still loads it.
+    // So does every reading named after it: a build's regions sit on the lines
+    // the file had when the build was made. Nothing else goes: Vite serves an
+    // unchanged file from its cache, and a reading of it is the text that runs.
+    watchChange(id) {
+      const changed = projectPath(root, cleanId(id));
+      for (const [name, held] of readings) {
+        if (name === changed) held.clear();
+        else if (!held.delete(changed)) continue;
+        const kept = heldReading(name, held);
+        if (kept !== undefined) modules.set(name, kept);
+        else {
+          readings.delete(name);
+          modules.delete(name);
+        }
+      }
+    },
     transform(code, id) {
       // The setup module installs the probe log; instrumented, its own header
       // would ask for the log's root before the module has installed it.
@@ -341,19 +367,19 @@ function selectionPlugin(
       const name = projectPath(root, wrote);
       const moduleId = name;
       const done = instrument(code, name, moduleId, { mode });
-      if (done === undefined) {
-        modules.set(moduleId, { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] });
-        return null;
-      }
-
-      modules.set(moduleId, {
-        file: name,
-        id: moduleId,
-        sourceDigest,
-        instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
-      });
-      return { code: done.code, map: null };
+      // A source and its build both answer to the name: see `recordedReading`.
+      const held = readings.get(name) ?? new Map<string, CapturedModule>();
+      readings.set(name, held);
+      modules.set(moduleId, recordedReading(name, held, projectPath(root, file), done === undefined
+        ? { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] }
+        : {
+            file: name,
+            id: moduleId,
+            sourceDigest,
+            instrumented: true,
+            blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+          }));
+      return done === undefined ? null : { code: done.code, map: null };
     },
   };
 }

@@ -313,7 +313,7 @@ describe('the bounded case fold', () => {
     ]);
   });
 
-  it.runIf(nativeAvailable())('agrees with the native compressed fold', async () => {
+  it.runIf(nativeAvailable())('agrees with the native compressed fold, joining a case written twice as one', async () => {
     const cases = await directory();
     const store = resolve(cases, '..', 'store');
     await mkdir(store);
@@ -331,7 +331,10 @@ describe('the bounded case fold', () => {
     );
     await writeFile(resolve(cases, 'worker.vac'), packFrames([
       journalFormat.encodeJournal(
-        packCase('/repo/test/branch.test.ts', 'alpha', '1'),
+        preconditions.packSaid(
+          journalFormat.settledCase(packCase('/repo/test/branch.test.ts', 'alpha', '1'), true),
+          [['clock', 'frozen', '/repo/test/branch.test.ts:2', 0]],
+        ),
         new Map([['src/branch.ts', counters(3, [0, 1])]]),
       ),
       journalFormat.encodeJournal(
@@ -342,6 +345,15 @@ describe('the bounded case fold', () => {
           [['network', 'mocked', '/repo/test/branch.test.ts:4', preconditions.CASE_LEVEL]],
         ),
         new Map([['src/branch.ts', counters(3, [0, 2])]]),
+      ),
+      // Work that outlived `alpha` wrote a second frame under its coordinate,
+      // unsettled, entering a region the first did not and saying more: one case.
+      journalFormat.encodeJournal(
+        preconditions.packSaid(
+          packCase('/repo/test/branch.test.ts', 'alpha', '1'),
+          [['network', 'live', '/repo/test/branch.test.ts:8', preconditions.CASE_LEVEL]],
+        ),
+        new Map([['src/branch.ts', counters(3, [2])]]),
       ),
     ]));
 
@@ -356,7 +368,18 @@ describe('the bounded case fold', () => {
     );
 
     expect(decodeExecutionIndex(answered.bytes)).toEqual(decodeExecutionIndex(oracle.bytes));
-    expect(answered).toMatchObject({ tests: 2, modules: 1, crossings: 4 });
+    expect(decodeExecutionIndex(answered.bytes).tests).toMatchObject([
+      {
+        id: 'test/branch.test.ts > alpha',
+        stopped: true,
+        preconditions: [
+          { name: 'clock', value: 'frozen' },
+          { name: 'network', value: 'live' },
+        ],
+      },
+      { id: 'test/branch.test.ts > beta' },
+    ]);
+    expect(answered).toMatchObject({ tests: 2, modules: 1, crossings: 5 });
   });
 
   it('keeps the base under every invocation at one commit, and names it until a file runs again', async () => {
