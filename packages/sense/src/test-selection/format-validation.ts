@@ -162,3 +162,15 @@ export function invalid(): Error {
 export function fail(): never {
   throw invalid();
 }
+
+/**
+ * A record that holds a run's cases and none of its coverage sections: the run
+ * that wrote it kept its cases and instrumented no module (spec 0094). Its
+ * coverage is absent, not empty, so a reader answers *unmeasured* and narrows
+ * nothing, where a record of nothing reads as every test reaching nothing.
+ */
+export class RecordWithoutCoverage extends Error {
+  constructor() {
+    super('the record holds cases and no coverage: the run that wrote it instrumented no module');
+  }
+}

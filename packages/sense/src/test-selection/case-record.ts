@@ -134,11 +134,36 @@ export function recordedCases(bytes: Uint8Array): Uint8Array {
 
 /** Whether the record at `coverageFile` carries a case index, read off its header alone. */
 export function keepsCases(coverageFile: string): boolean {
-  return headerNames(coverageFile)?.includes(PARTS.index) === true;
+  return sectionsAt(coverageFile)?.some((section) => section.name === PARTS.index) === true;
 }
 
-/** The section names the record at `coverageFile` holds, read off its header alone. */
-function headerNames(coverageFile: string): readonly string[] | undefined {
+/**
+ * Whether the record at `coverageFile` holds cases and no coverage, read off
+ * its header alone: a record its run wrote having instrumented no module. False
+ * for a record that is missing or does not read, which a reader refuses on its
+ * own terms.
+ */
+export function withoutCoverage(coverageFile: string): boolean {
+  const sections = sectionsAt(coverageFile);
+  return sections !== undefined && sections.length > 0 && sections.every((section) => isCasePart(section.name));
+}
+
+/**
+ * The record a run that instrumented no module writes: its case sections, and
+ * none of the coverage sections, because that coverage is absent rather than
+ * empty. `openTestCoverage` refuses it as `RecordWithoutCoverage`.
+ */
+export function recordOfCases(cases: CaseSections): Buffer {
+  const parts: Record<string, Stored> = {};
+  for (const [part, name] of Object.entries(PARTS) as [keyof CaseSections, string][]) {
+    const bytes = cases[part];
+    if (bytes !== undefined) parts[name] = { plain: Buffer.from(bytes), rows: bytes.length, width: 1 };
+  }
+  return sections(parts, FORMAT);
+}
+
+/** The sections the header of the record at `coverageFile` lists; `undefined` when there is none to read. */
+function sectionsAt(coverageFile: string): readonly Section[] | undefined {
   let fd: number;
   try {
     fd = openSync(coverageFile, 'r');
@@ -152,8 +177,7 @@ function headerNames(coverageFile: string): readonly string[] | undefined {
     if (head.length < 4) return undefined;
     const length = Buffer.from(head.buffer, head.byteOffset, 4).readUInt32LE(0);
     if (length > file.length - 4) return undefined;
-    const header = Buffer.concat([head, file.read(4, 4 + length)]);
-    return peeked(header)?.sections.map((section) => section.name);
+    return peeked(Buffer.concat([head, file.read(4, 4 + length)]))?.sections;
   } finally {
     closeSync(fd);
   }
@@ -226,7 +250,7 @@ export function sharedRecord(record: Uint8Array): Uint8Array {
 
 /** Whether the record at `coverageFile` carries Eyes journals, read off its header alone. */
 export function keepsEyes(coverageFile: string): boolean {
-  return headerNames(coverageFile)?.includes(PARTS.eyes) === true;
+  return sectionsAt(coverageFile)?.some((section) => section.name === PARTS.eyes) === true;
 }
 
 function isCasePart(name: string): boolean {

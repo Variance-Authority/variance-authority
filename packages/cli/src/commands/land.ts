@@ -37,6 +37,11 @@ import { landingRecord } from './suite-record.js';
  * the target's with it, so nobody reads cases the snapshot has replaced. See
  * `landCases`.
  *
+ * A shard whose run instrumented nothing holds its cases and no coverage. It is
+ * unmeasured, so it folds nothing and moves no runs record, and its cases are
+ * laid with the others'. Landed alone where no coverage stands, it writes a
+ * record of cases and no coverage, which narrows no later selection.
+ *
  * A target that exists and cannot be read is refused rather than replaced. The
  * runner replaces, because it reaches that file from inside a teardown where a
  * refusal is easiest to miss; an operator who typed this command is at the
@@ -56,6 +61,7 @@ export async function landJourneys(
       try {
         return { path, coverage: await selection.readTestCoverage(path) };
       } catch (error) {
+        if (error instanceof selection.RecordWithoutCoverage) return { path };
         throw new OperatorError(
           isMissing(error)
             ? `there is no snapshot at ${said(path)}`
@@ -66,11 +72,26 @@ export async function landJourneys(
     }),
   );
 
+  const measured = read.flatMap(({ path, coverage }) => (coverage === undefined ? [] : [{ path, coverage }]));
   let folded;
   try {
-    folded = selection.foldTestCoverage(read);
+    folded = measured.length === 0 ? undefined : selection.foldTestCoverage(measured);
   } catch (error) {
     throw new OperatorError(messageOf(error), { cause: error });
+  }
+  // A shard that measured nothing names its commit in the run that laid its
+  // cases, and is held to the fold's rule: one run, one commit. One that names
+  // none, as a record that crossed a checkout does, disagrees with nobody.
+  const named = read.flatMap(({ path, coverage }) => {
+    const commit = coverage?.commit ?? selection.lastCaseRunOf(selection.caseSectionsAt(path))?.commit;
+    return commit === undefined ? [] : [{ path, commit }];
+  });
+  const other = named.find((shard) => shard.commit !== named[0]!.commit);
+  if (other !== undefined) {
+    throw new OperatorError(
+      `${named[0]!.path} and ${other.path} disagree about the commit (\`${named[0]!.commit}\` against ` +
+        `\`${other.commit}\`), so they are not shards of one run and cannot be folded into one.`,
+    );
   }
 
   // A checkout's first landing starts from the base its first `yarn test`
@@ -105,7 +126,9 @@ export async function landJourneys(
     try {
       previous = await selection.readTestCoverage(at);
     } catch (error) {
-      if (!isMissing(error)) {
+      // A record whose run instrumented nothing has no coverage to fold over,
+      // and its cases are laid under the shards' below.
+      if (!isMissing(error) && !(error instanceof selection.RecordWithoutCoverage)) {
         throw new OperatorError(
           `the snapshot already at ${said(at)} could not be read: ${messageOf(error)}. ` +
             'Delete it and land again; a fold written over it would have replaced evidence ' +
@@ -119,13 +142,17 @@ export async function landJourneys(
     // runner's `landRun` does: refusing would leave the operator to delete it
     // and land again, which writes the same record.
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
-    const landed = selection.mergeCoverage(previous, folded);
-    const runs = selection.commitRunsAfter(previous, held, folded);
-    const { landing: cases, sections } = selection.landCases(at, previous === undefined ? {} : selection.caseSectionsAt(at), root, read);
+    const landed = folded === undefined ? previous : selection.mergeCoverage(previous, folded);
+    const runs = folded === undefined ? undefined : selection.commitRunsAfter(previous, held, folded);
+    const { landing: cases, sections } = selection.landCases(at, selection.caseSectionsAt(at), root, read);
+    // Shards that measured nothing and kept no case this build reads, over no
+    // coverage, leave nothing to write: the target stays as it was.
+    const kept = landed !== undefined || Object.values(sections).some((part) => part !== undefined);
     try {
-      await selection.writeTestCoverage(staged, landed, sections);
-      await selection.writeCommitRuns(stagedRuns, runs);
-      await rename(staged, at);
+      if (landed !== undefined) await selection.writeTestCoverage(staged, landed, sections);
+      else if (kept) await selection.writeCoverageBytes(staged, selection.recordOfCases(sections));
+      if (runs !== undefined) await selection.writeCommitRuns(stagedRuns, runs);
+      if (kept) await rename(staged, at);
       // FIXME: the snapshot and the runs record are two files, and nothing
       // renames them together. A crash between these two renames, or this
       // rename throwing, leaves the record as it was before the landing. The
@@ -138,7 +165,7 @@ export async function landJourneys(
       // when the retry lands other shards, that test is listed where it stood
       // before, an older commit than the one it last ran at, so `test:since`
       // reads more of the change for it rather than less.
-      await rename(stagedRuns, runsAt);
+      if (runs !== undefined) await rename(stagedRuns, runsAt);
       return { landed, cases };
     } finally {
       await rm(staged, { force: true });
@@ -151,9 +178,9 @@ export async function landJourneys(
   return {
     at,
     shards: read.length,
-    ...(landed.commit === undefined ? {} : { commit: landed.commit }),
-    observations: landed.tests.length,
-    modules: landed.modules.length,
+    ...(landed?.commit === undefined ? {} : { commit: landed.commit }),
+    observations: landed?.tests.length ?? 0,
+    modules: landed?.modules.length ?? 0,
     cases,
   };
 }

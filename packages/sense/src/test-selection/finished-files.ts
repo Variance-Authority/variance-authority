@@ -75,13 +75,12 @@ export interface ReportedModule {
 }
 
 /**
- * The one outcome that is indistinguishable from a clean run and is not one.
+ * The one outcome that looks like a clean run and is not one.
  *
- * A run that transformed no product module writes a snapshot saying every test
- * reaches nothing, and `narrowByExecution` reads that as an answer: every later
- * selection narrows to the empty set, the CI job runs no tests, and it passes.
- * Nothing else in this seam fails, so the first sign of it is a green pipeline
- * that stopped testing.
+ * A run that transformed no product module records no coverage: `landRun`
+ * lands its cases and leaves the coverage the record held as it was, so the
+ * run narrows no later selection. Nothing else in this seam fails, and a run
+ * that was meant to measure and did not is otherwise silent.
  *
  * Said rather than thrown, because zero is legitimate: a run filtered down to
  * one test file that imports no source has nothing to instrument. The two
@@ -98,7 +97,7 @@ export function noteAnEmptyRecord(
   if (instrumented > 0 || testFiles === 0) return;
   console.warn(
     `variance-authority instrumented 0 modules across ${testFiles} test file(s); ` +
-      `selection from this snapshot will select nothing. ${unreached}`,
+      `this run recorded no coverage, so it narrows no later selection. ${unreached}`,
   );
 }
 

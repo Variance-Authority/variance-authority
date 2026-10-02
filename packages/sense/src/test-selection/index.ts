@@ -193,11 +193,14 @@ export {
   recordedCases,
   recordedEyesAt,
   recordedEyesOf,
+  recordOfCases,
   sharedRecord,
   withCaseSections,
+  withoutCoverage,
   type CaseSections,
 } from './case-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
+export { RecordWithoutCoverage } from './format-validation.js';
 export {
   commitRunsAfter,
   commitRunsFile,

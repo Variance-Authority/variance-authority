@@ -21,6 +21,7 @@ import { readFlags } from '../args.js';
 import { OperatorError } from '../exit.js';
 import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
+import { probedModule } from './mainline-fixture.js';
 import { review } from './review.js';
 import { formatReview, REVIEW_MARKER } from './review-text.js';
 
@@ -228,7 +229,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
       instrumentation: 'fixture',
       commit: first,
       tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
-      modules: [],
+      modules: [probedModule(['test/total.test.ts'])],
     }, root);
 
     const answer = await review(parse(['--root', root]));
