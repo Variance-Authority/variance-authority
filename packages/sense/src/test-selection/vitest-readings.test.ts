@@ -38,10 +38,19 @@ const BUILT = [
   '',
 ].join('\n');
 
+/** What an older build emitted for {@link SOURCE}, into `lib/`: the branch kept, the callback a function. */
+const LEGACY = [
+  'export function total(items) {',
+  '  if (items.length === 0) return 0;',
+  '  return items.reduce(function (sum, item) { return sum + item; }, 0);',
+  '}',
+  '',
+].join('\n');
+
 type Transform = (this: TransformingContext | undefined, code: string, id: string) => unknown;
 
 async function recorded(
-  order: readonly ('source' | 'build')[],
+  order: readonly ('source' | 'build' | 'legacy')[],
   projects: 1 | 2 = 1,
 ): Promise<TestCoverage['modules']> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-two-readings-'));
@@ -50,7 +59,9 @@ async function recorded(
     await mkdir(resolve(root, 'src'), { recursive: true });
     await mkdir(resolve(root, 'dist'), { recursive: true });
     await writeFile(resolve(root, 'src/cart.ts'), SOURCE, 'utf8');
+    await mkdir(resolve(root, 'lib'), { recursive: true });
     await writeFile(resolve(root, 'dist/cart.js'), BUILT, 'utf8');
+    await writeFile(resolve(root, 'lib/cart.js'), LEGACY, 'utf8');
     const configured = withTestSelection({}, { root, coverageFile, include: () => true });
     const plugin = (configured.plugins as unknown as Array<{ transform: Transform }>)[0]!;
     // A `projects` layout wraps each project's config, and each brings a plugin of its own.
@@ -71,9 +82,18 @@ async function recorded(
         mappings: ';AAAA;AACA;AACA;AACA;AACA;AACA',
       }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
     };
+    const legacy: TransformingContext = {
+      getCombinedSourcemap: () => ({
+        version: 3,
+        sources: ['../src/cart.ts'],
+        names: [],
+        mappings: 'AAAA;AACA;AAGA;AACA',
+      }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
+    };
     for (const reading of order) {
       if (reading === 'source') plugin.transform.call(undefined, SOURCE, resolve(root, 'src/cart.ts'));
-      else other.transform.call(built, BUILT, resolve(root, 'dist/cart.js'));
+      else if (reading === 'build') other.transform.call(built, BUILT, resolve(root, 'dist/cart.js'));
+      else other.transform.call(legacy, LEGACY, resolve(root, 'lib/cart.js'));
     }
     await reporter.onFinished([]);
     return decodeTestCoverage(await readFile(coverageFile)).modules;
@@ -109,5 +129,20 @@ describe('a module two transforms both name', () => {
   it('is recorded the same when each reading came through another project\'s plugin', async () => {
     expect(await recorded(['build', 'source'], 2)).toEqual(await recorded(['source', 'build']));
     expect(await recorded(['source', 'build'], 2)).toEqual(await recorded(['source', 'build']));
+  });
+
+  it('is recorded at the regions two builds both cut when the run loaded no source', async () => {
+    const place = (block: TestCoverage['modules'][number]['blocks'][number]): string =>
+      JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
+    const [joined] = await recorded(['legacy', 'build']);
+    const [legacy] = await recorded(['legacy']);
+    const [build] = await recorded(['build']);
+    const cut = (module: typeof joined): ReadonlySet<string> => new Set(module!.blocks.map(place));
+
+    expect(await recorded(['build', 'legacy'])).toEqual([joined]);
+    expect(joined!.blocks.length).toBeGreaterThan(1);
+    for (const block of joined!.blocks) {
+      expect([cut(legacy).has(place(block)), cut(build).has(place(block))]).toEqual([true, true]);
+    }
   });
 });
