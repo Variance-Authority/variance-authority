@@ -1,6 +1,6 @@
 // compass: variance-authority.reach
 
-import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
+import type { DeclaredSuite, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
 
@@ -57,6 +57,20 @@ export async function refiningRecord(root: string, suite?: string): Promise<stri
  */
 export async function landingRecord(root: string, suite?: string): Promise<string> {
   return (await recordedSuite(root, suite, 'landing')).file;
+}
+
+/**
+ * {@link suiteRecord}, with what its suite does with a file the record did not
+ * measure: a suite declaring `relations: false` asks the graph nothing.
+ */
+export async function selectingRecord(
+  root: string,
+  suite?: string,
+): Promise<{ readonly file: string; readonly unmeasured?: Unmeasured }> {
+  const { file, declared } = await recordedSuite(root, suite);
+  const { unmeasuredOf } = await import('@variance-authority/sense/test-selection');
+  const unmeasured = unmeasuredOf(declared);
+  return unmeasured === undefined ? { file } : { file, unmeasured };
 }
 
 /**

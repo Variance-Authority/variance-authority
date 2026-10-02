@@ -127,6 +127,23 @@ describe('variance layers with tiers declared', () => {
     ]);
   });
 
+  it('sizes the file a manifest offers though a runner is named on it, with what it loads', async () => {
+    checkout({
+      tiers: [100, 8, 4],
+      files: {
+        'packages/runner/package.json': JSON.stringify({ name: '@t/runner', exports: { './jest': './src/jest.ts' } }),
+        'packages/runner/src/jest.ts': "import { environment } from './jest-environment.ts';\nexport const jest = environment;\n",
+        'packages/runner/src/jest-environment.ts': 'export const environment = 1;\n',
+      },
+    });
+    await run(['index']);
+
+    const lines = (await run(['layers'])).out.split('\n');
+
+    expect(lines).toContain('1 @t/runner tier 2 (3 lines in 2 files)');
+    expect(lines.join('\n')).not.toContain('No `exports`');
+  });
+
   it('names the package that caused a tier move and counts the ones it carried', async () => {
     const root = checkout({ tiers: [100, 8, 4] });
     await run(['index']);

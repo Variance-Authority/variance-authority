@@ -25,7 +25,9 @@
  *
  * A changed test file selects itself. A path neither the record nor the graph
  * knows selects nothing and is named in `unread`, by the rule the snapshot
- * reader applies (`ExecutionNarrowing.unread`).
+ * reader applies (`ExecutionNarrowing.unread`). In a suite that declines
+ * relations a file with no row is not asked of the graph at all, and is named
+ * in `declined` instead (`route.ts`).
  *
  * A bumped package arrives as the files that import it, changed whole
  * (`beyondReach`), and is answered as they are.
@@ -35,6 +37,7 @@ import { affectedBy, type Relations } from '@variance-authority/core/relate';
 import type { LineRange } from './diff-lines.js';
 import { innermostAt, ownedIn, type ExecutionIndex, type ExecutionModule } from './reverse.js';
 import type { ExecutionNarrowing } from './select.js';
+import { routeOf, type Unmeasured } from './route.js';
 import { shadowedFor } from './shadowed.js';
 
 export interface JourneySelectionOptions {
@@ -44,6 +47,13 @@ export interface JourneySelectionOptions {
    * that only imported it.
    */
   readonly relations?: Relations;
+  /**
+   * What a changed file the journey holds no row for goes to: the test files
+   * the graph says import it, or nothing (`route.ts`). Absent is `relations`.
+   * A suite that declines them names such a file in `declined`, and a changed
+   * test file it holds a case of still selects itself.
+   */
+  readonly unmeasured?: Unmeasured;
   /** What reading a changed file's two texts proved, by path (`readJourneyChange`). */
   readonly read?: ReadonlyMap<string, JourneyRead>;
 }
@@ -69,6 +79,7 @@ export function narrowByJourneys(
   const held = new Set(index.tests.map((test) => test.file));
   const entered = new Set<string>();
   const unread: string[] = [];
+  const declined: string[] = [];
 
   const importers = (file: string): readonly string[] | undefined => {
     if (relations === undefined) return undefined;
@@ -86,6 +97,12 @@ export function narrowByJourneys(
     if (held.has(file)) entered.add(file);
     const module = modules.get(file);
 
+    if (module === undefined && options.unmeasured === 'nothing') {
+      // A test file the record holds a case of selected itself above, which is
+      // all the record says of a file it has no row for.
+      if (routeOf(held.has(file), options.unmeasured) === 'nothing') declined.push(file);
+      continue;
+    }
     if (module === undefined || ranges.length === 0) {
       const byGraph = importers(file);
       for (const test of byGraph ?? []) entered.add(test);
@@ -122,6 +139,7 @@ export function narrowByJourneys(
     whole: [...held].sort(codeUnitOrder),
     entered: [...entered].sort(codeUnitOrder),
     unread: unread.sort(codeUnitOrder),
+    ...(options.unmeasured === 'nothing' ? { declined: declined.sort(codeUnitOrder) } : {}),
     stale: [],
     because: [],
   };

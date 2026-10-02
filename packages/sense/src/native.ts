@@ -245,6 +245,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     file: string,
     changed: NativeJourneyChange[],
     graph?: NativeJourneyGraph,
+    declines?: boolean,
   ): NativeJourneySelection;
   /** The packages `files` belong to and the names crossing their edges, read off the source index at `index`; `null` when none was published. */
   orientPackages?(root: string, index: string, files: string[], rows: number, names: number): NativeOrientation | null;

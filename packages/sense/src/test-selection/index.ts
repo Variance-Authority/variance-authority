@@ -53,6 +53,7 @@ export { anyStopped } from './stopped.js';
 export { placeInText, type HeldLines, type Placement } from './placed.js';
 export { stateOf, type RangeState } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
+export { unmeasuredOf, type Unmeasured } from './route.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, type CoveringChangeHeading } from './covering-change-text.js';

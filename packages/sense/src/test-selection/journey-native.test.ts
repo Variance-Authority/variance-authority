@@ -151,6 +151,24 @@ describe('selecting off a journey file in the addon', () => {
     }
   }
 
+  for (const [graph, relations] of [['mocks', mocked], ['no graph', undefined]] as const) {
+    for (const [what, changed] of CHANGES) {
+      it(`answers ${what} as narrowByJourneys does in a suite that declines relations, with ${graph}`, async () => {
+        const options = { ...(relations === undefined ? {} : { relations: relations as Relations }), unmeasured: 'nothing' as const };
+        expect(await selectJourneyFile(FILE, changed, options)).toEqual(narrowByJourneys(index, changed, options));
+      });
+    }
+  }
+
+  it('declines a file the journey has no row for when the suite declines relations', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/solo.ts', []], ['test/other.test.ts', []], ['nowhere.ts', []]]);
+    expect(await selectJourneyFile(FILE, changed, { relations: plain, unmeasured: 'nothing' })).toMatchObject({
+      entered: ['test/other.test.ts'],
+      unread: [],
+      declined: ['nowhere.ts', 'src/solo.ts'],
+    });
+  });
+
   for (const [graph, relations] of [['mocks', mocked], ['no mocks', plain], ['no graph', undefined]] as const) {
     for (const [what, changed, read] of READ) {
       it(`answers ${what}, read, as narrowByJourneys does, with ${graph}`, async () => {

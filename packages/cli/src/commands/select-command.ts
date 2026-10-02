@@ -213,7 +213,8 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
   // What the suite rests on before reach, moved by any group's diff or install, runs the whole suite.
-  const suite = (await recordedSuite(here, request.suite, 'landing')).declared?.name;
+  const declared = (await recordedSuite(here, request.suite, 'landing')).declared;
+  const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
   const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.whole), ...beyondFiles])]);
   const rested = { ...recorded, ...rest };
@@ -227,6 +228,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
       relations,
       at,
       request.cwd,
+      selection.unmeasuredOf(declared),
     );
   const narrowing = stands.length === 0 ? await ask([], undefined) : await perStand(stands, ask);
   // The lockfile and the manifests beside it are unread by the journal and
@@ -434,7 +436,8 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
   const beyond = beyondOf(relations, installed);
   const changed = selection.changedLines(withWhole(text, beyond.files));
   // What the suite rests on, moved by the patch or the install, runs the whole suite.
-  const { whole, ...rest } = await restingOf(here, await journeySuite(here, request.suite), relations, [...changed.keys()]);
+  const suite = await journeySuite(here, request.suite);
+  const { whole, ...rest } = await restingOf(here, suite, relations, [...changed.keys()]);
   const base = { at: request.execution, given: true, ...rest };
   if (whole !== undefined) return saidOf({ ...base, ground: { kind: 'before', whole } }, request);
   const preimages = await patchPreimages(text, request.cwd);
@@ -442,7 +445,8 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     root: request.cwd,
     relations,
   });
-  const options = { relations, read };
+  const unmeasured = selection.unmeasuredOf(selection.declaredSuites(here)?.find((one) => one.name === suite));
+  const options = { relations, read, ...(unmeasured === undefined ? {} : { unmeasured }) };
   const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
   const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...beyond.unplaced].sort();

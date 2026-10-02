@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { selectOutput } from './select-command.js';
-import { landingRecord, oneRecord, refiningRecord, suiteRecord } from './suite-record.js';
+import { landingRecord, oneRecord, refiningRecord, selectingRecord, suiteRecord } from './suite-record.js';
 
 async function repository(config?: unknown): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-suite-record-'));
@@ -54,6 +54,24 @@ describe('the record a one-runner command reads', () => {
 
     await expect(refused).rejects.toBeInstanceOf(OperatorError);
     await expect(refused).rejects.toThrow('the suite "e2e" is not declared in');
+  });
+});
+
+describe('the record `run --since` selects from', () => {
+  const SPLIT = { suites: { unit: { kind: 'unit' }, e2e: { kind: 'e2e', relations: false } } };
+
+  test('carries nothing more than the record for a suite that allows relations', async () => {
+    const selecting = await selectingRecord(await repository(SPLIT), 'unit');
+
+    expect(selecting.file.endsWith('/suites/unit/coverage.bin')).toBe(true);
+    expect(selecting).not.toHaveProperty('unmeasured');
+  });
+
+  test('says a suite declaring relations false sends a file its record did not measure to nothing', async () => {
+    const selecting = await selectingRecord(await repository(SPLIT), 'e2e');
+
+    expect(selecting.file.endsWith('/suites/e2e/coverage.bin')).toBe(true);
+    expect(selecting.unmeasured).toBe('nothing');
   });
 });
 

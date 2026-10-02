@@ -11,7 +11,7 @@
 // compass: variance-authority.reach.relations
 
 import { native, nativeRefusal } from './native.js';
-import type { NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared, NativeOrientShipped } from './native-orient.js';
+import type { NativeDeclaredRoleCheck, NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared, NativeOrientShipped } from './native-orient.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 
@@ -25,9 +25,11 @@ export type {
   NativeOrientMapRow as CodeMapRow,
   NativeOrientMapShare as CodeMapShare,
   NativeOrientShipped as ShippedFiles,
+  NativeDeclaredRoleCheck as DeclaredRoleCheck,
+  NativeDeclaredRoleFinding as DeclaredRoleFinding,
 } from './native-orient.js';
 
-function entry<Name extends 'prepareOrientMap' | 'orientMapPage' | 'orientLayers' | 'orientShipped'>(name: Name) {
+function entry<Name extends 'prepareOrientMap' | 'orientMapPage' | 'orientLayers' | 'orientShipped' | 'checkDeclaredRoles'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -95,4 +97,12 @@ export function packageLayers(root: string, index: string = sourceIndexPath(root
  */
 export function shippedFiles(root: string, index: string = sourceIndexPath(root)): NativeOrientShipped | undefined {
   return entry('orientShipped')(index) ?? undefined;
+}
+
+/**
+ * The roles docs declare with `@testOnly` and `@production`, checked against
+ * the shipped files kept beside `index`. Absent when there is no index.
+ */
+export async function declaredRoles(root: string, index: string = sourceIndexPath(root)): Promise<NativeDeclaredRoleCheck | undefined> {
+  return (await entry('checkDeclaredRoles')(index)) ?? undefined;
 }

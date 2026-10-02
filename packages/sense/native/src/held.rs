@@ -54,6 +54,8 @@ pub struct HeldExport {
     line: u32,
     signature: Option<HeldSpan>,
     doc: Option<HeldSpan>,
+    #[serde(default, rename = "roles", deserialize_with = "crate::declared_role::deserialize")]
+    tags: u8,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,6 +155,7 @@ impl ParseRow for HeldParse {
                 export.line,
                 span(export.signature),
                 span(export.doc),
+                export.tags,
             );
         }
         for symbol in &self.symbols {

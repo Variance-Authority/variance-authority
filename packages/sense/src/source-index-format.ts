@@ -10,7 +10,7 @@ import {
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed, ParseKey } from './cache.js';
-import type { Export } from './read.js';
+import type { DeclaredRole, Export } from './read.js';
 import { native, nativeRefusal } from './addon.js';
 import type { NativeScanner } from './native.js';
 import { openHarvest } from './source-index-harvest.js';
@@ -32,7 +32,7 @@ import { packageOf } from './specifier.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 15;
+const VERSION = 16;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
 const ROWS = 4096;
@@ -144,6 +144,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const exportImported = opened.u32('exports.imported');
   const exportType = opened.u8('exports.type');
   const exportLine = opened.u32('exports.line');
+  const exportTags = opened.u8('exports.tags');
   const declareName = opened.u32('declares.name');
   const harvest = openHarvest(opened, text, parseKey.length, exportExported.length);
   const mocksOf = openMocks(opened, text, parseKey.length);
@@ -157,7 +158,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   sameLength(requestValue.length, [requestKind, requestLine]);
   validateOffset(requestBindings, bindingImported.length, requestValue.length);
   sameLength(bindingImported.length, [bindingLocal, bindingType, bindingLine]);
-  sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine]);
+  sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine, exportTags]);
 
   const parses = new Map<ParseKey, Parsed>();
   for (let row = 0; row < parseKey.length; row += 1) {
@@ -179,6 +180,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       const imported = optional(exportImported[entry]!);
       const signature = harvest.exportSignature(entry);
       const doc = harvest.exportDoc(entry);
+      const roles = declaredRoles(exportTags[entry]!);
       return {
         ...(exported === undefined ? {} : { exported }),
         ...(local === undefined ? {} : { local }),
@@ -188,6 +190,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
         line: exportLine[entry]!,
         ...(signature === undefined ? {} : { signature }),
         ...(doc === undefined ? {} : { doc }),
+        ...(roles.length === 0 ? {} : { roles }),
       };
     });
     const symbols = harvest.symbols(row);
@@ -331,6 +334,14 @@ function range(offsets: Uint32Array, row: number): number[] {
 function packageName(name: string): string {
   if (packageOf(name) !== name) throw invalid();
   return name;
+}
+
+/** The roles a stored bitset names, in bit order: `native/src/declared_role.rs`. */
+function declaredRoles(tags: number): DeclaredRole[] {
+  const roles: DeclaredRole[] = [];
+  if ((tags & 1) !== 0) roles.push('testOnly');
+  if ((tags & 2) !== 0) roles.push('production');
+  return roles;
 }
 
 function flag(value: number | undefined): boolean {

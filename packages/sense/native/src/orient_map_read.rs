@@ -56,13 +56,16 @@ pub(crate) struct Read {
     pub closures: Vec<Closure>,
     /// Every counted file that is not the tests' side, in code-unit order.
     pub shipped: Vec<String>,
+    /// The tests' side files a catalog shows (`orient_map_catalogued.rs`), in
+    /// code-unit order.
+    pub catalogued: Vec<String>,
     /// Packages whose manifest offers no counted file of their own, so their
     /// shipped code starts at the files its own code never imports (`tests`).
     pub undeclared: Vec<bool>,
 }
 
 /// What a path says of a file: a test, its fixtures, or the harness's config.
-const TEST_BY_PATH: &str = r"(?i)\.(test|spec|stories|story)\.[cm]?[jt]sx?$|(^|/)(__tests?__|__mocks__|__fixtures?__|__jest__|__stories__|\.storybook|fixtures|test|tests|test_helpers?|e2e|test-cases|[^/]*\.test)/|(^|/)[^/]*\.config\.[cm]?[jt]s$|(^|/)(vitest|jest|karma|playwright)[._-][^/]*$|(^|/)(setup[._-]?tests?|tests?[._-]?setup)\.[cm]?[jt]sx?$";
+const TEST_BY_PATH: &str = r"(?i)\.(test|spec|stories|story|examples)\.[cm]?[jt]sx?$|(^|/)(__tests?__|__mocks__|__fixtures?__|__jest__|__stories__|\.storybook|fixtures|test|tests|test_helpers?|e2e|test-cases|[^/]*\.test)/|(^|/)[^/]*\.config\.[cm]?[jt]s$|(^|/)(vitest|jest|karma|playwright)[._-][^/]*$|(^|/)(setup[._-]?tests?|tests?[._-]?setup)\.[cm]?[jt]sx?$";
 /// A `storybook/` directory inside a package holds its stories' decorators and
 /// mocks, as Kibana's plugins keep them; read against the path inside the
 /// package, so a package that is itself named `storybook` is not its own
@@ -178,10 +181,22 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     let offering: Vec<&crate::package_owners::Package> = by_name.iter().map(|&owner| &owners.packages[owner as usize]).collect();
     let owner_of_file: Vec<u32> = files.iter().map(|file| file.owner).collect();
     let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file);
-    // A test is never an entry, whatever the manifest offers.
-    entries.iter_mut().for_each(|entries| entries.retain(|&at| !named_by_path[at]));
+    // A package whose own directory is the tests' by its path is a fixture: its
+    // manifest says what it offers the test that loads it, not what ships.
+    for (package, entries) in packages.iter().zip(entries.iter_mut()) {
+        if !package.directory.is_empty() && by_path.is_match(&format!("{}/", package.directory)) {
+            entries.clear();
+        }
+    }
     let undeclared: Vec<bool> = entries.iter().map(Vec::is_empty).collect();
-    let (test, roots) = tests(&files, &counted, &named_by_path, &entries);
+    let outgoing: Vec<Vec<usize>> = files
+        .iter()
+        .enumerate()
+        .map(|(at, file)| file.requests.iter().filter_map(|request| counted.get(request.to?).copied()).filter(|&to| to != at).collect())
+        .collect();
+    let (test, roots) = tests(&files, &outgoing, &named_by_path, &entries);
+    let paths: Vec<&str> = files.iter().map(|file| file.path).collect();
+    let catalogued = crate::orient_map_catalogued::catalogued(&paths, &outgoing, &named_by_path, &test);
     let targets: Vec<Vec<Option<u32>>> =
         files.par_iter().map(|file| file.requests.iter().map(|request| request.to.and_then(&owner_of)).collect()).collect();
 
@@ -233,7 +248,7 @@ pub(crate) fn read(root: &str, layers: &[Layer], listed: Option<&[String]>, made
     edges.sort_unstable();
     let closures = closures(&loads(&files, &counted, &roots, &named), n);
     let shipped = files.iter().zip(&test).filter(|(_, &test)| !test).map(|(file, _)| file.path.to_owned()).collect();
-    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped, undeclared }
+    Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped, catalogued, undeclared }
 }
 
 /// The graph a closure is walked over: every counted file, and what it loads.
@@ -300,22 +315,20 @@ fn heads(n: usize, uses: HashMap<(u32, &str), (u32, HashSet<u32>)>) -> Vec<Vec<S
 /// reaches that nothing shipped does; shipped is what the entries reach through
 /// any request, a type's included, because the split is about who wrote the
 /// file for whom. A package's entries are the files its manifest offers
-/// (`declared`, by package, `orient_map_entries.rs`). Where it offers none that
-/// resolves, they are the files of it that no shipped file of its own imports
-/// and that are not tests by their path — another package taking a file is
-/// that file being used as an entry, and a test importing one is it under
-/// test: the owner gave no answer, so one is computed, and `Read::undeclared`
-/// says so. The entries are returned too, because a closure
-/// starts at them and follows only what a runtime loads.
+/// (`declared`, by package, `orient_map_entries.rs`), and they ship with all
+/// they reach whatever a path says of them: the manifest owns what a package
+/// ships, and `jest.ts` offered as `./jest` is a runner's adapter, not a test.
+/// Where it offers none that resolves, they are the files of it that no
+/// shipped file of its own imports and that are not tests by their path —
+/// another package taking a file is that file being used as an entry, and a
+/// test importing one is it under test: the owner gave no answer, so one is
+/// computed, `Read::undeclared` says so, and its walk stops at a test. The
+/// entries are returned too, because a closure starts at them and follows only
+/// what a runtime loads.
 // TODO: this walks the index's targets alone, so a file a test reaches only
 // through a specifier the index left unresolved can land on the wrong side;
 // which files a test loaded is the recording's to say, and it is not read here.
-fn tests(files: &[File], counted: &HashMap<&str, usize>, named: &[bool], declared: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
-    let outgoing: Vec<Vec<usize>> = files
-        .iter()
-        .enumerate()
-        .map(|(at, file)| file.requests.iter().filter_map(|request| counted.get(request.to?).copied()).filter(|&to| to != at).collect())
-        .collect();
+fn tests(files: &[File], outgoing: &[Vec<usize>], named: &[bool], declared: &[Vec<usize>]) -> (Vec<bool>, Vec<usize>) {
     let mut imported = vec![false; files.len()];
     for (from, to) in outgoing.iter().enumerate().filter(|&(from, _)| !named[from]) {
         for &to in to.iter().filter(|&&to| files[to].owner == files[from].owner) {
@@ -338,11 +351,17 @@ fn tests(files: &[File], counted: &HashMap<&str, usize>, named: &[bool], declare
         }
         seen
     };
-    let unimported = (0..files.len()).filter(|&at| !named[at] && !imported[at] && declared[files[at].owner as usize].is_empty());
-    let entries: Vec<usize> = declared.iter().flatten().copied().chain(unimported).collect();
-    let shipped = walk(entries.clone(), &|at| named[at]);
-    let reached = walk((0..files.len()).filter(|&at| named[at]).collect(), &|at| shipped[at]);
-    ((0..files.len()).map(|at| named[at] || reached[at]).collect(), entries)
+    let offered: Vec<usize> = declared.iter().flatten().copied().collect();
+    let unimported: Vec<usize> =
+        (0..files.len()).filter(|&at| !named[at] && !imported[at] && declared[files[at].owner as usize].is_empty()).collect();
+    // What the manifest offers ships with everything it loads, whatever a
+    // path says; a computed entry's walk stops at a test, since no owner said
+    // the test ships.
+    let from_offered = walk(offered.clone(), &|_| false);
+    let from_unimported = walk(unimported.clone(), &|at| named[at] || from_offered[at]);
+    let shipped: Vec<bool> = from_offered.iter().zip(&from_unimported).map(|(&a, &b)| a || b).collect();
+    let reached = walk((0..files.len()).filter(|&at| named[at] && !shipped[at]).collect(), &|at| shipped[at]);
+    ((0..files.len()).map(|at| !shipped[at] && (named[at] || reached[at])).collect(), offered.into_iter().chain(unimported).collect())
 }
 
 /// One counted file's requests, each with its target and the names it takes:

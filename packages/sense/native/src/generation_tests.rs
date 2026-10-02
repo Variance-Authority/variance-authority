@@ -34,7 +34,7 @@ fn every_column_the_decoder_names_is_written_in_its_order() {
     assert_eq!(names[..3], ["strings.blob", "strings.off", "index.config"]);
     assert_eq!(names.iter().position(|name| *name == "parses.deleted"), Some(8));
     assert_eq!(names.last(), Some(&"packages.kind"));
-    assert_eq!(names.len(), 78);
+    assert_eq!(names.len(), 79);
 }
 
 #[test]

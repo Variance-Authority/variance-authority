@@ -43,11 +43,15 @@ export async function selectJourneyFile(
   const select = native()?.selectJourneys;
   if (select === undefined || (await casesVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const graph = options.relations === undefined ? undefined : flatten(options.relations);
-  const selected = select(file, nativeChange(changed, options.read), graph);
+  const declines = options.unmeasured === 'nothing';
+  const selected = select(file, nativeChange(changed, options.read), graph, declines);
+  // An addon that cannot decline walked the graph anyway, and its answer is not this suite's.
+  if (declines && selected.declined === undefined) return undefined;
   return {
     whole: [...selected.whole].sort(codeUnitOrder),
     entered: [...selected.entered].sort(codeUnitOrder),
     unread: [...selected.unread].sort(codeUnitOrder),
+    ...(declines ? { declined: [...selected.declined!].sort(codeUnitOrder) } : {}),
     stale: [],
     because: [],
   };

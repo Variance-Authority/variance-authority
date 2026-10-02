@@ -120,10 +120,14 @@ the checkout. A file of the package that no entry loads, such as dead code or a
 build script, is not counted. Blank lines and comments are not counted. A type-only
 import is not followed, because nothing loads it at runtime. An `import()` is
 followed, because something does. Test files, and files only tests import, are
-not part of what a package ships.
+not part of what a package ships, unless an entry names or loads them.
 
 A package's entries are the files its `package.json` names in `exports`,
-`main`, `module` or `bin`, whoever else imports them. A subpath pattern such as
+`main`, `module` or `bin`, whoever else imports them and whatever their names
+say: `./src/jest.ts` offered as `./jest` is an entry and ships with every file
+it loads, though a file named for a test runner is otherwise read as part of
+the tests. A package inside a test's fixtures directory ships nothing, because
+its manifest is written for that test. A subpath pattern such as
 `"./*": "./src/*/index.ts"` names every file it matches. A path under the
 build's output is read as the source file the `tsconfig` builds it from, so
 `./dist/index.js` is `src/index.ts` whether or not you have built. A package
@@ -370,6 +374,73 @@ say it broke, and `variance layers` counts the unsized files behind it. Like a
 layer ceiling, a budget follows the package: a dependency that grows can put a
 package over its budget without an edit to it, and `variance layers --against`
 names the dependency that did.
+
+### A role a doc declares
+
+Some exports are written for tests: a fixture builder, a fake clock, a reset
+for a module's state. Nothing in an import says so, so a shipped component can
+start to use one and no rule notices. Write the role in the export's doc
+comment, and `variance restrictions` checks it with no `.relations.json`:
+
+```ts
+/**
+ * Builds a user with every field filled.
+ * @testOnly
+ */
+export function makeUser(): User { … }
+```
+
+- **`@testOnly`** says only tests may run the export. Every shipped file that
+  imports it is listed, with the line of the import and the place the role is
+  declared. The check follows re-exports, so an import through a barrel or
+  under a new name is listed too.
+- **`@production`** says the export is shipped code. It is listed when only
+  tests import the file that declares it.
+- **Both tags on one export** is listed as a contradiction.
+
+```
+src/Checkout.tsx:4 ships makeUser, declared @testOnly at src/testing/users.ts:5
+src/format.ts:12 price is declared @production, but only tests reach it
+2 declared roles contradicted.
+```
+
+A file counts as test code when its name marks it as a test, or when tests
+import it and no shipped file does. Every other file counts as shipped. A
+component a story or an example shows is the exception: it is written for the
+product, wired in yet or not, so it and what it imports are held to their roles
+as shipped code is. The check reads the shown components from where the files
+are, not from their names or the story format: whatever a `*.stories.*`,
+`*.story.*` or `*.examples.*` file imports from its own directory or below it
+is shown. What the catalog imports from elsewhere, such as a decorator in
+`.storybook/` or a mock in `test-utils/`, stays test code.
+
+A file whose exports are all `@testOnly`, such as a `testing` entry that
+re-exports the fixtures, is test code by declaration, so its own imports are
+not listed.
+A `@testOnly` export used through a type import is not listed, because the
+type import runs nothing.
+
+The tags are read from the doc of the export statement, or for
+`export { name }` from the doc of the statement that declares `name`. They are
+this project's own tags, not TSDoc release tags such as `@public` or
+`@internal`, so writing one does not change what API Extractor or a docs
+generator does with the export. If you lint TSDoc, declare both as modifier
+tags in `tsdoc.json`:
+
+```json
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/tsdoc/v0/tsdoc.schema.json",
+  "tagDefinitions": [
+    { "tagName": "@testOnly", "syntaxKind": "modifier" },
+    { "tagName": "@production", "syntaxKind": "modifier" }
+  ]
+}
+```
+
+A listed role makes `variance restrictions` exit 1, like a broken rule. The
+check reads which files are shipped from the code map that `variance index`
+writes; when that map is older than the source index, the command says so and
+exits 2 instead of guessing.
 
 ## What the numbers do not say
 

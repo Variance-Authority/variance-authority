@@ -24,6 +24,8 @@ pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
         },
         namespaces: BTreeSet::new(),
         in_function: false,
+        in_fields: false,
+        converting: false,
         into: None,
     };
     for statement in &program.body {
@@ -51,6 +53,10 @@ struct Walker<'l> {
     reading: Reading,
     namespaces: BTreeSet<String>,
     in_function: bool,
+    /// Walking a pure class's instance fields, which run when it is constructed.
+    in_fields: bool,
+    /// Walking the operands of a conversion.
+    converting: bool,
     into: Option<String>,
 }
 
@@ -58,7 +64,8 @@ impl Walker<'_> {
     fn read(&mut self, name: &str, offset: u32, escape: bool) {
         let at = if escape { Where::Escape } else if self.in_function { Where::Function } else { Where::Top };
         let into = if self.in_function { None } else { self.into.clone() };
-        self.reading.reads.push(Read { name: name.to_string(), line: self.lines.at(offset), at, into });
+        let converted = self.converting && !self.in_function && !self.in_fields;
+        self.reading.reads.push(Read { name: name.to_string(), line: self.lines.at(offset), at, into, converted });
     }
 
     fn export_as(&mut self, local: &str, name: &str) {
@@ -79,10 +86,17 @@ impl Walker<'_> {
         self.in_function = was;
     }
 
+    fn converted(&mut self, run: impl FnOnce(&mut Self)) {
+        let was = std::mem::replace(&mut self.converting, true);
+        run(self);
+        self.converting = was;
+    }
+
     /// A pure class's instance fields are values `new` reads, so a read in one
     /// moves the change to the class.
     fn class(&mut self, class: &Class, name: Option<&str>) {
         let Some(name) = name.filter(|_| plain_class(class)) else { return self.visit_class(class) };
+        let was = std::mem::replace(&mut self.in_fields, true);
         for member in &class.body.body {
             match member {
                 ClassElement::PropertyDefinition(field) if !field.r#static => {
@@ -94,6 +108,7 @@ impl Walker<'_> {
                 member => self.visit_class_element(member),
             }
         }
+        self.in_fields = was;
     }
 
     fn top(&mut self, statement: &Statement) {
@@ -193,6 +208,40 @@ impl<'a> Visit<'a> for Walker<'_> {
             }
             _ => walk::walk_jsx_member_expression(self, it),
         }
+    }
+
+    // A conversion — `ToNumber`, `ToString`, `ToPropertyKey`, `ToPrimitive` — can
+    // throw on the value or call its own `valueOf`, `toString` or
+    // `Symbol.toPrimitive`. `in` throws on a primitive and runs a proxy's `has`;
+    // `instanceof` runs `Symbol.hasInstance`. Strict equality, the logical
+    // operators, a condition, `!`, `typeof` and `void` take any value without
+    // running it.
+    fn visit_binary_expression(&mut self, it: &BinaryExpression<'a>) {
+        match it.operator {
+            BinaryOperator::StrictEquality | BinaryOperator::StrictInequality => walk::walk_binary_expression(self, it),
+            _ => self.converted(|walker| walk::walk_binary_expression(walker, it)),
+        }
+    }
+
+    fn visit_unary_expression(&mut self, it: &UnaryExpression<'a>) {
+        match it.operator {
+            UnaryOperator::UnaryPlus | UnaryOperator::UnaryNegation | UnaryOperator::BitwiseNot => {
+                self.converted(|walker| walk::walk_unary_expression(walker, it));
+            }
+            _ => walk::walk_unary_expression(self, it),
+        }
+    }
+
+    fn visit_template_literal(&mut self, it: &TemplateLiteral<'a>) {
+        self.converted(|walker| walk::walk_template_literal(walker, it));
+    }
+
+    fn visit_object_property(&mut self, it: &ObjectProperty<'a>) {
+        match it.computed {
+            true => self.converted(|walker| walker.visit_property_key(&it.key)),
+            false => self.visit_property_key(&it.key),
+        }
+        self.visit_expression(&it.value);
     }
 
     // The opening tag already read the name.

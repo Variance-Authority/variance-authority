@@ -183,10 +183,45 @@ export interface NativeOrientPackageLayer {
 
 /** The files the code map read as shipped: every counted file not on the tests' side. */
 export interface NativeOrientShipped {
-  /** Whether the list was read from the index as it stands now. */
+  /** Whether the lists were read from the index as it stands now. */
   readonly current: boolean;
   /** In code-unit order. */
   readonly files: readonly string[];
+  /**
+   * The files on the tests' side that a story or an example shows, in code-unit
+   * order; absent from a list kept before they were read, which is not current.
+   */
+  readonly catalogued?: readonly string[];
+}
+
+/** A role a doc declares that the graph contradicts: `check_declared_roles` in the addon. */
+export interface NativeDeclaredRoleFinding {
+  /**
+   * `contradiction`: one doc declares both roles. `test-only-shipped`: a
+   * shipped file runs a `@testOnly` name. `production-unshipped`: a
+   * `@production` name is in a file only tests reach.
+   */
+  readonly kind: 'contradiction' | 'test-only-shipped' | 'production-unshipped';
+  /** The declaring file, or for a test-only use the shipped file using it. */
+  readonly file: string;
+  readonly line: number;
+  readonly name: string;
+  /** Where a used test-only name is declared. */
+  readonly declared?: string | null;
+  readonly declaredLine: number;
+}
+
+/** The declared roles in an index, checked against the shipped list kept beside it. */
+export interface NativeDeclaredRoleCheck {
+  /** How many exports a doc declares a role for. */
+  readonly declared: number;
+  /**
+   * Whether a shipped list is kept beside the index and was read from it as it
+   * stands now; without one, only a doc contradicting itself was checked.
+   */
+  readonly current: boolean;
+  /** In code-unit order of file, then line. */
+  readonly findings: readonly NativeDeclaredRoleFinding[];
 }
 
 /** Every package's layer from the map kept beside an index. */
@@ -307,6 +342,8 @@ export interface NativeOrientMaps {
   orientLayers?(index: string): NativeOrientLayers | null;
   /** The shipped files kept beside the index at `index`; `null` when none are kept. */
   orientShipped?(index: string): NativeOrientShipped | null;
+  /** The declared roles in the index at `index`, checked against the shipped files kept beside it; `null` when either is missing. */
+  checkDeclaredRoles?(index: string): Promise<NativeDeclaredRoleCheck | null>;
 }
 
 /** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */
