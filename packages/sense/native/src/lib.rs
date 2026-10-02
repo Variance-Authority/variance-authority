@@ -22,6 +22,7 @@ mod acquire;
 mod append_index;
 mod batch;
 mod case_id;
+mod case_owner;
 mod case_preconditions;
 mod compact;
 mod conditions;

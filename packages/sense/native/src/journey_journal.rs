@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::case_id::{self, CaseIds};
+use crate::case_owner::{journey_of, project_path, unpack_case};
 use crate::case_preconditions::{self, Precondition};
 use crate::order;
 
@@ -445,39 +446,6 @@ impl<'a> Reader<'a> {
         }
         Ok(())
     }
-}
-
-/// A case frame's name: `packCase` and `settledCase` in `journal-format.cts`.
-pub fn unpack_case(packed: &str) -> (&str, &str, &str, u8) {
-    let mut parts = packed.split('\0');
-    (
-        parts.next().unwrap_or(packed),
-        parts.next().unwrap_or(""),
-        parts.next().unwrap_or(""),
-        match parts.next() {
-            Some("stopped") => STOPPED,
-            Some("finished") => FINISHED,
-            _ => UNSETTLED,
-        },
-    )
-}
-
-/// The journey a frame belongs to: the fifth field of its owner, after the
-/// settling, empty when the case never handed one out. `packJourney` in
-/// `journal-format.cts`. A sixth field, what the case said it arranged, is
-/// [`case_preconditions::said_of`]'s.
-pub fn journey_of(packed: &str) -> &str {
-    packed.split('\0').nth(4).unwrap_or("")
-}
-
-pub fn project_path(root: &Path, file: &str) -> String {
-    let path = Path::new(file);
-    let relative = path.strip_prefix(root).unwrap_or(path);
-    relative
-        .components()
-        .map(|part| part.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
 }
 
 fn word(raw: &[u8], at: usize) -> Result<u32, String> {

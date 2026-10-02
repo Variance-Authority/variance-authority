@@ -7,6 +7,7 @@ use napi_derive::napi;
 
 use crate::journey_columns;
 use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
+use crate::case_owner;
 use crate::journey_journal::{self, CaseRun, ModuleId, Visitor};
 use crate::journey_output;
 use crate::journey_record::{self, Module};
@@ -348,7 +349,7 @@ impl<'a> Charge<'a> {
     fn test(&mut self, packed: &str) -> Result<(), String> {
         let run = self.run;
         if let Some(part) = self.part {
-            let journey = journey_journal::journey_of(packed);
+            let journey = case_owner::journey_of(packed);
             self.test_first = 0;
             self.test_last = 0;
             // A journey no case handed out is work the writer did for nobody in
@@ -362,9 +363,9 @@ impl<'a> Charge<'a> {
             };
             return Ok(());
         }
-        let (file, name, id, _) = journey_journal::unpack_case(packed);
+        let (file, name, id, _) = case_owner::unpack_case(packed);
         if name.is_empty() && id.is_empty() {
-            let normalized = journey_journal::project_path(&run.root, file);
+            let normalized = case_owner::project_path(&run.root, file);
             let range = run.tests_by_file.get(&normalized).copied().unwrap_or((0, 0));
             self.test_first = range.0;
             self.test_last = range.1;
