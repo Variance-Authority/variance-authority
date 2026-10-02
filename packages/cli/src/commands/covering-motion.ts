@@ -19,11 +19,13 @@ import {
   caseMotion,
   caseSectionsAt,
   decodeExecutionIndex,
+  hunksByFile,
   recordedCommit,
   type CaseMotion,
   type CommitRuns,
   type ExecutionIndex,
   type ExecutionTest,
+  type Hunk,
   type LastCaseRun,
   type MovedRegion,
 } from '@variance-authority/sense/test-selection';
@@ -31,6 +33,7 @@ import { OperatorError } from '../exit.js';
 import type { ParsedCovering } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
+import { diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
 
 /** Which record the answer was compared with, and what of it was left out. */
@@ -184,7 +187,7 @@ async function againstBefore(
   if (files !== undefined) held = keepFiles(held, files);
   const now = keepCases(full, new Set(cases));
   const exclude = new Set(parting?.files ?? []);
-  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude });
+  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, ...(await diffFromBase(at, root)) });
   return { base, moved: file === undefined ? moved : within(moved, file) };
 }
 
@@ -250,7 +253,7 @@ export async function motionAgainst(
     ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }),
   };
   const exclude = new Set(parting?.files ?? []);
-  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), exclude }) };
+  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), exclude, ...(await diffFromBase(at, root)) }) };
 }
 
 /**
@@ -407,6 +410,17 @@ function within(moved: CaseMotion, file: string): CaseMotion {
     unread: moved.unread.filter((unread) => unread === file),
     ...(moved.renumbered === undefined ? {} : { renumbered: moved.renumbered.filter((region) => region.file === file) }),
   };
+}
+
+/**
+ * The diff from the commit a base was recorded at to the tree, by file, which
+ * pairs regions by the lines they stand on. Empty when the commit is not an
+ * object name, which is all that reaches the diff, or the diff cannot be read.
+ */
+export async function diffFromBase(at: string | undefined, root: string): Promise<{ readonly diff?: ReadonlyMap<string, readonly Hunk[]> }> {
+  if (at === undefined || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(at)) return {};
+  const diff = await diffSince(at, [], at, { cwd: root, unified: 0 });
+  return diff === undefined ? {} : { diff: hunksByFile(diff) };
 }
 
 /** The file graph when a case stopped, which is when a hidden region can name the case. */
