@@ -1,29 +1,11 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserConfig } from 'vitest/config';
-import type { TestCoverage } from './index.js';
+import { decodeTestCoverage } from './format.js';
 import { withTestSelection } from './vitest.js';
-
-/**
- * What the seam measured, read where it hands the run to the record's writer.
- * Nothing here instruments a module, and a run that instruments none writes no
- * coverage, so the record itself would hold none of what these tests ask.
- */
-const landed = vi.hoisted(() => ({ runs: [] as TestCoverage[] }));
-
-vi.mock('./commit-runs.js', async (original) => {
-  const actual = await original<typeof import('./commit-runs.js')>();
-  return {
-    ...actual,
-    landRun: async (...args: Parameters<typeof actual.landRun>) => {
-      landed.runs.push(args[1]);
-      return actual.landRun(...args);
-    },
-  };
-});
 
 interface Resolved {
   readonly configFile: string | undefined;
@@ -46,7 +28,6 @@ beforeEach(async () => {
   }
   // A run whose test files instrumented nothing says so, and nothing here
   // instruments: the preconditions are the whole of what is asked.
-  landed.runs = [];
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
@@ -73,7 +54,7 @@ function seam(config: UserConfig): Seam {
     plugin: (configured.plugins as unknown as Seam['plugin'][]).at(-1)!,
     finish: async () => {
       await reporter.onFinished([{ filepath: resolve(root, 'case.test.ts'), tasks: [] }]);
-      const [test] = landed.runs.at(-1)!.tests;
+      const [test] = decodeTestCoverage(await readFile(coverageFile)).tests;
       return test!.preconditions.map((precondition) => precondition.name).sort();
     },
   };

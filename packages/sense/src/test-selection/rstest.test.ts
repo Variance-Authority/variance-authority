@@ -1,35 +1,16 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { decodeTestCoverage } from './format.js';
 import { statusesComplete } from './finished-files.js';
 import { runOf } from './selection-run.js';
-import type { TestCoverage } from './index.js';
 import { SELECTION_LOADER, withTestSelection } from './rstest.js';
-
-/**
- * What the seam measured, read where it hands the run to the record's writer.
- * Nothing here instruments a module, and a run that instruments none writes no
- * coverage, so the record itself would hold none of what these tests ask.
- */
-const landed = vi.hoisted(() => ({ runs: [] as TestCoverage[] }));
-
-vi.mock('./commit-runs.js', async (original) => {
-  const actual = await original<typeof import('./commit-runs.js')>();
-  return {
-    ...actual,
-    landRun: async (...args: Parameters<typeof actual.landRun>) => {
-      landed.runs.push(args[1]);
-      return actual.landRun(...args);
-    },
-  };
-});
 
 const temporary: string[] = [];
 
 afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
-  landed.runs = [];
 });
 
 async function root(): Promise<string> {
@@ -149,7 +130,7 @@ describe('what a wrapped Rstest configuration becomes', () => {
       })),
     });
 
-    const preconditions = new Map(landed.runs.at(-1)!.tests
+    const preconditions = new Map(decodeTestCoverage(await readFile(coverageFile)).tests
       .map((test) => [test.file, test.preconditions.map((precondition) => precondition.name).sort()]));
     expect(preconditions.get('node/a.test.ts')).toEqual(['node/a.test.ts', 'node/setup.ts']);
     expect(preconditions.get('dom/a.test.ts')).toEqual(['dom/a.test.ts', 'dom/setup.ts']);
@@ -165,12 +146,11 @@ describe('a watching Rstest', () => {
     const reporter = (config.reporters as ReadonlyArray<Watching>)[1]!;
     const shims = async () => (await readdir(resolve(directory, '.variance-authority'))).filter((name) => name.startsWith('test-selection-setup-'));
     const result = (file: string) => ({ testPath: resolve(directory, file), status: 'pass', results: [{ status: 'pass' }] });
-    // The files each cycle handed over, in the order the cycles ran.
-    const recorded = async () => landed.runs.map((run) => run.tests.map((test) => test.file));
+    const recorded = async () => decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file);
 
     await reporter.onTestRunStart();
     await reporter.onTestRunEnd({ results: [result('a.test.ts')], rerunTestPaths: [resolve(directory, 'a.test.ts')] });
-    expect(await recorded()).toEqual([['a.test.ts']]);
+    expect(await recorded()).toEqual(['a.test.ts']);
     expect(await shims()).toHaveLength(1);
 
     // The session reports every file it holds, `c` among them, and this
@@ -180,7 +160,7 @@ describe('a watching Rstest', () => {
       results: ['a.test.ts', 'b.test.ts', 'c.test.ts'].map(result),
       rerunTestPaths: [resolve(directory, 'b.test.ts')],
     });
-    expect(await recorded()).toEqual([['a.test.ts'], ['b.test.ts']]);
+    expect(await recorded()).toEqual(['a.test.ts', 'b.test.ts']);
     expect(await shims()).toHaveLength(1);
 
     await reporter.onExit();
