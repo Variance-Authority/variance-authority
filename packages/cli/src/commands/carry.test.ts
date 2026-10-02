@@ -3,7 +3,13 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { repositoryLayers, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  encodeExecutionIndex,
+  recordedEyesAt,
+  repositoryLayers,
+  testCoverageFile,
+  writeTestCoverage,
+} from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCarryArgs } from '../carry-args.js';
 import type { Config } from '../config.js';
@@ -91,17 +97,28 @@ describe('a recording', () => {
   it('names the Eyes journals a saved record carries, because the cache takes them off this machine', async () => {
     const record = testCoverageFile(root, { suite: 'seen' });
     await mkdir(dirname(record), { recursive: true });
+    const id = 'test/cart.spec.ts > adds one item';
+    const eyes = { watched: [id], journals: [{ case: id, attempt: 1, journal: { complete: true, attention: [] } }] };
     await writeTestCoverage(
       record,
       { version: 3, instrumentation: 'fixture', tests: [], modules: [] },
-      { eyes: Buffer.from('{"version":1,"journals":[]}\n') },
+      {
+        index: encodeExecutionIndex({ tests: [{ id, file: 'test/cart.spec.ts', name: 'adds one item' }], modules: [] }),
+        eyes: Buffer.from(`${JSON.stringify({ version: 1, ...eyes })}\n`),
+      },
     );
     const suites = [{ name: 'seen', kind: 'e2e', carry: 'actions-cache' }] as const;
 
     try {
-      expect(carryPlan({ direction: 'save', root, suites, run: PUSH, mainlines: MAIN }).notes).toEqual([
+      const plan = carryPlan({ direction: 'save', root, suites, run: PUSH, mainlines: MAIN });
+      expect(plan.notes).toEqual([
         `suite seen carries its cases' Eyes journals: the eyes section of ${record} goes into the cache with it`,
       ]);
+      // What the cache is given is the record under the layer, whose bytes keep the journal.
+      const [saved] = plan.cached;
+      expect(saved?.paths[0]).toBe(layer);
+      expect(record.startsWith(`${layer}/`)).toBe(true);
+      expect(recordedEyesAt(record)).toEqual(eyes);
       // A restore brings back what a mainline already gave the cache, and uploads nothing.
       expect(carryPlan({ direction: 'restore', root, suites, run: PUSH, mainlines: MAIN }).notes).toEqual([]);
     } finally {

@@ -1,12 +1,19 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RunReport } from '@variance-authority/report';
-import { commitRunsFile, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  caseSectionsOf,
+  commitRunsFile,
+  encodeExecutionIndex,
+  testCoverageFile,
+  writeTestCoverage,
+} from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
+import { unframe } from '../share-entries.js';
 import type { Env } from '../share-lines.js';
 import { shareLines } from './share.js';
 import { suiteShare } from './suite-share.js';
@@ -21,6 +28,12 @@ import { suiteShare } from './suite-share.js';
 const run = promisify(execFile);
 const PUSH: Env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'push', GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main' };
 const SAID = "suite-v1/unit carried its cases' Eyes journals: the record's eyes section went with it.";
+const CASE = 'test/cart.test.ts > adds one item';
+/** The section a recording run writes for one watched case that handed one journal over. */
+const EYES = {
+  watched: [CASE],
+  journals: [{ case: CASE, attempt: 1, journal: { complete: true, attention: [{ kind: 'eyes-phase', phase: 'act', sequence: 0 }] } }],
+};
 
 let home: string;
 
@@ -39,6 +52,7 @@ describe('a share of a record that kept Eyes journals', () => {
     const { dir } = await recorded({ eyes: true });
     const done = await suiteShare(dir, { suite: 'unit', publish: true, collected: join(home, 'collected.txt') }, { env: PUSH });
     expect(done.lines).toContain(SAID);
+    expect(await uploadedEyes()).toEqual([EYES]);
   });
 
   it('names them among what a run\'s share uploads', async () => {
@@ -53,6 +67,7 @@ describe('a share of a record that kept Eyes journals', () => {
     const lines = await shareLines(config, { publish: true, report: await reportAt(commit) }, { env: await pullRequest(commit), cwd: dir });
     expect(lines[0]).toContain('suite-v1/unit');
     expect(lines).toContain(SAID);
+    expect(await uploadedEyes()).toEqual([EYES]);
   });
 
   it('says nothing of Eyes for a record that kept none', async () => {
@@ -60,8 +75,27 @@ describe('a share of a record that kept Eyes journals', () => {
     const done = await suiteShare(dir, { suite: 'unit', publish: true, collected: join(home, 'collected.txt') }, { env: PUSH });
     expect(done.lines.join('\n')).not.toContain('Eyes');
     expect(done.lines[0]).toContain('wrote suite-v1/unit');
+    expect(await uploadedEyes()).toEqual([]);
   });
 });
+
+/** The Eyes section of every record the share holds, read back from the bytes it was given. */
+async function uploadedEyes(): Promise<readonly unknown[]> {
+  const root = join(home, 'share');
+  const files = (await readdir(root, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name));
+  const sections: unknown[] = [];
+  for (const file of files) {
+    const parts = unframe(await readFile(file));
+    const record = typeof parts === 'string' ? undefined : parts.get('coverage.bin');
+    const eyes = record === undefined ? undefined : caseSectionsOf(record).eyes;
+    if (eyes === undefined) continue;
+    const { watched, journals } = JSON.parse(Buffer.from(eyes).toString('utf8')) as Record<string, unknown>;
+    sections.push({ watched, journals });
+  }
+  return sections;
+}
 
 /** A checkout at one pushed commit, holding a record of `unit` given to a directory share. */
 async function recorded(options: { readonly eyes: boolean }): Promise<{ dir: string; commit: string }> {
@@ -81,11 +115,12 @@ async function recorded(options: { readonly eyes: boolean }): Promise<{ dir: str
   await writeFile(join(dir, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share }));
   const record = testCoverageFile(dir, { suite: 'unit' });
   await mkdir(dirname(record), { recursive: true });
-  const eyes = Buffer.from(`${JSON.stringify({ version: 1, journals: [] })}\n`);
+  const eyes = Buffer.from(`${JSON.stringify({ version: 1, ...EYES })}\n`);
+  const index = encodeExecutionIndex({ tests: [{ id: CASE, file: 'test/cart.test.ts', name: 'adds one item' }], modules: [] });
   await writeTestCoverage(
     record,
     { version: 3, instrumentation: 'fixture', commit, tests: [], modules: [] },
-    { index: Buffer.from('cases'), ...(options.eyes ? { eyes } : {}) },
+    { index, ...(options.eyes ? { eyes } : {}) },
   );
   await writeFile(commitRunsFile(record), JSON.stringify({ commit, first: '', latest: '', runs: 1, files: [], standing: [] }));
   await writeFile(join(home, 'collected.txt'), '');
