@@ -160,7 +160,7 @@ function enclosing(shared: readonly Shape[], block: Shape): number | undefined {
 }
 
 /** The one region spanning the file every inventory cut: the module, from its first source line to its last. */
-export function wholeFile(inventories: readonly (readonly Shape[])[], first: Shape | undefined): Shape {
+function wholeFile(inventories: readonly (readonly Shape[])[], first: Shape | undefined): Shape {
   const sourced = inventories.flat().filter((block) => block.source);
   const source = sourced.length > 0;
   return {
