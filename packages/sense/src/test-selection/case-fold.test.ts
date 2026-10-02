@@ -8,15 +8,10 @@ import { native, nativeAvailable } from '../native.js';
 import { foldCaseRun, freshCases, inspectCaseRun } from './case-fold.js';
 import { layCases, lastCaseRunOf } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
-import {
-  AMBIENT,
-  executionIndexFrom,
-  packCase,
-  packFrames,
-  readCaseJournals,
-} from './cases.js';
+import { AMBIENT, packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import type { CapturedModule } from './instrumented-modules.js';
+import type { ExecutionIndex } from './reverse.js';
 import preconditions from './case-preconditions.cjs';
 import journalFormat from './journal-format.cjs';
 import { frameRecord, segmentHeader } from './record-format.js';
@@ -54,6 +49,24 @@ function counters(length: number, called: readonly number[], loaded: readonly nu
   return values;
 }
 
+/**
+ * What a reader asks an index for: who entered each region that anything
+ * reached, by test id, and whether only a load reached it.
+ */
+function reach(index: ExecutionIndex): Record<string, { readonly entered: readonly string[]; readonly loaded?: true }> {
+  const held: Record<string, { entered: string[]; loaded?: true }> = {};
+  for (const module of index.modules) {
+    for (const [ordinal, block] of module.blocks.entries()) {
+      if (block.crossings.length === 0 && block.loaded !== true) continue;
+      held[`${module.file}#${ordinal}`] = {
+        entered: block.crossings.map((crossing) => index.tests[crossing.test]!.id),
+        ...(block.loaded === true ? { loaded: true as const } : {}),
+      };
+    }
+  }
+  return held;
+}
+
 async function directory(): Promise<string> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-authority-case-fold-'));
   temporary.push(root);
@@ -85,15 +98,21 @@ describe('the bounded case fold', () => {
     const run = await inspectCaseRun(cases, '/repo');
     const folded = await foldCaseRun(run, modules, 64);
     const decoded = decodeExecutionIndex(folded.bytes);
-    const previous = executionIndexFrom(await readCaseJournals(cases, '/repo'), modules);
 
-    expect(decoded).toEqual(previous);
+    expect(decoded.tests.map((test) => test.id)).toEqual([
+      'test/branch.test.ts > calls alpha', 'test/branch.test.ts > loads beta',
+    ]);
+    // The file's ambient call is every case's; the load is no case's.
+    expect(reach(decoded)).toEqual({
+      'src/branch.ts#0': { entered: ['test/branch.test.ts > calls alpha', 'test/branch.test.ts > loads beta'] },
+      'src/branch.ts#1': { entered: ['test/branch.test.ts > calls alpha'] },
+      'src/branch.ts#2': { entered: [], loaded: true },
+    });
     expect(folded.passes).toBe(1);
     expect(folded.crossings).toBe(3);
-    expect(decoded.modules[0]?.blocks[2]).toMatchObject({ loaded: true, crossings: [] });
   });
 
-  it('joins a case written twice, across workers and passes, as the object fold does', async () => {
+  it('joins a case written twice, across workers and passes', async () => {
     // `settles` wrote its frame, then work that outlived it wrote a second one
     // under the same coordinate, which calls what the first only loaded.
     const cases = await directory();
@@ -112,19 +131,25 @@ describe('the bounded case fold', () => {
 
     const run = await inspectCaseRun(cases, '/repo');
     const folded = await foldCaseRun(run, modules, 8);
-    const previous = executionIndexFrom(await readCaseJournals(cases, '/repo'), modules);
+    const decoded = decodeExecutionIndex(folded.bytes);
 
-    expect(previous.tests.map((test) => test.id)).toEqual([
+    expect(decoded.tests.map((test) => test.id)).toEqual([
       'test/early.test.ts > first', 'test/late.test.ts > other', 'test/late.test.ts > settles',
     ]);
-    expect(decodeExecutionIndex(folded.bytes)).toEqual(previous);
+    // `settles` is one case: its second frame calls what its first only loaded.
+    expect(reach(decoded)).toEqual({
+      'src/early.ts#0': { entered: ['test/late.test.ts > settles'], loaded: true },
+      'src/early.ts#1': { entered: ['test/late.test.ts > other'], loaded: true },
+      'src/late.ts#0': { entered: ['test/late.test.ts > settles'] },
+      'src/late.ts#2': { entered: ['test/late.test.ts > settles'], loaded: true },
+    });
     expect(folded.passes).toBeGreaterThan(1);
 
     const first = layCases({}, (await freshCases(cases, '/repo', modules, { tests: [] }))!.fresh, '/repo', { tests: [] });
-    expect(decodeExecutionIndex(first.index!)).toEqual(previous);
+    expect(decodeExecutionIndex(first.index!)).toEqual(decoded);
     // The first lay has nothing to lay over: the run is the index and the last
     // run both, and there is no before.
-    expect(lastCaseRunOf(first)).toMatchObject({ files: [], cases: previous.tests.map((test) => test.id) });
+    expect(lastCaseRunOf(first)).toMatchObject({ files: [], cases: decoded.tests.map((test) => test.id) });
     expect(first.before).toBeUndefined();
 
     // The same run again lands over the first, and keeps what it replaced: every
@@ -134,9 +159,9 @@ describe('the bounded case fold', () => {
       commit: 'abc',
     }))!;
     const second = layCases(first, again.fresh, '/repo', again.run);
-    expect(decodeExecutionIndex(second.index!)).toEqual(previous);
+    expect(decodeExecutionIndex(second.index!)).toEqual(decoded);
     expect(decodeExecutionIndex(second.before!).tests.map((test) => test.id))
-      .toEqual(previous.tests.map((test) => test.id));
+      .toEqual(decoded.tests.map((test) => test.id));
     expect(lastCaseRunOf(second)).toMatchObject({ commit: 'abc', files: ['test/early.test.ts'] });
   });
 
@@ -163,7 +188,12 @@ describe('the bounded case fold', () => {
 
     const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), modules, 64)).bytes);
 
-    expect(folded).toEqual(executionIndexFrom(await readCaseJournals(cases, '/repo'), modules));
+    // A retry's second frame reached nothing, and the case is still one row.
+    expect(reach(folded)).toEqual({
+      'src/pay.ts#1': {
+        entered: ['test/pay.test.ts > flips', 'test/pay.test.ts > mocked', 'test/pay.test.ts > silent', 'test/pay.test.ts > unheard'],
+      },
+    });
     expect(Object.fromEntries(folded.tests.map((test) => [test.name, test.preconditions]))).toEqual({
       flips: [
         { name: 'flag', value: 'ff-off', site: 'test/pay.test.ts:12', level },

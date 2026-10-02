@@ -45,13 +45,13 @@ is not a slow path. It is an impossible one:
   proportional to the file rather than to the change, not that a model is built.
 
 Both are the same defect at two ends, and it is a defect rather than a limit:
-the fold that does not have it is already in the repository, unwired.
-`foldCrossingColumns` at `packages/sense/src/test-selection/run-fold.ts:84` reads the same
-fixture's 103 million module rows and 826 million crossings inside 450 MB by
-keeping frames on disk and handing back a set id per region against a pool. It
-has no caller, and its own docblock says the shipped path *used to be*
-`readJournals` then `crossingsOf`, in the past tense, about a thing both
-reporters still do.
+a fold that does not have it was built and measured. `foldCrossingColumns` read
+the same fixture's 103 million module rows and 826 million crossings inside
+450 MB by keeping frames on disk and handing back a set id per region against a
+pool. Nothing called it, so it was deleted unwired; it is in the history as
+`packages/sense/src/test-selection/run-fold.ts` at `3cfe712f`. What remains in
+the tree is the half it stood on: `foldCrossings` in `crossing-fold.ts`, which
+does the slicing and the interning.
 
 ## What would discharge it
 
@@ -70,9 +70,9 @@ the format writes and reads. What is unbuilt is the pool reaching the encoder
 in and re-interned on the way out, so the win ADR-0061 measured is paid for and
 then thrown away.
 
-**2. The reporters fold rather than collect.** `foldCrossingColumns` becomes the path both
-reporters take, and `foldCrossings` takes one `CrossingSets` instead of
-interning two. A reporter's peak is then set by the slice budget it was given
+**2. The reporters fold rather than collect.** `foldCrossings` becomes the path
+both reporters take, reached from `readJournals`'s directory rather than its
+decoded rows, and it takes one `CrossingSets` instead of interning two. A reporter's peak is then set by the slice budget it was given
 and by the pool, neither of which is the repository's crossing count.
 
 **Why a slice budget rather than a smaller object:** the frames are on disk
