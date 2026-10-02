@@ -8,6 +8,7 @@ import { caseSectionsAt, recordOfCases, withoutCoverage } from './case-record.js
 import { commitRunsFile } from './commit-runs.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
+import { encodeRecordedEyes } from './eyes-record.js';
 import { recordStore, recordStores } from './instrumented-modules.js';
 import {
   mainlineReadRoot,
@@ -241,6 +242,33 @@ describe('the snapshot a checkout starts from', () => {
     const seeded = caseSectionsAt(file);
     expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
     expect(seeded.last).toBeUndefined();
+  });
+
+  test('a worktree takes the repository\'s Eyes section when it reads, and drops one this build cannot read', async () => {
+    const cases = encodeSetExecutionIndex({
+      tests: [{ id: 'a > b', file: 'a.test.ts', name: 'b' }],
+      modules: [],
+      sets: new CrossingSets(1).pool(),
+    });
+    const readable = encodeRecordedEyes({ watched: ['a > b'], journals: [] });
+    for (const [eyes, kept] of [
+      [readable, readable],
+      [Buffer.from('{"version":2,"watched":[],"journals":[]}\n'), undefined],
+      [Buffer.from('not json'), undefined],
+    ] as const) {
+      const at = await checkout();
+      const cacheRoot = resolve(at, 'cache');
+      const primary = resolve(at, 'primary');
+      await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot, { index: cases, eyes });
+
+      const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
+      const file = testCoverageFile(path, { cacheRoot });
+      await seedTestCoverage(file, path, cacheRoot);
+
+      const seeded = caseSectionsAt(file);
+      expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
+      expect(seeded.eyes === undefined ? undefined : Buffer.from(seeded.eyes)).toEqual(kept === undefined ? undefined : Buffer.from(kept));
+    }
   });
 
   test('a worktree starts from a repository record that holds cases and no coverage, and it still narrows nothing', async () => {

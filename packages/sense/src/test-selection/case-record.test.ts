@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { caseSectionsOf, keepsCases, recordedCases, sharedRecord, withCaseSections } from './case-record.js';
+import { caseSectionsOf, keepsCases, keepsEyes, recordedCases, recordedEyesOf, sharedRecord, withCaseSections } from './case-record.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
+import { decodeRecordedEyes, encodeRecordedEyes } from './eyes-record.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import type { ExecutionIndex } from './execution-format.js';
 import type { TestCoverage } from './index.js';
@@ -45,12 +46,17 @@ function at(bytes: Uint8Array): string {
 
 describe('a record that carries its cases', () => {
   const index = encodeExecutionIndex(INDEX);
-  const record = withCaseSections(encodeTestCoverage(COVERAGE), { index, before: index, last: LAST });
+  const eyes = Buffer.from(encodeRecordedEyes({ watched: [], journals: [] }));
+  const record = withCaseSections(encodeTestCoverage(COVERAGE), { index, before: index, last: LAST, eyes });
 
   it('reads as the coverage it carried and as the case index it carried', () => {
     expect(decodeTestCoverage(record)).toEqual(decodeTestCoverage(encodeTestCoverage(COVERAGE)));
     expect(decodeExecutionIndex(record)).toEqual(decodeExecutionIndex(index));
     expect(Buffer.from(recordedCases(record))).toEqual(index);
+  });
+
+  it('reads its Eyes off the bytes it is held in, so the index and the journals are one run\'s', () => {
+    expect(recordedEyesOf(record)).toEqual({ watched: [], journals: [] });
   });
 
   it('says it keeps cases from its header', () => {
@@ -64,6 +70,11 @@ describe('a record that carries its cases', () => {
     expect(parts.last).toBeUndefined();
     expect(Buffer.from(parts.index ?? [])).toEqual(index);
     expect(decodeTestCoverage(shared)).toEqual(decodeTestCoverage(record));
+  });
+
+  it('keeps its Eyes journals when it crosses, because a crossing is the same person\'s or one they made', () => {
+    expect(Buffer.from(caseSectionsOf(record).eyes ?? [])).toEqual(eyes);
+    expect(Buffer.from(caseSectionsOf(sharedRecord(record)).eyes ?? [])).toEqual(eyes);
   });
 
   it('is refused by a fold when it holds a section this build does not know, rather than losing it', () => {
@@ -85,8 +96,18 @@ describe('a record that kept no cases', () => {
     expect(keepsCases(join(dir ?? tmpdir(), 'absent.bin'))).toBe(false);
   });
 
+  it('says so when it is cut short of the length its header opens with', () => {
+    expect(keepsCases(at(Buffer.from([1, 0])))).toBe(false);
+    expect(keepsEyes(at(Buffer.alloc(0)))).toBe(false);
+  });
+
   it('is handed to the index reader as it is, which refuses it on its own terms', () => {
     expect(recordedCases(record)).toBe(record);
+  });
+
+  it('keeps no Eyes, as a case index on its own keeps none', () => {
+    expect(recordedEyesOf(record)).toBeUndefined();
+    expect(recordedEyesOf(encodeExecutionIndex(INDEX))).toBeUndefined();
   });
 
   it('crosses as it is', () => {
@@ -99,5 +120,15 @@ describe('a case index on its own', () => {
     const index = encodeExecutionIndex(INDEX);
     expect(recordedCases(index)).toBe(index);
     expect(decodeExecutionIndex(index)).toEqual(decodeExecutionIndex(recordedCases(index)));
+  });
+});
+
+describe('an Eyes section', () => {
+  it('refuses a row that names no case and attempt, rather than keeping a journal nothing can join', () => {
+    const section = (row: unknown) => Buffer.from(JSON.stringify({ version: 1, watched: [], journals: [row] }));
+    expect(decodeRecordedEyes(section({ case: 'a', attempt: 1, journal: {} })).journals).toHaveLength(1);
+    for (const row of [{ case: '', attempt: 1, journal: {} }, { case: 'a', attempt: 0, journal: {} }, { case: 'a', attempt: 1 }]) {
+      expect(() => decodeRecordedEyes(section(row))).toThrow('holds a row that names no case and attempt');
+    }
   });
 });

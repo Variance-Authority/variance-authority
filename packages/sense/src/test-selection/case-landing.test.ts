@@ -2,10 +2,11 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { landCases, lastCaseRunOf } from './case-landing.js';
+import { landCases, lastCaseRunOf, layCases } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
+import { decodeRecordedEyes, encodeRecordedEyes, type EyesSection, type RecordedEyes } from './eyes-record.js';
 import {
   encodeAsSetExecutionIndex,
   encodeSetExecutionIndex,
@@ -45,9 +46,12 @@ function read(bytes: Uint8Array | undefined): Record<string, string[]> {
 const whole = (file: string) => ({ file, complete: true });
 
 /** A shard's record, carrying the cases its seam kept. */
-async function shard(name: string, cases: Uint8Array): Promise<string> {
+async function shard(name: string, cases: Uint8Array, eyes?: EyesSection): Promise<string> {
   const at = join(root, name);
-  await writeTestCoverage(at, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, { index: cases });
+  await writeTestCoverage(at, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
+    index: cases,
+    ...(eyes === undefined ? {} : { eyes: encodeRecordedEyes(eyes) }),
+  });
   return at;
 }
 
@@ -156,5 +160,134 @@ describe('landCases', () => {
 
     expect(landing).toEqual({ unanswered: record, shard: at, removed: false });
     expect(sections).toEqual({});
+  });
+});
+
+/** A journal as Eyes closes one: what the case addressed, here a single phase. */
+function journal(caseId: string, attempt: number, phase = 'act'): RecordedEyes {
+  return { case: caseId, attempt, journal: { complete: true, attention: [{ kind: 'eyes-phase', phase, sequence: 0 }] } };
+}
+
+/** A run's Eyes: every case named opened a journal, and these closed one. */
+function looked(...journals: RecordedEyes[]): EyesSection {
+  return { watched: [...new Set(journals.map((row) => row.case))], journals };
+}
+
+describe('the Eyes journals a run lays', () => {
+  it('lays each case\'s journals by case and attempt beside the index, and keeps the cases that did not run', () => {
+    const held = { ...previous, eyes: encodeRecordedEyes(looked(journal('a.test.ts > one', 1), journal('b.test.ts > two', 1))) };
+
+    const sections = layCases(held, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] }, looked(
+      journal('b.test.ts > two', 2, 'assert'),
+      journal('b.test.ts > two', 1, 'arrange'),
+    ));
+
+    expect(decodeRecordedEyes(sections.eyes!)).toEqual({
+      watched: ['a.test.ts > one', 'b.test.ts > two'],
+      journals: [journal('a.test.ts > one', 1), journal('b.test.ts > two', 1, 'arrange'), journal('b.test.ts > two', 2, 'assert')],
+    });
+  });
+
+  it('retires a case\'s journals when it ran again without Eyes, and leaves no section when none is left', () => {
+    const held = { ...previous, eyes: encodeRecordedEyes(looked(journal('b.test.ts > two', 1))) };
+
+    const sections = layCases(held, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] });
+
+    expect(sections.eyes).toBeUndefined();
+  });
+
+  it('keeps a section for a run that opened journals and closed none, so it does not read as a run without Eyes', () => {
+    const sections = layCases(previous, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] }, {
+      watched: ['b.test.ts > two'],
+      journals: [],
+    });
+
+    expect(decodeRecordedEyes(sections.eyes!)).toEqual({ watched: ['b.test.ts > two'], journals: [] });
+  });
+
+  it('refuses a journal whose case the run did not record, rather than keep a reference nothing answers', () => {
+    expect(() => layCases(previous, index({ 'b.test.ts > two': ['gamma'] }), root, { tests: [whole('b.test.ts')] }, looked(
+      journal('b.test.ts > two (title)', 1),
+    ))).toThrow('an Eyes journal names a case the run did not record: b.test.ts > two (title)');
+  });
+
+  it('lays over a section this build cannot read as over none, rather than fail every later run', () => {
+    for (const eyes of [Buffer.from('not json'), Buffer.from('{"version":2,"rows":[]}\n')]) {
+      const sections = layCases({ ...previous, eyes }, index({ 'b.test.ts > two': ['gamma'] }), root, { tests: [whole('b.test.ts')] }, looked(
+        journal('b.test.ts > two', 1),
+      ));
+
+      expect(decodeRecordedEyes(sections.eyes!)).toEqual(looked(journal('b.test.ts > two', 1)));
+    }
+  });
+
+  it('carries each shard\'s journals into the record it lands, and one journal two shards both hold once', async () => {
+    const both = journal('c.test.ts > three', 1);
+    const first = await shard('shard-1.bin', index({ 'b.test.ts > two': ['gamma'], 'c.test.ts > three': ['alpha'] }), looked(journal('b.test.ts > two', 1), both));
+    const second = await shard('shard-2.bin', index({ 'c.test.ts > three': ['alpha'] }), looked(both));
+
+    const { sections } = landCases(record, previous, root, [
+      { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts'), whole('c.test.ts')] } },
+      { path: second, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
+    ]);
+
+    expect(decodeRecordedEyes(sections.eyes!)).toEqual(looked(journal('b.test.ts > two', 1), both));
+  });
+
+  it('keeps one of two different journals two shards hold for one attempt, and lands the rest', async () => {
+    // Both shards ran `c`, and each closed a different journal for its first attempt.
+    const acted = await shard('shard-1.bin', index({ 'c.test.ts > three': ['alpha'] }), looked(journal('c.test.ts > three', 1, 'act')));
+    const carried = await shard('shard-2.bin', index({ 'b.test.ts > two': ['gamma'], 'c.test.ts > three': ['alpha'] }), looked(
+      journal('b.test.ts > two', 1),
+      journal('c.test.ts > three', 1, 'assert'),
+    ));
+
+    const { landing, sections } = landCases(record, previous, root, [
+      { path: acted, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
+      { path: carried, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts'), whole('c.test.ts')] } },
+    ]);
+
+    expect(landing).toEqual({ laid: record, shards: 2 });
+    expect(decodeRecordedEyes(sections.eyes!).journals.map((row) => [row.case, row.attempt])).toEqual([
+      ['b.test.ts > two', 1],
+      ['c.test.ts > three', 1],
+    ]);
+  });
+
+  it('lands no journal a shard\'s seed carried for a case it did not run, so an older one cannot stand in for a newer', async () => {
+    // Shard 1 ran `c`; shard 2 ran only `b`, and its seed holds an older `c` journal that sorts first.
+    const ran = await shard('shard-1.bin', index({ 'c.test.ts > three': ['alpha'] }), looked(journal('c.test.ts > three', 1, 'assert')));
+    const seeded = await shard('shard-2.bin', index({ 'b.test.ts > two': ['gamma'], 'c.test.ts > three': ['alpha'] }), {
+      watched: ['b.test.ts > two', 'c.test.ts > three', 'd.test.ts > four'],
+      journals: [journal('b.test.ts > two', 1), journal('c.test.ts > three', 1, 'act')],
+    });
+
+    const { sections } = landCases(record, previous, root, [
+      { path: ran, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
+      { path: seeded, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } },
+    ]);
+
+    expect(decodeRecordedEyes(sections.eyes!)).toEqual(looked(journal('b.test.ts > two', 1), journal('c.test.ts > three', 1, 'assert')));
+  });
+
+  it('keeps the same one of two journals for one attempt whichever order they are handed in', () => {
+    const act = journal('c.test.ts > three', 1, 'act');
+    const assert = journal('c.test.ts > three', 1, 'assert');
+
+    expect(decodeRecordedEyes(encodeRecordedEyes(looked(act, assert)))).toEqual(decodeRecordedEyes(encodeRecordedEyes(looked(assert, act))));
+    expect(decodeRecordedEyes(encodeRecordedEyes(looked(assert, act))).journals).toHaveLength(1);
+  });
+
+  it('lands a shard whose Eyes section this build cannot read as a shard that kept none', async () => {
+    const at = join(root, 'shard-1.bin');
+    await writeTestCoverage(at, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
+      index: index({ 'b.test.ts > two': ['gamma'] }),
+      eyes: Buffer.from('{"version":2,"journals":"elsewhere"}\n'),
+    });
+
+    const { landing, sections } = landCases(record, previous, root, [{ path: at, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } }]);
+
+    expect(landing).toEqual({ laid: record, shards: 1 });
+    expect(sections.eyes).toBeUndefined();
   });
 });

@@ -70,6 +70,8 @@ export interface SetupShim {
   readonly continuations?: boolean;
   /** Where each case's story goes, when the run asked for stories. */
   readonly story?: string | undefined;
+  /** The checkout the record names files against; given, the case scope keeps Eyes journals. */
+  readonly root?: string;
 }
 
 export function setupSource(
@@ -89,7 +91,7 @@ const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').sco
     shim.story === undefined
       ? 'undefined'
       : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
-  });
+  }, ${shim.root === undefined ? 'undefined' : JSON.stringify(shim.root)});
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);
 const runaways = () => collector.runaways();
@@ -332,6 +334,17 @@ export default class extends VitestTestRunner {
     );
   }
 
+  // An attempt is its hooks as well as its body, and Eyes hands a journal over
+  // in \`afterEach\`: the scope attends the case from here until the test's
+  // \`onFinished\` callbacks, which run once its \`afterEach\` hooks are done.
+  async onBeforeTryTask(test, options) {
+    await super.onBeforeTryTask?.(test, options);
+    const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
+    if (typeof scope?.begin !== 'function') return;
+    scope.begin();
+    (test.onFinished ??= []).push(() => scope.leave());
+  }
+
   runTask(test) {
     const fn = getFn(test);
     if (!fn) throw new Error('variance-authority: Vitest gave a task with no function');
@@ -419,4 +432,30 @@ for (const holder of [${holders}]) {
   }
 }
 ${scopeGlobalsSource(holders)}`;
+}
+
+/**
+ * The attending bracket for a runner that has no runner to replace, as source:
+ * the counterpart of `onBeforeTryTask` in {@link caseRunnerSource}.
+ *
+ * Rstest calls the root's `beforeEach` hooks at the start of every attempt,
+ * retries included, and the setup module registers this one before any of the
+ * project's, so a journal opened in the project's `beforeEach` is already
+ * attended. The attempt's `onTestFinished` callbacks run once its `afterEach`
+ * hooks are done, which is where the bracket closes.
+ *
+ * @param api Source for the object that holds `beforeEach`.
+ */
+export function attendingSource(api: string): string {
+  return `
+{
+  const attended = globalThis[Symbol.for(${JSON.stringify(CASE_SCOPE_KEY)})];
+  if (typeof attended?.begin === 'function') {
+    ${api}.beforeEach((context) => {
+      attended.begin();
+      context.onTestFinished(() => attended.leave());
+    });
+  }
+}
+`;
 }

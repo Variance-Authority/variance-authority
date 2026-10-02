@@ -16,6 +16,7 @@ import {
   readCaseJournals,
 } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import eyesFrames from './eyes-frame.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import preconditions from './case-preconditions.cjs';
 import journalFormat from './journal-format.cjs';
@@ -154,6 +155,36 @@ describe('the bounded case fold', () => {
     expect(lastCaseRunOf(second)).toMatchObject({ commit: 'abc', files: ['test/early.test.ts'] });
   });
 
+  it('names what Eyes handed each case beside its crossings, and a case that watched and crossed nothing', async () => {
+    const cases = await directory();
+    const crossed = packCase('/repo/test/eyes.test.ts', 'crosses', '1');
+    const watched = packCase('/repo/test/eyes.test.ts', 'watches', '2');
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      journalFormat.encodeJournal(crossed, new Map([['src/branch.ts', counters(3, [0, 1])]])),
+      eyesFrames.encodeEyesFrame({ case: crossed, attempt: 1, journal: { steps: ['arrange'] } }),
+      eyesFrames.encodeEyesFrame({ case: crossed, attempt: 2, journal: { steps: ['act'] } }),
+      // Opened and never handed over: watched, with no journal.
+      eyesFrames.encodeEyesFrame({ case: watched, attempt: 1 }),
+    ]));
+    const modules = new Map<ModuleId, CapturedModule>([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
+
+    const run = await inspectCaseRun(cases, '/repo');
+
+    expect(run.tests.map((test) => test.id)).toEqual(['test/eyes.test.ts > crosses', 'test/eyes.test.ts > watches']);
+    expect(run.eyes).toEqual({
+      watched: ['test/eyes.test.ts > crosses', 'test/eyes.test.ts > watches'],
+      journals: [
+        { case: 'test/eyes.test.ts > crosses', attempt: 1, journal: { steps: ['arrange'] } },
+        { case: 'test/eyes.test.ts > crosses', attempt: 2, journal: { steps: ['act'] } },
+      ],
+    });
+    // A journal is no case frame: the object fold steps over it as the bounded one does.
+    const journals = await readCaseJournals(cases, '/repo');
+    expect(journals.map((journal) => journal.name)).toEqual(['crosses']);
+    const folded = await foldCaseRun(run, modules, 64);
+    expect(decodeExecutionIndex(folded.bytes).modules).toEqual(executionIndexFrom(journals, modules).modules);
+  });
+
   it('lays what each case said on its row, joined across its frames and named from the checkout', async () => {
     const cases = await directory();
     const file = '/repo/test/pay.test.ts';
@@ -272,6 +303,29 @@ describe('the bounded case fold', () => {
     await writeFile(resolve(cases, 'journeys.bin'), folded.bytes);
     expect((await readFile(resolve(cases, 'journeys.bin'))).byteLength).toBe(folded.bytes.byteLength);
   }, 30_000);
+
+  it.runIf(nativeAvailable())('steps over the Eyes frames beside the case frames of a Jest journey artifact, as the object fold does', async () => {
+    const cases = await directory();
+    const owner = preconditions.packSaid(packCase('/repo/test/pay.test.ts', 'pays', '1'), [
+      ['network', 'mocked', '/repo/test/pay.test.ts:9', preconditions.CASE_LEVEL],
+    ]);
+    await writeFile(resolve(cases, 'a.vac'), packFrames([
+      eyesFrames.encodeEyesFrame({ case: owner, attempt: 1 }),
+      journalFormat.encodeJournal(owner, new Map([['src/pay.ts', counters(2, [1])]])),
+      eyesFrames.encodeEyesFrame({ case: owner, attempt: 1, journal: { steps: ['act'] } }),
+    ]));
+    const output = resolve(cases, '..', 'journeys.bin');
+
+    native()!.foldJourneyTo!(cases, '/repo', [], 'sense:instrument/presence-v5', output);
+    const answered = decodeExecutionIndex(await readFile(output));
+    const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map(), 64)).bytes);
+
+    const row = (index: typeof folded) => index.tests.map((test) => [test.id, test.preconditions]);
+    expect(row(answered)).toEqual(row(folded));
+    expect(row(answered)).toEqual([
+      ['test/pay.test.ts > pays', [{ name: 'network', value: 'mocked', site: 'test/pay.test.ts:9', level: preconditions.CASE_LEVEL }]],
+    ]);
+  });
 
   it.runIf(nativeAvailable())('agrees with the native compressed fold, joining a case written twice as one', async () => {
     const cases = await directory();

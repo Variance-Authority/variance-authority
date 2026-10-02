@@ -1,4 +1,4 @@
-//! A case's id, as `caseIdsInOrder` in `cases.ts` spells it: `<file> >
+//! A case's id, as `caseIds` in `cases.ts` spells it: `<file> >
 //! <name>`, and `#n` on the `n`-th further case of that file and name, counted
 //! in the order of the ids their runner gave them.
 //!

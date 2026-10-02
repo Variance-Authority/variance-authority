@@ -5,9 +5,9 @@ import { OperatorError } from './exit.js';
 export interface ParsedDistill {
   readonly command: 'distill';
   readonly test: string;
-  readonly eyes?: string;
+  /** The record to read, when it is not the checkout's own. */
   readonly execution?: string;
-  /** The project root both producers recorded against; defaults to the working directory. */
+  /** The checkout whose record is read; defaults to the working directory. */
   readonly root: string;
   readonly format: 'text' | 'json';
 }
@@ -21,16 +21,11 @@ export function parseDistill(flags: Flags): ParsedDistill {
   if (format !== 'text' && format !== 'json') {
     throw new OperatorError(`--format must be text or json, not \`${format}\``);
   }
-  const eyes = flags.values.get('--eyes');
   const execution = flags.values.get('--execution');
-  if (eyes === undefined && execution === undefined) {
-    throw new OperatorError('distill needs --eyes <path>, --execution <path>, or both');
-  }
   return {
     command: 'distill',
     test,
     root: resolve(flags.values.get('--root') ?? process.cwd()),
-    ...(eyes === undefined ? {} : { eyes: resolve(eyes) }),
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
     format,
   };

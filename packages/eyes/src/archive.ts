@@ -10,6 +10,7 @@ import {
   type ArgumentSnapshot,
   type Attention,
   type EyesArchive,
+  type EyesJournal,
   type EyesTestAttention,
   type LocatorStep,
   type TargetSnapshot,
@@ -33,36 +34,38 @@ export function parseEyesArchive(value: unknown): EyesArchive {
     const file = optionalString(test['file'], `eyes test ${id} file`);
     const attempt = test['attempt'] === undefined
       ? undefined
-      : nonNegativeInteger(test['attempt'], `eyes test ${id} attempt`);
-    if (typeof test['complete'] !== 'boolean') {
-      throw new Error(`eyes test ${id} complete must be boolean`);
-    }
-    if (!Array.isArray(test['attention'])) {
-      throw new Error(`eyes test ${id} attention must be an array`);
-    }
-    const attention = test['attention'].map((entry, index) =>
-      checkedAttention(entry, `eyes test ${id} attention ${index}`));
-    if (test['complete']) {
-      return {
-        id,
-        ...(attempt === undefined ? {} : { attempt }),
-        title,
-        ...(file === undefined ? {} : { file }),
-        complete: true,
-        attention,
-      };
-    }
+      : positiveInteger(test['attempt'], `eyes test ${id} attempt`);
     return {
       id,
       ...(attempt === undefined ? {} : { attempt }),
       title,
       ...(file === undefined ? {} : { file }),
-      complete: false,
-      because: requiredString(test['because'], `eyes test ${id} partial reason`),
-      attention,
+      ...checkedJournal(test, `eyes test ${id}`),
     };
   });
-  return createEyesArchive(tests);
+  const watched = archive['watched'] === undefined ? undefined : strings(archive['watched'], 'eyes archive watched');
+  return createEyesArchive(tests, watched);
+}
+
+/**
+ * Validate one journal as a record carries it: closed, with nothing naming the
+ * test, because the record names the case and the attempt beside it.
+ */
+export function parseEyesJournal(value: unknown, where = 'eyes journal'): EyesJournal {
+  return checkedJournal(object(value, where), where);
+}
+
+function checkedJournal(journal: Record<string, unknown>, where: string): EyesJournal {
+  if (typeof journal['complete'] !== 'boolean') {
+    throw new Error(`${where} complete must be boolean`);
+  }
+  if (!Array.isArray(journal['attention'])) {
+    throw new Error(`${where} attention must be an array`);
+  }
+  const attention = journal['attention'].map((entry, index) =>
+    checkedAttention(entry, `${where} attention ${index}`));
+  if (journal['complete']) return { complete: true, attention };
+  return { complete: false, because: requiredString(journal['because'], `${where} partial reason`), attention };
 }
 
 function checkedAttention(value: unknown, where: string): Attention {
