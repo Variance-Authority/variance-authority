@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
+import { caseSectionsAt, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { mainlineMissed } from './mainline-base.js';
 import { cloneOf, git, parseReview, publishRaw, published, ranHere, recordIn, selectedIn, BEFORE, DISCOUNTS } from './mainline-fixture.js';
 import { review } from './review.js';
@@ -42,10 +42,18 @@ async function unreadCases(dir: string): Promise<void> {
   await writeFile(record, withCaseSections(await readFile(record), { index: Buffer.from('not an index') }));
 }
 
+/** The record CI made in `dir`, given an Eyes section this build does not read. */
+function unreadEyes(eyes: string): (dir: string) => Promise<void> {
+  return async (dir) => {
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    await writeFile(record, withCaseSections(await readFile(record), { ...caseSectionsAt(record), eyes: Buffer.from(eyes) }));
+  };
+}
+
 /** A clone with its own cache, and the change `select` is asked about. */
-async function laptop(origin: string): Promise<string> {
-  const clone = await cloneOf(home, origin);
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+async function laptop(origin: string, at = home): Promise<string> {
+  const clone = await cloneOf(at, origin);
+  process.env['VARIANCE_AUTHORITY_CACHE'] = join(at, 'laptop-cache');
   await writeFile(join(clone, 'src/total.ts'), BEFORE.replace('0.9', '0.8'));
   return clone;
 }
@@ -115,6 +123,22 @@ describe('`variance select` when the mainline\'s record is not read', () => {
     expect(said.out).toBe('');
     expect(said.err).toContain(`mainline main: the record published at ${ci.first} does not read: not a variance-authority test coverage artifact.`);
     expect(existsSync(join(readLayer(), 'unit', ci.first))).toBe(false);
+  });
+
+  it('selects from the record, and keeps its cases without its Eyes, when only its Eyes section does not read', async () => {
+    for (const [at, eyes] of [['newer', '{"version":2,"watched":[],"journals":[]}\n'], ['corrupt', 'not json']] as const) {
+      process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, `${at}-ci-cache`);
+      await mkdir(join(home, at));
+      const ci = await published(join(home, at), { publish: false, record: unreadEyes(eyes) });
+      await publishRaw(join(home, at), ci.dir, ci.first);
+
+      const said = await selectedIn(await laptop(ci.origin, join(home, at)));
+
+      expect(said.out).toBe('test/other.test.ts\n');
+      const kept = caseSectionsAt(join(home, at, 'laptop-cache', 'share', 'read', 'unit', ci.first, 'coverage.bin'));
+      expect(kept.index).toBeDefined();
+      expect(kept.eyes).toBeUndefined();
+    }
   });
 
   it('skips nothing when the record published at one commit was recorded at another', async () => {

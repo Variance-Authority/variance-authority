@@ -220,16 +220,14 @@ an answer may be taken to claim are one boundary whichever transport asks:
 ## Distill one completed test
 
 ```bash
-variance distill \
-  --test 'checkout submits' \
-  --eyes .variance/eyes.json \
-  --execution <cache>/test-selection/<digest>/coverage.bin
+variance distill --test 'test/checkout.spec.ts > checkout > submits'
 ```
 
-This command does not read `variance.config.json`. It combines one test's
-authored AAA attention, React update initiators and covered source, and returns
-the same reading as the MCP tool `variance_distill`. Either evidence path may be
-omitted; the absent domain is not replaced by an empty one. The deterministic
+This command does not read `variance.config.json`. It reads one case out of the
+checkout's record, or the one `--execution` names, and combines the case's
+authored AAA attention, React update initiators and covered source for every
+attempt the record keeps. A record without Eyes journals still gives the covered
+source; the absent attention is not replaced by an empty one. The deterministic
 reading and the skill's counterfactual verification loop are described in
 [distill a test](distill.md).
 

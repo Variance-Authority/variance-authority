@@ -9,17 +9,18 @@ unknown until then, never as an empty reading.
 
 The journal of what a test looked at and acted on, per phase.
 
-- **Playwright.** Compose `eyesFixtures` from `@variance-authority/eyes/playwright`
-  into the suite's existing extension, and add `@variance-authority/eyes/reporter`
-  with an `archive` path to the config's reporters. The reporter folds every
-  worker's journals into that archive. The fixture installs the React commit tap
-  before navigation.
-- **React Testing Library.** Start `watchTest` from `@variance-authority/eyes/rtl`
-  in per-test setup. Publish its closed journal with `recordEyesTest` from
-  `@variance-authority/eyes/collect`, and fold the run directory once in global
-  teardown with `gatherEyesArchive` and `writeEyesArchive` from the same
-  entrypoint. That pair writes the `eyes.json` that [distill](distill.md) reads.
-  The React commit tap must be installed before `react-dom` loads.
+- **Playwright.** In a suite whose config is wrapped in `withTestSelection`,
+  compose `eyesFixtures` from `@variance-authority/eyes/playwright` after
+  `varianceFixtures` from `@variance-authority/playwright-test`. Each attempt's
+  journal lands in the record under its case, which is what
+  [distill](distill.md) reads. The fixture installs the React commit tap before
+  navigation.
+- **React Testing Library.** Start `watchTest(screen)` from
+  `@variance-authority/eyes/rtl` in per-test setup and close it in teardown. In
+  a recording run, the Vitest, Jest and Rstest seams hand the journal to the
+  case under its attempt, and the record keeps it. In a run that does not
+  record, `close` returns the journal and hands it to no case, so no record has
+  it. The React commit tap must be installed before `react-dom` loads.
 
 In either host, declare `arrange`, `act` and `assert` with the adapter log's
 `phase(...)`; do not infer them from query or click names. Read the README of

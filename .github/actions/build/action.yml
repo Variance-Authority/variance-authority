@@ -20,6 +20,14 @@ description: >-
 # image, and a binary linked against a newer glibc than the host's does not load
 # there; the runner's OS name alone does not tell those two apart. A host with
 # no `ldd` names `none`.
+#
+# The tree id is also this action's output, for a step that asks the same
+# question of the crate: `check.yml` skips the crate's unit tests on it.
+
+outputs:
+  native-tree:
+    description: git's tree id for `packages/sense/native` at `HEAD`.
+    value: ${{ steps.native.outputs.tree }}
 
 runs:
   using: composite
