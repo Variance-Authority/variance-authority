@@ -33,6 +33,7 @@ import { coveringAnswer, formatCoveringAnswer } from './covering-suites.js';
 import { distillFiles, formatDistill } from './distill.js';
 import { followUpsOutput, indexOutput } from './index-command.js';
 import type { Detach } from './index-follow-ups.js';
+import { pruneOutput } from './prune-cache.js';
 import { reachOutput } from './reach-command.js';
 import { reviewWithCoverage } from './review-evidence.js';
 import { REVIEW_ARTIFACT, reviewFromRun } from './review-from-run.js';
@@ -44,7 +45,7 @@ import { watch, watching as watchingLines } from './watch.js';
 /** The nine commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'reach' }
+  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'reach' | 'prune' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -60,6 +61,7 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     || parsed.command === 'index'
     || parsed.command === 'select'
     || parsed.command === 'reach'
+    || parsed.command === 'prune'
   );
 }
 
@@ -262,6 +264,15 @@ export async function answerConfigless(
       streams.err(said.err);
       streams.out(said.out);
       return EXIT_CLEAN;
+    }
+
+    // The cache is the repository's, named by its root config or by
+    // `VARIANCE_AUTHORITY_CACHE`, and a checkout whose tests another runner
+    // records has it whether or not a visual suite is configured.
+    case 'prune': {
+      const { text, exit } = await pruneOutput();
+      streams.out(text);
+      return exit;
     }
   }
 }

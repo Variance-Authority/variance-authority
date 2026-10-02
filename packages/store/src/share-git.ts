@@ -176,6 +176,23 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
     return missOf(ran);
   }
 
+  /**
+   * Where the remote holds `ref` now, `''` when it holds none, or `undefined`
+   * when it did not answer.
+   *
+   * A refused push is a lost race only when the line moved, and the remote is
+   * the one that knows. Its words do not say: the lease git checks against the
+   * advertisement reads `[rejected] (stale info)`, but a line that moves while
+   * the pack uploads is refused at the remote's own ref update, in whatever
+   * words the host uses, beside a hook that declined or a ref it protects.
+   */
+  async function remoteAt(ref: string): Promise<string | undefined> {
+    const ran = await git(['ls-remote', '--refs', REMOTE, ref]);
+    if (ran.code !== 0) return undefined;
+    const held = text(ran.stdout).split('\n').find((row) => row.endsWith(`\t${ref}`));
+    return held === undefined ? '' : held.split('\t')[0]!;
+  }
+
   return {
     async load(line) {
       const ref = refOf(line);
@@ -245,7 +262,8 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       ]);
       await rm(shallow, { force: true });
       if (pushed.code !== 0) {
-        if (/stale info|\[rejected\]|fetch first|already exists/i.test(text(pushed.stdout) + pushed.stderr)) return 'conflict';
+        const now = await remoteAt(ref);
+        if (now !== undefined && now !== (write.expected ?? '')) return 'conflict';
         return missOf(pushed);
       }
       await git(['update-ref', ref, sha]);

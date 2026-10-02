@@ -16,26 +16,23 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { readFile, readdir, rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { askedForStories } from '../story/directory.js';
-import journalFormat from './journal-format.cjs';
 import { freshCases } from './case-fold.js';
 import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
-import { noteAnEmptyRecord, reportedDuration } from './finished-files.js';
+import { noteAnEmptyRecord, readJournals, reportedDuration } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { landRun } from './commit-runs.js';
-import { cacheRootFor, markCheckout } from './cache-layers.js';
-import { prunedLine, pruneWhenDue } from './prune.js';
+import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import {
   codeUnitOrder,
   crossingsOf,
-  isMissing,
   loadedOf,
   projectPath,
   readRecords,
@@ -248,9 +245,6 @@ class JestCoverageReporter {
     else noteABusyIndex(coverageFile);
     if (caseDirectory !== undefined) await rm(caseDirectory, { recursive: true, force: true });
     await rm(runDirectory, { recursive: true, force: true });
-    // After the lock is released, and at most once a day: see `prune.ts`.
-    const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));
-    if (pruned !== '') console.warn(pruned);
   }
 }
 
@@ -358,19 +352,6 @@ function projectPreconditions(config: JestTestContext['config']): readonly strin
     !file.split(sep).includes('node_modules') &&
     file !== SELECTION_GLOBALS &&
     file !== SELECTION_SETUP);
-}
-
-async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
-  }
-  return Promise.all(
-    names.map(async (name) => journalFormat.decodeJournal(await readFile(resolve(directory, name)))),
-  );
 }
 
 export { JestCoverageReporter as default };

@@ -414,6 +414,27 @@ export function codeUnitOrder(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+/**
+ * Every file in a directory, as its bytes, ordered by what they hold; nothing
+ * where there is no directory.
+ *
+ * What concurrent processes wrote carries no order of its own — no clock
+ * orders two workers the same way twice — and a reader that folds it sums,
+ * joins and lists in the order it reads. Its bytes are the one order that is
+ * the same in every run that wrote the same things.
+ */
+export async function readWritten(directory: string): Promise<readonly Buffer[]> {
+  let names: readonly string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    if (isMissing(error)) return [];
+    throw error;
+  }
+  const written = await Promise.all(names.map((name) => readFile(resolve(directory, name))));
+  return written.sort(Buffer.compare);
+}
+
 export function isMissing(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }

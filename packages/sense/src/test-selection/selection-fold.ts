@@ -38,8 +38,7 @@ import {
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { removeSeamModules, type SelectionRun } from './selection-run.js';
 import { governingPreconditions } from './governing-config.js';
-import { cacheRootFor, markCheckout } from './cache-layers.js';
-import { prunedLine, pruneWhenDue } from './prune.js';
+import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import {
   noteSeeded,
@@ -181,9 +180,6 @@ export function foldRun(
       // A watching runner loads them again for every rerun; its close takes them off.
       if (!run.watching) removeSeamModules(run, destination.shims);
     }
-    // After the lock is released, and at most once a day: see `prune.ts`.
-    const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));
-    if (pruned !== '') console.warn(pruned);
   };
 }
 

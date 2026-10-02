@@ -719,7 +719,11 @@ Tribunal deployment is an `http` share.
   fetches commits and trees, and an image only when something opens it, so a
   publish over a record that names a thousand images downloads none of them and
   sends only the images the remote does not have. A publish pushes with
-  `--force-with-lease`.
+  `--force-with-lease`. When the remote refuses the push, the publish asks it
+  where the line is now. A line at another commit than the one the publish read
+  is another writer's, and the publish reads it again. A line that has not
+  moved means the remote refused the push for another reason, and the publish
+  reports git's message.
 - **It authenticates with your global and system git configuration**, with
   the `http.extraheader` your clone has for that remote, which is where
   `actions/checkout` writes its token, and with git configuration in the
