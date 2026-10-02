@@ -16,7 +16,7 @@
  */
 
 import type { ModuleId } from '../instrument/index.js';
-import { reconcileRegions, wholeFile, type RegionShape } from './execution-merge.js';
+import { reconcileRegions, type RegionShape } from './execution-merge.js';
 import { codeUnitOrder, type CapturedModule, type ReadJournal } from './instrumented-modules.js';
 import { isWritten } from './written-lines.js';
 import type { CoverageBlock } from './index.js';
@@ -71,7 +71,7 @@ export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>): Jo
     const placed = read.map((module) => module.blocks.filter(isWritten));
     const whole = (shape: RegionShape): Placed => ({ ...shape, kind: 'module', ordinal: 0, digest: sourceDigest, testFiles: [] });
     const { blocks, lands } = reconcileRegions<Placed>(placed, whole);
-    const { record, from } = rooted(blocks, placed, () => whole(wholeFile(placed, placed[0]![0])));
+    const { record, from } = rooted(blocks, placed);
     joined.set(id, { file, id, sourceDigest, instrumented: true, blocks: record });
     for (const [at, each] of ids.entries()) {
       const own: (number | undefined)[] = [];
@@ -90,13 +90,14 @@ export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>): Jo
  * A kept block is one inventory's own object, and its owners are that
  * inventory's, which come before it. The module is the base's when every
  * reading cut it alike, and otherwise the region the join cut spanning the
- * file, made here when no reading's region needed it. `from` is each joined
- * block's place in the record.
+ * file. The join always cut one then: a reading's module holds every region
+ * that reading cut, so a shared region holding it spans the module's lines in
+ * every reading, and two modules on the same lines are the same region. `from`
+ * is each joined block's place in the record.
  */
 function rooted(
   blocks: readonly Placed[],
   inventories: readonly (readonly Placed[])[],
-  spanning: () => Placed,
 ): { readonly record: CoverageBlock[]; readonly from: readonly number[] } {
   const ownersOf = new Map<Placed, ReadonlyMap<number, Placed>>();
   for (const inventory of inventories) {
@@ -105,8 +106,7 @@ function rooted(
   }
   const first = blocks[0];
   const kept = first !== undefined && first.kind === 'module' && first.owner === undefined && ownersOf.has(first);
-  const cut = blocks.findIndex((block) => !ownersOf.has(block));
-  const root = kept ? first : cut >= 0 ? blocks[cut]! : spanning();
+  const root = kept ? first : blocks.find((block) => !ownersOf.has(block))!;
   const ordered = [root, ...blocks.filter((block) => block !== root)];
   const at = new Map<Placed, number>(ordered.map((block, index) => [block, index]));
   const from = blocks.map((block) => at.get(block)!);

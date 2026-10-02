@@ -78,6 +78,29 @@ describe('mergeExecutionIndexes', () => {
     ]);
   });
 
+  it('reads a region no shared region encloses at one region spanning the file', () => {
+    const outer = { kind: 'function', name: 'outer', path: 'outer', startLine: 2, endLine: 10, source: true } as const;
+    const shard = (id: string, endLine: number, distance: number): ExecutionIndex => ({
+      tests: [{ id, file: `${id}.test.ts`, name: id }],
+      modules: [{
+        file: 'src/subject.ts',
+        blocks: [
+          { kind: 'module', name: '', path: '', startLine: 1, endLine, source: true, crossings: [{ test: 0, distance }] },
+          { ...outer, crossings: [] },
+        ],
+      }],
+    });
+    const merged = mergeExecutionIndexes([shard('short', 20, 0), shard('long', 22, 1)]);
+    expect(merged).toEqual(mergeExecutionIndexes([shard('long', 22, 1), shard('short', 20, 0)]));
+    expect(merged.modules[0]!.blocks).toEqual([
+      { ...outer, crossings: [] },
+      {
+        kind: 'module', name: '', path: '', startLine: 1, endLine: 22, source: true,
+        crossings: [{ test: 0, distance: 1 }, { test: 1, distance: 0 }],
+      },
+    ]);
+  });
+
   it('keeps what every run of a case named, so two runs that disagree at one level read as a contradiction', () => {
     const run = (preconditions?: ExecutionIndex['tests'][number]['preconditions']): ExecutionIndex => ({
       tests: [{ id: 'alpha', file: 'alpha.test.ts', name: 'alpha', ...(preconditions === undefined ? {} : { preconditions }) }],
