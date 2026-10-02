@@ -74,6 +74,11 @@ export interface ObservedCase {
   readonly stopped?: boolean;
   /** {@link ExecutionTest.duration}: the runner's milliseconds, summed over the attempts this source saw. */
   readonly duration?: number;
+  /**
+   * What the case said it arranged, as {@link CaseJournal.said}: sites named
+   * from the checkout, absent where the driver never listened.
+   */
+  readonly said?: CaseJournal['said'];
   readonly journal: ExecutionJournal;
 }
 
@@ -194,6 +199,7 @@ export function caseJournals(cases: readonly ObservedCase[]): readonly CaseJourn
       id: observed.id,
       ...(observed.stopped === undefined ? {} : { stopped: observed.stopped }),
       ...(observed.duration === undefined ? {} : { duration: observed.duration }),
+      ...(observed.said === undefined ? {} : { said: observed.said }),
       modules: observed.journal.modules,
     })),
     ...files.map((file) => ({ file, name: AMBIENT, id: AMBIENT, modules: shared })),

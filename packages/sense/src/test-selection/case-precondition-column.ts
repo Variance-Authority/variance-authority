@@ -1,5 +1,56 @@
+import { isAbsolute } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import preconditions from './case-preconditions.cjs';
 import { column, type Stored } from './format-layout.js';
+import { projectPath } from './instrumented-modules.js';
 import type { CasePrecondition, ExecutionTest } from './reverse.js';
+
+/** What a frame owner carries: the calls as the realm heard them. */
+export type Said = NonNullable<ReturnType<typeof preconditions.saidOf>>;
+
+/**
+ * Every call a case's frames carried, joined: undefined until a frame carries
+ * the field, and the calls of every frame after.
+ */
+export function heardAcross(held: Said | undefined, said: Said | undefined): Said | undefined {
+  if (said === undefined) return held;
+  return held === undefined ? said : [...held, ...said];
+}
+
+/** A joined case's calls, as the field a journal holds, or no field where no frame listened. */
+export function heardOf(said: Said | undefined): { readonly said?: Said } {
+  return said === undefined ? {} : { said };
+}
+
+/**
+ * A case's row from the calls its frames carried, each site named from the
+ * checkout: a realm spells the file as its stack does — a path, a `file:` URL,
+ * or a dev server's `/@fs/` URL — and the row names it as every other row names
+ * a file.
+ */
+export function preconditionsHeard(root: string, said: Said | undefined): { readonly preconditions?: readonly CasePrecondition[] } {
+  return said === undefined ? {} : { preconditions: preconditions.resolve(checkoutSaid(root, said)) };
+}
+
+/** The calls with each site named from the checkout, for a reader that resolves them later. */
+export function checkoutSaid(root: string, said: Said): Said {
+  return said.map(([name, value, site, level]) => [name, value, checkoutSite(root, site), level]);
+}
+
+function checkoutSite(root: string, site: string): string {
+  const colon = site.lastIndexOf(':');
+  if (colon <= 0) return site;
+  let file = site.slice(0, colon);
+  if (file.startsWith('file:')) file = fileURLToPath(file);
+  else if (/^https?:/u.test(file)) {
+    const served = /\/@fs(\/.*)$/u.exec(new URL(file).pathname);
+    // FIXME: a browser realm's site served from the dev server's root, not
+    // `/@fs/`, keeps its URL — needs the server's root to name the file.
+    if (served === null) return site;
+    file = decodeURIComponent(served[1]!);
+  }
+  return isAbsolute(file) ? `${projectPath(root, file)}${site.slice(colon)}` : site;
+}
 
 /**
  * The case index's column of named preconditions, one word per case.

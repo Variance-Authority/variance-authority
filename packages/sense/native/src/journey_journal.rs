@@ -430,9 +430,12 @@ pub fn unpack_case(packed: &str) -> (&str, &str, &str, u8) {
 
 /// The journey a frame belongs to: the fifth field of its owner, after the
 /// settling, empty when the case never handed one out. `packJourney` in
-/// `journal-format.cts`.
+/// `journal-format.cts`. A sixth field, what the case said it arranged
+/// (`packSaid` in `case-preconditions.cts`), is not part of it.
+// FIXME: the native fold drops the sixth field, so a journey artifact's cases
+// carry no preconditions — needs `resolve` from `case-preconditions.cts` here.
 pub fn journey_of(packed: &str) -> &str {
-    packed.splitn(5, '\0').nth(4).unwrap_or("")
+    packed.split('\0').nth(4).unwrap_or("")
 }
 
 pub fn project_path(root: &Path, file: &str) -> String {
