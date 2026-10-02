@@ -294,7 +294,7 @@ describe('a worker that is one of several', () => {
       );
       await recorder.close();
 
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((test) => test.name).sort()).toEqual([
         'pays with a new card',
         'pays with a saved card',
@@ -322,7 +322,7 @@ describe('a worker that is one of several', () => {
       }
       await recorder.close();
 
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((one) => one.duration)).toEqual([200]);
       expect((await readTestCoverage(coverageFile)).tests[0]!.duration).toBe(200);
     });

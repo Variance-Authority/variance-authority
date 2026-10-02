@@ -7,9 +7,11 @@ import { publishLine } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
+  caseSectionsAt,
   commitRunsFile,
   encodeExecutionIndex,
   testCoverageFile,
+  withCaseSections,
   writeTestCoverage,
   type ExecutionBlock,
   type ExecutionIndex,
@@ -198,8 +200,7 @@ export async function publishRaw(home: string, dir: string, commit: string): Pro
   const cell = await lineCellOf(shareConfig(home));
   if (cell === undefined || !('load' in cell)) throw new Error(`the share in ${home} is not a line cell: ${JSON.stringify(cell)}`);
   const record = testCoverageFile(dir, { suite: 'unit' });
-  const cases = await readFile(`${record}.cases.bin`).catch(() => undefined);
-  const bytes = frame([['coverage.bin', await readFile(record)], ...(cases === undefined ? [] : [['coverage.bin.cases.bin', cases] as const])]);
+  const bytes = frame([['coverage.bin', await readFile(record)]]);
   const done = await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: suiteEntry('unit'), commit, bytes }], {
     descends: async () => undefined,
     image: async (digest) => { throw new Error(`no image ${digest}`); },
@@ -255,7 +256,7 @@ export async function recordIn(
       }],
     }],
   });
-  await writeFile(`${record}.cases.bin`, encodeExecutionIndex(casesOf(cases)));
+  await keepCases(record, casesOf(cases));
 }
 
 /**
@@ -270,10 +271,15 @@ export async function ranWhole(record: string, commit: string): Promise<void> {
   await writeFile(commitRunsFile(record), `${JSON.stringify(runs, null, 2)}\n`);
 }
 
-/** Both test files whole, and `src/total.ts` as one module block `total.test.ts` entered. */
+/**
+ * Both test files whole, and `src/total.ts` as one module block `total.test.ts`
+ * entered, over the coverage CI recorded. The cases that run kept stay in the
+ * record, as they stayed when a later run rewrote its coverage alone.
+ */
 export async function wholeRecord(dir: string): Promise<void> {
   const record = testCoverageFile(dir, { suite: 'unit' });
   const commit = await git(dir, 'rev-parse', 'HEAD');
+  const cases = caseSectionsAt(record);
   await writeTestCoverage(record, {
     version: 3,
     instrumentation: 'fixture',
@@ -291,7 +297,7 @@ export async function wholeRecord(dir: string): Promise<void> {
         startLine: 1, endLine: 3, source: true, testFiles: ['test/total.test.ts'],
       }],
     }],
-  });
+  }, cases);
 }
 
 /**
@@ -321,12 +327,17 @@ export async function ranHere(dir: string, at: string): Promise<void> {
       }],
     }],
   });
-  await writeFile(`${record}.cases.bin`, encodeExecutionIndex(casesOf([DISCOUNTS, ROUNDS])));
+  await keepCases(record, casesOf([DISCOUNTS, ROUNDS]));
   await writeFile(commitRunsFile(record), JSON.stringify({
     commit: at, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1, files: ['test/total.test.ts'],
   }));
   // What the pipeline's `variance index` step publishes after the run; under CI, review refuses to build it itself.
   await updateSourceIndex(dir);
+}
+
+/** `index`, kept in the record at `record` the way a run keeps its cases. */
+async function keepCases(record: string, index: ExecutionIndex): Promise<void> {
+  await writeFile(record, withCaseSections(await readFile(record), { index: encodeExecutionIndex(index) }));
 }
 
 function casesOf(tests: readonly (typeof DISCOUNTS)[]): ExecutionIndex {

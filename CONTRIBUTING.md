@@ -167,9 +167,8 @@ zod's suite — 5,656 cases, ten interleaved repetitions of each arm, median of
 the runner's own `tests` figure — it spends 6.1% more time inside the tests
 than a file-level recording, and 3.5% more on TanStack Query. Instrumenting at
 all is the larger half: 6.9% on zod and 4.0% on TanStack Query over an
-uninstrumented run. The index lands beside the snapshot as
-`<coverage file>.cases.bin` and is a couple of hundred kilobytes on this
-repository.
+uninstrumented run. The index lands in the record, as a section of the
+coverage file, and is a few hundred kilobytes on this repository.
 
 Add `continuations: true` to `selection` in
 [`vitest.config.mts`](vitest.config.mts) when a case's work outlives the case —

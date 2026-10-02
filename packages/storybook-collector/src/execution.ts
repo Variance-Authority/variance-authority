@@ -45,15 +45,6 @@ export interface StoryExecutionOptions {
   /** The suite this run is, as the root `variance.config.json` declares it under `suites`. */
   readonly suite?: string;
   /**
-   * Where the execution index — which individual story entered which region —
-   * goes. Defaults beside the snapshot, as the Vitest seam's does.
-   *
-   * A story is the case this costs nothing to name: the driver shows one at a
-   * time, so the per-case grain a unit runner needs a custom runner for is
-   * already here.
-   */
-  readonly executionFile?: string;
-  /**
    * The probe recipe the preview was built with, matching
    * `testSelectionProbes()`'s `mode`. `presence` when absent, as it is there.
    *
@@ -208,9 +199,6 @@ export async function createStoryRecorder(
           ...(cases.length === 0
             ? {}
             : { cases: zip(cases.map((one) => one.observed), timedOnce(cases.map((one) => one.subject), costs)) }),
-          ...(options.executionFile === undefined
-            ? {}
-            : { executionFile: resolve(ran, options.executionFile) }),
         });
       } catch (error) {
         process.stderr.write(

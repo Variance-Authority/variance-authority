@@ -24,7 +24,6 @@ import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
   askCoverageFile,
-  caseLayerFiles,
   changedLines,
   coveringChange,
   distanceToSource,
@@ -44,7 +43,7 @@ import { landingRecord, recordedSuite } from './suite-record.js';
 import type { ParsedReview } from '../review-args.js';
 import { regionState } from './covering-frame.js';
 import { motionAgainst, motionOfRuns, runsWrote, type CoveringMotion } from './covering-motion.js';
-import { readExecutionFor, readExecutionIndex, recordedExecutionFile } from './execution-input.js';
+import { readExecutionFor, readExecutionIndex, recordedExecutionFile, replacedCases } from './execution-input.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineBase, mainlineMissed, type MainlineRecord } from './mainline-base.js';
 import { packagesReached, type PackageReach } from './review-install.js';
@@ -424,10 +423,10 @@ async function baseIndex(
   from: string,
   mainline: MainlineRecord | undefined,
 ): Promise<ExecutionIndex | undefined> {
+  if (against === undefined) return replacedCases(from);
   try {
-    return await readExecutionIndex(against ?? caseLayerFiles(from).before);
+    return await readExecutionIndex(against);
   } catch (error) {
-    if (against === undefined) return undefined;
     const named = mainline === undefined
       ? `\`--against ${against}\``
       : `the cases mainline ${mainline.mainline} published with its record of "${mainline.suite}", kept at ${against},`;

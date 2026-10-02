@@ -14,12 +14,12 @@ const UNIT: Coverage = {
   at: '0b5b312c',
   count: { regions: 29010, files: 836, run: 24697, load: 138, none: 4175, unjoined: 0, suites: [{ name: 'unit', kind: 'unit', run: 24697, load: 138, regions: 29010 }] },
   base: { regions: 29010, files: 836, run: 24695, load: 138, none: 4177, unjoined: 0, suites: [{ name: 'unit', kind: 'unit', run: 24695, load: 138, regions: 29010 }] },
-  suites: [{ suite: 'unit', kind: 'unit', from: 'unit.cases.bin', recorded: '0b5b312c', base: { from: 'base.cases.bin', commit: 'cc25d6a6', change: CHANGE } }],
+  suites: [{ suite: 'unit', kind: 'unit', from: 'unit.bin', recorded: '0b5b312c', base: { from: 'base.bin', commit: 'cc25d6a6', change: CHANGE } }],
 };
 const INTEGRATION: Coverage = {
   at: '0b5b312c',
   count: { regions: 21848, files: 582, run: 3323, load: 483, none: 18042, unjoined: 0, suites: [{ name: 'integration', kind: 'integration', run: 3323, load: 483, regions: 21848 }] },
-  suites: [{ suite: 'integration', kind: 'integration', from: 'integration.cases.bin', baseMissed: 'no base: integration is not given to the share' }],
+  suites: [{ suite: 'integration', kind: 'integration', from: 'integration.bin', baseMissed: 'no base: integration is not given to the share' }],
 };
 const REVIEW: Review = {
   from: 'cc25d6a6', base: 'since', record: 'ran', files: [], suite: 679,

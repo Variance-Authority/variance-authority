@@ -10,10 +10,10 @@
  * A test file is every case of that file.
  */
 
-import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
-  caseLayerFiles,
+  caseSectionsAt,
+  lastCaseRunOf,
   type ExecutionIndex,
   type LastCaseRun,
 } from '@variance-authority/sense/test-selection';
@@ -37,7 +37,7 @@ export async function scopeCases(
   root: string,
 ): Promise<{ readonly index: ExecutionIndex; readonly scope: CoveringScope }> {
   if (cases === 'last') {
-    const last = await lastRun(from);
+    const last = lastRun(from);
     return {
       index: keepCases(index, new Set(last.cases)),
       scope: { cases, tests: last.cases, ...(last.commit === undefined ? {} : { at: last.commit }) },
@@ -78,17 +78,22 @@ export function keepCases(index: ExecutionIndex, ids: ReadonlySet<string>): Exec
   };
 }
 
-async function lastRun(from: string): Promise<LastCaseRun> {
-  const file = caseLayerFiles(from).last;
+function lastRun(from: string): LastCaseRun {
+  let last: LastCaseRun | undefined;
   try {
-    return JSON.parse(await readFile(file, 'utf8')) as LastCaseRun;
+    last = lastCaseRunOf(caseSectionsAt(from));
   } catch (error) {
     throw new OperatorError(
-      `\`--cases last\` reads the run that wrote the index last from \`${file}\`, and it could not be read (${
+      `\`--cases last\` reads the run that wrote the index last from the record \`${from}\`, and it could not be read (${
         error instanceof Error ? error.message : String(error)
-      }). A run records it beside the index; run a test file and ask again.`,
+      }).`,
     );
   }
+  if (last !== undefined) return last;
+  throw new OperatorError(
+    `\`--cases last\` reads the run that wrote the index last from the record \`${from}\`, and it names none. ` +
+      'A run of this checkout names itself in the record; run a test file and ask again.',
+  );
 }
 
 /** The test file as the index spells it, whether it was given that way or from here. */

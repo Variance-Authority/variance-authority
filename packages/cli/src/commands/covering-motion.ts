@@ -12,13 +12,13 @@
  */
 
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import {
   anyStopped,
-  caseLayerFiles,
   caseMotion,
+  caseSectionsAt,
+  decodeExecutionIndex,
   recordedCommit,
   type CaseMotion,
   type CommitRuns,
@@ -101,9 +101,8 @@ export type RunsWrote =
   | { readonly lastRunUnread: string };
 
 export async function runsWrote(from: string, runs: CommitRuns): Promise<RunsWrote> {
-  const file = caseLayerFiles(from).last;
-  const last = await lastRun(file);
-  if (last === 'unreadable') return { lastRunUnread: file };
+  const last = lastRun(from);
+  if (last === 'unreadable') return { lastRunUnread: from };
   if (last === undefined) return { compared: new Set(runs.files) };
   if (last.commit === undefined || last.commit !== runs.commit) return { compared: new Set(), unwritten: [...runs.files] };
   const written = new Set(last.files);
@@ -145,13 +144,13 @@ export async function motionOfLast(
   file?: string,
   since?: string,
 ): Promise<CoveringMotion> {
-  const last = await lastRun(caseLayerFiles(from).last);
+  const last = lastRun(from);
   const at = last === 'unreadable' ? undefined : last?.before;
   return againstBefore(full, from, cases, root, { at, file, since });
 }
 
 /**
- * Cases against the before layer beside the case index. Given `files`, only
+ * Cases against the before layer the record keeps. Given `files`, only
  * those test files' cases are read on either side, so a file the layer holds
  * and the cases asked about leave out is not read as lost.
  */
@@ -167,17 +166,18 @@ async function againstBefore(
     readonly files?: ReadonlySet<string>;
   },
 ): Promise<CoveringMotion> {
-  const layers = caseLayerFiles(from);
   const parting = at === undefined || since === undefined ? undefined : await movedOnBase(at, since, root);
   const base: MotionBase = {
-    from: layers.before,
+    from,
     kind: 'before',
     ...(at === undefined ? {} : { at }),
     ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }),
   };
   let held: ExecutionIndex;
   try {
-    held = await readExecutionIndex(layers.before);
+    const before = caseSectionsAt(from).before;
+    if (before === undefined) return { base };
+    held = decodeExecutionIndex(before);
   } catch {
     return { base };
   }
@@ -195,7 +195,7 @@ export function keepFiles(index: ExecutionIndex, files: ReadonlySet<string>): Ex
 
 /**
  * The runs at one commit against the cases they replaced. Only a run that
- * wrote the case index laid a before layer beside it, so only the files
+ * wrote the case index laid a before layer in the record, so only the files
  * {@link runsWrote} found written are compared, and the rest are said.
  */
 export async function motionOfRuns(
@@ -205,7 +205,7 @@ export async function motionOfRuns(
   root: string,
   since?: string,
 ): Promise<CoveringMotion> {
-  const base: MotionBase = { from: caseLayerFiles(from).before, kind: 'before' };
+  const base: MotionBase = { from, kind: 'before' };
   if ('lastRunUnread' in wrote) return { base, lastRunUnread: wrote.lastRunUnread };
   // A file the index holds no case of had nothing to compare: its run wrote no
   // case because it recorded none, and no earlier run left one either. A suite
@@ -422,25 +422,27 @@ async function graphFor(now: ExecutionIndex, root: string) {
 
 /** The commit a base was recorded at: its last run's, or its snapshot's. */
 export async function baseCommit(against: string): Promise<string | undefined> {
-  // No last run beside it: the snapshot it sits beside may still say.
-  const last = await lastRun(caseLayerFiles(against).last);
+  // No last run in it: the record may still say.
+  const last = lastRun(against);
   if (last !== undefined && last !== 'unreadable' && last.commit !== undefined) return last.commit;
-  return against.endsWith('.cases.bin') ? recordedCommit(against.slice(0, -'.cases.bin'.length)) : undefined;
+  return recordedCommit(against);
 }
 
 /**
- * The run that wrote an index last: `undefined` when no run named itself
- * there, and `unreadable` when the file is there and does not read as one.
+ * The run that wrote a record's case index last: `undefined` when no run
+ * named itself there, and `unreadable` when the record or its name does not
+ * read.
  */
-async function lastRun(file: string): Promise<LastCaseRun | 'unreadable' | undefined> {
-  let text: string;
+function lastRun(record: string): LastCaseRun | 'unreadable' | undefined {
+  let last: Uint8Array | undefined;
   try {
-    text = await readFile(file, 'utf8');
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? undefined : 'unreadable';
+    last = caseSectionsAt(record).last;
+  } catch {
+    return 'unreadable';
   }
+  if (last === undefined) return undefined;
   try {
-    const run = JSON.parse(text) as Partial<LastCaseRun> | null;
+    const run = JSON.parse(Buffer.from(last).toString('utf8')) as Partial<LastCaseRun> | null;
     return typeof run === 'object' && run !== null && Array.isArray(run.files) ? run as LastCaseRun : 'unreadable';
   } catch {
     return 'unreadable';

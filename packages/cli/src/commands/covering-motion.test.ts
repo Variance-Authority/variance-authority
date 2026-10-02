@@ -7,8 +7,8 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
-  caseLayerFiles,
   encodeExecutionIndex,
+  writeTestCoverage,
   type CommitRuns,
   type ExecutionBlock,
   type ExecutionIndex,
@@ -46,15 +46,29 @@ async function records(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'variance-covering-motion-'));
 }
 
+/**
+ * A record at `file` holding `now` as its case index, with the before layer
+ * and the last run's name when given, the way a run keeps them. It holds no
+ * coverage of its own: the question here reads only its cases.
+ */
+async function keep(file: string, now: ExecutionIndex, layers: { readonly before?: ExecutionIndex; readonly last?: object } = {}): Promise<void> {
+  await writeTestCoverage(file, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+    index: encodeExecutionIndex(now),
+    ...(layers.before === undefined ? {} : { before: encodeExecutionIndex(layers.before) }),
+    ...(layers.last === undefined ? {} : { last: Buffer.from(JSON.stringify(layers.last)) }),
+  });
+}
+
 describe('what the last run moved', () => {
   it('compares the last run with the cases it retired, and names what a test stopped calling', async () => {
     const dir = await records();
-    const execution = join(dir, 'cases.bin');
-    await writeFile(execution, encodeExecutionIndex(index([0, 1], [1])));
-    await writeFile(caseLayerFiles(execution).last, JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] }));
-    await writeFile(caseLayerFiles(execution).before, encodeExecutionIndex({ tests: [DISCOUNTS], modules: [
-      { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [0])] },
-    ] }));
+    const execution = join(dir, 'coverage.bin');
+    await keep(execution, index([0, 1], [1]), {
+      last: { at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: { tests: [DISCOUNTS], modules: [
+        { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [0])] },
+      ] },
+    });
 
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
@@ -67,9 +81,8 @@ describe('what the last run moved', () => {
 
   it('says there was nothing to compare when no run came before', async () => {
     const dir = await records();
-    const execution = join(dir, 'cases.bin');
-    await writeFile(execution, encodeExecutionIndex(index([0], [])));
-    await writeFile(caseLayerFiles(execution).last, JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: [], cases: [DISCOUNTS.id] }));
+    const execution = join(dir, 'coverage.bin');
+    await keep(execution, index([0], []), { last: { at: '2026-09-25T00:00:00.000Z', files: [], cases: [DISCOUNTS.id] } });
 
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
@@ -84,15 +97,16 @@ describe('what the runs at one commit moved', () => {
     // selected file again. `flow.test.tsx` ran once, over no index, so no case
     // of it came before, and `round`, which only it enters, gained nothing.
     const dir = await records();
-    const execution = join(dir, 'cases.bin');
+    const execution = join(dir, 'coverage.bin');
     const full = index([0], [1]);
-    await writeFile(execution, encodeExecutionIndex(full));
-    await writeFile(caseLayerFiles(execution).last, JSON.stringify({
-      commit: 'c', at: '2026-09-25T00:00:00.000Z', files: ['flow.test.tsx', 'total.test.ts'], unbased: ['flow.test.tsx'], cases: [DISCOUNTS.id],
-    }));
-    await writeFile(caseLayerFiles(execution).before, encodeExecutionIndex({ tests: [DISCOUNTS], modules: [
-      { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [])] },
-    ] }));
+    await keep(execution, full, {
+      last: {
+        commit: 'c', at: '2026-09-25T00:00:00.000Z', files: ['flow.test.tsx', 'total.test.ts'], unbased: ['flow.test.tsx'], cases: [DISCOUNTS.id],
+      },
+      before: { tests: [DISCOUNTS], modules: [
+        { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [])] },
+      ] },
+    });
 
     const wrote = await runsWrote(execution, { commit: 'c', files: ['flow.test.tsx', 'total.test.ts'] } as CommitRuns);
     const motion = await motionOfRuns(full, execution, wrote, dir);
@@ -129,11 +143,10 @@ describe('what a change moved against the base', () => {
 
   async function recorded(base: ExecutionIndex, now: ExecutionIndex, commit: string) {
     const dir = await records();
-    const against = join(dir, 'base.cases.bin');
-    await writeFile(against, encodeExecutionIndex(base));
-    await writeFile(caseLayerFiles(against).last, JSON.stringify({ commit, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] }));
-    const execution = join(dir, 'cases.bin');
-    await writeFile(execution, encodeExecutionIndex(now));
+    const against = join(dir, 'base.bin');
+    await keep(against, base, { last: { commit, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] } });
+    const execution = join(dir, 'coverage.bin');
+    await keep(execution, now);
     // The pipeline step a CI run needs before `--since`, taken the way a pipeline takes it.
     await indexOutput({ cwd: process.cwd() });
     return { against, execution };
@@ -200,13 +213,12 @@ describe('what a change moved against the base', () => {
     git(root, ['commit', '--quiet', '-am', 'main moves']);
     git(root, ['checkout', '--quiet', '-b', 'change']);
     const dir = await records();
-    const execution = join(dir, 'cases.bin');
+    const execution = join(dir, 'coverage.bin');
     const now = index([0], [1], []);
-    await writeFile(execution, encodeExecutionIndex(now));
-    await writeFile(caseLayerFiles(execution).before, encodeExecutionIndex(index([0], [1], [0])));
-    await writeFile(caseLayerFiles(execution).last, JSON.stringify({
-      commit: git(root, ['rev-parse', 'HEAD']), before: first, at: '2026-09-25T00:00:00.000Z', files: [], cases: [],
-    }));
+    await keep(execution, now, {
+      before: index([0], [1], [0]),
+      last: { commit: git(root, ['rev-parse', 'HEAD']), before: first, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] },
+    });
 
     const motion = await motionOfLast(now, execution, [DISCOUNTS.id, CHECKS_OUT.id], process.cwd(), undefined, 'main');
 

@@ -280,7 +280,7 @@ and each name selects the tests recorded under it.
 ### Options on the Vitest seam
 
 The optional second argument accepts `root`, `suite`, `coverageFile`,
-`include`, `preconditions`, `mode`, `continuations`, and `executionFile`.
+`include`, `preconditions`, `mode`, and `continuations`.
 
 | option | default | use it when |
 |---|---|---|
@@ -291,7 +291,6 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
-| `executionFile` | `<coverageFile>.cases.bin` | choosing where the per-case recording goes; a name ending `.json` writes JSON instead |
 
 The config file Vite loaded, the local modules it imports and the configured
 setup files become preconditions automatically, and the runtime's own setup file
@@ -531,7 +530,7 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
-`mode`, `continuations`, and `executionFile`, with the meanings above. Jest
+`mode`, and `continuations`, with the meanings above. Jest
 does not say which config file it loaded, so name it in `preconditions`. There
 is no `include`: product source is every
 JavaScript and TypeScript module the configuration's `testMatch` or `testRegex`
@@ -625,7 +624,7 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
-`preconditions`, `mode`, `continuations`, and `executionFile`, with the meanings
+`preconditions`, `mode`, and `continuations`, with the meanings
 above. Rstest does not say which config file it loaded, so name it in `preconditions`.
 The loader runs
 at `enforce: 'post'`, after SWC, and reads the block extents back through the
@@ -710,8 +709,8 @@ process.exitCode = failed ? 1 : 0;
 Each function has one place in your runner:
 
 - **`startRecording` goes in the process that starts the run.** It takes
-  `root`, `suite`, `coverageFile`, `preconditions`, `mode`, `continuations`
-  and `executionFile`, with the meanings they have on the Vitest seam. Name your
+  `root`, `suite`, `coverageFile`, `preconditions`, `mode` and
+  `continuations`, with the meanings they have on the Vitest seam. Name your
   runner's own files and configuration in `preconditions`: nothing loads them
   through a transform, so nothing else can tell a test's outcome depends on
   them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
@@ -1485,8 +1484,9 @@ the same union in any order:
 import { randomUUID } from 'node:crypto';
 import { rename, rm } from 'node:fs/promises';
 import {
+  caseSectionsAt,
   foldTestCoverage,
-  landCaseIndexes,
+  landCases,
   mergeCoverage,
   readTestCoverage,
   seedTestCoverage,
@@ -1514,10 +1514,9 @@ const landed = await withIndexLock(file, async () => {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
+  const { sections } = landCases(file, previous === undefined ? {} : caseSectionsAt(file), process.cwd(), shards);
   try {
-    await writeTestCoverage(staged, mergeCoverage(previous, suite));
-    const cases = await landCaseIndexes(file, process.cwd(), shards);
-    if ('busy' in cases) throw new Error(cases.reason);
+    await writeTestCoverage(staged, mergeCoverage(previous, suite), sections);
     await rename(staged, file);
   } finally {
     await rm(staged, { force: true });
@@ -1527,12 +1526,12 @@ if (!landed.held) throw new Error(`another process is writing ${file}`);
 ```
 
 Record each shard through the ordinary seams with `coverageFile` pointing at
-that job's artifact, upload the case index beside it, `<coverageFile>.cases.bin`,
-and fold the artifacts in a job of their own. `landCaseIndexes` merges each
-shard's cases into the index beside `file`, in the order the shards are named.
-If a shard ran a test file to the end and has no case index, it removes the
-index instead, because nothing can then say which of that file's cases ran a
-line.
+that job's artifact, and fold the artifacts in a job of their own. Each
+shard's record carries its cases, so the artifact is the one file. `landCases`
+lays each shard's cases over the ones `file` holds, in the order the shards
+are named, and returns them for the record you write. If a shard ran a test
+file to the end and kept no cases, it returns none, because nothing can then
+say which of that file's cases ran a line.
 
 In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
 and case index into the worktree's own record, so the fold lands over the
@@ -1559,12 +1558,9 @@ removes it, but only in the directories that hold a checkout's record:
 `file` anywhere else, it stays until you remove it.
 
 `withIndexLock` on `file` is the lock every seam takes to write the snapshot,
-so no run writes the snapshot while you land. `landCaseIndexes` takes the case
-index's own lock inside it. A seam takes the two one after the other, not one
-inside the other, so a landing can still run between a seam's snapshot and its
-cases. The snapshot then has the fold over that run and the index has the run
-over the fold, and for a test file both of them ran to the end, the two answer
-from different runs.
+so no run writes the record while you land. The cases are written in the same
+write as the coverage, under that lock, so the two always answer for the same
+runs.
 
 Folding refuses by name, on one rule: the result must not be able to say
 anything one run could not. Shards recorded under different probe recipes or at
@@ -1772,43 +1768,39 @@ distances into inclusive ranges; an indexed but unreached range has an empty
 range. Missing source returns no claim; an invalid test reference or distance
 throws.
 
-Every seam here writes an `ExecutionIndex` beside its snapshot. In the snapshot
+Every seam here writes an `ExecutionIndex` into its snapshot. In the snapshot
 a crossing joins the whole test file, which is the granularity selection
 spends; in the index it joins the case.
 
 ### Record which case covered a region
 
 Every run wrapped in `withTestSelection` — any seam — writes an
-`ExecutionIndex` at `<coverageFile>.cases.bin`, beside its snapshot. The
-snapshot's bytes do not depend on the index, so CI reads the same file to select
-test files. A run of some files replaces the cases of those files and keeps the
-rest, as the snapshot does. Beside the index, `cases.last.json` names the run
-that wrote it last, and `cases.before.bin` holds what the index had for that
-run's files before it. Runs at one commit add to `cases.before.bin` rather than
-replace it, so a suite split over several invocations keeps every file's
-replaced cases. `cases.last.json` names the commit those cases were recorded
-at under `before`, until a run at the same commit runs a file again. `caseMotion(base, now)` compares two indexes region by
+`ExecutionIndex` into the record at `coverageFile`, as its `cases` section, so
+the one file that is cached, layered, shared and sharded carries both. A record
+written without cases reads as one that kept none. A run of some files replaces
+the cases of those files and keeps the rest, as the coverage does. Two more
+sections stay on the machine that ran: `cases.last` names the run that wrote
+the index last, and `cases.before` holds what the index had for that run's
+files before it. Runs at one commit add to `cases.before` rather than replace
+it, so a suite split over several invocations keeps every file's replaced
+cases. `cases.last` names the commit those cases were recorded at under
+`before`, until a run at the same commit runs a file again. A share, a seed or
+a fetch carries the index and drops those two, because the run they name is
+not the taker's. `caseMotion(base, now)` compares two indexes region by
 region and names each region whose cases moved: lost, hidden, thinned or
 gained. `relations` lets it name the stopped case behind a hidden region, and
-`exclude` leaves out modules whose motion belongs to another change. Pass
-`executionFile` to put the index somewhere else:
-
-```ts
-// vitest.config.ts, with the two imports of the first sample.
-export default withTestSelection(
-  defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-  { executionFile: '.variance-authority/cases.bin' },
-);
-```
+`exclude` leaves out modules whose motion belongs to another change.
+`decodeExecutionIndex` reads the index out of the record:
 
 ```ts
 import { readFile } from 'node:fs/promises';
 import {
   coveringTests,
   decodeExecutionIndex,
+  testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 
-const index = decodeExecutionIndex(await readFile('.variance-authority/cases.bin'));
+const index = decodeExecutionIndex(await readFile(testCoverageFile(process.cwd())));
 const walked = coveringTests(index, { file: 'src/cart/total.ts', line: 14 });
 ```
 
@@ -1819,12 +1811,8 @@ that says so.
 The index is the same relation the snapshot holds, asked at case granularity
 rather than file granularity, so it grows with cases times regions. Written as
 columns it is under a megabyte for a suite whose JSON spelling of the same
-relation is twenty-seven. Name the file `.json` and you get that JSON, for a
-reader that has to have it:
-
-```ts
-{ executionFile: '.variance-authority/cases.json' }
-```
+relation is twenty-seven. JSON is the spelling a tool that records per-case
+crossings of its own supplies, and every reader here takes it.
 
 Each entry in `index.tests` is keyed by the case's **coordinate**: the
 project-relative test file, then the describe path and the test name, joined by
@@ -1920,10 +1908,11 @@ import {
   changedLines,
   coveringChange,
   formatCoveringChange,
+  testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 
 const changed = coveringChange(index, changedLines(patch));
-console.log(formatCoveringChange(changed, { from: '.variance-authority/cases.bin' }));
+console.log(formatCoveringChange(changed, { from: testCoverageFile(process.cwd()) }));
 ```
 
 Every changed file comes back, silent ones included — a reader that dropped them

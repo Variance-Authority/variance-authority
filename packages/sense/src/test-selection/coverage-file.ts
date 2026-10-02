@@ -100,7 +100,7 @@ function awaited(answer: unknown): answer is PromiseLike<unknown> {
  * its `byteOffset` is zero and a plain section can be cast to `Uint32Array`
  * without the copy an unaligned buffer would force.
  */
-function descriptor(fd: number): Bytes {
+export function descriptor(fd: number): Bytes {
   const length = fstatSync(fd).size;
   return {
     length,

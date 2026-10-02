@@ -1,5 +1,6 @@
 import { intern } from '@variance-authority/core/segment';
 import { blob, column, sections, validSections, type Header, type Section } from './format-layout.js';
+import { recordedCases } from './case-record.js';
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import type {
   ExecutionBlock,
@@ -188,7 +189,7 @@ export function isEncodedExecutionIndex(bytes: Uint8Array): boolean {
  * settled and what its runner reported it took — without decoding a region.
  */
 export function decodeExecutionTests(bytes: Uint8Array): readonly ExecutionTest[] {
-  return executionTestsOf(bytes, [EXECUTION_FORMAT, UNTIMED_ROWS, UNFLAGGED_ROWS]);
+  return executionTestsOf(recordedCases(bytes), [EXECUTION_FORMAT, UNTIMED_ROWS, UNFLAGGED_ROWS]);
 }
 
 /**
@@ -197,9 +198,10 @@ export function decodeExecutionTests(bytes: Uint8Array): readonly ExecutionTest[
  * Returns the index {@link encodeExecutionIndex} was handed, field for field,
  * the optional `loaded` included. Throws on a file this did not write, on a
  * layout version it does not know, and on a bound that does not agree with the
- * column it indexes.
+ * column it indexes. A record that carries a case index is read as that index.
  */
 export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
+  bytes = recordedCases(bytes);
   const file = resident(bytes);
   if (bytes.length < 4) throw invalid();
   const headerLength = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).readUInt32LE(0);
@@ -366,18 +368,3 @@ function dictionary(index: ExecutionIndex): ReadonlySet<string> {
   return held;
 }
 
-/**
- * The index as the named file should hold it: columns, unless the name says
- * JSON.
- *
- * The extension is the contract because the file has a reader on the other
- * side and nothing else tells it which one to be. A default run writes
- * `<coverage file>.cases.bin`; an operator who names a `.json` path has said
- * they want to open it with something that reads JSON, and gets what they
- * asked for at the size it costs.
- */
-export function executionIndexBytes(file: string, index: ExecutionIndex): Buffer {
-  return file.endsWith('.json')
-    ? Buffer.from(JSON.stringify(index), 'utf8')
-    : encodeExecutionIndex(index);
-}

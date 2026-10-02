@@ -1,14 +1,17 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, expect, it } from 'vitest';
+import { lastCaseRunOf } from './case-landing.js';
+import { caseSectionsAt, keepsCases } from './case-record.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
+import { writeTestCoverage } from './index.js';
 import { coveringTests } from './reverse.js';
 
 const execute = promisify(execFile);
@@ -67,35 +70,35 @@ function earlierIndex(): Buffer {
   });
 }
 
-it('writes no case index for a run that recorded no case and finished no file, and takes off the directory it made for its shims', async () => {
+it('keeps no cases in the record of a run that recorded no case and finished no file, and takes off the directory it made for its shims', async () => {
   expect(await run(unwrapped)).toContain('instrumented 0 modules across 1 test file(s)');
 
   expect(existsSync(coverageFile)).toBe(true);
-  expect(existsSync(`${coverageFile}.cases.bin`)).toBe(false);
-  expect(existsSync(`${coverageFile}.cases.last.json`)).toBe(false);
+  expect(keepsCases(coverageFile)).toBe(false);
+  expect(caseSectionsAt(coverageFile)).toEqual({});
   expect(existsSync(shimDirectory)).toBe(false);
 }, 30_000);
 
-it('leaves the case index an earlier run wrote and its layers as they were, and the directory the project already had', async () => {
-  const executionFile = `${coverageFile}.cases.bin`;
+it('leaves the cases an earlier run kept in the record and their layers as they were, and the directory the project already had', async () => {
   const earlier = earlierIndex();
-  await writeFile(executionFile, earlier);
+  await writeTestCoverage(coverageFile, { version: 3, instrumentation: 'earlier', tests: [], modules: [] }, { index: earlier });
   await mkdir(shimDirectory);
 
   await run(unwrapped);
 
-  expect(Buffer.compare(await readFile(executionFile), earlier)).toBe(0);
+  const { index, before, last } = caseSectionsAt(coverageFile);
+  expect(index === undefined ? undefined : Buffer.compare(Buffer.from(index), earlier)).toBe(0);
   // The run neither names itself the last one nor sets aside the cases of the
   // file it was handed as though it had replaced them.
-  expect(existsSync(`${coverageFile}.cases.last.json`)).toBe(false);
-  expect(existsSync(`${coverageFile}.cases.before.bin`)).toBe(false);
+  expect(last).toBeUndefined();
+  expect(before).toBeUndefined();
   expect(await readdir(shimDirectory)).toEqual([]);
 }, 30_000);
 
 it('retires what an earlier run recorded for a case whose file finished and which entered nothing this time', async () => {
   const covering = async (): Promise<readonly string[]> =>
     coveringTests(
-      decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`)),
+      decodeExecutionIndex(await readFile(coverageFile)),
       { file: at(idle, 'src/add.ts'), function: 'add' },
     ).map((test) => test.name);
 
@@ -104,7 +107,7 @@ it('retires what an earlier run recorded for a case whose file finished and whic
 
   await run(idle, { VARIANCE_AUTHORITY_CALL: '0' });
   expect(await covering()).toEqual([]);
-  expect(JSON.parse(await readFile(`${coverageFile}.cases.last.json`, 'utf8'))).toMatchObject({ cases: [] });
+  expect(lastCaseRunOf(caseSectionsAt(coverageFile))).toMatchObject({ cases: [] });
 }, 60_000);
 
-it.todo('a Vitest 4 run whose configuration lists its projects in `test.projects`, none of them wrapped, writes no case index and leaves an earlier one and its layers as they were — needs a Vitest 4 fixture with `test.projects`');
+it.todo('a Vitest 4 run whose configuration lists its projects in `test.projects`, none of them wrapped, keeps no cases in the record and leaves the cases of an earlier run and their layers as they were — needs a Vitest 4 fixture with `test.projects`');

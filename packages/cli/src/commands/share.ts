@@ -289,10 +289,9 @@ export async function mainlineIndex(
   return { ...at, from: 'share', index };
 }
 
-/** One suite's record as the reader's mainline holds it: the coverage record, its per-case index when it had one, and its runs record when the publisher carried it. */
+/** One suite's record as the reader's mainline holds it: the coverage record, its cases inside it, and its runs record when the publisher carried it. */
 export interface MainlineSuite extends MainlineAt {
   readonly coverage: Uint8Array;
-  readonly cases?: Uint8Array;
   readonly runs?: Uint8Array;
 }
 

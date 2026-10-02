@@ -9,6 +9,7 @@ import { publishLine } from '@variance-authority/core/share';
 import {
   commitRunsFile,
   declaredSuites,
+  keepsCases,
   readCommitRuns,
   seedTestCoverage,
   testCoverageFile,
@@ -149,7 +150,7 @@ describe('the record a worktree that has run nothing measures from', () => {
     const own = testCoverageFile(fresh, { suite: 'unit' });
     expect(laid).toBe(own);
     expect(await readFile(own)).toEqual(await readFile(base.file));
-    expect(existsSync(`${own}.cases.bin`)).toBe(true);
+    expect(keepsCases(own)).toBe(true);
     // The mainline's runs record, as a seed: none of its runs are this checkout's.
     const { first: _first, latest: _latest, ...published } = (await readCommitRuns(base.file))!;
     expect(await readCommitRuns(own)).toEqual({ ...published, runs: 0, first: expect.any(String), latest: expect.any(String) });

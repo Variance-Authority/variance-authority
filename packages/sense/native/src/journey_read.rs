@@ -75,8 +75,10 @@ impl Journey {
         Journey::of(file, bytes)
     }
 
-    /// The journey file `file` held as `bytes`, for a caller that has read them.
+    /// The journey file `file` held as `bytes`, for a caller that has read them:
+    /// a coverage record's case index, or a case index on its own.
     pub fn of(file: &str, bytes: Vec<u8>) -> Result<Journey, String> {
+        let bytes = crate::journey_columns::recorded_cases(bytes);
         let lazy = Lazy::new(bytes, journey_format::FORMAT)
             .map_err(|error| format!("cannot read journey file {file}: {error}"))?;
         let columns = Columns {

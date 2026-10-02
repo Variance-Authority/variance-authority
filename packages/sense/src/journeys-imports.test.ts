@@ -6,8 +6,10 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { journeysAround, prepareJourneys, type JourneysAnswer } from './journeys.js';
 import { updateSourceIndex } from './published.js';
+import { withCaseSections } from './test-selection/case-record.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
+import { encodeTestCoverage } from './test-selection/format.js';
 import { testCoverageFile } from './test-selection/record-location.js';
 
 /**
@@ -108,9 +110,10 @@ function recording(testFile: string, ran: readonly Ran[]): Buffer {
 /** The journeys prepared over the checkout: how many functions the case ran, how many have a caller, and the callers of the function at `asked:2`. */
 async function walk(testFile: string, ran: readonly Ran[], asked: string) {
   await updateSourceIndex(root);
-  const at = `${testCoverageFile(root)}.cases.bin`;
+  const at = testCoverageFile(root);
   mkdirSync(dirname(at), { recursive: true });
-  writeFileSync(at, recording(testFile, ran));
+  const index = recording(testFile, ran);
+  writeFileSync(at, withCaseSections(encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [] }), { index }));
   const [only] = await prepareJourneys(root);
   if (only === undefined || !('prepared' in only)) return only;
   const { functionsEntered: entered, placed, recorded, ambiguous, ambiguousCases } = only.prepared;

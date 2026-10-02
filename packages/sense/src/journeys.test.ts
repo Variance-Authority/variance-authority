@@ -6,8 +6,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { forksBetween, journeysAmong, journeysAround, journeyMap, journeysPath, pathsThrough, prepareJourneys } from './journeys.js';
 import { updateSourceIndex } from './published.js';
 import { sourceIndexPath } from './source-index.js';
+import { withCaseSections } from './test-selection/case-record.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
+import { encodeTestCoverage } from './test-selection/format.js';
 import { testCoverageFile } from './test-selection/record-location.js';
 
 /**
@@ -40,6 +42,13 @@ function recording(idle = 0): Buffer {
 
 let root: string;
 
+/** The record a run leaves, carrying `index` as its cases and naming no commit. */
+function record(index: Uint8Array): void {
+  const at = testCoverageFile(root);
+  mkdirSync(dirname(at), { recursive: true });
+  writeFileSync(at, withCaseSections(encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [] }), { index }));
+}
+
 function write(path: string, text: string): void {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), text);
@@ -66,15 +75,13 @@ describe('the journeys prepared beside the index', () => {
     await updateSourceIndex(root);
     const [only] = await prepareJourneys(root);
 
-    expect(only).toEqual({ out: journeysPath(sourceIndexPath(root)), unprepared: `nothing is recorded at ${testCoverageFile(root)}.cases.bin` });
+    expect(only).toEqual({ out: journeysPath(sourceIndexPath(root)), unprepared: `nothing is recorded at ${testCoverageFile(root)}` });
     expect(journeysAround(root, [{ file: 'src/api.ts' }])).toEqual([]);
   });
 
   it('walk the recorded case once, keep the file while nothing it was made from changes, and answer a file and a line', async () => {
     await updateSourceIndex(root);
-    const at = `${testCoverageFile(root)}.cases.bin`;
-    mkdirSync(dirname(at), { recursive: true });
-    writeFileSync(at, recording());
+    record(recording());
 
     const [first] = await prepareJourneys(root);
     expect(first && 'prepared' in first ? first.prepared : first).toMatchObject({
@@ -104,7 +111,7 @@ describe('the journeys prepared beside the index', () => {
     expect(line?.focus?.callers).toEqual([expect.objectContaining({ name: 'get', file: 'src/api.ts', line: 1, cases: 1 })]);
 
     // A recording made again after the walk is not answered from the walk.
-    writeFileSync(at, recording(1));
+    record(recording(1));
     const [{ answer: stale }] = journeysAround(root, [{ file: 'src/api.ts' }]) as [{ answer: import('./journeys.js').JourneysAnswer }];
     expect(stale.notPrepared).toBe('the recording changed after they were prepared');
   });
@@ -135,9 +142,7 @@ describe('the calls some of the cases placed', () => {
   it('are counted among the asked cases alone, and a case the recording does not hold is named', async () => {
     write('test/api.test.ts', "import { get } from '../src/api.js';\nit('gets', () => get('x'));\nit('peeks', () => get('y'));\n");
     await updateSourceIndex(root);
-    const at = `${testCoverageFile(root)}.cases.bin`;
-    mkdirSync(dirname(at), { recursive: true });
-    writeFileSync(at, two());
+    record(two());
     await prepareJourneys(root);
 
     const call = (among: import('./journeys.js').JourneysAmong | undefined) =>
@@ -170,9 +175,7 @@ describe('journeys read as masks', () => {
   }
 
   it('answers the paths through a function and the forks between two off the recording alone', () => {
-    const at = `${testCoverageFile(root)}.cases.bin`;
-    mkdirSync(dirname(at), { recursive: true });
-    writeFileSync(at, branched());
+    record(branched());
 
     const paths = pathsThrough(root, { file: 'src/api.ts', line: 2 });
     expect(paths?.function?.name).toBe('get');

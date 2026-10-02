@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { cacheLayers, cacheRootFor, layeredFiles, repositoryLayers } from './cache-layers.js';
+import { caseSectionsAt } from './case-record.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { recordStore, recordStores } from './instrumented-modules.js';
@@ -223,19 +224,21 @@ describe('the snapshot a checkout starts from', () => {
     const cacheRoot = resolve(at, 'cache');
     const primary = resolve(at, 'primary');
     const base = testCoverageFile(primary, { cacheRoot });
-    await writeTestCoverage(base, snapshot);
     const cases = encodeSetExecutionIndex({
       tests: [{ id: 'a > b', file: 'a.test.ts', name: 'b' }],
       modules: [],
       sets: new CrossingSets(1).pool(),
     });
-    await writeFile(`${base}.cases.bin`, cases);
+    // The primary checkout's last run is its own, not the worktree's.
+    await writeTestCoverage(base, snapshot, { index: cases, last: Buffer.from('{"files":[],"cases":[]}') });
 
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
     const file = testCoverageFile(path, { cacheRoot });
     await seedTestCoverage(file, path, cacheRoot);
 
-    expect(await readFile(`${file}.cases.bin`)).toEqual(cases);
+    const seeded = caseSectionsAt(file);
+    expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
+    expect(seeded.last).toBeUndefined();
   });
 
   test('a reader takes the repository snapshot without making a copy of it', async () => {

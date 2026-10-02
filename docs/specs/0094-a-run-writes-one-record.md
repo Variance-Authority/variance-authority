@@ -100,9 +100,10 @@ Landing, layering, seeding, repinning, shard folding, `variance share` and
 row key it is laid on. A fold that meets a section it does not know refuses, so
 it never drops one silently.
 
-The format version moves once. A record in the older format, or a stray
-`.cases.bin`, is not read: the next run, or the next mainline publish, writes
-the new record. That is the same answer CI already gives for a missing record:
+The format version moves once, for a record that carries cases: a reader that
+knows only coverage refuses it rather than misreading it, and a record without
+cases keeps the version it had. A stray `.cases.bin` is not read: the next run,
+or the next mainline publish, writes the new record. That is the same answer CI already gives for a missing record:
 it runs the whole suite once.
 
 The cost is stated, not assumed. A selection reader opens only the sections it

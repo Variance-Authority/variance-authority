@@ -13,6 +13,7 @@ import { coveringTests, type ExecutionIndex } from './reverse.js';
 import { deviationOfTests, narrowByExecution, selectTestFiles } from './index.js';
 import { withTestSelection } from './vitest.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { caseIndexOf } from './case-record.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -382,7 +383,7 @@ describe('the Vitest integration', () => {
       );
 
       const coverage = await readFile(coverageFile);
-      const index = await readFile(`${coverageFile}.cases.bin`).catch(() => undefined);
+      const index = await caseIndexOf(coverageFile);
       return {
         coverage,
         output: `${stdout}${stderr}`,

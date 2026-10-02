@@ -389,8 +389,8 @@ ways to give the next job something to read:
 - **Name the path yourself and upload it.** Pass `coverageFile` to the Vitest,
   Jest or Playwright integration to put the snapshot at a path you choose,
   typically inside the repository so CI can upload it as an artifact, and ignore
-  that path in git. The same run writes a second file at
-  `<coverageFile>.cases.bin`, under the same rule.
+  that path in git. The record carries the run's cases too, so there is no
+  second file to upload.
 
 A missing, foreign or corrupt file is read as an absent record rather than an
 empty one, so a job that restored nothing runs the whole suite. Deleting the

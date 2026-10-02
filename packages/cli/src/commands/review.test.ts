@@ -6,11 +6,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
-  caseLayerFiles,
+  caseSectionsAt,
   commitRunsFile,
   encodeExecutionIndex,
   landRun,
   testCoverageFile,
+  withCaseSections,
   writeTestCoverage,
   type ExecutionBlock,
   type ExecutionIndex,
@@ -96,16 +97,18 @@ describe('a review of what a change did, after the run that recorded it', () => 
       tests: [DISCOUNTS, ROUNDS, ...(extra.length === 0 ? [] : [GONE])],
       modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0]), block('round', 5, 7, extra.length === 0 ? [] : [2])] }],
     };
-    await writeFile(`${coverageFile}.cases.bin`, encodeExecutionIndex(now));
+    await writeFile(coverageFile, withCaseSections(await readFile(coverageFile), { index: encodeExecutionIndex(now) }));
     // What the pipeline's `variance index` step publishes after the run; under CI, review refuses to build it itself.
     await updateSourceIndex(root);
 
-    // The base's case index, copied aside before the run the way a pipeline does it.
-    const against = join(await mkdtemp(join(tmpdir(), 'variance-review-base-')), 'coverage.bin.cases.bin');
-    await writeFile(against, encodeExecutionIndex({
-      tests: [DISCOUNTS],
-      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }],
-    }));
+    // The base's record, copied aside before the run the way a pipeline does it.
+    const against = join(await mkdtemp(join(tmpdir(), 'variance-review-base-')), 'coverage.bin');
+    await writeTestCoverage(against, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
+      index: encodeExecutionIndex({
+        tests: [DISCOUNTS],
+        modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }],
+      }),
+    });
     return { root, first, against };
   }
 
@@ -254,21 +257,28 @@ describe('a review of what a change did, after the run that recorded it', () => 
     await expect(refused).rejects.toThrow(`Fetch ${unfetched} with the history between them`);
   });
 
-  /** The layers a run leaves beside the case index, and the runs at `change` listing `files`. */
+  /**
+   * The layers a run keeps in the record beside its case index, and the runs
+   * at `change` listing `files`. Answers the record, which holds both layers.
+   */
   async function layered(
     root: string,
     last: string | object,
     before: ExecutionIndex,
     change: string,
     files: readonly string[],
-  ): Promise<{ readonly last: string; readonly before: string }> {
-    const layers = caseLayerFiles(`${testCoverageFile(root)}.cases.bin`);
-    await writeFile(layers.last, typeof last === 'string' ? last : JSON.stringify(last));
-    await writeFile(layers.before, encodeExecutionIndex(before));
-    await writeFile(commitRunsFile(testCoverageFile(root)), JSON.stringify({
+  ): Promise<string> {
+    const record = testCoverageFile(root);
+    const { index } = caseSectionsAt(record);
+    await writeFile(record, withCaseSections(await readFile(record), {
+      ...(index === undefined ? {} : { index }),
+      before: encodeExecutionIndex(before),
+      last: Buffer.from(typeof last === 'string' ? last : JSON.stringify(last)),
+    }));
+    await writeFile(commitRunsFile(record), JSON.stringify({
       commit: change, first: '2026-09-26T00:00:00.000Z', latest: '2026-09-26T00:00:00.000Z', runs: 1, files,
     }));
-    return layers;
+    return record;
   }
 
   const CHANGE = 'c'.repeat(40);
@@ -283,11 +293,11 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const { root, first } = await changed();
     // The mainline's full run wrote the layers last; the run at this commit stopped in its one file and wrote nothing.
     const mainline = { commit: first, at: '2026-09-25T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] };
-    const layers = await layered(root, mainline, MAINLINE_BEFORE, CHANGE, ['test/total.test.ts']);
+    const record = await layered(root, mainline, MAINLINE_BEFORE, CHANGE, ['test/total.test.ts']);
 
     const answer = await review(parse(['--since', first, '--root', root]));
 
-    expect(answer.motion).toEqual({ base: { from: layers.before, kind: 'before' }, unwritten: ['test/total.test.ts'] });
+    expect(answer.motion).toEqual({ base: { from: record, kind: 'before' }, unwritten: ['test/total.test.ts'] });
     // Nor are a changed test file's cases compared with the names the mainline's layer holds.
     expect(answer.files.find((file) => file.file === 'test/total.test.ts')?.cases).toBeUndefined();
     const markdown = formatReview(answer, 'markdown');
@@ -302,11 +312,11 @@ describe('a review of what a change did, after the run that recorded it', () => 
     // A change no test file loads, on a machine with no browser: the only file the run
     // selected is one whose every case skips there, as it did in the mainline's run.
     const mainline = { commit: first, at: '2026-09-25T00:00:00.000Z', files: ['test/total.test.ts'], cases: [DISCOUNTS.id] };
-    const layers = await layered(root, mainline, MAINLINE_BEFORE, CHANGE, ['test/skipped.chromium.test.ts']);
+    const record = await layered(root, mainline, MAINLINE_BEFORE, CHANGE, ['test/skipped.chromium.test.ts']);
 
     const answer = await review(parse(['--since', first, '--root', root]));
 
-    expect(answer.motion).toEqual({ base: { from: layers.before, kind: 'before' }, unwritten: [] });
+    expect(answer.motion).toEqual({ base: { from: record, kind: 'before' }, unwritten: [] });
     const markdown = formatReview(answer, 'markdown');
     expect(markdown).not.toContain('skipped.chromium');
     expect(markdown).not.toContain('No case index was written');
@@ -354,16 +364,16 @@ describe('a review of what a change did, after the run that recorded it', () => 
 
   it('compares nothing when the run that wrote the case index last cannot be read', async () => {
     const { root, first } = await changed();
-    const layers = await layered(root, '{not json', MAINLINE_BEFORE, CHANGE, ['test/skipped.chromium.test.ts']);
+    const record = await layered(root, '{not json', MAINLINE_BEFORE, CHANGE, ['test/skipped.chromium.test.ts']);
 
     const answer = await review(parse(['--since', first, '--root', root]));
 
-    expect(answer.motion).toEqual({ base: { from: layers.before, kind: 'before' }, lastRunUnread: layers.last });
+    expect(answer.motion).toEqual({ base: { from: record, kind: 'before' }, lastRunUnread: record });
     expect(answer.files.find((file) => file.file === 'test/total.test.ts')?.cases).toBeUndefined();
     expect(formatReview(answer, 'markdown')).toContain(
       'Which test files a run at this commit wrote to the case index could not be read, so no case is compared against the base.',
     );
-    expect(formatReview(answer, 'text')).toContain(`Not compared: ${layers.last} could not be read`);
+    expect(formatReview(answer, 'text')).toContain(`Not compared: ${record} could not be read`);
   });
 
   it('names no case a test file the change created added, when no run at this commit wrote it', async () => {
@@ -371,9 +381,11 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const created = { id: 'test/created.test.ts > counts', file: 'test/created.test.ts', name: 'counts', stopped: false };
     await writeFile(join(root, 'test/created.test.ts'), "it('counts', () => {});\n");
     git(root, ['add', '--intent-to-add', 'test/created.test.ts']);
-    await writeFile(`${testCoverageFile(root)}.cases.bin`, encodeExecutionIndex({
-      tests: [DISCOUNTS, ROUNDS, created],
-      modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0, 2]), block('round', 5, 7, [])] }],
+    await writeFile(testCoverageFile(root), withCaseSections(await readFile(testCoverageFile(root)), {
+      index: encodeExecutionIndex({
+        tests: [DISCOUNTS, ROUNDS, created],
+        modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0, 2]), block('round', 5, 7, [])] }],
+      }),
     }));
     const casesOf = (answer: Awaited<ReturnType<typeof review>>) =>
       answer.files.find((file) => file.file === 'test/created.test.ts');

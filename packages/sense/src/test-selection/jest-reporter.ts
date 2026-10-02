@@ -22,7 +22,7 @@ import { digestString } from '../digest.js';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { askedForStories } from '../story/directory.js';
 import journalFormat from './journal-format.cjs';
-import { writeCaseIndex } from './case-fold.js';
+import { freshCases } from './case-fold.js';
 import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
@@ -213,8 +213,21 @@ class JestCoverageReporter {
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run.
     noteSeeded(await seedTestCoverage(coverageFile, root));
+    // In the record, with the coverage, in one write. A run that recorded no
+    // case and finished no file has none to lay, and the record's cases stay
+    // as they were.
+    const cases = caseDirectory === undefined
+      ? undefined
+      : await freshCases(caseDirectory, root, modules, {
+          tests,
+          ...(commit === undefined ? {} : { commit }),
+          durations: caseDurations(results.testResults.map((result) => ({
+            filepath: result.testFilePath,
+            cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration)),
+          })), root),
+        });
     const merged = await withIndexLock(coverageFile, async () => {
-      await landRun(coverageFile, current, root);
+      await landRun(coverageFile, current, root, undefined, cases);
       markCheckout(repositoryRoot(root));
     });
     // A run that finished test files and placed no module at all is a seam that
@@ -224,24 +237,7 @@ class JestCoverageReporter {
     // refused wrote no snapshot, and the busy warning is the whole story.
     if (merged.held) noteAnEmptyRecord(results.testResults.length, modules.size);
     else noteABusyIndex(coverageFile);
-    // Beside the snapshot, never inside it. The snapshot answers *which files
-    // must run*, and its readers are unchanged. A run the snapshot did not take
-    // lays no cases either, or the index would answer for a run the snapshot
-    // beside it never saw.
-    if (caseDirectory !== undefined) {
-      const executionFile = this.#config.executionFile ?? `${coverageFile}.cases.bin`;
-      if (merged.held) {
-        await writeCaseIndex(executionFile, caseDirectory, root, modules, {
-          tests,
-          ...(commit === undefined ? {} : { commit }),
-          durations: caseDurations(results.testResults.map((result) => ({
-            filepath: result.testFilePath,
-            cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration)),
-          })), root),
-        });
-      }
-      await rm(caseDirectory, { recursive: true, force: true });
-    }
+    if (caseDirectory !== undefined) await rm(caseDirectory, { recursive: true, force: true });
     await rm(runDirectory, { recursive: true, force: true });
     // After the lock is released, and at most once a day: see `prune.ts`.
     const pruned = prunedLine(await pruneWhenDue(cacheRootFor(repositoryRoot(root))));

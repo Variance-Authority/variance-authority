@@ -38,7 +38,7 @@ afterEach(() => {
 /** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `unchanged` is a run that found the index where the last one left it. */
 function unprepared(root: string, unchanged = false): string {
   return 'code map: none, because no manifest names a package\n' +
-    `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}.cases.bin\n` +
+    `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}\n` +
     `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.json')}\n` +
     `questions: published at ${sourceIndexPath(root)}.help.json\n`;
 }

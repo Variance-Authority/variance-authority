@@ -79,8 +79,6 @@ export interface RecordingOptions {
   readonly mode?: InstrumentMode;
   /** Follow each case through the async context, and name the ones whose work outlived them. */
   readonly continuations?: boolean;
-  /** Where the per-case recording goes; `<coverageFile>.cases.bin` when absent. */
-  readonly executionFile?: string;
 }
 
 /** A test file the run finished with, and whether its record may be trusted. */
@@ -158,7 +156,6 @@ export function startRecording(options: RecordingOptions = {}): Recording {
 
   const fold = foldRun(run, {
     coverageFile,
-    executionFile: resolve(options.executionFile ?? `${coverageFile}.cases.bin`),
     shims: [],
     stores: [recordStores(root, STORE)],
     unreached:

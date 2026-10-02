@@ -16,6 +16,7 @@
 // compass: variance-authority.reach
 
 import { existsSync, readFileSync } from 'node:fs';
+import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
 import { NO_DURATION } from './test-selection/format-layout.js';
@@ -93,7 +94,7 @@ export function recordedDurations(
   return suites.map((suite) => {
     const named = suite === undefined ? {} : { suite };
     const recording = nearestTestCoverage(root, { suite });
-    const cases = caseDurations(`${recording}.cases.bin`, limit, scope);
+    const cases = caseDurations(recording, limit, scope);
     if (!existsSync(recording)) return { ...named, recording, unread: 'nothing is recorded there', cases };
     try {
       return { ...named, recording, cases, ...askCoverageFile(recording, (view) => {
@@ -117,7 +118,7 @@ export function recordedDurations(
 
 /** The slowest cases in the case index at `recording`, which is the one beside the snapshot the durations were read from. */
 function caseDurations(recording: string, limit: number, scope: DurationScope): RecordedCaseDurations {
-  if (!existsSync(recording)) return { recording, unread: 'nothing is recorded there' };
+  if (!keepsCases(recording)) return { recording, unread: 'no run kept its cases there' };
   try {
     const bytes = readFileSync(recording);
     // Only a `to` needs the crossings; the rest of the question is the test table.

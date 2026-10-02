@@ -195,7 +195,7 @@ describe('variance ask orient', () => {
     const root = checkout();
     const indexed = await run(['index']);
     expect(indexed.code).toBe(EXIT_CLEAN);
-    expect(indexed.out.split('\n')[2]).toBe(`journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}.cases.bin`);
+    expect(indexed.out.split('\n')[2]).toBe(`journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}`);
 
     const answered = await run(['ask', 'orient', '--files', 'packages/checkout/src/total.ts:2,./packages/cart/src/price.ts,src/gone.ts']);
 
@@ -227,7 +227,7 @@ describe('variance ask orient', () => {
         '  No external package request was read from this path.',
         '  Not in the source index: src/gone.ts.',
         '',
-        `Recorded cases: none read from ${testCoverageFile(root)}.cases.bin, nothing is recorded there. A run with \`withTestSelection\` records them.`,
+        `Recorded cases: none read from ${testCoverageFile(root)}, no run kept its cases there. A run with \`withTestSelection\` records them.`,
         '',
         'Narrower questions:',
         '  variance ask uses --name priceOf --package @t/cart',

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { encodeExecutionIndex, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 
 const SUITES = {
@@ -38,9 +38,11 @@ beforeAll(async () => {
   execFileSync('git', ['init', '--quiet', root]);
   await writeFile(join(root, 'variance.config.json'), JSON.stringify(SUITES));
   const record = async (suite: string, index: unknown) => {
-    const at = `${testCoverageFile(root, { suite })}.cases.bin`;
+    const at = testCoverageFile(root, { suite });
     await mkdir(dirname(at), { recursive: true });
-    await writeFile(at, encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]));
+    await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+      index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]),
+    });
   };
   await record('unit', indexOf('src/pay.ts', { id: 'u', file: 'src/pay.test.ts', name: 'charges once' }));
   await record('stories', indexOf('src/Button.tsx', { id: 's', file: 'src/Button.stories.tsx', name: 'Primary' }));

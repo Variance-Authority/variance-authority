@@ -6,8 +6,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { dependenciesAround, packagesAround, recordedCases } from './orient.js';
 import { updateSourceIndex } from './published.js';
 import { sourceIndexPath } from './source-index.js';
+import { withCaseSections } from './test-selection/case-record.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
+import { encodeTestCoverage } from './test-selection/format.js';
 import { testCoverageFile } from './test-selection/record-location.js';
 
 /**
@@ -61,10 +63,11 @@ afterEach(() => {
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
 });
 
-function record(bytes: Uint8Array): string {
-  const at = `${testCoverageFile(root)}.cases.bin`;
+/** The record a run leaves, carrying `index` as its cases. */
+function record(index: Uint8Array): string {
+  const at = testCoverageFile(root);
   mkdirSync(dirname(at), { recursive: true });
-  writeFileSync(at, bytes);
+  writeFileSync(at, withCaseSections(encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [] }), { index }));
   return at;
 }
 
@@ -105,7 +108,7 @@ describe('the recorded cases around some files', () => {
   it('says where it looked when nothing is recorded, instead of answering with no cases', () => {
     const [only] = recordedCases(root, ['src/api.ts'], 2);
 
-    expect(only).toEqual({ recording: `${testCoverageFile(root)}.cases.bin`, unread: 'nothing is recorded there' });
+    expect(only).toEqual({ recording: testCoverageFile(root), unread: 'no run kept its cases there' });
   });
 
   it('says why a recording it cannot read is left out', () => {

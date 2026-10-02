@@ -46,9 +46,7 @@ import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { executionIndexFrom } from './cases.js';
-import { executionIndexBytes } from './execution-format.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
-import { layCaseRun } from './case-landing.js';
 import {
   caseJournals,
   joinObservations,
@@ -60,7 +58,7 @@ import { noteAnEmptyRecord } from './finished-files.js';
 import { landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
-import { busyIndex, noteABusyCaseIndex, withIndexLock } from './index-lock.js';
+import { busyIndex, withIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
   isMissing,
@@ -73,7 +71,6 @@ import { recordFileFor } from './record-location.js';
 import {
   noteSeeded,
   seedTestCoverage,
-  writeCoverageBytes,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
@@ -182,11 +179,6 @@ export interface RecordExecutionOptions {
    * with whoever pays for the file.
    */
   readonly cases?: readonly ObservedCase[];
-  /**
-   * Where the execution index goes. Defaults beside the snapshot, as the Vitest
-   * seam's does: `<coverage file>.cases.bin`, or JSON for a `.json` name.
-   */
-  readonly executionFile?: string;
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -196,9 +188,7 @@ export interface ExecutionRecord {
   readonly because?: string;
   readonly coverageFile: string;
   readonly subjects: number;
-  /** Where the execution index went, for a run that was asked for one. */
-  readonly executionFile?: string;
-  /** How many cases that index names. */
+  /** How many cases the run laid into the record, for a run that was asked for them. */
   readonly cases?: number;
 }
 
@@ -398,8 +388,20 @@ export async function recordExecution(
   // A worktree layers onto the repository's months of recording rather than
   // onto nothing. A no-op here and after the first run.
   noteSeeded(await seedTestCoverage(coverageFile, root, options.cacheRoot));
+  // In the record, never beside it, and only for a driver that asked. A file the
+  // coverage says ran to the end has its cases replaced, and the rest of the
+  // suite's cases stay. A Storybook row is a story, not a file, so its cases are
+  // laid over by id and never replaced by file.
+  const observed = options.cases ?? [];
+  const cases =
+    observed.length === 0
+      ? undefined
+      : {
+          fresh: encodeAsSetExecutionIndex(executionIndexFrom(caseJournals(observed), byId)),
+          run: { tests, ...(commit === undefined ? {} : { commit }) },
+        };
   const merged = await withIndexLock(coverageFile, async () => {
-    await landRun(coverageFile, current, root, options.cacheRoot);
+    await landRun(coverageFile, current, root, options.cacheRoot, cases);
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {
@@ -418,46 +420,11 @@ export async function recordExecution(
   // Vitest and Jest seams say it.
   noteAnEmptyRecord(subjects.length, byId.size);
 
-  // Beside the snapshot, never inside it, and only for a driver that asked. A
-  // run that records cases writes the same bytes into the snapshot as one that
-  // does not; what it adds is a second file, and a reader that never opens it
-  // is unaffected by its size.
-  if (options.cases === undefined || options.cases.length === 0) {
-    return { recorded: true, coverageFile, subjects: subjects.length };
-  }
-  const executionFile =
-    options.executionFile === undefined
-      ? `${coverageFile}.cases.bin`
-      : resolve(root, options.executionFile);
-  const index = executionIndexFrom(caseJournals(options.cases), byId);
-  if (executionFile.endsWith('.json')) {
-    // TODO: lay a JSON index over the one it replaces, as the columns are — a
-    // `.json` name is still rewritten with this run's cases alone.
-    await writeCoverageBytes(executionFile, executionIndexBytes(executionFile, index));
-  } else {
-    // Laid over the index as a runner's fold lays its run, by the same body: a
-    // file the snapshot rows say ran to the end has its cases replaced, and the
-    // rest of the suite's cases stay. A Storybook row is a story, not a file,
-    // so its cases are laid over by id and never replaced by file.
-    const fresh = encodeAsSetExecutionIndex(index);
-    // FIXME: the snapshot's lock was released above, and a landing can run
-    // before this one is taken: the snapshot then holds this run under the
-    // fold, and the index holds the fold under this run. Take this lock inside
-    // the snapshot's, as a landing does.
-    const laid = await withIndexLock(executionFile, (lock) =>
-      layCaseRun(lock, fresh, root, { tests, ...(commit === undefined ? {} : { commit }) }),
-    );
-    if (!laid.held) {
-      noteABusyCaseIndex(executionFile);
-      return { recorded: true, coverageFile, subjects: subjects.length };
-    }
-  }
   return {
     recorded: true,
     coverageFile,
     subjects: subjects.length,
-    executionFile,
-    cases: options.cases.length,
+    ...(cases === undefined ? {} : { cases: observed.length }),
   };
 }
 

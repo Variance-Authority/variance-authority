@@ -91,8 +91,8 @@ subject, but how to *find* one. It is written per subject, which
 puts it on its own axis — the index and the record are priced in modules, and
 the lexicon is priced in subjects.
 
-This page is the arithmetic on all three, in that order. A fourth file, which
-the same run writes, is priced at the end: the per-case
+This page is the arithmetic on all three, in that order. A fourth relation,
+which the same run writes into the record, is priced at the end: the per-case
 [execution index](execution-record.md) records the same relation per **case** —
 one `it` or `test`, rather than the file that holds it — and it is
 the only one of the four that grows on two axes at once.
@@ -451,11 +451,10 @@ unsharded run would have written:
 variance journeys shard-1/coverage.bin shard-2/coverage.bin --into coverage.bin
 ```
 
-Upload each shard's case index, `coverage.bin.cases.bin`, beside its record.
-The fold merges the shards' cases into the index beside the stitched record. A
-shard that ran a test file to the end with no case index beside it leaves no
-index at all, because nothing can then say which of that file's cases ran a
-line.
+Each shard's record carries its case index, so the record is the whole upload.
+The fold lays the shards' cases into the stitched record. A shard that ran a
+test file to the end and kept no cases leaves no index at all, because nothing
+can then say which of that file's cases ran a line.
 
 The fold refuses rather than guesses. Shards recorded at different commits, or
 under different **probe recipes** — the instrumentation configuration a build
@@ -542,14 +541,14 @@ Everything above prices the relation at file granularity: which *test file*
 covered which region. That is what a skip list needs, and it is the only thing
 a `--since` run reads: a runner skips whole files, so knowing which of a file's
 forty cases reached a line buys a skip list nothing. The same run writes a second
-file beside the record, with the same relation one level down —
+relation into the record, as sections of the same file, one level down —
 which *case* covered which region — because that is what answers *which tests
 walk this branch* and
 what [`variance covering`](../packages/cli#covering-which-tests-covered-this-line) and
 [`distill`](distill.md) read.
 
 Its test axis is cases rather than test files, and nothing folds them, so it
-is larger than the record it sits beside and the gap widens as a suite grows
+is larger than the file-level part of the record and the gap widens as a suite grows
 cases faster than it grows files. Three real recordings:
 
 | cases | crossings | record | per-case index |
@@ -569,13 +568,11 @@ the test file from the module it entered, which is there for a producer that can
 measure it; these probes record entry rather than depth, so every row they write
 says zero and the whole column is one run.
 
-Ask for the same index as JSON — name your `executionFile` with a `.json`
-suffix and you get it, for a reader that has to have it — and the first row
-above is **27.2 MB** instead of 0.46. That is what the three columns cost once
-each crossing is an object again: `{"test":0,"distance":0}` is thirty-odd bytes
-to say what two run-coded columns say in nothing at all, and it is ninety times
-the file it sits next to. Take the JSON only when
-something downstream cannot be taught to read the other one.
+Spell the same index as JSON — the spelling a tool that records its own
+per-case crossings supplies — and the first row above is **27.2 MB** instead of
+0.46. That is what the three columns cost once each crossing is an object again:
+`{"test":0,"distance":0}` is thirty-odd bytes to say what two run-coded columns
+say in nothing at all, and it is ninety times the file-level record it travels with.
 
 ## Every CI caps what a job may upload
 
@@ -594,30 +591,28 @@ against is a full run. The failure is silent in the direction that costs money
 rather than the direction that breaks, which is why it is worth pricing in
 advance instead of discovering.
 
-So price the upload, not the disk. What travels between jobs is the record and,
-when a later job reads it, the per-case index; the source index is rebuilt from
-the tree and the lexicon travels with whatever consumes it.
+So price the upload, not the disk. What travels between jobs is the record,
+and the per-case index travels inside it; the source index is rebuilt from the
+tree and the lexicon travels with whatever consumes it.
 
 | what you upload | 791 covered modules | 200,000 modules |
 |---|---|---|
-| execution record | 0.5 MB | 77 MB |
+| execution record, file level | 0.5 MB | 77 MB |
+| per-case index, inside the same record | about half a byte per crossing | about half a byte per crossing |
 
-The per-case index is not in that table because no module count predicts it.
-Its multiplier is your case count, which is a number only your suite has.
-Price it from a recording instead: it is roughly half a byte per crossing, and
+The per-case part has no module-count figure because no module count predicts
+it. Its multiplier is your case count, which is a number only your suite has.
+Add it to the record's size from a recording instead: it is roughly half a byte per crossing, and
 your crossing count is cases times the regions each one covers. The three
 recordings above run 135, 202 and 270 regions a case, so take five hundred and
 be wrong in the safe direction: 20,000 cases at five hundred regions each is ten
 million crossings, which is about 5 MB. Measured, the three recordings above
 run 0.21 MB to 0.46 MB.
 
-Two things to do if your cap is the binding constraint:
-
-- **Compress the upload.** The columns are run-coded but the file as a whole is
-  not, and gzip takes a 0.46 MB per-case index to 0.31 MB.
-- **Upload the per-case index only to a job that asks a question that needs
-  it.** The skip list never reads that file, so a job that does not receive it
-  selects exactly as well.
+If your cap is the binding constraint, compress the upload. The columns are
+run-coded but the file as a whole is not, and gzip takes a 0.46 MB per-case
+index to 0.31 MB. A run that keeps no cases writes no per-case sections, and its
+record is the file-level size alone.
 
 ## What decides the value is what changed, not how much
 

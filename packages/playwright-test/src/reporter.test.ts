@@ -69,7 +69,7 @@ describe('the reporter that folds what the workers recorded', () => {
       expect(coverage.modules[0]!.blocks.filter((block) => block.testFiles.length > 0)).toHaveLength(
         2,
       );
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const index = decodeExecutionIndex(await readFile(coverageFile));
       expect(index.tests.map((test) => test.name).sort()).toEqual(['case one', 'case two']);
 
       // The directory goes with the run that named it: what a killed run left
@@ -92,7 +92,7 @@ describe('the reporter that folds what the workers recorded', () => {
     });
   });
 
-  it('writes a relative index beside the root it was given, where the fixture writes it', async () => {
+  it('writes a relative record and the cases in it beside the root it was given, where the fixture writes it', async () => {
     // Every seam resolves these against its own root. Resolved against the
     // checkout instead, a suite under `packages/ui` staged its workers beside
     // one snapshot and folded into another, and the fixture recording without
@@ -107,7 +107,6 @@ describe('the reporter that folds what the workers recorded', () => {
         root,
         cacheRoot,
         coverageFile: 'coverage.bin',
-        executionFile: 'cases.bin',
       });
 
       reporter.onBegin({} as FullConfig);
@@ -126,7 +125,7 @@ describe('the reporter that folds what the workers recorded', () => {
       await reporter.onEnd();
 
       expect((await readTestCoverage(resolve(root, 'coverage.bin'))).tests).toHaveLength(1);
-      const index = decodeExecutionIndex(await readFile(resolve(root, 'cases.bin')));
+      const index = decodeExecutionIndex(await readFile(resolve(root, 'coverage.bin')));
       expect(index.tests.map((test) => test.name)).toEqual(['case one']);
       await expect(readFile(resolve(checkout, 'coverage.bin'))).rejects.toThrow();
     } finally {

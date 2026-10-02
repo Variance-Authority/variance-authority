@@ -1,7 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { layCaseRun, type LaidRun } from './case-landing.js';
-import { noteABusyCaseIndex, withIndexLock } from './index-lock.js';
+import type { FreshCases, LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
@@ -12,10 +11,8 @@ import {
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { AMBIENT, executionIndexFrom, readCaseJournals, settledAcross, unpackCase, unpackFrames } from './cases.js';
-import { executionIndexBytes } from './execution-format.js';
+import { AMBIENT, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
-import { writeCoverageBytes } from './index.js';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 
@@ -141,26 +138,24 @@ export async function inspectCaseRun(
 }
 
 const DEFAULT_BUDGET = 128 * 1_048_576;
-
 /**
- * Write a run's case journals as the execution index a reporter leaves beside
- * its snapshot.
+ * A run's case journals as the case index a reporter lays into its record, or
+ * `undefined` when the run has none to lay.
  *
  * The bounded fold is the writer: it reads the journals a slice at a time and
  * holds one relation per region, where materializing every case's crossings as
  * objects first cost the reporter 8.6 times the time and 20 times the heap on a
  * 200-case run over a thousand ambient modules — the heap arriving at the end
- * of a worker-heavy run, when the machine has least of it. A `.json` file is
- * still written from the object index, because JSON is that index spelled out.
+ * of a worker-heavy run, when the machine has least of it.
  *
- * A run that recorded no case and finished no test file writes nothing, and
- * leaves an index that is already there as it was. Absent is not empty: such
- * a run — projects that loaded none of this seam's modules, so no case wrote a
- * frame and no file wrote a journal — did not learn that no case walks any
- * line. Laid over the index anyway, it would name itself the last run with no
- * case and put the cases of every file it was handed in the before layer, as
- * though it had replaced them; written where none was, it would answer *which
- * cases walk this line* with none.
+ * A run that recorded no case and finished no test file has none, and leaves
+ * the record's cases as they were. Absent is not empty: such a run — projects
+ * that loaded none of this seam's modules, so no case wrote a frame and no file
+ * wrote a journal — did not learn that no case walks any line. Laid over the
+ * record anyway, it would name itself the last run with no case and put the
+ * cases of every file it was handed in the before layer, as though it had
+ * replaced them; laid where none was, it would answer *which cases walk this
+ * line* with none.
  *
  * A file that finished did learn, even when none of its cases entered
  * anything: its cases walk no line, and what an earlier run recorded for them
@@ -168,32 +163,21 @@ const DEFAULT_BUDGET = 128 * 1_048_576;
  * when its file wrote a journal and ran to the end — so it is read from
  * `run.tests`, not worked out again from the case journals. The cases decide
  * and the modules do not: the fold keeps a module only when a case entered it.
+ *
+ * The caller hands the result to `landRun`, which lays it under the record's
+ * lock in the same write as the coverage.
  */
-export async function writeCaseIndex(
-  file: string,
+export async function freshCases(
   directory: string,
   root: string,
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   run: CaseRunTests,
-): Promise<void> {
+): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
-  if (file.endsWith('.json')) {
-    // TODO: lay a JSON index over the one it replaces, as the columns are — a
-    // `.json` name is still rewritten with the last run's cases alone.
-    const index = executionIndexFrom(await readCaseJournals(directory, root), modules, run.durations);
-    if (index.tests.length > 0 || finished) await writeCoverageBytes(file, executionIndexBytes(file, index));
-    return;
-  }
   const inspected = await inspectCaseRun(directory, root, run.durations);
-  if (inspected.tests.length === 0 && !finished) return;
+  if (inspected.tests.length === 0 && !finished) return undefined;
   const fresh = (await foldCaseRun(inspected, modules)).bytes;
-  // FIXME: the seam released the snapshot's lock before this takes the case
-  // index's, and a landing can run in between: the snapshot then holds this run
-  // under the fold, and the index holds the fold under this run, so for a file
-  // both finished the two answer from different runs. Take this lock inside the
-  // snapshot's, as a landing does.
-  const written = await withIndexLock(file, (lock) => layCaseRun(lock, fresh, root, run));
-  if (!written.held) noteABusyCaseIndex(file);
+  return { fresh, run: { tests: run.tests, ...(run.commit === undefined ? {} : { commit: run.commit }) } };
 }
 
 /** What a run tells the case index about itself. */

@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -6,8 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
 import { native, nativeAvailable } from '../native.js';
-import { foldCaseRun, inspectCaseRun, writeCaseIndex } from './case-fold.js';
-import { caseLayerFiles } from './case-landing.js';
+import { foldCaseRun, freshCases, inspectCaseRun } from './case-fold.js';
+import { layCases, lastCaseRunOf } from './case-landing.js';
+import type { CaseSections } from './case-record.js';
 import {
   AMBIENT,
   executionIndexFrom,
@@ -119,29 +119,24 @@ describe('the bounded case fold', () => {
     expect(decodeExecutionIndex(folded.bytes)).toEqual(previous);
     expect(folded.passes).toBeGreaterThan(1);
 
-    const written = resolve(cases, '..', 'cases.bin');
-    const spelled = resolve(cases, '..', 'cases.json');
-    await writeCaseIndex(written, cases, '/repo', modules, { tests: [] });
-    await writeCaseIndex(spelled, cases, '/repo', modules, { tests: [] });
-    expect(decodeExecutionIndex(await readFile(written))).toEqual(previous);
-    expect(JSON.parse(await readFile(spelled, 'utf8'))).toEqual(previous);
-    // The first write has nothing to lay over: the run is the index and the last
+    const first = layCases({}, (await freshCases(cases, '/repo', modules, { tests: [] }))!.fresh, '/repo', { tests: [] });
+    expect(decodeExecutionIndex(first.index!)).toEqual(previous);
+    // The first lay has nothing to lay over: the run is the index and the last
     // run both, and there is no before.
-    expect(JSON.parse(await readFile(caseLayerFiles(written).last, 'utf8')))
-      .toMatchObject({ files: [], cases: previous.tests.map((test) => test.id) });
-    expect(existsSync(caseLayerFiles(written).before)).toBe(false);
+    expect(lastCaseRunOf(first)).toMatchObject({ files: [], cases: previous.tests.map((test) => test.id) });
+    expect(first.before).toBeUndefined();
 
     // The same run again lands over the first, and keeps what it replaced: every
     // case of a file whose cases the journals carry, announced or not.
-    await writeCaseIndex(written, cases, '/repo', modules, {
+    const again = (await freshCases(cases, '/repo', modules, {
       tests: [{ file: 'test/early.test.ts', complete: true }],
       commit: 'abc',
-    });
-    expect(decodeExecutionIndex(await readFile(written))).toEqual(previous);
-    expect(decodeExecutionIndex(await readFile(caseLayerFiles(written).before)).tests.map((test) => test.id))
+    }))!;
+    const second = layCases(first, again.fresh, '/repo', again.run);
+    expect(decodeExecutionIndex(second.index!)).toEqual(previous);
+    expect(decodeExecutionIndex(second.before!).tests.map((test) => test.id))
       .toEqual(previous.tests.map((test) => test.id));
-    expect(JSON.parse(await readFile(caseLayerFiles(written).last, 'utf8')))
-      .toMatchObject({ commit: 'abc', files: ['test/early.test.ts'] });
+    expect(lastCaseRunOf(second)).toMatchObject({ commit: 'abc', files: ['test/early.test.ts'] });
   });
 
   it('represents a four-million-crossing run without allocating one entry per crossing', async () => {
@@ -224,25 +219,26 @@ describe('the bounded case fold', () => {
   it('keeps the base under every invocation at one commit, and names it until a file runs again', async () => {
     const cases = await directory();
     const root = resolve(cases, '..');
-    const index = resolve(root, 'cases.bin');
     // The fold retires a test file the checkout no longer holds, so each one is there.
     await mkdir(resolve(root, 'test'));
     for (const file of ['a', 'b', 'c']) await writeFile(resolve(root, 'test', `${file}.test.ts`), '');
     const modules = new Map<ModuleId, CapturedModule>([['src/x.ts', captured('src/x.ts', 'src/x.ts', 3)]]);
     let journals = 0;
+    let sections: CaseSections = {};
     // One run: each test file's one case calls one branch of `src/x.ts`.
     const run = async (commit: string, calls: Readonly<Record<string, number>>): Promise<void> => {
       const from = resolve(root, `run-${journals++}`);
       await mkdir(from);
       await writeFile(resolve(from, 'w.vac'), packFrames(Object.entries(calls).map(([file, branch]) =>
         journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([['src/x.ts', counters(3, [branch])]])))));
-      await writeCaseIndex(index, from, root, modules, {
+      const fresh = (await freshCases(from, root, modules, {
         tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
         commit,
-      });
+      }))!;
+      sections = layCases(sections, fresh.fresh, root, fresh.run);
     };
     const before = async (): Promise<Record<string, number[]>> => {
-      const held = decodeExecutionIndex(await readFile(caseLayerFiles(index).before));
+      const held = decodeExecutionIndex(sections.before!);
       const entered: Record<string, number[]> = {};
       for (const [at, test] of held.tests.entries()) {
         entered[test.file] = held.modules.flatMap((module) =>
@@ -250,7 +246,7 @@ describe('the bounded case fold', () => {
       }
       return entered;
     };
-    const last = async () => JSON.parse(await readFile(caseLayerFiles(index).last, 'utf8'));
+    const last = async () => lastCaseRunOf(sections)!;
 
     await run('base', { 'a.test.ts': 1, 'b.test.ts': 2 });
     await run('head', { 'a.test.ts': 2 });
@@ -282,25 +278,26 @@ describe('the bounded case fold', () => {
     // run before them; the rest were never laid over anything.
     const cases = await directory();
     const root = resolve(cases, '..');
-    const index = resolve(root, 'cases.bin');
     await mkdir(resolve(root, 'test'));
     for (const file of ['a', 'b']) await writeFile(resolve(root, 'test', `${file}.test.ts`), '');
     const modules = new Map<ModuleId, CapturedModule>([['src/x.ts', captured('src/x.ts', 'src/x.ts', 3)]]);
     let journals = 0;
+    let sections: CaseSections = {};
     const run = async (commit: string, calls: Readonly<Record<string, number>>): Promise<void> => {
       const from = resolve(root, `run-${journals++}`);
       await mkdir(from);
       await writeFile(resolve(from, 'w.vac'), packFrames(Object.entries(calls).map(([file, branch]) =>
         journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([['src/x.ts', counters(3, [branch])]])))));
-      await writeCaseIndex(index, from, root, modules, {
+      const fresh = (await freshCases(from, root, modules, {
         tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
         commit,
-      });
+      }))!;
+      sections = layCases(sections, fresh.fresh, root, fresh.run);
     };
-    const last = async () => JSON.parse(await readFile(caseLayerFiles(index).last, 'utf8'));
+    const last = async () => lastCaseRunOf(sections)!;
 
     await run('head', { 'a.test.ts': 1, 'b.test.ts': 1 });
-    expect(existsSync(caseLayerFiles(index).before)).toBe(false);
+    expect(sections.before).toBeUndefined();
     expect(await last()).toMatchObject({ files: ['test/a.test.ts', 'test/b.test.ts'], unbased: ['test/a.test.ts', 'test/b.test.ts'] });
 
     await run('head', { 'a.test.ts': 2 });
@@ -315,16 +312,14 @@ describe('the bounded case fold', () => {
 
     // Shards landed into a fresh cache: the second brings files the first
     // never ran, and nothing before this commit recorded them either.
-    await rm(index, { force: true });
-    await rm(caseLayerFiles(index).last, { force: true });
+    sections = {};
     await run('shards', { 'a.test.ts': 1 });
     await run('shards', { 'b.test.ts': 1 });
     expect(await last()).toMatchObject({ files: ['test/a.test.ts', 'test/b.test.ts'], unbased: ['test/a.test.ts', 'test/b.test.ts'] });
 
     // The index still began at this commit after every unbased file has run
     // again, so a file a later run brings for the first time has no base.
-    await rm(index, { force: true });
-    await rm(caseLayerFiles(index).last, { force: true });
+    sections = {};
     await run('rerun', { 'a.test.ts': 1 });
     await run('rerun', { 'a.test.ts': 2 });
     expect((await last()).unbased).toBeUndefined();

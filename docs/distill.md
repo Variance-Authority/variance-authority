@@ -51,7 +51,7 @@ file's `tests` array.
 variance distill \
   --test '<recorded-test-id>' \
   --eyes .variance/eyes.json \
-  --execution .variance/execution.json
+  --execution <cache>/test-selection/<digest>/coverage.bin
 ```
 
 With Eyes evidence, `--test` also accepts a unique test title, such as
@@ -102,7 +102,7 @@ you run it in. Pass `--root <path>` when you run it from somewhere else:
 ```bash
 variance distill --test '<recorded-test-id>' \
   --eyes .variance/eyes.json \
-  --execution .variance/execution.json \
+  --execution <cache>/test-selection/<digest>/coverage.bin \
   --root /path/to/project
 ```
 

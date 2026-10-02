@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
+import { keepsCases } from './case-record.js';
 import { IndexLock, LOCK_POLL_MS, LOCK_WAIT_MS, withIndexLock } from './index-lock.js';
 import SelectionReporter from './jest-reporter.js';
 import { RUN_DIRECTORY_VARIABLE } from './jest.js';
@@ -225,7 +226,7 @@ describe('a run the snapshot lock refuses', () => {
     const run = newRun(coverageFile, root, 'presence');
     await mkdir(run.runDirectory, { recursive: true });
     await writeFile(resolve(run.runDirectory, 'a.va'), encodeJournal(testFile, new Map()));
-    const settle = foldRun(run, { coverageFile, executionFile: `${coverageFile}.cases.bin`, shims: [] });
+    const settle = foldRun(run, { coverageFile, shims: [] });
     await pastTheWait(() => settle([{ filepath: testFile, complete: true }]));
     return { coverageFile };
   }
@@ -233,12 +234,12 @@ describe('a run the snapshot lock refuses', () => {
   it('the Vitest and Rstest fold writes nothing, and says only that the lock was busy', async () => {
     const free = await fold(false);
     expect(existsSync(free.coverageFile)).toBe(true);
-    expect(existsSync(`${free.coverageFile}.cases.bin`)).toBe(true);
+    expect(keepsCases(free.coverageFile)).toBe(true);
     expect(warned).toEqual([expect.stringMatching(emptyWarning)]);
 
+    // No record, so no cases either: they travel in the record the lock refused.
     const { coverageFile } = await fold(true);
     expect(existsSync(coverageFile)).toBe(false);
-    expect(existsSync(`${coverageFile}.cases.bin`)).toBe(false);
     expect(warned).toEqual([busyWarning(coverageFile)]);
   }, PUMP_TEST_TIMEOUT_MS);
 
@@ -259,12 +260,11 @@ describe('a run the snapshot lock refuses', () => {
   it('the Jest reporter writes nothing, and says only that the lock was busy', async () => {
     const free = await report(false);
     expect(existsSync(free.coverageFile)).toBe(true);
-    expect(existsSync(`${free.coverageFile}.cases.bin`)).toBe(true);
+    expect(keepsCases(free.coverageFile)).toBe(true);
     expect(warned).toEqual([expect.stringMatching(emptyWarning)]);
 
     const { coverageFile } = await report(true);
     expect(existsSync(coverageFile)).toBe(false);
-    expect(existsSync(`${coverageFile}.cases.bin`)).toBe(false);
     expect(warned).toEqual([busyWarning(coverageFile)]);
   }, PUMP_TEST_TIMEOUT_MS);
 
