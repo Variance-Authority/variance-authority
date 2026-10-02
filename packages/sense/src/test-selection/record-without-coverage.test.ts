@@ -133,6 +133,14 @@ describe('a record without coverage', () => {
     expect(keepsCases(record)).toBe(false);
   });
 
+  it('is not answered from a file that ends before its header length does, as one that ends inside its header', async () => {
+    await landRun(record, uninstrumented, root, undefined, fresh());
+    await writeFile(record, readFileSync(record).subarray(0, 3));
+
+    expect(withoutCoverage(record)).toBe(false);
+    expect(keepsCases(record)).toBe(false);
+  });
+
   it('narrows nothing: selection answers that it read no record', async () => {
     await landRun(record, uninstrumented, root, undefined, fresh());
     await expect(narrowByExecution(record, '')).rejects.toBeInstanceOf(RecordWithoutCoverage);
