@@ -104,61 +104,74 @@ so it keeps no subject in the run. A CI workflow edited
 beside one component gives the walk a seed, and the run narrows to that
 component, though it never examined the change that seeded it.
 
-Name the files the run rests on and it stops being an accident:
+Name the files the run rests on and it stops being an accident. What every
+suite rests on goes at the top, and what one suite rests on goes beside its
+kind:
 
 ```json
 {
-  "source": {
-    "dirs": ["src"],
-    "relations": true,
-    "before": ["vitest.config.ts", ".github/workflows", ".nvmrc"]
-  }
+  "before": [".github/workflows", ".nvmrc"],
+  "suites": {
+    "unit": { "kind": "unit", "before": ["vitest.config.ts", "test/setup.ts"] }
+  },
+  "source": { "dirs": ["src"], "relations": true }
 }
 ```
 
+A runner config names its setup files and its environment as strings —
+`setupFiles: ['./test/setup.ts']`, `testEnvironment: 'jsdom'` — and a string
+is not an import, so nothing in the graph runs from the config to them. Name
+each setup file beside the config.
+
 Each entry is matched against the diff by path, so naming a directory of
-workflows is one line rather than one per file. When one of them changes, the
-run is whole and the report says which file put it there.
+workflows is one line rather than one per file. A directory is also walked: every
+file under it is an entry point, so a `test/` that holds the setup brings in
+what that setup loads, wherever it lives. When a top-level entry changes,
+`variance run --since` runs whole; when either list changes for the suite
+`variance select` reads, it skips none of that suite. Each names the file that
+put it there.
 
 Which paths govern a run is a fact about your repository, and no rule derives
 it. *Every changed path the graph does not include* would be the README, the
 changelog and the editor settings — a whole run each, forever — and switching
 that off would switch the config files off with it. Declared, it is exact.
 
-`source.before` needs `source.relations: true`, because what an entry point
-buys is everything below it.
+`variance run --since` reads the top-level `before`, and needs
+`source.relations: true` to do it, because what an entry point buys is
+everything below it.
 
-Test selection makes the same declaration on the runner. `variance select` reads
-no `variance.config.json`, so `source.before` does not reach it. The Vitest
-integration declares the config file Vite loaded and the local modules it
-imports; the Vitest, Jest and Rstest integrations take a `preconditions` option
-for the rest, and every test they record declares each file it lists. A change
-to one of those files selects the whole suite. A changed file nothing imports
-and nothing lists selects nothing, and `select` names it.
+`variance select` reads both: the top-level list and the list of the suite whose
+record it reads, or with `--execution` the suite `--suite` names. A change to anything either one reaches runs that whole suite,
+and `select` names what put it there. A suite with no `before` has nothing
+before its reach, and `select` says so beside its answer. The Vitest
+integration also declares the config file Vite loaded and the local modules it
+imports, and the Vitest, Jest and Rstest integrations take a `preconditions`
+option: every test they record declares each file it lists, and a change to one
+selects every test that declares it. A changed file nothing imports and nothing
+declares selects nothing, and `select` names it.
 
 ## What comes with a declared entry point
 
-The config file is one name. The setup module it loads, the fixture only that
-setup imports, the polyfill, the environment package it names: each is an
-ordinary file that nothing imports, whose change reaches no component, and
-which on its own narrows a run to nothing. Declared once at the top, they
-arrive together — the entry point is the one thing walked **along** the arrows
+A declared file is one name. The fixture only the setup imports, the polyfill,
+the DOM package it registers: each is an ordinary file or package that nothing
+in a test imports, whose change reaches no component, and which on its own
+narrows a run to nothing. Declared once, they arrive with the file that
+imports them — the entry point is the one thing walked **along** the arrows
 instead of against them.
 
 ```mermaid
 flowchart LR
   config["vitest.config.ts<br/>declared"]
-  setup["test/setup.ts"]
+  setup["test/setup.ts<br/>declared"]
   fixtures["test/fixtures.ts"]
-  env["jest-environment-jsdom"]
+  env["global-jsdom"]
   jsdom["jsdom"]
   theme["src/theme.ts<br/>sensed"]
   tokens["src/tokens.css"]
   button["Button.tsx"]
 
-  config --> setup
-  config --> env
   setup --> fixtures
+  setup --> env
   setup --> theme
   env --> jsdom
   theme --> tokens
@@ -190,7 +203,8 @@ that finds it too wide narrows what it declares.
 A `jsdom` bump is beyond reach, and the environment it is wired into is before
 reach — the only arrow in the first figure that points back to the left. The
 install comparison names `jsdom`; the harness depends on it through
-`jest-environment-jsdom`, three edges out from a config file; and no file you
-wrote ever spells the word. Undeclared, that diff narrows to whatever else it
+`global-jsdom`, which the declared setup imports; and no file you wrote ever
+spells the word. An environment the config names only by string is not
+imported by anything, so its packages are not reached. Undeclared, that diff narrows to whatever else it
 touched. Declared, the run is whole, and it says `jsdom`.
 

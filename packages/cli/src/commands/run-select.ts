@@ -41,7 +41,8 @@ import { OperatorError } from '../exit.js';
 import { affectedSubjects, type Affected } from './affected.js';
 import { keyFor, type Plan } from './collector.js';
 import { unenteredSubjects } from './journey.js';
-import { movedPackages, withMovedPackages, withoutManifests, type InstallDiff } from './installed.js';
+import { withoutManifests, type InstallDiff } from './installed.js';
+import { movedPackages, withMovedPackages } from './moved-packages.js';
 import { many } from './reach.js';
 import { reachOf } from './reach-subjects.js';
 import type { ObserveContext, RunDeps, RunOptions } from './run-context.js';
@@ -163,9 +164,9 @@ export async function selectionFor(
   // selector and the report must refuse for the same reason, and two walks
   // would let one of them refuse while the other explained.
   const before =
-    relations === undefined || config.source.before === undefined
+    relations === undefined || config.before === undefined
       ? undefined
-      : beforeReach(relations, config.source.before, { sensed: config.source.dirs });
+      : beforeReach(relations, config.before, { sensed: config.source.dirs });
 
   const dirsFor = async (ref: string): Promise<readonly string[] | undefined> =>
     config.source?.changes !== undefined && deps.changedProjects !== undefined
@@ -287,6 +288,14 @@ export async function selectionFor(
         },
         before,
       ),
+      // Declared but not walked: what an entry loads is found down the graph,
+      // and a run with none reads the declaration as nothing rather than guess.
+      ...(relations === undefined && config.before !== undefined
+        ? [
+            '`before` was not read: what its entries load is walked down the file graph, and ' +
+              '`source.relations` is off, so a change to what this run rests on narrowed it like any other file.',
+          ]
+        : []),
       // What the parser made of each changed file: the files the structural
       // ground did not seed from, then the journal's reading. A file both read
       // as `none` is said once.
@@ -308,7 +317,7 @@ export async function selectionFor(
  *
  * Two of its refusals are about evidence the journal never had. An install that
  * could not be compared may have moved any package, and no line of the diff
- * shows it. A diff that moves what the run rests on — `source.before` — moves a
+ * shows it. A diff that moves what the run rests on — `before` — moves a
  * file nothing imports, which the journal holds no row for and so answers with
  * nobody. A journal consulted after either would rule out every subject the
  * structural ground had just kept, over a change it never saw.
@@ -406,7 +415,7 @@ function notesFor(
     ...(unread.length === 0
       ? []
       : [
-          `\`source.before\` names ${many(unread.length, 'file')} the scan does not hold ` +
+          `\`before\` names ${many(unread.length, 'file')} the scan does not hold ` +
             `(${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ', …' : ''}), so ` +
             `${unread.length === 1 ? 'it covers its own path' : 'each covers its own path'} and ` +
             'nothing below it. That is the whole answer for a `.nvmrc` or a CI workflow, which ' +

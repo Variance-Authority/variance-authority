@@ -562,7 +562,11 @@ flowchart TB
   nothing.
 - What a run rests on, to the walk that cannot see it — `beforeReach` in
   `packages/core/src/relate/before.ts` descends *along* the arrows from the
-  paths in `source.before`, stopping at the first file under `source.dirs`, and
+  paths in `before` — the top-level list, plus the suite's own for
+  `variance select`, whose `restsOf` in
+  `packages/cli/src/commands/select-before.ts` runs the whole suite on a hit —
+  stopping at the first file under `source.dirs` for a render run and nowhere
+  for `select`, and
   returns the files and packages it reached plus the declared entries the graph
   does not hold. `affectedComponents` in `packages/cli/src/commands/reach.ts`
   asks `changedBefore` before it walks anything and returns a `whole` sentence

@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import {
+  beforeOf,
   declaredSuites,
+  parseBefore,
   parseSuites,
   readTestCoverage,
   readableTestCoverage,
@@ -51,12 +53,47 @@ describe('the suites a repository declares', () => {
     [{}, '"suites" declares no suite'],
     [{ '../up': { kind: 'unit' } }, '"suites.../up" is not a suite name'],
     [{ '.work': { kind: 'unit' } }, '"suites..work" is not a suite name'],
-    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?: "actions-cache" | "share" }, not {"kind":"smoke"}'],
+    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?: "actions-cache" | "share", "before"?: [paths] }, not {"kind":"smoke"}'],
     [{ unit: { kind: 'unit', carry: 'artifact' } }, '"suites.unit" must be { "kind"'],
     [{ unit: { kind: 'unit', runner: 'jest' } }, '"suites.unit" must be { "kind"'],
     [{ unit: 'unit' }, '"suites.unit" must be { "kind"'],
+    [{ unit: { kind: 'unit', before: [] } }, '"suites.unit.before" must be a non-empty list of paths, not []'],
+    [{ unit: { kind: 'unit', before: ['vitest.config.ts', 3] } }, '"suites.unit.before" must be a non-empty list of paths'],
+    [{ unit: { kind: 'unit', before: 'vitest.config.ts' } }, '"suites.unit.before" must be a non-empty list of paths'],
   ])('refuse %j', (value, message) => {
     expect(() => parseSuites(value, 'here.json')).toThrow(`here.json: ${message}`);
+  });
+});
+
+describe('what a suite rests on before reach', () => {
+  test('is declared on the suite, beside its kind', () => {
+    expect(parseSuites({ unit: { kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] } }, 'here.json')).toEqual([
+      { name: 'unit', kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] },
+    ]);
+  });
+
+  test('is what every suite rests on, then what this one does', async () => {
+    const at = await repository({
+      before: ['.nvmrc', '.github/workflows'],
+      suites: { unit: { kind: 'unit', before: ['vitest.config.ts'] }, stories: { kind: 'visual' } },
+    });
+
+    expect(beforeOf(at, 'unit')).toEqual(['.nvmrc', '.github/workflows', 'vitest.config.ts']);
+    expect(beforeOf(at, 'stories')).toEqual(['.nvmrc', '.github/workflows']);
+    expect(beforeOf(at, undefined)).toEqual(['.nvmrc', '.github/workflows']);
+  });
+
+  test('is nothing when nothing is declared', async () => {
+    expect(beforeOf(await repository(SUITES), 'unit')).toEqual([]);
+    expect(beforeOf(await repository(), undefined)).toEqual([]);
+  });
+
+  test.each([
+    [[], '"before" must be a non-empty list of paths, not []'],
+    [['.nvmrc', ''], '"before" must be a non-empty list of paths'],
+    [{ unit: ['.nvmrc'] }, '"before" must be a non-empty list of paths'],
+  ])('refuses a run-wide %j', (value, message) => {
+    expect(() => parseBefore(value, 'before', 'here.json')).toThrow(`here.json: ${message}`);
   });
 });
 

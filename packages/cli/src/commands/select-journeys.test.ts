@@ -129,6 +129,72 @@ describe('selecting from a journey file', () => {
     expect(said.err).toContain('no install to compare');
   });
 
+  // The root config is read once per process, so a test that declares one
+  // starts from a checkout of its own that holds it from the first read.
+  it('runs every test when the patch moves a path every suite rests on', async () => {
+    root = await declaring({ before: ['.nvmrc'] });
+    writeFileSync(join(root, 'change.patch'), patch(6) + added('.nvmrc'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('every suite here rests on .nvmrc');
+  });
+
+  it('runs every test when a package the declared setup loads was bumped', async () => {
+    root = await declaring({ before: ['vitest.config.ts', 'test/setup.ts'] }, {
+      'vitest.config.ts': "export default { test: { setupFiles: ['./test/setup.ts'] } };\n",
+      'test/setup.ts': "import left from 'left';\nexport const ready = left;\n",
+    });
+    git('add', '.');
+    git('commit', '-qm', 'before');
+    writeFileSync(join(root, 'yarn.lock'), lockfile('1.1.0'));
+    git('commit', '-qam', 'bump');
+    writeFileSync(join(root, 'change.patch'), git('diff', 'HEAD~1', 'HEAD'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('every suite here rests on deep');
+  });
+
+  it('runs every test when a manifest that moved changes how the declared setup loads', async () => {
+    root = await declaring({ before: ['test/setup.ts'] }, {
+      'test/setup.ts': 'export const ready = 1;\n',
+      'test/package.json': JSON.stringify({ name: 'fixture-test', type: 'commonjs' }),
+    });
+    git('add', '.');
+    git('commit', '-qm', 'before');
+    writeFileSync(join(root, 'test/package.json'), JSON.stringify({ name: 'fixture-test', type: 'module' }));
+    writeFileSync(join(root, 'change.patch'), git('diff'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('rests on test/setup.ts');
+  });
+
+  it('reads the `before` of the suite `--suite` names', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit', before: ['.nvmrc'] }, e2e: { kind: 'e2e' } } });
+    writeFileSync(join(root, 'change.patch'), patch(6) + added('.nvmrc'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true, suite: 'unit' });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('the suite unit rests on .nvmrc');
+  });
+
+  // A journey file is not kept per suite, so with none named it may be any
+  // suite's, and what any of them rests on is read.
+  it('reads the `before` of every suite when several are declared and none is named', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit', before: ['.nvmrc'] }, e2e: { kind: 'e2e' } } });
+    writeFileSync(join(root, 'change.patch'), patch(6) + added('.nvmrc'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('every suite here rests on .nvmrc');
+  });
+
+  async function declaring(config: unknown, files: Readonly<Record<string, string>> = {}): Promise<string> {
+    const at = project();
+    writeFileSync(join(at, 'variance.config.json'), JSON.stringify(config));
+    for (const [file, text] of Object.entries(files)) writeFileSync(join(at, file), text);
+    process.chdir(at);
+    await indexOutput({ cwd: at, noGit: true });
+    return at;
+  }
+
   function git(...args: string[]): string {
     return execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
   }

@@ -31,25 +31,29 @@ Take it in this order, and read rather than assume:
    are not entry points. Adding them buys whole runs and no information.
 
 Write them into `variance.config.json` as repository-root-relative paths. A
-directory claims everything under it:
+directory claims everything under it, and every file under it is walked as an
+entry point:
 
 ```json
 {
-  "source": {
-    "dirs": ["src"],
-    "relations": true,
-    "before": ["vitest.config.ts", "vitest.setup.ts", ".github/workflows", ".nvmrc"]
-  }
+  "before": [".github/workflows", ".nvmrc"],
+  "suites": {
+    "unit": { "kind": "unit", "before": ["vitest.config.ts", "vitest.setup.ts"] }
+  },
+  "source": { "dirs": ["src"], "relations": true }
 }
 ```
 
-`source.before` needs `source.relations: true`: what a declared entry point adds
-beyond its own name is everything below it, and that is a walk down the file
-graph.
+The top-level `before` is what every suite rests on; a suite's own is its runner
+config and setup. What a declared entry point adds beyond its own name is
+everything below it, a walk down the file graph. `variance select` reads both
+lists for the suite it reads; `variance run --since` reads the top-level one and
+needs `source.relations: true` for it.
 
-Then check the answer rather than trust the list. Run `variance run --since
-<ref>` over a diff that changes one of the named files and one ordinary
-component, and confirm the run comes back whole. A note naming entries the scan does not have is normal for
+Then check the answer rather than trust the list. Run `variance select` over a
+diff that changes the setup file, and confirm it skips nothing and names the
+file; run `variance run --since <ref>` over a diff that changes a workflow and
+one ordinary component, and confirm the run comes back whole. A note naming entries the scan does not have is normal for
 a `.nvmrc` or a workflow, which have nothing under them to read. It is not
 normal for the harness config: it means the setup files below it still narrow to
 nothing, and the usual cause is a path that does not exist or an extension the
@@ -67,8 +71,8 @@ produces a green report over work nothing checked, and silently. Expect these:
 - A change to the harness, the bundler config or the Node version does not
   narrow: nothing imports them, so there is no edge to walk and no answer
   smaller than the whole suite. It is only *noticed* when something declares
-  it: `source.before` for `variance run --since`, and a precondition for the
-  test integrations. The Vitest integration declares the config file Vite loaded,
+  it: `before` in `variance.config.json`, and a precondition for the test
+  integrations. The Vitest integration declares the config file Vite loaded,
   the local modules it imports and the configured setup files; all three
   integrations take further files in `preconditions`, and Jest and Rstest need
   the config named there. Undeclared, a config edited beside a component file is

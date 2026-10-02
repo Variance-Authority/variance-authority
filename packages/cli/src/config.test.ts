@@ -449,22 +449,27 @@ describe('parseConfig source', () => {
     expect(error.message).toContain('JSON taint tables');
   });
 
-  it('accepts the files a run rests on, and needs a graph to walk down from them', () => {
+  it('accepts the files every suite rests on at the top, and in each suite what that suite rests on', () => {
     const config = parseConfig(
-      withField('source', { dirs: ['src'], relations: true, before: ['vitest.config.ts'] }),
+      {
+        ...VALID,
+        before: ['.nvmrc', '.github/workflows'],
+        suites: { unit: { kind: 'unit', before: ['vitest.config.ts'] } },
+      },
       OPTIONS,
     );
-    expect(config.source?.before).toEqual(['vitest.config.ts']);
+    expect(config.before).toEqual(['.nvmrc', '.github/workflows']);
+    expect(config.suites).toEqual([{ name: 'unit', kind: 'unit', before: ['vitest.config.ts'] }]);
 
-    const empty = attempt(withField('source', { dirs: ['src'], relations: true, before: [] }));
-    expect(empty.field).toBe('source.before');
+    expect(attempt(withField('before', [])).field).toBe('before');
+    expect(attempt(withField('suites', { unit: { kind: 'unit', before: [] } })).field).toBe('suites.unit.before');
+  });
 
-    // Without the graph the entry point contributes its own name and nothing
-    // else, so every setup file it loads would still narrow a run to nothing —
-    // which is the exact failure the key exists to remove.
-    const alone = attempt(withField('source', { dirs: ['src'], before: ['vitest.config.ts'] }));
-    expect(alone.field).toBe('source.before');
-    expect(alone.message).toContain('source.relations');
+  it('reads no before reach under source', () => {
+    // One key, at the top: what a run rests on is not a property of where
+    // components are declared, and `variance select` reads it with no `source`.
+    const error = attempt(withField('source', { dirs: ['src'], relations: true, before: ['vitest.config.ts'] }));
+    expect(error.field).toBe('source.before');
   });
 
   it('refuses a value that is neither', () => {

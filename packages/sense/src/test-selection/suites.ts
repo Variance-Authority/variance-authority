@@ -18,6 +18,12 @@
  * { "suites": { "unit": { "kind": "unit" }, "stories": { "kind": "visual" } } }
  * ```
  *
+ * What a suite rests on before any of its tests imports anything is declared
+ * on it too, as `before`: the runner's config and the setup it loads. The
+ * repository's own `before`, at the top of the file, is what every suite rests
+ * on — the Node version, the CI workflow. No rule derives either list: which
+ * files govern a run is a fact only the repository knows.
+ *
  * The kind is not inferred from the runner. A Playwright suite may be `e2e` or
  * `visual`, and a Vitest browser suite may be `unit` or `visual`; only the
  * repository knows which it meant.
@@ -60,6 +66,12 @@ export interface DeclaredSuite {
   readonly kind: SuiteKind;
   /** Absent when the record stays on the machine that wrote it. */
   readonly carry?: Carrier;
+  /**
+   * The entry points this suite's runner loads before any test: a change to one,
+   * or to anything it loads, reaches every test of the suite. Absent when the
+   * suite declares none, which puts nothing of its own before reach.
+   */
+  readonly before?: readonly string[];
 }
 
 /**
@@ -118,23 +130,54 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
       : undefined;
     const kind = keys === undefined ? undefined : (declared as Record<string, unknown>)['kind'];
     const carry = keys === undefined ? undefined : (declared as Record<string, unknown>)['carry'];
+    const before = keys === undefined ? undefined : (declared as Record<string, unknown>)['before'];
     if (
       keys === undefined ||
-      keys.some((key) => key !== 'kind' && key !== 'carry') ||
+      keys.some((key) => key !== 'kind' && key !== 'carry' && key !== 'before') ||
       !SUITE_KINDS.includes(kind as SuiteKind) ||
       (carry !== undefined && !CARRIERS.includes(carry as Carrier))
     ) {
       throw new SuitesError(
         where,
         `suites.${name}`,
-        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)} }, not ${JSON.stringify(declared)}`,
+        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)}, "before"?: [paths] }, ` +
+          `not ${JSON.stringify(declared)}`,
       );
     }
 
-    return carry === undefined
-      ? { name, kind: kind as SuiteKind }
-      : { name, kind: kind as SuiteKind, carry: carry as Carrier };
+    return {
+      name,
+      kind: kind as SuiteKind,
+      ...(carry === undefined ? {} : { carry: carry as Carrier }),
+      ...(before === undefined ? {} : { before: parseBefore(before, `suites.${name}.before`, where) }),
+    };
   });
+}
+
+/**
+ * Check a `before` list: paths, matched against a diff by path, so one entry
+ * may be a directory. An empty list declares nothing while looking configured,
+ * and is refused, as an empty `suites` is.
+ */
+export function parseBefore(value: unknown, field: string, where: string): readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.some((path) => typeof path !== 'string' || path === '')) {
+    throw new SuitesError(where, field, `must be a non-empty list of paths, not ${JSON.stringify(value)}`);
+  }
+  return value as readonly string[];
+}
+
+/**
+ * What a suite rests on before reach, as declared: the repository's `before`,
+ * then the suite's own. Empty when neither declares any, which puts nothing
+ * before reach — a changed config file then selects nothing, as any file no
+ * evidence connects to a test does.
+ */
+export function beforeOf(root: string, suite: string | undefined): readonly string[] {
+  const config = rootConfig(root);
+  if (config === undefined) return [];
+  const shared = config.value['before'] === undefined ? [] : parseBefore(config.value['before'], 'before', config.file);
+  const own = suite === undefined ? undefined : declaredSuites(root)?.find((one) => one.name === suite)?.before;
+  return [...shared, ...(own ?? [])];
 }
 
 function quoted(values: readonly string[]): string {

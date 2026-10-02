@@ -384,7 +384,7 @@ describe('narrowing a run to what a diff could have changed', () => {
     it('observes every subject when the diff moves what the run rests on, journal or not', async () => {
       // Nothing imports a harness config, so the journal records nothing about
       // it and would rule out both subjects over the file that governs them.
-      const config = configOf({ source: { dirs: ['src'], relations: true, before: ['vitest.config.ts'] } });
+      const config = configOf({ before: ['vitest.config.ts'], source: { dirs: ['src'], relations: true } });
       const harness = ['--- a/vitest.config.ts', '+++ b/vitest.config.ts', '@@ -1,1 +1,1 @@'].join('\n');
       let asked = false;
 

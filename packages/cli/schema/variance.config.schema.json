@@ -135,10 +135,18 @@
           "carry": {
             "$ref": "#/$defs/carry",
             "description": "Who carries the suite's recording off the machine that recorded it. Without it, the recording stays there."
+          },
+          "before": {
+            "$ref": "#/$defs/before",
+            "description": "What this suite rests on before any of its tests imports anything: its runner config, and the setup files that config loads. Each entry is walked down the file graph, and a change to any file or package it reaches runs the whole suite. Without it, nothing is before this suite's reach."
           }
         }
       },
       "description": "Every test suite the repository runs, by name, with its kind. Each suite records separately, and names itself with the suite option of its test runner integration. Read only from the variance.config.json at the repository root."
+    },
+    "before": {
+      "$ref": "#/$defs/before",
+      "description": "What every suite rests on before any test imports anything: a CI workflow, a `.nvmrc`. A change to any file or package an entry reaches runs every suite, and for `variance run --since`, every subject. Read only from the variance.config.json at the repository root."
     },
     "entrypoints": {
       "type": "object",
@@ -158,6 +166,12 @@
     }
   },
   "$defs": {
+    "before": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Repository-root-relative paths that nothing in a run imports. A directory claims every file under it. Each entry is walked down the file graph once, so what it loads, directly or not, and the packages those files import are before reach too. An entry the scan does not hold, such as a `.nvmrc`, contributes only its own name."
+    },
     "carry": {
       "enum": ["actions-cache", "share"],
       "description": "Who moves an artifact to the next machine. `actions-cache`: the CI host, from job to job, with the path and key `variance carry` prints. `share`: variance itself, through the `share` section, where a checkout can read it too."
@@ -517,12 +531,6 @@
           "type": "array",
           "minItems": 1,
           "description": "Directories components are declared in. Directories rather than globs: a glob syntax is a small language with its own bugs, and which directories hold components is answerable without one. An empty list would silently narrow a run to nothing.",
-          "items": { "type": "string", "minLength": 1 }
-        },
-        "before": {
-          "type": "array",
-          "minItems": 1,
-          "description": "Files the run rests on that nothing in it imports: the test harness config, the setup it loads, a CI workflow, a `.nvmrc`. Nothing has an edge to a config, so a walk back from one reaches no component and a diff that touches one beside a component file would narrow silently. Declared, each entry is walked down once, and the files and packages it reaches do not narrow a run. The descent stops at the first file under `dirs`, which already answers for itself. An entry the scan does not hold contributes only its own name. Needs `relations`.",
           "items": { "type": "string", "minLength": 1 }
         },
         "relations": {

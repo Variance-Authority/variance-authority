@@ -102,8 +102,9 @@ npx variance select --format json
 
 `select` prints a **skip** list, never a run list: stdout is paths and
 nothing else, and an empty answer runs your whole suite rather than none of it.
-It reads no `variance.config.json`, so a repository that uses Variance Authority
-for nothing else can still ask. The
+It needs no `variance.config.json`, so a repository that uses Variance Authority
+for nothing else can still ask; with one, it reads the declared suites and what
+each rests on [before reach](changes-before-and-beyond.md#how-a-change-before-reach-is-declared). The
 [CLI reference](https://variance-authority.dev/reference/packages/cli) has the
 other output formats and the conditions under which it declines to narrow.
 
