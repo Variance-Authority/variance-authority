@@ -89,7 +89,9 @@ A case-level precondition is `{ name, value, site }`, held on the case row in
 `cases.bin` beside `stopped` and `duration`, through the string table every
 other column uses. It travels in the journal beside the case frame, which is a
 change to the journal format, and is not part of the case key, so a case's
-identity does not move when its preconditions do.
+identity does not move when its preconditions do. A case that named a
+precondition has a row even when it crossed nothing: a passing case that only
+arranged state and asserted on a mock is still a case `--where` must find.
 
 It is kept apart from the per-file precondition table on purpose. A file
 precondition is a path and a digest, and a change to that file selects every
@@ -118,7 +120,9 @@ When `names.axes` declares the name, the value is read against that axis:
   as ADR-0046 reads a subject that omits it. `--where flag=ff-off` matches it.
 - **The twin.** A case's twin is found as ADR-0046 finds a parent: move its last
   declared axis one step toward the base, keep every other precondition, and
-  take the nearest coordinate a case in the answer actually holds. `covering`
+  take the nearest coordinate a recorded case actually holds. The twin is looked
+  up among every case the same question reached before `--where` narrowed it,
+  so `--where flag=ff-on` still prints each case's `ff-off` twin. `covering`
   prints it beside the case: the `ff-off` twin of an `ff-on` case, with what each
   ran. Several cases at that coordinate are all printed with their count; none is
   printed as *no twin recorded*.
@@ -140,9 +144,12 @@ declared it".
    that changes a value.
 3. The `cases.bin` column and its journal frame, with the size it adds to this
    repository's recording stated, and the unmeasured answer for an older record.
+   A fixture for a passing case that names a precondition and crosses nothing,
+   found by `--where`.
 4. `--where` and the per-case preconditions in every form of `covering` that
    answers with cases, each with a test that fails on an answer that reads an
    unmeasured record as an empty one.
 5. The axis reading: vocabulary check, base for an unnamed axis, and the twin,
    on fixtures where two cases differ only in `flag`, where three hold the same
-   coordinate, and where no case holds it.
+   coordinate, and where no case holds it; and `--where flag=ff-on` printing an
+   `ff-off` twin the filter left out of the answer.
