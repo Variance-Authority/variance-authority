@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
+import { ConfigError } from '../config-values.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
@@ -108,6 +109,10 @@ describe('a case read by what it said', () => {
     expect(names(scoped)).toEqual(['replays a recording']);
   });
 
+  it('refuses a condition with no name', () => {
+    expect(() => parse(['--file', 'src/cart.ts', '--where', '=mocked'])).toThrow(/`--where` takes a precondition's name/);
+  });
+
   it('answers unmeasured, never an empty list, from a record made before cases said anything', async () => {
     const record = await recorded(MEASURED.map(({ preconditions: _, ...test }) => test));
 
@@ -185,6 +190,51 @@ describe('a case read along a declared axis', () => {
     const text = formatCovering(answer, 'text');
     expect(text).toContain('2 twins at flag=ff-off: also plain, plain');
     expect(text).toContain('no twin recorded');
+  });
+
+  it('places no case nobody listened to, matches a stem by every undeclared name, and prints twins in refs', async () => {
+    const seededAndMocked = [
+      { name: 'seeded', value: true, site: at(7), level: 1 },
+      { name: 'network', value: 'mocked', site: at(4), level: 1 },
+    ];
+    const record = await recorded([
+      row('on', [{ name: 'flag', value: 'ff-on', site: at(2), level: 1 }, ...seededAndMocked]),
+      row('plain', seededAndMocked),
+      row('unheard'),
+    ], true);
+
+    const answer = await ask(['flag=ff-on'], record);
+    expect(answer.twins).toEqual([
+      { case: `${SPEC} > on`, axis: 'flag', from: 'ff-on', to: 'ff-off', twins: [`${SPEC} > plain`] },
+    ]);
+    expect(formatCovering(answer, 'refs')).toContain('      twin at flag=ff-off: plain');
+  });
+
+  it('names the twin of a case a `--function` question reached', async () => {
+    const record = await recorded(MEASURED, true);
+
+    const answer = await covering(parse([
+      '--file', 'src/cart.ts', '--function', 'total', '--execution', record.execution, '--root', record.root, '--where', 'flag=ff-on',
+    ]));
+    expect(answer.twins?.map((twin) => [twin.case, twin.twins])).toEqual([
+      [`${SPEC} > refunds mocked behind a flag`, [`${SPEC} > half on`]],
+    ]);
+  });
+
+  it('prints a value outside the vocabulary under what it kept', async () => {
+    const record = await recorded([row('flag typo', [{ name: 'flag', value: 'ff-onn', site: at(30), level: 1 }])], true);
+
+    expect(formatCovering(await ask(['flag'], record), 'text'))
+      .toContain(`  flag=ff-onn (${at(30)}) is not one of ff-off, ff-half, ff-on`);
+  });
+
+  it('refuses a config that is not JSON, naming the file, rather than reading no axes', async () => {
+    const record = await recorded(MEASURED);
+    await writeFile(join(record.root, 'variance.config.json'), '{ "names": ');
+
+    const refused = await ask(['flag=ff-on'], record).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(ConfigError);
+    expect((refused as Error).message).toMatch(/variance\.config\.json.*is not valid JSON/);
   });
 
   it('takes the step a subject named the same would take: the last declared axis, toward the base', () => {

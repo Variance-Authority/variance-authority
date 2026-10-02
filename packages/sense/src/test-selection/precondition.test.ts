@@ -1,7 +1,9 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import { parseSync } from 'oxc-parser';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { checkoutSaid } from './case-precondition-column.js';
 import preconditions from './case-preconditions.cjs';
 import { variancePrecondition } from './precondition.js';
 
@@ -131,6 +133,105 @@ describe('the recorder a case scope installs', () => {
       console.warn = warn;
     }
     expect(recorder.take(keyOf('pays'))).toEqual([]);
+  });
+});
+
+describe('where a hook stands, and what the recorder takes for a call', () => {
+  const keyOf = (name: string): string => `/repo/a.test.ts\u0000${name}\u00001`;
+  const each = (name: string) => ({ kind: 'each', depth: 1, case: keyOf(name) }) as const;
+  const outside = /ran outside a running case/;
+
+  it('lays a beforeEach that names its case on that case, through the async store where the realm has one', async () => {
+    const recorder = preconditions.recorder(globalThis, () => undefined, new AsyncLocalStorage());
+    await recorder.within(each('pays'), async () => {
+      await Promise.resolve();
+      variancePrecondition('network', 'mocked');
+    });
+    expect(() => variancePrecondition('flag')).toThrow(outside);
+    expect(recorder.take(keyOf('pays')).map(([name, value, , level]) => [name, value, level])).toEqual([['network', 'mocked', 1]]);
+  });
+
+  it('stands back where it was once a hook returns, throws, resolves or rejects', async () => {
+    const recorder = preconditions.recorder(globalThis, () => undefined);
+    expect(() => recorder.within(each('pays'), () => {
+      throw new Error('the hook failed');
+    })).toThrow('the hook failed');
+    expect(() => variancePrecondition('flag')).toThrow(outside);
+
+    await recorder.within(each('pays'), async () => {
+      await Promise.resolve();
+      variancePrecondition('flag', 'ff-on');
+    });
+    expect(() => variancePrecondition('flag')).toThrow(outside);
+
+    await expect(recorder.within(each('pays'), async () => {
+      await Promise.resolve();
+      throw new Error('the async hook failed');
+    })).rejects.toThrow('the async hook failed');
+    expect(() => variancePrecondition('flag')).toThrow(outside);
+    expect(recorder.take(keyOf('pays')).map(([, value]) => value)).toEqual(['ff-on']);
+  });
+
+  it('forgets every case and every pending beforeEach when its file finishes', () => {
+    const recorder = preconditions.recorder(globalThis, () => undefined);
+    recorder.within(each('pays'), () => variancePrecondition('network', 'mocked'));
+    recorder.within({ kind: 'each', depth: 0 }, () => variancePrecondition('seeded'));
+    recorder.finish();
+    recorder.entered(keyOf('refunds'));
+    expect(recorder.take(keyOf('pays'))).toEqual([]);
+    expect(recorder.take(keyOf('refunds'))).toEqual([]);
+  });
+
+  it('records nothing for an empty name, a record with a value beside it, or a record holding an empty name or an object', () => {
+    const recorder = preconditions.recorder(globalThis, () => keyOf('pays'));
+    const warned: unknown[] = [];
+    const warn = console.warn;
+    console.warn = (...args: unknown[]) => void warned.push(args.join(' '));
+    try {
+      variancePrecondition('');
+      (variancePrecondition as (named: unknown, value?: unknown) => void)({ flag: 'ff-on' }, 'ff-off');
+      variancePrecondition({ '': 'ff-on' });
+      variancePrecondition({ when: {} as unknown as string });
+    } finally {
+      console.warn = warn;
+    }
+    expect(warned).toHaveLength(4);
+    expect(recorder.take(keyOf('pays'))).toEqual([]);
+  });
+
+  it('names a call it cannot place on a stack as no site, and a dev server\'s `/@fs/` URL as the file it serves', () => {
+    const recorder = preconditions.recorder(globalThis, () => keyOf('pays'));
+    const say = realm[PRECONDITION] as (named: string, value: unknown, called: unknown) => void;
+    say('none', true, undefined);
+    say('short', true, { stack: 'Error\n    at entry (/repo/precondition.js:1:1)' });
+    say('served', true, {
+      stack: 'Error\n    at entry (http://localhost:5173/@fs/repo/precondition.js:1:1)\n' +
+        '    at http://localhost:5173/@fs/repo/test/a.test.ts?v=1:4:7',
+    });
+    say('named', true, {
+      stack: 'entry@http://localhost:5173/@fs/repo/precondition.js:1:1\n' +
+        'pays@http://localhost:5173/@fs/repo/test/a.test.ts:9:3',
+    });
+    say('rooted', true, {
+      stack: 'Error\n    at entry (http://localhost:5173/precondition.js:1:1)\n' +
+        '    at http://localhost:5173/test/a.test.ts:2:5',
+    });
+    const said = recorder.take(keyOf('pays'));
+    expect(said.map(([name, , site]) => [name, site])).toEqual([
+      ['none', ''],
+      ['short', ''],
+      ['served', 'http://localhost:5173/@fs/repo/test/a.test.ts?v=1:4'],
+      ['named', 'http://localhost:5173/@fs/repo/test/a.test.ts:9'],
+      ['rooted', 'http://localhost:5173/test/a.test.ts:2'],
+    ]);
+    // A site served from the dev server's root keeps its URL: the FIXME at `checkoutSite`.
+    expect(checkoutSaid('/repo', said).map(([, , site]) => site)).toEqual([
+      '', '', 'test/a.test.ts:4', 'test/a.test.ts:9', 'http://localhost:5173/test/a.test.ts:2',
+    ]);
+  });
+
+  it('refuses a frame owner whose sixth field is not a list of calls', () => {
+    expect(() => preconditions.saidOf('a.test.ts\u0000pays\u00001\u0000\u0000\u0000{}')).toThrow(/not a variance-authority case journal/);
   });
 });
 

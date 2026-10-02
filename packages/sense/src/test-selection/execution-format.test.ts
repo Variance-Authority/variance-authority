@@ -271,4 +271,34 @@ describe('the preconditions each case named', () => {
 
     expect(decodeExecutionIndex(bytes).tests).toEqual(said.tests);
   });
+
+  /** The bytes with the header rewritten, the columns where they were. */
+  function withHeader(bytes: Buffer, edit: (sections: { name: string; length: number }[]) => void): Buffer {
+    const headerLength = bytes.readUInt32LE(0);
+    const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as {
+      sections: { name: string; length: number }[];
+    };
+    edit(header.sections);
+    const rewritten = Buffer.from(JSON.stringify(header).padEnd(headerLength, '\0'), 'utf8');
+    return Buffer.concat([bytes.subarray(0, 4), rewritten, bytes.subarray(4 + headerLength)]);
+  }
+
+  it('refuses a column that does not hold one word per case, in either spelling', () => {
+    const short = (sections: { name: string; length: number }[]) => {
+      sections.find((section) => section.name === 'tests.casePreconditions')!.length = 4;
+    };
+    const set = encodeSetExecutionIndex({ tests: said.tests, modules: [], sets: new CrossingSets(3).pool() });
+
+    expect(() => decodeExecutionIndex(withHeader(encodeExecutionIndex(said), short))).toThrow(/not a variance-authority/);
+    expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority/);
+  });
+
+  it('refuses a case whose preconditions are not a list', () => {
+    const bytes = encodeExecutionIndex({ tests: [said.tests[1]!], modules: [] });
+    const at = bytes.indexOf('[]');
+    expect(bytes.indexOf('[]', at + 1)).toBe(-1);
+    bytes.write('{}', at, 'utf8');
+
+    expect(() => decodeExecutionIndex(bytes)).toThrow(/not a variance-authority execution index/);
+  });
 });

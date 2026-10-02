@@ -234,7 +234,9 @@ function siteOf(called: unknown): string {
   if (typeof stack !== 'string') return '';
   let seen = 0;
   for (const line of stack.split('\n')) {
-    const found = /(?:\(|@|at )([^()@\s][^()@]*?):(\d+):\d+\)?\s*$/.exec(line);
+    // The location may hold `@` itself: a dev server serves a file outside its
+    // root at `/@fs/`, and only the first `@` of a Firefox frame ends the name.
+    const found = /(?:\(|@|at )([^()@\s][^()]*?):(\d+):\d+\)?\s*$/.exec(line);
     if (found === null) continue;
     seen += 1;
     if (seen === 2) return `${found[1]}:${found[2]}`;
