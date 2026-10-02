@@ -176,7 +176,8 @@ fn facts<'a>(layers: &'a [Layer], crossing: &Crossing<'a>) -> Facts<'a> {
         if type_only {
             continue;
         }
-        let imported = text.optional(parses.export_imported.at(export));
+        // The parse names what a star takes `*`; a pass names it by its absence.
+        let imported = text.optional(parses.export_imported.at(export)).filter(|imported| *imported != "*");
         if let Some(from) = text.optional(parses.export_from.at(export)) {
             // `export * as ns from` publishes a namespace, not the names in it.
             if exported.is_some() && imported.is_none() {
@@ -232,7 +233,7 @@ pub(crate) fn check(layers: &[Layer], shipped: Option<&HashSet<&str>>) -> (u32, 
     propagate(&files, &read, &mut declared);
 
     for (file, facts) in files.iter().zip(&read) {
-        if !shipped.contains(file) || only_tests_run_it(file, facts, &declared) {
+        if !shipped.contains(file) || only_tests_run_it(file, &files, &read, &declared) {
             continue;
         }
         for used in &facts.uses {
@@ -284,11 +285,29 @@ fn propagate<'a>(files: &[&'a str], read: &[Facts<'a>], declared: &mut HashMap<(
 }
 
 /// Whether a file publishes something at runtime and every runtime name it
-/// publishes is test-only: a testing entry, which may build on test-only code.
-fn only_tests_run_it(file: &str, facts: &Facts, declared: &HashMap<(&str, &str), Declared>) -> bool {
-    let mut runtime = facts.published.iter().filter(|published| !published.type_only).peekable();
-    runtime.peek().is_some()
-        && runtime.all(|published| declared.get(&(file, published.name)).is_some_and(|role| role.tags & TEST_ONLY != 0))
+/// publishes, its own or passed on by a star, is test-only: a testing entry,
+/// which may build on test-only code.
+fn only_tests_run_it(file: &str, files: &[&str], read: &[Facts], declared: &HashMap<(&str, &str), Declared>) -> bool {
+    let mut names = HashSet::new();
+    runtime_names(file, files, read, &mut HashSet::new(), &mut names);
+    !names.is_empty() && names.iter().all(|name| declared.get(&(file, *name)).is_some_and(|role| role.tags & TEST_ONLY != 0))
+}
+
+/// The names `file` publishes at runtime: its own, and every name but the
+/// default that a star passes on from a target, followed through the target's
+/// own stars.
+fn runtime_names<'a>(file: &str, files: &[&'a str], read: &'a [Facts<'a>], seen: &mut HashSet<&'a str>, names: &mut HashSet<&'a str>) {
+    let Ok(at) = files.binary_search_by(|probe| crate::order::code_unit(probe, file)) else { return };
+    if !seen.insert(files[at]) {
+        return;
+    }
+    let facts = &read[at];
+    names.extend(facts.published.iter().filter(|published| !published.type_only).map(|published| published.name));
+    for passes in facts.passes.iter().filter(|passes| passes.imported.is_none() && passes.exported.is_none()) {
+        let mut passed = HashSet::new();
+        runtime_names(passes.target, files, read, seen, &mut passed);
+        names.extend(passed.into_iter().filter(|name| *name != "default"));
+    }
 }
 
 /// Every declared name `target` publishes but its default, which a star does not pass on.

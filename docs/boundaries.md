@@ -390,9 +390,8 @@ export function makeUser(): User { … }
   imports it is listed, with the line of the import and the place the role is
   declared. The check follows re-exports, so an import through a barrel or
   under a new name is listed too.
-- **`@production`** says the export is shipped code, even when most of its
-  callers are tests. It is listed when only tests import the file that
-  declares it.
+- **`@production`** says the export is shipped code. It is listed when only
+  tests import the file that declares it.
 - **Both tags on one export** is listed as a contradiction.
 
 ```

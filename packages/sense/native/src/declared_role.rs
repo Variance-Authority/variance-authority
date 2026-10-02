@@ -2,9 +2,9 @@
 //!
 //! Two modifier tags of our own, read wherever an export's doc is read:
 //! `@testOnly` says only tests may run the name, so a shipped file that imports
-//! it is a defect; `@production` says the name is shipped code however many
-//! tests use it. Neither is a TSDoc release tag, because `@public` and
-//! `@internal` already mean something to API Extractor and the docs, and
+//! it is a defect; `@production` says the name is shipped code, so a file only
+//! tests reach contradicts it. Neither is a TSDoc release tag, because `@public`
+//! and `@internal` already mean something to API Extractor and the docs, and
 //! declaring a role must not change what another tool does.
 //!
 //! The tag is read off the doc the export statement carries, and for
@@ -18,7 +18,7 @@ use oxc_span::GetSpan;
 
 /// `@testOnly`: only tests may run it.
 pub const TEST_ONLY: u8 = 1;
-/// `@production`: shipped code, whatever share of its users are tests.
+/// `@production`: shipped code, so something shipped must reach it.
 pub const PRODUCTION: u8 = 2;
 
 /// The names `Export.roles` carries the bits under, in bit order.

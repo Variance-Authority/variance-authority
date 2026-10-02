@@ -68,6 +68,25 @@ describe('variance restrictions over declared roles', () => {
     });
   });
 
+  it('passes a testing entry that star re-exports only test-only names, and names a mixed one and a user behind the star', async () => {
+    checkout({
+      'lib/src/index.ts': "import { makeFixture } from './testing';\nexport const run = () => makeFixture();\n",
+      'lib/src/testing.ts': "export * from './fixture';\n",
+      'lib/src/mixed.ts': "export * from './fixture';\nexport * from './index';\n",
+    });
+    await run(['index']);
+
+    const found = await run(['restrictions']);
+
+    expect(found.code).toBe(EXIT_REVIEW);
+    expect(found.out).toBe([
+      'lib/src/index.ts:1 ships makeFixture, declared @testOnly at lib/src/fixture.ts:5',
+      'lib/src/mixed.ts:1 ships makeFixture, declared @testOnly at lib/src/fixture.ts:5',
+      '2 declared roles contradicted. No .relations.json is tracked in this checkout, so nothing is restricted.',
+      '',
+    ].join('\n'));
+  });
+
   it('passes a shipped file that uses a test-only name only as a type', async () => {
     checkout({
       'lib/src/index.ts': "import type { makeFixture } from './fixture';\nimport { type makeFixture as again } from './testing';\nexport type Made = ReturnType<typeof makeFixture> | ReturnType<typeof again>;\nexport const run = () => 1;\n",
