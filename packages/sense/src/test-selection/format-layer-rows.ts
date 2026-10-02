@@ -13,6 +13,7 @@ import {
   lostCrossings,
   recutRows,
   reusableBlock,
+  sameNumbering,
   withoutRetired,
 } from './merge-carry.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
@@ -200,13 +201,19 @@ export function layeredRows(input: {
     const surviving = new Map<CoverageBlock, Carried>();
     if (at !== undefined) {
       const instrumented = moduleInstrumented[at] === 1;
+      // An address is half a seat among siblings, so a cut that filled a
+      // counter differently names other regions by the same addresses, and
+      // nothing is carried across it — as in `mergeCoverage`. Same text is
+      // the same numbering, so the rows are read only where it moved.
+      const placeable = view.string(moduleSource[at]!) === module.sourceDigest ||
+        sameNumbering(moduleAt(at).blocks, module.blocks);
       const seen = new Map<string, number>();
       for (let before = moduleBlocks[at]!; before < moduleBlocks[at + 1]!; before += 1) {
         const address = `${view.string(blockName[before]!)}\0${view.string(blockPath[before]!)}`;
         const key = addressKey(address, seen);
         const block = byAddress.get(key);
         if (
-          block !== undefined && module.instrumented && instrumented &&
+          placeable && block !== undefined && module.instrumented && instrumented &&
           reusableBlock(block, { kind: KINDS[blockKind[before]!]! })
         ) {
           const files: string[] = [];
