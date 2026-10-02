@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { describe, expect, onTestFinished, test } from 'vitest';
-import { writeFetchedMainline } from '@variance-authority/sense/test-selection';
+import { describe, expect, test } from 'vitest';
+import { applyPrune, writeFetchedMainline } from '@variance-authority/sense/test-selection';
 import {
   CACHE_PRUNE_REASONS,
   COMMITS_BEHIND,
@@ -18,10 +18,6 @@ import { cacheFinding, formatCache } from './doctor-cache.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 const DAY = 24 * 60 * 60 * 1000;
-
-// A read-only parent is how a removal is refused here, and permission bits
-// bind neither the superuser nor Windows: there, nothing refuses.
-const refuses = process.platform !== 'win32' && process.getuid?.() !== 0;
 const NOW = Date.UTC(2026, 8, 27);
 
 async function put(path: string, age: number): Promise<string> {
@@ -137,23 +133,26 @@ test('pruneCacheWhenDue prunes once a day and says what it took', async () => {
   expect(existsSync(join(cacheRoot, 'scans'))).toBe(true);
 });
 
-test.runIf(refuses)('a prune that could not remove an entry names it and the error, and exits as the operator\'s to fix', async () => {
-  const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
+test('a prune that could not remove an entry names it and the error, and exits as the operator\'s to fix', async () => {
+  const cacheRoot = join(await mkdtemp(resolve(tmpdir(), 'va-prune-cache-')), 'cache');
   const scans = join(cacheRoot, 'scans');
   await put(join(scans, 'scan.bin'), 0);
-  // A parent the process cannot write: `scans/` cannot be unlinked from it.
-  await chmod(cacheRoot, 0o555);
-  onTestFinished(() => chmod(cacheRoot, 0o755));
+  const plan = await planCachePrune({ cacheRoot }, owners({}));
+  // Between the plan and its removal the cache became a file: no path through
+  // it resolves, for any user on any platform.
+  await rm(cacheRoot, { recursive: true });
+  await writeFile(cacheRoot, 'x');
 
-  const pruned = await pruneNow({ cacheRoot });
+  const pruned = { selection: undefined, commits: await applyPrune(plan) };
 
-  expect(existsSync(scans)).toBe(true);
-  expect(prunedLines(pruned)).toMatch(
-    new RegExp(`^cache: could not remove ${scans}, a directory nothing writes any more: .*(EACCES|EPERM).*\\n$`, 'u'),
+  expect(prunedLines(pruned)).toBe(
+    `cache: could not remove ${scans}, a directory nothing writes any more: ${pruned.commits.unremoved[0]?.error}\n`,
   );
+  expect(pruned.commits.unremoved[0]?.error).toMatch(/^ENOTDIR\b/u);
   expect(prunedExit(pruned)).toBe(EXIT_OPERATOR);
 
-  await chmod(cacheRoot, 0o755);
+  await rm(cacheRoot);
+  await put(join(scans, 'scan.bin'), 0);
   const again = await pruneNow({ cacheRoot });
   expect(existsSync(scans)).toBe(false);
   expect(prunedExit(again)).toBe(EXIT_CLEAN);
