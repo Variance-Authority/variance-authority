@@ -72,6 +72,14 @@ export interface DeclaredSuite {
    * suite declares none, which puts nothing of its own before reach.
    */
   readonly before?: readonly string[];
+  /**
+   * Whether a changed file this suite's record did not measure is asked of the
+   * import graph, which names the first tests that import it. Absent asks it.
+   * `false` is a suite whose tests import none of what they exercise — an e2e
+   * suite drives the app through a browser — so the graph would name nobody,
+   * or a neighbour by accident; such a suite names the app in its `before`.
+   */
+  readonly relations?: boolean;
 }
 
 /**
@@ -80,6 +88,9 @@ export interface DeclaredSuite {
  * directory.
  */
 const SUITE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+
+/** The keys one suite's declaration may hold. */
+const SUITE_KEYS: readonly string[] = ['before', 'carry', 'kind', 'relations'];
 
 /**
  * A `suites` value the declaration's rules refuse.
@@ -131,16 +142,18 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
     const kind = keys === undefined ? undefined : (declared as Record<string, unknown>)['kind'];
     const carry = keys === undefined ? undefined : (declared as Record<string, unknown>)['carry'];
     const before = keys === undefined ? undefined : (declared as Record<string, unknown>)['before'];
+    const relations = keys === undefined ? undefined : (declared as Record<string, unknown>)['relations'];
     if (
       keys === undefined ||
-      keys.some((key) => key !== 'kind' && key !== 'carry' && key !== 'before') ||
+      keys.some((key) => !SUITE_KEYS.includes(key)) ||
       !SUITE_KINDS.includes(kind as SuiteKind) ||
-      (carry !== undefined && !CARRIERS.includes(carry as Carrier))
+      (carry !== undefined && !CARRIERS.includes(carry as Carrier)) ||
+      (relations !== undefined && typeof relations !== 'boolean')
     ) {
       throw new SuitesError(
         where,
         `suites.${name}`,
-        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)}, "before"?: [paths] }, ` +
+        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)}, "before"?: [paths], "relations"?: boolean }, ` +
           `not ${JSON.stringify(declared)}`,
       );
     }
@@ -150,6 +163,7 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
       kind: kind as SuiteKind,
       ...(carry === undefined ? {} : { carry: carry as Carrier }),
       ...(before === undefined ? {} : { before: parseBefore(before, `suites.${name}.before`, where) }),
+      ...(relations === undefined ? {} : { relations: relations as boolean }),
     };
   });
 }

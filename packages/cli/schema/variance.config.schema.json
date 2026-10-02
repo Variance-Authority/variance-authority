@@ -139,6 +139,10 @@
           "before": {
             "$ref": "#/$defs/before",
             "description": "What this suite rests on before any of its tests imports anything: its runner config, and the setup files that config loads. Each entry is walked down the file graph, and a change to any file or package it reaches runs the whole suite. Without it, nothing is before this suite's reach."
+          },
+          "relations": {
+            "type": "boolean",
+            "description": "Whether a changed file this suite's recording did not measure, such as a file added since the run, selects the first tests that import it. Without it, it does. Set it to false for a suite whose tests import none of the code they exercise, such as an e2e suite that drives the app through a browser, and list the app's entry points in the suite's before: a file such a suite did not measure then selects nothing, and the selection names it as declined."
           }
         }
       },

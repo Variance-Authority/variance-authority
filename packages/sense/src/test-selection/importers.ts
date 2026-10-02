@@ -10,6 +10,7 @@ import {
 } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
+import type { Unmeasured } from './route.js';
 import { disownedIn } from './shadowed.js';
 
 /**
@@ -73,6 +74,14 @@ export interface ExecutionNarrowingOptions {
    */
   readonly relations?: Relations;
   /**
+   * What a changed file with no instrumented row goes to: the graph's nearest
+   * measured importers, or nothing (`route.ts`). Absent is `relations`. A suite
+   * that declines them names such a file in `ExecutionNarrowing.declined`; the
+   * tests that declare it still select themselves, since that is the record
+   * speaking and not the graph.
+   */
+  readonly unmeasured?: Unmeasured;
+  /**
    * Every name the snapshot may hold a graph file under. Identity when absent.
    *
    * A package's own tests load its `src`; every other package loads its built
@@ -135,7 +144,7 @@ export interface ImporterReason {
 export interface ImporterAnswer {
   /** Test rows selected, each with every chain that selected it. */
   readonly selected: ReadonlyMap<number, readonly ImporterReason[]>;
-  /** Changed paths the graph does not hold; every one of them when there is no graph. */
+  /** Changed paths the graph does not hold; every one of them when there is no graph, or the suite declines it. */
   readonly unread: readonly string[];
   /**
    * The tests holding the names the caller asked about beside this question,
@@ -180,7 +189,7 @@ export function answerByImporters(
   also: ReadonlySet<string> = new Set(),
 ): ImporterAnswer {
   const { relations } = options;
-  if (relations === undefined || changed.length === 0) {
+  if (relations === undefined || changed.length === 0 || options.unmeasured === 'nothing') {
     return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also]) };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);

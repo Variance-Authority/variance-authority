@@ -263,6 +263,32 @@ describe('narrowing a run to what a diff could have changed', () => {
       expect(scanned).toBe(false);
     });
 
+    it('narrows past a file a suite declining relations did not measure, names it declined, and builds no graph', async () => {
+      let scanned = false;
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx', 'src/added.ts'], diff: DIFF },
+        scanSource: async () => SOURCE,
+        scanRelations: async () => {
+          scanned = true;
+          return relationsOfFiles([]);
+        },
+        readJourney: async () => ({
+          whole: ['fixture:a', 'fixture:b'],
+          entered: ['fixture:a'],
+          unread: [],
+          declined: ['src/added.ts'],
+          stale: [],
+          because: [],
+        }),
+      });
+
+      const warnings = report.warnings?.join('\n') ?? '';
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
+      expect(warnings).toContain('the suite declines relations, so 1 changed file its record did not measure (src/added.ts) kept no subject in the run');
+      expect(warnings).not.toContain('records nothing about');
+      expect(scanned).toBe(false);
+    });
+
     it('asks the graph about a file the journal records nothing about, with no graph configured', async () => {
       // A stylesheet no probe can sit in. The structural ground cannot place it
       // without a graph and keeps both subjects; a journal read without one

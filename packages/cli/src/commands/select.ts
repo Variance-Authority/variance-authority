@@ -170,6 +170,12 @@ export interface TestSelection {
   /** Counts rather than lists: `whole` is the whole suite, and nobody reads it. */
   readonly recorded?: { readonly whole: number; readonly entered: number };
   readonly unread: readonly string[];
+  /**
+   * The changed files the record did not measure, in a suite that declines
+   * relations, so the graph was never asked about them. Absent when the suite
+   * asks it.
+   */
+  readonly declined?: readonly string[];
   readonly stale: readonly string[];
   /**
    * What the parser made of each changed file. Absent when no diff was read
@@ -230,12 +236,18 @@ export function skippableTests(input: SelectInput): TestSelection {
     };
   }
 
-  const { whole, entered, unread, stale, readings } = input.ground.narrowing;
-  const notes = [...base.notes, ...unreadNotes(unread), ...recordingNotes(stale, input.commit, input.given === true)];
+  const { whole, entered, unread, declined, stale, readings } = input.ground.narrowing;
+  const notes = [
+    ...base.notes,
+    ...unreadNotes(unread),
+    ...declinedNotes(declined ?? []),
+    ...recordingNotes(stale, input.commit, input.given === true),
+  ];
   const measured = {
     ...base,
     notes,
     unread,
+    ...(declined === undefined ? {} : { declined }),
     stale,
     ...(readings === undefined ? {} : { readings }),
     recorded: { whole: whole.length, entered: entered.length },
@@ -275,6 +287,20 @@ function unreadNotes(unread: readonly string[]): readonly string[] {
       `(${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ', …' : ''}), so ` +
       `${unread.length === 1 ? 'it keeps' : 'they keep'} no test in the run; a file the suite ` +
       'reads without importing it is declared as a precondition',
+  ];
+}
+
+/**
+ * The changed files a suite declining relations did not measure. The graph was
+ * not asked, so they are not said to be recorded nowhere: the suite said where
+ * its unmeasured files go, and what it rests on is its `before`.
+ */
+function declinedNotes(declined: readonly string[]): readonly string[] {
+  if (declined.length === 0) return [];
+  return [
+    `the suite declines relations, so ${many(declined.length, 'changed file')} its record did not measure ` +
+      `(${declined.slice(0, 3).join(', ')}${declined.length > 3 ? ', …' : ''}) ` +
+      `${declined.length === 1 ? 'keeps' : 'keep'} no test in the run; a file the suite rests on is declared in its \`before\``,
   ];
 }
 
@@ -400,6 +426,7 @@ function jsonOf(selection: TestSelection): object {
       ...(selection.source?.distance === undefined ? {} : { distance: selection.source.distance }),
     },
     unread: selection.unread,
+    ...(selection.declined === undefined ? {} : { declined: selection.declined }),
     stale: selection.stale,
     ...(selection.readings === undefined ? {} : { readings: selection.readings }),
   };

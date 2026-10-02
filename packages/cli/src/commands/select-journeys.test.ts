@@ -188,6 +188,25 @@ describe('selecting from a journey file', () => {
     expect(said.err).toContain('every suite here rests on .nvmrc');
   });
 
+  // `src/format.ts` has no module in the journey file, and `test/other.test.ts` imports it.
+  const unmeasured = ['diff --git a/src/format.ts b/src/format.ts', '--- a/src/format.ts', '+++ b/src/format.ts',
+    '@@ -2,1 +2,1 @@', '-export const format = left;', '+export const format = String(left);', ''].join('\n');
+
+  it('runs the first tests that import a file the journey file did not measure', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit' } } });
+    writeFileSync(join(root, 'change.patch'), unmeasured);
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true, suite: 'unit' });
+    expect(said.out).toBe('test/branch.test.ts\n');
+  });
+
+  it('runs none of them in a suite that declines relations, and names the file declined', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit', relations: false } } });
+    writeFileSync(join(root, 'change.patch'), unmeasured);
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true, suite: 'unit' });
+    expect(said.out).toBe('test/branch.test.ts\ntest/other.test.ts\n');
+    expect(said.err).toContain('the suite declines relations, so 1 changed file its record did not measure (src/format.ts)');
+  });
+
   async function declaring(config: unknown, files: Readonly<Record<string, string>> = {}): Promise<string> {
     const at = project();
     writeFileSync(join(at, 'variance.config.json'), JSON.stringify(config));

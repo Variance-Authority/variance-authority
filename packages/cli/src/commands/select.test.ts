@@ -80,6 +80,33 @@ describe('what a foreign runner may skip', () => {
     expect(notes.join('\n')).toContain('4 changed files (a.md, b.md, c.md, …)');
   });
 
+  it('narrows past a file a suite declining relations did not measure, and names it declined, not unread', () => {
+    // The graph was not asked, so "records nothing" would be a claim nobody
+    // checked: the suite said its unmeasured files go nowhere, and the note says so.
+    const selection = skippableTests({
+      at: '/cache/coverage.bin',
+      commit: 'c0ffee',
+      ground: {
+        kind: 'read',
+        narrowing: reading({ entered: ['test/beta.test.ts'], declined: ['src/added.ts'] }),
+      },
+    });
+
+    expect(selection.skip).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
+    expect(selection.declined).toEqual(['src/added.ts']);
+    expect(selection.notes.join('\n')).toContain('the suite declines relations');
+    expect(selection.notes.join('\n')).toContain('src/added.ts');
+    expect(selection.notes.join('\n')).not.toContain('records nothing');
+    expect(JSON.parse(formatSelection(selection, 'json', '/repo'))).toMatchObject({ unread: [], declined: ['src/added.ts'] });
+  });
+
+  it('leaves declined out of an answer from a suite that asks the graph', () => {
+    const selection = skippableTests({ at: '/cache/coverage.bin', ground: { kind: 'read', narrowing: reading() } });
+
+    expect(selection.declined).toBeUndefined();
+    expect(JSON.parse(formatSelection(selection, 'json', '/repo'))).not.toHaveProperty('declined');
+  });
+
   it('refuses to narrow when the journal recorded nothing it can speak for', () => {
     // A journal exists and holds no complete observation, so no absence in it is
     // evidence. Same empty skip list as a diff that reached everybody, opposite
