@@ -77,9 +77,10 @@ export interface CaseMotionOptions {
   /**
    * The current record's cases left out of the comparison, which neither
    * `base` nor `now` holds: those that did not run again and retain an earlier
-   * recording. A region one of them calls into kept that case, so it is
-   * counted at both ends, and the region is never lost or gained because the
-   * cases that did run moved past it.
+   * recording, cut as `now` is. A region one of them calls into kept that
+   * case, so it is counted at both ends, and the region is never lost or
+   * gained because the cases that did run moved past it. A module cut
+   * otherwise credits none of them.
    */
   readonly retained?: ExecutionIndex;
 }
@@ -242,22 +243,28 @@ export function regionAddresses(blocks: readonly ExecutionBlock[]): readonly (re
 }
 
 /**
- * The retained cases that call into each of a module's regions now, found by
- * the address the region holds in `module`: the retained index may be a cut of
- * the module other than the one `now` holds.
+ * The retained cases that call into each of a module's regions now, read from
+ * the same region of the same cut: retained cases are part of the record `now`
+ * is cut from, so their module lists the same regions in the same order. A
+ * module cut otherwise credits nothing, because an occurrence among siblings
+ * of one name can name another sibling there.
  */
 function keptCallers(
   retained: ExecutionIndex | undefined,
   held: ExecutionModule | undefined,
   module: ExecutionModule,
 ): (block: ExecutionBlock) => readonly ExecutionTest[] {
-  if (retained === undefined || held === undefined) return () => [];
-  const byAddress = new Map(regionAddresses(held.blocks));
-  const addresses = new Map(regionAddresses(module.blocks).map(([address, block]) => [block, address]));
-  return (block) => {
-    const row = byAddress.get(addresses.get(block)!);
-    return row === undefined || row.kind !== block.kind ? [] : callers(retained, row);
-  };
+  if (retained === undefined || held === undefined || !sameCut(held, module)) return () => [];
+  const at = new Map(module.blocks.map((block, position) => [block, position]));
+  return (block) => callers(retained, held.blocks[at.get(block)!]!);
+}
+
+function sameCut(left: ExecutionModule, right: ExecutionModule): boolean {
+  return left.blocks.length === right.blocks.length && left.blocks.every((block, at) => {
+    const other = right.blocks[at]!;
+    return block.kind === other.kind && block.name === other.name && block.path === other.path &&
+      block.startLine === other.startLine && block.endLine === other.endLine;
+  });
 }
 
 /** The cases that called into a region, once each, in record order. */

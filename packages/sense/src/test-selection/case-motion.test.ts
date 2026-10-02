@@ -98,3 +98,25 @@ describe('a region an edit beside it renumbered', () => {
     expect(motion.renumbered).toEqual([]);
   });
 });
+
+describe('the cases the comparison left out', () => {
+  it('stand at both ends of a region they reach in the cut of the module the current record holds', () => {
+    const base = index([A], [block('apply', 1, [0]), block('round', 10, [])]);
+    const now = index([A], [block('apply', 1, []), block('round', 10, [0])]);
+    const retained = index([B], [block('apply', 1, [0]), block('round', 10, [0])]);
+
+    // `apply` keeps B's case rather than losing every case, and `round` had B's before A reached it.
+    expect(caseMotion(base, now, { retained }).regions.map((region) => [region.name, region.motion])).toEqual([['apply', 'thinned']]);
+  });
+
+  it('credit nothing in a cut of the module other than the one the current record holds', () => {
+    // The retained cut still holds the first of two `.filter` callbacks, which
+    // the current record does not: by occurrence, its case would land on the
+    // second callback, which no case reaches.
+    const base = index([A], [block('pick/filter.arg0', 5, [0])]);
+    const now = index([A], [block('pick/filter.arg0', 5, [])]);
+    const retained = index([B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [])]);
+
+    expect(caseMotion(base, now, { retained }).regions.map((region) => [region.startLine, region.motion])).toEqual([[5, 'lost']]);
+  });
+});
