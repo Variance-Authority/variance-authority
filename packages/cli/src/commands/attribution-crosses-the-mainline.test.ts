@@ -67,6 +67,7 @@ async function attributed(dir: string): Promise<void> {
   }));
 }
 
+/** `variance covering` run on `argv` as the command line parses it, in the current directory. */
 function coveringOf(argv: readonly string[]) {
   return covering(parseCoveringArgs(readFlags(argv, 'covering', flagsFor('covering'), synopsisFor('covering'))));
 }
