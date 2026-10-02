@@ -68,13 +68,26 @@ export function openStage(directory: string): void {
   process.env[STAGE_VARIABLE] = directory;
 }
 
-/** Write one process's contribution under a name no other process will choose. */
+/**
+ * Write one process's contribution under a name no other process will choose,
+ * led by when it was written.
+ *
+ * The fold reads contributions in name order, and that order reaches what it
+ * computes: a retry is folded after the attempt it retried, and the heads are
+ * listed as they arrived. A name that is only unique folds one run's
+ * contributions in a different order from the next's. The monotonic clock is
+ * one clock for every process on the machine, and the workers that share a
+ * stage share a machine, so its reading at the write orders the names as the
+ * writes happened; padded to the width of its largest value, code-unit order
+ * is numeric order.
+ */
 export async function stageExecution(
   directory: string,
   staged: StagedExecution,
 ): Promise<void> {
   await mkdir(directory, { recursive: true });
-  const temporary = resolve(directory, `.${process.pid}-${randomUUID()}.tmp`);
+  const written = process.hrtime.bigint().toString().padStart(20, '0');
+  const temporary = resolve(directory, `.${written}-${process.pid}-${randomUUID()}.tmp`);
   await writeFile(temporary, JSON.stringify(staged));
   // Named last, so the fold never reads a contribution that is still arriving.
   await rename(temporary, `${temporary.slice(0, -4)}.json`);
@@ -97,6 +110,7 @@ export async function foldStage(directory: string): Promise<StagedExecution> {
     if (isMissing(error)) return { subjects: [] };
     throw error;
   }
+  // In the order the contributions were written, which their names carry.
   const staged: StagedExecution[] = [];
   for (const name of names.filter((name) => name.endsWith('.json')).sort(codeUnitOrder)) {
     staged.push(JSON.parse(await readFile(resolve(directory, name), 'utf8')) as StagedExecution);

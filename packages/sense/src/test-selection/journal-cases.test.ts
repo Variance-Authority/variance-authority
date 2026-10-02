@@ -287,6 +287,20 @@ describe('a run recorded by more than one process', () => {
     });
   });
 
+  it('folds what the processes staged in the order they wrote it', async () => {
+    await inRoot(async (root) => {
+      const directory = resolve(root, '.stage');
+      openStage(directory);
+      // Thirty-two contributions, each naming the head it was written under:
+      // a fold in any order but the writes' gets them back in order once in
+      // 32! runs, so a fold that follows anything else fails every run.
+      const written = Array.from({ length: 32 }, (_, at) => `head ${String(at).padStart(2, '0')}`);
+      for (const head of written) await stageExecution(directory, { subjects: [], heads: [head] });
+      expect((await foldStage(directory)).heads).toEqual(written);
+      await closeStage(directory);
+    });
+  });
+
   it('reads nothing from a run that died before its fold', async () => {
     await inRoot(async (root) => {
       const directory = resolve(root, '.stage');
