@@ -101,6 +101,58 @@ describe('reading a block back to where it was written', () => {
     expect(lineOf(TRANSFORMED.indexOf('const f'))).toBe(3);
   });
 
+  // A line esbuild opens with the origin of the line above, carried over, and a
+  // segment of its own at `if (b)`: original line 2, column 5.
+  const CARRIED = 'if (a) x();\nelse if (b) y();';
+  const onCarried = (column: number): number => CARRIED.indexOf('else') + column;
+
+  it('leaves a region on its carried line when nothing inside it was written there', () => {
+    const extentOf = sourceLines(
+      CARRIED,
+      { sources: ['app/src/a.ts'], mappings: 'AAAA;AAAA,KACK' },
+      '/repo/app/src/a.ts',
+    );
+
+    // `se` ends before `if (b)`: the carried origin is the only one it has.
+    expect(extentOf(onCarried(2), onCarried(3))).toEqual([1, 1]);
+    expect(extentOf(onCarried(2), onCarried(10))).toEqual([2, 2]);
+  });
+
+  it('carries no origin across code the map left unmapped', () => {
+    // Line 1 ends in unmapped code, so the origin line 2 opens with is that
+    // line's own, not one carried over.
+    const extentOf = sourceLines(
+      CARRIED,
+      { sources: ['app/src/a.ts'], mappings: 'AAAA,C;AAAA,EACA' },
+      '/repo/app/src/a.ts',
+    );
+
+    expect(extentOf(onCarried(1), onCarried(2))).toEqual([1, 2]);
+  });
+
+  it('carries no origin across a generated line with none', () => {
+    // An unmapped `if (a) x();` between the origin and the line that repeats it.
+    const extentOf = sourceLines(
+      `\n${CARRIED}`,
+      { sources: ['app/src/a.ts'], mappings: 'AAAA;;AAAA,EACA' },
+      '/repo/app/src/a.ts',
+    );
+    const shifted = (column: number): number => onCarried(column) + 1;
+
+    expect(extentOf(shifted(1), shifted(2))).toEqual([1, 2]);
+  });
+
+  it('reads past another file the map also names to the origin carried over', () => {
+    // A segment of `other.ts` between the carried one and `if (b)`.
+    const extentOf = sourceLines(
+      CARRIED,
+      { sources: ['app/src/other.ts', 'app/src/a.ts'], mappings: 'ACAA;AAAA,CDAA,ICCK' },
+      '/repo/app/src/a.ts',
+    );
+
+    expect(extentOf(onCarried(2), onCarried(10))).toEqual([2, 2]);
+  });
+
   it('keeps the span when the transform moved one end above the other', () => {
     // Solid's JSX compiler hoists every element into a `_tmpl$` above the
     // function that returns it, so a region opening inside the template closes
@@ -157,6 +209,42 @@ describe('what the build seam writes down', () => {
     expect(written?.file).toBe('app/src/a.ts');
     expect(arrow?.startLine).toBe(3);
     expect(arrow?.endLine).toBe(5);
+  });
+
+  it('opens an `else if` on its own line, not on the line its `if` continues', async () => {
+    // esbuild carries the outer `if`'s origin to the start of the `else` line
+    // and gives the nested `if` no segment of its own. The `else` region opens
+    // at that `if`, so the last origin before it is line 3: recorded there,
+    // the region strictly contains the nested `then`, a line query keeps the
+    // inner of the two, and line 4 loses every test that ran the `else`. The
+    // text and map are vite 5's esbuild output, verbatim.
+    const code = [
+      'export function modes(a, b) {',
+      '  const out = [];',
+      '  if (a) out.push("a");',
+      '  else if (b) out.push("b");',
+      '  return out;',
+      '}',
+      '',
+    ].join('\n');
+    const plugin = testSelectionProbes({ root: '/repo', cacheRoot });
+    const context: TransformingContext = {
+      getCombinedSourcemap: () => ({
+        sources: ['app/src/a.ts'],
+        mappings:
+          'AAAO,gBAAS,MAAM,GAAY,GAAsB;AACtD,QAAM,MAAgB,CAAC;AACvB,MAAI,EAAG,KAAI,KAAK,GAAG;AAAA,WACV,EAAG,KAAI,KAAK,GAAG;AACxB,SAAO;AACT;',
+      }),
+    };
+
+    plugin.transform.call(context, code, '/repo/app/src/a.ts');
+
+    const blocks = (await recorded())?.blocks ?? [];
+
+    expect(blocks.map((block) => [block.path, block.startLine, block.endLine])).toContainEqual([
+      'if#0/else',
+      4,
+      4,
+    ]);
   });
 
   it('survives a bundler that answers the map request by throwing', async () => {
