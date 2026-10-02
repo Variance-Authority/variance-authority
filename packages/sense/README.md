@@ -1789,7 +1789,10 @@ a fetch carries the index and drops those two, because the run they name is
 not the taker's. `caseMotion(base, now)` compares two indexes region by
 region and names each region whose cases moved: lost, hidden, thinned or
 gained. `relations` lets it name the stopped case behind a hidden region, and
-`exclude` leaves out modules whose motion belongs to another change.
+`exclude` leaves out modules whose motion belongs to another change. When you
+compare only the cases that ran, pass the rest of the record as `retained`: a
+region one of those cases reaches keeps it at both ends, so it is not lost
+because the cases that ran stopped reaching it.
 `decodeExecutionIndex` reads the index out of the record:
 
 ```ts
