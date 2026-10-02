@@ -19,12 +19,23 @@ export interface CoveringSource {
    */
   readonly cases?: string;
   /**
+   * `--where <name>[=<value>]`, repeated: keep the cases that said every one.
+   * A condition without a value holds for any value of the name.
+   */
+  readonly where?: readonly WhereCondition[];
+  /**
    * `--suite <name>`: the one declared suite whose record is read. Absent, a
    * repository that declares suites is read suite by suite.
    */
   readonly suite?: string;
   /** The held text already read, by a caller that asks the same question of every suite. */
   readonly held?: string;
+}
+
+/** One `--where`: a name a case said, and the value it must have said, when one was given. */
+export interface WhereCondition {
+  readonly name: string;
+  readonly value?: string;
 }
 
 /** A question about one piece of source. */
@@ -208,13 +219,24 @@ function executionAnd(flags: Flags): CoveringSource {
   if (cases === '') throw new OperatorError('`--cases` takes `last` or a test file.');
   const suite = flags.values.get('--suite');
   oneRecord(suite, execution, '--execution');
+  const where = (flags.repeated.get('--where') ?? []).map(whereOf);
   return {
     command: 'covering',
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
     ...(suite === undefined ? {} : { suite }),
     ...(cases === undefined ? {} : { cases }),
+    ...(where.length === 0 ? {} : { where }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format: format as CoveringFormat,
   };
 }
 
+/** `network=mocked` is a name and a value; `network` is a name said with any value. */
+function whereOf(raw: string): WhereCondition {
+  const equals = raw.indexOf('=');
+  const name = equals === -1 ? raw : raw.slice(0, equals);
+  if (name === '') {
+    throw new OperatorError(`\`--where\` takes a precondition's name, and a value after \`=\` when one matters, not \`${raw}\`.`);
+  }
+  return equals === -1 ? { name } : { name, value: raw.slice(equals + 1) };
+}

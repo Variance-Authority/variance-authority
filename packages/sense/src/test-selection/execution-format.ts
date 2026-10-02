@@ -1,6 +1,7 @@
 import { intern } from '@variance-authority/core/segment';
 import { blob, column, sections, validSections, type Header, type Section } from './format-layout.js';
 import { recordedCases } from './case-record.js';
+import { PRECONDITIONS_COLUMN, preconditionColumn, preconditionStrings, preconditionsFrom } from './case-precondition-column.js';
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import type {
   ExecutionBlock,
@@ -159,6 +160,7 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
       'tests.stopped': column(stoppedColumn(index.tests)),
       'tests.duration': column(durationColumn(index.tests)),
+      ...preconditionColumn(index.tests, id),
       'modules.file': column(moduleFile),
       'modules.blocks': column(moduleBlocks),
       'blocks.kind': column(blockKind),
@@ -276,6 +278,9 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const testDuration = found.has('tests.duration') ? words('tests.duration') : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testId.length) throw invalid();
+  // Written since a case carries the preconditions it named; a file without it listened to none.
+  const said = found.has(PRECONDITIONS_COLUMN) ? words(PRECONDITIONS_COLUMN) : undefined;
+  if (said !== undefined && said.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
   for (let at = 0; at < testId.length; at += 1) {
     tests.push({
@@ -284,6 +289,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       name: string(testName[at]!),
       ...stoppedFrom(testStopped, at),
       ...durationFrom(testDuration, at),
+      ...preconditionsFrom(said, at, string),
     });
   }
 
@@ -357,6 +363,7 @@ function dictionary(index: ExecutionIndex): ReadonlySet<string> {
     held.add(test.file);
     held.add(test.name);
   }
+  for (const text of preconditionStrings(index.tests)) held.add(text);
   for (const module of index.modules) {
     held.add(module.file);
     for (const block of module.blocks) {

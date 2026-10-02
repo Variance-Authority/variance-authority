@@ -265,4 +265,28 @@ describe('projecting a journey file onto a change', () => {
     expect(projected?.index.modules[0]?.blocks.map((block) => block.crossings.map((crossing) => crossing.test)))
       .toEqual([[], [0, 1, 2], [4]]);
   });
+
+  it('carries what each case said it arranged, and nothing for a case nobody listened to', async () => {
+    const network = { name: 'network', value: 'mocked', site: 'test/card.test.ts:3', level: 0 };
+    const sets = new CrossingSets(3);
+    const file = join(mkdtempSync(join(tmpdir(), 'journey-native-')), 'journeys.bin');
+    writeFileSync(file, encodeSetExecutionIndex({
+      tests: [
+        { id: 'card > a', file: 'test/card.test.ts', name: 'a', preconditions: [network] },
+        { id: 'card > b', file: 'test/card.test.ts', name: 'b', preconditions: [] },
+        { id: 'card > c', file: 'test/card.test.ts', name: 'c' },
+      ],
+      modules: [{
+        file: 'src/api.ts',
+        blocks: [region('function', 'get', 1, 4)],
+        called: Uint32Array.of(sets.intern([0, 1, 2])),
+        loaded: Uint8Array.of(0),
+      }],
+      sets: sets.pool(),
+    }));
+
+    const projected = await projectJourneyFile(file, new Map([['src/api.ts', lines(2)]]));
+
+    expect(projected?.index.tests.map((test) => test.preconditions)).toEqual([[network], [], undefined]);
+  });
 });

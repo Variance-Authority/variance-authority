@@ -57,27 +57,38 @@ variancePrecondition('seeded-cart');
 
 ## Which case it belongs to
 
-A call is said at one of three levels, and each level reaches the cases below it:
+A precondition belongs to a test. A call lands on the case that is running
+when it is made, at one of two places:
 
-| Said in | Level | Reaches |
+| Said in | Level | Lands on |
 |---|---|---|
 | the case body, and anything it calls | the case | that case |
-| a `describe` callback, its `beforeAll`, its `beforeEach` | that `describe` | every case inside it, and no sibling |
-| the file's top level, a top-level `beforeAll` or `beforeEach` | the file | every case of the file |
+| a `beforeEach`, at the top of the file or inside a `describe` | the `describe` that declared the hook | the case the hook runs for |
 
 A `beforeEach` runs once per case and its call lands on that case, at the
-level of the `describe` that declared the hook. Nested `describe`s are levels in
-their own right, the innermost the narrowest.
+level of the `describe` that declared the hook: `0` for one at the top of the
+file, and one deeper for each `describe` around it. The case body is narrower
+than any of them.
 
 - **A narrower level overrides a wider one** for the same name, silently: a
-  file-level `flag=ff-off` and a case-level `flag=ff-on` give the case `ff-on`.
-  That is the ordinary shape of a default and its exception.
+  `flag=ff-off` from a `beforeEach` at the top of the file and a `flag=ff-on`
+  from the case body give the case `ff-on`. That is the ordinary shape of a
+  default and its exception.
 - **Two values for one name at one level** are a contradiction. The case carries
   both with their call sites and is reported, never resolved to the last one
   said. A retry that says a different value from its earlier attempt is the same
-  contradiction; otherwise a retried case carries what its attempts said.
-- **A call in `afterEach` or `afterAll`** is not Arrange. It is reported with its
-  call site and recorded on no case.
+  contradiction; otherwise a retried case carries what its attempts said. Two
+  shards that ran the same case merge by the same rule, so a body one of them
+  reached overrides the `beforeEach` another heard before its case failed.
+- **A call in `afterEach`** is not Arrange. It is reported with its call site
+  and recorded on no case.
+- **A call where no case is running throws**: a `describe` callback, a
+  `beforeAll` or `afterAll`, the file's top level, and work that outlives its
+  case — a cleanup, a timer that fires after the case settled. Nothing there
+  belongs to one case, so nothing is guessed: the error names the call site and
+  says to move it into the case body or a `beforeEach`.
+- **A `beforeEach` that throws** takes what it said with it. Its case never
+  runs, and the next case begins with nothing held.
 
 The case is resolved the way a probe crossing is. Under the `continuations` mode
 a call made by one of two concurrent cases lands on that case. Under the flat
@@ -144,10 +155,11 @@ declared it".
 2. The recording side under Vitest, Jest, Rstest and Playwright: the channel
    installed where a case scope exists, the case resolved from it, and hook
    calls resolved to the cases they ran for. Fixtures for a case-level call, a
-   `describe`-scoped `beforeEach` that does not reach a sibling `describe`, a
-   file-level default overridden by a case, a same-level contradiction, a call
-   in `afterEach`, a `test.concurrent` pair under `continuations`, and a retry
-   that changes a value.
+   `beforeEach` inside a `describe` that does not reach a sibling `describe`, a
+   `beforeEach` at the top of the file overridden by a case, a same-level
+   contradiction, a call in `afterEach`, a call where no case is running that
+   throws, a `beforeEach` that throws after it spoke, a `test.concurrent` pair
+   under `continuations`, and a retry that changes a value.
 3. The record's precondition sections and their journal frame, with the size it adds to this
    repository's recording stated, and the unmeasured answer for an older record.
    A fixture for a passing case that names a precondition and crosses nothing,

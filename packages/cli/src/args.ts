@@ -23,7 +23,17 @@ export interface Flags {
   /** Flags that appeared, valued or not. Lets `--all` be a boolean without a value. */
   readonly present: Set<string>;
   readonly positionals: readonly string[];
+  /** Every value of a flag in {@link REPEATABLE}, in the order given; `values` holds the last. */
+  readonly repeated: Map<string, readonly string[]>;
 }
+
+/**
+ * Flags that may be given more than once, each time adding a condition.
+ *
+ * Every other flag is refused when repeated. `--where` is the exception because
+ * its repetitions do not contradict: each one is a condition, and all of them hold.
+ */
+export const REPEATABLE = new Set(['--where']);
 
 /**
  * Flags that stand alone, and the one list that says so.
@@ -105,6 +115,7 @@ export function readFlags(
   const values = new Map<string, string>();
   const present = new Set<string>();
   const positionals: string[] = [];
+  const repeated = new Map<string, string[]>();
 
   let index = 0;
   let flagsEnded = false;
@@ -135,7 +146,7 @@ export function readFlags(
           `${didYouMean(name, accepted)}\n\n${usage}`,
       );
     }
-    if (present.has(name)) {
+    if (present.has(name) && !REPEATABLE.has(name)) {
       // Repeated flags are refused rather than last-wins: two contradicting
       // `--subjects` on one line means the operator believes one of them is in
       // force, and picking either silently makes half of those beliefs wrong.
@@ -158,9 +169,10 @@ export function readFlags(
     }
     if (inline === undefined) index += 1;
     values.set(name, value);
+    if (REPEATABLE.has(name)) repeated.set(name, [...repeated.get(name) ?? [], value]);
   }
 
-  return { values, present, positionals };
+  return { values, present, positionals, repeated };
 }
 
 export function noPositionals(positionals: readonly string[], command: string): void {

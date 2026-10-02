@@ -47,6 +47,7 @@ import {
 import { runnerReprieve, varianceDesk, varianceVantageFixtures } from './vantage.js';
 import type { VarianceDesk, VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
+import { playwrightStanding } from './preconditions.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
 
 /**
@@ -194,6 +195,10 @@ export const varianceFixtures: Fixtures<
 
   varianceExecution: [false, { scope: 'worker', option: true }],
 
+  // FIXME: a `variancePrecondition` call while the worker's first file is
+  // collected finds no listener and records nothing rather than throwing —
+  // needs the listener installed before this fixture, which Playwright sets up
+  // once the file has collected.
   // One recorder per worker, closed when the worker is: a worker is a process,
   // and a process that wrote the shared index per assertion would spend the run
   // contending for a lock it holds for microseconds of work.
@@ -203,9 +208,10 @@ export const varianceFixtures: Fixtures<
         await use(undefined);
         return;
       }
-      const recorder = createExecutionRecorder(
+      const recorder: ExecutionRecorder = createExecutionRecorder(
         varianceExecution === true ? {} : varianceExecution,
         varianceWire,
+        playwrightStanding((testInfo) => recorder.owner(testInfo)),
       );
       await use(recorder);
       await recorder.close();

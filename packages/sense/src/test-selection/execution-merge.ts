@@ -1,4 +1,5 @@
 import { settledAcross } from './cases.js';
+import { preconditionsAcross } from './case-precondition-column.js';
 import type {
   ExecutionBlock,
   ExecutionCrossing,
@@ -200,8 +201,15 @@ function collectTests(indexes: readonly ExecutionIndex[]): readonly ExecutionTes
         : before.duration === undefined || test.duration === undefined
         ? undefined
         : before.duration + test.duration;
-      const { stopped: _stopped, duration: _duration, ...coordinate } = test;
-      tests.set(test.id, { ...coordinate, ...stopped, ...(duration === undefined ? {} : { duration }) });
+      const { stopped: _stopped, duration: _duration, preconditions: _preconditions, ...coordinate } = test;
+      tests.set(test.id, {
+        ...coordinate,
+        ...stopped,
+        ...(duration === undefined ? {} : { duration }),
+        ...(before === undefined
+          ? test.preconditions === undefined ? {} : { preconditions: test.preconditions }
+          : preconditionsAcross(before.preconditions, test.preconditions)),
+      });
     }
   }
   return [...tests.values()].sort((left, right) =>
