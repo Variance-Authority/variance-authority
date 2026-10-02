@@ -11,8 +11,8 @@ execution per declaration
 ([spec 0027](0027-a-test-is-selected-by-what-it-executed.md)); `scanRelations`
 in `@variance-authority/sense` and the `Relations` built from it, with runtime
 edges and mock shadows; distill's `loadedOnly`, which needs a declaration the
-test never executed; and the dominator pass of
-[spec 0092](0092-a-choke-point-is-read-twice.md).
+test never executed; and the dominator pass that
+[spec 0092](0092-a-choke-point-is-read-twice.md) specifies, which lands first.
 
 ## Purpose
 
