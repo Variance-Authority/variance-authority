@@ -48,10 +48,10 @@ Both are the same defect at two ends, and it is a defect rather than a limit:
 a fold that does not have it was built and measured. `foldCrossingColumns` read
 the same fixture's 103 million module rows and 826 million crossings inside
 450 MB by keeping frames on disk and handing back a set id per region against a
-pool. Nothing called it, so it was deleted unwired; it is in the history as
-`packages/sense/src/test-selection/run-fold.ts` at `3cfe712f`. What remains in
-the tree is the half it stood on: `foldCrossings` in `crossing-fold.ts`, which
-does the slicing and the interning.
+pool. Nothing called it, so it was deleted unwired, and
+`git log -S foldCrossingColumns` finds it. What remains in the tree is the half
+it stood on: `foldCrossings` in `crossing-fold.ts`, which does the slicing and
+the interning.
 
 ## What would discharge it
 
