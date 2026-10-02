@@ -44,15 +44,13 @@ export interface PreconditionListener {
 export function listenForPreconditions(root: string, standing: () => PreconditionStanding): PreconditionListener {
   const holder = globalThis as { [key: symbol]: unknown };
   const before = holder[preconditions.PRECONDITION];
-  const heard = preconditions.recorder(holder, () => {
-    const at = standing();
-    return at.at === 'case' ? at.key : undefined;
-  });
+  // Every call is placed by one reading of `standing`, so `running` names no case.
+  const heard = preconditions.recorder(holder, () => undefined);
   heard.where.ask = () => {
     const at = standing();
     switch (at.at) {
       case 'case':
-        return undefined;
+        return { kind: 'each', depth: preconditions.CASE_LEVEL, case: at.key };
       case 'beforeEach':
         return { kind: 'each', depth: at.depth, case: at.key };
       case 'after':
