@@ -80,6 +80,25 @@ describe('what the last run moved', () => {
     expect(text).toContain('total.test.ts no longer enters round in src/total.ts (1 region).');
   });
 
+  it('credits no case an earlier run at the same commit recorded as kept from before it', async () => {
+    // Two runs at one commit: the first ran `flow.test.tsx`, the last
+    // `total.test.ts`, and both now call `round`, which no case called before.
+    // `flow.test.tsx`'s case is new at this commit, not kept from an earlier
+    // recording, so it says nothing of what `round` had before.
+    const dir = await records();
+    const execution = join(dir, 'coverage.bin');
+    await keep(execution, index([0], [0, 1]), {
+      last: { commit: 'c', at: '2026-09-25T00:00:00.000Z', files: ['flow.test.tsx', 'total.test.ts'], cases: [DISCOUNTS.id] },
+      before: { tests: [DISCOUNTS, CHECKS_OUT], modules: [
+        { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [])] },
+      ] },
+    });
+
+    const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
+
+    expect(answer.motion?.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'gained']]);
+  });
+
   it('says there was nothing to compare when no run came before', async () => {
     const dir = await records();
     const execution = join(dir, 'coverage.bin');

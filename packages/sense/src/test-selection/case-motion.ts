@@ -144,8 +144,10 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
       const is = filesOf(runs);
       const still = keptBy(block);
       // A retained case the base also holds is one case: counted once at each end.
-      const before = [...ran, ...still.filter((test) => !ran.some((other) => other.id === test.id))];
-      const after = [...runs, ...still.filter((test) => !runs.some((other) => other.id === test.id))];
+      const ranIds = new Set(ran.map((test) => test.id));
+      const runsIds = new Set(runs.map((test) => test.id));
+      const before = [...ran, ...still.filter((test) => !ranIds.has(test.id))];
+      const after = [...runs, ...still.filter((test) => !runsIds.has(test.id))];
       for (const file of is) if (!was.has(file)) reachOf(file).entered.push(region);
       for (const file of was) if (!is.has(file)) reachOf(file).left.push(region);
       const moved = { ...region, before, now: after };
