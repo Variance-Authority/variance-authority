@@ -15,8 +15,9 @@ clock and an order form; only some of that is the behaviour the test protects.
 Eyes records, per test and in order, every element your test queried, clicked,
 read or asserted on, together with the React component that rendered it — and it
 copies that attribution at the moment the element is addressed, so an element
-removed by its own click handler is still attributable afterwards. In a run
-that records with [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense),
+removed by its own click handler is still attributable afterwards. In a
+Playwright run that records with
+[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test),
 each test's journal goes into that run's record, beside what the test executed.
 
 With that record you can:
@@ -26,8 +27,8 @@ With that record you can:
   in them — candidates for a stand-in. [Distil a test](https://variance-authority.dev/docs/distill) is the
   loop that confirms them.
 - Ask an agent to replay one test's selectors, events and Arrange/Act/Assert
-  boundaries in order, through the `variance_test_attention` MCP tool in
-  `@variance-authority/mcp`.
+  boundaries in order, through the `variance_test_attention` MCP tool that
+  `serveEyesRecord` from `@variance-authority/mcp` serves over that record.
 
 The evidence model, and what Eyes refuses to conclude from it, is
 **[Eyes: what a test actually witnesses](https://variance-authority.dev/docs/eyes)**.
@@ -82,8 +83,9 @@ rendered nothing.
 
 **3. Watch `screen` for the span of each test.** `watchTest(screen)` opens one
 log for the test, and its `close` returns the journal and hands it to the case
-the run is recording. The case names the journal, by the id and the attempt the
-record joins on, so there is no id for you to build:
+the run is recording, where the recording seam's case takes one. The case names
+the journal, by the id and the attempt the record joins on, so there is no id
+for you to build:
 
 ```ts
 // vitest.setup.eyes.ts

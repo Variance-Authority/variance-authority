@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-10-02 06:01'
-updated_date: '2026-10-02 07:35'
+updated_date: '2026-10-02 09:00'
 labels: []
 dependencies:
   - TASK-24.1
@@ -39,3 +39,11 @@ Eyes journals become sections of the record, keyed by case and attempt, and join
 6. Retention: sharedRecord keeps eyes (same machine); share and carry name the Eyes section among what they upload.
 7. Changeset, surface, docs; pre-verify and yarn verify.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented on feat/eyes-in-the-record (commits 7868cf99 to HEAD). Record section eyes holds case, attempt from 1, journal. playwright-test enterCase hands journals by testOf(testInfo), attempt = retry + 1. eyes collect and reporter removed. distill reads testCoverageFile(root) or --execution; --eyes removed; attempts named; an unresolved id is refused. sharedRecord keeps eyes; share and carry name the eyes section they upload. yarn verify green. Open: RTL under Vitest/Jest reaches no record (it.todo in packages/eyes/src/rtl-case.test.tsx). MCP variance_test_attention and variance_distill still read an Eyes archive nothing writes (FIXME in packages/mcp/src/server.ts and tools/observability.ts). milestone-repin carries the index only. Surface READMEs cannot show eyesFixtures with varianceFixtures in one example under tools/surfaces.check.ts; a re-export would allow it.
+
+Review fixes: repin carries eyes for kept cases; an unreadable or newer eyes section is dropped at fetch/seed; conflicting journals keep the JSON-first one; partsOf reads eyes only on request; eyes section lists watched cases and distill tells not-opted-in from no journal; MCP reads Eyes from the record (readEyesRecord, serveEyesRecord); share/carry tests judge real written records. Still open: RTL under Vitest/Jest (it.todo in packages/eyes/src/rtl-case.test.tsx; needs a case scope taking journals in sense collectors.cts and jest-setup.cts); shard landing treats seeded eyes as fresh (FIXME in case-landing.ts).
+<!-- SECTION:NOTES:END -->

@@ -77,8 +77,9 @@ entries, and `attention.close()` restores every method once no watcher remains.
 `within()` and the queries returned by `render()` are different bound objects and
 stay outside this entrypoint. To scope a journal to one test instead of the
 whole file, `watchTest(screen)` from the same module pairs the log and the drain
-in one object, and its `close` hands the journal to the case the run is
-recording. `watchTest(screen, identity)` keeps the journal under the identity
+in one object, and its `close` returns the journal. The Vitest and Jest
+recording seams install no case that takes one, so under them the record keeps
+no journal. `watchTest(screen, identity)` keeps the journal under the identity
 you give it instead.
 
 ### A live view: name the address in the environment
