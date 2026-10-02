@@ -1,24 +1,28 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir, readFile, realpath, rm, utimes } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, realpath, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  caseSectionsAt,
   declaredSuites,
+  encodeAsSetExecutionIndex,
   landRun,
   readCommitRuns,
   readOwnLayer,
   readTestCoverage,
+  recordedEyesAt,
   seedTestCoverage,
   testCoverageFile,
+  withCaseSections,
   writeTestCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
 import type { Env } from '../share-lines.js';
 import { checkoutRead } from './checkout-read.js';
-import { BEFORE, collectedBoth, DISCOUNTS, gitPublished, PUSH, ranWhole, recordIn } from './mainline-fixture.js';
+import { BEFORE, collectedBoth, DISCOUNTS, gitPublished, PUSH, ranWhole, recordIn, ROUNDS } from './mainline-fixture.js';
 import { mainlineBase } from './mainline-base.js';
 import { suiteBase } from './suite-base.js';
 import { publishSuite } from './suite-share.js';
@@ -62,7 +66,7 @@ async function laidWorktree(): Promise<{ ci: string; first: string; worktree: st
 }
 
 /** CI pushes one more commit to main and publishes a whole run there, in which both test files run `applyDiscount`. */
-async function publishedNext(ci: string): Promise<string> {
+async function publishedNext(ci: string, sections?: (record: string) => Promise<void>): Promise<string> {
   const laptop = process.env['VARIANCE_AUTHORITY_CACHE'];
   process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
   await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'next');
@@ -89,6 +93,7 @@ async function publishedNext(ci: string): Promise<string> {
     }],
   });
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), next);
+  await sections?.(testCoverageFile(ci, { suite: 'unit' }));
   const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
   if (!('published' in done)) throw new Error(`the record was to reach mainline main: ${JSON.stringify(done)}`);
   process.env['VARIANCE_AUTHORITY_CACHE'] = laptop;
@@ -150,6 +155,45 @@ describe('the milestone under a checkout', () => {
     // `other` reads the new milestone's row; `total` keeps its own, which entered nothing.
     expect(crossers(await readTestCoverage(own))).toEqual(['test/other.test.ts']);
     expect(await readCommitRuns(own)).toMatchObject({ commit: next, over: next, files: ['test/total.test.ts'] });
+  });
+
+  it('carries the Eyes journals of the cases it keeps: its own for the tests it ran, the newer snapshot\'s for the rest', async () => {
+    const OTHER = { id: 'test/other.test.ts > other', file: 'test/other.test.ts', name: 'other' };
+    const journal = (by: string) => ({ complete: true, attention: [], by });
+    const { ci, worktree, own } = await laidWorktree();
+    const next = await publishedNext(ci, async (record) => {
+      await writeFile(record, withCaseSections(await readFile(record), {
+        index: encodeAsSetExecutionIndex({ tests: [DISCOUNTS, OTHER], modules: [] }),
+        eyes: Buffer.from(`${JSON.stringify({
+          version: 1,
+          watched: [DISCOUNTS.id, OTHER.id],
+          journals: [
+            { case: DISCOUNTS.id, attempt: 1, journal: journal('milestone') },
+            { case: OTHER.id, attempt: 1, journal: journal('milestone') },
+          ],
+        })}\n`),
+      }));
+    });
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await landRun(own, ranAlone(next, 'test/total.test.ts'), worktree, undefined, {
+      fresh: encodeAsSetExecutionIndex({ tests: [ROUNDS], modules: [] }),
+      run: { tests: [{ file: 'test/total.test.ts', complete: true }], commit: next },
+      eyes: { watched: [ROUNDS.id], journals: [{ case: ROUNDS.id, attempt: 1, journal: journal('here') }] },
+    });
+    await refetch(worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, kept: ['test/total.test.ts'] } });
+
+    expect(caseSectionsAt(own).index).toBeDefined();
+    // `discounts` is no case of this checkout's `total.test.ts`, and its journal goes with it.
+    expect(recordedEyesAt(own)).toEqual({
+      watched: [OTHER.id, ROUNDS.id],
+      journals: [
+        { case: OTHER.id, attempt: 1, journal: journal('milestone') },
+        { case: ROUNDS.id, attempt: 1, journal: journal('here') },
+      ],
+    });
   });
 
   it('lays a newer snapshot whole when this checkout recorded under other probes', async () => {

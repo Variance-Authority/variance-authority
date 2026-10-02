@@ -65,7 +65,7 @@ export {
 } from './execution-format.js';
 export { mergeExecutionIndexes } from './execution-merge.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
-export { journeyGaps, type JourneyGaps } from './execution-set-format.js';
+export { encodeAsSetExecutionIndex, journeyGaps, type JourneyGaps } from './execution-set-format.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { readingLines, type FileReading } from './reading-lines.js';
 export {
