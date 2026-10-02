@@ -96,23 +96,28 @@ A finding outside the task becomes its own change, not part of this one.
 
 Look around:
 
-- What you have done, read as the diff a reviewer will read: does any of it
-  repeat what already existed, or answer a question the task did not ask? It is
-  not too late to throw it away, and it is cheaper here than in review.
 - Whether the checkout is reconciled: install and build current, new files
   tracked.
-- What the change reached: the `read` lines of `yarn test:since --dry-run`.
+- What the change reached: the `read` lines of `yarn test:since --dry-run`. A
+  slice it runs whole is the whole suite, not a wave; leave it to CI.
 - Whether the machine is quiet before you believe a failure: a load average in
   `uptime` above the core count means re-run later.
 
+Verify in waves, nearest first. Each wave starts only when the one before it is
+green, and a red wave sends you back to the edit, then to wave 1:
+
 ```bash
-yarn test:since --at-distance 0-2   # while the edit is still open
-yarn test:since --at-distance 2-4   # before handing the change over
-yarn build && yarn verify           # the gate, and the only green that counts
+yarn verify:near    # 1. tests within two imports — the edit loop, repeat freely
+yarn verify:rules   # 2. lint and the repository checks, once near is green
+yarn verify:far     # 3. the rest of the selection, once, before the PR
 ```
 
-Leave with a green `yarn verify`, or a failure that survived reconciling the
-checkout and a re-run.
+A green wave is not run again on unchanged code. The full `yarn verify` and
+`yarn measure` are CI's: run one locally only to reproduce a check that failed
+there.
+
+Leave with three green waves, or a failure that survived reconciling the
+checkout and a re-run of the one failing file.
 
 ### 5. Open the PR — [pull request](.agents/references/pull-request.md)
 
