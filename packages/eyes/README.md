@@ -242,17 +242,17 @@ npx playwright install chromium
 which records what each test executed into the run's record.
 
 **3. Compose `eyesFixtures` after the recording's fixtures** in the extension
-module your suite already owns. The `eyes` fixture opens a journal for each test
-and, when the test is over, hands it to the case the run is recording:
+module your suite already owns. Here `recorded` is your `test` already extended
+with `varianceFixtures` from `@variance-authority/playwright-test`. The `eyes`
+fixture opens a journal for each test and, when the test is over, hands it to
+the case the run is recording:
 
 ```ts
 // tests/fixtures.ts
-import { test as base, expect } from '@playwright/test';
-import { varianceFixtures } from '@variance-authority/playwright-test';
 import { eyesFixtures } from '@variance-authority/eyes/playwright';
+import { test as recorded } from './recorded';
 
-export const test = base.extend(varianceFixtures).extend(eyesFixtures);
-export { expect };
+export const test = recorded.extend(eyesFixtures);
 ```
 
 The record keeps the journal under the case's id — its file relative to the
