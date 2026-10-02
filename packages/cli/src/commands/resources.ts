@@ -188,7 +188,8 @@ export async function journeyAgainst(
       ...(unmeasured === undefined ? {} : { unmeasured }),
     });
   } catch (error) {
-    if (isMissing(error)) return undefined;
+    // A record whose run instrumented nothing measured nothing: it narrows nothing, as no record does.
+    if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return undefined;
     throw new OperatorError(
       `the recorded execution journal at ${said(file)} could not be read: ${messageOf(error)}. ` +
         'Delete it and run once without `--since` to record a new one; a run that ignored it ' +
@@ -228,8 +229,9 @@ export async function recordedJourneys(
   } catch (error) {
     // The path either way. An operator whose build carries no probes has to be
     // told where the file this wanted would have been, and that is precisely the
-    // reading with no snapshot to carry it.
-    if (isMissing(error)) return { at: file };
+    // reading with no snapshot to carry it. A record whose run instrumented
+    // nothing carries none either.
+    if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return { at: file };
     throw new OperatorError(
       `the recorded execution journal at ${file} could not be read: ${messageOf(error)}. ` +
         'Delete it and run once to record a new one; a reading that skipped it would look ' +

@@ -18,7 +18,7 @@ import {
 import { digestString } from '@variance-authority/core/format';
 import type { Env } from '../share-lines.js';
 import { checkoutRead } from './checkout-read.js';
-import { BEFORE, collectedBoth, DISCOUNTS, gitPublished, PUSH, ranWhole, recordIn } from './mainline-fixture.js';
+import { BEFORE, collectedBoth, DISCOUNTS, gitPublished, probedModule, PUSH, ranWhole, recordIn } from './mainline-fixture.js';
 import { mainlineBase } from './mainline-base.js';
 import { suiteBase } from './suite-base.js';
 import { publishSuite } from './suite-share.js';
@@ -95,9 +95,9 @@ async function publishedNext(ci: string): Promise<string> {
   return next;
 }
 
-/** A run of `file` at `commit` that entered no module. */
+/** A run of `file` at `commit` that entered one module the fixture's source does not hold. */
 function ranAlone(commit: string, file: string): TestCoverage {
-  return { version: 3, instrumentation: 'fixture', commit, tests: [{ file, complete: true, preconditions: [] }], modules: [] };
+  return { version: 3, instrumentation: 'fixture', commit, tests: [{ file, complete: true, preconditions: [] }], modules: [probedModule([file])] };
 }
 
 async function refetch(worktree: string, commit: string): Promise<void> {

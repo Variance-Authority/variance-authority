@@ -976,6 +976,17 @@ O(r log r) for `r` rows and strings. It writes under a scratch name and renames
 into place, so a reader opening the path sees the previous snapshot or this one
 and never the bytes between.
 
+**A run that instruments nothing.** A run that keeps its cases and instruments
+no module still writes the file, with the case sections and none of the
+coverage sections: no strings, snapshot, tests, modules, blocks or sets. A
+record already at the path keeps its coverage as it was, under the new run's
+cases. A run that keeps no cases and instruments nothing writes nothing. A
+file whose probes fired where nothing could place them is the exception: it is
+recorded incomplete, which selects it on the next run, and that row lands as
+coverage does. Such a record moves the way any record does: a new
+worktree seeds from it, and landing it as a shard with `variance journeys` lays
+its cases over the target's without folding any coverage, so it narrows nothing wherever it lands.
+
 ## What a reader refuses
 
 Read a column and its values are checked on the way out; a column you never read
@@ -1007,6 +1018,17 @@ bound either lands in the crossings or is refused by them.
 
 Any of those becomes an absent record rather than an empty one, so a corrupt
 file costs you one full run and never a narrowed one.
+
+A file that holds case sections and no coverage section opens as a record
+without coverage, `RecordWithoutCoverage`, and not as a record of tests that
+reach nothing. Selection narrows nothing over it: `variance select` skips
+nothing and says the record holds no coverage, and `variance run --since` runs
+every test file. A run writes one when it keeps its cases and instruments no
+module. It travels like any record: `variance share` publishes it under the commit its
+cases were recorded at, and a worktree fetches it from the mainline and lays it
+under its first run, still narrowing nothing. A file that holds some of the
+coverage sections and not the others is refused as broken. `withoutCoverage`
+answers from the header alone.
 
 One older layout is read rather than refused: the one written before
 `tests.duration` existed, which the JVM agent still writes. It opens with every

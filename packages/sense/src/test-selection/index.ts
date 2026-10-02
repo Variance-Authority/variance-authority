@@ -190,10 +190,13 @@ export {
   caseSectionsOf,
   keepsCases,
   recordedCases,
+  recordOfCases,
   sharedRecord,
   withCaseSections,
+  withoutCoverage,
   type CaseSections,
 } from './case-record.js';
+export { RecordWithoutCoverage } from './format-validation.js';
 export {
   commitRunsAfter,
   commitRunsFile,

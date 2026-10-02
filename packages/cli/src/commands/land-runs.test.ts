@@ -12,6 +12,7 @@ import {
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { landJourneys } from './land.js';
+import { probedModule } from './mainline-fixture.js';
 
 /**
  * The runs record a landing leaves beside the snapshot it lands on.
@@ -53,13 +54,14 @@ afterEach(async () => {
 
 const ALL = ['far.test.ts', 'near.test.ts', 'other.test.ts'];
 
+/** A run of `files` that instrumented one module: `landRun` records no runs for a run that instrumented none. */
 function run(commit: string, files: readonly string[], instrumentation = 'fixture'): TestCoverage {
   return {
     version: 3,
     instrumentation,
     commit,
     tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
-    modules: [],
+    modules: [probedModule(files)],
   };
 }
 
