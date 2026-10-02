@@ -4,6 +4,7 @@ use std::fs;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
+use crate::case_preconditions;
 use crate::journey_columns;
 use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
 use crate::journey_journal::{self, Test};
@@ -93,6 +94,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
                     ));
                 }
                 before.settled = journey_journal::settled_across(before.settled, test.settled);
+                before.preconditions = case_preconditions::across(before.preconditions.take(), test.preconditions.clone());
             } else {
                 tests_by_id.insert(test.id.clone(), test.clone());
             }
@@ -255,9 +257,12 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
     let names = decoded.words("tests.name")?;
     // A shard written before cases carried how they settled says nothing.
     let settled = decoded.bytes("tests.stopped").ok();
+    // A shard whose producer never listened to a case has no precondition column.
+    let said = if decoded.has(case_preconditions::COLUMN) { Some(decoded.words(case_preconditions::COLUMN)?) } else { None };
     if files.len() != ids.len()
         || names.len() != ids.len()
         || settled.as_ref().is_some_and(|column| column.len() != ids.len())
+        || said.as_ref().is_some_and(|column| column.len() != ids.len())
     {
         return Err("test columns disagree".to_owned());
     }
@@ -267,6 +272,10 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
             file: string(&strings, files[at])?.to_owned(),
             name: string(&strings, names[at])?.to_owned(),
             settled: settled.as_ref().map_or(journey_journal::UNSETTLED, |column| column[at]),
+            preconditions: match said.as_ref().map(|column| column[at]) {
+                None | Some(case_preconditions::UNHEARD) => None,
+                Some(word) => Some(case_preconditions::unspelled(string(&strings, word)?)?),
+            },
         }))
         .collect::<Result<_, String>>()?;
     let module_files = decoded.words("modules.file")?;

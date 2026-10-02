@@ -42,6 +42,9 @@ pub struct JourneyTest {
     pub name: String,
     /// `ExecutionTest.stopped`: absent when the file does not say how the case settled.
     pub stopped: Option<bool>,
+    /// `ExecutionTest.preconditions` as `tests.casePreconditions` spells them:
+    /// absent for a case nobody listened to.
+    pub preconditions: Option<String>,
 }
 
 #[napi(object)]
@@ -84,6 +87,7 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
                 Some(journey_journal::FINISHED) => Some(false),
                 _ => None,
             },
+            preconditions: journey.test_said(at)?.map(str::to_owned),
         }))
         .collect::<Result<Vec<_>, String>>()?;
 

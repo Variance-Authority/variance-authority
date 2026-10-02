@@ -1,6 +1,7 @@
 import { affectedBy, type Relations } from '@variance-authority/core/relate';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
 import { outside, sameCases, stoppedIn } from './stopped.js';
+import type { CasePrecondition } from './case-precondition-column.js';
 
 /** One recorded case: who it is, where it is declared, and whether its journey ended. */
 export interface ExecutionTest {
@@ -22,6 +23,8 @@ export interface ExecutionTest {
    * which is not zero.
    */
   readonly duration?: number;
+  /** What the case said it arranged, narrowest scope per name; empty is heard-nothing, absent is unheard. */
+  readonly preconditions?: readonly CasePrecondition[];
 }
 
 export interface ExecutionCrossing {

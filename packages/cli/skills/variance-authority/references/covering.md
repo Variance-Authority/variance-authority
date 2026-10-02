@@ -22,6 +22,12 @@ says two of that file's three cases ran through it, and the cases follow.
   of the tree, so ask for it when the list is long, not on every edit.
 - `--cases last` answers from the cases the last run recorded; `--cases <test
   file>` from the ones that test file declares.
+- `--where <name>[=<value>]` keeps the cases that said that precondition with
+  `variancePrecondition`; repeat it and every one must hold. Each listed case
+  prints what it said and where. An `unmeasured` refusal means the record holds
+  no case's preconditions: record again, do not read it as *no case did*. With
+  `names.axes` declaring the name, each case also prints its twin one step
+  toward the base.
 - `--format refs` numbers each case once in a table at the end and names every
   range's cases by those numbers, so a module whose eleven cases all run it
   costs one table, not eleven names per range. It is the shortest answer to hand
