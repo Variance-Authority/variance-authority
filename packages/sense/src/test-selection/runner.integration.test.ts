@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { decodeExecutionIndex } from './execution-format.js';
+import { RecordWithoutCoverage } from './format-validation.js';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 // The runner's modules `require` the collectors, so they are loaded built, and
@@ -123,7 +124,9 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
 
   it('says so when no process instrumented anything, rather than writing a record that reaches nothing quietly', async () => {
     const { coverageFile, stderr } = await record('--no-hooks');
-    expect(decodeTestCoverage(await readFile(coverageFile)).modules).toEqual([]);
+    // Its coverage is absent rather than empty.
+    const bytes = await readFile(coverageFile);
+    expect(() => decodeTestCoverage(bytes)).toThrow(RecordWithoutCoverage);
     expect(stderr).toContain('instrumented 0 modules across 2 test file(s)');
     expect(stderr).toContain('check that registerRecording() or instrumentModule() runs in every process');
   }, 60_000);

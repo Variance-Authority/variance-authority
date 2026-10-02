@@ -95,6 +95,7 @@ export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
 export type SelectGround =
   | { readonly kind: 'read'; readonly narrowing: ExecutionNarrowing }
   | { readonly kind: 'no-journal' }
+  | { readonly kind: 'no-coverage' }
   | { readonly kind: 'no-diff'; readonly from: string }
   | { readonly kind: 'no-install'; readonly whole: string }
   | { readonly kind: 'before'; readonly whole: string };
@@ -209,6 +210,14 @@ export function skippableTests(input: SelectInput): TestSelection {
       ...base,
       widened: `no execution journal at ${input.at}`,
       because: 'nothing to narrow by, so every test file runs',
+    };
+  }
+
+  if (input.ground.kind === 'no-coverage') {
+    return {
+      ...base,
+      widened: `the record at ${input.at} holds no coverage`,
+      because: 'the run that wrote it instrumented no module, so every test file runs',
     };
   }
 

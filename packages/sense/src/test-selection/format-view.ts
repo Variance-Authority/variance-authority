@@ -18,6 +18,7 @@ import {
   kinds,
   owners,
   presence,
+  RecordWithoutCoverage,
   validateCoverageShape,
 } from './format-validation.js';
 import { type CrossingSetsPool } from './crossing-sets.js';
@@ -154,6 +155,8 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   const base = 4 + headerLength;
   if (!validSections(header.sections, file.length - base)) throw invalid();
   const found = new Map(header.sections.map((section) => [section.name, section]));
+  // None of the coverage is absent coverage; some of it is a broken record.
+  if (!NAMES.some((name) => found.has(name))) throw new RecordWithoutCoverage();
   const at = (name: string): Section => {
     const value = found.get(name);
     if (value === undefined) throw invalid();

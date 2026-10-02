@@ -32,6 +32,7 @@ import { commitRunsFile, type CommitRuns } from './commit-runs.js';
 import { caseSectionsOf } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
+import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
 import { writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
@@ -202,13 +203,20 @@ function fetchedMainlineReads(record: LastFetched): boolean {
  * Throws unless this build reads each part. Opening parses the section index
  * and nothing else, which is the whole of what "this build can read it" means;
  * the runs record reads when it is a JSON object, as `readCommitRuns` has it.
- * Returns the runs record when it names the snapshot's own commit.
+ * Returns the runs record when it names the snapshot's own commit. A record
+ * whose run instrumented nothing reads, for its cases, and names no commit any
+ * test stands at, so no runs record is laid beside it.
  */
 function opensFetched(
   coverage: Uint8Array,
   runs: Uint8Array | undefined,
 ): CommitRuns | undefined {
-  const { commit } = openTestCoverage(coverage);
+  let commit: string | undefined;
+  try {
+    commit = openTestCoverage(coverage).commit;
+  } catch (error) {
+    if (!(error instanceof RecordWithoutCoverage)) throw error;
+  }
   const { index } = caseSectionsOf(coverage);
   if (index !== undefined && openSetExecutionIndex(index) === undefined) decodeExecutionTests(index);
   if (runs === undefined) return undefined;

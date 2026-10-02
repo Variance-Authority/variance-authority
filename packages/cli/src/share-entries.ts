@@ -29,7 +29,16 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { ShareEntry } from '@variance-authority/core/share';
-import { askCoverageFile, commitRunsFile, sharedRecord, testCoverageFile, type CommitRuns } from '@variance-authority/sense/test-selection';
+import {
+  askCoverageFile,
+  caseSectionsAt,
+  commitRunsFile,
+  lastCaseRunOf,
+  sharedRecord,
+  testCoverageFile,
+  withoutCoverage,
+  type CommitRuns,
+} from '@variance-authority/sense/test-selection';
 import { readCliRunReport } from './commands/run-report.js';
 
 
@@ -148,6 +157,12 @@ export function readReportEntry(
  * whole suite at this commit, which {@link wholeRunAt} tells from the runs record
  * and from what the runner collects (`collected`), never from the caller's
  * word. Without `collected` it cannot be told, and the record is left out.
+ *
+ * A record whose run instrumented no module holds its cases and no coverage.
+ * It names its commit through the run that kept those cases, and is published
+ * under that commit like any other. No reader narrows by it, so there is no
+ * whole run to show: its run claimed no test, and every reader runs every test
+ * file over it either way.
  */
 export async function suiteEntryOf(
   root: string,
@@ -158,16 +173,17 @@ export async function suiteEntryOf(
   const coverage = testCoverageFile(root, { suite });
   const record = await held(coverage);
   if (record === undefined) return undefined;
+  const uncovered = withoutCoverage(coverage);
   let recorded: string | undefined;
   try {
-    recorded = askCoverageFile(coverage, (view) => view.commit);
+    recorded = uncovered ? lastCaseRunOf(caseSectionsAt(coverage))?.commit : askCoverageFile(coverage, (view) => view.commit);
   } catch (error) {
     return { unpublished: `its record at ${coverage} does not read: ${error instanceof Error ? error.message : String(error)}` };
   }
   if (recorded === undefined) return { unpublished: `its record at ${coverage} names no commit` };
   if (recorded !== at.commit) return { unpublished: `its record at ${coverage} was recorded at ${recorded}, not at ${at.commit}` };
   const runs = await held(commitRunsFile(coverage));
-  if (options.whole === true) {
+  if (options.whole === true && !uncovered) {
     const partial = wholeRunAt(runs, at.commit, options.collected);
     if (partial !== undefined) return { unpublished: `its record at ${coverage} is not a whole run: ${partial}` };
   }

@@ -20,6 +20,7 @@ import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.j
 import { caseSectionsOf, sharedRecord } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
+import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
 import { layFetchedMainline, lastFetchedMainline, type LastFetched } from './mainline-layer.js';
 import { writeOwnLayer } from './own-layer.js';
@@ -160,15 +161,22 @@ export async function seedTestCoverage(
   // there, replacing the cases of the files it ran: with none seeded, the first
   // run in a worktree would write a partial index that then stands for the
   // whole suite. The base's last run, and what that run laid over, are the
-  // base's and stay there; the worktree's first run is the first it has.
+  // base's and stay there; the worktree's first run is the first it has. A
+  // base whose run instrumented nothing holds cases and no coverage: its cases
+  // are seeded all the same, and the copy is as unmeasured as the base, with no
+  // runs record beside it, since no test stands at a commit nothing measured.
   const seeded = await seedFrom(layers.base, inside, file, (bytes) => {
-    snapshot = openTestCoverage(bytes);
+    try {
+      snapshot = openTestCoverage(bytes);
+    } catch (error) {
+      if (!(error instanceof RecordWithoutCoverage)) throw error;
+    }
     const { index } = caseSectionsOf(bytes);
     if (index !== undefined && openSetExecutionIndex(index) === undefined) decodeExecutionTests(index);
     return sharedRecord(bytes);
   });
-  if (!seeded || snapshot === undefined) return undefined;
-  await seedCommitRuns(file, resolve(layers.base, inside), snapshot);
+  if (!seeded) return undefined;
+  if (snapshot !== undefined) await seedCommitRuns(file, resolve(layers.base, inside), snapshot);
   // The primary checkout's record is no milestone: nothing is pinned, and no
   // fetch moves it. Its tests are not this checkout's.
   await writeOwnLayer(file, { ran: [] });

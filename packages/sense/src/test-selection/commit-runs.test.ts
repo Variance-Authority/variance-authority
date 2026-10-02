@@ -5,13 +5,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { commitRunsFile, landRun, readCommitRuns } from './commit-runs.js';
 import { writeTestCoverage, type TestCoverage } from './index.js';
 
+/** A run of `files` that instrumented one module: a run that instrumented none records no runs at all. */
 function run(commit: string | undefined, files: readonly string[], instrumentation = 'fixture'): TestCoverage {
   return {
     version: 3,
     instrumentation,
     ...(commit === undefined ? {} : { commit }),
     tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
-    modules: [],
+    modules: [{
+      file: 'src/a.ts',
+      sourceDigest: 'source',
+      instrumented: true,
+      blocks: [{ ordinal: 0, kind: 'module', digest: 'root', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: [...files].sort() }],
+    }],
   };
 }
 
