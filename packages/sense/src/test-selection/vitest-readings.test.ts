@@ -50,19 +50,24 @@ const LEGACY = [
 /** {@link SOURCE} once a comment was written above it, between two runs of a watching runner. */
 const EDITED = `// What a cart holds.\n${SOURCE}`;
 
+/** Another module of the package, whose tests load it and not the cart. */
+const RATE = 'export const rate = 0.2;\n';
+
 type Transform = (this: TransformingContext | undefined, code: string, id: string) => unknown;
 
-type Reading = 'source' | 'build' | 'legacy';
+type Reading = 'source' | 'build' | 'legacy' | 'rate';
 
 /**
  * What one run records of the readings `order` names, or, with `rerun`, what
- * the run records when it reruns after {@link EDITED} replaced the source and
- * the rerun transformed only what `rerun` names.
+ * the run records when it reruns and the rerun transformed only what `rerun`
+ * names, after what `changed` names changed on disk: {@link EDITED} replaced
+ * the source, or a watching build wrote `dist/cart.js` again.
  */
 async function recorded(
   order: readonly Reading[],
   projects: 1 | 2 = 1,
   rerun?: readonly Reading[],
+  changed: 'source' | 'build' | 'nothing' = 'source',
 ): Promise<TestCoverage['modules']> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-two-readings-'));
   const coverageFile = resolve(root, 'coverage.bin');
@@ -73,6 +78,7 @@ async function recorded(
     await mkdir(resolve(root, 'lib'), { recursive: true });
     await writeFile(resolve(root, 'dist/cart.js'), BUILT, 'utf8');
     await writeFile(resolve(root, 'lib/cart.js'), LEGACY, 'utf8');
+    await writeFile(resolve(root, 'src/rate.ts'), RATE, 'utf8');
     const configured = withTestSelection({}, { root, coverageFile, include: () => true });
     const plugin = (configured.plugins as unknown as Array<{
       transform: Transform;
@@ -111,18 +117,24 @@ async function recorded(
       for (const reading of readings) {
         if (reading === 'source') plugin.transform.call(undefined, source, resolve(root, 'src/cart.ts'));
         else if (reading === 'build') other.transform.call(built, BUILT, resolve(root, 'dist/cart.js'));
-        else other.transform.call(legacy, LEGACY, resolve(root, 'lib/cart.js'));
+        else if (reading === 'legacy') other.transform.call(legacy, LEGACY, resolve(root, 'lib/cart.js'));
+        else plugin.transform.call(undefined, RATE, resolve(root, 'src/rate.ts'));
       }
     };
     transform(order, SOURCE);
     await reporter.onFinished([]);
     if (rerun !== undefined) {
-      await writeFile(resolve(root, 'src/cart.ts'), EDITED, 'utf8');
-      // Vite's watcher names the changed file to every plugin before the rerun starts.
-      plugin.watchChange(resolve(root, 'src/cart.ts'));
-      first = 'AACA';
+      // What Vite's watcher tells every plugin once a file changed on disk.
+      if (changed === 'source') {
+        await writeFile(resolve(root, 'src/cart.ts'), EDITED, 'utf8');
+        first = 'AACA';
+        plugin.watchChange(resolve(root, 'src/cart.ts'));
+      } else if (changed === 'build') {
+        await writeFile(resolve(root, 'dist/cart.js'), BUILT, 'utf8');
+        plugin.watchChange(resolve(root, 'dist/cart.js'));
+      }
       reporter.onWatcherRerun();
-      transform(rerun, EDITED);
+      transform(rerun, changed === 'source' ? EDITED : SOURCE);
       await reporter.onFinished([]);
     }
     return decodeTestCoverage(await readFile(coverageFile)).modules;
@@ -180,5 +192,32 @@ describe('a module two transforms both name', () => {
 
     expect(rebuilt[0]!.blocks.find((block) => block.name === 'total')!.startLine).toBe(2);
     expect(await recorded(['source', 'build'], 1, ['build'])).toEqual(rebuilt);
+  });
+
+  it('is recorded from both readings when a rerun transformed only the build and the source did not change', async () => {
+    expect(await recorded(['source', 'build'], 1, ['build'], 'nothing')).toEqual(await recorded(['source', 'build']));
+  });
+
+  it('is recorded from the source a rerun read alone, not joined to a build of the text before it', async () => {
+    const rebuilt = await recorded([], 1, ['source']);
+
+    expect(rebuilt[0]!.blocks.find((block) => block.name === 'total')!.startLine).toBe(2);
+    expect(await recorded(['source', 'build'], 1, ['source'])).toEqual(rebuilt);
+  });
+
+  it('is carried from the text on disk by a rerun that loaded no reading of it once its source changed', async () => {
+    const carried = (await recorded(['source'], 1, ['rate'])).find((module) => module.file === 'src/cart.ts');
+
+    expect(carried!.blocks.find((block) => block.name === 'total')!.startLine).toBe(2);
+  });
+
+  it('is carried from the text on disk, not a build of the text before it, once its source changed', async () => {
+    const carried = (await recorded(['source', 'build'], 1, ['rate'])).find((module) => module.file === 'src/cart.ts');
+
+    expect(carried!.blocks.find((block) => block.name === 'total')!.startLine).toBe(2);
+  });
+
+  it('is recorded without the reading of a build written again that the rerun did not load', async () => {
+    expect(await recorded(['build', 'legacy'], 1, ['legacy'], 'build')).toEqual(await recorded(['legacy']));
   });
 });

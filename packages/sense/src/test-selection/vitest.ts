@@ -313,12 +313,17 @@ function selectionPlugin(
       }
     },
     configResolved: declareConfig(run, declared, [setupId, runnerId]),
-    // A file that changed is transformed again when a rerun loads it, and until
-    // then its reading is of a text the disk no longer holds: a build loaded
-    // without it would be joined to it. Only that file's: a reading of a file
-    // that did not change is still the text the rerun loads.
+    // A file changed on disk, so its reading describes text the disk no longer
+    // holds, and a rerun transforms it again only if a test still loads it.
+    // So does every reading named after it: a build's regions sit on the lines
+    // the file had when the build was made, and a rerun would join them to the
+    // file's new ones. Nothing else goes: Vite serves an unchanged file from
+    // its cache, and a reading of it is the text that runs.
     watchChange(id) {
-      modules.delete(projectPath(root, cleanId(id)));
+      const changed = projectPath(root, cleanId(id));
+      for (const [moduleId, module] of modules) {
+        if (moduleId === changed || module.file === changed) modules.delete(moduleId);
+      }
     },
     transform(code, id) {
       // The setup module installs the probe log; instrumented, its own header
