@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::case_preconditions;
 use crate::journey_columns::{self, Column};
 use crate::journey_journal::Test;
 use crate::journey_record::Module;
@@ -172,9 +173,14 @@ pub fn encode(
     gaps: Option<&Gaps>,
 ) -> Result<Vec<u8>, String> {
     let mut strings = Vec::new();
+    let said: Vec<Option<String>> = tests
+        .iter()
+        .map(|test| test.preconditions.as_deref().map(case_preconditions::spelled))
+        .collect();
     for test in tests {
         strings.extend([test.id.clone(), test.file.clone(), test.name.clone()]);
     }
+    strings.extend(said.iter().flatten().cloned());
     for held in modules {
         strings.push(held.module.file.clone());
         for block in &held.module.blocks {
@@ -248,6 +254,10 @@ pub fn encode(
         Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()),
         Column::Words("sets.off", sets.offsets().to_vec()),
     ];
+    if said.iter().any(Option::is_some) {
+        let words = said.iter().map(|text| text.as_deref().map_or(case_preconditions::UNHEARD, id)).collect();
+        columns.push(Column::Words(case_preconditions::COLUMN, words));
+    }
     if let Some(gaps) = gaps {
         let ids = |names: &[String]| names.iter().map(|name| id(name)).collect::<Vec<u32>>();
         columns.push(Column::Words(UNRECORDED, ids(&gaps.unrecorded)));

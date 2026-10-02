@@ -37,7 +37,9 @@
 import {
   distanceToSource,
   type CoveringTest,
+  type ExecutionTest,
   type SourcePoint,
+  type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { packageOf } from '../package-home.js';
@@ -157,4 +159,45 @@ async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, num
 
 function relativeTo(root: string, directory: string): string {
   return directory.startsWith(`${root}/`) ? directory.slice(root.length + 1) : directory;
+}
+
+/**
+ * Re-fold ranges a filter has just changed the answer of.
+ *
+ * `coveringTestsInFile` folds adjacent lines whose witness lists are identical,
+ * so a range boundary is a place where the claim on the code changes. Filtering
+ * the lists afterwards can make two neighbours agree that did not, and leaving
+ * them apart would print a boundary where nothing happens — the one thing the
+ * folding rule exists to prevent.
+ */
+export function refold(ranges: readonly SourceTestRange[]): readonly SourceTestRange[] {
+  const folded: SourceTestRange[] = [];
+  for (const range of ranges) {
+    const previous = folded.at(-1);
+    if (
+      previous !== undefined &&
+      previous.endLine + 1 === range.startLine &&
+      previous.tests.length === range.tests.length &&
+      previous.tests.every((test, at) => test.id === range.tests[at]?.id) &&
+      sameStopped(previous.stopped, range.stopped)
+    ) {
+      folded[folded.length - 1] = { ...previous, endLine: range.endLine };
+      continue;
+    }
+    folded.push(range);
+  }
+  return folded;
+}
+
+function sameStopped(
+  left: readonly ExecutionTest[] | undefined,
+  right: readonly ExecutionTest[] | undefined,
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return left.length === right.length && left.every((test, at) => test.id === right[at]?.id);
+}
+
+/** How many distinct named tests a set of ranges names. */
+export function identities(ranges: readonly SourceTestRange[]): number {
+  return new Set(ranges.flatMap((range) => range.tests.map((test) => test.id))).size;
 }

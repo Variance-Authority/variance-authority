@@ -36,3 +36,8 @@ export function testOf(testInfo: TestInfo): ObservedTest {
 export function ownerOf(root: string, testInfo: TestInfo): string {
   return relative(resolve(root), testInfo.file).split(sep).join('/');
 }
+
+/** The key a worker files one case under: the attempts of a retry share it. */
+export function caseKey(owner: string, id: string): string {
+  return `${owner}\u0000${id}`;
+}

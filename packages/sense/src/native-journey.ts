@@ -39,6 +39,8 @@ export interface NativeJourneyProjection {
     readonly file: string;
     readonly name: string;
     readonly stopped?: boolean | null;
+    /** The case's preconditions as `tests.casePreconditions` spells them; absent where nobody listened. */
+    readonly preconditions?: string | null;
   }[];
   readonly modules: readonly {
     readonly file: string;

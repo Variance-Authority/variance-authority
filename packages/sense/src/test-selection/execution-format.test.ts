@@ -4,6 +4,8 @@ import {
   encodeExecutionIndex,
   isEncodedExecutionIndex,
 } from './execution-format.js';
+import { CrossingSets } from './crossing-sets.js';
+import { encodeSetExecutionIndex } from './execution-set-format.js';
 import type { ExecutionIndex } from './reverse.js';
 
 describe('the execution index as columns', () => {
@@ -228,5 +230,75 @@ describe('the duration each case carries', () => {
     const back = decodeExecutionIndex(Buffer.concat([bytes.subarray(0, 4), older, bytes.subarray(4 + headerLength)]));
 
     expect(back.tests.map((test) => 'duration' in test)).toEqual([false, false, false]);
+  });
+});
+
+describe('the preconditions each case named', () => {
+  const said: ExecutionIndex = {
+    tests: [
+      {
+        id: 'a.test.ts > one', file: 'a.test.ts', name: 'one',
+        preconditions: [
+          { name: 'flag', value: 'ff-on', site: 'a.test.ts:4', level: 65535 },
+          { name: 'retries', value: 3, site: 'a.test.ts:5', level: 1 },
+          { name: 'seeded', value: true, site: 'a.test.ts:2', level: 0 },
+        ],
+      },
+      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', preconditions: [] },
+      { id: 'a.test.ts > three', file: 'a.test.ts', name: 'three' },
+    ],
+    modules: [],
+  };
+
+  it('keeps every name, value and site, a case that named none, and a case nobody listened to', () => {
+    const back = decodeExecutionIndex(encodeExecutionIndex(said));
+
+    expect(back.tests).toEqual(said.tests);
+    expect(back.tests[1]!.preconditions).toEqual([]);
+    expect('preconditions' in back.tests[2]!).toBe(false);
+  });
+
+  it('writes no column when no case was listened to, so an older index reads as unmeasured', () => {
+    const silent: ExecutionIndex = { tests: said.tests.map(({ preconditions: _, ...test }) => test), modules: [] };
+    const bytes = encodeExecutionIndex(silent);
+
+    expect(bytes.toString('utf8')).not.toContain('tests.casePreconditions');
+    expect(decodeExecutionIndex(bytes).tests.map((test) => 'preconditions' in test)).toEqual([false, false, false]);
+  });
+
+  it('crosses the set spelling the record lays its cases in', () => {
+    const bytes = encodeSetExecutionIndex({ tests: said.tests, modules: [], sets: new CrossingSets(3).pool() });
+
+    expect(decodeExecutionIndex(bytes).tests).toEqual(said.tests);
+  });
+
+  /** The bytes with the header rewritten, the columns where they were. */
+  function withHeader(bytes: Buffer, edit: (sections: { name: string; length: number }[]) => void): Buffer {
+    const headerLength = bytes.readUInt32LE(0);
+    const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as {
+      sections: { name: string; length: number }[];
+    };
+    edit(header.sections);
+    const rewritten = Buffer.from(JSON.stringify(header).padEnd(headerLength, '\0'), 'utf8');
+    return Buffer.concat([bytes.subarray(0, 4), rewritten, bytes.subarray(4 + headerLength)]);
+  }
+
+  it('refuses a column that does not hold one word per case, in either spelling', () => {
+    const short = (sections: { name: string; length: number }[]) => {
+      sections.find((section) => section.name === 'tests.casePreconditions')!.length = 4;
+    };
+    const set = encodeSetExecutionIndex({ tests: said.tests, modules: [], sets: new CrossingSets(3).pool() });
+
+    expect(() => decodeExecutionIndex(withHeader(encodeExecutionIndex(said), short))).toThrow(/not a variance-authority/);
+    expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority/);
+  });
+
+  it('refuses a case whose preconditions are not a list', () => {
+    const bytes = encodeExecutionIndex({ tests: [said.tests[1]!], modules: [] });
+    const at = bytes.indexOf('[]');
+    expect(bytes.indexOf('[]', at + 1)).toBe(-1);
+    bytes.write('{}', at, 'utf8');
+
+    expect(() => decodeExecutionIndex(bytes)).toThrow(/not a variance-authority execution index/);
   });
 });

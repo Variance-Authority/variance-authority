@@ -13,6 +13,8 @@ import {
 } from './instrumented-modules.js';
 import { AMBIENT, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
+import { heardAcross, preconditionsHeard, type Said } from './case-precondition-column.js';
+import preconditions from './case-preconditions.cjs';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 
@@ -43,6 +45,8 @@ interface Coordinate {
   readonly id: string;
   /** How the case settled across its frames, by `settledAcross`. */
   stopped?: boolean;
+  /** What the case said it arranged, across its frames; absent where no frame listened. */
+  said?: Said;
   /** Every frame written under this coordinate, in replay order. */
   readonly frames: number[];
 }
@@ -81,18 +85,22 @@ export async function inspectCaseRun(
             const file = projectPath(root, coordinate.file);
             const key = `${file}\0${coordinate.name}\0${coordinate.id}`;
             const held = coordinates.get(key);
+            const said = preconditions.saidOf(packed);
             if (held === undefined) {
               coordinates.set(key, {
                 file,
                 name: coordinate.name,
                 id: coordinate.id,
                 ...settledAcross(coordinate.stopped, undefined),
+                ...(said === undefined ? {} : { said }),
                 frames: [frame],
               });
             } else {
               held.frames.push(frame);
               const settled = settledAcross(held.stopped, coordinate.stopped).stopped;
               if (settled !== undefined) held.stopped = settled;
+              const heard = heardAcross(held.said, said);
+              if (heard !== undefined) held.said = heard;
             }
             frame += 1;
           }
@@ -125,6 +133,7 @@ export async function inspectCaseRun(
       name: coordinate.name,
       ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
       ...(duration === undefined ? {} : { duration }),
+      ...preconditionsHeard(root, coordinate.said),
     };
   });
   const testsByFile = new Map<string, readonly [number, number]>();

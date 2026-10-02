@@ -224,7 +224,7 @@ describe('what the seam refuses to instrument', () => {
       const runner = configured.test!.runner as string;
       const source = await readFile(runner, 'utf8');
       const spelling = (name: string): string =>
-        new RegExp(`import \\{ ${name} \\} from "([^"]+)"`).exec(source)![1]!;
+        new RegExp(`import \\{[^}]*\\b${name}\\b[^}]*\\} from "([^"]+)"`).exec(source)![1]!;
       const from = createRequire(runner);
 
       // Relative, because a leading slash is root-relative to Vite — and to the

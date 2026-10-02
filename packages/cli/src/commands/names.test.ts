@@ -120,6 +120,11 @@ describe('walking one axis toward its base', () => {
     });
   });
 
+  it('says nothing about a subject the run did not plan', () => {
+    const index = indexOf('story:checkout--default', 'story:checkout--empty');
+    expect(structuralParent('story:checkout--glass', index)).toBeUndefined();
+  });
+
   it('says nothing about a subject sitting at the base', () => {
     const index = indexOf('story:checkout--default', 'story:checkout--empty');
     expect(structuralParent('story:checkout--default', index)).toBeUndefined();
