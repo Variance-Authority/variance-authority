@@ -109,6 +109,17 @@ describe('the cases the comparison left out', () => {
     expect(caseMotion(base, now, { retained }).regions.map((region) => [region.name, region.motion])).toEqual([['apply', 'thinned']]);
   });
 
+  it('count a case the base also holds once at each end', () => {
+    const base = index([A, B], [block('apply', 1, [0, 1])]);
+    const now = index([A, B], [block('apply', 1, [])]);
+    const retained = index([A], [block('apply', 1, [0])]);
+
+    expect(caseMotion(base, now, { retained }).regions.map((region) => [region.name, region.motion, region.before.length])).toEqual([
+      ['apply', 'thinned', 2],
+    ]);
+    expect(caseMotion(index([A], [block('apply', 1, [0])]), index([A], [block('apply', 1, [])]), { retained }).regions).toEqual([]);
+  });
+
   it('credit nothing in a cut of the module other than the one the current record holds', () => {
     // The retained cut still holds the first of two `.filter` callbacks, which
     // the current record does not: by occurrence, its case would land on the
