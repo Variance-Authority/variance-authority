@@ -16,8 +16,13 @@ Such a record is unmeasured, not a record of tests that reach nothing.
 `readTestCoverage` refuses it with `RecordWithoutCoverage`, and selection
 narrows nothing over it: `variance select` skips nothing and says the record
 holds no coverage, `variance run --since` runs every test file, and
-`variance journeys` carries no partings. `variance land` folds the shards over
-no coverage and keeps the record's cases. A record that holds some coverage
+`variance journeys` carries no partings, and `yarn test:since` runs the whole
+slice and says why. Landing shards with `variance journeys` folds them over no
+coverage and keeps the record's cases; a shard that holds cases and no coverage folds
+nothing and lands its cases, and landed where no coverage stands it writes a
+record of cases and no coverage. A worktree seeds from such a record, and a
+fetched mainline record of that kind is laid, with its cases and no runs
+record. A record that holds some coverage
 sections and not the others is still refused as broken.
 
 `recordOfCases` writes a record from case sections alone, and

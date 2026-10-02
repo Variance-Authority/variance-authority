@@ -1,11 +1,20 @@
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { caseSectionsAt, recordOfCases, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  caseSectionsAt,
+  commitRunsFile,
+  readTestCoverage,
+  RecordWithoutCoverage,
+  recordOfCases,
+  testCoverageFile,
+  withoutCoverage,
+  writeTestCoverage,
+} from '@variance-authority/sense/test-selection';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { landJourneys } from './land.js';
-import { published, wholeRecord } from './mainline-fixture.js';
+import { published, ranWhole, wholeRecord } from './mainline-fixture.js';
 
 /**
  * The cases in the record a landing writes, in the primary checkout: the ones
@@ -85,5 +94,74 @@ describe('landJourneys and the cases in the record', () => {
     expect(landed.observations).toBe(1);
     expect(landed.cases).toEqual({ laid: record, shards: 0 });
     expect((await readExecutionIndex(record)).tests.map((test) => test.file)).toEqual(['test/total.test.ts']);
+  });
+});
+
+describe('landJourneys and a shard whose run instrumented nothing', () => {
+  /**
+   * A shard at `commit` whose run finished `test/total.test.ts`, kept `index`
+   * as its cases, and instrumented nothing: the record its seam writes, the
+   * cases and the run that laid them, and no coverage.
+   */
+  async function uncoveredShard(commit: string, index: Uint8Array): Promise<string> {
+    const shard = join(home, 'shard-uncovered.bin');
+    const last = { commit, at: '2026-01-01T00:00:00.000Z', files: ['test/total.test.ts'], began: true, cases: [] };
+    await writeFile(shard, recordOfCases({ index, last: Buffer.from(JSON.stringify(last)) }));
+    expect(withoutCoverage(shard)).toBe(true);
+    return shard;
+  }
+
+  it('lays its cases over the record and leaves the coverage and the runs record as they were', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    await ranWhole(record, first);
+    const before = await readTestCoverage(record);
+    const runs = await readFile(commitRunsFile(record), 'utf8');
+    const shard = await uncoveredShard(first, caseSectionsAt(record).index!);
+
+    const landed = await landJourneys(dir, [shard], record);
+
+    expect(landed.cases).toEqual({ laid: record, shards: 1 });
+    expect(landed.observations).toBe(before.tests.length);
+    expect(await readTestCoverage(record)).toEqual(before);
+    expect(await readFile(commitRunsFile(record), 'utf8')).toBe(runs);
+    const last = JSON.parse(Buffer.from(caseSectionsAt(record).last!).toString('utf8')) as { commit?: string; files: string[] };
+    expect(last).toMatchObject({ commit: first, files: ['test/total.test.ts'] });
+    expect((await readExecutionIndex(record)).tests.map((test) => test.file)).toEqual(['test/total.test.ts']);
+  });
+
+  it('writes a record of cases and no coverage where nothing was recorded, so it narrows nothing', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const shard = await uncoveredShard(first, caseSectionsAt(record).index!);
+    const into = join(home, 'landed.bin');
+
+    const landed = await landJourneys(dir, [shard], into);
+
+    expect(landed).toMatchObject({ at: into, shards: 1, observations: 0, modules: 0, cases: { laid: into, shards: 1 } });
+    expect(withoutCoverage(into)).toBe(true);
+    await expect(readTestCoverage(into)).rejects.toBeInstanceOf(RecordWithoutCoverage);
+    await expect(stat(commitRunsFile(into))).rejects.toThrow();
+    expect(caseSectionsAt(into).index).toBeDefined();
+  });
+
+  it('folds the shards that measured something, and lays every shard\'s cases in the order they were named', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const shard = await uncoveredShard(first, caseSectionsAt(record).index!);
+    const measured = join(home, 'shard-measured.bin');
+    await writeTestCoverage(measured, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: first,
+      tests: [{ file: 'test/other.test.ts', complete: false, preconditions: [] }],
+      modules: [],
+    });
+
+    const landed = await landJourneys(dir, [shard, measured], record);
+
+    expect(landed.shards).toBe(2);
+    expect(landed.cases).toEqual({ laid: record, shards: 1 });
+    expect((await readTestCoverage(record)).tests.map((test) => test.file)).toContain('test/other.test.ts');
   });
 });

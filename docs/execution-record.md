@@ -983,7 +983,9 @@ record already at the path keeps its coverage as it was, under the new run's
 cases. A run that keeps no cases and instruments nothing writes nothing. A
 file whose probes fired where nothing could place them is the exception: it is
 recorded incomplete, which selects it on the next run, and that row lands as
-coverage does.
+coverage does. Such a record moves the way any record does: a new
+worktree seeds from it, and landing it as a shard with `variance journeys` lays
+its cases over the target's without folding any coverage, so it narrows nothing wherever it lands.
 
 ## What a reader refuses
 

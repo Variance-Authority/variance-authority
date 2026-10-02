@@ -126,10 +126,14 @@ export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
   }
 }
 
-/** One shard a landing folded: where its record is, and the runs it names. */
+/**
+ * One shard a landing folded: where its record is, and the runs it names.
+ * `coverage` is absent for a shard whose run instrumented nothing, whose record
+ * holds its cases and no coverage.
+ */
 export interface LandedShard {
   readonly path: string;
-  readonly coverage: LaidRun;
+  readonly coverage?: LaidRun;
 }
 
 /** What a landing did to the cases of the record it wrote. */
@@ -160,6 +164,13 @@ export type CaseLanding =
  * A shard that finished no file is skipped: its seam keeps no cases for such a
  * run either, and laying it would change nothing.
  *
+ * A shard whose run instrumented nothing has no coverage to name its files, and
+ * its cases are laid as the run its own last-run section names: the files it
+ * ran, each finished, at its commit. Such a run finished every file it was
+ * handed, since one that could not finish a file records that file's row as
+ * coverage. A shard that names no last run cannot say which files its cases
+ * replace, and lays nothing.
+ *
  * Nothing is written here. The landing writes the sections into the record it
  * writes, under that record's lock.
  */
@@ -172,19 +183,32 @@ export function landCases(
   let sections = previous;
   let laid = 0;
   for (const shard of shards) {
-    const fresh = layableIndex(caseSectionsAt(shard.path).index);
+    const kept = caseSectionsAt(shard.path);
+    const run = shard.coverage ?? lastRunOf(kept);
+    const fresh = layableIndex(kept.index);
+    if (run === undefined) continue;
     if (fresh !== undefined) {
       // FIXME: each shard is laid as a run of its own, so the last-run layer
       // names only the last shard's cases, and `covering --cases last` after a
       // landing answers from that shard rather than from the whole fold.
-      sections = layCases(sections, fresh, root, shard.coverage);
+      sections = layCases(sections, fresh, root, run);
       laid += 1;
-    } else if (shard.coverage.tests.some((test) => test.complete)) {
+    } else if (run.tests.some((test) => test.complete)) {
       const removed = Object.values(previous).some((part) => part !== undefined);
       return { landing: { unanswered: record, shard: shard.path, removed }, sections: {} };
     }
   }
   return { landing: { laid: record, shards: laid }, sections };
+}
+
+/** The run a shard's own last-run section names, every file of it finished; `undefined` when it names none. */
+function lastRunOf(kept: CaseSections): LaidRun | undefined {
+  const last = lastCaseRunOf(kept);
+  if (last === undefined) return undefined;
+  return {
+    tests: last.files.map((file) => ({ file, complete: true })),
+    ...(last.commit === undefined ? {} : { commit: last.commit }),
+  };
 }
 
 /** The shard's index spelled as sets, when it has one this build can read. */

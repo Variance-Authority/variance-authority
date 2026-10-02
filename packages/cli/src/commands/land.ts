@@ -37,6 +37,11 @@ import { landingRecord } from './suite-record.js';
  * the target's with it, so nobody reads cases the snapshot has replaced. See
  * `landCases`.
  *
+ * A shard whose run instrumented nothing holds its cases and no coverage. It is
+ * unmeasured, so it folds nothing and moves no runs record, and its cases are
+ * laid with the others'. Landed alone where no coverage stands, it writes a
+ * record of cases and no coverage, which narrows no later selection.
+ *
  * A target that exists and cannot be read is refused rather than replaced. The
  * runner replaces, because it reaches that file from inside a teardown where a
  * refusal is easiest to miss; an operator who typed this command is at the
@@ -51,14 +56,12 @@ export async function landJourneys(
   const selection = await import('@variance-authority/sense/test-selection');
   const at = into ?? (await landingRecord(root));
 
-  // FIXME: a shard whose run instrumented nothing holds cases and no coverage,
-  // and is refused here with its cases; landing them needs the files it ran,
-  // which only its coverage names.
   const read = await Promise.all(
     shards.map(async (path) => {
       try {
         return { path, coverage: await selection.readTestCoverage(path) };
       } catch (error) {
+        if (error instanceof selection.RecordWithoutCoverage) return { path };
         throw new OperatorError(
           isMissing(error)
             ? `there is no snapshot at ${said(path)}`
@@ -69,9 +72,10 @@ export async function landJourneys(
     }),
   );
 
+  const measured = read.flatMap(({ path, coverage }) => (coverage === undefined ? [] : [{ path, coverage }]));
   let folded;
   try {
-    folded = selection.foldTestCoverage(read);
+    folded = measured.length === 0 ? undefined : selection.foldTestCoverage(measured);
   } catch (error) {
     throw new OperatorError(messageOf(error), { cause: error });
   }
@@ -124,13 +128,17 @@ export async function landJourneys(
     // runner's `landRun` does: refusing would leave the operator to delete it
     // and land again, which writes the same record.
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
-    const landed = selection.mergeCoverage(previous, folded);
-    const runs = selection.commitRunsAfter(previous, held, folded);
+    const landed = folded === undefined ? previous : selection.mergeCoverage(previous, folded);
+    const runs = folded === undefined ? undefined : selection.commitRunsAfter(previous, held, folded);
     const { landing: cases, sections } = selection.landCases(at, selection.caseSectionsAt(at), root, read);
+    // Shards that measured nothing and kept no case this build reads, over no
+    // coverage, leave nothing to write: the target stays as it was.
+    const kept = landed !== undefined || Object.values(sections).some((part) => part !== undefined);
     try {
-      await selection.writeTestCoverage(staged, landed, sections);
-      await selection.writeCommitRuns(stagedRuns, runs);
-      await rename(staged, at);
+      if (landed !== undefined) await selection.writeTestCoverage(staged, landed, sections);
+      else if (kept) await selection.writeCoverageBytes(staged, selection.recordOfCases(sections));
+      if (runs !== undefined) await selection.writeCommitRuns(stagedRuns, runs);
+      if (kept) await rename(staged, at);
       // FIXME: the snapshot and the runs record are two files, and nothing
       // renames them together. A crash between these two renames, or this
       // rename throwing, leaves the record as it was before the landing. The
@@ -143,7 +151,7 @@ export async function landJourneys(
       // when the retry lands other shards, that test is listed where it stood
       // before, an older commit than the one it last ran at, so `test:since`
       // reads more of the change for it rather than less.
-      await rename(stagedRuns, runsAt);
+      if (runs !== undefined) await rename(stagedRuns, runsAt);
       return { landed, cases };
     } finally {
       await rm(staged, { force: true });
@@ -156,9 +164,9 @@ export async function landJourneys(
   return {
     at,
     shards: read.length,
-    ...(landed.commit === undefined ? {} : { commit: landed.commit }),
-    observations: landed.tests.length,
-    modules: landed.modules.length,
+    ...(landed?.commit === undefined ? {} : { commit: landed.commit }),
+    observations: landed?.tests.length ?? 0,
+    modules: landed?.modules.length ?? 0,
     cases,
   };
 }

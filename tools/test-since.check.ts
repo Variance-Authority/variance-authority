@@ -2,12 +2,12 @@ import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { recordOfCases, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { selectedFiles } from './since-change.mjs';
 import { inSnapshotCoordinates } from './since-diff.mjs';
 import { costLine, explain, findingLines, readingLines, recordLine, runningLines } from './since-report.mjs';
-import { recordToRead } from './test-since.mjs';
+import { recordToRead, snapshotReading } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
 /**
@@ -299,5 +299,40 @@ describe('a worktree that has not run reads the record the primary checkout made
       "  record   the primary checkout's, at /primary/coverage.bin, as an offline fallback; this worktree has recorded none of its own",
       `  mainline ${missed}`,
     ]);
+  });
+});
+
+describe('a record whose run instrumented nothing narrows nothing', () => {
+  async function recordHolding(bytes: Uint8Array | string): Promise<string> {
+    const file = resolve(await mkdtemp(resolve(tmpdir(), 'va-since-record-')), 'coverage.bin');
+    await writeFile(file, bytes);
+    return file;
+  }
+
+  it('reads as no opinion, so the slice runs whole and says why', async () => {
+    const file = await recordHolding(recordOfCases({ index: Buffer.from('cases') }));
+
+    expect(await snapshotReading(file)).toEqual({
+      whole: [
+        'test:since: the execution snapshot holds cases and no coverage, so the whole slice runs, and records itself.',
+        `  at ${file}`,
+        '  The run that wrote it instrumented nothing, so it says nothing about which tests a change reaches.',
+      ],
+    });
+  });
+
+  it('still refuses bytes this build cannot read', async () => {
+    const file = await recordHolding('not a record');
+
+    const reading = await snapshotReading(file);
+    expect(reading.status).toBe(1);
+    expect(reading.lines?.[0]).toMatch(/^test:since: the execution snapshot is not one this build can read: /u);
+  });
+
+  it('hands over what it read from a record that holds coverage', async () => {
+    const file = await recordHolding('');
+    await writeTestCoverage(file, { version: 3, instrumentation: 'probe-recipe', tests: [{ file: 'a.test.ts', complete: true, preconditions: [] }], modules: [] });
+
+    expect((await snapshotReading(file)).coverage?.tests.map((test) => test.file)).toEqual(['a.test.ts']);
   });
 });
