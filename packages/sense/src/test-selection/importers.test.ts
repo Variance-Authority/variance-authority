@@ -314,6 +314,11 @@ describe('a changed file no probe can sit in, asked of the module that imports i
     });
   });
 
+  // A file one module imports as an asset and another imports as code is walked
+  // through its asset edges alone, so the second importer's tests are missed,
+  // whether the file was edited or a bump reached it.
+  it.todo('reaches the tests behind a module that imports as code a file another imports as an asset — needs the relation walk of spec 0091 to follow every runtime edge');
+
   it('reports an asset the graph does not hold, and not one it holds that nothing imports', () => {
     // The first graph has no node for `src/rules.css` at all. The second holds
     // it, importing a stylesheet of its own, and no edge arrives at it: no

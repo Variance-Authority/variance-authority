@@ -215,8 +215,11 @@ function seedsOf(
     narrowed.length === 0 ? {} : { moved: new Map(narrowed.map((file) => [file, movedExports.get(file)!])) },
   );
   // Only the diff's own seeds can be missing; an expanded one came out of the
-  // graph, so it is in it by construction.
-  const seeded = files.length - affected.missing.length + expanded.length;
+  // graph, so it is in it by construction. A path is counted once, however
+  // many of the diff, a changed directory and the install named it.
+  const absent = new Set(affected.missing);
+  const held = files.filter((file) => !absent.has(file));
+  const seeded = new Set([...held, ...expanded]).size;
 
   const named = new Set(files);
   // TODO: a file the diff deletes lands here as a gap in the scan, and widens the
@@ -229,7 +232,7 @@ function seedsOf(
   // one from the diff, one from the lockfile at both revisions — and an
   // operator who cannot see which is which cannot check either.
   const fromPackages = beyond.traced.length;
-  const fromFiles = files.length - affected.missing.length + inDirs.length;
+  const fromFiles = new Set([...held, ...inDirs]).size;
   const source =
     (fromPackages === 0
       ? many(fromFiles, 'changed file')
