@@ -130,6 +130,20 @@ describe('createGitLineCell', () => {
     expect(git(remote, 'rev-parse', REF).trim()).toBe(before);
   });
 
+  it('reports the refused push when the remote cannot say where the line is after it', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    await publishLine(cellAt('a'), MAIN, [entry('suite-v1/web', 'aaaa', 'web')], { descends, image });
+    const gone = join(home, 'gone.git');
+    await writeFile(
+      join(remote, 'hooks', 'pre-receive'),
+      `#!/bin/sh\necho "declined by policy" >&2\nmv "${remote}" "${gone}"\nexit 1\n`,
+      { mode: 0o755 },
+    );
+
+    const result = await publishLine(cellAt('a'), MAIN, [entry('report-v1', 'aaaa', 'r')], { descends, image });
+    expect(result).toMatchObject({ kind: 'unreachable', detail: expect.stringMatching(/failed to push some refs/) });
+  });
+
   it('tells nothing published from a remote that cannot be reached', async () => {
     expect(await readLine(cellAt('a'), MAIN)).toEqual({ kind: 'absent' });
     const gone = createGitLineCell({ url: `file://${join(home, 'nowhere.git')}`, gitDir: join(home, 'c') });
