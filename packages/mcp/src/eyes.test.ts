@@ -1,10 +1,13 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import {
+  createEyesArchive,
   createEyesLog,
+  eyesJournal,
   eyesTestAttention,
   type EyesArchive,
   type EyesLog,
@@ -12,12 +15,16 @@ import {
 } from '@variance-authority/eyes';
 import { parseEyesArchive, readEyesArchive } from '@variance-authority/eyes/archive';
 import {
-  gatherEyesArchive,
-  recordEyesTest,
-  writeEyesArchive,
-} from '@variance-authority/eyes/collect';
-import { serveEyesArchive } from './server.js';
+  decodeExecutionIndex,
+  encodeExecutionIndex,
+  testCoverageFile,
+  withCaseSections,
+  writeTestCoverage,
+} from '@variance-authority/sense/test-selection';
+import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
+import { serveEyesRecord } from './server.js';
 import { eyesToolByName } from './tools.js';
+import { distillTool } from './tools/observability.js';
 
 /**
  * The tool answering from a file a run wrote, rather than from a literal.
@@ -64,17 +71,42 @@ function recorded(log: EyesLog): void {
 
 /** A run of one test, from an empty log to the file an agent is pointed at. */
 async function produced(directory: string, log: EyesLog, because?: string): Promise<string> {
-  await recordEyesTest(
-    directory,
+  const archive = createEyesArchive([
     eyesTestAttention(
       { id: 'redraw-test', title: 'redraws the canvas', file: 'test/drawing.test.tsx' },
       log.drain(),
       because,
     ),
-  );
+  ]);
   const path = join(directory, 'eyes.json');
-  await writeEyesArchive(path, await gatherEyesArchive(directory));
+  await writeFile(path, `${JSON.stringify(archive)}\n`);
   return path;
+}
+
+/**
+ * A record a run of one test wrote, its journal kept in the `eyes` section; or,
+ * with `watched` and no log, a record whose run opted into nothing.
+ */
+async function written(directory: string, log: EyesLog | undefined): Promise<string> {
+  const at = testCoverageFile(directory);
+  await writeTestCoverage(at, {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: 'test/drawing.test.tsx', complete: true, preconditions: [] }],
+    modules: [],
+  });
+  const index = encodeExecutionIndex({
+    tests: [{ id: 'redraw-test', file: 'test/drawing.test.tsx', name: 'redraws the canvas' }],
+    modules: [],
+  });
+  const journals = log === undefined ? undefined : [{ case: 'redraw-test', attempt: 1, journal: eyesJournal(log.drain()) }];
+  writeFileSync(at, withCaseSections(readFileSync(at), {
+    index,
+    ...(journals === undefined ? {} : {
+      eyes: Buffer.from(`${JSON.stringify({ version: 1, watched: ['redraw-test'], journals })}\n`),
+    }),
+  }));
+  return at;
 }
 
 async function scratch(): Promise<string> {
@@ -145,17 +177,17 @@ describe('an Eyes archive a run produced', () => {
     }
   });
 
-  it('is served over the protocol from the path it was written to', async () => {
+  it('is served over the protocol from the record the run wrote', async () => {
     const directory = await scratch();
     try {
       const log = createEyesLog();
       recorded(log);
-      const path = await produced(directory, log);
+      const path = await written(directory, log);
 
       const input = new PassThrough();
       const output = new PassThrough();
       const lines = readLines(output);
-      const stop = await serveEyesArchive(path, { input, output });
+      const stop = await serveEyesRecord(path, { input, output });
 
       try {
         input.write(
@@ -173,6 +205,7 @@ describe('an Eyes archive a run produced', () => {
         );
         const answer = await lines();
         expect(answer).toContain('redraws the canvas');
+        expect(answer).toContain('test/drawing.test.tsx [redraw-test]');
         expect(answer).toContain('RedrawButton.tsx:17');
       } finally {
         stop();
@@ -182,8 +215,120 @@ describe('an Eyes archive a run produced', () => {
     }
   });
 
-  it('refuses at startup when the path is not an archive', async () => {
-    await expect(serveEyesArchive(join(tmpdir(), 'variance-mcp-eyes-absent.json'))).rejects.toThrow();
+  it('keeps answering from the record it last read while the record does not read', async () => {
+    const directory = await scratch();
+    try {
+      const log = createEyesLog();
+      recorded(log);
+      const path = await written(directory, log);
+      const input = new PassThrough();
+      const output = new PassThrough();
+      const lines = readLines(output);
+      const stop = await serveEyesRecord(path, { input, output });
+      try {
+        // A run rewriting the record, caught between the two halves of its write.
+        await writeFile(path, 'not a record');
+        input.write(`${JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'variance_test_attention', arguments: { test: 'redraw-test' } },
+        })}\n`);
+        expect(await lines()).toContain('redraws the canvas');
+      } finally {
+        stop();
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('stops answering from the record it last read once a later run writes one without Eyes', async () => {
+    const directory = await scratch();
+    try {
+      const log = createEyesLog();
+      recorded(log);
+      const path = await written(directory, log);
+      const input = new PassThrough();
+      const output = new PassThrough();
+      const lines = readLines(output);
+      const stop = await serveEyesRecord(path, { input, output });
+      try {
+        // A later run that did not opt into Eyes, written whole.
+        await written(directory, undefined);
+        input.write(`${JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'variance_test_attention', arguments: { test: 'redraw-test' } },
+        })}\n`);
+        const answer = await lines();
+        expect(answer).not.toContain('redraws the canvas');
+        expect(answer).toContain('0 test(s) are recorded');
+      } finally {
+        stop();
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('names each journal by its case, with the title and the file the case index gives', async () => {
+    const directory = await scratch();
+    try {
+      const log = createEyesLog();
+      recorded(log);
+      const archive = await readEyesRecord(await written(directory, log));
+      expect(archive.tests.map(({ id, attempt, title, file }) => ({ id, attempt, title, file }))).toEqual([
+        { id: 'redraw-test', attempt: 1, title: 'redraws the canvas', file: 'test/drawing.test.tsx' },
+      ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('tells the distill tool a case its run did not watch from a watched case that handed no journal', async () => {
+    const directory = await scratch();
+    try {
+      const log = createEyesLog();
+      recorded(log);
+      const path = await written(directory, log);
+      // One more case in the index, which the run did not watch.
+      const index = encodeExecutionIndex({
+        tests: [
+          { id: 'quiet-test', file: 'test/drawing.test.tsx', name: 'stays quiet' },
+          { id: 'redraw-test', file: 'test/drawing.test.tsx', name: 'redraws the canvas' },
+        ],
+        modules: [],
+      });
+      writeFileSync(path, withCaseSections(readFileSync(path), {
+        index,
+        eyes: Buffer.from(`${JSON.stringify({ version: 1, watched: ['redraw-test'], journals: [] })}\n`),
+      }));
+
+      const subject = { eyes: await readEyesRecord(path), execution: decodeExecutionIndex(readFileSync(path)) };
+      const unwatched = distillTool.run(subject, { test: 'quiet-test' });
+      expect(unwatched).toContain('this case\'s run did not opt into Eyes.');
+      expect(unwatched).not.toContain('keeps no Eyes journal for this case');
+      expect(distillTool.run(subject, { test: 'redraw-test' })).toContain('the record keeps no Eyes journal for this case.');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses at startup when nothing is recorded at the path', async () => {
+    await expect(serveEyesRecord(join(tmpdir(), 'variance-mcp-eyes-absent.bin'))).rejects.toThrow();
+  });
+
+  it('refuses at startup a record whose run did not opt into Eyes', async () => {
+    const directory = await scratch();
+    try {
+      const path = await written(directory, undefined);
+      await expect(serveEyesRecord(path)).rejects.toThrow('the run that wrote it did not opt into Eyes');
+      await expect(readEyesRecord(path)).rejects.toBeInstanceOf(RecordKeepsNoEyes);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });
 

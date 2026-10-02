@@ -1,12 +1,15 @@
 import type { TapRefusal } from '@variance-authority/react';
 import {
   createEyesLog,
+  eyesJournal,
   eyesTestAttention,
   type AttentionDraft,
+  type EyesJournal,
   type EyesLog,
   type EyesTestAttention,
   type EyesTestIdentity,
 } from './access.js';
+import { handToRunningCase, watchRunningCase } from './case.js';
 import { snapshotArguments } from './arguments.js';
 import { observeDocumentEvents, observeReactCommits } from './observe.js';
 import { snapshotNode } from './snapshot.js';
@@ -196,42 +199,67 @@ export function watch(screen: object, log: EyesLog = createEyesLog()): RtlWatch 
   };
 }
 
-export interface RtlTestWatch {
+export interface RtlTestWatch<Journal = EyesTestAttention> {
   readonly log: EyesLog;
-  /** Stop watching and close this test's journal under the runner's identity. */
-  close(because?: string): EyesTestAttention;
+  /** Stop watching and close this test's journal. */
+  close(because?: string): Journal;
 }
 
 /**
- * Watch `screen` for the span of one runner-identified test.
+ * Watch `screen` for the span of one test.
  *
  * The pairing is the point. {@link watch} is a subscription with no notion of a
  * test, so an adopter wiring it into `beforeEach` owns three separate things —
- * a log per test, a drain that happens exactly once, and the runner's id, title
- * and file — and getting any of them wrong is silent: a shared log attributes
- * one test's queries to the next, a missed drain reports a test that saw
- * nothing, and a second drain produces a journal that starts mid-run. Here the
- * identity is supplied where the log is created and the journal is closed where
- * the watch is, so the completeness `eyesTestAttention` derives is about a span
+ * a log per test, a drain that happens exactly once, and which test it was —
+ * and getting any of them wrong is silent: a shared log attributes one test's
+ * queries to the next, a missed drain reports a test that saw nothing, and a
+ * second drain produces a journal that starts mid-run. Here the journal is
+ * closed where the watch is, so the completeness it carries is about a span
  * that really was this test.
+ *
+ * Without `identity`, the journal belongs to whichever case the run is
+ * recording: `close` hands it to that case, which names it by the id and the
+ * attempt the record joins on. With one, the journal carries the identity it was
+ * given and goes nowhere — what a harness that keeps its own journals needs.
  *
  * `close` is idempotent and returns the same journal, because a teardown hook
  * that also runs on failure is the ordinary case and a second call must not
  * produce an empty second reading of the same test.
  */
-export function watchTest(screen: object, identity: EyesTestIdentity): RtlTestWatch {
+export function watchTest(screen: object): RtlTestWatch<EyesJournal>;
+export function watchTest(screen: object, identity: EyesTestIdentity): RtlTestWatch<EyesTestAttention>;
+export function watchTest(
+  screen: object,
+  identity?: EyesTestIdentity,
+): RtlTestWatch<EyesJournal> | RtlTestWatch<EyesTestAttention> {
   const watching = watch(screen, createEyesLog());
-  let closed: EyesTestAttention | undefined;
+  // Unwatched first, then drained. The other order leaves a capture-phase
+  // listener able to record into a journal that has already been handed over,
+  // and that entry is then lost rather than reported as lost.
+  const drained = (): ReturnType<EyesLog['drain']> => {
+    watching.close();
+    return watching.log.drain();
+  };
 
+  if (identity !== undefined) {
+    let closed: EyesTestAttention | undefined;
+    return {
+      log: watching.log,
+      close(because) {
+        closed ??= eyesTestAttention(identity, drained(), because);
+        return closed;
+      },
+    };
+  }
+
+  let closed: EyesJournal | undefined;
+  watchRunningCase();
   return {
     log: watching.log,
     close(because) {
       if (closed !== undefined) return closed;
-      // Unwatched first, then drained. The other order leaves a capture-phase
-      // listener able to record into a journal that has already been handed
-      // over, and that entry is then lost rather than reported as lost.
-      watching.close();
-      closed = eyesTestAttention(identity, watching.log.drain(), because);
+      closed = eyesJournal(drained(), because);
+      handToRunningCase(closed);
       return closed;
     },
   };

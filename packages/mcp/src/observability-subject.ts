@@ -17,6 +17,7 @@ export interface ObservabilitySubject {
   readonly presentations?: readonly PresentationReport[];
   readonly execution?: ExecutionIndex;
   readonly vantage?: VantageState;
+  /** The Eyes journals a record keeps, as `readEyesRecord` reads them. */
   readonly eyes?: EyesArchive;
   readonly scenarios?: readonly ScenarioArchiveManifest[];
 }

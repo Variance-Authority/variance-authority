@@ -153,6 +153,11 @@ interface CircusEvent {
  * first attempt; it is left as it is and the attempt takes a fresh ordinal, the
  * same as it did when the declarer was the only route.
  *
+ * The same handler brackets each attempt for Eyes: `test_start` opens it, before
+ * the attempt's `beforeEach`, and `test_done` closes it, after its `afterEach`,
+ * so a journal handed over in teardown still finds the case it belongs to. A
+ * case the runner skips or leaves to do ends at `test_skip` or `test_todo`.
+ *
  * Doing nothing silently is the failure mode, so the caller does not rely on
  * this alone: the declarer wrapping it installs next covers the injected
  * globals whether the event arrives or not. A host with neither reaches the
@@ -175,6 +180,8 @@ function bracketEveryCase(nextId: () => string): void {
 
   (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
     placeCalls(event);
+    if (event.name === 'test_start') attempt('begin');
+    if (event.name === 'test_done' || event.name === 'test_skip' || event.name === 'test_todo') attempt('leave');
     if (event.name !== 'test_fn_start') return;
     const held = event.test;
     if (held === undefined) return;
@@ -182,6 +189,14 @@ function bracketEveryCase(nextId: () => string): void {
     if (typeof body !== 'function' || bracketed.has(body as CaseBody)) return;
     held.fn = scopeCase(body as CaseBody, held.name, nextId);
   });
+}
+
+/** Open or close the attending bracket, where the realm's case scope keeps one. */
+function attempt(edge: 'begin' | 'leave'): void {
+  const scope = (globalThis as { [key: symbol]: Partial<Record<'begin' | 'leave', () => void>> | undefined })[
+    Symbol.for('variance-authority.test-selection.cases')
+  ];
+  scope?.[edge]?.();
 }
 
 /**

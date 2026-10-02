@@ -123,7 +123,13 @@ describe('the composite observability surface', () => {
     };
     const text = distillTool.run({ eyes: EYES, execution: mismatched }, { test: 'redraw-test' });
 
-    expect(text).toContain('contains no test with exact id redraw-test');
+    expect(text).toContain('The record holds no case with id redraw-test.');
     expect(text).toContain('No title or file join was guessed.');
+    expect(text).toContain('  another-id');
+  });
+
+  it('says it needs the runtime journey rather than reading Eyes alone', () => {
+    expect(distillTool.run({ eyes: EYES }, { test: 'redraw-test' }))
+      .toContain('Runtime journey: unavailable.');
   });
 });

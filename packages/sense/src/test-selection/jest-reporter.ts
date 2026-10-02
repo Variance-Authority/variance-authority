@@ -60,6 +60,13 @@ import {
   type TestCoverage,
 } from './index.js';
 
+/**
+ * Set beside the case directory to the checkout the record names files against,
+ * and read by `jest-globals.cts`: given, the case scope keeps the journals Eyes
+ * hands it, with every source location spelled against the same root.
+ */
+const ROOT_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_ROOT';
+
 /** The fields of Jest's aggregated result this reads. */
 export interface JestRunResults {
   readonly testResults: ReadonlyArray<{
@@ -134,6 +141,7 @@ class JestCoverageReporter {
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
+    process.env[ROOT_VARIABLE] = this.#config.root;
     if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';
     const stories = askedForStories(recordFile);
     if (stories !== undefined) process.env[STORY_DIRECTORY_VARIABLE] = stories;
@@ -147,6 +155,7 @@ class JestCoverageReporter {
     delete process.env[CASE_DIRECTORY_VARIABLE];
     delete process.env[CONTINUATIONS_VARIABLE];
     delete process.env[STORY_DIRECTORY_VARIABLE];
+    delete process.env[ROOT_VARIABLE];
     this.#runDirectory = undefined;
     this.#caseDirectory = undefined;
 

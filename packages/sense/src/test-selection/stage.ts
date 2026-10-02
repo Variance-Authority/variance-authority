@@ -15,6 +15,7 @@ import { resolve } from 'node:path';
 import { heardAcross, heardOf } from './case-precondition-column.js';
 import { packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
 import { codeUnitOrder, isMissing } from './instrumented-modules.js';
+import type { ObservedEyes } from './eyes-record.js';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
 
 /**
@@ -130,17 +131,21 @@ function inWrittenOrder<T>(written: readonly T[], owner: (one: T) => string): re
 /**
  * One case per coordinate. How each settled and what it cost ride beside the
  * join, which knows neither: a case retried in another worker settled once it
- * finished once, and cost both attempts.
+ * finished once, and cost both attempts. Its Eyes journals ride the same way,
+ * every attempt kept: a retry is a second journal, never a replacement of the
+ * first.
  */
 function foldCases(observations: readonly ObservedCase[]): readonly ObservedCase[] {
-  const settled = new Map<string, { stopped?: boolean; duration?: number; said?: ObservedCase['said'] }>();
+  const settled = new Map<string, { stopped?: boolean; duration?: number; said?: ObservedCase['said']; eyes?: readonly ObservedEyes[] }>();
   const staging = observations.map((observed) => {
     const owner = caseOwner(observed);
     const held = settled.get(owner) ?? {};
+    const eyes = [...(held.eyes ?? []), ...(observed.eyes ?? [])];
     settled.set(owner, {
       ...settledAcross(held.stopped, observed.stopped),
       ...timedAcross(held.duration, observed.duration),
       ...heardOf(heardAcross(held.said, observed.said)),
+      ...(held.eyes === undefined && observed.eyes === undefined ? {} : { eyes }),
     });
     return { owner, journal: observed.journal };
   });
