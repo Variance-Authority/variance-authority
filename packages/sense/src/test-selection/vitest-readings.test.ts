@@ -80,7 +80,7 @@ async function recorded(
         version: 3,
         sources: ['../src/cart.ts'],
         names: [],
-        mappings: 'AAAA;AACA;AAIA;AACA',
+        mappings: 'AAAA;AACA;AAGA;AACA',
       }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
     };
     for (const reading of order) {
