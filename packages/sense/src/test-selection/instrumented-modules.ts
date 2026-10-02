@@ -357,8 +357,9 @@ export function projectPath(root: string, file: string): string {
  * with no build's map between them. Readings with no source among them fall to
  * the first host in code-unit order.
  *
- * `readings` is keyed by each reading's host file, repository-relative, so a
- * re-transform of one host replaces its own reading and no other.
+ * It holds `reading` in `readings` under `host`, the file the transform was
+ * handed, repository-relative, so a re-transform of one host replaces its own
+ * reading and no other.
  */
 // FIXME: the losing reading's probes still report under the same id, so its
 // ordinals are read against the winner's table. Joining needs each reading to
@@ -366,13 +367,14 @@ export function projectPath(root: string, file: string): string {
 // `reconcileRegions` in `execution-merge.ts` does across shards.
 export function recordedReading(
   name: string,
-  readings: ReadonlyMap<string, CapturedModule>,
+  readings: Map<string, CapturedModule>,
+  host: string,
+  reading: CapturedModule,
 ): CapturedModule {
-  const own = readings.get(name);
-  if (own !== undefined) return own;
+  readings.set(host, reading);
+  // `readings` holds `reading` at least, so the first host is one it holds.
   const [first] = [...readings.keys()].sort(codeUnitOrder);
-  if (first === undefined) throw new Error(`\`${name}\` has no reading to record`);
-  return readings.get(first)!;
+  return readings.get(name) ?? readings.get(first!)!;
 }
 
 /** What one test file's run counted, per module, under the ids the modules reported. */

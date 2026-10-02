@@ -350,7 +350,7 @@ function selectionPlugin(
       // A source and its build both answer to the name: see `recordedReading`.
       const held = readings.get(name) ?? new Map<string, CapturedModule>();
       readings.set(name, held);
-      held.set(projectPath(root, file), done === undefined
+      modules.set(moduleId, recordedReading(name, held, projectPath(root, file), done === undefined
         ? { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] }
         : {
             file: name,
@@ -358,8 +358,7 @@ function selectionPlugin(
             sourceDigest,
             instrumented: true,
             blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
-          });
-      modules.set(moduleId, recordedReading(name, held));
+          }));
       return done === undefined ? null : { code: done.code, map: null };
     },
   };
