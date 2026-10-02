@@ -321,7 +321,7 @@ Replace `<recorded-test-id>` with an entry's `id` from the evidence file's
 variance distill \
   --test '<recorded-test-id>' \
   --eyes .variance/eyes.json \
-  --execution .variance/execution.json
+  --execution <cache>/test-selection/<digest>/coverage.bin
 ```
 
 `--test` identifies an entry in the evidence file's `tests` array by its `id`.
