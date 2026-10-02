@@ -268,7 +268,12 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT) return undefined;
     return bucket.key;
   };
-  const recorder = preconditions.recorder(holder, running, journals.unpackCase);
+  const recorder = preconditions.recorder(
+    holder,
+    running,
+    journals.unpackCase,
+    continuations ? new async_hooks.AsyncLocalStorage() : undefined,
+  );
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     const view = engine.close(bucket);

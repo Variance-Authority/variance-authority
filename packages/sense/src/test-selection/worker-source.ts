@@ -14,6 +14,7 @@
  */
 
 import { CASE_SCOPE } from './cases.js';
+import { scopeGlobalsSource } from './precondition-source.js';
 import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
 import type { InstrumentMode } from '../instrument/index.js';
 
@@ -239,7 +240,7 @@ export function caseRunnerSource(
 // \`VitestTestRunner\` at all. The notice is the cost of the only entry that
 // answers on 2, 3 and 4 alike.
 import { VitestTestRunner } from 'vitest/runners';
-import { getFn } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
+import { getCurrentSuite, getFn, getHooks } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
 import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -271,7 +272,88 @@ const tree = (task) => ({
   ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
 });
 
+const caseScope = () => globalThis[Symbol.for('variance-authority.test-selection.cases')];
+// The declaration path under the file, which is what a reader recognises a
+// case by. The runner's own \`test.id\` is unique and is carried beside it,
+// because it is positional and moves when a case is inserted above.
+const caseKey = (test) => {
+  const names = getNames(test);
+  const file = test.file?.filepath ?? names[0] ?? '';
+  return file + '\\u0000' + names.slice(1).join(' > ') + '\\u0000' + test.id;
+};
+
+// Where a \`variancePrecondition\` call stands. A call in a \`describe\` callback
+// runs while the file collects, before the suite it belongs to exists, so it is
+// held on a \`beforeAll\` of that describe's collector — the one handle the
+// runner carries from collection to the run — and declared to the scope when
+// the suite starts. Hooks are wrapped when their suite starts, each knowing its
+// depth and, for a \`beforeEach\`, the case it runs for.
+const HELD = Symbol('variance-authority.held-preconditions');
+const WRAPPED = Symbol('variance-authority.wrapped-hook');
+let collecting = false;
+const holders = new WeakMap();
+const held = () => {
+  const collector = getCurrentSuite();
+  if (typeof collector?.on !== 'function') return undefined;
+  let marker = holders.get(collector);
+  if (marker === undefined) {
+    marker = Object.assign(() => undefined, { [HELD]: [] });
+    holders.set(collector, marker);
+    collector.on('beforeAll', marker);
+  }
+  return { kind: 'held', hold: (said) => marker[HELD].push(...said) };
+};
+const hookAt = (kind, depth, prefix, file, args) => {
+  if (kind === 'beforeAll') return { kind: 'scope', depth, prefix, file };
+  if (kind !== 'beforeEach') return { kind: 'after' };
+  const test = args[0]?.task;
+  return test === undefined ? { kind: 'each', depth } : { kind: 'each', depth, case: caseKey(test) };
+};
+
 export default class extends VitestTestRunner {
+  async importFile(filepath, source) {
+    const scope = caseScope();
+    if (source === 'collect' && scope?.where !== undefined) {
+      collecting = true;
+      scope.where.ask = () => (collecting ? held() : undefined);
+    }
+    return super.importFile(filepath, source);
+  }
+
+  onCollected(files) {
+    collecting = false;
+    return super.onCollected?.(files);
+  }
+
+  async onBeforeRunSuite(suite) {
+    await super.onBeforeRunSuite?.(suite);
+    const scope = caseScope();
+    const hooks = scope?.within === undefined ? undefined : getHooks(suite);
+    if (hooks === undefined) return;
+    const names = getNames(suite);
+    const depth = names.length - 1;
+    const prefix = depth === 0 ? '' : names.slice(1).join(' > ') + ' > ';
+    const file = suite.file?.filepath ?? suite.filepath ?? '';
+    for (const kind of ['beforeAll', 'beforeEach', 'afterEach', 'afterAll']) {
+      const registered = hooks[kind] ?? [];
+      const kept = [];
+      for (const hook of registered) {
+        if (hook[HELD] !== undefined) {
+          scope.declare(file, prefix, depth, hook[HELD]);
+          continue;
+        }
+        if (hook[WRAPPED] === true) {
+          kept.push(hook);
+          continue;
+        }
+        kept.push(Object.assign(function (...args) {
+          return scope.within(hookAt(kind, depth, prefix, file, args), () => hook.apply(this, args));
+        }, { [WRAPPED]: true }));
+      }
+      registered.splice(0, registered.length, ...kept);
+    }
+  }
+
   async onAfterRunFiles(files) {
     await super.onAfterRunFiles?.(files);
     if (finished === null) return;
@@ -288,15 +370,7 @@ export default class extends VitestTestRunner {
     if (!fn) throw new Error('variance-authority: Vitest gave a task with no function');
     const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
     if (scope === undefined) return fn();
-    const names = getNames(test);
-    const file = test.file?.filepath ?? names[0] ?? '';
-    // The declaration path under the file, which is what a reader recognises a
-    // case by. The runner's own \`test.id\` is unique and is carried beside it,
-    // because it is positional and moves when a case is inserted above.
-    return scope.enter(
-      file + '\\u0000' + names.slice(1).join(' > ') + '\\u0000' + test.id,
-      fn,
-    );
+    return scope.enter(caseKey(test), fn);
   }
 }
 `;
@@ -362,5 +436,5 @@ for (const holder of [${holders}]) {
     if (typeof holder[name] === 'function') holder[name] = wrapCase(holder[name], 0);
   }
 }
-`;
+${scopeGlobalsSource(' > ', holders)}`;
 }

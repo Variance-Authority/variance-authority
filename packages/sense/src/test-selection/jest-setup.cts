@@ -120,10 +120,17 @@ function openCaseScopes(): void {
 /** A case whose body is already enclosed, so the second route leaves it alone. */
 const bracketed = new WeakSet<CaseBody>();
 
+/** A describe block as jest-circus holds it: its name and the block it nests in. */
+interface CircusBlock {
+  readonly name: string;
+  readonly parent?: CircusBlock | undefined;
+}
+
 /** What jest-circus hands a handler: the case, with the body about to be called. */
 interface CircusEvent {
   readonly name: string;
   readonly test?: { fn?: unknown; name?: unknown } | undefined;
+  readonly hook?: { readonly type: string; readonly parent: CircusBlock } | undefined;
 }
 
 /**
@@ -157,7 +164,11 @@ function bracketEveryCase(nextId: () => string): void {
   const register = circus.addEventHandler;
   if (typeof register !== 'function') return;
 
-  (register as (handler: (event: CircusEvent) => void) => void)((event: CircusEvent): void => {
+  (register as (handler: (event: CircusEvent, state: { currentDescribeBlock?: CircusBlock }) => void) => void)((
+    event,
+    state,
+  ): void => {
+    placeCalls(event, state.currentDescribeBlock);
     if (event.name !== 'test_fn_start') return;
     const held = event.test;
     if (held === undefined) return;
@@ -165,6 +176,48 @@ function bracketEveryCase(nextId: () => string): void {
     if (typeof body !== 'function' || bracketed.has(body as CaseBody)) return;
     held.fn = scopeCase(body as CaseBody, held.name, nextId);
   });
+}
+
+/**
+ * Tell the recorder where a `variancePrecondition` call stands, from the events
+ * jest-circus announces: a describe callback while the block is being defined,
+ * a hook from its start to its end. A `beforeEach` names no case, because the
+ * case's key is minted when its body is entered, which is right after; Jest
+ * runs one case's hooks at a time.
+ *
+ * Jest spells a case's name as its describe path joined by spaces, so a
+ * describe's prefix is its path and a space — and a sibling describe whose
+ * name extends it, `checkout` beside `checkout flow`, shares that prefix.
+ */
+function placeCalls(event: CircusEvent, block: CircusBlock | undefined): void {
+  const scope = (globalThis as { [key: symbol]: { phase?: (where: unknown) => void } | undefined })[
+    Symbol.for('variance-authority.test-selection.cases')
+  ];
+  if (scope?.phase === undefined) return;
+  switch (event.name) {
+    case 'start_describe_definition':
+    case 'finish_describe_definition':
+      scope.phase(scopeOf(block));
+      return;
+    case 'hook_start': {
+      const { type, parent } = event.hook!;
+      const at = scopeOf(parent) ?? { kind: 'scope', depth: 0, prefix: '' };
+      scope.phase(
+        type === 'beforeAll' ? at : type === 'beforeEach' ? { kind: 'each', depth: at.depth } : { kind: 'after' },
+      );
+      return;
+    }
+    case 'hook_success':
+    case 'hook_failure':
+      scope.phase(undefined);
+  }
+}
+
+/** A describe block as the scope it gives a call, or nothing at the file's top level. */
+function scopeOf(block: CircusBlock | undefined): { kind: 'scope'; depth: number; prefix: string } | undefined {
+  const names: string[] = [];
+  for (let at = block; at?.parent !== undefined; at = at.parent) names.unshift(at.name);
+  return names.length === 0 ? undefined : { kind: 'scope', depth: names.length, prefix: `${names.join(' ')} ` };
 }
 
 type Declarer = ((...args: unknown[]) => unknown) & Record<string, unknown>;

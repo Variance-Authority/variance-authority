@@ -74,11 +74,15 @@ interface Scoped {
  * @param running The case running now, as its packed key, or nothing where the
  * call is outside any case body.
  * @param nameOf A packed key's file and declaration path.
+ * @param context An async store for {@link within}, where the realm has one:
+ * hooks of concurrent cases interleave at every await, and a variable set
+ * around one of them is read by the other.
  */
 function recorder(
   holder: object,
   running: () => string | undefined,
   nameOf: (key: string) => { readonly file: string; readonly name: string },
+  context?: { run<Result>(store: Where, body: () => Result): Result; getStore(): Where | undefined },
 ): {
   phase(where: Where | undefined): void;
   within<Result>(where: Where, body: () => Result): Result;
@@ -107,7 +111,7 @@ function recorder(
       onCase(key, entries.map(([name, value]) => [name, value, site, CASE_LEVEL]));
       return;
     }
-    const at = phase ?? where.ask?.() ?? { kind: 'scope', depth: 0, prefix: '' };
+    const at = context?.getStore() ?? phase ?? where.ask?.() ?? { kind: 'scope', depth: 0, prefix: '' };
     switch (at.kind) {
       case 'each': {
         const said = entries.map(([name, value]): Said => [name, value, site, at.depth]);
@@ -155,6 +159,7 @@ function recorder(
       phase = next;
     },
     within(at, body) {
+      if (context !== undefined) return context.run(at, body);
       const before = phase;
       phase = at;
       let answered;
