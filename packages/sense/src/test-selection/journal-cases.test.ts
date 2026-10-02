@@ -287,17 +287,54 @@ describe('a run recorded by more than one process', () => {
     });
   });
 
-  it('folds what the processes staged in the order they wrote it', async () => {
+  it('folds the workers the same way whichever of them finished first', async () => {
     await inRoot(async (root) => {
-      const directory = resolve(root, '.stage');
-      openStage(directory);
-      // Thirty-two contributions, each naming the head it was written under:
-      // a fold in any order but the writes' gets them back in order once in
-      // 32! runs, so a fold that follows anything else fails every run.
-      const written = Array.from({ length: 32 }, (_, at) => `head ${String(at).padStart(2, '0')}`);
-      for (const head of written) await stageExecution(directory, { subjects: [], heads: [head] });
-      expect((await foldStage(directory)).heads).toEqual(written);
-      await closeStage(directory);
+      const run = twoCases(root);
+      await run.write();
+      // Six workers that each ran the same case once and disagree on all of it:
+      // how it settled, what it said it arranged, what it cost, and which
+      // fixture the file stood on. None can know another's clock, so the fold
+      // may read nothing from which of them committed first. Six, so that a fold
+      // following anything but what they wrote agrees with itself once in 720.
+      const workers = Array.from({ length: 6 }, (_, at) => {
+        const stopped = at % 2 === 0;
+        const journal = stopped ? run.premium : run.plain;
+        const attempt = `attempt ${at}`;
+        return {
+          subjects: [
+            {
+              owner: 'e2e/price.spec.ts',
+              journal,
+              complete: !stopped,
+              duration: 0.1 * (at + 1),
+              preconditions: [{ name: 'e2e/fixture.json', digest: attempt }],
+            },
+          ],
+          heads: [`head ${at}`],
+          cases: [
+            {
+              file: 'e2e/price.spec.ts',
+              name: 'prices a premium line',
+              id: 'e2e/price.spec.ts#1',
+              stopped,
+              duration: 0.1 * (at + 1),
+              said: [['user', attempt, 'e2e/price.spec.ts:3:5', 0]] as [string, string, string, number][],
+              journal,
+            },
+          ],
+        };
+      });
+      const folded = async (name: string, order: readonly (typeof workers)[number][]): Promise<string> => {
+        const directory = resolve(root, name);
+        openStage(directory);
+        for (const one of order) await stageExecution(directory, one);
+        const fold = JSON.stringify(await foldStage(directory));
+        await closeStage(directory);
+        return fold;
+      };
+      expect(await folded('.stage-backwards', [...workers].reverse())).toBe(
+        await folded('.stage-forwards', workers),
+      );
     });
   });
 

@@ -475,15 +475,6 @@ function unpackFrames(raw: Uint8Array): readonly Uint8Array[] {
   return frames;
 }
 
-/**
- * A file name that sorts where it was written, since every fold replays a run's
- * directory in name order: the monotonic clock padded so code-unit order is
- * numeric, then the pid and a UUID for two writes in one nanosecond. */
-function writtenName(): string {
-  const at = process.hrtime.bigint().toString().padStart(20, '0');
-  return `${at}-${process.pid}-${globalThis.crypto.randomUUID()}`;
-}
-
 export = {
   encodeJournal,
   encodeLog,
@@ -496,5 +487,4 @@ export = {
   journeyOf,
   packFrames,
   unpackFrames,
-  writtenName,
 };

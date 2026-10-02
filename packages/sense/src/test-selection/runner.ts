@@ -27,6 +27,7 @@
  * what it spreads in.
  */
 
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { registerHooks, type ModuleHooks } from 'node:module';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
@@ -391,7 +392,7 @@ function writeJournal(
   collector: Collector,
   loaded: ReadonlyMap<ModuleId, Uint32Array>,
 ): void {
-  const stamp = journalFormat.writtenName();
+  const stamp = `${process.pid}-${randomUUID()}`;
   const { modules, frames } = collector.finish(testFile);
   mkdirSync(recording.runDirectory, { recursive: true });
   writeFileSync(`${recording.runDirectory}/${stamp}.va`, journalFormat.encodeJournal(testFile, modules, loaded));

@@ -10,11 +10,11 @@
 
 import { mkdirSync, rmSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { heardAcross, heardOf } from './case-precondition-column.js';
 import { packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
 import { codeUnitOrder, isMissing } from './instrumented-modules.js';
-import journalFormat from './journal-format.cjs';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
 
 /**
@@ -69,18 +69,13 @@ export function openStage(directory: string): void {
   process.env[STAGE_VARIABLE] = directory;
 }
 
-/**
- * Write one process's contribution under a name that sorts where it was
- * written, `writtenName`'s: the fold reads contributions in name order, and that
- * order reaches what it computes — a retry is folded after the attempt it
- * retried, and the heads are listed as they arrived.
- */
+/** Write one process's contribution under a name no other process will choose. */
 export async function stageExecution(
   directory: string,
   staged: StagedExecution,
 ): Promise<void> {
   await mkdir(directory, { recursive: true });
-  const temporary = resolve(directory, `.${journalFormat.writtenName()}.tmp`);
+  const temporary = resolve(directory, `.${process.pid}-${randomUUID()}.tmp`);
   await writeFile(temporary, JSON.stringify(staged));
   // Named last, so the fold never reads a contribution that is still arriving.
   await rename(temporary, `${temporary.slice(0, -4)}.json`);
@@ -103,37 +98,57 @@ export async function foldStage(directory: string): Promise<StagedExecution> {
     if (isMissing(error)) return { subjects: [] };
     throw error;
   }
-  // In the order the contributions were written, which their names carry.
   const staged: StagedExecution[] = [];
-  for (const name of names.filter((name) => name.endsWith('.json')).sort(codeUnitOrder)) {
+  for (const name of names.filter((name) => name.endsWith('.json'))) {
     staged.push(JSON.parse(await readFile(resolve(directory, name), 'utf8')) as StagedExecution);
   }
-  // How each case settled and what it cost ride beside the join, which knows
-  // neither: a case retried in another worker settled once it finished once,
-  // and cost both attempts.
+  // Folded in the order of what was written, never of when: workers commit
+  // concurrently and no clock orders them the same way twice, while the fold
+  // sums durations, joins what each case said, and keeps one fixture digest
+  // per name, so the order it reads in reaches its answer. The owner first,
+  // then the whole contribution, which is a total order over what can differ.
+  const cases = foldCases(inWrittenOrder(staged.flatMap((one) => one.cases ?? []), caseOwner));
+  return {
+    subjects: joinObservations([inWrittenOrder(staged.flatMap((one) => one.subjects), (subject) => subject.owner)]),
+    heads: [...new Set(staged.flatMap((one) => one.heads ?? []))].sort(codeUnitOrder),
+    cases,
+  };
+}
+
+function caseOwner(observed: ObservedCase): string {
+  return packCase(observed.file, observed.name, observed.id);
+}
+
+/** What the workers wrote, ordered by who it belongs to and then by itself. */
+function inWrittenOrder<T>(written: readonly T[], owner: (one: T) => string): readonly T[] {
+  return written
+    .map((one) => ({ one, owner: owner(one), text: JSON.stringify(one) }))
+    .sort((left, right) => codeUnitOrder(left.owner, right.owner) || codeUnitOrder(left.text, right.text))
+    .map(({ one }) => one);
+}
+
+/**
+ * One case per coordinate. How each settled and what it cost ride beside the
+ * join, which knows neither: a case retried in another worker settled once it
+ * finished once, and cost both attempts.
+ */
+function foldCases(observations: readonly ObservedCase[]): readonly ObservedCase[] {
   const settled = new Map<string, { stopped?: boolean; duration?: number; said?: ObservedCase['said'] }>();
-  const staging = staged.flatMap((one) =>
-    (one.cases ?? []).map((observed) => {
-      const owner = packCase(observed.file, observed.name, observed.id);
-      const held = settled.get(owner) ?? {};
-      settled.set(owner, {
-        ...settledAcross(held.stopped, observed.stopped),
-        ...timedAcross(held.duration, observed.duration),
-        ...heardOf(heardAcross(held.said, observed.said)),
-      });
-      return { owner, journal: observed.journal };
-    }),
-  );
-  const cases = joinObservations([staging]).map((subject): ObservedCase => ({
+  const staging = observations.map((observed) => {
+    const owner = caseOwner(observed);
+    const held = settled.get(owner) ?? {};
+    settled.set(owner, {
+      ...settledAcross(held.stopped, observed.stopped),
+      ...timedAcross(held.duration, observed.duration),
+      ...heardOf(heardAcross(held.said, observed.said)),
+    });
+    return { owner, journal: observed.journal };
+  });
+  return joinObservations([staging]).map((subject): ObservedCase => ({
     ...unpackCase(subject.owner),
     ...settled.get(subject.owner),
     journal: subject.journal,
   }));
-  return {
-    subjects: joinObservations(staged.map((one) => one.subjects)),
-    heads: [...new Set(staged.flatMap((one) => one.heads ?? []))],
-    cases,
-  };
 }
 
 /** Stop staging and take the directory back down. */
