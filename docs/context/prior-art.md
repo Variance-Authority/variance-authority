@@ -80,6 +80,25 @@ its interesting move is not selection. It **schedules** by a cost/benefit model,
 and it carries a per-target flakiness rate as a property of the test rather than
 of the run — which is what [`history.md`](../history.md) does per subject.
 
+### Dominators, and where a region begins
+
+The node every path to another node has to pass through is its **dominator**.
+Prosser named the relation for flow diagrams (1959), **Lowry and Medlock**
+(*Object code optimization*, CACM 1969) gave the first algorithm, **Lengauer
+and Tarjan** (TOPLAS 1979) the near-linear one, and **Cooper, Harvey and
+Kennedy** (*A Simple, Fast Dominance Algorithm*, 2001) the iterative one.
+Immediate dominators form a tree, so a dominator owns the subtree behind it.
+
+The nearest use to ours is the heap. Eclipse MAT and Chrome DevTools build a
+dominator tree over the object graph and report an object's **shallow size**
+against its **retained size**: what it holds itself, and what would go with
+it. A file's own lines against the region behind it is the same pair over an
+import graph. Reading it with tests as entries, and checking it against what
+the tests executed, is
+[spec 0092](../specs/0092-a-choke-point-is-read-twice.md). STARTS' class
+firewall walks the same graph to widen a selection; a dominator bounds how far
+an edit inside its region can widen.
+
 ### Predictive test selection, and why it is not the model here
 
 **Facebook's predictive test selection** (Machalica et al., ICSE-SEIP 2019)
