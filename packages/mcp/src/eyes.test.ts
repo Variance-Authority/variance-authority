@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,13 +7,20 @@ import { describe, expect, it } from 'vitest';
 import {
   createEyesArchive,
   createEyesLog,
+  eyesJournal,
   eyesTestAttention,
   type EyesArchive,
   type EyesLog,
   type TargetSnapshot,
 } from '@variance-authority/eyes';
 import { parseEyesArchive, readEyesArchive } from '@variance-authority/eyes/archive';
-import { serveEyesArchive } from './server.js';
+import {
+  encodeExecutionIndex,
+  testCoverageFile,
+  withCaseSections,
+  writeTestCoverage,
+} from '@variance-authority/sense/test-selection';
+import { serveEyesRecord } from './server.js';
 import { eyesToolByName } from './tools.js';
 
 /**
@@ -70,6 +78,32 @@ async function produced(directory: string, log: EyesLog, because?: string): Prom
   const path = join(directory, 'eyes.json');
   await writeFile(path, `${JSON.stringify(archive)}\n`);
   return path;
+}
+
+/**
+ * A record a run of one test wrote, its journal kept in the `eyes` section; or,
+ * with `watched` and no log, a record whose run opted into nothing.
+ */
+async function written(directory: string, log: EyesLog | undefined): Promise<string> {
+  const at = testCoverageFile(directory);
+  await writeTestCoverage(at, {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: 'test/drawing.test.tsx', complete: true, preconditions: [] }],
+    modules: [],
+  });
+  const index = encodeExecutionIndex({
+    tests: [{ id: 'redraw-test', file: 'test/drawing.test.tsx', name: 'redraws the canvas' }],
+    modules: [],
+  });
+  const journals = log === undefined ? undefined : [{ case: 'redraw-test', attempt: 1, journal: eyesJournal(log.drain()) }];
+  writeFileSync(at, withCaseSections(readFileSync(at), {
+    index,
+    ...(journals === undefined ? {} : {
+      eyes: Buffer.from(`${JSON.stringify({ version: 1, watched: ['redraw-test'], journals })}\n`),
+    }),
+  }));
+  return at;
 }
 
 async function scratch(): Promise<string> {
@@ -140,17 +174,17 @@ describe('an Eyes archive a run produced', () => {
     }
   });
 
-  it('is served over the protocol from the path it was written to', async () => {
+  it('is served over the protocol from the record the run wrote', async () => {
     const directory = await scratch();
     try {
       const log = createEyesLog();
       recorded(log);
-      const path = await produced(directory, log);
+      const path = await written(directory, log);
 
       const input = new PassThrough();
       const output = new PassThrough();
       const lines = readLines(output);
-      const stop = await serveEyesArchive(path, { input, output });
+      const stop = await serveEyesRecord(path, { input, output });
 
       try {
         input.write(
@@ -168,6 +202,7 @@ describe('an Eyes archive a run produced', () => {
         );
         const answer = await lines();
         expect(answer).toContain('redraws the canvas');
+        expect(answer).toContain('test/drawing.test.tsx [redraw-test]');
         expect(answer).toContain('RedrawButton.tsx:17');
       } finally {
         stop();
@@ -177,8 +212,18 @@ describe('an Eyes archive a run produced', () => {
     }
   });
 
-  it('refuses at startup when the path is not an archive', async () => {
-    await expect(serveEyesArchive(join(tmpdir(), 'variance-mcp-eyes-absent.json'))).rejects.toThrow();
+  it('refuses at startup when nothing is recorded at the path', async () => {
+    await expect(serveEyesRecord(join(tmpdir(), 'variance-mcp-eyes-absent.bin'))).rejects.toThrow();
+  });
+
+  it('refuses at startup a record whose run did not opt into Eyes', async () => {
+    const directory = await scratch();
+    try {
+      const path = await written(directory, undefined);
+      await expect(serveEyesRecord(path)).rejects.toThrow('the run that wrote it did not opt into Eyes');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });
 

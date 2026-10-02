@@ -1,6 +1,5 @@
 import type { Readable, Writable } from 'node:stream';
 import type { EyesArchive } from '@variance-authority/eyes';
-import { readEyesArchive } from '@variance-authority/eyes/archive';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
 import { attachVantage } from '@variance-authority/vantage/attach';
@@ -14,6 +13,7 @@ import {
   wantsTree,
   type JsonRpcRequest,
 } from './protocol.js';
+import { readEyesRecord } from './eyes-record.js';
 import { continuing } from './tools/continue.js';
 import type { Served } from './tools/tool.js';
 import { readTree, type Tree } from './tools/tree.js';
@@ -216,24 +216,22 @@ export async function serveReportFile(
 }
 
 /**
- * Serve the archive a run produced, on the same terms as a report file.
+ * Serve the Eyes journals a run kept in its record, on the same terms as a
+ * report file.
  *
  * Same reload, same reason: the agent asking about a test's attention is
  * ordinarily the agent that just changed the component and re-ran, and answering
- * it from the archive loaded at boot describes the run before the edit.
+ * it from the record loaded at boot describes the run before the edit.
  *
- * The archive is the JSON form of `createEyesArchive` from
- * `@variance-authority/eyes`, read through `readEyesArchive`.
+ * `record` is the coverage record a recording run writes, `coverage.bin`; its
+ * journals are read the way `variance distill` reads them. A record whose run
+ * did not opt into Eyes is refused at startup.
  */
-// FIXME: a run keeps its Eyes journals in its record (`recordedEyesAt`), and
-// nothing in the repository writes this archive any more. This server should
-// read the record the way `variance distill` does.
-
-export async function serveEyesArchive(
-  path: string,
+export async function serveEyesRecord(
+  record: string,
   streams: ReportFileOptions = {},
 ): Promise<() => void> {
-  let cached: EyesArchive = await readEyesArchive(path);
+  let cached: EyesArchive = await readEyesRecord(record);
 
   return serve({
     input: streams.input ?? process.stdin,
@@ -241,9 +239,9 @@ export async function serveEyesArchive(
     served: EYES,
     subject: async () => {
       try {
-        cached = await readEyesArchive(path);
+        cached = await readEyesRecord(record);
       } catch {
-        // Mid-write, most likely. The previous archive is stale, not wrong, and
+        // Mid-write, most likely. The previous record is stale, not wrong, and
         // taking the server down would lose the answer as well as the update.
       }
       return cached;

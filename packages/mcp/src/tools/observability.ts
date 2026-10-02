@@ -62,8 +62,6 @@ export const distillTool: Tool<ObservabilitySubject> = {
       return formatDistillation(distill({
         test: asked,
         execution: subject.execution,
-        // FIXME: the archive stands in for the record's Eyes rows until this
-        // server reads the record, as `variance distill` does.
         ...(subject.eyes === undefined ? {} : {
           eyes: subject.eyes.tests.map((test) => ({ case: test.id, attempt: test.attempt ?? 1, journal: test })),
         }),
