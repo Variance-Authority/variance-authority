@@ -684,10 +684,12 @@
     "names": {
       ".": {
         "AddressedPhase": "interface",
+        "AttemptAttention": "interface",
         "DistillInput": "interface",
         "Distillation": "interface",
         "EnteredFile": "interface",
         "EnteredModule": "interface",
+        "EyesAttempt": "interface",
         "Region": "interface",
         "UpdatePhase": "interface",
         "distill": "function",
@@ -853,14 +855,6 @@
         "./archive": {
           "types": "./dist/archive.d.ts",
           "default": "./dist/archive.js"
-        },
-        "./collect": {
-          "types": "./dist/collect.d.ts",
-          "default": "./dist/collect.js"
-        },
-        "./reporter": {
-          "types": "./dist/reporter.d.ts",
-          "default": "./dist/reporter.js"
         }
       },
       "files": [
@@ -880,6 +874,7 @@
         "ConsumedLocatorAttention": "type",
         "DocumentEventAttention": "interface",
         "EyesArchive": "interface",
+        "EyesJournal": "type",
         "EyesLog": "interface",
         "EyesPhase": "type",
         "EyesTestAttention": "type",
@@ -894,6 +889,7 @@
         "TargetSnapshot": "interface",
         "createEyesArchive": "function",
         "createEyesLog": "function",
+        "eyesJournal": "function",
         "eyesTestAttention": "function",
         "snapshotNode": "function",
         "tapCommits": "function"
@@ -915,18 +911,8 @@
       },
       "./archive": {
         "parseEyesArchive": "function",
+        "parseEyesJournal": "function",
         "readEyesArchive": "function"
-      },
-      "./collect": {
-        "EYES_JOURNAL_SUFFIX": "const",
-        "gatherEyesArchive": "function",
-        "recordEyesTest": "function",
-        "resetEyesJournals": "function",
-        "writeEyesArchive": "function"
-      },
-      "./reporter": {
-        "EyesReporterOptions": "interface",
-        "default": "class"
       }
     }
   },
@@ -2705,6 +2691,7 @@
         "LastFetched": "interface",
         "LineRange": "interface",
         "MovedRegion": "interface",
+        "ObservedEyes": "interface",
         "OwnLayer": "interface",
         "OwnState": "interface",
         "PRUNE_EVERY_MS": "const",
@@ -2718,6 +2705,7 @@
         "RangeState": "type",
         "ReachThrough": "interface",
         "RecordLocationOptions": "interface",
+        "RecordedEyes": "interface",
         "RecordedTests": "type",
         "RegionMotion": "interface",
         "RegionMotionKind": "type",
@@ -2798,6 +2786,7 @@
         "journeyGaps": "function",
         "journeysApart": "function",
         "keepsCases": "function",
+        "keepsEyes": "function",
         "keptTexts": "function",
         "landCases": "function",
         "landRun": "function",
@@ -2838,6 +2827,7 @@
         "recordFileFor": "function",
         "recordedCases": "function",
         "recordedCommit": "function",
+        "recordedEyesAt": "function",
         "regionRun": "function",
         "remaining": "function",
         "repinOwnLayer": "function",
@@ -2880,6 +2870,7 @@
         "InstrumentingPlugin": "interface",
         "ModuleId": "type",
         "ObservedCase": "interface",
+        "ObservedEyes": "interface",
         "ObservedSubject": "interface",
         "RecordExecutionOptions": "interface",
         "STAGE_VARIABLE": "const",

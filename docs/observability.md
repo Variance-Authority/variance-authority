@@ -75,9 +75,11 @@ export const attention = watch(screen);
 `attention.log.seen` reads the current journal, `attention.log.drain()` takes its
 entries, and `attention.close()` restores every method once no watcher remains.
 `within()` and the queries returned by `render()` are different bound objects and
-stay outside this entrypoint. To scope a journal to one runner-identified test
-instead of the whole file, `watchTest(screen, identity)` from the same module
-pairs the log, the identity and the drain in one object.
+stay outside this entrypoint. To scope a journal to one test instead of the
+whole file, `watchTest(screen)` from the same module pairs the log and the drain
+in one object, and its `close` hands the journal to the case the run is
+recording. `watchTest(screen, identity)` keeps the journal under the identity
+you give it instead.
 
 ### A live view: name the address in the environment
 

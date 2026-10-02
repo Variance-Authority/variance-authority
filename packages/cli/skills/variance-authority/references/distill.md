@@ -1,52 +1,39 @@
 # Distill a test, then verify the reduction
 
-`variance distill` reads no config and no report. The two paths are its whole
-input, so it answers in a checkout that has never configured this tool.
-`--test <id>` is required, and so is at least one of `--eyes` and
-`--execution`. `--root` (default: the working directory) is the project root
-both producers recorded against: Eyes names files by absolute path and the
-execution index by project-relative path, and a wrong root leaves the two
-unjoined. `--format json` returns the same reading as data, and the
-`variance_distill` MCP tool returns the same deterministic reading.
+`variance distill` reads no config and no report. Its input is one record: the
+checkout's own `coverage.bin`, or the file `--execution` names, so it answers in
+a checkout that has never configured this tool. `--test <id>` is required and is
+matched exactly. `--root` (default: the working directory) is the root the
+record's paths are relative to. `--format json` returns the same reading as
+data, and the `variance_distill` MCP tool returns the same deterministic reading.
 
 ```bash
-variance distill --test checkout-submits --eyes eyes.json --execution execution.json
+variance distill --test 'src/checkout.test.tsx > checkout submits'
 ```
 
-## The two input files
+## The record
 
-**`eyes.json`** is what `writeEyesArchive` wrote (see [producers](producers.md)).
-Version `1`, one entry per test, `complete` a boolean the producer set, and
-`attention` a sequence of `eyes-phase`, `react-commit`, `react-tap-refused`,
-`document-event`, `rtl-query` and `playwright-locator` entries:
+A Vitest, Jest, rstest or Playwright run wrapped in `withTestSelection` writes
+the case index `covering` reads into its record. A Playwright run whose `test`
+also composes `eyesFixtures` writes each attempt's Eyes journal into the same
+record, keyed by the case and its attempt, numbered from 1. See
+[producers](producers.md).
+
+A journal is `complete` and a sequence of `eyes-phase`, `react-commit`,
+`react-tap-refused`, `document-event`, `rtl-query` and `playwright-locator`
+entries. `complete` is the producer's own statement that the journal closed
+cleanly, and nothing else. `complete: false` carries a `because` saying why. It
+is **not** a judgement about whether `attention` has anything in it.
+
+`--execution` also takes an `ExecutionIndex` as JSON, from a tool that already
+records per-test crossings. JSON carries no journals. It is a `tests` array the
+crossings index into by position, and a `modules` array of files with lexical
+blocks. Every block needs `kind`, `name` (empty for a module root), `path`,
+`startLine`, `endLine`, `source`, and `crossings` of `{test, distance}`:
 
 ```json
 {
-  "eyesVersion": 1,
-  "tests": [
-    {
-      "id": "checkout-submits",
-      "title": "checkout submits",
-      "file": "src/checkout.test.tsx",
-      "complete": true,
-      "attention": [{ "kind": "eyes-phase", "phase": "act", "sequence": 1 }]
-    }
-  ]
-}
-```
-
-`complete` is the producer's own statement that the journal closed cleanly, and
-nothing else. `complete: false` requires a `because` string saying why. It is
-**not** a judgement about whether `attention` has anything in it.
-
-**`execution.json`** is an `ExecutionIndex`: a `tests` array the crossings index
-into by position, and a `modules` array of files with lexical blocks. Every
-block needs `kind`, `name` (empty for a module root), `path`, `startLine`,
-`endLine`, `source`, and `crossings` of `{test, distance}`:
-
-```json
-{
-  "tests": [{ "id": "checkout-submits", "file": "src/checkout.test.tsx", "name": "checkout submits" }],
+  "tests": [{ "id": "src/checkout.test.tsx > checkout submits", "file": "src/checkout.test.tsx", "name": "checkout submits" }],
   "modules": [
     {
       "file": "src/checkout.ts",
@@ -62,16 +49,11 @@ block needs `kind`, `name` (empty for a module root), `path`, `startLine`,
 }
 ```
 
-A Vitest, Jest, rstest or Playwright run wrapped in `withTestSelection` writes
-the index `covering` reads into its record, and `--execution` takes that
-record as it is. Otherwise, supply JSON from a tool that already records
-per-test crossings, or run `distill` with `--eyes` alone.
-
-Those two files, through the command above, answer:
+A record holding that case and one complete, empty journal answers:
 
 ```
-checkout submits — src/checkout.test.tsx [checkout-submits]
-Eyes journal: complete.
+checkout submits — src/checkout.test.tsx [src/checkout.test.tsx > checkout submits]
+Eyes journal, attempt 1: complete.
 0 target snapshot(s); 0 had no live React Fiber.
 
 Addressed surface: measured empty.
@@ -79,7 +61,7 @@ Addressed surface: measured empty.
 React update initiators: unavailable; no commit evidence was recorded.
 
 Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.
-Runtime journey: 1 source file(s) covered by exact test id.
+Runtime journey: 1 source file(s) covered by exact case id.
   depth 0 — src/checkout.ts
 Covered with no addressed target attributed to the same file: 1.
   distillation opportunity at depth 0 — src/checkout.ts
@@ -126,8 +108,8 @@ Never batch opportunities into one experiment: a passing test would not say
 which substitution was justified. A file the test ran with no addressed
 attribution is a queue for counterfactual checks, not permission to mock it.
 
-A plain test or a fake component is valid input. With execution evidence and no
-Eyes archive, report the source the test ran, and call the opportunity
+A plain test or a fake component is valid input. With a record that keeps no
+Eyes journal, report the source the test ran, and call the opportunity
 comparison and attention unavailable. An Eyes journal whose test has
 `complete: true` and an empty `attention` array permits the comparison: the
 producer closed cleanly and measured nothing, which is a reading.
