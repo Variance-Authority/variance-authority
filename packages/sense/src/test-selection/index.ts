@@ -184,21 +184,8 @@ export {
   type LandedShard,
   type LastCaseRun,
 } from './case-landing.js';
-export {
-  caseIndexOf,
-  caseSectionsAt,
-  caseSectionsOf,
-  keepsCases,
-  keepsEyes,
-  recordedCases,
-  recordedEyesAt,
-  recordedEyesOf,
-  recordOfCases,
-  sharedRecord,
-  withCaseSections,
-  withoutCoverage,
-  type CaseSections,
-} from './case-record.js';
+export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordedCases, recordedEyesAt, recordedEyesOf } from './case-record.js';
+export { recordOfCases, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
 export { RecordWithoutCoverage } from './format-validation.js';
 export {
