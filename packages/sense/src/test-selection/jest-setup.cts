@@ -40,7 +40,7 @@ import install = require('./jest-globals.cjs');
 import journals = require('./journal-format.cjs');
 import type { ModuleId } from '../instrument/index.js';
 
-const { afterAll, beforeAll, expect } = globals;
+const { afterAll, beforeAll, beforeEach, expect } = globals;
 
 // Installed by `setupFiles` already in a configuration `withTestSelection`
 // wrote; installed here for one that named this file alone.
@@ -108,6 +108,15 @@ function openCaseScopes(): void {
   let ordinal = 0;
   const nextId = (): string => String(ordinal++);
 
+  // The first `beforeEach` of every case, registered before the file's own:
+  // what a `beforeEach` said for a case that never ran — it threw after
+  // speaking — is forgotten before the next case's hooks speak.
+  beforeEach(() => {
+    (globalThis as { [key: symbol]: { begin?: () => void } | undefined })[
+      Symbol.for('variance-authority.test-selection.cases')
+    ]?.begin?.();
+  });
+
   bracketEveryCase(nextId);
 
   const realm = globalThis as Record<string, unknown>;
@@ -164,11 +173,8 @@ function bracketEveryCase(nextId: () => string): void {
   const register = circus.addEventHandler;
   if (typeof register !== 'function') return;
 
-  (register as (handler: (event: CircusEvent, state: { currentDescribeBlock?: CircusBlock }) => void) => void)((
-    event,
-    state,
-  ): void => {
-    placeCalls(event, state.currentDescribeBlock);
+  (register as (handler: (event: CircusEvent) => void) => void)((event): void => {
+    placeCalls(event);
     if (event.name !== 'test_fn_start') return;
     const held = event.test;
     if (held === undefined) return;
@@ -179,31 +185,27 @@ function bracketEveryCase(nextId: () => string): void {
 }
 
 /**
- * Tell the recorder where a `variancePrecondition` call stands, from the events
- * jest-circus announces: a describe callback while the block is being defined,
- * a hook from its start to its end. A `beforeEach` names no case, because the
- * case's key is minted when its body is entered, which is right after; Jest
- * runs one case's hooks at a time.
- *
- * Jest spells a case's name as its describe path joined by spaces, so a
- * describe's prefix is its path and a space — and a sibling describe whose
- * name extends it, `checkout` beside `checkout flow`, shares that prefix.
+ * Tell the recorder where a `variancePrecondition` call stands, from the hooks
+ * jest-circus announces, from a hook's start to its end. A `beforeEach` names
+ * no case, because the case's key is minted when its body is entered, which is
+ * right after; Jest runs one case's hooks at a time. A `beforeAll` and an
+ * `afterAll` run for no one case, and a call in one throws, as a call while the
+ * file is collected does.
  */
-function placeCalls(event: CircusEvent, block: CircusBlock | undefined): void {
+function placeCalls(event: CircusEvent): void {
   const scope = (globalThis as { [key: symbol]: { phase?: (where: unknown) => void } | undefined })[
     Symbol.for('variance-authority.test-selection.cases')
   ];
   if (scope?.phase === undefined) return;
   switch (event.name) {
-    case 'start_describe_definition':
-    case 'finish_describe_definition':
-      scope.phase(scopeOf(block));
-      return;
     case 'hook_start': {
       const { type, parent } = event.hook!;
-      const at = scopeOf(parent) ?? { kind: 'scope', depth: 0, prefix: '' };
       scope.phase(
-        type === 'beforeAll' ? at : type === 'beforeEach' ? { kind: 'each', depth: at.depth } : { kind: 'after' },
+        type === 'beforeEach'
+          ? { kind: 'each', depth: depthOf(parent) }
+          : type === 'afterEach'
+          ? { kind: 'after' }
+          : { kind: 'outside', because: `ran in ${type === 'beforeAll' ? 'a beforeAll' : 'an afterAll'}, which runs for no one case` },
       );
       return;
     }
@@ -213,11 +215,11 @@ function placeCalls(event: CircusEvent, block: CircusBlock | undefined): void {
   }
 }
 
-/** A describe block as the scope it gives a call, or nothing at the file's top level. */
-function scopeOf(block: CircusBlock | undefined): { kind: 'scope'; depth: number; prefix: string } | undefined {
-  const names: string[] = [];
-  for (let at = block; at?.parent !== undefined; at = at.parent) names.unshift(at.name);
-  return names.length === 0 ? undefined : { kind: 'scope', depth: names.length, prefix: `${names.join(' ')} ` };
+/** How many describes deep a block is; the file's own block is none. */
+function depthOf(block: CircusBlock | undefined): number {
+  let depth = 0;
+  for (let at = block; at?.parent !== undefined; at = at.parent) depth += 1;
+  return depth;
 }
 
 type Declarer = ((...args: unknown[]) => unknown) & Record<string, unknown>;
@@ -262,25 +264,28 @@ let enclosingCase = 0;
  * one case that cannot be asked: `test.concurrent` starts its body outside the
  * runner's own bracket, so the state it would read there is somebody else's.
  * The id beside it is positional and exists only to tell two cases of one name
- * apart.
+ * apart. It is taken when the case first runs and kept for its retries, which
+ * are the same case.
  *
  * The arity is restored because Jest reads it: a body declared with `done` and
  * handed over with none is a callback test the runner would never call back.
  */
 function scopeCase(body: CaseBody, declared: unknown, nextId: () => string): CaseBody {
+  let id: string | undefined;
   const run = function (this: unknown, ...args: unknown[]): unknown {
     const scope = (globalThis as { [key: symbol]: { enter: <R>(key: string, body: () => R) => R } | undefined })[
       Symbol.for('variance-authority.test-selection.cases')
     ];
     if (scope === undefined) return body.apply(this, args);
     if (enclosingCase > 0) return body.apply(this, args);
+    id ??= nextId();
     const { currentTestName: running, testPath } = expect.getState();
     const name = typeof declared === 'string' && typeof running === 'string' && running.endsWith(declared)
       ? running
       : String(declared);
     enclosingCase += 1;
     try {
-      return scope.enter(journals.packCase(testPath ?? '', name, nextId()), () => body.apply(this, args));
+      return scope.enter(journals.packCase(testPath ?? '', name, id), () => body.apply(this, args));
     } finally {
       enclosingCase -= 1;
     }

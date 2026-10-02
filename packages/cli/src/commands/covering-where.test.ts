@@ -13,6 +13,8 @@ import {
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
+import { twinsOf } from './covering-where.js';
+import { nameIndex, structuralParent } from './names.js';
 
 const SPEC = 'checkout.test.ts';
 
@@ -25,18 +27,18 @@ function row(name: string, preconditions?: ExecutionTest['preconditions']): Exec
 }
 
 const MEASURED: readonly ExecutionTest[] = [
-  row('pays mocked', [{ name: 'network', value: 'mocked', site: at(4) }]),
+  row('pays mocked', [{ name: 'network', value: 'mocked', site: at(4), level: 1 }]),
   row('refunds mocked behind a flag', [
-    { name: 'flag', value: 'ff-on', site: at(9) },
-    { name: 'network', value: 'mocked', site: at(4) },
+    { name: 'flag', value: 'ff-on', site: at(9), level: 1 },
+    { name: 'network', value: 'mocked', site: at(4), level: 1 },
   ]),
-  row('replays a recording', [{ name: 'network', value: 'recorded', site: at(14) }]),
+  row('replays a recording', [{ name: 'network', value: 'recorded', site: at(14), level: 1 }]),
   row('says nothing', []),
   row('contradicted', [
-    { name: 'flag', value: 'ff-off', site: at(20) },
-    { name: 'flag', value: 'ff-on', site: at(19) },
+    { name: 'flag', value: 'ff-off', site: at(20), level: 1 },
+    { name: 'flag', value: 'ff-on', site: at(19), level: 1 },
   ]),
-  row('half on', [{ name: 'flag', value: 'ff-half', site: at(24) }, { name: 'network', value: 'mocked', site: at(4) }]),
+  row('half on', [{ name: 'flag', value: 'ff-half', site: at(24), level: 1 }, { name: 'network', value: 'mocked', site: at(4), level: 1 }]),
 ];
 
 function indexOf(tests: readonly ExecutionTest[]): ExecutionIndex {
@@ -132,7 +134,7 @@ describe('a case read by what it said', () => {
     expect(refs).toContain(`replays a recording — network=recorded (${at(14)})`);
     const json = JSON.parse(formatCovering(answer, 'json')) as { tests: ExecutionTest[] };
     expect(json.tests.find((test) => test.name === 'pays mocked')?.preconditions).toEqual([
-      { name: 'network', value: 'mocked', site: at(4) },
+      { name: 'network', value: 'mocked', site: at(4), level: 1 },
     ]);
   });
 });
@@ -145,7 +147,7 @@ describe('a case read along a declared axis', () => {
   });
 
   it('reports a value outside the vocabulary by name, and keeps the case', async () => {
-    const record = await recorded([...MEASURED, row('flag typo', [{ name: 'flag', value: 'ff-onn', site: at(30) }])], true);
+    const record = await recorded([...MEASURED, row('flag typo', [{ name: 'flag', value: 'ff-onn', site: at(30), level: 1 }])], true);
 
     const answer = await ask(['flag=ff-onn'], record);
     expect(names(answer)).toEqual(['flag typo']);
@@ -169,10 +171,10 @@ describe('a case read along a declared axis', () => {
 
   it('walks past an empty step to the base, prints several twins with their count, and says when there is none', async () => {
     const record = await recorded([
-      row('on', [{ name: 'flag', value: 'ff-on', site: at(2) }]),
+      row('on', [{ name: 'flag', value: 'ff-on', site: at(2), level: 1 }]),
       row('plain', []),
-      row('also plain', [{ name: 'flag', value: 'ff-off', site: at(5) }]),
-      row('on and seeded', [{ name: 'flag', value: 'ff-on', site: at(2) }, { name: 'seeded', value: true, site: at(7) }]),
+      row('also plain', [{ name: 'flag', value: 'ff-off', site: at(5), level: 1 }]),
+      row('on and seeded', [{ name: 'flag', value: 'ff-on', site: at(2), level: 1 }, { name: 'seeded', value: true, site: at(7), level: 1 }]),
     ], true);
 
     const answer = await ask(['flag=ff-on'], record);
@@ -183,5 +185,19 @@ describe('a case read along a declared axis', () => {
     const text = formatCovering(answer, 'text');
     expect(text).toContain('2 twins at flag=ff-off: also plain, plain');
     expect(text).toContain('no twin recorded');
+  });
+
+  it('takes the step a subject named the same would take: the last declared axis, toward the base', () => {
+    // A characterization of the agreement: one step serves both readers.
+    const grammar = { axes: [{ axis: 'scheme', values: ['light', 'dark'] }, { axis: 'flag', values: ['ff-off', 'ff-half', 'ff-on'] }] };
+    const said = (name: string, scheme: string, flag: string): ExecutionTest =>
+      row(name, [{ name: 'scheme', value: scheme, site: at(1), level: 1 }, { name: 'flag', value: flag, site: at(2), level: 1 }]);
+    const cases = [said('dark ff-on', 'dark', 'ff-on'), said('dark ff-off', 'dark', 'ff-off'), said('light ff-on', 'light', 'ff-on')];
+
+    const parent = structuralParent('checkout-dark-ff-on', nameIndex(['checkout-dark-ff-on', 'checkout-dark', 'checkout-ff-on'], grammar));
+    expect(parent).toEqual({ ok: true, parent: 'checkout-dark', step: { axis: 'flag', from: 'ff-off', to: 'ff-on' } });
+    expect(twinsOf([cases[0]!], cases, grammar)).toEqual([
+      { case: `${SPEC} > dark ff-on`, axis: 'flag', from: 'ff-on', to: 'ff-off', twins: [`${SPEC} > dark ff-off`] },
+    ]);
   });
 });

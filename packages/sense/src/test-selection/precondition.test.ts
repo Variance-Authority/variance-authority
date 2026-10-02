@@ -47,14 +47,10 @@ describe('variancePrecondition with no recording', () => {
 
 describe('the recorder a case scope installs', () => {
   const keyOf = (name: string): string => `/repo/a.test.ts\u0000${name}\u00001`;
-  const nameOf = (key: string): { file: string; name: string } => {
-    const [file = '', name = ''] = key.split('\u0000');
-    return { file, name };
-  };
 
   it('puts a call in a case body on that case, at the case level, with the line that said it', () => {
     let running: string | undefined = keyOf('pays');
-    const recorder = preconditions.recorder(globalThis, () => running, nameOf);
+    const recorder = preconditions.recorder(globalThis, () => running);
     variancePrecondition('network', 'mocked'); const line = new Error().stack!.split('\n')[1]!;
     variancePrecondition({ flag: 'ff-on', seeded: true });
     running = undefined;
@@ -69,20 +65,41 @@ describe('the recorder a case scope installs', () => {
     expect(site).toMatch(/precondition\.test\.ts:\d+$/);
   });
 
-  it('reaches only the cases under the describe that said it, and the file reaches all', () => {
-    const recorder = preconditions.recorder(globalThis, () => undefined, nameOf);
-    recorder.phase({ kind: 'scope', depth: 0, prefix: '' });
-    variancePrecondition('flag', 'ff-off');
-    recorder.phase({ kind: 'scope', depth: 1, prefix: 'checkout > ' });
-    variancePrecondition('network', 'mocked');
+  it('throws for a call where no case is running, through the entry, with the line that made it', () => {
+    const recorder = preconditions.recorder(globalThis, () => undefined);
+    expect(() => variancePrecondition('flag', 'ff-off')).toThrow(
+      /variancePrecondition at \S*precondition\.test\.ts:\d+ ran outside a running case/,
+    );
+    recorder.phase({ kind: 'outside', because: 'ran in a beforeAll, which runs for no one case' });
+    expect(() => variancePrecondition('flag', 'ff-off')).toThrow(/ran in a beforeAll/);
     recorder.phase(undefined);
-    const names = (key: string): unknown[] => recorder.take(key).map(([name, value]) => `${name}=${String(value)}`);
-    expect(names(keyOf('checkout > pays'))).toEqual(['flag=ff-off', 'network=mocked']);
-    expect(names(keyOf('refunds > pays'))).toEqual(['flag=ff-off']);
+    expect(recorder.take(keyOf('pays'))).toEqual([]);
+  });
+
+  it('forgets what a beforeEach said for a case that never entered when the next case begins', () => {
+    const recorder = preconditions.recorder(globalThis, () => undefined);
+    recorder.begin();
+    recorder.within({ kind: 'each', depth: 1 }, () => variancePrecondition('doomed'));
+    recorder.begin();
+    recorder.within({ kind: 'each', depth: 0 }, () => variancePrecondition('network', 'live'));
+    recorder.entered(keyOf('after doomed > pays'));
+    expect(recorder.take(keyOf('after doomed > pays')).map(([name]) => name)).toEqual(['network']);
+  });
+
+  it('keeps the beforeEach of one context apart from another', () => {
+    const recorder = preconditions.recorder(globalThis, () => undefined);
+    const left = {};
+    const right = {};
+    recorder.within({ kind: 'each', depth: 1, token: left }, () => variancePrecondition('lane', 'left'));
+    recorder.within({ kind: 'each', depth: 1, token: right }, () => variancePrecondition('lane', 'right'));
+    recorder.entered(keyOf('right'), right);
+    recorder.entered(keyOf('left'), left);
+    expect(recorder.take(keyOf('left')).map(([, value]) => value)).toEqual(['left']);
+    expect(recorder.take(keyOf('right')).map(([, value]) => value)).toEqual(['right']);
   });
 
   it('gives a beforeEach that names no case to the next case that opens', () => {
-    const recorder = preconditions.recorder(globalThis, () => undefined, nameOf);
+    const recorder = preconditions.recorder(globalThis, () => undefined);
     recorder.within({ kind: 'each', depth: 1 }, () => variancePrecondition('network', 'mocked'));
     recorder.entered(keyOf('checkout > pays'));
     recorder.entered(keyOf('checkout > refunds'));
@@ -91,7 +108,7 @@ describe('the recorder a case scope installs', () => {
   });
 
   it('records no case for a call after the case, and says where it was', () => {
-    const recorder = preconditions.recorder(globalThis, () => undefined, nameOf);
+    const recorder = preconditions.recorder(globalThis, () => undefined);
     const warned: unknown[] = [];
     const warn = console.warn;
     console.warn = (...args: unknown[]) => void warned.push(args.join(' '));
@@ -105,7 +122,7 @@ describe('the recorder a case scope installs', () => {
   });
 
   it('refuses a value that is not a string, number or boolean, and records nothing', () => {
-    const recorder = preconditions.recorder(globalThis, () => keyOf('pays'), nameOf);
+    const recorder = preconditions.recorder(globalThis, () => keyOf('pays'));
     const warn = console.warn;
     console.warn = () => {};
     try {
@@ -125,7 +142,7 @@ describe('resolving what a case said', () => {
     expect(preconditions.resolve([
       said('flag', 'ff-off', 0, 'a.test.ts:1'),
       said('flag', 'ff-on', preconditions.CASE_LEVEL, 'a.test.ts:9'),
-    ])).toEqual([{ name: 'flag', value: 'ff-on', site: 'a.test.ts:9' }]);
+    ])).toEqual([{ name: 'flag', value: 'ff-on', site: 'a.test.ts:9', level: preconditions.CASE_LEVEL }]);
   });
 
   it('keeps two values said at one level, and reports them as a contradiction', () => {
@@ -135,8 +152,8 @@ describe('resolving what a case said', () => {
       said('flag', 'ff-on', 1, 'a.test.ts:7'),
     ]);
     expect(resolved).toEqual([
-      { name: 'flag', value: 'ff-off', site: 'a.test.ts:5' },
-      { name: 'flag', value: 'ff-on', site: 'a.test.ts:4' },
+      { name: 'flag', value: 'ff-off', site: 'a.test.ts:5', level: 1 },
+      { name: 'flag', value: 'ff-on', site: 'a.test.ts:4', level: 1 },
     ]);
     expect(preconditions.contradictions(resolved)).toEqual(['flag']);
   });

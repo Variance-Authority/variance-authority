@@ -3,8 +3,9 @@
  *
  * The worker runs one test at a time, and `test.info()` names it in the body
  * and in every hook. Which hook is running Playwright knows and does not
- * publish: `_currentHookType` is read where it exists, and a worker without it
- * reads every call as the body's.
+ * publish: `_currentHookType` is read, and a worker without it places no call,
+ * because a call it cannot tell from a `beforeAll`'s is not guessed to be the
+ * body's.
  */
 
 import { test, type TestInfo } from '@playwright/test';
@@ -22,25 +23,27 @@ export function playwrightStanding(owner: (testInfo: TestInfo) => string): () =>
     try {
       info = test.info();
     } catch {
-      return { at: 'unplaced', because: 'ran outside a test and its hooks' };
+      return { at: 'outside', because: 'ran outside a running test' };
+    }
+    const hookType = (info as { _currentHookType?: unknown })._currentHookType;
+    if (typeof hookType !== 'function') {
+      return { at: 'outside', because: 'ran in a Playwright worker that does not say which hook is running' };
     }
     const key = caseKey(owner(info), testOf(info).id);
-    const hook = (info as { _currentHookType?: () => string | undefined })._currentHookType?.();
+    const hook = (hookType as () => string | undefined).call(info);
     switch (hook) {
       case undefined:
         return { at: 'case', key };
       case 'beforeEach':
         // FIXME: the depth of the describe that declared the hook — needs the
         // hook's location; every `beforeEach` of a case reads as its innermost
-        // describe's, so a file-level and a describe-level one that say the
-        // same name are a contradiction rather than an override.
+        // describe's, so one at the top of the file and one inside a describe
+        // that say the same name are a contradiction rather than an override.
         return { at: 'beforeEach', key, depth: testOf(info).name.split(' > ').length - 1 };
-      case 'beforeAll':
-        // FIXME: the cases a `beforeAll` reaches — needs the describe it was
-        // declared in, which `test.info()` in the hook does not name.
-        return { at: 'unplaced', because: 'ran in a Playwright beforeAll, whose cases the worker cannot name,' };
-      default:
+      case 'afterEach':
         return { at: 'after' };
+      default:
+        return { at: 'outside', because: `ran in a ${hook}, which runs for no one test` };
     }
   };
 }

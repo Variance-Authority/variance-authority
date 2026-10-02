@@ -9,7 +9,8 @@
  * Where `names.axes` declares the name, the value is read on that axis the way
  * a subject's name is read: `values[0]` is the base, and a case that never said
  * the name stands at it. The twin is the parent `names.ts` finds for a
- * subject, taken over what a case said instead of what it is called.
+ * subject, walked by the same step over what a case said instead of what it is
+ * called.
  */
 
 import { existsSync } from 'node:fs';
@@ -20,6 +21,7 @@ import { parseNames } from '../config-names.js';
 import { ConfigError, messageOf } from '../config-values.js';
 import { said } from '../here.js';
 import { DEFAULT_CONFIG } from '../usage.js';
+import { coordinateKey, stepTowardBase, type NamedAxis } from './names.js';
 import { OperatorError } from '../exit.js';
 import type { ExecutionIndex, ExecutionTest } from '@variance-authority/sense/test-selection';
 import type { WhereCondition } from '../covering-args.js';
@@ -124,62 +126,69 @@ function outside(kept: readonly ExecutionTest[], names: NamesConfig | undefined)
 /**
  * Each listed case's twin, looked up among every case the question reached.
  *
- * The walk is `structuralParent`'s: from the value below the case's toward the
- * base, the first coordinate a recorded case holds. It differs in what it
- * returns at a coordinate several cases hold — all of them, where a subject's
- * parent must be one — because a twin is read, not diffed against.
+ * The walk is `structuralParent`'s, {@link stepTowardBase}: from the value
+ * below the case's on its last declared axis toward the base, the first
+ * coordinate a recorded case holds. A coordinate several cases hold gives all
+ * of them, where a subject's parent must be one, because a twin is read, not
+ * diffed against.
  */
 export function twinsOf(
   listed: readonly ExecutionTest[],
   reached: readonly ExecutionTest[],
   names: NamesConfig,
 ): readonly CoveringTwin[] {
-  const twins: CoveringTwin[] = [];
-  for (const test of listed) {
-    const coordinate = coordinateOf(test, names);
-    if (coordinate === undefined) continue;
-    const axis = [...names.axes].reverse().find((entry) => {
-      const value = coordinate.get(entry.axis);
-      return value !== undefined && value !== entry.values[0] && entry.values.includes(value);
-    });
-    if (axis === undefined) continue;
-    const from = coordinate.get(axis.axis)!;
-    let to = axis.values[0]!;
-    let found: string[] = [];
-    for (let below = axis.values.indexOf(from) - 1; below >= 0; below--) {
-      to = axis.values[below]!;
-      const wanted = new Map(coordinate).set(axis.axis, to);
-      found = reached
-        .filter((other) => other.id !== test.id && same(coordinateOf(other, names), wanted))
-        .map((other) => other.id)
-        .sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
-      if (found.length > 0) break;
-    }
-    twins.push({ case: test.id, axis: axis.axis, from, to, twins: found });
+  const placed = new Map<string, Placed | undefined>();
+  const place = (test: ExecutionTest): Placed | undefined => {
+    if (!placed.has(test.id)) placed.set(test.id, placeOf(test, names));
+    return placed.get(test.id);
+  };
+  const at = new Map<string, string[]>();
+  for (const test of reached) {
+    const here = place(test);
+    if (here === undefined) continue;
+    const key = coordinateKey(here.stem, here.coordinate);
+    at.set(key, [...at.get(key) ?? [], test.id]);
   }
-  return twins;
+  return listed.flatMap((test) => {
+    const here = place(test);
+    const walked = here === undefined ? undefined : stepTowardBase(here.coordinate, names, (coordinate) =>
+      (at.get(coordinateKey(here.stem, coordinate)) ?? []).filter((other) => other !== test.id));
+    if (walked === undefined) return [];
+    const twins = [...walked.found].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+    return [{ case: test.id, axis: walked.axis, from: walked.from, to: walked.to, twins }];
+  });
+}
+
+/** A case placed as a name is: what it said off every axis, and where it stands on them. */
+interface Placed {
+  readonly stem: string;
+  readonly coordinate: readonly NamedAxis[];
 }
 
 /**
- * What a case said, one value per name, with every declared axis at its base
- * when unsaid. A contradiction is held as both values joined, so it matches
- * only the same contradiction; a case nobody listened to has no coordinate.
+ * What a case said, read the way `readName` reads a subject id. A declared
+ * axis said at a value its vocabulary names is a step of the coordinate, in
+ * grammar order, and at its base — said or not — it is no step at all.
+ * Everything else, an undeclared name, a value outside the vocabulary or a
+ * contradiction held as both values joined, is the stem, as an unread tail of
+ * a name is: only a case that said the same matches it. A case nobody listened
+ * to is placed nowhere.
  */
-function coordinateOf(test: ExecutionTest, names: NamesConfig): Map<string, string> | undefined {
+function placeOf(test: ExecutionTest, names: NamesConfig): Placed | undefined {
   if (test.preconditions === undefined) return undefined;
   const values = new Map<string, Set<string>>();
   for (const held of test.preconditions) {
     values.set(held.name, (values.get(held.name) ?? new Set()).add(String(held.value)));
   }
-  const coordinate = new Map([...values].map(([name, said]) => [name, [...said].sort().join('|')]));
-  for (const axis of names.axes) if (!coordinate.has(axis.axis)) coordinate.set(axis.axis, axis.values[0]!);
-  return coordinate;
-}
-
-function same(left: ReadonlyMap<string, string> | undefined, right: ReadonlyMap<string, string>): boolean {
-  if (left === undefined || left.size !== right.size) return false;
-  for (const [name, value] of right) if (left.get(name) !== value) return false;
-  return true;
+  const said = new Map([...values].map(([name, all]) => [name, [...all].sort().join('|')]));
+  const coordinate: NamedAxis[] = [];
+  for (const axis of names.axes) {
+    const value = said.get(axis.axis);
+    if (value === undefined || !axis.values.includes(value)) continue;
+    said.delete(axis.axis);
+    if (value !== axis.values[0]) coordinate.push({ axis: axis.axis, value });
+  }
+  return { stem: JSON.stringify([...said].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)), coordinate };
 }
 
 function axisOf(names: NamesConfig | undefined, name: string): AxisConfig | undefined {

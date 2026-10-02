@@ -195,6 +195,10 @@ export const varianceFixtures: Fixtures<
 
   varianceExecution: [false, { scope: 'worker', option: true }],
 
+  // FIXME: a `variancePrecondition` call while the worker's first file is
+  // collected finds no listener and records nothing rather than throwing —
+  // needs the listener installed before this fixture, which Playwright sets up
+  // once the file has collected.
   // One recorder per worker, closed when the worker is: a worker is a process,
   // and a process that wrote the shared index per assertion would spend the run
   // contending for a lock it holds for microseconds of work.

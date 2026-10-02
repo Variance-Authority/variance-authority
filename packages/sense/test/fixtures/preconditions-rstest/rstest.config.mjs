@@ -15,5 +15,11 @@ export default withTestSelection(
     globals: true,
     include: ['test/*.case.ts'],
   },
-  { coverageFile, include: (file) => file.startsWith(source) },
+  {
+    coverageFile,
+    // `describe.concurrent` runs two cases and their hooks at once, which only
+    // the async context tells apart.
+    continuations: true,
+    include: (file) => file.startsWith(source),
+  },
 );

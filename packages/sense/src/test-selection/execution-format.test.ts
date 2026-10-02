@@ -239,9 +239,9 @@ describe('the preconditions each case named', () => {
       {
         id: 'a.test.ts > one', file: 'a.test.ts', name: 'one',
         preconditions: [
-          { name: 'flag', value: 'ff-on', site: 'a.test.ts:4' },
-          { name: 'retries', value: 3, site: 'a.test.ts:5' },
-          { name: 'seeded', value: true, site: 'a.test.ts:2' },
+          { name: 'flag', value: 'ff-on', site: 'a.test.ts:4', level: 65535 },
+          { name: 'retries', value: 3, site: 'a.test.ts:5', level: 1 },
+          { name: 'seeded', value: true, site: 'a.test.ts:2', level: 0 },
         ],
       },
       { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', preconditions: [] },

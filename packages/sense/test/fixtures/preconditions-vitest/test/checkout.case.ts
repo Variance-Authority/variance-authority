@@ -1,11 +1,13 @@
 import { variancePrecondition } from '@variance-authority/sense/precondition';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { total } from '../src/cart.js';
 
 // Every call below ends in a comment naming it, which is how the test that
 // records this file finds the line each row should cite.
 
-variancePrecondition('network', 'live'); // file default
+beforeEach(() => {
+  variancePrecondition('network', 'live'); // file default
+});
 
 afterEach(() => {
   variancePrecondition('cleaned'); // after each
@@ -26,8 +28,21 @@ describe('mocked', () => {
   });
 });
 
+// A sibling whose name extends the one above, and a case whose name does.
+describe('mocked flow', () => {
+  it('pays', () => {
+    expect(total([2])).toBe(2);
+  });
+});
+
+it('mocked refunds', () => {
+  expect(total([3])).toBe(3);
+});
+
 describe('live', () => {
-  variancePrecondition('region', 'eu'); // live describe
+  beforeEach(() => {
+    variancePrecondition('region', 'eu'); // live each
+  });
 
   it('pays', () => {
     expect(total([4])).toBe(4);
@@ -40,7 +55,7 @@ describe('live', () => {
 });
 
 describe('contradicted', () => {
-  beforeAll(() => {
+  beforeEach(() => {
     variancePrecondition('flag', 'ff-on'); // contradicted on
     variancePrecondition('flag', 'ff-off'); // contradicted off
   });
@@ -48,6 +63,29 @@ describe('contradicted', () => {
   it('pays', () => {
     expect(total([6])).toBe(6);
   });
+});
+
+// A beforeEach that says something and then fails: its case never runs, and
+// the next case, in a sibling describe, never hears it.
+describe('doomed', () => {
+  beforeEach(() => {
+    variancePrecondition('doomed'); // doomed each
+    throw new Error('the arrangement failed, so the case never runs');
+  });
+
+  it('never runs', () => {
+    expect(total([0])).toBe(0);
+  });
+});
+
+describe('after doomed', () => {
+  it('pays', () => {
+    expect(total([1])).toBe(1);
+  });
+});
+
+it('crosses nothing', () => {
+  variancePrecondition('seeded'); // seeded
 });
 
 describe.concurrent('lanes', () => {
@@ -74,8 +112,4 @@ it('retries', { retry: 1 }, () => {
   attempts += 1;
   variancePrecondition('attempt', attempts); // retried
   expect(attempts).toBe(2);
-});
-
-it('crosses nothing', () => {
-  variancePrecondition('seeded'); // seeded
 });

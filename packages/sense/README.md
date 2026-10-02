@@ -1913,11 +1913,17 @@ it('refunds behind a flag', () => {
 });
 ```
 
-Said in a case body, it is that case's. Said in a `beforeEach`, it reaches the
-cases that hook ran for and no sibling `describe`. A narrower scope overrides
-a wider one, and two values said at one level are kept as a contradiction, not
+Said in a case body, it is that case's. Said in a `beforeEach`, it is the case
+the hook runs for, at the level of the `describe` that declared the hook. The
+body overrides a `beforeEach`, an inner `describe`'s `beforeEach` overrides an
+outer one's, and two values said at one level are kept as a contradiction, not
 resolved. A call in `afterEach` is reported with its site and lands on no case.
 `variancePrecondition('seeded')` holds `true`.
+
+A precondition belongs to a test, so a call made where no case is running
+throws: in a `describe` callback, a `beforeAll` or `afterAll`, at the file's top
+level, or from work that outlives its case. The error names the call site.
+What a `beforeEach` said before it threw reaches no case.
 
 The entry imports nothing. Without a recording the call is one property read
 and does nothing, in Node and in a page. A row says `preconditions: []` for a
@@ -1925,11 +1931,9 @@ case that was listened to and said nothing, and has no `preconditions` for a
 case nobody listened to. A named precondition never selects or excludes a
 test: nothing in a checkout changes it, so it is read and never diffed.
 
-Vitest, Jest and Rstest hear a call wherever a case scope exists, `describe`
-callbacks and the file's top level included. Under Playwright, the body and a
-`beforeEach` are heard; a call in a `beforeAll` is reported and lands on no
-case, and one in a `describe` callback or at the file's top level is not
-heard. A seam that drives its own recorder calls `listenForPreconditions(root,
+Vitest, Jest, Rstest and Playwright all listen. Under Playwright, a call at the
+top level or in a `describe` callback of the first file a worker loads is made
+before the worker listens, and records nothing rather than throwing. A seam that drives its own recorder calls `listenForPreconditions(root,
 standing)` from `@variance-authority/sense/journal`, where `standing` says
 which case a call stands in at the moment it is made.
 

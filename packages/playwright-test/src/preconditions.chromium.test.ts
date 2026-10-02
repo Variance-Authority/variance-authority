@@ -65,7 +65,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
 
   const line = (call: string): number => source.findIndex((text) => text.endsWith(`// ${call}`)) + 1;
   const said = (name: string, value: string | number | boolean, call: string) =>
-    ({ name, value, site: `${spec}:${line(call)}` });
+    ({ name, value, site: `${spec}:${line(call)}`, level: call === 'mocked each' ? 1 : 0xffff });
   const row = (...path: readonly string[]) => {
     const name = path.join(' > ');
     const found = index.tests.find((test) => test.name === name);
@@ -81,7 +81,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
     expect(row('live', 'replays a recording').preconditions).toEqual([said('network', 'recorded', 'case network')]);
   });
 
-  it('carries what a describe-scoped beforeEach said, which a sibling describe never hears', () => {
+  it('carries what a beforeEach inside a describe said, which a sibling describe never hears', () => {
     expect(row('mocked', 'pays').preconditions).toEqual([said('network', 'mocked', 'mocked each')]);
     expect(row('live', 'replays a recording').preconditions?.some((held) => held.value === 'mocked')).toBe(false);
   });
@@ -103,5 +103,5 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
     expect(index.tests.flatMap((test) => test.preconditions ?? []).some((held) => held.name === 'cleaned')).toBe(false);
   });
 
-  it.todo('carries what a describe callback, a beforeAll or the file said — needs the describe a Playwright call was declared in');
+  it.todo('throws for a call at the top level or in a describe callback of the first file a worker loads — needs the listener installed before the worker fixture, which Playwright sets up after the file is collected');
 });

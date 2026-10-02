@@ -14,6 +14,13 @@ export interface CasePrecondition {
   readonly value: string | number | boolean;
   /** The repository-relative `file:line` of the call. */
   readonly site: string;
+  /**
+   * Where it was said: how many describes deep the `beforeEach` that said it
+   * was declared, `0` for one at the top of the file, and `65535` for the case
+   * body. A narrower level overrides a wider one, and a merge of two runs of
+   * the case resolves by it as one run does.
+   */
+  readonly level: number;
 }
 
 /** What a frame owner carries: the calls as the realm heard them. */
@@ -66,11 +73,11 @@ function checkoutSite(root: string, site: string): string {
 /**
  * The case index's column of named preconditions, one word per case.
  *
- * Each word is a string id: the case's preconditions as `[name, value, site]`
- * triples, in the order {@link ExecutionTest.preconditions} holds them. Most
- * cases of a file say the same thing — a file-level default, a `describe`'s
- * mock — so the string table holds each distinct set once, and a case pays one
- * word. {@link UNHEARD} is a case whose producer never listened.
+ * Each word is a string id: the case's preconditions as
+ * `[name, value, site, level]` tuples, in the order
+ * {@link ExecutionTest.preconditions} holds them. Most cases of a file say the
+ * same thing — the same `beforeEach` runs for each of them — so the string
+ * table holds each distinct set once, and a case pays one word. {@link UNHEARD} is a case whose producer never listened.
  *
  * The column is optional and read by name, as `tests.stopped` is: an index
  * written before it, or by a producer that never listened to any case, has none,
@@ -85,7 +92,7 @@ const UNHEARD = 0xffffffff;
 function spelled(test: ExecutionTest): string | undefined {
   return test.preconditions === undefined
     ? undefined
-    : JSON.stringify(test.preconditions.map(({ name, value, site }) => [name, value, site]));
+    : JSON.stringify(test.preconditions.map(({ name, value, site, level }) => [name, value, site, level]));
 }
 
 /** The strings the column names, for the index's string table. */
@@ -113,9 +120,10 @@ export function preconditionColumn(
 }
 
 /**
- * What two runs of one case named, as one row: every distinct name and value,
- * each at its first site, ordered as the fold orders them. Two runs that named
- * different values keep both, which is the contradiction a retry that changed
+ * What two runs of one case named, as one row, resolved as the calls of one
+ * run are: per name the narrowest level wins, so a body one run reached
+ * overrides the `beforeEach` a run that never reached it heard, and two values
+ * at that level are both kept, which is the contradiction a retry that changed
  * its mind is. Unmeasured only where neither run was listened to.
  */
 export function preconditionsAcross(
@@ -123,13 +131,11 @@ export function preconditionsAcross(
   after: readonly CasePrecondition[] | undefined,
 ): { readonly preconditions?: readonly CasePrecondition[] } {
   if (before === undefined && after === undefined) return {};
-  const held = new Map<string, CasePrecondition>();
-  for (const said of [...(before ?? []), ...(after ?? [])]) {
-    const key = `${said.name}\u0000${typeof said.value}:${String(said.value)}`;
-    const seen = held.get(key);
-    if (seen === undefined || said.site < seen.site) held.set(key, said);
-  }
-  return { preconditions: [...held.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([, said]) => said) };
+  return {
+    preconditions: preconditions.resolve(
+      [...(before ?? []), ...(after ?? [])].map(({ name, value, site, level }) => [name, value, site, level] as const),
+    ),
+  };
 }
 
 /** One case's preconditions off the column, where it has a word that says some. */
@@ -143,9 +149,9 @@ export function preconditionsFrom(
   const parsed = JSON.parse(string(word)) as unknown;
   if (!Array.isArray(parsed)) throw new Error('not a variance-authority execution index');
   return {
-    preconditions: parsed.map((triple: unknown): CasePrecondition => {
-      const [name, value, site] = triple as [string, string | number | boolean, string];
-      return { name, value, site };
+    preconditions: parsed.map((said: unknown): CasePrecondition => {
+      const [name, value, site, level] = said as [string, string | number | boolean, string, number];
+      return { name, value, site, level };
     }),
   };
 }

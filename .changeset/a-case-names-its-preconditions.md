@@ -9,16 +9,20 @@ A case names its preconditions
 `variancePrecondition(name, value?)`, from `@variance-authority/sense/precondition`,
 says what state a case arranged: `variancePrecondition('network', 'mocked')`,
 or several at once as `{ flag: 'ff-on' }`. Said in a case body it is the case's;
-said in a `beforeEach`, a `describe` or at a file's top level it reaches the
-cases that scope ran for and no sibling. A narrower scope overrides a wider one,
-and two values said in one scope are kept as a contradiction. Each lands on the
-case's row in `coverage.bin` with the `file:line` of the call. Vitest, Jest and
-Rstest listen under `withTestSelection` and their seams; Playwright hears a case
-body and its `beforeEach`. Without a recording the call returns, and the entry
-imports nothing. A precondition never selects or excludes a test.
+said in a `beforeEach` it is the case the hook runs for, at the level of the
+`describe` that declared it. The body overrides a `beforeEach` and an inner
+`describe`'s overrides an outer one's; two values said at one level are kept as
+a contradiction. A call where no case is running — a `describe` callback, a
+`beforeAll` or `afterAll`, a file's top level, work that outlives its case —
+throws with its call site. Each value lands on the case's row in `coverage.bin`
+with the `file:line` of the call. Vitest, Jest and Rstest listen under
+`withTestSelection` and their seams, and Playwright under its fixture. Without a
+recording the call returns, and the entry imports nothing. A precondition never
+selects or excludes a test.
 
-`ExecutionTest.preconditions` holds the row: empty for a case that said nothing,
-absent for a record nobody listened to. `PreconditionValue` types a value.
+`ExecutionTest.preconditions` holds the row, each entry with the level it was
+said at: empty for a case that said nothing, absent for a record nobody
+listened to. `PreconditionValue` types a value.
 `listenForPreconditions`, `PreconditionListener` and `PreconditionStanding`,
 from `@variance-authority/sense/journal`, let a runner seam listen, and
 `createExecutionRecorder` takes the standing case as a third argument.

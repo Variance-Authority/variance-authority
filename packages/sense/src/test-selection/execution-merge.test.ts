@@ -78,19 +78,32 @@ describe('mergeExecutionIndexes', () => {
     ]);
   });
 
-  it('keeps what every run of a case named, so two runs that disagree read as a contradiction', () => {
+  it('keeps what every run of a case named, so two runs that disagree at one level read as a contradiction', () => {
     const run = (preconditions?: ExecutionIndex['tests'][number]['preconditions']): ExecutionIndex => ({
       tests: [{ id: 'alpha', file: 'alpha.test.ts', name: 'alpha', ...(preconditions === undefined ? {} : { preconditions }) }],
       modules: [],
     });
-    const on = { name: 'flag', value: 'ff-on', site: 'alpha.test.ts:3' };
-    const off = { name: 'flag', value: 'ff-off', site: 'alpha.test.ts:3' };
-    const mocked = { name: 'network', value: 'mocked', site: 'alpha.test.ts:2' };
+    const on = { name: 'flag', value: 'ff-on', site: 'alpha.test.ts:3', level: 0xffff };
+    const off = { name: 'flag', value: 'ff-off', site: 'alpha.test.ts:3', level: 0xffff };
+    const mocked = { name: 'network', value: 'mocked', site: 'alpha.test.ts:2', level: 1 };
 
     expect(mergeExecutionIndexes([run([on, mocked]), run([mocked, on])]).tests[0]!.preconditions).toEqual([on, mocked]);
     expect(mergeExecutionIndexes([run([on]), run([off])]).tests[0]!.preconditions).toEqual([off, on]);
     expect(mergeExecutionIndexes([run(), run([on])]).tests[0]!.preconditions).toEqual([on]);
     expect(mergeExecutionIndexes([run([]), run()]).tests[0]!.preconditions).toEqual([]);
     expect('preconditions' in mergeExecutionIndexes([run(), run()]).tests[0]!).toBe(false);
+  });
+
+  it('lets the body one shard heard override the beforeEach another shard heard, as one run of the case does', () => {
+    const run = (preconditions: NonNullable<ExecutionIndex['tests'][number]['preconditions']>): ExecutionIndex => ({
+      tests: [{ id: 'alpha', file: 'alpha.test.ts', name: 'alpha', preconditions }],
+      modules: [],
+    });
+    // A retry whose beforeEach threw never reached the body: its shard heard
+    // only the beforeEach.
+    const live = { name: 'network', value: 'live', site: 'alpha.test.ts:2', level: 0 };
+    const recorded = { name: 'network', value: 'recorded', site: 'alpha.test.ts:9', level: 0xffff };
+    expect(mergeExecutionIndexes([run([live]), run([recorded])]).tests[0]!.preconditions).toEqual([recorded]);
+    expect(mergeExecutionIndexes([run([recorded]), run([live])]).tests[0]!.preconditions).toEqual([recorded]);
   });
 });

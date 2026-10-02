@@ -268,10 +268,18 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT) return undefined;
     return bucket.key;
   };
+  // The case a precondition is said for: one whose body is running, and not one
+  // that settled, whose late work no longer arranges anything. Once the file
+  // is tangled the case cannot be told, and what is said goes to the file's
+  // own bucket, which writes no case — as the crossings do.
   const recorder = preconditions.recorder(
     holder,
-    running,
-    journals.unpackCase,
+    () => {
+      if (tangled) return AMBIENT;
+      const bucket = scopes === undefined ? current : scopes.getStore();
+      if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT || !bucket.open) return undefined;
+      return bucket.key;
+    },
     continuations ? new async_hooks.AsyncLocalStorage() : undefined,
   );
   const close = (bucket: Bucket, name: string): View | undefined => {
@@ -370,8 +378,8 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
       (thrown: unknown) => { stopped.set(bucket.key, true); release(bucket); throw thrown; },
     ) as unknown as Result;
   };
-  const enter = <Result,>(key: string, body: () => Result): Result => {
-    recorder.entered(key);
+  const enter = <Result,>(key: string, body: () => Result, token?: unknown): Result => {
+    recorder.entered(key, token);
     if (tangled) return body();
     if (scopes === undefined && current !== ambient) {
       tangled = true;
@@ -395,8 +403,8 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Co
     const key = running();
     return key === undefined ? undefined : journeyOf(key);
   };
-  const { phase, within, where, declare } = recorder;
-  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey, phase, within, where, declare };
+  const { phase, within, where, begin } = recorder;
+  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey, phase, within, where, begin };
 
   const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
   return {

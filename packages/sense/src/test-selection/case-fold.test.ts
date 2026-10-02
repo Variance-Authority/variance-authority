@@ -166,10 +166,10 @@ describe('the bounded case fold', () => {
     expect(folded).toEqual(executionIndexFrom(await readCaseJournals(cases, '/repo'), modules));
     expect(Object.fromEntries(folded.tests.map((test) => [test.name, test.preconditions]))).toEqual({
       flips: [
-        { name: 'flag', value: 'ff-off', site: 'test/pay.test.ts:12' },
-        { name: 'flag', value: 'ff-on', site: 'test/pay.test.ts:12' },
+        { name: 'flag', value: 'ff-off', site: 'test/pay.test.ts:12', level },
+        { name: 'flag', value: 'ff-on', site: 'test/pay.test.ts:12', level },
       ],
-      mocked: [{ name: 'network', value: 'mocked', site: 'test/pay.test.ts:9' }],
+      mocked: [{ name: 'network', value: 'mocked', site: 'test/pay.test.ts:9', level }],
       silent: [],
       unheard: undefined,
     });

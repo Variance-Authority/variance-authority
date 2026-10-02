@@ -3,12 +3,15 @@
  *
  * `variancePrecondition` in a test reads one function off the realm, which
  * {@link recorder} installs where a case scope exists, and hands it the name,
- * the value and an `Error` whose stack holds the call site. The recorder decides
- * which case the call belongs to and at which level — the case body, a
- * `describe`, the file — and the case frame carries every call as a sixth field
- * of its owner, beside the journey. The fold resolves them with {@link resolve}:
- * a narrower level overrides a wider one, and two values at one level are both
- * kept, because a contradiction is reported and not resolved.
+ * the value and an `Error` whose stack holds the call site. A precondition
+ * belongs to a case: the recorder lays a call on the case running it — said in
+ * the case body, or in a `beforeEach` running for the case — and throws for a
+ * call no case is running, which a `describe` callback, a `beforeAll`, a file's
+ * top level and work that outlives its case all are. The case frame carries
+ * every call as a sixth field of its owner, beside the journey. The fold
+ * resolves them with {@link resolve}: the body overrides a `beforeEach`, an
+ * inner `describe`'s `beforeEach` an outer one's, and two values at one level
+ * are both kept, because a contradiction is reported and not resolved.
  *
  * A runner tells the recorder where a call stands, because only the runner
  * knows which hook is running: the case scope gains `phase`, for a runner that
@@ -22,18 +25,24 @@
 /** Where `@variance-authority/sense/precondition` finds the recorder. */
 const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition');
 
+/**
+ * Marks the error a call made where no case runs throws, which the entry lets
+ * through: every other error a recorder throws is the recorder's own bug.
+ */
+const MISPLACED = Symbol.for('variance-authority.test-selection.precondition.misplaced');
+
 /** A precondition's value. Without one, the state is present: `true`. */
 type Value = string | number | boolean;
 
 /**
  * One call as a frame carries it: name, value, `file:line`, level.
  *
- * The level is how narrow the scope that said it is: `0` the file, `n` the
- * `n`-th nested `describe`, {@link CASE_LEVEL} the case itself.
+ * The level is how deep the `beforeEach` that said it was declared: `0` the
+ * file's, `n` the `n`-th nested `describe`'s, {@link CASE_LEVEL} the case body.
  */
 type Said = readonly [name: string, value: Value, site: string, level: number];
 
-/** The level of a call made from the case body, narrower than any `describe`. */
+/** The level of a call made from the case body, narrower than any `beforeEach`. */
 const CASE_LEVEL = 0xffff;
 
 /** One precondition on a case's row: what was said, and where. */
@@ -42,38 +51,29 @@ interface CasePrecondition {
   readonly value: Value;
   /** The repository-relative `file:line` of the call that said it. */
   readonly site: string;
+  /** The level it was said at, as {@link Said} carries it: what a later merge resolves by. */
+  readonly level: number;
 }
 
 /**
  * Where a call stands, as the runner knows it.
  *
  * - `each`: a `beforeEach` declared `depth` describes deep, running for the case
- *   `case` names — or, where the runner cannot name it, for the next case that
- *   opens a scope, which is the case a serial runner runs the hook for.
- * - `scope`: a `describe` callback or a `beforeAll`; reaches every case whose
- *   name starts with `prefix` in `file`, or in whichever file is running.
- * - `held`: said while a runner collects, and placed later by the runner,
- *   through `declare`, once it knows the scope.
- * - `after`: `afterEach` or `afterAll`, which is not Arrange.
+ *   `case` names — or, where the runner cannot name it, for the next case
+ *   entered with the same `token`, the handle the runner gives both.
+ * - `after`: an `afterEach`, which runs for a case and is not Arrange.
+ * - `outside`: no case is running; `because` finishes the sentence it throws.
  */
 type Where =
-  | { readonly kind: 'each'; readonly depth: number; readonly case?: string }
-  | { readonly kind: 'scope'; readonly depth: number; readonly prefix: string; readonly file?: string }
-  | { readonly kind: 'held'; hold(said: readonly Said[]): void }
-  | { readonly kind: 'after' };
-
-interface Scoped {
-  readonly file: string | undefined;
-  readonly prefix: string;
-  readonly said: Said[];
-}
+  | { readonly kind: 'each'; readonly depth: number; readonly case?: string; readonly token?: unknown }
+  | { readonly kind: 'after' }
+  | { readonly kind: 'outside'; readonly because: string };
 
 /**
  * The recorder for one realm's case scope.
  *
- * @param running The case running now, as its packed key, or nothing where the
- * call is outside any case body.
- * @param nameOf A packed key's file and declaration path.
+ * @param running The case running now, as its packed key, or nothing where no
+ * case body is running.
  * @param context An async store for {@link within}, where the realm has one:
  * hooks of concurrent cases interleave at every await, and a variable set
  * around one of them is read by the other.
@@ -81,22 +81,24 @@ interface Scoped {
 function recorder(
   holder: object,
   running: () => string | undefined,
-  nameOf: (key: string) => { readonly file: string; readonly name: string },
   context?: { run<Result>(store: Where, body: () => Result): Result; getStore(): Where | undefined },
 ): {
   phase(where: Where | undefined): void;
   within<Result>(where: Where, body: () => Result): Result;
   where: { ask?: () => Where | undefined };
-  declare(file: string | undefined, prefix: string, depth: number, said: readonly Said[]): void;
-  entered(key: string): void;
+  /** A case is starting: forget what a `beforeEach` said under `token` before it. */
+  begin(token?: unknown): void;
+  /** The case `key` names is entered: what its `beforeEach`es said is its own. */
+  entered(key: string, token?: unknown): void;
   take(key: string): Said[];
   /** Forget the file: a collector, and its recorder, end with their file. */
   finish(): void;
 } {
   const byCase = new Map<string, Said[]>();
-  // What a `beforeEach` said before the runner opened the case's scope.
-  let pending: Said[] = [];
-  const scopes: Scoped[] = [];
+  // What a `beforeEach` said before the runner entered the case, under the
+  // token the runner hands both. A case that is never entered — its
+  // `beforeEach` threw — leaves its calls here until the next case begins.
+  const pending = new Map<unknown, Said[]>();
   let phase: Where | undefined;
   const where: { ask?: () => Where | undefined } = {};
 
@@ -111,28 +113,27 @@ function recorder(
       onCase(key, entries.map(([name, value]) => [name, value, site, CASE_LEVEL]));
       return;
     }
-    const at = context?.getStore() ?? phase ?? where.ask?.() ?? { kind: 'scope', depth: 0, prefix: '' };
+    const at = context?.getStore() ?? phase ?? where.ask?.() ?? { kind: 'outside', because: 'ran outside a running case' };
     switch (at.kind) {
       case 'each': {
         const said = entries.map(([name, value]): Said => [name, value, site, at.depth]);
-        if (at.case === undefined) pending.push(...said);
-        else onCase(at.case, said);
+        if (at.case !== undefined) onCase(at.case, said);
+        else pending.set(at.token, [...(pending.get(at.token) ?? []), ...said]);
         return;
       }
-      case 'scope':
-        scopes.push({
-          file: at.file,
-          prefix: at.prefix,
-          said: entries.map(([name, value]) => [name, value, site, at.depth]),
-        });
-        return;
-      case 'held':
-        at.hold(entries.map(([name, value]) => [name, value, site, 0]));
-        return;
       case 'after':
         console.warn(
           `variance-authority: variancePrecondition at ${site} ran after its case and is recorded on no case — ` +
             'say what a case arranged before it runs',
+        );
+        return;
+      case 'outside':
+        throw Object.assign(
+          new Error(
+            `variance-authority: variancePrecondition at ${site} ${at.because} — a precondition belongs to the ` +
+              'case it arranged, so say it in the case body or in a beforeEach',
+          ),
+          { [MISPLACED]: true },
         );
     }
   };
@@ -180,30 +181,23 @@ function recorder(
       ) as typeof answered;
     },
     where,
-    declare(file, prefix, depth, said) {
-      scopes.push({ file, prefix, said: said.map(([name, value, site]) => [name, value, site, depth]) });
+    begin(token) {
+      pending.delete(token);
     },
-    entered(key) {
-      if (pending.length === 0) return;
-      onCase(key, pending);
-      pending = [];
+    entered(key, token) {
+      const held = pending.get(token);
+      if (held === undefined) return;
+      pending.delete(token);
+      onCase(key, held);
     },
     take(key) {
       const own = byCase.get(key) ?? [];
       byCase.delete(key);
-      const { file, name } = nameOf(key);
-      const reached: Said[] = [];
-      for (const scope of scopes) {
-        if (scope.file !== undefined && scope.file !== file) continue;
-        if (scope.prefix !== '' && !name.startsWith(scope.prefix)) continue;
-        reached.push(...scope.said);
-      }
-      return [...reached, ...own];
+      return own;
     },
     finish() {
-      scopes.length = 0;
       byCase.clear();
-      pending = [];
+      pending.clear();
     },
   };
 }
@@ -297,7 +291,7 @@ function resolve(said: readonly Said[]): CasePrecondition[] {
       if (level !== narrowest) continue;
       const key = `${typeof value}:${String(value)}`;
       const held = values.get(key);
-      if (held === undefined || site < held.site) values.set(key, { name, value, site });
+      if (held === undefined || site < held.site) values.set(key, { name, value, site, level });
     }
     resolved.push(...values.values());
   }
@@ -317,4 +311,4 @@ function order(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-export = { PRECONDITION, CASE_LEVEL, recorder, entriesOf, siteOf, packSaid, saidOf, resolve, contradictions };
+export = { PRECONDITION, MISPLACED, CASE_LEVEL, recorder, entriesOf, siteOf, packSaid, saidOf, resolve, contradictions };
