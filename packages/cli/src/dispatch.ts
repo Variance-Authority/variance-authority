@@ -23,7 +23,7 @@ import {
   type Plan,
 } from './commands/run.js';
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
-import { prunedLines, pruneNow, pruneWhenDueLines } from './commands/prune-cache.js';
+import { prunedExit, prunedLines, pruneNow, pruneWhenDueLines } from './commands/prune-cache.js';
 import { ask, costsSubject } from './commands/ask.js';
 import { questionFor } from './commands/asking.js';
 import { said } from './here.js';
@@ -390,9 +390,12 @@ export async function dispatch(
 
     case 'doctor': {
       // Pruned first, so the finding below reports the cache as it now stands.
-      if (parsed.prune === true) streams.out(prunedLines(await pruneNow(config)) || 'cache: nothing to prune\n');
+      const pruned = parsed.prune === true ? await pruneNow(config) : undefined;
+      if (pruned !== undefined) streams.out(prunedLines(pruned) || 'cache: nothing to prune\n');
       const diagnosis = await doctor(config, machineProbes(config));
       streams.out(`${formatDiagnosis(diagnosis)}\n`);
+      // An entry the prune could not remove is the operator's to fix, whatever the diagnosis says.
+      if (pruned !== undefined && prunedExit(pruned) === EXIT_OPERATOR) return EXIT_OPERATOR;
       return exitForDiagnosis(diagnosis);
     }
 

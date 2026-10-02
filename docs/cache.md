@@ -199,6 +199,14 @@ cache: freed 17.8 MiB in <cache>/test-selection: 218 runs whose processes are go
 cache: freed 4.1 MiB in <cache>: 12 commits more than 200 behind HEAD
 ```
 
+An entry a check could not remove gets a line of its own, with the error that
+stopped it, and stays out of the freed total. `variance doctor --prune` then
+exits 2:
+
+```
+cache: could not remove <cache>/scans, a directory nothing writes any more: EACCES: permission denied, rmdir '<cache>/scans'
+```
+
 `variance doctor` prints what the next check would remove, by rule, and what it
 keeps because git or the process table could not answer. `variance doctor
 --prune` removes it now.

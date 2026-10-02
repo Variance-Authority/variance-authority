@@ -1,18 +1,21 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, onTestFinished, test } from 'vitest';
 import { writeFetchedMainline } from '@variance-authority/sense/test-selection';
 import {
   CACHE_PRUNE_REASONS,
   COMMITS_BEHIND,
   planCachePrune,
   pruneCacheWhenDue,
+  prunedExit,
   prunedLines,
+  pruneNow,
   type CacheOwners,
 } from './prune-cache.js';
 import { cacheFinding, formatCache } from './doctor-cache.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 8, 27);
@@ -128,6 +131,28 @@ test('pruneCacheWhenDue prunes once a day and says what it took', async () => {
   await put(join(cacheRoot, 'scans', 'scan.bin'), 0);
   expect(await pruneCacheWhenDue({ cacheRoot }, owners({}))).toBeUndefined();
   expect(existsSync(join(cacheRoot, 'scans'))).toBe(true);
+});
+
+test('a prune that could not remove an entry names it and the error, and exits as the operator\'s to fix', async () => {
+  const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
+  const scans = join(cacheRoot, 'scans');
+  await put(join(scans, 'scan.bin'), 0);
+  // A parent the process cannot write: `scans/` cannot be unlinked from it.
+  await chmod(cacheRoot, 0o555);
+  onTestFinished(() => chmod(cacheRoot, 0o755));
+
+  const pruned = await pruneNow({ cacheRoot });
+
+  expect(existsSync(scans)).toBe(true);
+  expect(prunedLines(pruned)).toMatch(
+    new RegExp(`^cache: could not remove ${scans}, a directory nothing writes any more: .*(EACCES|EPERM).*\\n$`, 'u'),
+  );
+  expect(prunedExit(pruned)).toBe(EXIT_OPERATOR);
+
+  await chmod(cacheRoot, 0o755);
+  const again = await pruneNow({ cacheRoot });
+  expect(existsSync(scans)).toBe(false);
+  expect(prunedExit(again)).toBe(EXIT_CLEAN);
 });
 
 test('doctor reports what the next prune removes, by rule, and what it keeps and why', () => {

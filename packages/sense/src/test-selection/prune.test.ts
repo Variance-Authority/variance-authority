@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, stat, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, stat, utimes, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, onTestFinished, test } from 'vitest';
 import { CHECKOUT_MARKER, checkoutKey } from './cache-layers.js';
 import {
   applyPrune,
@@ -198,7 +198,29 @@ describe('applyPrune and pruneWhenDue', () => {
     expect(existsSync(gone)).toBe(false);
     expect(existsSync(kept)).toBe(true);
     expect(prunedLine(pruned)).toMatch(/^cache: freed \d+\.\d MiB in .*test-selection: 1 checkout that no longer exists$/u);
-    expect(prunedLine({ root, removed: [], freed: 0 })).toBe('');
+    expect(prunedLine({ root, removed: [], unremoved: [], freed: 0 })).toBe('');
+  });
+
+  test('an entry that could not be removed is reported with its path and the error, and is not counted as freed', async () => {
+    const root = await cache();
+    const selection = join(root, 'test-selection');
+    const stuck = join(selection, 'aaa');
+    await marker(stuck, '/gone', '/gone', DAY);
+    const plan = await planPrune(root, owners({ exists: () => false }));
+    // A parent the process cannot write: the entry cannot be unlinked from it.
+    await chmod(selection, 0o555);
+    onTestFinished(() => chmod(selection, 0o755));
+
+    const pruned = await applyPrune(plan);
+
+    expect(existsSync(stuck)).toBe(true);
+    expect(pruned.removed).toEqual([]);
+    expect(pruned.freed).toBe(0);
+    expect(pruned.unremoved.map((entry) => [entry.path, entry.reason])).toEqual([[stuck, 'gone']]);
+    expect(pruned.unremoved[0]?.error).toMatch(/EACCES|EPERM/u);
+    expect(prunedLine(pruned)).toBe(
+      `cache: could not remove ${stuck}, a checkout that no longer exists: ${pruned.unremoved[0]?.error}`,
+    );
   });
 
   test('prunes at most once a day, stamped before the walk', async () => {

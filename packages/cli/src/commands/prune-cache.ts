@@ -42,6 +42,7 @@ import {
   type Pruned,
 } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 import { headPast } from '../share-lines.js';
 import { cacheOf, sharedReportRoot, shareRoot, suiteIndexRoot } from './resources.js';
 
@@ -237,10 +238,16 @@ export async function pruneWhenDueLines(config: Pick<Config, 'cacheRoot'>): Prom
   return prunedLines({ selection: await pruneWhenDue(cacheOf(config)), commits: await pruneCacheWhenDue(config) });
 }
 
-/** One line per half that took something, each ending in a newline; empty when neither did. */
+/** One line per half that took something, and one per entry it could not remove, each ending in a newline; empty when neither half did either. */
 export function prunedLines(pruned: BothPruned): string {
   return [prunedLine(pruned.selection), prunedLine(pruned.commits, CACHE_PRUNE_REASONS)]
     .filter((line) => line !== '')
     .map((line) => `${line}\n`)
     .join('');
+}
+
+/** {@link EXIT_OPERATOR} when either half could not remove an entry its plan named: the machine, not a finding, is wrong. */
+export function prunedExit(pruned: BothPruned): ExitCode {
+  const unremoved = (pruned.selection?.unremoved.length ?? 0) + (pruned.commits?.unremoved.length ?? 0);
+  return unremoved > 0 ? EXIT_OPERATOR : EXIT_CLEAN;
 }
