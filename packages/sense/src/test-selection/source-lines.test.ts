@@ -101,6 +101,34 @@ describe('reading a block back to where it was written', () => {
     expect(lineOf(TRANSFORMED.indexOf('const f'))).toBe(3);
   });
 
+  // A line esbuild opens with the origin of the line above, carried over, and a
+  // segment of its own at `if (b)`: original line 2, column 5.
+  const CARRIED = 'if (a) x();\nelse if (b) y();';
+  const onCarried = (column: number): number => CARRIED.indexOf('else') + column;
+
+  it('leaves a region on its carried line when nothing inside it was written there', () => {
+    const extentOf = sourceLines(
+      CARRIED,
+      { sources: ['app/src/a.ts'], mappings: 'AAAA;AAAA,KACK' },
+      '/repo/app/src/a.ts',
+    );
+
+    // `se` ends before `if (b)`: the carried origin is the only one it has.
+    expect(extentOf(onCarried(2), onCarried(3))).toEqual([1, 1]);
+    expect(extentOf(onCarried(2), onCarried(10))).toEqual([2, 2]);
+  });
+
+  it('reads past another file the map also names to the origin carried over', () => {
+    // A segment of `other.ts` between the carried one and `if (b)`.
+    const extentOf = sourceLines(
+      CARRIED,
+      { sources: ['app/src/other.ts', 'app/src/a.ts'], mappings: 'ACAA;AAAA,CDAA,ICCK' },
+      '/repo/app/src/a.ts',
+    );
+
+    expect(extentOf(onCarried(2), onCarried(10))).toEqual([2, 2]);
+  });
+
   it('keeps the span when the transform moved one end above the other', () => {
     // Solid's JSX compiler hoists every element into a `_tmpl$` above the
     // function that returns it, so a region opening inside the template closes
