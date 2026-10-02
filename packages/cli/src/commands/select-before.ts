@@ -24,7 +24,7 @@ import { listed, many } from './reach.js';
 
 /** Whether the diff moved what the suite rests on, and what to say either way. */
 export interface Rests {
-  /** The files and packages the diff moved before reach, as they were named; empty when it moved none. */
+  /** The files the diff moved before reach, as they were named; empty when it moved none. */
   readonly rests: readonly string[];
   /** Said after the verdict whichever way it went. */
   readonly notes: readonly string[];
@@ -32,7 +32,7 @@ export interface Rests {
 
 /**
  * Walk `suite`'s declared entries down `relations`, and name what of `changed`
- * and `packages` lies in that closure. `suite` is the suite whose record is
+ * lies in that closure. A bump arrives here as the files that import it. `suite` is the suite whose record is
  * read; `undefined` reads what every suite rests on, which is the repository's
  * own list when it declares no suites.
  */
@@ -41,7 +41,6 @@ export async function restsOf(
   suite: string | undefined,
   relations: Relations,
   changed: readonly string[],
-  packages: readonly string[],
 ): Promise<Rests> {
   const selection = await import('@variance-authority/sense/test-selection');
   const entries = suite === undefined
@@ -59,7 +58,7 @@ export async function restsOf(
   }
 
   const before = beforeReach(relations, entries);
-  const rests = [...new Set(changedBefore(before, changed, packages))].sort();
+  const rests = [...new Set(changedBefore(before, changed))].sort();
   // An entry the scan does not hold is ordinary when it is a `.nvmrc` or a
   // workflow directory, which load nothing. One that is not on disk at all is
   // a declaration that covers nothing, and is named.
@@ -94,9 +93,8 @@ export async function restingOf(
   suite: string | undefined,
   relations: Relations,
   changed: readonly string[],
-  packages: readonly string[],
 ): Promise<Resting> {
-  const rest = await restsOf(root, suite, relations, changed, packages);
+  const rest = await restsOf(root, suite, relations, changed);
   return {
     ...(rest.notes.length === 0 ? {} : { resting: rest.notes }),
     ...(rest.rests.length === 0 ? {} : { whole: restsSaid(suite, rest.rests) }),

@@ -47,7 +47,8 @@ describe('a diff that moved what the suite rests on', () => {
     const said = await select(root);
 
     expect(said.out).toBe('');
-    expect(said.err).toContain('the suite unit rests on left-pad before any test imports it');
+    // Beyond reach reads the bump as the setup that imports it.
+    expect(said.err).toContain('the suite unit rests on test/setup.ts before any test imports it');
   });
 
   it('runs every test when a file the repository declares for every suite changed', async () => {

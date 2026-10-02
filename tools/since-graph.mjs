@@ -15,7 +15,7 @@
  * outside the tree — and it is reported as such rather than walked through.
  */
 
-import { nodesOfKind, relationsOfFiles, within } from '@variance-authority/core/relate';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import { publishedSources, sourcesWithin } from '@variance-authority/sense';
 import { LOCKFILES, MANIFEST, changedPackages, manifestMoved, packageRelations, readLockfile } from '@variance-authority/sense/lock';
 import { isCI } from 'ci-info';
@@ -310,20 +310,6 @@ export function movedManifests(root, base, git, changed) {
   return changed
     .filter((path) => path.slice(path.lastIndexOf('/') + 1) === MANIFEST)
     .filter((path) => manifestMoved(attempt(() => git('show', `${base}:${path}`)), attempt(() => readFileSync(join(root, path), 'utf8'))));
-}
-
-/**
- * Every file the graph holds beside a moved manifest, to be read as changed
- * whole: a package whose `exports` moved is a package every importer of which
- * may now load a different file.
- */
-export function movedPackageFiles(relations, manifests) {
-  if (manifests.length === 0) return [];
-  const dirs = manifests.map((path) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'));
-  return nodesOfKind(relations, 'file')
-    .map((id) => relations.names[id])
-    .filter((file) => within(file, dirs))
-    .sort();
 }
 
 function attempt(read) {

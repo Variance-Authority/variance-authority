@@ -61,6 +61,16 @@ describe('reading this checkout', () => {
     );
   });
 
+  it('refuses a readable snapshot that names no commit when no change is given', async () => {
+    // Its line ranges are coordinates in no text, so there is nothing to measure
+    // a diff from, and the refusal says so rather than calling it unreadable.
+    const root = mkdtempSync(join(tmpdir(), 'va-select-uncommitted-'));
+    const { commit: _, ...uncommitted } = snapshot('c0ffee');
+    await writeTestCoverage(testCoverageFile(root), uncommitted);
+
+    await expect(selectOutput({ cwd: root, format: 'plain' })).rejects.toThrow(/names no commit.*`--since <ref>`/su);
+  });
+
   it('skips the test files a real journal and a real diff rule out', async () => {
     const { root, head } = checkout();
     await writeTestCoverage(testCoverageFile(root), snapshot(head));

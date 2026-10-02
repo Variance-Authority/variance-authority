@@ -42,7 +42,7 @@ import { affectedSubjects, type Affected } from './affected.js';
 import { keyFor, type Plan } from './collector.js';
 import { unenteredSubjects } from './journey.js';
 import { withoutManifests, type InstallDiff } from './installed.js';
-import { movedPackages, withMovedPackages } from './moved-packages.js';
+import { beyondOf, withWhole } from './select-beyond.js';
 import { many } from './reach.js';
 import { reachOf } from './reach-subjects.js';
 import type { ObserveContext, RunDeps, RunOptions } from './run-context.js';
@@ -341,8 +341,9 @@ function beyondTheJournal(install: InstallDiff | undefined, answer: Affected): b
  * reading left a path under `source.dirs` unread — a README outside them is not
  * in any graph the scan could build.
  *
- * A bumped package is answered by its importers as well, so a reading that
- * carries one is handed a graph from the start. With no scanner to build one the
+ * A bumped package is read as the files that import it, changed whole, and only
+ * the graph can say which files those are, so a reading that carries one is
+ * handed a graph from the start. With no scanner to build one the
  * journal is not consulted at all: it would hear nothing of the bump, and the
  * structural ground has already said it could not place it.
  */
@@ -353,20 +354,17 @@ async function journalOf(
   install: Extract<InstallDiff, { readonly moved: unknown }> | undefined,
   dirs: readonly string[],
 ): Promise<ExecutionNarrowing | undefined> {
-  const packages = install?.packages ?? [];
   const read = async (graph?: Relations) => {
-    // A package whose manifest moved is every file of it, changed whole, and
-    // only the graph can say which files those are.
-    const moved = graph === undefined ? { files: [], unplaced: [] } : movedPackages(graph, install);
-    const narrowing = await deps.readJourney?.(withMovedPackages(diff, moved.files), graph, packages);
+    const beyond = beyondOf(graph, install);
+    const narrowing = await deps.readJourney?.(withWhole(diff, beyond.files), graph);
     // The lockfile and the manifests beside it are unread by the journal and
     // answered by the install comparison, which has already said what moved.
     return narrowing === undefined
       ? undefined
-      : { ...narrowing, unread: [...withoutManifests(narrowing.unread, install?.manifests ?? []), ...moved.unplaced].sort() };
+      : { ...narrowing, unread: [...withoutManifests(narrowing.unread, install?.manifests ?? []), ...beyond.unplaced].sort() };
   };
   if (relations !== undefined) return read(relations);
-  const needsGraph = packages.length > 0 || (install?.moved.length ?? 0) > 0;
+  const needsGraph = (install?.packages.length ?? 0) > 0 || (install?.moved.length ?? 0) > 0;
   if (deps.scanRelations === undefined) return needsGraph ? undefined : read();
   if (needsGraph) return read(await deps.scanRelations(dirs));
   const first = await read();

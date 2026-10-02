@@ -439,7 +439,7 @@ export const NO_INSTALL_DIFF: InstallDiff = { packages: [], manifests: [], moved
  * Matched on the last segment, so a monorepo's every `package.json` goes the
  * same way the root one does: a resolver, a `resolutions` block, a version
  * range — the install answered all three, at both revisions, by name. A moved
- * manifest is dropped here too; `movedPackages` says what stands in for it.
+ * manifest is dropped here too; `beyondReach` says what stands in for it.
  */
 export function withoutManifests(
   changed: readonly string[],

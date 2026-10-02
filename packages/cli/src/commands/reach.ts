@@ -60,7 +60,7 @@ import {
 } from '@variance-authority/core/relate';
 import type { ReachedComponent } from '@variance-authority/report';
 import { NO_INSTALL_DIFF, withoutManifests, type InstallDiff } from './installed.js';
-import { movedPackages } from './moved-packages.js';
+import { beyondOf } from './select-beyond.js';
 
 /** What the walk found, when it could answer. */
 export interface AffectedComponents {
@@ -115,6 +115,8 @@ interface Seeds {
   readonly seeded: number;
   /** `3 changed files and 1 changed package`, for whichever sentence prints. */
   readonly source: string;
+  /** The install chain ahead of each file a bump reached and the diff did not name, for the trail. */
+  readonly chains: ReadonlyMap<string, readonly string[]>;
 }
 
 /**
@@ -142,11 +144,11 @@ function affectsNothing<T extends object>(walk: T | Nothing): walk is Nothing {
  * selection, so the graph narrows outwards from them exactly as it does from a
  * file somebody edited.
  *
- * `install` enters the same way, at the other end of the line: a package name is
- * a node, every file that imports it has an edge to it, and a bumped package is
- * a seed the walk runs backwards from exactly as it does from an edited file.
- * A package name the graph has no node for is not a gap — it is a dependency no
- * file in this repository asks for, and it reaches nothing.
+ * `install` enters the same way, at the other end of the line, once it has been
+ * read back into files: a bumped package is the files whose imports rest on it,
+ * changed whole, and the walk runs backwards from them exactly as it does from
+ * an edited file. A package name the graph has no node for is not a gap — it is
+ * a dependency no file in this repository asks for, and it reaches nothing.
  *
  * `movedExports` are what the changed files moved, read from both texts. A
  * file that moved nothing seeds nothing, and a diff of nothing else is the
@@ -176,18 +178,18 @@ function seedsOf(
 ): Seeds | Nothing | GraphRefusal {
   if ('whole' in install) return { whole: install.whole };
 
-  const moved = movedPackages(relations, install);
+  const beyond = beyondOf(relations, install);
   const still = changed.filter((file) => movedExports.get(file)?.length === 0);
   const files = [
     ...withoutManifests(changed, install.manifests).filter((file) => !still.includes(file)),
-    ...moved.unplaced,
+    ...beyond.unplaced,
   ];
 
   // Before anything is walked, and it refuses rather than narrows. A walk
   // against the arrows from a setup file the suite loads for every test reaches
   // whatever happens to import it, which is nothing, and answering *no
   // component* there would skip the whole suite over the file that governs it.
-  const rests = before === undefined ? [] : [...changedBefore(before, files, install.packages)].sort(byCodeUnit);
+  const rests = before === undefined ? [] : [...new Set(changedBefore(before, [...files, ...beyond.files]))].sort(byCodeUnit);
   if (rests.length > 0) {
     const them = rests.length === 1 ? 'it' : 'them';
     return {
@@ -198,30 +200,27 @@ function seedsOf(
     };
   }
 
-  const expanded = [
-    ...new Set([
-      ...(changedDirs.length === 0
-        ? []
-        : nodesOfKind(relations, 'file')
-            .map((id) => relations.names[id]!)
-            .filter((file) => within(file, changedDirs))),
-      ...moved.files,
-    ]),
-  ];
+  const inDirs =
+    changedDirs.length === 0
+      ? []
+      : nodesOfKind(relations, 'file')
+          .map((id) => relations.names[id]!)
+          .filter((file) => within(file, changedDirs));
+  const expanded = [...new Set([...inDirs, ...beyond.files])];
 
-  const packages = install.packages.map((name) => ({ kind: 'package', name }) as const);
   const narrowed = files.filter((file) => (movedExports.get(file)?.length ?? 0) > 0);
   const affected = affectedBy(
     relations,
-    [...files, ...expanded, ...packages],
+    [...files, ...expanded],
     narrowed.length === 0 ? {} : { moved: new Map(narrowed.map((file) => [file, movedExports.get(file)!])) },
   );
   // Only the diff's own seeds can be missing; an expanded one came out of the
-  // graph, so it is in it by construction.
-  const seeded = files.length + packages.length - affected.missing.length + expanded.length;
+  // graph, so it is in it by construction. A path is counted once, however
+  // many of the diff, a changed directory and the install named it.
+  const absent = new Set(affected.missing);
+  const held = files.filter((file) => !absent.has(file));
+  const seeded = new Set([...held, ...expanded]).size;
 
-  // Files only. A missing *package* name is an answer — nothing imports it — and
-  // `within` would not tell the two apart, since a package may be named anything.
   const named = new Set(files);
   // TODO: a file the diff deletes lands here as a gap in the scan, and widens the
   // run's selector and the report to the whole suite. `reach-command.ts` takes
@@ -232,9 +231,8 @@ function seedsOf(
   // two halves are counted apart because they are read from different places —
   // one from the diff, one from the lockfile at both revisions — and an
   // operator who cannot see which is which cannot check either.
-  const absent = new Set(affected.missing);
-  const fromPackages = install.packages.filter((name) => !absent.has(name)).length;
-  const fromFiles = seeded - fromPackages;
+  const fromPackages = beyond.traced.length;
+  const fromFiles = new Set([...held, ...inDirs]).size;
   const source =
     (fromPackages === 0
       ? many(fromFiles, 'changed file')
@@ -283,7 +281,8 @@ function seedsOf(
     };
   }
 
-  return { affected, seeded, source };
+  const chains = new Map([...beyond.chains].filter(([file]) => !named.has(file)));
+  return { affected, seeded, source, chains };
 }
 
 /** What the file walk found, when it could answer. */
@@ -353,7 +352,7 @@ export function affectedComponents(
     return { components: [], files: [], seeded: 0, how: walk.nothing };
   }
 
-  const { affected, seeded, source } = walk;
+  const { affected, seeded, source, chains } = walk;
 
   if (affected.components.length === 0) {
     return {
@@ -365,7 +364,7 @@ export function affectedComponents(
 
   const components = [...affected.components].sort(byCodeUnit).map((component) => ({
     component,
-    trail: explain(relations, affected, { kind: 'component', name: component }),
+    trail: withChain(explain(relations, affected, { kind: 'component', name: component }), chains),
   }));
 
   return {
@@ -376,6 +375,12 @@ export function affectedComponents(
       `${many(affected.components.length, 'component')} reached from ${source} ` +
       `through ${many(affected.files.length, 'file')}`,
   };
+}
+
+/** A trail that opens at a file a bump reached, opened at the bumped package instead. */
+function withChain(trail: readonly string[], chains: ReadonlyMap<string, readonly string[]>): readonly string[] {
+  const chain = trail[0] === undefined ? undefined : chains.get(trail[0]);
+  return chain === undefined ? trail : [...chain, ...trail];
 }
 
 /**

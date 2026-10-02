@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { affectedBy, relationsOfFiles, type EdgeKind } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
 import { sourceStem } from './page-side.mjs';
-import { bridgeWorkspace, foldBuilt, manifests, movedManifests, movedPackageFiles, packageFaces, published } from './since-graph.mjs';
+import { bridgeWorkspace, foldBuilt, manifests, movedManifests, packageFaces, published } from './since-graph.mjs';
 import { ROOT } from './workspaces.js';
 
 /**
@@ -176,11 +176,5 @@ describe('a manifest the install only half reads', () => {
 
     expect(movedManifests(ROOT, 'base', at({ 'packages/core/package.json': exportsWere }), ['packages/core/package.json', 'README.md'])).toEqual(['packages/core/package.json']);
     expect(movedManifests(ROOT, 'base', at({ 'packages/core/package.json': rangeWas }), ['packages/core/package.json'])).toEqual([]);
-  });
-
-  it('reads every file the graph holds beside a moved manifest', () => {
-    const relations = relationsOfFiles([{ file: 'packages/ds/src/a.ts' }, { file: 'packages/dsx/src/b.ts' }, { file: 'src/c.ts' }]);
-    expect(movedPackageFiles(relations, ['packages/ds/package.json'])).toEqual(['packages/ds/src/a.ts']);
-    expect(movedPackageFiles(relations, ['package.json'])).toHaveLength(3);
   });
 });

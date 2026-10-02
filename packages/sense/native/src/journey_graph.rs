@@ -39,7 +39,6 @@ pub struct JourneyGraph {
 }
 
 const FILE: u8 = 0;
-const PACKAGE: u8 = 2;
 
 struct Adjacency<'a> {
     offset: &'a [u32],
@@ -54,7 +53,6 @@ pub(crate) struct Graph<'a> {
     dependents: Adjacency<'a>,
     allowed: [bool; 256],
     files: HashMap<&'a str, u32>,
-    packages: HashMap<&'a str, u32>,
     shadows: &'a [JourneyShadow],
 }
 
@@ -91,7 +89,6 @@ impl<'a> Graph<'a> {
                 .collect::<HashMap<_, _>>()
         };
         let files = of_kind(FILE);
-        let packages = of_kind(PACKAGE);
         Ok(Graph {
             names: &graph.names,
             kinds,
@@ -99,7 +96,6 @@ impl<'a> Graph<'a> {
             dependents,
             allowed,
             files,
-            packages,
             shadows: &graph.shadows,
         })
     }
@@ -152,13 +148,6 @@ impl<'a> Graph<'a> {
     /// the file `missing`.
     pub fn importers(&self, file: &str) -> Option<Vec<&'a str>> {
         Some(self.reached(self.file(file)?))
-    }
-
-    /// `affectedBy(relations, [{ kind: 'package', name }]).files`: every file
-    /// whose runtime imports reach the package, or `None` when nothing here
-    /// names it.
-    pub fn package_importers(&self, name: &str) -> Option<Vec<&'a str>> {
-        Some(self.reached(self.packages.get(name).copied()?))
     }
 
     fn reached(&self, seed: u32) -> Vec<&'a str> {

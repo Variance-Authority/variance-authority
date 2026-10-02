@@ -110,14 +110,14 @@ export interface RunDeps {
    * answer for a build nobody put probes in — see [`journey.ts`](./journey.ts).
    * Handed the file graph when the run scanned one, or when a reading without
    * it left a path under `source.dirs` unread, so a changed file the journal
-   * never recorded is answered by the files that import it. `packages` are
-   * the names the install comparison says moved; they are answered by their
-   * importers too, so a reading asked about any is always handed a graph.
+   * never recorded is answered by the files that import it. A bumped package
+   * arrives in `diff` as the files that import it, changed whole, and only the
+   * graph can say which those are, so a reading asked about one is always
+   * handed a graph.
    */
   readJourney?(
     diff: string,
     relations?: Relations,
-    packages?: readonly string[],
   ): Promise<ExecutionNarrowing | undefined>;
 
   /**

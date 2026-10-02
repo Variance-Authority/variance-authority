@@ -314,6 +314,11 @@ describe('a changed file no probe can sit in, asked of the module that imports i
     });
   });
 
+  // A file one module imports as an asset and another imports as code is walked
+  // through its asset edges alone, so the second importer's tests are missed,
+  // whether the file was edited or a bump reached it.
+  it.todo('reaches the tests behind a module that imports as code a file another imports as an asset — needs the relation walk of spec 0091 to follow every runtime edge');
+
   it('reports an asset the graph does not hold, and not one it holds that nothing imports', () => {
     // The first graph has no node for `src/rules.css` at all. The second holds
     // it, importing a stylesheet of its own, and no edge arrives at it: no
@@ -329,99 +334,5 @@ describe('a changed file no probe can sit in, asked of the module that imports i
         relations: relationsOf({ relations: [asset('src/rules.css', 'src/tokens.css')] }),
       }),
     ).toMatchObject({ entered: [], unread: [] });
-  });
-});
-
-describe('a package the install moved, asked of the files that import it', () => {
-  const file = (name: string) => ({ kind: 'file', name }) as const;
-  const pkg = (name: string) => ({ kind: 'package', name }) as const;
-  const view = () => openTestCoverage(encodeTestCoverage(coverage));
-  const uses = (from: string, to: string, kind: 'imports' | 'type' = 'imports') =>
-    ({ from: file(from), to: pkg(to), kind }) as const;
-  const beneath = (from: string, to: string) =>
-    ({ from: pkg(from), to: pkg(to), kind: 'depends-on' }) as const;
-
-  it('selects the tests that entered a module importing it', () => {
-    const relations = relationsOf({ relations: [uses('src/decide.ts', '@mui/material')] });
-
-    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['@mui/material'] })).toEqual({
-      whole: testFiles,
-      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
-      unread: [],
-      stale: [],
-      readings: [],
-      because: [
-        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
-        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
-      ],
-    });
-  });
-
-  it('reaches the importer from a package three levels under it', () => {
-    // Nothing imports `jsdom`. `jest-environment-jsdom` resolves it beneath
-    // itself, and `src/decide.ts` imports that: the bump arrives by the same
-    // backwards walk an edited file arrives by, and the trail says so.
-    const relations = relationsOf({
-      relations: [uses('src/decide.ts', 'jest-environment-jsdom'), beneath('jest-environment-jsdom', 'jsdom')],
-    });
-    const narrowing = narrowByExecutionFromView(view(), '', { relations, packages: ['jsdom'] });
-
-    expect(narrowing.entered).toEqual(['test/alpha.test.ts', 'test/beta.test.ts']);
-    expect(narrowing.because[0]?.via).toEqual([
-      { kind: 'importer', trail: ['jsdom', 'jest-environment-jsdom', 'src/decide.ts'] },
-    ]);
-  });
-
-  it('says nothing about a package no file imports', () => {
-    // An answer, not a gap: the install moved something this repository does
-    // not reach, so nothing it does can be observed here.
-    const relations = relationsOf({ relations: [uses('src/decide.ts', '@mui/material')] });
-
-    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['left-pad'] })).toEqual({
-      whole: testFiles,
-      entered: [],
-      unread: [],
-      stale: [],
-      readings: [],
-      because: [],
-    });
-  });
-
-  it('does not select on a type-only import, which is erased before anything runs', () => {
-    const relations = relationsOf({ relations: [uses('src/decide.ts', '@mui/material', 'type')] });
-
-    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['@mui/material'] }).entered).toEqual(
-      [],
-    );
-  });
-
-  it('selects nobody for a package whose every importer the record never measured', () => {
-    // Nothing the suite ran imports it, which is the same answer as nothing
-    // importing it at all.
-    const relations = relationsOf({ relations: [uses('src/legacy-widget.js', '@mui/material')] });
-
-    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['@mui/material'] })).toEqual({
-      whole: testFiles,
-      entered: [],
-      unread: [],
-      stale: [],
-      readings: [],
-      because: [],
-    });
-  });
-
-  it('selects the tests behind a measured importer, whatever the importer beside it', () => {
-    const relations = relationsOf({
-      relations: [uses('src/legacy-widget.js', '@mui/material'), uses('src/decide.ts', '@mui/material')],
-    });
-
-    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['@mui/material'] })).toMatchObject({
-      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
-      unread: [],
-      because: [
-        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
-        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
-      ],
-    });
   });
 });

@@ -44,7 +44,7 @@ import type { CommitRuns, ExecutionNarrowing, Stand, StandReading } from '@varia
 import { OperatorError } from '../exit.js';
 import { readExecutionFor } from './execution-input.js';
 import { installDiff, installDiffs, installDiffOfPatch, patchPreimages, withoutManifests, type InstallDiff } from './installed.js';
-import { movedPackages, withMovedPackages } from './moved-packages.js';
+import { beyondOf, withWhole } from './select-beyond.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
@@ -132,7 +132,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     // operator's two different afternoons, and the reader is what tells them
     // apart — asked here for the empty diff, so an unreadable snapshot is
     // refused by name instead of being reported as a missing coordinate.
-    await journeyAgainst(request.cwd, '', undefined, [], at);
+    await journeyAgainst(request.cwd, '', undefined, at);
     throw new OperatorError(
       `the execution journal at ${at} names no commit, so there is no coordinate to measure a ` +
         'diff from. Pass `--since <ref>` to name one, or record the suite again from a git ' +
@@ -210,23 +210,21 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     why: 'a mocked module is ruled out by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
-  // A package whose manifest moved is every file of it, changed whole.
-  const moved = new Map([...installs].map(([stand, installed]) => [stand, movedPackages(relations, installed)] as const));
-  // What the suite rests on before reach, moved by any group's diff or bump, runs the whole suite.
+  // A bump or a moved manifest is the files it changed, changed whole.
+  const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
+  // What the suite rests on before reach, moved by any group's diff or install, runs the whole suite.
   const suite = (await recordedSuite(here, request.suite, 'landing')).declared?.name;
-  const bumped = [...installs.values()].flatMap((one) => compared(one)?.packages ?? []);
-  const movedFiles = [...moved.values()].flatMap((one) => one.files);
-  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.whole), ...movedFiles])], bumped);
+  const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
+  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.whole), ...beyondFiles])]);
   const rested = { ...recorded, ...rest };
   if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } });
   // The files a stand reads whole leave the hunk diff, so none is also read by
-  // its hunks, and each group is charged the packages that moved since it ran.
+  // its hunks, and each group is charged the install that moved since it ran.
   const ask = (whole: readonly string[], stand: string | undefined) =>
     journeyAgainst(
       here,
-      withMovedPackages([selection.withoutFiles(diff, whole), ...whole.map(selection.wholeEntry)].join('\n'), moved.get(stand)!.files),
+      withWhole([selection.withoutFiles(diff, whole), ...whole.map(selection.wholeEntry)].join('\n'), beyond.get(stand)!.files),
       relations,
-      compared(installs.get(stand))?.packages,
       at,
       request.cwd,
     );
@@ -234,7 +232,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // The lockfile and the manifests beside it are unread by the journal and
   // answered by the comparisons above, which have already said what moved.
   const manifests = [...installs.values()].flatMap((installed) => compared(installed)?.manifests ?? []);
-  const unplaced = [...moved.values()].flatMap((one) => one.unplaced);
+  const unplaced = [...beyond.values()].flatMap((one) => one.unplaced);
   const ground: SelectGround =
     narrowing === undefined
       ? { kind: 'no-journal' }
@@ -432,11 +430,11 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     why: 'a whole-file change is answered by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
-  // A package whose manifest moved is every file of it, changed whole.
-  const moved = movedPackages(relations, installed);
-  const changed = selection.changedLines(withMovedPackages(text, moved.files));
-  // What the suite rests on, moved by the patch, a manifest or a bump, runs the whole suite.
-  const { whole, ...rest } = await restingOf(here, await journeySuite(here, request.suite), relations, [...changed.keys()], installed?.packages ?? []);
+  // A bump or a moved manifest is the files it changed, changed whole.
+  const beyond = beyondOf(relations, installed);
+  const changed = selection.changedLines(withWhole(text, beyond.files));
+  // What the suite rests on, moved by the patch or the install, runs the whole suite.
+  const { whole, ...rest } = await restingOf(here, await journeySuite(here, request.suite), relations, [...changed.keys()]);
   const base = { at: request.execution, given: true, ...rest };
   if (whole !== undefined) return saidOf({ ...base, ground: { kind: 'before', whole } }, request);
   const preimages = await patchPreimages(text, request.cwd);
@@ -444,10 +442,10 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     root: request.cwd,
     relations,
   });
-  const options = { relations, packages: installed?.packages ?? [], read };
+  const options = { relations, read };
   const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
-  const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...moved.unplaced].sort();
+  const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...beyond.unplaced].sort();
   return saidOf({ ...base, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } }, request);
 }
 

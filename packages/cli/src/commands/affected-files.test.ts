@@ -33,6 +33,14 @@ describe('every file a diff affects', () => {
     expect(affected.seeded).toBe(1);
   });
 
+  it('counts a changed file once when the changed directory holds it too', () => {
+    const affected = affectedFiles(GRAPH, ['src/lib/parse.py'], ROOTS, ['src/lib']);
+    if (refused(affected)) throw new Error(affected.whole);
+
+    expect(affected.seeded).toBe(2);
+    expect(affected.how).toContain('from 2 changed files');
+  });
+
   it('answers a file nothing imports with that file, and not with nothing', () => {
     // The case the whole command turns on. `alone.py` reaches no importer, and
     // the honest answer is *this one file* — which a runner can be handed. An

@@ -163,8 +163,8 @@ export async function dispatch(
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             scanRelations: async (dirs) =>
               relationsFor(process.cwd(), dirs, effective.source?.taints, effective.before),
-            readJourney: async (diff, relations, packages) =>
-              journeyAgainst(process.cwd(), diff, relations, packages, await suiteRecord(process.cwd(), parsed.suite)),
+            readJourney: async (diff, relations) =>
+              journeyAgainst(process.cwd(), diff, relations, await suiteRecord(process.cwd(), parsed.suite)),
             readJourneys: async (subjects) => {
               const at = await refiningRecord(process.cwd(), parsed.suite);
               return at === undefined ? undefined : recordedJourneys(process.cwd(), subjects, at);
