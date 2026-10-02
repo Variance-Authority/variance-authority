@@ -144,8 +144,8 @@ export type {
  */
 export { layMainline, suiteBase } from './commands/suite-base.js';
 export type { SuiteBase, SuiteBaseOptions } from './commands/suite-base.js';
-export { mainlineMissed, mainlineRead, primaryRead } from './commands/mainline-base.js';
-export type { MainlineMissed, MainlineRecord } from './commands/mainline-base.js';
+export { mainlineMissed, mainlineRead, primaryRead, readMissedMainline, writeMissedMainline } from './commands/mainline-base.js';
+export type { MainlineMissed, MainlineRecord, MissedMainline } from './commands/mainline-base.js';
 
 /**
  * The renderer the config asks for, from the package the config belongs to.
