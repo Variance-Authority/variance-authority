@@ -92,11 +92,6 @@ export interface RstestTestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
-  /**
-   * Where the per-case execution index goes. Defaults to `<coverageFile>.cases.bin`;
-   * a name ending `.json` is written as JSON instead, at the size JSON costs.
-   */
-  readonly executionFile?: string;
 }
 
 /** What one test file's run left behind, as Rstest's `onTestRunEnd` reports it. */
@@ -221,10 +216,7 @@ export function withTestSelection(
   // The configuration that lists the projects is what every test rests on.
   if (config.projects !== undefined) run.runConfig = '';
 
-  const executionFile = options.executionFile === undefined
-    ? `${coverageFile}.cases.bin`
-    : resolve(configRoot, options.executionFile);
-  const settle = foldRun(run, { coverageFile, executionFile, shims: [setupId] });
+  const settle = foldRun(run, { coverageFile, shims: [setupId] });
   const reporter = {
     // A watching Rstest starts every cycle here, after the last cycle's end.
     onTestRunStart: () => reopenRun(run),

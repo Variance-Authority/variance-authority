@@ -83,12 +83,6 @@ export interface ExecutionReporterOptions {
    * without this a commit that edits one selects nothing at all.
    */
   readonly preconditions?: readonly string[];
-  /**
-   * Where the execution index — which individual test entered which region —
-   * goes. Defaults beside the snapshot: `<coverage file>.cases.bin`;
-   * a name ending `.json` is written as JSON instead, at the size JSON costs.
-   */
-  readonly executionFile?: string;
 }
 
 /**
@@ -105,7 +99,6 @@ export default class implements Reporter {
   // the workers stage beside this snapshot, so the fold has to write the same one.
   readonly #coverageFile: string | undefined;
   readonly #snapshot: string;
-  readonly #executionFile: string | undefined;
   #directory: string | undefined;
 
   constructor(options: ExecutionReporterOptions = {}) {
@@ -117,8 +110,6 @@ export default class implements Reporter {
     // Before any worker starts, so a suite the configuration does not declare
     // fails the run rather than the fold at its end.
     this.#snapshot = recordFileFor(this.#root, start, options);
-    this.#executionFile =
-      options.executionFile === undefined ? undefined : resolve(start, options.executionFile);
   }
 
   /** Reporters print nothing here; the only lines are refusals, and those go to stderr. */
@@ -158,7 +149,6 @@ export default class implements Reporter {
         ...(staged.cases !== undefined && staged.cases.length > 0
           ? { cases: staged.cases }
           : {}),
-        ...(this.#executionFile === undefined ? {} : { executionFile: this.#executionFile }),
       });
       if (!record.recorded) {
         process.stderr.write(

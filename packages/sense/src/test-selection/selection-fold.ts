@@ -25,7 +25,7 @@ import {
   type ReadJournal,
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
-import { writeCaseIndex } from './case-fold.js';
+import { freshCases } from './case-fold.js';
 import { caseDurations } from './case-durations.js';
 import {
   coverageTest,
@@ -51,8 +51,6 @@ import {
 export interface FoldDestination {
   /** The snapshot this run layers onto. */
   readonly coverageFile: string;
-  /** Where the per-case execution index goes, when the run recorded one. */
-  readonly executionFile: string;
   /**
    * Modules this seam generated for this run.
    *
@@ -90,7 +88,7 @@ export function foldRun(
   destination: FoldDestination,
 ): (files: readonly FinishedFile[]) => Promise<void> {
   const { root, runDirectory, caseDirectory, modules, mode } = run;
-  const { coverageFile, executionFile } = destination;
+  const { coverageFile } = destination;
 
   const record = async (finished: readonly FinishedFile[]): Promise<void> => {
     // A worker wrote its journal down; a page handed its own to the runner,
@@ -143,8 +141,20 @@ export function foldRun(
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run.
     noteSeeded(await seedTestCoverage(coverageFile, root));
+    // In the record, with the coverage, in one write. `run.cases` is whether
+    // the run could record a case: one whose files ran in a page could not.
+    // One that could, and recorded no case and finished no file — no worker
+    // loaded this seam's modules — has none to lay, and the record's cases
+    // stay as they were.
+    const cases = run.cases
+      ? await freshCases(caseDirectory, root, modules, {
+          tests,
+          ...(commit === undefined ? {} : { commit }),
+          durations: caseDurations(files, root),
+        })
+      : undefined;
     const merged = await withIndexLock(coverageFile, async () => {
-      await landRun(coverageFile, current, root);
+      await landRun(coverageFile, current, root, undefined, cases);
       markCheckout(repositoryRoot(root));
     });
     // A run that placed no module says so once the snapshot saying every file
@@ -152,20 +162,6 @@ export function foldRun(
     // warning is the whole story.
     if (merged.held) noteAnEmptyRecord(files.length, modules.size, destination.unreached);
     else noteABusyIndex(coverageFile);
-    // Beside the snapshot, never inside it. The snapshot answers *which files
-    // must run*, and its readers are unchanged. `run.cases` is whether the run
-    // could record a case: one whose files ran in a page could not. One that
-    // could, and recorded no case and finished no file — no worker loaded this
-    // seam's modules — is declined by the writer, which leaves the index there
-    // as it was. A run the snapshot did not take lays no cases either, or the
-    // index would answer for a run the snapshot beside it never saw.
-    if (run.cases && merged.held) {
-      await writeCaseIndex(executionFile, caseDirectory, root, modules, {
-        tests,
-        ...(commit === undefined ? {} : { commit }),
-        durations: caseDurations(files, root),
-      });
-    }
     await rm(runDirectory, { recursive: true, force: true });
     await rm(caseDirectory, { recursive: true, force: true });
     await rm(run.finishedDirectory, { recursive: true, force: true });

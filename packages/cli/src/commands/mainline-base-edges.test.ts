@@ -10,6 +10,7 @@ import {
   declaredSuites,
   mainlineReadRoot,
   testCoverageFile,
+  withCaseSections,
 } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN } from '../exit.js';
@@ -23,9 +24,9 @@ import { publishSuite, suiteShare } from './suite-share.js';
 /**
  * The edges of reading the mainline's record that the readers' own tests do
  * not reach: a remote that did not answer a moment ago, a note of that which
- * does not hold, a cache that cannot keep the note, an entry that carries
- * neither cases nor runs, a record path that cannot be asked, and a suite not
- * given to the share at all.
+ * does not hold, a cache that cannot keep the note, an entry whose record
+ * keeps no cases and that carries no runs, a record path that cannot be asked,
+ * and a suite not given to the share at all.
  */
 
 const LOCAL: Env = {};
@@ -127,9 +128,10 @@ describe('a remote that did not answer a moment ago', () => {
   });
 });
 
-describe('an entry that carries neither cases nor runs', () => {
-  it('leaves neither beside the record, and takes back what an earlier fetch of the same commit left there', async () => {
-    const { ci, origin, first, record } = await gitPublished(home, { publish: false });
+describe('an entry whose record keeps no cases and that carries no runs', () => {
+  it('names no cases, leaves no runs beside the record, and takes back the runs an earlier fetch of the same commit left there', async () => {
+    const { ci, origin, first, record: cased } = await gitPublished(home, { publish: false });
+    const record = withCaseSections(cased, {});
     const cell = await lineCellOf({ share: GIT_SHARE, cacheRoot: join(home, 'ci-cache') } as unknown as Config, { cwd: ci });
     if (cell === undefined || !('load' in cell)) throw new Error(`no line cell: ${JSON.stringify(cell)}`);
     await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: suiteEntry('unit'), commit: first, bytes: frame([['coverage.bin', record]]) }], {
@@ -139,7 +141,6 @@ describe('an entry that carries neither cases nor runs', () => {
     const { readRoot, base } = await laptop(origin);
     const coverage = join(readRoot, first, 'coverage.bin');
     await mkdir(dirname(coverage), { recursive: true });
-    await writeFile(`${coverage}.cases.bin`, 'stale cases');
     await writeFile(commitRunsFile(coverage), 'stale runs');
 
     const read = await base(NOW);
@@ -148,7 +149,6 @@ describe('an entry that carries neither cases nor runs', () => {
     expect(read).not.toHaveProperty('cases');
     expect(read).not.toHaveProperty('runs');
     expect(await readFile(coverage)).toEqual(record);
-    expect(existsSync(`${coverage}.cases.bin`)).toBe(false);
     expect(existsSync(commitRunsFile(coverage))).toBe(false);
   });
 });

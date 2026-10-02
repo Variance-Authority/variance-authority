@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
+import { keepsCases } from './case-record.js';
 import { decodeTestCoverage } from './format.js';
 import { carriedJournal, type ReportedModule } from './finished-files.js';
 import { withTestSelection } from './vitest.js';
@@ -147,7 +148,7 @@ describe('a test file that runs in a page', () => {
     }
   });
 
-  it('drops the case runner and says it records files only, rather than writing an empty index', async () => {
+  it('drops the case runner and says it records files only, rather than keeping an empty index in the record', async () => {
     // An index with no case in it answers *which cases walk this line* with
     // none, which is a wrong answer rather than a missing one.
     const root = await mkdtemp(resolve(tmpdir(), 'variance-browser-cases-'));
@@ -161,7 +162,7 @@ describe('a test file that runs in a page', () => {
 
       expect(config.test).not.toHaveProperty('runner');
       expect(warn.mock.calls.flat().join('\n')).toMatch(/a test file that runs in a page is recorded per file, not per case/);
-      await expect(readFile(resolve(root, 'coverage.bin.cases.bin'))).rejects.toThrow(/ENOENT/);
+      expect(keepsCases(resolve(root, 'coverage.bin'))).toBe(false);
     } finally {
       warn.mockRestore();
       await rm(root, { recursive: true, force: true });

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { recordedCases } from './orient.js';
 import { updateSourceIndex } from './published.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
+import { writeTestCoverage } from './test-selection/index.js';
 import { testCoverageFile } from './test-selection/record-location.js';
 
 // compass: variance-authority.reach.relations
@@ -89,9 +90,9 @@ describe('orientation in a process that keeps answering', () => {
     execFileSync('git', ['add', '.'], { cwd: checkout });
     execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture'], { cwd: checkout });
     await updateSourceIndex(checkout);
-    const at = `${testCoverageFile(checkout)}.cases.bin`;
+    const at = testCoverageFile(checkout);
     mkdirSync(dirname(at), { recursive: true });
-    writeFileSync(at, recording());
+    await writeTestCoverage(at, { version: 3, instrumentation: 'measure', tests: [], modules: [] }, { index: recording() });
     const size = megabytes(statSync(at).size);
 
     const held: number[] = [];

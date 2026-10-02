@@ -10,6 +10,7 @@ import {
 } from './divergence.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { writeCoverageBytes } from './record-location.js';
+import { withCaseSections, type CaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
 import type {
   SourceAudience,
@@ -59,7 +60,6 @@ export {
   EXECUTION_FORMAT,
   decodeExecutionIndex,
   encodeExecutionIndex,
-  executionIndexBytes,
   isEncodedExecutionIndex,
 } from './execution-format.js';
 export { mergeExecutionIndexes } from './execution-merge.js';
@@ -173,17 +173,26 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
 export { sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
-// The lock every writer of a snapshot or a case index takes, for a caller that
-// writes both as one landing.
+// The lock every writer of a record takes, for a caller that lands one.
 export { withIndexLock } from './index-lock.js';
 export {
-  caseLayerFiles,
-  landCaseIndexes,
+  landCases,
+  lastCaseRunOf,
   type CaseLanding,
   type LaidRun,
   type LandedShard,
   type LastCaseRun,
 } from './case-landing.js';
+export {
+  caseIndexOf,
+  caseSectionsAt,
+  caseSectionsOf,
+  keepsCases,
+  recordedCases,
+  sharedRecord,
+  withCaseSections,
+  type CaseSections,
+} from './case-record.js';
 export {
   commitRunsAfter,
   commitRunsFile,
@@ -381,9 +390,13 @@ export async function readTestCoverage(file: string): Promise<TestCoverage> {
  * result; a caller installing a baseline fetched from elsewhere writes it as it
  * came. Which of those is wanted is the caller's knowledge, and a writer that
  * merged on its own would make the second one impossible.
+ *
+ * `cases` are the case sections the record carries; none when not given.
  */
-export async function writeTestCoverage(file: string, coverage: TestCoverage): Promise<void> {
-  await writeCoverageBytes(file, encodeTestCoverage(coverage));
+export async function writeTestCoverage(file: string, coverage: TestCoverage, cases: CaseSections = {}): Promise<void> {
+  const bytes = encodeTestCoverage(coverage);
+  const cased = Object.values(cases).some((part) => part !== undefined);
+  await writeCoverageBytes(file, cased ? withCaseSections(bytes, cases) : bytes);
 }
 
 /**

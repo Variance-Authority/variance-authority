@@ -1,23 +1,20 @@
 /**
- * The case index beside a snapshot, laid one run at a time.
+ * The case sections of a record, laid one run at a time.
  *
- * Two writers lay runs on it. A reporter lays the run it just folded from its
+ * Two writers lay runs on them. A reporter lays the run it just folded from its
  * case journals; a landing lays the runs of the shards it folded into the
- * snapshot, from the index each shard's seam left beside its own snapshot.
- * Both go through {@link layCaseRun}, so a shard landed on a laptop leaves the
- * index, its last run and its before layer as the same run recorded there
- * would have.
+ * record, from the cases each shard's seam kept in its own record. Both go
+ * through {@link layCases}, so a shard landed on a laptop leaves the index, its
+ * last run and its before layer as the same run recorded there would have.
  */
 
 import { existsSync } from 'node:fs';
-import { readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
+import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
-import { busyIndex, withIndexLock, type IndexLock } from './index-lock.js';
-import { codeUnitOrder, isMissing } from './instrumented-modules.js';
-import { writeCoverageBytes } from './record-location.js';
+import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoverageTest } from './index.js';
 
 /** What a run tells the case index about the files it was handed. */
@@ -26,6 +23,12 @@ export interface LaidRun {
   readonly tests: readonly Pick<CoverageTest, 'file' | 'complete'>[];
   /** The commit the run was made at, as the snapshot carries it. */
   readonly commit?: string;
+}
+
+/** One run's own case index, and what the run tells the index about its files. */
+export interface FreshCases {
+  readonly fresh: Uint8Array;
+  readonly run: LaidRun;
 }
 
 /**
@@ -62,44 +65,30 @@ export interface LastCaseRun {
 }
 
 /**
- * The two layers kept beside a case index: the run that wrote it last, and what
- * the index held for that run's files before it landed.
- */
-export function caseLayerFiles(file: string): { readonly last: string; readonly before: string } {
-  const stem = file.endsWith('.bin') ? file.slice(0, -'.bin'.length) : file;
-  return { last: `${stem}.last.json`, before: `${stem}.before.bin` };
-}
-
-/**
- * Lay one run's case index over the index `lock` is held on, and name the run
- * in the two layers beside it.
+ * The case sections once one run's case index is laid over `previous`, the
+ * sections of the record it lands in.
  *
  * `fresh` is the run's own index: the cases it recorded and the regions they
  * called. The files the run finished are replaced, every other case is carried
  * — see {@link layerCaseIndex}. A run at the commit the last one was made at is
  * one more invocation of the same suite, not a new change, so what the runs
  * before it retired stays under what this one retired.
+ *
+ * Nothing is written here. The caller writes the result into the record with
+ * the coverage it lands, in one write under the record's lock, so the two
+ * always answer for the same runs.
  */
-export async function layCaseRun(
-  lock: IndexLock,
-  fresh: Uint8Array,
-  root: string,
-  run: LaidRun,
-): Promise<void> {
-  if (!lock.held) throw new Error(`a case index is laid under its lock, and ${lock.file}'s was released`);
-  const file = lock.file;
-  const layers = caseLayerFiles(file);
+export function layCases(previous: CaseSections, fresh: Uint8Array, root: string, run: LaidRun): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
-  const { merged, last, before: retired } = layerCaseIndex(await readIfThere(file), fresh, {
+  const { merged, last, before: retired } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present: (test) => existsSync(resolve(root, test)),
   });
-  const prior = await readLastRun(layers.last);
+  const prior = lastCaseRunOf(previous);
   const again = run.commit !== undefined && prior?.commit === run.commit;
-  const before = again ? layerBefore(await readIfThere(layers.before), retired, ran) : retired;
+  const before = again ? layerBefore(previous.before, retired, ran) : retired;
   const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior?.commit;
-  await writeCoverageBytes(file, merged);
   const files = [...ran].sort(codeUnitOrder);
   // A file laid over no index has no base; running it again at this commit
   // retires this commit's own cases of it, which are then its base. When the
@@ -119,117 +108,91 @@ export async function layCaseRun(
     ...(retired === undefined || began ? { began: true } : {}),
     cases: last,
   };
-  await writeCoverageBytes(layers.last, Buffer.from(`${JSON.stringify(named, null, 2)}\n`));
-  // Absent is not empty: with no index to take them from, there is no before.
-  if (before === undefined) await rm(layers.before, { force: true });
-  else await writeCoverageBytes(layers.before, before);
+  return {
+    index: merged,
+    last: Buffer.from(`${JSON.stringify(named, null, 2)}\n`),
+    // Absent is not empty: with no index to take them from, there is no before.
+    ...(before === undefined ? {} : { before }),
+  };
 }
 
-/** One shard a landing folded: where its snapshot is, and the runs it names. */
+/** The run that wrote the case index last, or `undefined` when none named itself or its name cannot be read. */
+export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
+  if (sections.last === undefined) return undefined;
+  try {
+    return JSON.parse(Buffer.from(sections.last).toString('utf8')) as LastCaseRun;
+  } catch {
+    return undefined;
+  }
+}
+
+/** One shard a landing folded: where its record is, and the runs it names. */
 export interface LandedShard {
   readonly path: string;
   readonly coverage: LaidRun;
 }
 
-/** What a landing did to the case index beside the snapshot it wrote. */
+/** What a landing did to the cases of the record it wrote. */
 export type CaseLanding =
-  /** `shards` case indexes were laid over the one at `laid`, in the order they were named. */
+  /** `shards` shards' cases were laid into the record at `laid`, in the order they were named. */
   | { readonly laid: string; readonly shards: number }
   /**
-   * A shard that finished a test file left no case index this build can read,
-   * so no index can answer for that file's cases. `removed` says whether one
-   * was there to remove.
+   * A shard that finished a test file kept no cases this build can read, so
+   * the record at `unanswered` can answer for none of that file's cases.
+   * `removed` says whether it held any to drop.
    */
-  | { readonly unanswered: string; readonly shard: string; readonly removed: boolean }
-  /** Another process had the index locked, and it was left as it was. */
-  | { readonly busy: string; readonly reason: string };
+  | { readonly unanswered: string; readonly shard: string; readonly removed: boolean };
 
 /**
- * Keep the case index beside `record` answering for the snapshot a landing
- * writes there.
+ * The case sections of `record` once a landing lays its shards' cases into it,
+ * and what that did.
  *
- * Each shard's seam left its cases at `<shard>.cases.bin`, as it does beside
- * any snapshot it records. They are laid over the index in the order the
- * shards were named, each as the run it was. An index in the row spelling is
- * laid the same way, once it is spelled as sets.
+ * Each shard's seam kept its cases in the shard's own record, as it does in any
+ * record it writes. They are laid over `previous`, the sections the record held,
+ * in the order the shards were named, each as the run it was. An index in the
+ * row spelling is laid the same way, once it is spelled as sets.
  *
- * A shard that finished a test file and left no index recorded no cases, which
- * is what a seam does when it was not asked for them. The index cannot say
- * which cases of that file walk a line, and the cases it still has for that
- * file are an earlier run's. So the index and its two layers are removed, and a
- * reader says nothing is recorded rather than answer from cases the snapshot
- * beside it replaced. A shard that finished no file is skipped: its seam writes
- * no index for such a run either, and laying it would change nothing.
+ * A shard that finished a test file and kept no cases recorded none, which is
+ * what a seam does when it was not asked for them. The record cannot say which
+ * cases of that file walk a line, and the cases it still has for that file are
+ * an earlier run's. So every case section is dropped, and a reader says nothing
+ * is recorded rather than answer from cases the coverage beside them replaced.
+ * A shard that finished no file is skipped: its seam keeps no cases for such a
+ * run either, and laying it would change nothing.
  *
- * Everything is done under the index's lock, and nothing at all when another
- * process has it. A landing writes the snapshot under that snapshot's own lock
- * and calls this inside it, so no run writes the snapshot between the two.
+ * Nothing is written here. The landing writes the sections into the record it
+ * writes, under that record's lock.
  */
-export async function landCaseIndexes(
+export function landCases(
   record: string,
+  previous: CaseSections,
   root: string,
   shards: readonly LandedShard[],
-): Promise<CaseLanding> {
-  const file = `${record}.cases.bin`;
-  const runs: { readonly fresh: Uint8Array; readonly coverage: LaidRun }[] = [];
-  let unanswered: string | undefined;
+): { readonly landing: CaseLanding; readonly sections: CaseSections } {
+  let sections = previous;
+  let laid = 0;
   for (const shard of shards) {
-    const fresh = await layableIndex(`${shard.path}.cases.bin`);
-    if (fresh !== undefined) runs.push({ fresh, coverage: shard.coverage });
-    else if (shard.coverage.tests.some((test) => test.complete)) {
-      unanswered = shard.path;
-      break;
+    const fresh = layableIndex(caseSectionsAt(shard.path).index);
+    if (fresh !== undefined) {
+      // FIXME: each shard is laid as a run of its own, so the last-run layer
+      // names only the last shard's cases, and `covering --cases last` after a
+      // landing answers from that shard rather than from the whole fold.
+      sections = layCases(sections, fresh, root, shard.coverage);
+      laid += 1;
+    } else if (shard.coverage.tests.some((test) => test.complete)) {
+      const removed = Object.values(previous).some((part) => part !== undefined);
+      return { landing: { unanswered: record, shard: shard.path, removed }, sections: {} };
     }
   }
-  if (unanswered === undefined && runs.length === 0) return { laid: file, shards: 0 };
-
-  const written = await withIndexLock(file, async (lock): Promise<CaseLanding> => {
-    if (unanswered !== undefined) return removeCaseIndex(file, record, unanswered);
-    // FIXME: each shard is laid as a run of its own, so the last-run layer names
-    // only the last shard's cases, and `covering --cases last` after a landing
-    // answers from that shard rather than from the whole fold.
-    for (const run of runs) await layCaseRun(lock, run.fresh, root, run.coverage);
-    return { laid: file, shards: runs.length };
-  });
-  return written.held ? written.value : { busy: file, reason: busyIndex(file) };
+  return { landing: { laid: record, shards: laid }, sections };
 }
 
-/** Remove the index and everything beside it that answers for its cases. Called under the index's lock. */
-async function removeCaseIndex(file: string, record: string, shard: string): Promise<CaseLanding> {
-  const layers = caseLayerFiles(file);
-  const stale = [file, layers.last, layers.before, `${record}.cases.json`];
-  const removed = stale.some((path) => existsSync(path));
-  await Promise.all(stale.map((path) => rm(path, { force: true })));
-  return { unanswered: file, shard, removed };
-}
-
-/** The shard's index spelled as sets, when it is there and this build can read it. */
-async function layableIndex(file: string): Promise<Uint8Array | undefined> {
-  const bytes = await readIfThere(file);
+/** The shard's index spelled as sets, when it has one this build can read. */
+function layableIndex(bytes: Uint8Array | undefined): Uint8Array | undefined {
   if (bytes === undefined) return undefined;
   try {
     return openSetExecutionIndex(bytes) === undefined ? encodeAsSetExecutionIndex(decodeExecutionIndex(bytes)) : bytes;
   } catch {
     return undefined;
-  }
-}
-
-/** The run that wrote the index last, or `undefined` when none named itself or its name cannot be read. */
-async function readLastRun(file: string): Promise<LastCaseRun | undefined> {
-  const bytes = await readIfThere(file);
-  if (bytes === undefined) return undefined;
-  try {
-    return JSON.parse(bytes.toString('utf8')) as LastCaseRun;
-  } catch {
-    return undefined;
-  }
-}
-
-async function readIfThere(file: string): Promise<Buffer | undefined> {
-  try {
-    return await readFile(file);
-  } catch (error) {
-    if (isMissing(error)) return undefined;
-    throw error;
   }
 }

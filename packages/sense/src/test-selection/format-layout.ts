@@ -45,15 +45,26 @@ export const MODEL = 3;
  * it has still means what it did, and the one it lacks is a fact nobody
  * reported, which a reader answers with absence rather than a refusal. The JVM
  * agent still writes that layout.
+ *
+ * And again when the record took in its cases (spec 0094): `cases`,
+ * `cases.before` and `cases.last` sit beside the coverage sections, each
+ * holding bytes of its own. The layout before it stays readable as a record
+ * that kept no cases, which is what it is to every reader: the case index it
+ * may have had beside it is not read.
  */
-export const FORMAT = 9;
+export const FORMAT = 10;
+
+/** The layout before the case sections, read as a record that kept no cases. */
+export const UNCASED_FORMAT = 9;
 
 /** The layout before `tests.duration`, read as one whose runner reported no durations. */
 export const UNTIMED_FORMAT = 8;
 
 /** The layouts a reader opens. */
-export function readableFormat(version: unknown): version is typeof FORMAT | typeof UNTIMED_FORMAT {
-  return version === FORMAT || version === UNTIMED_FORMAT;
+export function readableFormat(
+  version: unknown,
+): version is typeof FORMAT | typeof UNCASED_FORMAT | typeof UNTIMED_FORMAT {
+  return version === FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
 }
 
 const ALIGNMENT = 8;
@@ -115,7 +126,7 @@ export const NAMES = [
   'sets.off',
 ] as const;
 
-/** The section `FORMAT` added over `UNTIMED_FORMAT`: one word a test, see {@link NO_DURATION}. */
+/** The section the layouts after `UNTIMED_FORMAT` added: one word a test, see {@link NO_DURATION}. */
 export const DURATION = 'tests.duration';
 
 export interface Section {

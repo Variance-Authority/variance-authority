@@ -451,11 +451,10 @@ unsharded run would have written:
 variance journeys shard-1/coverage.bin shard-2/coverage.bin --into coverage.bin
 ```
 
-Upload each shard's case index, `coverage.bin.cases.bin`, beside its record.
-The fold merges the shards' cases into the index beside the stitched record. A
-shard that ran a test file to the end with no case index beside it leaves no
-index at all, because nothing can then say which of that file's cases ran a
-line.
+Each shard's record carries its case index, so the record is the whole upload.
+The fold lays the shards' cases into the stitched record. A shard that ran a
+test file to the end and kept no cases leaves no index at all, because nothing
+can then say which of that file's cases ran a line.
 
 The fold refuses rather than guesses. Shards recorded at different commits, or
 under different **probe recipes** — the instrumentation configuration a build
@@ -569,13 +568,11 @@ the test file from the module it entered, which is there for a producer that can
 measure it; these probes record entry rather than depth, so every row they write
 says zero and the whole column is one run.
 
-Ask for the same index as JSON — name your `executionFile` with a `.json`
-suffix and you get it, for a reader that has to have it — and the first row
-above is **27.2 MB** instead of 0.46. That is what the three columns cost once
-each crossing is an object again: `{"test":0,"distance":0}` is thirty-odd bytes
-to say what two run-coded columns say in nothing at all, and it is ninety times
-the file it sits next to. Take the JSON only when
-something downstream cannot be taught to read the other one.
+Spell the same index as JSON — the spelling a tool that records its own
+per-case crossings supplies — and the first row above is **27.2 MB** instead of
+0.46. That is what the three columns cost once each crossing is an object again:
+`{"test":0,"distance":0}` is thirty-odd bytes to say what two run-coded columns
+say in nothing at all, and it is ninety times the record it would travel in.
 
 ## Every CI caps what a job may upload
 

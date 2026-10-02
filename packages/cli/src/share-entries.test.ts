@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { commitRunsFile, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseSectionsOf, commitRunsFile, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { report } from './commands/push-fixture.js';
 import {
   REPORT_ENTRY,
@@ -60,32 +60,57 @@ describe('a report as a `report-v1` entry', () => {
 });
 
 describe('a suite as a `suite-v1/<suite>` entry', () => {
-  async function recorded(name: string, commit?: string): Promise<{ readonly root: string; readonly coverage: string }> {
+  async function recorded(
+    name: string,
+    commit?: string,
+    cases: Parameters<typeof writeTestCoverage>[2] = {},
+  ): Promise<{ readonly root: string; readonly coverage: string }> {
     const root = join(dir, name);
     await mkdir(root, { recursive: true });
     execFileSync('git', ['init', '--quiet', root]);
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
     const coverage = testCoverageFile(root, { suite: 'unit' });
     await mkdir(dirname(coverage), { recursive: true });
-    await writeTestCoverage(coverage, { version: 3, instrumentation: 'fixture', ...(commit === undefined ? {} : { commit }), tests: [], modules: [] });
+    await writeTestCoverage(
+      coverage,
+      { version: 3, instrumentation: 'fixture', ...(commit === undefined ? {} : { commit }), tests: [], modules: [] },
+      cases,
+    );
 
     return { root, coverage };
   }
 
-  it('holds the coverage record and its per-case index, and no names table', async () => {
-    const { root, coverage } = await recorded('repo', AT.commit);
-    await writeFile(`${coverage}.cases.bin`, 'cases');
+  it('holds the coverage record with its case index in it, and neither the last run\'s parts nor a names table', async () => {
+    const { root } = await recorded('repo', AT.commit, {
+      index: Buffer.from('cases'),
+      before: Buffer.from('before'),
+      last: Buffer.from('{}'),
+    });
 
     const entry = await suiteEntryOf(root, 'unit', { commit: AT.commit });
 
     if (entry === undefined || 'unpublished' in entry) throw new Error(`not published: ${JSON.stringify(entry)}`);
     expect(entry).toMatchObject({ name: 'suite-v1/unit', commit: AT.commit });
     const parts = unframe(entry.bytes);
-    expect(typeof parts === 'string' ? parts : [...parts.keys()]).toEqual(['coverage.bin', 'coverage.bin.cases.bin']);
+    expect(typeof parts === 'string' ? parts : [...parts.keys()]).toEqual(['coverage.bin']);
     const read = readSuiteEntry(entry.bytes);
     if (typeof read === 'string') throw new Error(read);
-    expect(Buffer.from(read.coverage).equals(await readFile(coverage))).toBe(true);
-    expect(new TextDecoder().decode(read.cases)).toBe('cases');
+    // The last run is the publisher's, not the taker's: only the index crosses.
+    const cases = caseSectionsOf(read.coverage);
+    expect(Object.keys(cases)).toEqual(['index']);
+    expect(new TextDecoder().decode(cases.index)).toBe('cases');
+  });
+
+  it('reads an entry an earlier publisher framed with the index beside the record, as a record that kept no cases', async () => {
+    const { coverage } = await recorded('earlier', AT.commit);
+    const record = await readFile(coverage);
+
+    const read = readSuiteEntry(frame([['coverage.bin', record], ['coverage.bin.cases.bin', Buffer.from('cases')]]));
+
+    if (typeof read === 'string') throw new Error(read);
+    expect(Buffer.from(read.coverage).equals(record)).toBe(true);
+    expect(caseSectionsOf(read.coverage)).toEqual({});
+    expect(Object.keys(read)).toEqual(['coverage']);
   });
 
   it('is not published under a commit other than the one the record names, and says which it names', async () => {

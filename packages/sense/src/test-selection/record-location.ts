@@ -17,6 +17,7 @@ import { link, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/
 import { dirname, relative, resolve, sep } from 'node:path';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import { commitRunsFile, readCommitRuns, type CommitRuns } from './commit-runs.js';
+import { caseSectionsOf, sharedRecord } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
@@ -155,22 +156,18 @@ export async function seedTestCoverage(
   }
   if (layers.top === layers.base) return undefined;
   let snapshot: TestCoverageView | undefined;
+  // The cases come in the record, and the run folds into whatever it finds
+  // there, replacing the cases of the files it ran: with none seeded, the first
+  // run in a worktree would write a partial index that then stands for the
+  // whole suite. The base's last run, and what that run laid over, are the
+  // base's and stay there; the worktree's first run is the first it has.
   const seeded = await seedFrom(layers.base, inside, file, (bytes) => {
     snapshot = openTestCoverage(bytes);
+    const { index } = caseSectionsOf(bytes);
+    if (index !== undefined && openSetExecutionIndex(index) === undefined) decodeExecutionTests(index);
+    return sharedRecord(bytes);
   });
-  // The case index is a second record beside the snapshot, and the run folds
-  // into whatever it finds there, replacing the cases of the files it ran. With
-  // nothing seeded the first run in a worktree would write a partial index that
-  // then stands for the whole suite.
-  //
-  // Only beside the snapshot copied with it. A checkout whose own snapshot is
-  // there and whose index is not has no recorded cases — a landing removed
-  // them, or its runs recorded none — and the base's index is the cases of a
-  // different snapshot.
   if (!seeded || snapshot === undefined) return undefined;
-  await seedFrom(layers.base, `${inside}.cases.bin`, `${file}.cases.bin`, (bytes) => {
-    if (openSetExecutionIndex(bytes) === undefined) decodeExecutionTests(bytes);
-  });
   await seedCommitRuns(file, resolve(layers.base, inside), snapshot);
   // The primary checkout's record is no milestone: nothing is pinned, and no
   // fetch moves it. Its tests are not this checkout's.
@@ -253,14 +250,15 @@ async function seedCommitRuns(file: string, base: string, snapshot: TestCoverage
 
 /**
  * Copy `name` from under `base` to `target` unless `target` is already there,
- * and unless `opens` refuses the bytes. No base and an unreadable one are the
- * same answer: nothing to inherit. Says whether it copied.
+ * as `opens` returns the bytes, and unless it refuses them. No base and an
+ * unreadable one are the same answer: nothing to inherit. Says whether it
+ * copied.
  */
 async function seedFrom(
   base: string,
   name: string,
   target: string,
-  opens: (bytes: Uint8Array) => void,
+  opens: (bytes: Uint8Array) => Uint8Array,
 ): Promise<boolean> {
   // FIXME: the check and the copy are two steps, so two first writes in one
   // worktree can both find `target` missing, and the later copy replaces a
@@ -275,8 +273,7 @@ async function seedFrom(
     const bytes = await readFile(resolve(base, name));
     // Opening parses the section index and nothing else, which is the whole of
     // what "this build can read it" means and costs a fraction of a decode.
-    opens(bytes);
-    await writeCoverageBytes(target, bytes);
+    await writeCoverageBytes(target, opens(bytes));
     return true;
   } catch {
     // No base, or one this build has no claim on. Either way there is nothing
@@ -311,10 +308,10 @@ export async function readableTestCoverage(
  * {@link readableTestCoverage} for a caller that cannot wait, and the one rule
  * every reader finds a recording by.
  *
- * The case index a reader opens is the one beside this snapshot, never the
- * nearest index on its own: an index answers for the snapshot it was laid
- * beside. A layer whose snapshot is there and whose index is not has no
- * recorded cases, and the layer under it is not asked.
+ * The cases a reader opens are the ones in this snapshot, never the nearest
+ * layer's that has some: cases answer for the record they were laid in. A
+ * record that keeps none has no recorded cases, and the layer under it is not
+ * asked.
  */
 export function nearestTestCoverage(root: string, options: RecordLocationOptions = {}): string {
   const inside = recordPath(root, options.suite);

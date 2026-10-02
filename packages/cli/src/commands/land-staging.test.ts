@@ -8,8 +8,9 @@ import { published, wholeRecord } from './mainline-fixture.js';
 
 /**
  * A landing whose snapshot or runs record cannot be written — a full disk, a
- * read-only volume — changes nothing, the case index included. Both are staged
- * before the index is touched, so the write that fails is a staging.
+ * read-only volume — changes nothing, the cases the snapshot carries included.
+ * Both are staged before either replaces what is there, so the write that fails
+ * is a staging.
  */
 
 /** Once set, every write of `file` into this directory fails as a full disk does. */
@@ -53,12 +54,11 @@ afterEach(async () => {
 
 describe('landJourneys when what it stages cannot be written', () => {
   it.each(['snapshot', 'runs record'] as const)(
-    'leaves the snapshot, the runs record and the case index as they were when the %s cannot be written, and no staged file behind',
+    'leaves the snapshot with its cases and the runs record as they were when the %s cannot be written, and no staged file behind',
     async (file) => {
       const { dir, first } = await published(home, { publish: false, record: wholeRecord });
       const record = testCoverageFile(dir, { suite: 'unit' });
       const snapshot = await readFile(record);
-      const cases = await readFile(`${record}.cases.bin`);
       // The fixture leaves no runs record beside the snapshot. One is written here, so a landing that changed it would show.
       await writeCommitRuns(commitRunsFile(record), { first: '', latest: '', runs: 1, files: ['test/total.test.ts'] });
       const runs = await readFile(commitRunsFile(record));
@@ -78,7 +78,6 @@ describe('landJourneys when what it stages cannot be written', () => {
       await expect(landJourneys(dir, [shard], record)).rejects.toThrow('ENOSPC');
 
       expect(await readFile(record)).toEqual(snapshot);
-      expect(await readFile(`${record}.cases.bin`)).toEqual(cases);
       expect(await readFile(commitRunsFile(record))).toEqual(runs);
       expect((await readdir(dirname(record))).filter((name) => name.endsWith('.tmp'))).toEqual([]);
     },

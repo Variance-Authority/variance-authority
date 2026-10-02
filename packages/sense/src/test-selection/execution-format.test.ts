@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeExecutionIndex,
   encodeExecutionIndex,
-  executionIndexBytes,
   isEncodedExecutionIndex,
 } from './execution-format.js';
 import type { ExecutionIndex } from './reverse.js';
@@ -116,12 +115,6 @@ describe('the execution index as columns', () => {
     expect(isEncodedExecutionIndex(encodeExecutionIndex(representative()))).toBe(true);
     expect(isEncodedExecutionIndex(Buffer.from(JSON.stringify(representative()), 'utf8'))).toBe(false);
     expect(isEncodedExecutionIndex(Buffer.from('\n  {"tests":[]}', 'utf8'))).toBe(false);
-  });
-
-  it('writes JSON to a name that asked for it', () => {
-    const index = representative();
-    expect(JSON.parse(executionIndexBytes('cases.json', index).toString('utf8'))).toEqual(index);
-    expect(isEncodedExecutionIndex(executionIndexBytes('coverage.bin.cases.bin', index))).toBe(true);
   });
 
   it('refuses a file it did not write', () => {

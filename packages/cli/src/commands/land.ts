@@ -31,12 +31,11 @@ import { landingRecord } from './suite-record.js';
  * is asked of git by the review that reads it, not here, where the landing may
  * run outside the checkout or before the other commit was fetched.
  *
- * The case index beside the target is part of the same record: `recordings()`
- * and `recordedExecutionFile` read it as the cases of the snapshot beside it.
- * Each shard's seam left its own beside its snapshot, and those are laid over
- * the target's in the same order; a shard that left none takes the target's
- * index with it, so nobody reads cases the snapshot has replaced. See
- * `landCaseIndexes`.
+ * The cases travel in the record (spec 0094): each shard's seam kept its own in
+ * the shard's record, and those are laid over the target's in the same order
+ * and written into the record the landing writes; a shard that kept none takes
+ * the target's with it, so nobody reads cases the snapshot has replaced. See
+ * `landCases`.
  *
  * A target that exists and cannot be read is refused rather than replaced. The
  * runner replaces, because it reaches that file from inside a teardown where a
@@ -80,11 +79,9 @@ export async function landJourneys(
   // the whole suite. A no-op for `--into` and after the first landing.
   selection.noteSeeded(await selection.seedTestCoverage(at, root));
 
-  // The snapshot is read, merged and written under the lock every runner seam
-  // takes on it, and the case index is laid inside that, under its own: the
-  // two answer for the same runs, and a run landing between them would leave
-  // each one describing a different suite. The runs record beside the snapshot
-  // answers for them too, and is written by `commitRunsAfter`, the rules every
+  // The snapshot is read, merged and written, its cases laid into it, under
+  // the lock every runner seam takes on it. The runs record beside the snapshot
+  // answers for the same runs, and is written by `commitRunsAfter`, the rules every
   // runner's `landRun` writes it by: the fold is one run at the shards' commit,
   // and its test files are the ones the shards recorded. The snapshot and the
   // record are staged beside their targets first, so a write that fails leaves
@@ -99,14 +96,6 @@ export async function landJourneys(
   // A fix that removes them needs a floor like prune's `RUN_FLOOR_MS`, since a pid from another host, pid namespace or skewed file-system clock reads as dead,
   // and must report a removal it could not make without failing a landing that already landed.
   //
-  // FIXME: the case index and the snapshot are two files, and nothing renames
-  // them together. A crash after `landCaseIndexes` and before either rename,
-  // or the runs record's rename failing, leaves the index laid for a landing
-  // that did not finish. Landing again then lays the same shards' cases a
-  // second time: the index comes out right, but each lay reads as one more run
-  // at the same commit, so `layCaseRun` drops the before commit from the
-  // last-run layer, and review reports no case movement for those files and
-  // does not say why.
   const runsAt = selection.commitRunsFile(at);
   const stage = `${process.pid}-${randomUUID()}.tmp`;
   const staged = `${at}.${stage}`;
@@ -132,11 +121,10 @@ export async function landJourneys(
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const landed = selection.mergeCoverage(previous, folded);
     const runs = selection.commitRunsAfter(previous, held, folded);
+    const { landing: cases, sections } = selection.landCases(at, previous === undefined ? {} : selection.caseSectionsAt(at), root, read);
     try {
-      await selection.writeTestCoverage(staged, landed);
+      await selection.writeTestCoverage(staged, landed, sections);
       await selection.writeCommitRuns(stagedRuns, runs);
-      const cases = await selection.landCaseIndexes(at, root, read);
-      if ('busy' in cases) throw busy(cases.busy, at);
       await rename(staged, at);
       // FIXME: the snapshot and the runs record are two files, and nothing
       // renames them together. A crash between these two renames, or this

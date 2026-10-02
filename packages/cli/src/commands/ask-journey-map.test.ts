@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { encodeExecutionIndex, landCaseIndexes, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
@@ -152,16 +152,17 @@ async function recorded(made?: string): Promise<string> {
       }],
     }],
   });
-  // A run's own index, laid beside the snapshot the way a landing lays it, which is the spelling the reader takes.
+  // A run's own index, kept in its shard and laid into the record the way a landing lays it, which is the spelling the reader takes.
   const shard = join(mkdtempSync(join(tmpdir(), 'va-journey-map-shard-')), 'run.bin');
-  writeFileSync(`${shard}.cases.bin`, encodeExecutionIndex({
+  writeFileSync(shard, withCaseSections(readFileSync(at), { index: encodeExecutionIndex({
     tests: [{ id: 's1', file: 'test/since.test.ts', name: 'reads' }],
     modules: [{
       file: 'src/commands/since.ts',
       blocks: [{ kind: 'module', name: '', path: 'entry', startLine: 1, endLine: 5, source: true, crossings: [{ test: 0, distance: 0 }] }],
     }],
-  }));
+  }) }));
   const tests = [{ file: 'test/since.test.ts', complete: true }];
-  await landCaseIndexes(at, root, [{ path: shard, coverage: { tests, ...(made === undefined ? {} : { commit: made }) } }]);
+  const { sections } = landCases(at, {}, root, [{ path: shard, coverage: { tests, ...(made === undefined ? {} : { commit: made }) } }]);
+  writeFileSync(at, withCaseSections(readFileSync(at), sections));
   return root;
 }

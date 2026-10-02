@@ -4,9 +4,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { journeyMap, journeyMaps } from './journeys.js';
+import { withCaseSections } from './test-selection/case-record.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';
 import { encodeTestCoverage } from './test-selection/format.js';
+import { sections } from './test-selection/format-layout.js';
 import { testCoverageFile } from './test-selection/record-location.js';
 
 /**
@@ -67,8 +69,8 @@ function recordedAt(files: readonly string[], { atRoot = true, under = '' } = {}
   const at = testCoverageFile(root);
   const made = git('rev-parse', 'HEAD').trim();
   mkdirSync(dirname(at), { recursive: true });
-  writeFileSync(at, encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [], commit: made }));
-  writeFileSync(`${at}.cases.bin`, shared(atRoot, under));
+  const snapshot = encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [], commit: made });
+  writeFileSync(at, withCaseSections(snapshot, { index: shared(atRoot, under) }));
   return made.slice(0, 12);
 }
 
@@ -227,9 +229,11 @@ describe('a journey map around a file the recording keeps no row for', () => {
 
   it('cannot say when the recording\'s commit does not read', () => {
     committedOld();
-    const at = `${testCoverageFile(root)}.cases.bin`;
+    const at = testCoverageFile(root);
     mkdirSync(dirname(at), { recursive: true });
-    writeFileSync(at, shared(true));
+    // A record that carries its cases and none of the sections the snapshot is read from.
+    const index = shared(true);
+    writeFileSync(at, sections({ cases: { plain: index, rows: index.length, width: 1 } }));
 
     expect(journeyMap(root, 'src/old.ts')?.notRecorded).toMatch(
       /^The recording cannot say whether a test loaded src\/old\.ts: the recording's commit did not read \(.+\), so git cannot say whether the file existed when the recording was made\.$/u,
@@ -315,6 +319,6 @@ function committedOld(): void {
 function recordedWith(made: string | undefined): void {
   const at = testCoverageFile(root);
   mkdirSync(dirname(at), { recursive: true });
-  writeFileSync(at, encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [], ...(made === undefined ? {} : { commit: made }) }));
-  writeFileSync(`${at}.cases.bin`, shared(true));
+  const snapshot = encodeTestCoverage({ version: 3, instrumentation: 'fixture', tests: [], modules: [], ...(made === undefined ? {} : { commit: made }) });
+  writeFileSync(at, withCaseSections(snapshot, { index: shared(true) }));
 }

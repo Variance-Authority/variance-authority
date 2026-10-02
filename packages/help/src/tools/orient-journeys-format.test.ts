@@ -137,7 +137,7 @@ describe('the journeys around some files, said', () => {
     const reading = {
       files: ['README.md'],
       around: { index: '/cache/source-index.bin' },
-      recorded: [{ recording: '/cache/cases.bin', unread: 'nothing is recorded there' }],
+      recorded: [{ recording: '/cache/coverage.bin', unread: 'nothing is recorded there' }],
     } as const;
 
     expect(formatOrientation({ ...reading, journeys: [] }).endsWith('A run with `withTestSelection` records them.')).toBe(true);

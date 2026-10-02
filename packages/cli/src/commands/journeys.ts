@@ -118,11 +118,8 @@ export interface LandedJourneys {
    * What the landing did to the case index beside the file written. Never a
    * busy index: that refuses the landing, and nothing is written to report on.
    */
-  readonly cases?: LandedCases;
+  readonly cases?: CaseLanding;
 }
-
-/** A case landing that wrote, or removed, what it came to. */
-export type LandedCases = Exclude<CaseLanding, { readonly busy: string }>;
 
 export interface JourneysInput extends JourneyReading {
   readonly pool: JourneyPool;
@@ -332,13 +329,13 @@ export function formatLanding(landed: LandedJourneys): string {
   ].join('\n');
 }
 
-function casesLine(cases: LandedCases): string {
+function casesLine(cases: CaseLanding): string {
   if ('laid' in cases) {
     return cases.shards === 0
       ? `  case index at ${cases.laid} left as it was: no snapshot finished a test file`
       : `  cases of ${many(cases.shards, 'snapshot')} laid over ${cases.laid}`;
   }
-  const why = `${cases.shard} ran a test file to the end, and there is no case index this build can read at ${cases.shard}.cases.bin`;
+  const why = `${cases.shard} ran a test file to the end, and its record keeps no case index this build can read`;
   return cases.removed
     ? `  case index removed at ${cases.unanswered}: ${why}, so no index can say which of that file's cases run a line. ` +
         'Record cases in the runs that write the shards, or run the suite here, to write one.'

@@ -137,7 +137,6 @@ function fetchedOf(record: MainlineRecord): LastFetched {
     commit: record.commit,
     fetched: record.fetched,
     coverage: record.coverage,
-    ...(record.cases === undefined ? {} : { cases: record.cases }),
     ...(record.runs === undefined ? {} : { runs: record.runs }),
   };
 }

@@ -64,12 +64,11 @@ import { withTestSelection } from '@variance-authority/sense/vitest';
 
 export default withTestSelection(
   defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-  { executionFile: '.variance/execution.json' },
 );
 ```
 
-Every wrapped run writes the per-case recording beside its per-file snapshot,
-and `executionFile` names where it goes. A test file that runs in a page is
+Every wrapped run writes the per-case recording into its per-file snapshot,
+and `--execution` takes that record as it is. A test file that runs in a page is
 recorded per file only, so a browser-mode run does not write the file `distill`
 needs.
 

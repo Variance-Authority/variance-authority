@@ -8,9 +8,9 @@ import { landJourneys } from './land.js';
 import { published, wholeRecord } from './mainline-fixture.js';
 
 /**
- * A landing that cannot take a lock changes nothing and stops with an operator
- * error naming the lock, whichever of the two locks is held: the snapshot's, or
- * the case index's, which the landing takes inside the snapshot's.
+ * A landing that cannot take the snapshot's lock changes nothing and stops
+ * with an operator error naming the lock. The cases travel in the snapshot, so
+ * that lock is the only one a landing takes.
  */
 
 let home: string;
@@ -104,17 +104,13 @@ async function landing(): Promise<{ dir: string; record: string; shard: string }
 }
 
 describe('landJourneys when another process holds a lock', () => {
-  it.each([
-    ['the snapshot', (record: string) => record],
-    ['the case index', (record: string) => `${record}.cases.bin`],
-  ])('refuses on %s, names its lock, and changes nothing', async (_, locked) => {
+  it('refuses on the snapshot, names its lock, and changes nothing, its cases included', async () => {
     const { dir, record, shard } = await landing();
     const snapshot = await readFile(record);
-    const cases = await readFile(`${record}.cases.bin`);
     // The fixture leaves no runs record beside the snapshot. One is written here, so a landing that changed it would show.
     await writeCommitRuns(commitRunsFile(record), { first: '', latest: '', runs: 1, files: ['test/total.test.ts'] });
     const runs = await readFile(commitRunsFile(record));
-    const lock = `${locked(record)}.lock`;
+    const lock = `${record}.lock`;
     // Written a moment ago by somebody else, which is what a live holder in
     // another process looks like from here.
     await writeFile(lock, '1\n');
@@ -127,7 +123,6 @@ describe('landJourneys when another process holds a lock', () => {
     );
     expect(refused).toMatchObject({ exitCode: EXIT_OPERATOR });
     expect(await readFile(record)).toEqual(snapshot);
-    expect(await readFile(`${record}.cases.bin`)).toEqual(cases);
     expect(await readFile(commitRunsFile(record))).toEqual(runs);
     expect((await readdir(dirname(record))).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   }, PUMP_TEST_TIMEOUT_MS);

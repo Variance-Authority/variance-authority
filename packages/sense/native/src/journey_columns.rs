@@ -155,6 +155,35 @@ pub(crate) fn place(bytes: &[u8], version: u8) -> Result<Vec<Placed>, String> {
         .collect()
 }
 
+/// The case index a recording holds: the `cases` section when `bytes` are a
+/// coverage record that carries one, and `bytes` themselves otherwise, which
+/// the journey reader then opens or refuses on its own terms.
+pub(crate) fn recorded_cases(bytes: Vec<u8>) -> Vec<u8> {
+    let cases = place_any(&bytes).ok().and_then(|placed| {
+        placed.into_iter().find(|column| column.name == "cases" && column.rows.is_none())
+    });
+    match cases {
+        Some(column) => bytes[column.stored].to_vec(),
+        None => bytes,
+    }
+}
+
+fn place_any(bytes: &[u8]) -> Result<Vec<Placed>, String> {
+    if bytes.len() < 4 {
+        return Err(String::new());
+    }
+    let header_length = u32::from_le_bytes(bytes[..4].try_into().unwrap_or_default()) as usize;
+    if header_length == 0 || 4 + header_length > bytes.len() {
+        return Err(String::new());
+    }
+    let header_end = bytes[4..4 + header_length]
+        .iter()
+        .position(|byte| *byte == 0)
+        .map_or(4 + header_length, |at| 4 + at);
+    let header: Header = serde_json::from_slice(&bytes[4..header_end]).map_err(|_| String::new())?;
+    place(bytes, header.version)
+}
+
 pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {
     let mut columns = HashMap::new();
     for column in place(bytes, version)? {

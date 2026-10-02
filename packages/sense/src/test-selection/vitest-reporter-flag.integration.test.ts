@@ -37,7 +37,7 @@ describe('a run whose reporters were replaced on the command line', () => {
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([[cased('test/branch.case.ts'), true]]);
-    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    const index = decodeExecutionIndex(await readFile(coverageFile));
     expect(coveringTests(index, { file: cased('src/decide.ts'), line: 3 }).map((test) => test.name))
       .toEqual(['decide > takes the alpha branch']);
     // Nothing the run staged is left beside the record.

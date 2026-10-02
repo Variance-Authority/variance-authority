@@ -4,7 +4,7 @@
  * recording part of one run are joined without losing what the others saw.
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -20,6 +20,7 @@ import {
 import { readTestCoverage, selectTestFiles } from './index.js';
 import { coveringChange, coveringTests, ranWhileLoading, type ExecutionIndex } from './reverse.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { caseIndexOf } from './case-record.js';
 import {
   INITIALIZING,
   LABEL_PLAIN_LINE,
@@ -66,7 +67,7 @@ const named = (index: ExecutionIndex, line: number): readonly string[] =>
   coveringTests(index, { file: 'price.js', line }).map((test) => test.name);
 
 describe('a driver that can tell its cases apart', () => {
-  it('names the case that walked the branch, beside a snapshot that is unchanged', async () => {
+  it('names the case that walked the branch, inside the record the snapshot is', async () => {
     await inRoot(async (root) => {
       const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
@@ -79,8 +80,7 @@ describe('a driver that can tell its cases apart', () => {
       ];
       const without = await recordExecution({ root, cacheRoot, coverageFile, subjects });
       expect(without).toMatchObject({ recorded: true });
-      const snapshot = await readFile(coverageFile);
-      expect(await readFile(`${coverageFile}.cases.bin`).catch(() => undefined)).toBeUndefined();
+      expect(await caseIndexOf(coverageFile)).toBeUndefined();
 
       const recorded = await recordExecution({
         root,
@@ -92,20 +92,16 @@ describe('a driver that can tell its cases apart', () => {
           { file: 'e2e/price.spec.ts', name: 'charges the amount below it', id: 'b', journal: run.plain },
         ],
       });
-      expect(recorded).toMatchObject({
-        recorded: true,
-        cases: 2,
-        executionFile: `${coverageFile}.cases.bin`,
-      });
+      expect(recorded).toMatchObject({ recorded: true, cases: 2 });
 
-      // The snapshot a `--since` reads is the same bytes either way: what the
-      // index costs is a second file, and a reader that never opens it pays
-      // nothing for it.
-      expect(await readFile(coverageFile)).toEqual(snapshot);
-
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      // One record: the cases travel inside the file every rule already moves,
+      // and nothing is written beside it.
+      expect((await readdir(root)).filter((name) => name.startsWith('coverage.bin.'))).toEqual([]);
+      const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       expect(named(index, PREMIUM_LINE)).toEqual(['charges twice above ten']);
       expect(named(index, PLAIN_LINE)).toEqual(['charges the amount below it']);
+      // A selection reader opens the same record and reads it as it did.
+      expect((await readTestCoverage(coverageFile))?.tests.map((test) => test.file)).toEqual(['e2e/price.spec.ts']);
     });
   });
 
@@ -127,7 +123,7 @@ describe('a driver that can tell its cases apart', () => {
         ],
       });
 
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       // `label(1)` ran once, while the module evaluated, before either case
       // existed. Whichever case drained first did not earn it, and a page
       // evaluates a module once for every case it serves, so the region is
@@ -166,7 +162,7 @@ describe('a driver that records one spec file at a time', () => {
       // The premium spec again, and its case now walks the plain branch.
       await record('e2e/premium.spec.ts', 'charges once below ten', run.plain);
 
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       expect(index.tests.map((test) => test.id)).toEqual([
         'e2e/plain.spec.ts > charges the amount below it',
         'e2e/premium.spec.ts > charges once below ten',
@@ -248,7 +244,7 @@ describe('a run recorded by more than one process', () => {
           'e2e/price.spec.ts',
         ]);
       }
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       expect(named(index, PREMIUM_LINE)).toEqual(['case a']);
       expect(named(index, PLAIN_LINE)).toEqual(['case b']);
 
@@ -285,7 +281,7 @@ describe('a run recorded by more than one process', () => {
 
       await recordExecution({ root, cacheRoot: resolve(root, 'cache'), coverageFile, subjects: staged.subjects, cases: staged.cases! });
       expect((await readTestCoverage(coverageFile)).tests.map((test) => test.duration)).toEqual([500]);
-      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const index = decodeExecutionIndex((await caseIndexOf(coverageFile))!);
       expect(index.tests.map(({ stopped, duration }) => ({ stopped, duration }))).toEqual([{ stopped: false, duration: 500 }]);
       await closeStage(directory);
     });

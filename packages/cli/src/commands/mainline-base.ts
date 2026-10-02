@@ -62,7 +62,7 @@ export interface MainlineRecord {
   readonly distance?: number;
   /** The coverage record, in the read layer. */
   readonly coverage: string;
-  /** Its per-case index, when the run that published it wrote one and it reads. */
+  /** The record again, when it carries a case index that reads. */
   readonly cases?: string;
   /** Why the per-case index it published is not kept, when it published one that does not read. */
   readonly casesUnread?: string;
@@ -161,7 +161,17 @@ export async function mainlineBase(
 
   const layer = join(readRoot, found.commit);
   const coverage = join(layer, 'coverage.bin');
-  const kept = await keep(selection.writeCoverageBytes, coverage, found.coverage);
+  // The cases travel in the record. An index that does not read is dropped
+  // from it, so no reader of the kept record meets it.
+  let index: Uint8Array | undefined;
+  try {
+    index = selection.caseSectionsOf(found.coverage).index;
+  } catch (error) {
+    return unread(`the record published at ${found.commit} does not read: ${messageOf(error)}`);
+  }
+  const casesUnread = index === undefined ? undefined : decodes(index);
+  const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
+  const kept = await keep(selection.writeCoverageBytes, coverage, record);
   if (kept !== undefined) return unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
   const refused = refusal(selection.askCoverageFile, coverage, found.commit);
   if (refused !== undefined) {
@@ -169,17 +179,6 @@ export async function mainlineBase(
     return unread(refused);
   }
 
-  // Beside the record, under the name every reader of a record looks for its cases by.
-  const cases = `${coverage}.cases.bin`;
-  let casesUnread: string | undefined;
-  if (found.cases === undefined) await rm(cases, { force: true });
-  else {
-    casesUnread = decodes(found.cases);
-    if (casesUnread === undefined) {
-      const failed = await keep(selection.writeCoverageBytes, cases, found.cases);
-      if (failed !== undefined) casesUnread = `its per-case index could not be kept at ${cases}: ${failed}`;
-    }
-  }
   // The runs record, beside the record under the name every reader looks for
   // it by, so a reader asks where each test last ran of the run that published
   // it. An entry without one leaves none there. A reader says what it read in
@@ -205,7 +204,7 @@ export async function mainlineBase(
     commit: found.commit,
     ...(found.distance !== undefined ? { distance: found.distance } : {}),
     coverage,
-    ...(found.cases !== undefined && casesUnread === undefined ? { cases } : {}),
+    ...(index !== undefined && casesUnread === undefined ? { cases: coverage } : {}),
     ...(casesUnread !== undefined ? { casesUnread } : {}),
     ...(runs === undefined ? {} : { runs }),
     fetched,
@@ -221,13 +220,14 @@ async function earlier(
   why: NonNullable<MainlineRecord['earlier']>,
 ): Promise<MainlineRecord> {
   const distance = await distanceFrom(place, last.mainline, last.commit, root);
+  const { keepsCases } = await import('@variance-authority/sense/test-selection');
   return {
     suite: last.suite,
     mainline: last.mainline,
     commit: last.commit,
     ...(distance !== undefined ? { distance } : {}),
     coverage: last.coverage,
-    ...(last.cases === undefined ? {} : { cases: last.cases }),
+    ...(keepsCases(last.coverage) ? { cases: last.coverage } : {}),
     ...(last.runs === undefined ? {} : { runs: last.runs }),
     fetched: last.fetched,
     earlier: why,

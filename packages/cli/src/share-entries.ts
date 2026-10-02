@@ -28,7 +28,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { ShareEntry } from '@variance-authority/core/share';
-import { askCoverageFile, commitRunsFile, testCoverageFile, type CommitRuns } from '@variance-authority/sense/test-selection';
+import { askCoverageFile, commitRunsFile, sharedRecord, testCoverageFile, type CommitRuns } from '@variance-authority/sense/test-selection';
 import { readCliRunReport } from './commands/run-report.js';
 
 
@@ -165,7 +165,6 @@ export async function suiteEntryOf(
   }
   if (recorded === undefined) return { unpublished: `its record at ${coverage} names no commit` };
   if (recorded !== at.commit) return { unpublished: `its record at ${coverage} was recorded at ${recorded}, not at ${at.commit}` };
-  const cases = await held(`${coverage}.cases.bin`);
   const runs = await held(commitRunsFile(coverage));
   if (options.whole === true) {
     const partial = wholeRunAt(runs, at.commit, options.collected);
@@ -176,8 +175,8 @@ export async function suiteEntryOf(
     name: suiteEntry(suite),
     ...at,
     bytes: frame([
-      ['coverage.bin', record],
-      ...(cases === undefined ? [] : [['coverage.bin.cases.bin', cases] as const]),
+      // The cases travel in the record; what names this checkout's last run does not.
+      ['coverage.bin', sharedRecord(record)],
       ...(runs === undefined ? [] : [[RUNS_PART, runs] as const]),
     ]),
   };
@@ -246,18 +245,22 @@ export function wholeRunAt(
   return `${kept.length} test file(s) the suite collects last ran before ${commit}, ${kept[0]} among them`;
 }
 
-/** A `suite-v1` entry's parts: the coverage record, the per-case index when there was one, and the runs record when the publisher carried it. */
+/**
+ * A `suite-v1` entry's parts: the coverage record, its cases inside it when the
+ * publishing run kept them, and the runs record when the publisher carried it.
+ * A per-case index framed beside the record by an earlier publisher is not
+ * read: that record reads as one that kept no cases.
+ */
 export function readSuiteEntry(
   bytes: Uint8Array,
-): { readonly coverage: Uint8Array; readonly cases?: Uint8Array; readonly runs?: Uint8Array } | string {
+): { readonly coverage: Uint8Array; readonly runs?: Uint8Array } | string {
   const parts = unframe(bytes);
   if (typeof parts === 'string') return parts;
   const coverage = parts.get('coverage.bin');
   if (coverage === undefined) return 'a suite-v1 entry holds coverage.bin';
-  const cases = parts.get('coverage.bin.cases.bin');
   const runs = parts.get(RUNS_PART);
 
-  return { coverage, ...(cases === undefined ? {} : { cases }), ...(runs === undefined ? {} : { runs }) };
+  return { coverage, ...(runs === undefined ? {} : { runs }) };
 }
 
 async function held(path: string): Promise<Uint8Array | undefined> {

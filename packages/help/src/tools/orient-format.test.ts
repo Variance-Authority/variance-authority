@@ -60,7 +60,7 @@ const READING: OrientReading = {
   recorded: [
     {
       suite: 'unit',
-      recording: '/cache/suites/unit/coverage.bin.cases.bin',
+      recording: '/cache/suites/unit/coverage.bin',
       files: [
         {
           file: 'packages/checkout/src/total.ts',
@@ -82,7 +82,7 @@ const READING: OrientReading = {
         { file: 'test/total.test.ts', titles: [], declared: 3, declaredNames: ['adds tax'] },
       ],
     },
-    { suite: 'stories', recording: '/cache/suites/stories/coverage.bin.cases.bin', unread: 'nothing is recorded there' },
+    { suite: 'stories', recording: '/cache/suites/stories/coverage.bin', unread: 'nothing is recorded there' },
   ],
 };
 
@@ -114,7 +114,7 @@ describe('an orientation, said', () => {
         '    100% (249)  @t/checkout          priceOf 50% (125), the whole module <1% (1), 3 more names',
         '       <1% (1)  files in no package  default <1% (1)',
         '',
-        'Recorded cases, suite unit, from /cache/suites/unit/coverage.bin.cases.bin:',
+        'Recorded cases, suite unit, from /cache/suites/unit/coverage.bin:',
         '  packages/checkout/src/total.ts  5 cases ran it, 3 of them by importing it:',
         '      test/total.test.ts > adds tax',
         '      4 more cases.',
@@ -126,7 +126,7 @@ describe('an orientation, said', () => {
         '      adds tax',
         '      2 more cases.',
         '',
-        'Recorded cases, suite stories: none read from /cache/suites/stories/coverage.bin.cases.bin, nothing is recorded there. A run with `withTestSelection` records them.',
+        'Recorded cases, suite stories: none read from /cache/suites/stories/coverage.bin, nothing is recorded there. A run with `withTestSelection` records them.',
         '',
         'Narrower questions:',
         '  variance ask uses --name priceOf --package @t/cart',
@@ -157,7 +157,7 @@ describe('an orientation, said', () => {
   });
 
   it('says no case ran a file only when no region of it ran, and what the importers could not name for one that only loaded', () => {
-    const recorded = (entered: CasesEntered) => [{ recording: '/cache/cases.bin', files: [entered] }];
+    const recorded = (entered: CasesEntered) => [{ recording: '/cache/coverage.bin', files: [entered] }];
     const idle = formatOrientation({ ...READING, recorded: recorded({ file: 'src/idle.ts', cases: 0, loaded: false, titles: [], declaredNames: [] }) });
     const loaded = { ...READING, recorded: recorded({ file: 'src/flags.ts', cases: 0, loaded: true, titles: [], declaredNames: [] }) };
     const nobody = recorded({ file: 'src/flags.ts', cases: 0, loaded: true, loaders: 0, titles: [], declaredNames: [] });

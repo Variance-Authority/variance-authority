@@ -82,7 +82,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
 
   it('names each case by its declaration path, and gives a branch only to the case that walked it', async () => {
     const { coverageFile } = await record();
-    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    const index = decodeExecutionIndex(await readFile(coverageFile));
     expect(index.tests.map((test) => test.id)).toEqual([
       at('test/alpha.case.mjs > decide > takes the alpha path'),
       at('test/alpha.case.mjs > decide > waits, then takes the alpha path'),
@@ -114,7 +114,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
 
     const files = decodeTestCoverage(await readFile(coverageFile)).tests;
     expect(files.map((test) => typeof test.duration)).toEqual(['number', 'number']);
-    const cases = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`)).tests;
+    const cases = decodeExecutionIndex(await readFile(coverageFile)).tests;
     expect(cases.map((test) => typeof test.duration)).toEqual(['number', 'number', 'number']);
     // The case that waits five milliseconds on a timer is the one the worker timed at five or more.
     const waited = cases.find((test) => test.name.includes('waits'));

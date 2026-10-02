@@ -38,7 +38,7 @@ import { declaredSuites } from './test-selection/suites.js';
 
 const HERE = fileURLToPath(new URL('../../..', import.meta.url));
 const EXAMPLES = join(homedir(), 'dev', 'variance-authority-examples');
-const RECORDED = ['coverage.bin', 'coverage.bin.cases.bin', 'coverage.runs.json'] as const;
+const RECORDED = ['coverage.bin', 'coverage.runs.json'] as const;
 
 interface Corpus {
   readonly name: string;

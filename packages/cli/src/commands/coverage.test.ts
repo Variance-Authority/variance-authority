@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { caseLayerFiles, encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 
 type Index = Parameters<typeof encodeExecutionIndex>[0];
@@ -26,9 +26,17 @@ let cache: string;
 let root: string;
 let previous: string | undefined;
 
-async function record(at: string, index: Index): Promise<void> {
+/**
+ * `index` kept in the record at `at` the way a run keeps its cases, with the
+ * run that wrote it when `last` names one. A record that is not there is
+ * written with no coverage of its own.
+ */
+async function record(at: string, index: Index, last?: { readonly commit: string; readonly files: readonly string[] }): Promise<void> {
   await mkdir(dirname(at), { recursive: true });
-  await writeFile(at, encodeExecutionIndex(index));
+  const cases = { index: encodeExecutionIndex(index), ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify(last)) }) };
+  const held = await readFile(at).catch(() => undefined);
+  if (held === undefined) await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, cases);
+  else await writeFile(at, withCaseSections(held, cases));
 }
 
 // The unit suite ran two of the three regions in `src/pay.ts`; the visual one
@@ -40,11 +48,11 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'variance-coverage-'));
   execFileSync('git', ['init', '--quiet', root]);
   await writeFile(join(root, 'variance.config.json'), JSON.stringify(SUITES));
-  await record(`${testCoverageFile(root, { suite: 'unit' })}.cases.bin`, {
+  await record(testCoverageFile(root, { suite: 'unit' }), {
     tests: [UNIT],
     modules: [{ file: 'src/pay.ts', blocks: [region('charge', true), region('refund', true), region('void', false)] }],
   });
-  await record(`${testCoverageFile(root, { suite: 'stories' })}.cases.bin`, {
+  await record(testCoverageFile(root, { suite: 'stories' }), {
     tests: [STORY],
     modules: [
       { file: 'src/pay.ts', blocks: [region('charge', true), region('refund', false), region('void', false)] },
@@ -105,14 +113,14 @@ describe('coverage of a repository that declares suites', () => {
   });
 
   it('refuses one base for several suites', async () => {
-    const answer = await ask(['coverage', '--root', root, '--against', join(root, 'base.cases.bin')]);
+    const answer = await ask(['coverage', '--root', root, '--against', join(root, 'base.bin')]);
 
     expect(answer.code).toBe(2);
     expect(answer.err).toContain('`--against` names one base');
   });
 
   it('prints the count at the base and now, and the parts that add up to the change', async () => {
-    const base = join(root, 'base', 'unit.cases.bin');
+    const base = join(root, 'base', 'unit.bin');
     await record(base, {
       tests: [UNIT],
       modules: [
@@ -180,7 +188,7 @@ describe('coverage of the source no suite loaded', () => {
     }
     execFileSync('git', ['add', '.'], { cwd: repo });
     await publishIndex(repo);
-    await record(`${testCoverageFile(repo, { suite: 'unit' })}.cases.bin`, {
+    await record(testCoverageFile(repo, { suite: 'unit' }), {
       tests: [MAIN],
       modules: [
         { file: 'apps/main/src/main.ts', blocks: [region('module', true)] },
@@ -214,7 +222,7 @@ describe('coverage of the source no suite loaded', () => {
       }
       execFileSync('git', ['add', '.'], { cwd: bare });
       await publishIndex(bare);
-      await record(`${testCoverageFile(bare, { suite: 'unit' })}.cases.bin`, {
+      await record(testCoverageFile(bare, { suite: 'unit' }), {
         tests: [MAIN],
         modules: [
           { file: 'apps/main/src/main.ts', blocks: [region('module', true)] },
@@ -243,7 +251,7 @@ describe('coverage of the source no suite loaded', () => {
       }
       execFileSync('git', ['add', '.'], { cwd: declared });
       await publishIndex(declared);
-      await record(`${testCoverageFile(declared, { suite: 'unit' })}.cases.bin`, {
+      await record(testCoverageFile(declared, { suite: 'unit' }), {
         tests: [MAIN],
         modules: [{ file: 'apps/main/src/main.ts', blocks: [region('module', true)] }],
       });
@@ -299,7 +307,6 @@ describe('coverage of the source the harness loads', () => {
     execFileSync('git', ['add', '.'], { cwd: repo });
     await publishIndex(repo);
     const at = testCoverageFile(repo, { suite: 'unit' });
-    await record(`${at}.cases.bin`, { tests: [TEST], modules: [{ file: 'app/src/a.ts', blocks: [region('a', true)] }] });
     // What the seam writes: each test rests on its own file and on the config it could not instrument.
     await writeTestCoverage(at, {
       version: 3,
@@ -311,6 +318,7 @@ describe('coverage of the source the harness loads', () => {
       }],
       modules: [],
     });
+    await record(at, { tests: [TEST], modules: [{ file: 'app/src/a.ts', blocks: [region('a', true)] }] });
   });
 
   afterAll(async () => {
@@ -372,10 +380,9 @@ describe('coverage of a change no suite loads', () => {
     git('add', '.');
     git('commit', '--quiet', '-m', 'base');
     await publishIndex(repo);
-    base = join(await mkdtemp(join(tmpdir(), 'variance-coverage-unloaded-base-')), 'unit.cases.bin');
-    await record(base, INDEX);
-    await writeFile(caseLayerFiles(base).last, JSON.stringify({ commit: git('rev-parse', 'HEAD'), files: [] }));
-    await record(`${testCoverageFile(repo, { suite: 'unit' })}.cases.bin`, INDEX);
+    base = join(await mkdtemp(join(tmpdir(), 'variance-coverage-unloaded-base-')), 'unit.bin');
+    await record(base, INDEX, { commit: git('rev-parse', 'HEAD'), files: [] });
+    await record(testCoverageFile(repo, { suite: 'unit' }), INDEX);
   });
 
   afterAll(async () => {
@@ -406,7 +413,7 @@ describe('coverage of a change no suite loads', () => {
 
   it('gives git no base commit that is not an object name, and prints the whole count instead', async () => {
     await writeFile(join(repo, 'src/pay.ts'), 'export function charge() {}\n');
-    await writeFile(caseLayerFiles(base).last, JSON.stringify({ commit: '--output=diff.txt', files: [] }));
+    await record(base, INDEX, { commit: '--output=diff.txt', files: [] });
 
     const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'markdown']);
 
@@ -443,7 +450,7 @@ describe('coverage of each package', () => {
     }
     execFileSync('git', ['add', '.'], { cwd: repo });
     await publishIndex(repo);
-    await record(`${testCoverageFile(repo, { suite: 'unit' })}.cases.bin`, {
+    await record(testCoverageFile(repo, { suite: 'unit' }), {
       tests: [MAIN],
       modules: [
         { file: 'apps/main/src/main.ts', blocks: [region('module', true)] },

@@ -80,7 +80,7 @@ describe('a Storybook run records what each story executed', () => {
       await recorder.note(pageReporting(journal(1)), 'story:price--plain', true);
       await recorder.close();
 
-      const written = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const written = decodeExecutionIndex(await readFile(coverageFile));
       // By its declaration, which is what a person reads in the sidebar and
       // what a diff touches — not by the id Storybook slugged from it.
       expect(written.tests.map((test) => test.name).sort()).toEqual([
@@ -102,7 +102,7 @@ describe('a Storybook run records what each story executed', () => {
       await recorder.note(pageReporting(journal(1)), 'story:price--plain', true);
       await recorder.close(new Map([['story:price--premium', 340]]));
 
-      const cases = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`)).tests;
+      const cases = decodeExecutionIndex(await readFile(coverageFile)).tests;
       expect(Object.fromEntries(cases.map((test) => [test.name, test.duration]))).toEqual({
         'Price/Premium': 340,
         'Price/Plain': undefined,
@@ -146,7 +146,6 @@ describe('a Storybook run records what each story executed', () => {
         root,
         cacheRoot,
         coverageFile: 'coverage.bin',
-        executionFile: 'cases.bin',
       });
       await recorder.note(
         pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id: 'packages/ui/price.js', hits: [0], shared: [] }] }),
@@ -159,7 +158,7 @@ describe('a Storybook run records what each story executed', () => {
       expect(test?.preconditions.map((precondition) => precondition.name)).toContain(
         'packages/ui/src/Price.stories.tsx',
       );
-      const written = decodeExecutionIndex(await readFile(resolve(root, 'cases.bin')));
+      const written = decodeExecutionIndex(await readFile(coverageFile));
       expect(written.tests.map((each) => each.file)).toEqual(['packages/ui/src/Price.stories.tsx']);
     } finally {
       await rm(checkout, { recursive: true, force: true });

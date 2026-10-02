@@ -17,7 +17,7 @@
  * (`native/src/journey_query.rs` says what is kept).
  */
 
-import { open } from 'node:fs/promises';
+import { open, type FileHandle } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
 import type { LineRange } from './diff-lines.js';
@@ -41,7 +41,7 @@ export async function selectJourneyFile(
   options: JourneySelectionOptions = {},
 ): Promise<ExecutionNarrowing | undefined> {
   const select = native()?.selectJourneys;
-  if (select === undefined || (await headerVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
+  if (select === undefined || (await casesVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const graph = options.relations === undefined ? undefined : flatten(options.relations);
   const selected = select(file, nativeChange(changed, options.read), graph);
   return {
@@ -91,7 +91,7 @@ export async function projectJourneyFile(
   changed: ReadonlyMap<string, readonly LineRange[]>,
 ): Promise<JourneyProjection | undefined> {
   const project = native()?.projectJourneys;
-  if (project === undefined || (await headerVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
+  if (project === undefined || (await casesVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const projected = project(file, nativeChange(changed));
   const index: ExecutionIndex = {
     tests: projected.tests.map((test) => ({
@@ -127,21 +127,50 @@ function codeUnitOrder(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/** The layout version a column file declares, read off its header alone. */
-async function headerVersion(file: string): Promise<number | undefined> {
+/**
+ * The layout version of the case index at `file`, read off headers alone: the
+ * `cases` section's when `file` is a record carrying one, the file's own when
+ * it is an index by itself.
+ */
+async function casesVersion(file: string): Promise<number | undefined> {
   const handle = await open(file, 'r');
   try {
-    const length = Buffer.alloc(4);
-    if ((await handle.read(length, 0, 4, 0)).bytesRead < 4 || length[0] === 0x7b) return undefined;
-    const size = length.readUInt32LE(0);
-    if (size === 0 || size > 1 << 20) return undefined;
-    const header = Buffer.alloc(size);
-    await handle.read(header, 0, size, 4);
-    const parsed = JSON.parse(header.toString('utf8').replace(/\0+$/u, '')) as { version?: unknown };
-    return typeof parsed.version === 'number' ? parsed.version : undefined;
+    const outer = await headerAt(handle, 0);
+    if (outer === undefined) return undefined;
+    const cases = outer.sections?.find((section) => section.name === 'cases' && section.rows === undefined);
+    if (cases === undefined) return outer.version;
+    return (await headerAt(handle, outer.base + cases.offset))?.version;
   } catch {
     return undefined;
   } finally {
     await handle.close();
   }
+}
+
+interface ColumnSection {
+  readonly name: string;
+  readonly offset: number;
+  readonly rows?: number;
+}
+
+interface ColumnHeader {
+  readonly version?: number;
+  readonly sections?: readonly ColumnSection[];
+  /** Where the columns this header indexes start. */
+  readonly base: number;
+}
+
+async function headerAt(handle: FileHandle, at: number): Promise<ColumnHeader | undefined> {
+  const length = Buffer.alloc(4);
+  if ((await handle.read(length, 0, 4, at)).bytesRead < 4 || length[0] === 0x7b) return undefined;
+  const size = length.readUInt32LE(0);
+  if (size === 0 || size > 1 << 20) return undefined;
+  const header = Buffer.alloc(size);
+  await handle.read(header, 0, size, at + 4);
+  const parsed = JSON.parse(header.toString('utf8').replace(/\0+$/u, '')) as { version?: unknown; sections?: unknown };
+  return {
+    ...(typeof parsed.version === 'number' ? { version: parsed.version } : {}),
+    ...(Array.isArray(parsed.sections) ? { sections: parsed.sections as readonly ColumnSection[] } : {}),
+    base: at + 4 + size,
+  };
 }

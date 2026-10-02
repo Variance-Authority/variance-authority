@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -6,7 +6,7 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { caseLayerFiles, encodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
 import { keepCases } from './covering-scope.js';
 
@@ -30,14 +30,14 @@ const INDEX = {
   }],
 };
 
-/** An index as a run leaves it, with the last run named beside it when given. */
+/** A record keeping the index as a run leaves it, with the last run named in it when given. */
 async function recorded(last?: { readonly cases: readonly string[]; readonly commit?: string }): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'variance-covering-scope-'));
-  const file = join(dir, 'cases.bin');
-  await writeFile(file, encodeExecutionIndex(INDEX));
-  if (last !== undefined) {
-    await writeFile(caseLayerFiles(file).last, JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: [], ...last }));
-  }
+  const file = join(dir, 'coverage.bin');
+  await writeTestCoverage(file, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
+    index: encodeExecutionIndex(INDEX),
+    ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: [], ...last })) }),
+  });
   return file;
 }
 
@@ -77,11 +77,13 @@ describe('a test read alone', () => {
       .rejects.toThrow(/names no test file.*`flow.test.tsx`/);
   });
 
-  it('refuses `last` when no run named itself beside the index', async () => {
+  it('refuses `last` when no run named itself in the record', async () => {
     const execution = await recorded();
 
-    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution])))
-      .rejects.toThrow(OperatorError);
+    const asked = covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
+
+    await expect(asked).rejects.toThrow(OperatorError);
+    await expect(asked).rejects.toThrow(`from the record \`${execution}\`, and it names none.`);
   });
 
   it('renumbers the crossings of the cases it keeps', () => {

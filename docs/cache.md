@@ -76,9 +76,8 @@ over it, so a repository that names its cache keeps one answer for everyone.
 ```text
 <cache>/
   test-selection/<repository>/
-    coverage.bin                 which test ran which region of which module
-    coverage.bin.cases.bin       the same, for each test case
-    coverage.bin.cases.*         the cases each run replaced, kept for `variance review`
+    coverage.bin                 which test ran which region of which module, by file and by case,
+                                 and the cases the last run replaced, kept for `variance review`
     coverage.bin.lock            held while a run writes the recording
     coverage.runs.json           the runs at the current commit, and where each other test last ran
     coverage.stories/            a test story for each test a run recorded, when you ask for them

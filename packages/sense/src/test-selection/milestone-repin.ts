@@ -22,7 +22,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
 import { carriedSources } from './carried-sources.js';
-import { caseLayerFiles } from './case-landing.js';
+import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { layerCaseIndex } from './case-layer.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
 import { decodeSetExecutionIndex, encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
@@ -88,11 +88,13 @@ function refusal(layer: OwnLayer | undefined, record: LastFetched, root: string)
 }
 
 async function repin(coverageFile: string, record: LastFetched, root: string, layer: OwnLayer): Promise<Repin> {
+  let ownBytes: Buffer;
   let own: TestCoverage;
   let milestone: Buffer;
   let instrumentation: string;
   try {
-    own = decodeTestCoverage(await readFile(coverageFile));
+    ownBytes = await readFile(coverageFile);
+    own = decodeTestCoverage(ownBytes);
     milestone = await readFile(record.coverage);
     // A milestone the layer cannot open whole would be laid as nothing, and
     // the record would lose every row this checkout did not run.
@@ -118,7 +120,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   const subset = { ...ownSubset(own, kept), instrumentation };
   const bytes = layerTestCoverage(milestone, subset, await carriedSources(root, milestone, subset));
 
-  const cases = await repinnedCases(coverageFile, record, kept);
+  const cases = repinnedCases(caseSectionsOf(milestone).index, caseSectionsOf(ownBytes).index, kept);
   const view = openTestCoverage(bytes);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
   const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, states, recorded, kept);
@@ -126,13 +128,9 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   // The snapshot first: its new rows beside the old runs record read the
   // milestone's tests from the old pin, which only widens, where the new runs
   // record beside the old rows would read changes since the old pin as
-  // nobody's. A case layer's side files describe runs over the old pin and go
-  // with it.
-  await writeCoverageBytes(coverageFile, bytes);
-  const { last, before } = caseLayerFiles(coverageFile);
-  await Promise.all([rm(last, { force: true }), rm(before, { force: true })]);
-  if (cases === undefined) await rm(`${coverageFile}.cases.bin`, { force: true });
-  else await writeCoverageBytes(`${coverageFile}.cases.bin`, cases);
+  // nobody's. The cases go in the same write; the last run and what it laid
+  // over describe a run over the old pin and go with it.
+  await writeCoverageBytes(coverageFile, withCaseSections(bytes, cases === undefined ? {} : { index: cases }));
   if (runs === undefined) await rm(commitRunsFile(coverageFile), { force: true });
   else await writeCommitRuns(commitRunsFile(coverageFile), runs);
   await writeOwnLayer(coverageFile, { pinned: { mainline: record.mainline, commit: record.commit }, ran: states });
@@ -163,15 +161,7 @@ function ownSubset(own: TestCoverage, tests: ReadonlySet<string>): TestCoverage 
  * record's own. Without either there is nothing this checkout's cases could
  * be laid on, and the record carries none.
  */
-async function repinnedCases(coverageFile: string, record: LastFetched, tests: ReadonlySet<string>): Promise<Uint8Array | undefined> {
-  let milestone: Uint8Array | undefined;
-  let own: Uint8Array | undefined;
-  try {
-    milestone = record.cases === undefined ? undefined : await readFile(record.cases);
-    own = await readFile(`${coverageFile}.cases.bin`).catch(() => undefined);
-  } catch {
-    return undefined;
-  }
+function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | undefined, tests: ReadonlySet<string>): Uint8Array | undefined {
   if (own === undefined || openSetExecutionIndex(own) === undefined || tests.size === 0) return milestone;
   const index = decodeSetExecutionIndex(own);
   // Crossings name a case by its position, so the kept cases are renumbered.

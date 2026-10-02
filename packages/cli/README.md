@@ -307,8 +307,8 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
   from `@variance-authority/eyes/collect`;
 - **the execution index** — which files and regions each test covered. Install
   [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-  and wrap the Vitest config in `withTestSelection(config, {
-  executionFile: '.variance/execution.json' })`.
+  and wrap the Vitest config in `withTestSelection(config)`; the record it
+  writes carries the index, and `--execution` reads it.
 
 Either file may be omitted and the missing domain stays unavailable; execution
 alone lists covered source but produces no opportunities, because missing
@@ -587,7 +587,7 @@ variance covering --since main
 
 ```text
 2 changed files since main, 5 changed regions: 1 nothing covered, 2 covered by one case.
-Read from <cache>/test-selection/<digest>/coverage.bin.cases.bin, recorded at 8a72c74.
+Read from <cache>/test-selection/<digest>/coverage.bin, recorded at 8a72c74.
 
 src/checkout/total.ts
   41-60 function applyDiscount — 3 cases
@@ -627,11 +627,11 @@ function's file is not in the diff. `--against` reads a second record, the
 base, and compares the two region by region:
 
 ```bash
-variance covering --since origin/main --against base/coverage.bin.cases.bin
+variance covering --since origin/main --against base/coverage.bin
 ```
 
 ```text
-Against base/coverage.bin.cases.bin at 3f9e21c07a44: 1 lost, 1 hidden, 2 gained.
+Against base/coverage.bin at 3f9e21c07a44: 1 lost, 1 hidden, 2 gained.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
   hidden   src/checkout/tax.ts 12-30 function taxFor — was tax.test.ts > rounds; stopped: tax.test.ts > rounds
   ...
@@ -1363,7 +1363,7 @@ variance journeys shard-1/coverage.bin shard-2/coverage.bin shard-3/coverage.bin
 ```
 folded 3 snapshots into <cache>/test-selection/1f3a…/coverage.bin
   342 observations over 1204 modules, recorded at 4f2a1c9d0b73
-  cases of 3 snapshots laid over <cache>/test-selection/1f3a…/coverage.bin.cases.bin
+  cases of 3 snapshots laid over <cache>/test-selection/1f3a…/coverage.bin
 
 app/src/components/CartCard.tsx  3 observers
   …
@@ -1385,16 +1385,15 @@ replacement: what was already there is merged under the fold, so the result
 stands at the fold's commit, retires every observation the fold re-recorded
 whole, and keeps the ones it did not.
 
-The case index lands with the snapshot. A seam that records cases writes
-`<coverageFile>.cases.bin` beside the snapshot, so upload that file with each
-shard. `journeys` merges each shard's cases into the index beside the landed
-snapshot, replacing the cases of every test file that shard ran to the end, and
-`covering`, `coverage` and `review` answer from the result. If you land a shard
-that ran a test file to the end without an index beside it, the landing removes
-the index, because no index can say which of that file's cases run a line.
-Those commands then say nothing is recorded until a run writes one. A shard
-has no index when its seam recorded no cases, or when you did not upload the
-file. If another run is writing the record when you land, nothing is written
+The case index lands with the snapshot, because it is part of it: a seam that
+records cases writes them into the record, so each shard's one file carries
+them. `journeys` lays each shard's cases over the landed record's, replacing
+the cases of every test file that shard ran to the end, in the same write as
+the coverage, and `covering`, `coverage` and `review` answer from the result.
+If you land a shard that ran a test file to the end and kept no cases, the
+landing drops the index, because no index can say which of that file's cases
+run a line. Those commands then say nothing is recorded until a run writes
+one. A shard keeps no cases when its seam recorded none. If another run is writing the record when you land, nothing is written
 and `journeys` exits non-zero; land again once that run ends.
 
 That is the whole of the recipe for a laptop:

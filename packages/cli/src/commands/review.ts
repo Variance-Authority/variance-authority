@@ -24,7 +24,8 @@ import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
   askCoverageFile,
-  caseLayerFiles,
+  caseSectionsAt,
+  decodeExecutionIndex,
   changedLines,
   coveringChange,
   distanceToSource,
@@ -424,10 +425,17 @@ async function baseIndex(
   from: string,
   mainline: MainlineRecord | undefined,
 ): Promise<ExecutionIndex | undefined> {
+  if (against === undefined) {
+    try {
+      const before = caseSectionsAt(from).before;
+      return before === undefined ? undefined : decodeExecutionIndex(before);
+    } catch {
+      return undefined;
+    }
+  }
   try {
-    return await readExecutionIndex(against ?? caseLayerFiles(from).before);
+    return await readExecutionIndex(against);
   } catch (error) {
-    if (against === undefined) return undefined;
     const named = mainline === undefined
       ? `\`--against ${against}\``
       : `the cases mainline ${mainline.mainline} published with its record of "${mainline.suite}", kept at ${against},`;
