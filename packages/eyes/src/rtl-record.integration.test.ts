@@ -70,6 +70,31 @@ describe('an RTL journal in a recording run', () => {
     }
   }, 120_000);
 
+  it('lands under Rstest, every attempt under the case the index names', async () => {
+    const scratch = await mkdtemp(join(tmpdir(), 'variance-eyes-rtl-rstest-'));
+    try {
+      const record = join(scratch, 'coverage.bin');
+      // Named absolutely: Rstest resolves a relative config against the nearest package.
+      const rstest = await run([join(modules, '@rstest/core/bin/rstest.js'), 'run', '-c', join(fixture, 'rstest.config.mjs')], {
+        VARIANCE_AUTHORITY_COVERAGE: record,
+        VARIANCE_AUTHORITY_CACHE: scratch,
+      });
+      expect(rstest.code, rstest.output).toBe(0);
+
+      const { cases, eyes, rows } = await recorded(record);
+      expect(cases).toEqual([REMOVE, RETRY]);
+      expect(eyes?.watched).toEqual([REMOVE, RETRY]);
+      expect(rows).toEqual([
+        [REMOVE, 1],
+        [RETRY, 1],
+        [RETRY, 2],
+      ]);
+      expectRemoval(eyes!.journals[0]!.journal);
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('lands under Jest', async () => {
     const scratch = await mkdtemp(join(tmpdir(), 'variance-eyes-rtl-jest-'));
     try {

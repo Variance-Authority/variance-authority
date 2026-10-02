@@ -354,10 +354,13 @@ let caseOrdinal = 0;
 const wrapCase = (api, depth) => {
   if (typeof api !== 'function' || depth > 4) return api;
   const out = function (...args) {
-    const fn = args[1];
+    // \`(name, fn, timeout)\`, or \`(name, options, fn)\` for a case that names
+    // its own retry or timeout.
+    const at = typeof args[1] === 'function' ? 1 : 2;
+    const fn = args[at];
     if (typeof fn === 'function') {
       const ordinal = String((caseOrdinal += 1));
-      args[1] = function (...given) {
+      args[at] = function (...given) {
         const state = expect.getState();
         const key = (state.testPath ?? '') + '\\u0000' + (state.currentTestName ?? '') + '\\u0000' + ordinal;
         return caseScope.enter(key, () => fn.apply(this, given));
@@ -373,6 +376,32 @@ for (const holder of [${holders}]) {
   if (holder === undefined || holder === null) continue;
   for (const name of ['it', 'test']) {
     if (typeof holder[name] === 'function') holder[name] = wrapCase(holder[name], 0);
+  }
+}
+`;
+}
+
+/**
+ * The attending bracket for a runner that has no runner to replace, as source:
+ * the counterpart of `onBeforeTryTask` in {@link caseRunnerSource}.
+ *
+ * Rstest calls the root's `beforeEach` hooks at the start of every attempt,
+ * retries included, and the setup module registers this one before any of the
+ * project's, so a journal opened in the project's `beforeEach` is already
+ * attended. The attempt's `onTestFinished` callbacks run once its `afterEach`
+ * hooks are done, which is where the bracket closes.
+ *
+ * @param api Source for the object that holds `beforeEach`.
+ */
+export function attendingSource(api: string): string {
+  return `
+{
+  const attended = globalThis[Symbol.for(${JSON.stringify(CASE_SCOPE_KEY)})];
+  if (typeof attended?.begin === 'function') {
+    ${api}.beforeEach((context) => {
+      attended.begin();
+      context.onTestFinished(() => attended.leave());
+    });
   }
 }
 `;

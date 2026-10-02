@@ -28,7 +28,7 @@ import { defaultInclude } from './instrumented-modules.js';
 import { carriedJournal, reportedDuration, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
 import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
-import { browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
+import { attendingSource, browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
@@ -255,7 +255,8 @@ export function withTestSelection(
   // `globalThis['@rstest/core']`, which is where Rstest assigns its API and
   // what Rspack compiles the import of that external to. Wrapping both reaches
   // a mixed suite, and wrapping an absent one is skipped.
-  const scope = caseGlobalsSource(`globalThis, globalThis[${JSON.stringify(RSTEST_API)}]`);
+  const scope = caseGlobalsSource(`globalThis, globalThis[${JSON.stringify(RSTEST_API)}]`) +
+    attendingSource(`globalThis[${JSON.stringify(RSTEST_API)}]`);
   return {
     ...config,
     // First, so a setup file of the project's that loads an instrumented
@@ -266,6 +267,7 @@ export function withTestSelection(
         setupId,
         setupSource(run.runDirectory, run.caseDirectory, {
           runner: RSTEST_API,
+          root,
           continuations: options.continuations === true,
           scope,
           story: askedForStories(coverageFile),
