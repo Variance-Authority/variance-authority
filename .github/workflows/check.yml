@@ -175,13 +175,6 @@ jobs:
     # with `main`'s. The image decides the raster, and `cases` running green in
     # it on `main` is what showed the browser suites' numbers survive the move
     # off the machine that made them.
-    #
-    # It is the second wave: it starts once `rules` is green. A lint or a
-    # documentation failure is two minutes to find and is the same failure
-    # whatever a browser says, so the five-minute browser job waits for it
-    # rather than spending a runner on a change that is already red. `cases` is
-    # not in `needs` of `check`, so the wait adds nothing to the gate's time.
-    needs: rules
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
