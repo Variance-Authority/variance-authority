@@ -28,7 +28,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { ShareEntry } from '@variance-authority/core/share';
-import { askCoverageFile, commitRunsFile, sharedRecord, testCoverageFile, type CommitRuns } from '@variance-authority/sense/test-selection';
+import { askCoverageFile, commitRunsFile, keepsEyes, sharedRecord, testCoverageFile, type CommitRuns } from '@variance-authority/sense/test-selection';
 import { readCliRunReport } from './commands/run-report.js';
 
 
@@ -180,6 +180,17 @@ export async function suiteEntryOf(
       ...(runs === undefined ? [] : [[RUNS_PART, runs] as const]),
     ]),
   };
+}
+
+/**
+ * Whether `suite`'s record here carries its cases' Eyes journals.
+ *
+ * A share of the record uploads them with it, so whoever publishes is told:
+ * opting into Eyes kept the journals on this machine, and the share is the step
+ * that takes them off it.
+ */
+export function suiteKeepsEyes(root: string, suite: string): boolean {
+  return keepsEyes(testCoverageFile(root, { suite }));
 }
 
 /** The part of a `suite-v1` entry that holds the runs record, named as it lies beside the record. */

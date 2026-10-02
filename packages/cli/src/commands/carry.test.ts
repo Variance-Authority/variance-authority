@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { repositoryLayers } from '@variance-authority/sense/test-selection';
+import { repositoryLayers, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCarryArgs } from '../carry-args.js';
 import type { Config } from '../config.js';
@@ -27,6 +27,12 @@ beforeAll(async () => {
   previous = process.env['VARIANCE_AUTHORITY_CACHE'];
   process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
   execFileSync('git', ['init', '--quiet', root]);
+  // The suites a save is planned for, declared as a real root config declares them.
+  await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites: {
+    unit: { kind: 'unit', carry: 'actions-cache' },
+    chromium: { kind: 'e2e', carry: 'actions-cache' },
+    seen: { kind: 'e2e', carry: 'actions-cache' },
+  } }));
   layer = repositoryLayers(root).top;
 });
 
@@ -80,6 +86,27 @@ describe('a recording', () => {
 
     expect(plan.cached.map((one) => one.key)).toEqual([`variance-suite-unit-${basename(layer)}:main:${SHA}-7-1`]);
     expect(plan.notes).toEqual([]);
+  });
+
+  it('names the Eyes journals a saved record carries, because the cache takes them off this machine', async () => {
+    const record = testCoverageFile(root, { suite: 'seen' });
+    await mkdir(dirname(record), { recursive: true });
+    await writeTestCoverage(
+      record,
+      { version: 3, instrumentation: 'fixture', tests: [], modules: [] },
+      { eyes: Buffer.from('{"version":1,"journals":[]}\n') },
+    );
+    const suites = [{ name: 'seen', kind: 'e2e', carry: 'actions-cache' }] as const;
+
+    try {
+      expect(carryPlan({ direction: 'save', root, suites, run: PUSH, mainlines: MAIN }).notes).toEqual([
+        `suite seen carries its cases' Eyes journals: the eyes section of ${record} goes into the cache with it`,
+      ]);
+      // A restore brings back what a mainline already gave the cache, and uploads nothing.
+      expect(carryPlan({ direction: 'restore', root, suites, run: PUSH, mainlines: MAIN }).notes).toEqual([]);
+    } finally {
+      await rm(record);
+    }
   });
 
   it('is not saved from a pull request, and the plan says so', () => {

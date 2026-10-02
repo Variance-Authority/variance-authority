@@ -34,7 +34,9 @@ import { basename, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import {
   declaredSuites,
+  keepsEyes,
   repositoryLayers,
+  testCoverageFile,
   repositoryRoot,
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
@@ -216,6 +218,9 @@ export function carryPlan(input: CarryInput): CarryPlan {
     if (suite.carry !== 'actions-cache') continue;
     const artifact = `suite-${suite.name}`;
     if (direction === 'save' && !savesRecording(run, line, input.mainlines, artifact, notes)) continue;
+    // A journal stays on the machine that ran it until something uploads it,
+    // and a saved recording is that something here.
+    if (direction === 'save') eyesNote(input.root, suite.name, notes);
     const prefix = `suite-${suite.name}-${basename(top)}`;
     const mainlines = 'names' in input.mainlines ? input.mainlines.names.filter((name) => name !== line) : [];
     keyed(
@@ -243,6 +248,13 @@ export function carryPlan(input: CarryInput): CarryPlan {
     shared: (input.suites ?? []).filter((suite) => suite.carry === 'share').map((suite) => suite.name),
     notes,
   };
+}
+
+function eyesNote(root: string, suite: string, notes: string[]): void {
+  const record = testCoverageFile(root, { suite });
+  if (keepsEyes(record)) {
+    notes.push(`suite ${suite} carries its cases' Eyes journals: the eyes section of ${record} goes into the cache with it`);
+  }
 }
 
 function savesRecording(run: HostRun, line: string | undefined, mainlines: Mainlines, artifact: string, notes: string[]): boolean {
