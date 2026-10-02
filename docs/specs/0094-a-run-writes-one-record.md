@@ -57,9 +57,16 @@ the rows it describes:
   instrumented no module still writes the record. Its module sections are
   absent and say so. Selection reads such a record as having no coverage, so it
   narrows nothing.
-- **The Eyes journal is in the record only when the run opted in.** That is
-  spec 0054's retention choice. The record is the run artifact and its access
-  boundary, so no journal leaves through a side file.
+- **The Eyes journal is in the record only when the run opted in.** Opting in
+  keeps the journal in the record on the machine that ran, and no further. The
+  record is the run artifact and its access boundary, so no journal leaves
+  through a side file.
+- **Hosted retention is the share, and only the share.** A record leaves the
+  machine that ran only through `variance share` or a configured `carry`, each
+  started by the person who owns the boundary it crosses. Either one names the
+  Eyes sections among what it uploads, so the person sees the journal go before
+  it goes. Opting into Eyes does not authorize that upload, as spec 0054
+  requires.
 
 ## One identity
 
@@ -67,16 +74,24 @@ A case is named by the case scope, as the probe names it: `file > name`, with
 the file repository-relative and a repeated name numbered `#1`. Nothing else
 spells a case.
 
-- **The attempt is a column, never part of the id.** Eyes' `id #2` is gone. A
-  retried case keeps one row and the attempt on each journal. Attempt 1 is
-  never overwritten.
+- **An Eyes journal joins its case by that id, exactly.** The case id is the
+  stable Eyes test identity spec 0054 asks the writer to keep: a journal row
+  carries the case's row in the record and its attempt, and nothing else names
+  the case.
+- **The attempt is a column, never part of the id.** Eyes' `id #2` is gone.
+  Attempt `n` is the runner's retry count plus one: Playwright's
+  `testInfo.retry + 1`, Vitest's and Jest's retry index plus one. A retried case
+  keeps one row, and its journals are keyed by case and attempt, so attempt 1
+  is never overwritten and a reader names the attempt it wants.
 - **The Playwright fixture takes its case from the case scope**
   (`testOf(testInfo)`), not `testInfo.testId`. RTL's `watchTest` takes the
   running case when no id is given.
 - **Every path in the record is repository-relative.** An Eyes source location
   joins without `--root`.
-- **`distill` reads the record.** `--eyes` is removed, and an id that does not
-  resolve is refused.
+- **`distill` reads the record.** It reads the record `variance covering`
+  reads for the checkout, `testCoverageFile(root)`, unless `--execution` names
+  another record. `--eyes` is removed. A retried case is read attempt by
+  attempt, each named. An id that does not resolve is refused.
 
 ## One set of rules
 
