@@ -47,6 +47,7 @@ import {
 import { runnerReprieve, varianceDesk, varianceVantageFixtures } from './vantage.js';
 import type { VarianceDesk, VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
+import { playwrightStanding } from './preconditions.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
 
 /**
@@ -203,9 +204,10 @@ export const varianceFixtures: Fixtures<
         await use(undefined);
         return;
       }
-      const recorder = createExecutionRecorder(
+      const recorder: ExecutionRecorder = createExecutionRecorder(
         varianceExecution === true ? {} : varianceExecution,
         varianceWire,
+        playwrightStanding((testInfo) => recorder.owner(testInfo)),
       );
       await use(recorder);
       await recorder.close();
