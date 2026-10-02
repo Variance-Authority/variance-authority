@@ -126,8 +126,10 @@ each setup file beside the config.
 Each entry is matched against the diff by path, so naming a directory of
 workflows is one line rather than one per file. A directory is also walked: every
 file under it is an entry point, so a `test/` that holds the setup brings in
-what that setup loads, wherever it lives. When one of them changes, the run is
-whole and the report says which file put it there.
+what that setup loads, wherever it lives. When a top-level entry changes,
+`variance run --since` runs whole; when either list changes for the suite
+`variance select` reads, it skips none of that suite. Each names the file that
+put it there.
 
 Which paths govern a run is a fact about your repository, and no rule derives
 it. *Every changed path the graph does not include* would be the README, the

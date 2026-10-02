@@ -59,7 +59,8 @@ import {
   type Relations,
 } from '@variance-authority/core/relate';
 import type { ReachedComponent } from '@variance-authority/report';
-import { movedPackages, NO_INSTALL_DIFF, withoutManifests, type InstallDiff } from './installed.js';
+import { NO_INSTALL_DIFF, withoutManifests, type InstallDiff } from './installed.js';
+import { movedPackages } from './moved-packages.js';
 
 /** What the walk found, when it could answer. */
 export interface AffectedComponents {
