@@ -31,6 +31,13 @@ export interface SelectionRun {
    */
   readonly finishedDirectory: string;
   readonly modules: Map<ModuleId, CapturedModule>;
+  /**
+   * Every reading of each name in {@link modules}, keyed by the file the
+   * transform was handed, so the record of a name two transforms answer to
+   * does not depend on which a worker asked for last: see `recordedReading`.
+   * On the run because each project's plugin transforms into the same record.
+   */
+  readonly readings: Map<string, Map<string, CapturedModule>>;
   /** Every file whose text every observation depended on, whichever configuration ran it. */
   readonly preconditions: Set<string>;
   /**
@@ -104,6 +111,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     caseDirectory: `${runDirectory}-cases`,
     finishedDirectory: `${runDirectory}-files`,
     modules: new Map<ModuleId, CapturedModule>(),
+    readings: new Map<string, Map<string, CapturedModule>>(),
     preconditions: new Set<string>(),
     configs: new Map<string, Set<string>>(),
     runConfig: undefined,
