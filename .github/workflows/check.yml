@@ -308,6 +308,15 @@ jobs:
       # counts every file, and a file that did not run keeps the rows the
       # mainline recorded for it.
       #
+      # It runs in two waves, the test legs of the two a developer runs: the
+      # tests within two imports of the change, then the rest. Lint and the
+      # types, which `verify:near` runs first on a laptop, are the `rules` job
+      # and the build here. The near wave fails first and for
+      # the simplest reason, and a red one ends the step before the far wave
+      # spends minutes saying less. The waves partition the selection, so no
+      # file runs twice: a slice the near wave ran whole stamps its record with
+      # this commit, and the far wave reads nothing changed since.
+      #
       # A push to `main`, and a dispatch, run the whole suite. That is the gate a
       # selection is a smaller claim than, and it is what the record `main`
       # publishes is cut from: every file observed at `main`'s own commit, so the
@@ -319,7 +328,8 @@ jobs:
           SELECT: ${{ github.event_name == 'pull_request' && steps.base.outputs.based == 'true' }}
         run: |
           if [ "$SELECT" = true ]; then
-            yarn test:since
+            yarn test:since --at-distance 0-2
+            yarn verify:far
           else
             yarn test
           fi
@@ -531,6 +541,13 @@ jobs:
     # The cases' own fixture files stay at zero coverage: they run in child
     # processes and builds that carry no probe. Running them does not move that
     # figure, and nothing here claims it does.
+    #
+    # It is the second wave: it starts once `rules` is green. A lint or a
+    # documentation failure is two minutes to find and is the same failure
+    # whatever a browser says, so the five-minute browser job waits for it
+    # rather than spending a runner on a change that is already red. `cases` is
+    # not in `needs` of `check`, so the wait adds nothing to the gate's time.
+    needs: rules
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
