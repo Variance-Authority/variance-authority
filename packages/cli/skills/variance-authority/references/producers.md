@@ -16,11 +16,11 @@ The journal of what a test looked at and acted on, per phase.
   [distill](distill.md) reads. The fixture installs the React commit tap before
   navigation.
 - **React Testing Library.** Start `watchTest(screen)` from
-  `@variance-authority/eyes/rtl` in per-test setup and close it in teardown; it
-  hands the journal to the case the runner's recording seam installed. The
-  Vitest and Jest seams install none that takes a journal, so under them an RTL
-  journal reaches no record. The React commit tap must be installed before
-  `react-dom` loads.
+  `@variance-authority/eyes/rtl` in per-test setup and close it in teardown. In
+  a recording run, the Vitest, Jest and Rstest seams hand the journal to the
+  case under its attempt, and the record keeps it. In a run that does not
+  record, `close` returns the journal and hands it to no case, so no record has
+  it. The React commit tap must be installed before `react-dom` loads.
 
 In either host, declare `arrange`, `act` and `assert` with the adapter log's
 `phase(...)`; do not infer them from query or click names. Read the README of
