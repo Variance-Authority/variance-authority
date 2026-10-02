@@ -46,7 +46,7 @@ is not a slow path. It is an impossible one:
 
 Both are the same defect at two ends, and it is a defect rather than a limit:
 the fold that does not have it is already in the repository, unwired.
-`foldRun` at `packages/sense/src/test-selection/run-fold.ts:84` reads the same
+`foldCrossingColumns` at `packages/sense/src/test-selection/run-fold.ts:84` reads the same
 fixture's 103 million module rows and 826 million crossings inside 450 MB by
 keeping frames on disk and handing back a set id per region against a pool. It
 has no caller, and its own docblock says the shipped path *used to be*
@@ -70,7 +70,7 @@ the format writes and reads. What is unbuilt is the pool reaching the encoder
 in and re-interned on the way out, so the win ADR-0061 measured is paid for and
 then thrown away.
 
-**2. The reporters fold rather than collect.** `foldRun` becomes the path both
+**2. The reporters fold rather than collect.** `foldCrossingColumns` becomes the path both
 reporters take, and `foldCrossings` takes one `CrossingSets` instead of
 interning two. A reporter's peak is then set by the slice budget it was given
 and by the pool, neither of which is the repository's crossing count.

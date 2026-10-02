@@ -81,7 +81,7 @@ export function testsOfJournals(paths: readonly string[], name: (file: string) =
   return [...held].sort(codeUnitOrder);
 }
 
-export function foldRun(input: RunFoldInput, paths: readonly string[], tests: readonly string[]): RunFold {
+export function foldCrossingColumns(input: RunFoldInput, paths: readonly string[], tests: readonly string[]): RunFold {
   const { modules, name } = input;
   const testId = new Map(tests.map((file, at) => [file, at]));
 
