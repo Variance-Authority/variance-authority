@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import {
+  createEyesArchive,
   createEyesLog,
   eyesTestAttention,
   type EyesArchive,
@@ -11,11 +12,6 @@ import {
   type TargetSnapshot,
 } from '@variance-authority/eyes';
 import { parseEyesArchive, readEyesArchive } from '@variance-authority/eyes/archive';
-import {
-  gatherEyesArchive,
-  recordEyesTest,
-  writeEyesArchive,
-} from '@variance-authority/eyes/collect';
 import { serveEyesArchive } from './server.js';
 import { eyesToolByName } from './tools.js';
 
@@ -64,16 +60,15 @@ function recorded(log: EyesLog): void {
 
 /** A run of one test, from an empty log to the file an agent is pointed at. */
 async function produced(directory: string, log: EyesLog, because?: string): Promise<string> {
-  await recordEyesTest(
-    directory,
+  const archive = createEyesArchive([
     eyesTestAttention(
       { id: 'redraw-test', title: 'redraws the canvas', file: 'test/drawing.test.tsx' },
       log.drain(),
       because,
     ),
-  );
+  ]);
   const path = join(directory, 'eyes.json');
-  await writeEyesArchive(path, await gatherEyesArchive(directory));
+  await writeFile(path, `${JSON.stringify(archive)}\n`);
   return path;
 }
 

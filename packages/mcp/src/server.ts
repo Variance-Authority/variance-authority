@@ -222,12 +222,13 @@ export async function serveReportFile(
  * ordinarily the agent that just changed the component and re-ran, and answering
  * it from the archive loaded at boot describes the run before the edit.
  *
- * The archive is what `@variance-authority/eyes`'s `gatherEyesArchive` folds a
- * run's per-test journals into — one file, written when the run ended. A journal
- * *directory* is deliberately not accepted here: gathering mid-run would serve
- * an archive missing whichever workers had not finished, and an agent cannot
- * tell that from a suite whose remaining tests looked at nothing.
+ * The archive is the JSON form of `createEyesArchive` from
+ * `@variance-authority/eyes`, read through `readEyesArchive`.
  */
+// FIXME: a run keeps its Eyes journals in its record (`recordedEyesAt`), and
+// nothing in the repository writes this archive any more. This server should
+// read the record the way `variance distill` does.
+
 export async function serveEyesArchive(
   path: string,
   streams: ReportFileOptions = {},
