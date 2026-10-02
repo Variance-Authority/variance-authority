@@ -131,3 +131,44 @@ describe('the cases the comparison left out', () => {
     expect(caseMotion(base, now, { retained }).regions.map((region) => [region.startLine, region.motion])).toEqual([[5, 'lost']]);
   });
 });
+
+describe('a region paired through the diff from the base', () => {
+  // Lines 1-4 are removed, so every line after them is numbered four lower now.
+  const diff = new Map([['src/total.ts', [{ oldStart: 1, oldCount: 4, newStart: 0, newCount: 0 }]]]);
+
+  it('is named as renumbered when its lines pair it with a row its occurrence does not', () => {
+    // The first of three `.filter` callbacks is deleted. The callback now on line 1 is run by `a`'s case, which ran
+    // the deleted one: by occurrence or by cases it is the deleted one's, by its lines it is the second's.
+    const base = index([A, B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [1]), block('pick/filter.arg0', 9, [1])]);
+    const now = index([A, B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [1])]);
+
+    const motion = caseMotion(base, now, { diff });
+
+    expect(motion.regions).toEqual([]);
+    expect(motion.testFiles).toEqual([
+      { file: 'a.test.ts', entered: [expect.objectContaining({ startLine: 1 })], left: [] },
+      { file: 'b.test.ts', entered: [], left: [expect.objectContaining({ startLine: 1 })] },
+    ]);
+    expect(motion.renumbered.map((region) => region.startLine)).toEqual([1, 5]);
+  });
+
+  it('credits the cases left out of the comparison to the region its lines paired', () => {
+    const base = index([A], [block('apply', 5, [0])]);
+    const now = index([A], [block('apply', 1, [])]);
+    const retained = index([B], [block('apply', 1, [0])]);
+
+    expect(caseMotion(base, now, { diff }).regions.map((region) => [region.startLine, region.motion])).toEqual([[1, 'lost']]);
+    expect(caseMotion(base, now, { diff, retained }).regions.map((region) => [region.startLine, region.motion, region.before.length])).toEqual([
+      [1, 'thinned', 2],
+    ]);
+  });
+
+  it('pairs no row with a region the build wrote and the source does not hold', () => {
+    const base = index([A], [block('helper', 5, [0])]);
+    const now = index([A], [{ ...block('helper', 1, []), source: false }]);
+
+    const motion = caseMotion(base, now, { diff });
+
+    expect(motion.regions).toEqual([]);
+  });
+});

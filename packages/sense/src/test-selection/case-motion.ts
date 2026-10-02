@@ -1,6 +1,7 @@
 // compass: variance-authority/runtime/attention
 import type { Relations } from '@variance-authority/core/relate';
 import { addressKey } from './merge-carry.js';
+import { placeThrough, type Hunk } from './placed.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 import { stoppedIn } from './stopped.js';
 
@@ -83,6 +84,13 @@ export interface CaseMotionOptions {
    * otherwise credits none of them.
    */
   readonly retained?: ExecutionIndex;
+  /**
+   * The `-U0` diff from the text the base was recorded over to the text the
+   * current record was, by file, as `hunksByFile` reads it; a file it does not hold
+   * did not change. Absent when it could not be read, which leaves every
+   * module to the address.
+   */
+  readonly diff?: ReadonlyMap<string, readonly Hunk[]>;
 }
 
 /**
@@ -97,6 +105,11 @@ export interface CaseMotionOptions {
  * first: before the address is read, a region at the base and one now of the
  * same kind and name whose cases are the same cases are paired by them. Only calls count; a region entered while
  * its module evaluated was entered by whichever case imported it first.
+ *
+ * Given the diff between the two texts, a region is paired by its lines
+ * instead ({@link matchedThrough}): a sibling written between two with the
+ * same cases takes an occurrence number from the one after it, and neither the
+ * address nor the cases can say which of the two is new. The diff can.
  */
 export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: CaseMotionOptions = {}): CaseMotion {
   const regions: RegionMotion[] = [];
@@ -119,7 +132,8 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
       continue;
     }
     let stopped: ReadonlySet<number> | undefined | null = null;
-    const paired = byCases(base, now, held, module);
+    const hunks = options.diff === undefined ? undefined : options.diff.get(module.file) ?? [];
+    const paired = hunks === undefined ? byCases(base, now, held, module) : throughLines(held, module, hunks);
     renumbered.push(...paired.renumbered.map((block) => place(module.file, block)));
     const keptBy = keptCallers(retained, kept.get(module.file), module);
     for (const [row, block] of paired.pairs) {
@@ -214,6 +228,70 @@ function byCases(
   for (const [block, row] of chosen) if (byAddress.get(block) !== row) renumbered.push(block);
   for (const [row, block] of address) if (!chosen.has(block) && !taken.has(row)) pairs.push([row, block]);
   return { pairs, renumbered };
+}
+
+/** The pairs the diff makes, and the regions now it paired with a row the address would not have. */
+function throughLines(
+  held: ExecutionModule,
+  module: ExecutionModule,
+  hunks: readonly Hunk[],
+): { readonly pairs: readonly (readonly [ExecutionBlock, ExecutionBlock])[]; readonly renumbered: readonly ExecutionBlock[] } {
+  const pairs = matchedThrough(held, module, hunks);
+  const byAddress = new Map(matched(held, module).map(([row, block]) => [block, row]));
+  const renumbered = pairs.filter(([row, block]) => byAddress.has(block) && byAddress.get(block) !== row).map(([, block]) => block);
+  return { pairs, renumbered };
+}
+
+/**
+ * The source regions both records hold, each with its row at the base, paired
+ * through the diff between the two texts: a row pairs with the region of its
+ * kind and name standing on the lines the diff carried it to. A row an edit
+ * touched is carried to an approximate range, so it pairs with the nearest
+ * region of its kind and name overlapping it, after every untouched row has
+ * taken its own. A row the edit removed pairs with nothing, and a region the
+ * edit wrote is paired by no row.
+ */
+export function matchedThrough(
+  base: ExecutionModule,
+  now: ExecutionModule,
+  hunks: readonly Hunk[],
+): readonly (readonly [ExecutionBlock, ExecutionBlock])[] {
+  const named = new Map<string, ExecutionBlock[]>();
+  const key = (block: ExecutionBlock) => `${block.kind}\0${block.name}`;
+  for (const block of now.blocks) {
+    if (!block.source) continue;
+    const group = named.get(key(block));
+    if (group === undefined) named.set(key(block), [block]);
+    else group.push(block);
+  }
+  const taken = new Set<ExecutionBlock>();
+  const pairs: (readonly [ExecutionBlock, ExecutionBlock])[] = [];
+  const touched: (readonly [ExecutionBlock, { readonly startLine: number; readonly endLine: number }])[] = [];
+  for (const row of base.blocks) {
+    const placed = placeThrough(hunks, row);
+    if (placed === undefined) continue;
+    if (placed.moved) {
+      touched.push([row, placed.lines]);
+      continue;
+    }
+    const there = (named.get(key(row)) ?? []).filter((block) =>
+      !taken.has(block) && block.startLine === placed.lines.startLine && block.endLine === placed.lines.endLine);
+    const block = there.find((one) => one.path === row.path) ?? there[0];
+    if (block === undefined) continue;
+    taken.add(block);
+    pairs.push([row, block]);
+  }
+  for (const [row, lines] of touched) {
+    let nearest: ExecutionBlock | undefined;
+    for (const block of named.get(key(row)) ?? []) {
+      if (taken.has(block) || block.startLine > lines.endLine || block.endLine < lines.startLine) continue;
+      if (nearest === undefined || Math.abs(block.startLine - lines.startLine) < Math.abs(nearest.startLine - lines.startLine)) nearest = block;
+    }
+    if (nearest === undefined) continue;
+    taken.add(nearest);
+    pairs.push([row, nearest]);
+  }
+  return pairs;
 }
 
 /**

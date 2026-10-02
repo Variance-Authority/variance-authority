@@ -1,4 +1,5 @@
 import { askCoverageFile } from './coverage-file.js';
+import { diffPath } from './diff-lines.js';
 import { frameOf } from './frame.js';
 import { keptTexts } from './kept-texts.js';
 import { findModules } from './lookup.js';
@@ -97,6 +98,23 @@ export function hunksOf(diff: string): readonly Hunk[] {
     });
   }
   return hunks;
+}
+
+/**
+ * The hunks of a `-U0` diff over many files, by the name each file had on the
+ * old side, or the new one for a file the old side did not have. A file whose
+ * lines the diff does not show — unchanged, or only its mode — is not held, and
+ * a reader takes its lines where they were.
+ */
+export function hunksByFile(diff: string): ReadonlyMap<string, readonly Hunk[]> {
+  const byFile = new Map<string, readonly Hunk[]>();
+  for (const part of diff.split(/^(?=diff --git )/mu)) {
+    const old = /^--- (.*)$/mu.exec(part);
+    const added = /^\+\+\+ (.*)$/mu.exec(part);
+    const file = (old === null ? undefined : diffPath(old[1]!)) ?? (added === null ? undefined : diffPath(added[1]!));
+    if (file !== undefined) byFile.set(file, hunksOf(part));
+  }
+  return byFile;
 }
 
 /**

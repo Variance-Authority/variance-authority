@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::case_owner::{journey_of, project_path, unpack_case};
 use crate::case_preconditions::{self, Precondition};
 use crate::order;
 
@@ -68,14 +69,19 @@ pub struct CaseRun {
     pub heads: Vec<String>,
 }
 
+/// One case, over every frame written under its file, name and id.
 struct Coordinate {
     file: String,
     name: String,
     id: String,
+    /// How the case settled across its frames, by [`settled_across`].
     settled: u8,
-    journey: String,
+    /// Every journey a frame of the case handed out, in replay order.
+    journeys: Vec<String>,
+    /// What the case said across its frames, by [`case_preconditions::heard_across`].
     said: Option<Vec<Precondition>>,
-    frame: usize,
+    /// Every frame written under this coordinate, in replay order.
+    frames: Vec<usize>,
 }
 
 pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRun, String> {
@@ -83,6 +89,7 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
     let mut visitor = InspectVisitor {
         root,
         coordinates: Vec::new(),
+        at: HashMap::new(),
         wanted: HashSet::new(),
         frame: 0,
     };
@@ -93,14 +100,16 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
             .then_with(|| order::code_unit(&left.id, &right.id))
     });
 
-    let mut frame_tests = vec![0; visitor.coordinates.len()];
+    let mut frame_tests = vec![0; visitor.frame];
     let mut repeated: HashMap<String, u32> = HashMap::new();
     let mut journey_tests: HashMap<String, Vec<u32>> = HashMap::new();
     let mut tests = Vec::with_capacity(visitor.coordinates.len());
     for (at, coordinate) in visitor.coordinates.into_iter().enumerate() {
-        frame_tests[coordinate.frame] = at as u32;
-        if !coordinate.journey.is_empty() {
-            journey_tests.entry(coordinate.journey).or_default().push(at as u32);
+        for frame in coordinate.frames {
+            frame_tests[frame] = at as u32;
+        }
+        for journey in coordinate.journeys {
+            journey_tests.entry(journey).or_default().push(at as u32);
         }
         let name = format!("{} > {}", coordinate.file, coordinate.name);
         let repeat = repeated.entry(name.clone()).or_default();
@@ -242,6 +251,8 @@ impl Visitor for PartInspectVisitor<'_> {
 struct InspectVisitor<'a> {
     root: &'a Path,
     coordinates: Vec<Coordinate>,
+    /// Where each case's coordinate is held, by file, name and id.
+    at: HashMap<(String, String, String), usize>,
     wanted: HashSet<ModuleId>,
     frame: usize,
 }
@@ -250,15 +261,33 @@ impl Visitor for InspectVisitor<'_> {
     fn test(&mut self, packed: &str) -> Result<(), String> {
         let (file, name, id, settled) = unpack_case(packed);
         if !name.is_empty() || !id.is_empty() {
-            self.coordinates.push(Coordinate {
-                file: project_path(self.root, file),
-                name: name.to_owned(),
-                id: id.to_owned(),
-                settled,
-                journey: journey_of(packed).to_owned(),
-                said: case_preconditions::said_of(packed)?.map(|said| case_preconditions::checkout(self.root, said)),
-                frame: self.frame,
-            });
+            // A case is written when it settles, so work that outlived it
+            // arrives as a second frame under the same coordinate: one case,
+            // joined as `inspectCaseRun` joins it.
+            let said = case_preconditions::said_of(packed)?.map(|said| case_preconditions::checkout(self.root, said));
+            let journey = journey_of(packed);
+            let key = (project_path(self.root, file), name.to_owned(), id.to_owned());
+            match self.at.get(&key) {
+                Some(&held) => {
+                    let coordinate = &mut self.coordinates[held];
+                    coordinate.frames.push(self.frame);
+                    coordinate.settled = settled_across(coordinate.settled, settled);
+                    coordinate.said = case_preconditions::heard_across(coordinate.said.take(), said);
+                    if !journey.is_empty() && !coordinate.journeys.iter().any(|known| known == journey) {
+                        coordinate.journeys.push(journey.to_owned());
+                    }
+                }
+                None => {
+                    self.at.insert(key.clone(), self.coordinates.len());
+                    let (file, name, id) = key;
+                    self.coordinates.push(Coordinate {
+                        file, name, id, settled,
+                        journeys: if journey.is_empty() { Vec::new() } else { vec![journey.to_owned()] },
+                        said,
+                        frames: vec![self.frame],
+                    });
+                }
+            }
             self.frame += 1;
         }
         Ok(())
@@ -423,39 +452,6 @@ impl<'a> Reader<'a> {
         }
         Ok(())
     }
-}
-
-/// A case frame's name: `packCase` and `settledCase` in `journal-format.cts`.
-pub fn unpack_case(packed: &str) -> (&str, &str, &str, u8) {
-    let mut parts = packed.split('\0');
-    (
-        parts.next().unwrap_or(packed),
-        parts.next().unwrap_or(""),
-        parts.next().unwrap_or(""),
-        match parts.next() {
-            Some("stopped") => STOPPED,
-            Some("finished") => FINISHED,
-            _ => UNSETTLED,
-        },
-    )
-}
-
-/// The journey a frame belongs to: the fifth field of its owner, after the
-/// settling, empty when the case never handed one out. `packJourney` in
-/// `journal-format.cts`. A sixth field, what the case said it arranged, is
-/// [`case_preconditions::said_of`]'s.
-pub fn journey_of(packed: &str) -> &str {
-    packed.split('\0').nth(4).unwrap_or("")
-}
-
-pub fn project_path(root: &Path, file: &str) -> String {
-    let path = Path::new(file);
-    let relative = path.strip_prefix(root).unwrap_or(path);
-    relative
-        .components()
-        .map(|part| part.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
 }
 
 fn word(raw: &[u8], at: usize) -> Result<u32, String> {
