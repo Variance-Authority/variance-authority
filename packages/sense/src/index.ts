@@ -128,6 +128,7 @@ export {
 export { restrictedChains, type ChainViolation } from './restrictions-transitive.js';
 export {
   codeMapPage,
+  declaredRoles,
   packageLayers,
   prepareCodeMap,
   shippedFiles,
@@ -140,6 +141,8 @@ export {
   type CodeMapRead,
   type CodeMapRow,
   type CodeMapShare,
+  type DeclaredRoleCheck,
+  type DeclaredRoleFinding,
   type PreparedCodeMap,
   type ShippedFiles,
 } from './code-map.js';

@@ -37,17 +37,18 @@ pub(crate) struct Parses<'a> {
     pub request_line: U32s<'a>,
     pub request_bindings: U32s<'a>,
     pub binding_imported: U32s<'a>,
-    binding_local: U32s<'a>,
+    pub binding_local: U32s<'a>,
     pub binding_type: &'a [u8],
     pub binding_line: U32s<'a>,
     pub export_exported: U32s<'a>,
-    export_local: U32s<'a>,
+    pub export_local: U32s<'a>,
     pub export_from: U32s<'a>,
     pub export_imported: U32s<'a>,
     pub export_type: &'a [u8],
     pub export_line: U32s<'a>,
     export_signature: Ends<'a>,
     export_doc: Ends<'a>,
+    pub export_tags: &'a [u8],
     symbols: U32s<'a>,
     symbol_name: U32s<'a>,
     symbol_kind: U32s<'a>,
@@ -107,6 +108,7 @@ impl<'a> Parses<'a> {
             export_line: u32s("exports.line")?,
             export_signature: ends("exports.signature-start", "exports.signature-end")?,
             export_doc: ends("exports.doc-start", "exports.doc-end")?,
+            export_tags: stored.u8s("exports.tags")?,
             export_exported,
             symbols: stored.offsets("parses.symbols", rows, symbol_name.len())?,
             symbol_kind: u32s("symbols.kind")?,
@@ -169,6 +171,7 @@ impl<'a> Parses<'a> {
             ("exports.signature-end", signature_end.len()),
             ("exports.doc-start", doc_start.len()),
             ("exports.doc-end", doc_end.len()),
+            ("exports.tags", self.export_tags.len()),
         ])?;
         let [signature_start, signature_end] = self.symbol_signature;
         let [doc_start, doc_end] = self.symbol_doc;
@@ -268,6 +271,7 @@ impl ParseRow for ParseView<'_, '_> {
                 columns.export_line.at(export),
                 span(columns.export_signature[0], columns.export_signature[1], export),
                 span(columns.export_doc[0], columns.export_doc[1], export),
+                columns.export_tags[export],
             );
         }
         for symbol in columns.symbols.range(row) {

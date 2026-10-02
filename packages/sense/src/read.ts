@@ -204,7 +204,22 @@ export interface Export {
   readonly signature?: TextSpan;
   /** The doc block attached to that export statement. */
   readonly doc?: TextSpan;
+
+  /**
+   * The roles its doc declares with `@testOnly` or `@production`.
+   *
+   * Read off the export statement's doc, or for `export { x }` off the doc of
+   * the statement declaring `x`. Absent when the doc declares neither. Both at
+   * once is a contradiction the reader keeps, so the check can name it.
+   */
+  readonly roles?: readonly DeclaredRole[];
 }
+
+/**
+ * A role a doc comment settles for a name: `testOnly` means only tests may run
+ * it, `production` means it ships however many tests use it.
+ */
+export type DeclaredRole = 'testOnly' | 'production';
 
 export interface Read {
   readonly requests: readonly Request[];

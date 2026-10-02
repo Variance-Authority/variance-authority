@@ -23,6 +23,8 @@ mod append_index;
 mod batch;
 mod compact;
 mod conditions;
+mod declared_role;
+mod declared_roles_check;
 mod depends;
 mod dependency_lexicon;
 mod dependency_namespace;
