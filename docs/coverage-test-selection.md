@@ -417,6 +417,10 @@ Some reads cannot be placed in one function, and those charge the whole module:
 
 - A read at the top level, such as `const cache = new Array(MAX_ITEMS)`, runs
   when the module loads. Every test that loaded that file is selected.
+- A value converted at the top level, such as `const PAGES = MAX_ITEMS * 2` or
+  `` `${MAX_ITEMS} items` ``, can throw or run the value's own `toString` as the
+  module loads, so it charges the module too, and the readers of `PAGES` are
+  looked for as well. A copy, `===`, `!` and `typeof` convert nothing.
 - A namespace passed on whole, such as `configure(limits)`, or a module loaded
   by `require` or `import()`, gives the parser no name to match.
 
