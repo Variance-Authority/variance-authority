@@ -268,6 +268,25 @@ describe('the persisted coverage format', () => {
     );
   });
 
+  it('refuses a module whose first region is not the module itself', () => {
+    const encoded = encodeTestCoverage({
+      version: 3,
+      instrumentation: 'fixture-instrumentation',
+      tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
+      modules: [{
+        file: 'src/total.ts',
+        sourceDigest: 'source:total',
+        instrumented: true,
+        blocks: [{
+          ordinal: 0, kind: 'function', digest: 'block:applyDiscount', name: 'applyDiscount', path: 'applyDiscount',
+          startLine: 1, endLine: 3, source: true, testFiles: ['test/total.test.ts'],
+        }],
+      }],
+    });
+
+    expect(() => decodeTestCoverage(encoded)).toThrow(/not a variance-authority test coverage artifact/);
+  });
+
   it('rejects JSON instead of mistaking it for a coverage artifact', async () => {
     expect(() => decodeTestCoverage(Buffer.from('{"version":1}'))).toThrow(
       /not a variance-authority test coverage artifact/,
