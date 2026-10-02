@@ -1,8 +1,8 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { caseSectionsAt, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseSectionsAt, recordOfCases, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { landJourneys } from './land.js';
 import { published, wholeRecord } from './mainline-fixture.js';
@@ -63,6 +63,26 @@ describe('landJourneys and the cases in the record', () => {
 
     const landed = await landJourneys(dir, [shard], record);
 
+    expect(landed.cases).toEqual({ laid: record, shards: 0 });
+    expect((await readExecutionIndex(record)).tests.map((test) => test.file)).toEqual(['test/total.test.ts']);
+  });
+
+  it('lands over a record whose run instrumented nothing, folding over no coverage and keeping its cases', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    await writeFile(record, recordOfCases(caseSectionsAt(record)));
+    const shard = join(home, 'shard-1.bin');
+    await writeTestCoverage(shard, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit: first,
+      tests: [{ file: 'test/total.test.ts', complete: false, preconditions: [] }],
+      modules: [],
+    });
+
+    const landed = await landJourneys(dir, [shard], record);
+
+    expect(landed.observations).toBe(1);
     expect(landed.cases).toEqual({ laid: record, shards: 0 });
     expect((await readExecutionIndex(record)).tests.map((test) => test.file)).toEqual(['test/total.test.ts']);
   });

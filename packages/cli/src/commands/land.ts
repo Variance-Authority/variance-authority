@@ -51,6 +51,9 @@ export async function landJourneys(
   const selection = await import('@variance-authority/sense/test-selection');
   const at = into ?? (await landingRecord(root));
 
+  // FIXME: a shard whose run instrumented nothing holds cases and no coverage,
+  // and is refused here with its cases; landing them needs the files it ran,
+  // which only its coverage names.
   const read = await Promise.all(
     shards.map(async (path) => {
       try {
@@ -105,7 +108,9 @@ export async function landJourneys(
     try {
       previous = await selection.readTestCoverage(at);
     } catch (error) {
-      if (!isMissing(error)) {
+      // A record whose run instrumented nothing has no coverage to fold over,
+      // and its cases are laid under the shards' below.
+      if (!isMissing(error) && !(error instanceof selection.RecordWithoutCoverage)) {
         throw new OperatorError(
           `the snapshot already at ${said(at)} could not be read: ${messageOf(error)}. ` +
             'Delete it and land again; a fold written over it would have replaced evidence ' +
@@ -121,7 +126,7 @@ export async function landJourneys(
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const landed = selection.mergeCoverage(previous, folded);
     const runs = selection.commitRunsAfter(previous, held, folded);
-    const { landing: cases, sections } = selection.landCases(at, previous === undefined ? {} : selection.caseSectionsAt(at), root, read);
+    const { landing: cases, sections } = selection.landCases(at, selection.caseSectionsAt(at), root, read);
     try {
       await selection.writeTestCoverage(staged, landed, sections);
       await selection.writeCommitRuns(stagedRuns, runs);

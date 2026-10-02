@@ -282,7 +282,9 @@ describe('a run the snapshot lock refuses', () => {
   it('a browser recording writes nothing, and returns the reason rather than printing it', async () => {
     const free = await record(false);
     expect(free.recorded).toMatchObject({ recorded: true });
-    expect(existsSync(free.coverageFile)).toBe(true);
+    // It kept no cases and instrumented nothing, so there is nothing to write:
+    // an empty record would say the story reaches nothing (spec 0094, item 2).
+    expect(existsSync(free.coverageFile)).toBe(false);
     expect(warned).toEqual([expect.stringMatching(emptyWarning)]);
 
     const { coverageFile, recorded } = await record(true);

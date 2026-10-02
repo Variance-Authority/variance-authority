@@ -1,0 +1,23 @@
+---
+'@variance-authority/cli': minor
+'@variance-authority/sense': minor
+---
+
+A record without coverage
+
+A run that keeps its cases and instruments no module writes `coverage.bin` with
+its case sections and none of the coverage sections. A record already at the
+path keeps its coverage as it was, under the new run's cases; a run that keeps
+no cases and instruments nothing writes nothing. Its warning now says the run
+recorded no coverage and narrows no later selection.
+
+Such a record is unmeasured, not a record of tests that reach nothing.
+`readTestCoverage` refuses it with `RecordWithoutCoverage`, and selection
+narrows nothing over it: `variance select` skips nothing and says the record
+holds no coverage, `variance run --since` runs every test file, and
+`variance journeys` carries no partings. `variance land` folds the shards over
+no coverage and keeps the record's cases. A record that holds some coverage
+sections and not the others is still refused as broken.
+
+`recordOfCases` writes a record from case sections alone, and
+`withoutCoverage` answers from a record's header whether it holds no coverage.
