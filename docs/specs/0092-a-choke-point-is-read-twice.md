@@ -52,9 +52,11 @@ root.
 **Reality.** X is a choke point for Y when X has an import path to Y and every
 recorded case that executed Y also executed X. The import path condition keeps
 out what every case runs anyway: a setup file, a logger, a shared helper that
-does not lead to Y. Among such files the immediate one is the nearest to Y on
-the graph. The recording holds places visited, not their order, so this is set
-inclusion and makes no claim about call order.
+does not lead to Y. The recording holds places visited, not their order or
+the import that led from one to the next, so this is set inclusion: evidence
+that X ran whenever Y ran, never that a case reached Y through X. Every file
+that qualifies is reported, ordered by its distance to Y on the graph; none is
+promoted to the one a case went through.
 
 Executed means a function in the file ran. Evaluating a module's top level is
 loading, which the recording keeps apart, and a file that was only loaded is
@@ -66,7 +68,7 @@ not in the reading.
 |---|---|---|
 | choke point | choke point | **Confirmed**, on the number of cases stated. |
 | choke point | not | Cases executed Y without X, by a path the graph cannot see: a dynamic import, a file the harness loads, a specifier that is not a literal. **The graph has a hole**, and the answer names those cases. |
-| not | choke point | The graph has a path to Y that avoids X, and no recorded case takes it. **The side path is untested or dead**, and the answer names it. |
+| not | choke point | The graph has a path to Y that avoids X, and no recorded case ran Y without also running X. Whether a case took that path cannot be read from places visited. **No case shows the path is needed**, and the answer names the path and the files on it that no case ran. A path with such a file is untested; one whose every file ran is unknown, never called untested. |
 | not | not | No region. |
 
 A region is reported by its size: files, lines, and the number of tests that
@@ -98,8 +100,10 @@ Not as a new question. A choke point is a line in answers that already exist:
    importing Y directly.
 2. The reality pass: set inclusion over executed files, restricted to files
    with an import path to Y. One fixture where a setup file every case runs is
-   not a choke point, and one where a dynamic import makes the readings
-   disagree and the answer names the cases that went around.
+   not a choke point, one where a dynamic import makes the readings disagree
+   and the answer names the cases that went around, and one where a case runs
+   both X and the side path's files, so X qualifies and the side path reads
+   unknown rather than untested.
 3. The four-way reading and the absent cases above, each with a test that
    fails on an answer that reads absence as a negative.
 4. The line in `covering`, `journey-map` and selection, each measured on this
