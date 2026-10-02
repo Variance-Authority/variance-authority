@@ -1,3 +1,4 @@
+import { utimesSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -15,7 +16,7 @@ import {
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
-import { instrumentationId, type ModuleId } from '../instrument/index.js';
+import { INSTRUMENTATION_ID, instrumentationId, type ModuleId } from '../instrument/index.js';
 import { frameRecord, segmentHeader } from './record-format.js';
 
 const cacheRoot = join(tmpdir(), `variance-records-${process.pid}`);
@@ -117,6 +118,10 @@ describe('a store of module records', () => {
   it('reads every writer of a store, not whichever wrote last', async () => {
     writeRecord(openRecords(storeOf()), captured({ file: 'src/a.js' }));
     writeRecord(openRecords(storeOf()), captured({ file: 'src/b.js' }));
+    // A second apart, so the order is the clock's and not the tie-break's, on every run.
+    for (const [at, name] of (await readdir(storeOf())).entries()) {
+      utimesSync(resolve(storeOf(), name), 1_700_000_000 + at, 1_700_000_000 + at);
+    }
 
     const found = await readRecords([storeOf()], ['src/a.js', 'src/b.js']);
 
@@ -124,6 +129,23 @@ describe('a store of module records', () => {
       'src/a.js',
       'src/b.js',
     ]);
+  });
+
+  it('orders two segments written in the same millisecond by name, in code units', async () => {
+    // Two writers that never met can leave one mtime, and then the name decides
+    // which frame is the later. `B` sorts before `a` in code units and after it
+    // in any locale, so a locale sort reads `first` here.
+    const store = storeOf();
+    await mkdir(store, { recursive: true });
+    const segment = (digest: string) =>
+      Buffer.concat([segmentHeader(INSTRUMENTATION_ID), frameRecord(captured({ sourceDigest: digestString(digest) }))]);
+    await writeFile(resolve(store, 'B.rec'), segment('first'));
+    await writeFile(resolve(store, 'a.rec'), segment('second'));
+    const written = new Date('2026-01-01T00:00:00Z');
+    utimesSync(resolve(store, 'B.rec'), written, written);
+    utimesSync(resolve(store, 'a.rec'), written, written);
+
+    expect((await readRecord(store, 'src/cart.js'))?.sourceDigest).toBe(digestString('second'));
   });
 
   it('ignores a segment cut by another probe recipe', async () => {

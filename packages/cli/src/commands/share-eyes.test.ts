@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { LineManifest } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
 import {
   caseSectionsOf,
@@ -96,20 +97,31 @@ describe('a share of a record that kept Eyes journals', () => {
   });
 });
 
-/** The Eyes section of every record the share holds, read back from the bytes it was given. */
+/**
+ * The Eyes section of every record the share holds, read back from the bytes it was given.
+ *
+ * Through each line's manifest, and only the `suite-v1` entries it names: a line
+ * holds other entries, a branch's suite index among them, which are not framed.
+ * Handed to `unframe`, that index's bytes fail on whichever line its commit's
+ * hash happens to put first, so the recording credited this file with a refusal
+ * it never meant to test.
+ */
 async function uploadedEyes(): Promise<readonly unknown[]> {
   const root = join(home, 'share');
-  const files = (await readdir(root, { recursive: true, withFileTypes: true }))
-    .filter((entry) => entry.isFile())
-    .map((entry) => join(entry.parentPath, entry.name));
+  const manifests = (await readdir(root, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile() && entry.name === 'manifest.json')
+    .map((entry) => entry.parentPath);
   const sections: unknown[] = [];
-  for (const file of files) {
-    const parts = unframe(await readFile(file));
-    const record = typeof parts === 'string' ? undefined : parts.get('coverage.bin');
-    const eyes = record === undefined ? undefined : caseSectionsOf(record).eyes;
-    if (eyes === undefined) continue;
-    const { watched, journals } = JSON.parse(Buffer.from(eyes).toString('utf8')) as Record<string, unknown>;
-    sections.push({ watched, journals });
+  for (const line of manifests) {
+    const { entries } = JSON.parse(await readFile(join(line, 'manifest.json'), 'utf8')) as LineManifest;
+    for (const held of entries.filter((entry) => entry.name.startsWith('suite-v1/'))) {
+      const parts = unframe(await readFile(join(line, 'entries', held.digest)));
+      if (typeof parts === 'string') throw new Error(`${held.name} on ${line}: ${parts}`);
+      const eyes = caseSectionsOf(parts.get('coverage.bin')!).eyes;
+      if (eyes === undefined) continue;
+      const { watched, journals } = JSON.parse(Buffer.from(eyes).toString('utf8')) as Record<string, unknown>;
+      sections.push({ watched, journals });
+    }
   }
   return sections;
 }
