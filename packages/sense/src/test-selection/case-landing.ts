@@ -124,7 +124,7 @@ export function layCases(
   const journals = layEyes(previous.eyes, eyes, cases, announced);
   return {
     index: merged,
-    last: Buffer.from(`${JSON.stringify(named, null, 2)}\n`),
+    last: spelledLast(named),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
@@ -169,7 +169,9 @@ export type CaseLanding =
  * Each shard's seam kept its cases in the shard's own record, as it does in any
  * record it writes. They are laid over `previous`, the sections the record held,
  * in the order the shards were named, each as the run it was. An index in the
- * row spelling is laid the same way, once it is spelled as sets.
+ * row spelling is laid the same way, once it is spelled as sets. The last-run
+ * layer the landing leaves names every case the shards recorded, since together
+ * they are the one run that landed.
  *
  * A shard that finished a test file and kept no cases recorded none, which is
  * what a seam does when it was not asked for them. The record cannot say which
@@ -200,24 +202,42 @@ export function landCases(
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
   let sections = previous;
   let laid = 0;
+  const ran = new Set<string>();
   for (const shard of shards) {
     const kept = caseSectionsAt(shard.path);
     const fresh = layableIndex(kept.index);
     const run = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
     if (run === undefined) continue;
     if (fresh !== undefined) {
-      // FIXME: each shard is laid as a run of its own, so the last-run layer
-      // names only the last shard's cases, and `covering --cases last` after a
-      // landing answers from that shard rather than from the whole fold.
       // A section this build cannot read is laid as a shard that opened none.
       sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes));
+      for (const id of lastCaseRunOf(sections)?.cases ?? []) ran.add(id);
       laid += 1;
     } else if (run.tests.some((test) => test.complete)) {
       const removed = Object.values(previous).some((part) => part !== undefined);
       return { landing: { unanswered: record, shard: shard.path, removed }, sections: {} };
     }
   }
-  return { landing: { laid: record, shards: laid }, sections };
+  return { landing: { laid: record, shards: laid }, sections: laid > 1 ? lastOfEveryShard(sections, ran) : sections };
+}
+
+/**
+ * The sections with the last-run layer naming every case the landing's shards
+ * recorded, not only the last shard's: the shards are one run, and `covering
+ * --cases last` answers from the whole of it. A case a later shard's run
+ * retired is not in the index, and is not named.
+ */
+function lastOfEveryShard(sections: CaseSections, ran: ReadonlySet<string>): CaseSections {
+  const last = lastCaseRunOf(sections);
+  const index = sections.index === undefined ? undefined : openSetExecutionIndex(sections.index);
+  if (last === undefined || index === undefined) return sections;
+  const cases = index.tests.flatMap((test) => (ran.has(test.id) ? [test.id] : []));
+  return { ...sections, last: spelledLast({ ...last, cases }) };
+}
+
+/** The last-run section's bytes. */
+function spelledLast(named: LastCaseRun): Buffer {
+  return Buffer.from(`${JSON.stringify(named, null, 2)}\n`);
 }
 
 /** The run a shard's own last-run section names, every file of it finished; `undefined` when it names none. */

@@ -93,9 +93,12 @@ describe('landCases', () => {
       'b.test.ts > two': ['gamma'],
       'c.test.ts > three': ['alpha'],
     });
-    // Two invocations at one commit: the last run names both, and the before
-    // layer is what the index held for their files at the local run's commit.
-    expect(lastCaseRunOf(sections)).toMatchObject({ commit: 'c0ffee', before: 'l0ca1', files: ['b.test.ts', 'c.test.ts'], cases: ['c.test.ts > three'] });
+    // Two shards of one run: the last run names both and every case either
+    // ran, and the before layer is what the index held for their files at the
+    // local run's commit.
+    expect(lastCaseRunOf(sections)).toMatchObject({
+      commit: 'c0ffee', before: 'l0ca1', files: ['b.test.ts', 'c.test.ts'], cases: ['b.test.ts > two', 'c.test.ts > three'],
+    });
     expect(read(sections.before)).toEqual({ 'b.test.ts > two': ['beta'] });
   });
 
