@@ -1,7 +1,7 @@
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { published, ranHere } from './mainline-fixture.js';
 
@@ -16,12 +16,12 @@ const cwd = process.cwd();
 
 beforeEach(async () => {
   home = await realpath(await mkdtemp(join(tmpdir(), 'variance-mainline-fixture-')));
-  process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'cache');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'cache'));
 });
 
 afterEach(async () => {
   process.chdir(cwd);
-  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  vi.unstubAllEnvs();
   await rm(home, { recursive: true, force: true });
 });
 
