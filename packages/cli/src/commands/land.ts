@@ -144,7 +144,14 @@ export async function landJourneys(
     const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const landed = folded === undefined ? previous : selection.mergeCoverage(previous, folded);
     const runs = folded === undefined ? undefined : selection.commitRunsAfter(previous, held, folded);
-    const { landing: cases, sections } = selection.landCases(at, selection.caseSectionsAt(at), root, read);
+    // The index beside the snapshot was cut from the texts the snapshot names.
+    const { landing: cases, sections } = selection.landCases(
+      at,
+      selection.caseSectionsAt(at),
+      root,
+      read,
+      selection.textsOf(previous),
+    );
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.
     const kept = landed !== undefined || Object.values(sections).some((part) => part !== undefined);

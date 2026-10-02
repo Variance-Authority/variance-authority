@@ -42,7 +42,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { layCases, type FreshCases } from './case-landing.js';
+import { layCases, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
 import { layeredCoverage } from './format-layer.js';
@@ -159,7 +159,11 @@ export async function landRun(
   const before = await recordedSnapshot(coverageFile);
   const held = await heldCommitRuns(coverageFile);
   const previous = casesRecordedOver(coverageFile);
-  const laid = cases === undefined ? previous : layCases(previous, cases.fresh, root, cases.run, cases.eyes);
+  // The run's modules are named with the text each was cut from, so a module
+  // re-cut over the text the index already holds lands its cases as its rows do.
+  const laid = cases === undefined
+    ? previous
+    : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, recordedTexts(coverageFile));
   const coverage = await layeredCoverage(coverageFile, current, root);
   const bytes = Object.values(laid).every((part) => part === undefined) ? coverage : withCaseSections(coverage, laid);
   await writeCoverageBytes(coverageFile, bytes);
@@ -389,6 +393,19 @@ export async function heldCommitRuns(
       `${error instanceof Error ? error.message : String(error)}; this run writes it afresh, so it says ` +
         'where each test last ran only as an assumption until the runs at one commit together observe every test.',
     );
+    return undefined;
+  }
+}
+
+/** The text each module of the snapshot at `coverageFile` was cut from; `undefined` when it holds none this build reads. */
+function recordedTexts(coverageFile: string): ModuleTexts | undefined {
+  try {
+    return askCoverageFile(coverageFile, (coverage) => {
+      const path = coverage.modulePath.all();
+      const source = coverage.moduleSource.all();
+      return new Map(Array.from(path, (file, module) => [coverage.string(file), coverage.string(source[module]!)]));
+    });
+  } catch {
     return undefined;
   }
 }
