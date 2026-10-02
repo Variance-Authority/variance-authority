@@ -48,18 +48,24 @@ export const distillTool: Tool<ObservabilitySubject> = {
   inputSchema: {
     type: 'object',
     properties: {
-      test: { type: 'string', description: 'An Eyes test id, exact title, or unambiguous title part.' },
+      test: { type: 'string', description: 'The case id, exactly as the runtime journey spells it.' },
     },
     required: ['test'],
     additionalProperties: false,
   },
   run(subject, input) {
     const asked = stringArg(input, 'test');
+    if (subject.execution === undefined) {
+      return 'Runtime journey: unavailable. Distillation reads a case from the runtime journey, by its exact id.';
+    }
     try {
       return formatDistillation(distill({
         test: asked,
-        ...(subject.eyes === undefined ? {} : { eyes: subject.eyes }),
-        ...(subject.execution === undefined ? {} : { execution: subject.execution }),
+        execution: subject.execution,
+        ...(subject.eyes === undefined ? {} : {
+          eyes: subject.eyes.tests.map((test) => ({ case: test.id, attempt: test.attempt ?? 1, journal: test })),
+          ...(subject.eyes.watched === undefined ? {} : { watched: subject.eyes.watched }),
+        }),
       }));
     } catch (error) {
       return error instanceof Error ? error.message : String(error);

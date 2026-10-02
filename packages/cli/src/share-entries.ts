@@ -32,6 +32,7 @@ import type { ShareEntry } from '@variance-authority/core/share';
 import {
   askCoverageFile,
   caseSectionsAt,
+  caseSectionsOf,
   commitRunsFile,
   lastCaseRunOf,
   sharedRecord,
@@ -197,6 +198,21 @@ export async function suiteEntryOf(
       ...(runs === undefined ? [] : [[RUNS_PART, runs] as const]),
     ]),
   };
+}
+
+/**
+ * Whether the suite `entry` uploads carries its cases' Eyes journals.
+ *
+ * Whoever publishes is told: opting into Eyes kept the journals on this
+ * machine, and the share is the step that takes them off it. The answer is read
+ * off the entry's own bytes, because {@link sharedRecord} drops a section this
+ * build cannot read, and the record on disk would then claim journals the
+ * upload does not hold.
+ */
+export function entryCarriesEyes(entry: ShareEntry): boolean {
+  const parts = unframe(entry.bytes);
+  const record = typeof parts === 'string' ? undefined : parts.get('coverage.bin');
+  return record !== undefined && caseSectionsOf(record).eyes !== undefined;
 }
 
 /** The part of a `suite-v1` entry that holds the runs record, named as it lies beside the record. */

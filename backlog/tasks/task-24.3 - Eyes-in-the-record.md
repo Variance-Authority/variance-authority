@@ -1,10 +1,11 @@
 ---
 id: TASK-24.3
 title: Eyes in the record
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-10-02 06:01'
-updated_date: '2026-10-02 06:01'
+updated_date: '2026-10-02 09:00'
 labels: []
 dependencies:
   - TASK-24.1
@@ -26,3 +27,23 @@ Eyes journals become sections of the record, keyed by case and attempt, and join
 - [ ] #4 `distill` reads Eyes from the record; `--eyes` and the archive path are removed
 - [ ] #5 A Playwright retry keeps both attempts and joins its case exactly, pinned by a fixture
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Record section 'eyes' (case-record PARTS, additive) laid by layCases/landCases in sense eyes-record.ts: rows {case, attempt, complete, because?, attention}, keyed by the final case id; a file that runs again replaces its rows; absent when none.
+2. Playwright: playwright-test installs the case scope in the worker; the eyes fixture hands its journal to the scope; the recorder keys it by ownerOf+testOf and attempt testInfo.retry+1; carried through stage/fold into recordExecution -> landRun.
+3. RTL watchTest(screen, identity?) takes the running case from the scope when no identity is given.
+4. Remove the eyes reporter, writeEyesArchive and the stage env vars (no aliases).
+5. distill reads Eyes from the record (testCoverageFile or --execution); --eyes removed; attempts named; unresolved id refused.
+6. Retention: sharedRecord keeps eyes (same machine); share and carry name the Eyes section among what they upload.
+7. Changeset, surface, docs; pre-verify and yarn verify.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented on feat/eyes-in-the-record (commits 7868cf99 to HEAD). Record section eyes holds case, attempt from 1, journal. playwright-test enterCase hands journals by testOf(testInfo), attempt = retry + 1. eyes collect and reporter removed. distill reads testCoverageFile(root) or --execution; --eyes removed; attempts named; an unresolved id is refused. sharedRecord keeps eyes; share and carry name the eyes section they upload. yarn verify green. Open: RTL under Vitest/Jest reaches no record (it.todo in packages/eyes/src/rtl-case.test.tsx). MCP variance_test_attention and variance_distill still read an Eyes archive nothing writes (FIXME in packages/mcp/src/server.ts and tools/observability.ts). milestone-repin carries the index only. Surface READMEs cannot show eyesFixtures with varianceFixtures in one example under tools/surfaces.check.ts; a re-export would allow it.
+
+Review fixes: repin carries eyes for kept cases; an unreadable or newer eyes section is dropped at fetch/seed; conflicting journals keep the JSON-first one; partsOf reads eyes only on request; eyes section lists watched cases and distill tells not-opted-in from no journal; MCP reads Eyes from the record (readEyesRecord, serveEyesRecord); share/carry tests judge real written records. Still open: RTL under Vitest/Jest (it.todo in packages/eyes/src/rtl-case.test.tsx; needs a case scope taking journals in sense collectors.cts and jest-setup.cts); shard landing treats seeded eyes as fresh (FIXME in case-landing.ts).
+<!-- SECTION:NOTES:END -->

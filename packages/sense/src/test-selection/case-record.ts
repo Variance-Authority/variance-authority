@@ -1,6 +1,7 @@
 import { closeSync, openSync } from 'node:fs';
 import { isMissing } from './instrumented-modules.js';
 import { descriptor } from './coverage-file.js';
+import { decodeRecordedEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { invalid } from './format-validation.js';
 import { DURATION, FORMAT, NAMES, sections, UNCASED_FORMAT, validSections, type Header, type Section, type Stored } from './format-layout.js';
 import type { Bytes } from './columns.js';
@@ -16,7 +17,9 @@ import type { Bytes } from './columns.js';
  *   writes;
  * - `cases.before` is what the index held for the last run's files before it
  *   landed, the base an edit to a test is compared against;
- * - `cases.last` names that run, as JSON.
+ * - `cases.last` names that run, as JSON;
+ * - `eyes` holds the Eyes journals of the cases that kept one, by case and
+ *   attempt (`eyes-record.ts`).
  *
  * FIXME: `cases` and `cases.before` each carry a module and block table of
  * their own, re-encoding the files and blocks the record's coverage sections
@@ -30,9 +33,11 @@ export interface CaseSections {
   readonly index?: Uint8Array;
   readonly before?: Uint8Array;
   readonly last?: Uint8Array;
+  readonly eyes?: Uint8Array;
 }
 
-const PARTS = { index: 'cases', before: 'cases.before', last: 'cases.last' } as const;
+const PARTS = { index: 'cases', before: 'cases.before', last: 'cases.last', eyes: 'eyes' } as const;
+const ALL = Object.keys(PARTS) as readonly (keyof CaseSections)[];
 const KNOWN: ReadonlySet<string> = new Set<string>([...NAMES, DURATION, ...Object.values(PARTS)]);
 
 /**
@@ -71,8 +76,11 @@ export function casesRecordedOver(coverageFile: string): CaseSections {
   }
 }
 
-/** The case sections of the record at `coverageFile`, reading only them; none when there is no record. */
-export function caseSectionsAt(coverageFile: string): CaseSections {
+/**
+ * The case sections of the record at `coverageFile`, reading only them, and of
+ * them only `parts`; none when there is no record.
+ */
+export function caseSectionsAt(coverageFile: string, parts: readonly (keyof CaseSections)[] = ALL): CaseSections {
   let fd: number;
   try {
     fd = openSync(coverageFile, 'r');
@@ -81,7 +89,7 @@ export function caseSectionsAt(coverageFile: string): CaseSections {
     throw error;
   }
   try {
-    return partsOf(opened(descriptor(fd)));
+    return partsOf(opened(descriptor(fd)), parts);
   } finally {
     closeSync(fd);
   }
@@ -89,8 +97,26 @@ export function caseSectionsAt(coverageFile: string): CaseSections {
 
 /** The case index the record at `coverageFile` carries, or `undefined` when it kept none. */
 export async function caseIndexOf(coverageFile: string): Promise<Buffer | undefined> {
-  const index = caseSectionsAt(coverageFile).index;
+  const index = caseSectionsAt(coverageFile, ['index']).index;
   return index === undefined ? undefined : Buffer.from(index);
+}
+
+/** What the record at `coverageFile` holds of Eyes (`eyes-record.ts`); `undefined` when it kept none. */
+export function recordedEyesAt(coverageFile: string): EyesSection | undefined {
+  const { eyes } = caseSectionsAt(coverageFile, ['eyes']);
+  return eyes === undefined ? undefined : decodeRecordedEyes(eyes);
+}
+
+/**
+ * What the record held in `bytes` keeps of Eyes; `undefined` when it kept none,
+ * as a case index on its own keeps none. A reader that also takes the index
+ * reads both off the same bytes, so they are one run's even when a landing
+ * replaces the file between two reads of it.
+ */
+export function recordedEyesOf(bytes: Uint8Array): EyesSection | undefined {
+  if (peeked(bytes)?.sections.some((section) => section.name === PARTS.eyes) !== true) return undefined;
+  const { eyes } = partsOf(opened({ length: bytes.length, read: (from, to) => bytes.subarray(from, to) }), ['eyes']);
+  return decodeRecordedEyes(eyes!);
 }
 
 /**
@@ -201,18 +227,34 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
 }
 
 /**
- * `record` as another checkout takes it: the case index kept, and the parts
- * that name this checkout's last run dropped, because that run is not the
- * taker's. Every crossing — a seed, a repin, a share — goes through here.
+ * `record` as another checkout takes it: the case index and its Eyes journals
+ * kept, and the parts that name this checkout's last run dropped, because that
+ * run is not the taker's. Every crossing — a seed, a fetch, a share — goes
+ * through here.
+ *
+ * The journals cross because every crossing is one a person made: a seed is
+ * the same machine's worktree, and a share or a carry names the Eyes section
+ * among what it uploads before it does (spec 0094). A section this build
+ * cannot read is dropped at the crossing, as an index that does not read is,
+ * so no run over the taken record meets it.
  */
 export function sharedRecord(record: Uint8Array): Uint8Array {
-  const { index, before, last } = caseSectionsOf(record);
-  if (before === undefined && last === undefined) return record;
-  return withCaseSections(record, index === undefined ? {} : { index });
+  const { index, before, last, eyes } = caseSectionsOf(record);
+  const readable = eyes !== undefined && readableEyes(eyes) !== undefined;
+  if (before === undefined && last === undefined && (eyes === undefined || readable)) return record;
+  return withCaseSections(record, {
+    ...(index === undefined ? {} : { index }),
+    ...(readable ? { eyes } : {}),
+  });
+}
+
+/** Whether the record at `coverageFile` carries Eyes journals, read off its header alone. */
+export function keepsEyes(coverageFile: string): boolean {
+  return sectionsAt(coverageFile)?.some((section) => section.name === PARTS.eyes) === true;
 }
 
 function isCasePart(name: string): boolean {
-  return name === PARTS.index || name === PARTS.before || name === PARTS.last;
+  return (Object.values(PARTS) as string[]).includes(name);
 }
 
 interface Opened {
@@ -239,12 +281,11 @@ function opened(file: Bytes): Opened {
   };
 }
 
-function partsOf(file: Opened): CaseSections {
-  const parts: { index?: Uint8Array; before?: Uint8Array; last?: Uint8Array } = {};
-  for (const section of file.header.sections) {
-    if (section.name === PARTS.index) parts.index = file.read(section);
-    else if (section.name === PARTS.before) parts.before = file.read(section);
-    else if (section.name === PARTS.last) parts.last = file.read(section);
+function partsOf(file: Opened, wanted: readonly (keyof CaseSections)[] = ALL): CaseSections {
+  const parts: { -readonly [part in keyof CaseSections]: Uint8Array } = {};
+  for (const part of wanted) {
+    const section = file.header.sections.find((candidate) => candidate.name === PARTS[part]);
+    if (section !== undefined) parts[part] = file.read(section);
   }
   return parts;
 }

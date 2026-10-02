@@ -154,7 +154,7 @@ variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
-variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
+variance distill --test <id> [--execution <path>] [--root <path>] [--format text|json]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
@@ -297,42 +297,32 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
 
 ### Distill: find a smaller test boundary
 
-`distill` reads two evidence files your test run writes, and neither comes from
-`variance run`:
+`distill` reads the record your test run writes, which does not come from
+`variance run`. The record holds two readings of each case:
 
-- **the Eyes archive** — what each test queried, operated and read. Install
-  [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes),
-  record a journal per test, and fold the directory once where the run ends with
-  `writeEyesArchive('.variance/eyes.json', await gatherEyesArchive('.variance/eyes'))`
-  from `@variance-authority/eyes/collect`;
-- **the execution index** — which files and regions each test covered. Install
+- **which files and regions the case covered** — install
   [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-  and wrap the Vitest config in `withTestSelection(config)`; the record it
-  writes carries the index, and `--execution` reads it.
+  and wrap the runner config in `withTestSelection`;
+- **what the case queried, operated and read** — in a Playwright suite recorded
+  that way, extend `test` with the fixtures from
+  [`@variance-authority/eyes/playwright`](https://variance-authority.dev/reference/packages/eyes),
+  and each attempt's journal lands in the record under its case.
 
-Either file may be omitted and the missing domain stays unavailable; execution
-alone lists covered source but produces no opportunities, because missing
-attention is not an empty addressed surface.
+A record without journals still lists covered source, but produces no
+opportunities, because missing attention is not an empty addressed surface.
 
-Replace `<recorded-test-id>` with an entry's `id` from the evidence file's
-`tests` array:
+Replace `<recorded-test-id>` with a case id the record holds:
 
 ```bash
-variance distill \
-  --test '<recorded-test-id>' \
-  --eyes .variance/eyes.json \
-  --execution <cache>/test-selection/<digest>/coverage.bin
+variance distill --test '<recorded-test-id>'
 ```
 
-`--test` identifies an entry in the evidence file's `tests` array by its `id`.
-When both evidence files are supplied, their IDs must agree to join the readings.
-A file path works only when it is the recorded ID. With Eyes evidence, a unique
-exact title or unique case-insensitive title fragment also resolves to an ID;
-ambiguous title matches are refused. Execution evidence is always matched by
-exact ID, including after Eyes resolves a title.
+`--test` is matched exactly, never by title or file. An id the record does not
+hold is refused, and the refusal lists some of the ids it does. A case Playwright
+retried prints every attempt's journal, numbered from 1.
 
-`distill` reads the paths named on the command line and does not read project
-configuration. It reports addressed targets by authored Arrange/Act/Assert
+`distill` reads the checkout's own record, or the one `--execution` names, and
+does not read project configuration. It reports addressed targets by authored Arrange/Act/Assert
 phase, React update initiators inside and outside those target paths, and files
 covered by the exact test id without addressed source attribution:
 
@@ -352,7 +342,7 @@ Covered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/top-nav.tsx
 ```
 
-The command options are `test`, `eyes`, `execution`, and `format`; their flag
+The command options are `test`, `execution`, `root`, and `format`; their flag
 forms are shown in the synopsis above.
 
 `--format json` returns the same ordered analysis as data. The command always

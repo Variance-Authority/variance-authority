@@ -14,6 +14,7 @@ import type {
   PlaywrightWorkerArgs,
   TestInfo,
 } from '@playwright/test';
+import { enterCase } from './case-scope.js';
 import { testOf, type ExecutionRecorder } from './execution.js';
 
 /** The worker fixture the recorder lives on, for the halves that report to it. */
@@ -60,7 +61,15 @@ export const varianceCompletedFixtures: Fixtures<
 > = {
   varianceCompleted: [
     async ({ varianceRecorder }, use, testInfo) => {
-      await use();
+      // Open for every fixture the test asked for, which are set up after this
+      // one and torn down before it: Eyes hands its journal over in its own
+      // teardown, while the case is still the one running.
+      const leave = varianceRecorder === undefined ? undefined : enterCase(varianceRecorder, testInfo);
+      try {
+        await use();
+      } finally {
+        leave?.();
+      }
       // After `use`, which is where the runner has already decided this test.
       // Automatic fixtures are set up before the ones a test asked for, so this
       // is torn down after them and reads the status they have already settled.

@@ -15,20 +15,20 @@ clock and an order form; only some of that is the behaviour the test protects.
 Eyes records, per test and in order, every element your test queried, clicked,
 read or asserted on, together with the React component that rendered it — and it
 copies that attribution at the moment the element is addressed, so an element
-removed by its own click handler is still attributable afterwards. It writes the
-result to a JSON file.
+removed by its own click handler is still attributable afterwards. In a
+Playwright run that records with
+[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test),
+each test's journal goes into that run's record, beside what the test executed.
 
-With that file you can:
+With that record you can:
 
-- Read back one test's addressed surface:
-  `variance distill --test '<id>' --eyes .variance/eyes.json`. Pair it with
-  execution evidence from `@variance-authority/sense` and the same command names
-  the files the test loaded without addressing anything in them — candidates for
-  a stand-in. [Distil a test](https://variance-authority.dev/docs/distill) is the
+- Read back one test's addressed surface: `variance distill --test '<case id>'`.
+  The same command names the files the test loaded without addressing anything
+  in them — candidates for a stand-in. [Distil a test](https://variance-authority.dev/docs/distill) is the
   loop that confirms them.
 - Ask an agent to replay one test's selectors, events and Arrange/Act/Assert
-  boundaries in order, through the `variance_test_attention` MCP tool in
-  `@variance-authority/mcp`.
+  boundaries in order, through the `variance_test_attention` MCP tool that
+  `serveEyesRecord` from `@variance-authority/mcp` serves over that record.
 
 The evidence model, and what Eyes refuses to conclude from it, is
 **[Eyes: what a test actually witnesses](https://variance-authority.dev/docs/eyes)**.
@@ -81,67 +81,28 @@ Skip this step and everything below still works — every journal then records a
 `react-tap-refused` entry with the reason, rather than looking like a page that
 rendered nothing.
 
-**3. Watch `screen` for the span of each test and publish the journal.**
-`watchTest` pairs one log with the test identity you give it; its `close`
-returns the journal that `recordEyesTest` writes to disk.
-
-The id below is the test's **coordinate** — its project-relative file, then its
-describe path and name, joined by ` > `. That is the id
-[`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-gives the same case in its execution index, and `variance distill` joins the two
-recordings on exact id and guesses nothing. Use the runner's own `task.id` and
-the journal still archives, but nothing will join to it.
+**3. Watch `screen` for the span of each test.** `watchTest(screen)` opens one
+log for the test, and its `close` returns the journal and hands it to the case
+the run is recording, where the recording seam's case takes one. The case names
+the journal, by the id and the attempt the record joins on, so there is no id
+for you to build:
 
 ```ts
 // vitest.setup.eyes.ts
 import { screen } from '@testing-library/react';
-import { getNames } from '@vitest/runner/utils';
-import { recordEyesTest } from '@variance-authority/eyes/collect';
 import { watchTest } from '@variance-authority/eyes/rtl';
 import { afterEach, beforeEach } from 'vitest';
 
 let attention: ReturnType<typeof watchTest>;
 
-beforeEach(({ task }) => {
-  const file = task.file?.name ?? '';              // project-relative, as Sense records it
-  const name = getNames(task).slice(1).join(' > '); // describe path, then the test name
-  attention = watchTest(screen, { id: `${file} > ${name}`, title: task.name, file });
+beforeEach(() => {
+  attention = watchTest(screen);
 });
 
-afterEach(async () => {
-  await recordEyesTest('.variance/eyes', attention.close());
+afterEach(() => {
+  attention.close();
 });
 ```
-
-Two cases in one file may share the same coordinate. Sense numbers the repeat —
-the second is `<coordinate>#1` — so give a deliberate duplicate a name of its
-own rather than matching that suffix by hand.
-
-**4. Clear the directory when the run starts, fold it when the run ends.** A run
-spreads tests over worker processes, so no object in memory collects what the
-run saw: each test publishes its own journal, and the archive is what folding
-the directory produces. Journals are named by test id, so the directory must
-belong to one run. `resetEyesJournals` goes in the runner's once-per-run hook,
-never in a test file, where it races the other workers.
-
-```ts
-// vitest.globalSetup.eyes.ts
-import {
-  gatherEyesArchive,
-  resetEyesJournals,
-  writeEyesArchive,
-} from '@variance-authority/eyes/collect';
-
-export async function setup(): Promise<void> {
-  await resetEyesJournals('.variance/eyes');
-}
-
-export async function teardown(): Promise<void> {
-  await writeEyesArchive('.variance/eyes.json', await gatherEyesArchive('.variance/eyes'));
-}
-```
-
-Wire all three files up, the hook file first:
 
 ```ts
 // vitest.config.ts
@@ -150,58 +111,54 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    globalSetup: ['./vitest.globalSetup.eyes.ts'],
     setupFiles: ['./vitest.setup.eyes-hook.ts', './vitest.setup.eyes.ts'],
   },
 });
 ```
 
-`gatherEyesArchive` throws on a missing directory rather than reporting an empty
-archive: a run whose tests recorded nothing and a run that wrote its journals
-somewhere else are different situations.
+Under Vitest, Jest and Rstest, the recording seam holds each attempt's case
+from before its first `beforeEach` until its last `afterEach`, so a journal
+closed in teardown lands under that case and attempt, and a retried case keeps
+every attempt. The journal `close` returns is still yours to read in the same hook.
+
+A harness that keeps its own journals passes `watchTest` an identity, `{ id,
+title, file }`, and `close` then returns a journal carrying it and hands it to
+no case.
 
 ### What you get
 
-`.variance/eyes.json`, abridged — one test that rendered a button, queried it by
-role, and clicked it, where the click handler removed the button:
+One test that rendered a button, queried it by role, and clicked it, where the
+click handler removed the button. The journal, abridged:
 
 ```json
 {
-  "eyesVersion": 1,
-  "tests": [
+  "complete": true,
+  "attention": [
     {
-      "id": "collect.test.tsx > removes on click",
-      "title": "removes on click",
-      "file": "src/collect.test.tsx",
-      "complete": true,
-      "attention": [
+      "kind": "rtl-query",
+      "query": "getByRole",
+      "arguments": ["button", { "name": "Remove me" }],
+      "outcome": "resolved",
+      "targets": [
         {
-          "kind": "rtl-query",
-          "query": "getByRole",
-          "arguments": ["button", { "name": "Remove me" }],
-          "outcome": "resolved",
-          "targets": [
-            {
-              "nodeName": "button",
-              "type": "button",
-              "provenance": {
-                "status": "resolved",
-                "provenance": {
-                  "owners": [{ "name": "SelfRemoving", "propsDigest": "b5c1f0a2" }]
-                }
-              }
+          "nodeName": "button",
+          "type": "button",
+          "provenance": {
+            "status": "resolved",
+            "provenance": {
+              "owners": [{ "name": "SelfRemoving", "propsDigest": "b5c1f0a2" }]
             }
-          ],
-          "sequence": 0
-        },
-        {
-          "kind": "document-event",
-          "event": "click",
-          "trusted": false,
-          "target": { "nodeName": "button", "type": "button" },
-          "sequence": 1
+          }
         }
-      ]
+      ],
+      "sequence": 0
+    },
+    {
+      "kind": "document-event",
+      "event": "click",
+      "trusted": false,
+      "target": { "nodeName": "button", "type": "button" },
+      "sequence": 1
     }
   ]
 }
@@ -211,7 +168,9 @@ The `document-event` entry above is abridged: every target uses the same
 `provenance` shape as the query target, and a real pointer produces the
 `pointerdown`, `pointerup` and `focusin` around the click as well. A
 `react-commit` entry names the components that performed render work and the
-structural paths of the live components that initiated the update.
+structural paths of the live components that initiated the update. A source
+path in an entry is relative to the repository root, the way Sense names a
+covered module.
 
 `complete` is derived rather than asserted. `createEyesLog` numbers entries from
 construction and `drain` does not reset that counter, so a journal starting above
@@ -281,73 +240,51 @@ npm install --save-dev @variance-authority/eyes @playwright/test
 npx playwright install chromium
 ```
 
-**2. Compose `eyesFixtures` into the extension module your suite already owns.**
-The `eyes` fixture opens a journal for each test and publishes it when the test
-is over.
+**2. Wrap the config in `withTestSelection`** from
+[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test),
+which records what each test executed into the run's record.
+
+**3. Compose `eyesFixtures` after the recording's fixtures** in the extension
+module your suite already owns. Here `recorded` is your `test` already extended
+with `varianceFixtures` from `@variance-authority/playwright-test`. The `eyes`
+fixture opens a journal for each test and, when the test is over, hands it to
+the case the run is recording:
 
 ```ts
 // tests/fixtures.ts
-import { test as base, expect } from '@playwright/test';
 import { eyesFixtures } from '@variance-authority/eyes/playwright';
+import { test as recorded } from './recorded';
 
-export const test = base.extend(eyesFixtures);
-export { expect };
+export const test = recorded.extend(eyesFixtures);
 ```
 
-**3. Add the reporter** to `playwright.config.ts`. It names a fresh directory
-before the first worker starts, and folds every worker's journals into one
-archive when the run ends:
-
-```ts
-export default defineConfig({
-  reporter: [['list'], ['@variance-authority/eyes/reporter', { archive: '.variance/eyes.json' }]],
-});
-```
-
-`archive` resolves against the config's `testDir`. A run in which no test
-published a journal writes no archive, removes the previous one, and says so on
-stderr, because no journal is not the same answer as an empty one. Without the
-reporter the fixture publishes nothing, and the journal is still yours to read
-from `eyes` in your own teardown.
-
-Each journal names its test by `testInfo.testId`, which is the id Sense keys the
-same test by, and its file relative to the repository root, which is how Sense
-names it too.
+The record keeps the journal under the case's id — its file relative to the
+repository root, then its describe path and name — and under its attempt. A run
+that does not record has no case to hand a journal to, and the journal stays
+yours to drain from `eyes` in your own teardown.
 
 The fixture overrides `page` with an API-compatible proxy that preserves Locator
 chaining and records action, read and assertion consumption, and it installs the
 browser agent as an init script, so the React commit tap is in place before page
 code loads — the Playwright path needs no equivalent of the RTL hook step.
 
-To attach the journal to the Playwright report instead of the shared directory,
-build a one-test archive with `createEyesArchive` and hand it to
-`testInfo.attach`. `readEyesArchive` from `@variance-authority/eyes/archive`
-validates either artifact before it crosses a process boundary, and the same
-validation runs on every journal on the way in, so a run that produced something
-a reader would refuse fails where it was written.
+`parseEyesJournal` from `@variance-authority/eyes/archive` validates a journal
+before it crosses a process boundary. `bundleEyesAgent` is exported for custom
+fixture authors; the standard fixture reads and installs that same bundle.
 
-`bundleEyesAgent` is exported for custom fixture authors; the standard fixture
-reads and installs that same bundle.
+## One journal per attempt
 
-## One journal per test attempt, enforced
+A retry is a second attempt, not a second test. The record numbers attempts
+from 1, so Playwright's `testInfo.retry` of `0` is attempt 1, and a retried test
+keeps one journal per attempt under one case id. The attempt is a column of the
+record and never part of the id: an id with the attempt spelled into it would
+join to nothing.
 
-`recordEyesTest` publishes with `link`, so a second journal under the same test
-and attempt throws rather than replacing the first — a duplicate makes the
-earlier test invisible to the archive while every process reports success.
+## Where the journal goes
 
-A retry is a second attempt, not a second test. The Playwright fixture records
-`testInfo.retry` as `attempt`, so a retried test publishes one journal per
-attempt under one id, and the archive holds both. Keep `id` as the coordinate
-Sense keys the test by, and put the attempt in `attempt`: an id with the attempt
-spelled into it no longer joins to anything.
-
-`EYES_JOURNAL_SUFFIX` (`.va-eyes.json`) is what tells a journal apart from
-anything else in the directory; `resetEyesJournals` deletes only files whose
-name ends with it.
-
-`@variance-authority/eyes/collect` is a separate entrypoint because it imports
-`node:fs`, while `/rtl` is imported by test files a bundler may follow into a
-browser.
+The journal stays in the record on the machine that ran the test. It leaves only
+with the record: through `variance share`, or through a host cache the config
+gives the suite to. Each names the journals among what it uploads.
 
 ## Capture one node directly
 
