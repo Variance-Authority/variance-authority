@@ -98,3 +98,28 @@ describe('a region an edit beside it renumbered', () => {
     expect(motion.renumbered).toEqual([]);
   });
 });
+
+describe('a region paired through the diff from the base', () => {
+  // Lines 1-4 are removed, so every line after them is numbered four lower now.
+  const diff = new Map([['src/total.ts', [{ oldStart: 1, oldCount: 4, newStart: 0, newCount: 0 }]]]);
+
+  it('is named as renumbered when its lines pair it with a row its occurrence does not', () => {
+    // The first of three `.filter` callbacks is deleted, and the cases of the two left do not tell them apart.
+    const base = index([A, B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [1]), block('pick/filter.arg0', 9, [1])]);
+    const now = index([A, B], [block('pick/filter.arg0', 1, [1]), block('pick/filter.arg0', 5, [1])]);
+
+    const motion = caseMotion(base, now, { diff });
+
+    expect(motion.regions).toEqual([]);
+    expect(motion.renumbered.map((region) => region.startLine)).toEqual([1, 5]);
+  });
+
+  it('pairs no row with a region the build wrote and the source does not hold', () => {
+    const base = index([A], [block('helper', 5, [0])]);
+    const now = index([A], [{ ...block('helper', 1, []), source: false }]);
+
+    const motion = caseMotion(base, now, { diff });
+
+    expect(motion.regions).toEqual([]);
+  });
+});

@@ -219,14 +219,11 @@ async function mergeBase(run: Run, ref: string, repository: string): Promise<str
  * `here` is read with its links resolved, because git spells the top level that
  * way: a run started under a link — every temporary directory on macOS, through
  * `/var` — would otherwise name each file by climbing out of the link and back.
+ * Git has just run in or under `here`, so it resolves; were it removed since, the throw
+ * is the caller's no-diff answer.
  */
 function inCoordinates(diff: string, here: string, repository: string): string {
-  let from = here;
-  try {
-    from = realpathSync(here);
-  } catch {
-    // A directory that cannot be resolved is named as given.
-  }
+  const from = realpathSync(here);
   const move = (path: string): string => relative(from, join(repository, path));
   return diff
     .split('\n')
