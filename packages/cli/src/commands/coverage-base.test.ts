@@ -82,7 +82,7 @@ let base: string;
 const git = (...args: string[]) =>
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: repo, encoding: 'utf8' }).trim();
 
-async function record(at: string, index: Index, last?: { readonly commit: string; readonly files: readonly string[] }): Promise<void> {
+async function record(at: string, index: Index, last?: { readonly commit?: string; readonly files: readonly string[] }): Promise<void> {
   await mkdir(dirname(at), { recursive: true });
   const cases = { index: encodeExecutionIndex(index), ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify(last)) }) };
   await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, cases);
@@ -147,5 +147,32 @@ describe('coverage against a base an edit wrote a sibling region into', () => {
     expect(change.testFiles).toEqual([
       { file: 'src/pay.test.ts', entered: [], left: [expect.objectContaining({ name: 'refund', startLine: 8 })] },
     ]);
+  });
+});
+
+describe('coverage against a base whose commit it cannot diff from', () => {
+  it('refuses a base recorded at a commit this clone does not have, and names how to fetch it', async () => {
+    const absent = 'f'.repeat(40);
+    const elsewhere = join(dirname(base), 'elsewhere.bin');
+    await record(elsewhere, BASE, { commit: absent, files: [] });
+
+    const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', elsewhere, '--format', 'json']);
+
+    expect(answer.code).toBe(2);
+    expect(JSON.parse(answer.out)).toEqual({ refused: 'undiffed' });
+    expect(answer.err).toContain(`was recorded at ${absent}, which this clone does not have`);
+    expect(answer.err).toContain(`git fetch origin ${absent}`);
+    expect(answer.err).toContain('fetch-depth: 0');
+  });
+
+  it('refuses a base that names no commit', async () => {
+    const unnamed = join(dirname(base), 'unnamed.bin');
+    await record(unnamed, BASE, { files: [] });
+
+    const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', unnamed, '--format', 'json']);
+
+    expect(answer.code).toBe(2);
+    expect(JSON.parse(answer.out)).toEqual({ refused: 'undiffed' });
+    expect(answer.err).toContain('names no commit it was recorded at');
   });
 });

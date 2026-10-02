@@ -19,13 +19,11 @@ import {
   caseMotion,
   caseSectionsAt,
   decodeExecutionIndex,
-  hunksByFile,
   recordedCommit,
   type CaseMotion,
   type CommitRuns,
   type ExecutionIndex,
   type ExecutionTest,
-  type Hunk,
   type LastCaseRun,
   type MovedRegion,
 } from '@variance-authority/sense/test-selection';
@@ -33,7 +31,7 @@ import { OperatorError } from '../exit.js';
 import type { ParsedCovering } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
-import { diffSince } from './since.js';
+import { diffFromBase } from './base-diff.js';
 import { relationsFor } from './source-graph.js';
 
 /** Which record the answer was compared with, and what of it was left out. */
@@ -42,14 +40,14 @@ export interface MotionBase {
   readonly from: string;
   /** `before` for the layer the last run retired, `record` for one named by `--against`. */
   readonly kind: 'before' | 'record';
-  /** The commit the base was recorded at, when it said. */
+  /** The commit the base was recorded at: always, once it is compared, because its regions are paired through the diff from it. */
   readonly at?: string;
   /** Where the diff's ref and `HEAD` part, when the base was compared under `--since`. */
   readonly mergeBase?: string;
   /**
    * Files the base's branch changed between the base's commit and the merge
    * base. Their motion is that branch's, so they are not compared. Absent when
-   * it could not be told, which is not the same as none.
+   * the base was not compared under `--since`.
    */
   readonly leftOut?: readonly string[];
 }
@@ -169,27 +167,31 @@ async function againstBefore(
     readonly files?: ReadonlySet<string>;
   },
 ): Promise<CoveringMotion> {
-  const parting = at === undefined || since === undefined ? undefined : await movedOnBase(at, since, root);
-  const base: MotionBase = {
-    from,
-    kind: 'before',
-    ...(at === undefined ? {} : { at }),
-    ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }),
-  };
+  const unread: MotionBase = { from, kind: 'before', ...(at === undefined ? {} : { at }) };
   let held: ExecutionIndex;
   try {
     const before = caseSectionsAt(from).before;
-    if (before === undefined) return { base };
+    if (before === undefined) return { base: unread };
     held = decodeExecutionIndex(before);
   } catch {
-    return { base };
+    return { base: unread };
   }
+  const { commit, diff } = await diffFromBase(at, root, BEFORE_LAYER);
+  const parting = since === undefined ? undefined : await movedOnBase(commit, since, root);
+  const base: MotionBase = { ...unread, ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }) };
   if (files !== undefined) held = keepFiles(held, files);
   const now = keepCases(full, new Set(cases));
   const exclude = new Set(parting?.files ?? []);
-  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, ...(await diffFromBase(at, root)) });
+  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, diff });
   return { base, moved: file === undefined ? moved : within(moved, file) };
 }
+
+/** The before layer, as a refusal names it, and why it can name no commit. */
+const BEFORE_LAYER = {
+  name: 'The run before the last one',
+  unnamed: 'That is so when that run named no commit, and when a run at the same commit ran one of its test files again, ' +
+    'which mixes this commit\'s cases into the ones it replaced. The first run after a commit compares with the last run at the commit before.',
+};
 
 /** An index narrowed to the cases of some test files. */
 export function keepFiles(index: ExecutionIndex, files: ReadonlySet<string>): ExecutionIndex {
@@ -244,16 +246,11 @@ export async function motionAgainst(
     );
   }
   const now = await readExecutionIndex(from);
-  const at = await baseCommit(against);
-  const parting = at === undefined ? undefined : await movedOnBase(at, since, root);
-  const base: MotionBase = {
-    from: against,
-    kind: 'record',
-    ...(at === undefined ? {} : { at }),
-    ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }),
-  };
-  const exclude = new Set(parting?.files ?? []);
-  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), exclude, ...(await diffFromBase(at, root)) }) };
+  const { commit, diff } = await diffFromBase(await baseCommit(against), root, { name: `The base \`${against}\`` });
+  const parting = await movedOnBase(commit, since, root);
+  const base: MotionBase = { from: against, kind: 'record', at: commit, mergeBase: parting.mergeBase, leftOut: parting.files };
+  const exclude = new Set(parting.files);
+  return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), exclude, diff }) };
 }
 
 /**
@@ -286,11 +283,7 @@ export function motionText(
     return motion.unwritten === undefined ? ['', `Nothing to compare: ${base.from} holds none of these cases.`] : [];
   }
   const lines = [''];
-  if (base.kind === 'record' && base.at === undefined) {
-    lines.push('The base names no commit, so what its branch moved since cannot be told apart from this change.');
-  } else if (base.kind === 'record' && base.leftOut === undefined) {
-    lines.push(`Could not tell what the base's branch changed after ${base.at!.slice(0, 12)}, so nothing was left out.`);
-  } else if (base.leftOut !== undefined && base.leftOut.length > 0) {
+  if (base.leftOut !== undefined && base.leftOut.length > 0) {
     lines.push(
       `Left out, changed on the base's branch between ${base.at!.slice(0, 12)} and the merge base ${
         base.mergeBase!.slice(0, 12)
@@ -412,17 +405,6 @@ function within(moved: CaseMotion, file: string): CaseMotion {
   };
 }
 
-/**
- * The diff from the commit a base was recorded at to the tree, by file, which
- * pairs regions by the lines they stand on. Empty when the commit is not an
- * object name, which is all that reaches the diff, or the diff cannot be read.
- */
-export async function diffFromBase(at: string | undefined, root: string): Promise<{ readonly diff?: ReadonlyMap<string, readonly Hunk[]> }> {
-  if (at === undefined || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(at)) return {};
-  const diff = await diffSince(at, [], at, { cwd: root, unified: 0 });
-  return diff === undefined ? {} : { diff: hunksByFile(diff) };
-}
-
 /** The file graph when a case stopped, which is when a hidden region can name the case. */
 async function graphFor(now: ExecutionIndex, root: string) {
   if (!anyStopped(now)) return {};
@@ -466,26 +448,32 @@ function lastRun(record: string): LastCaseRun | 'unreadable' | undefined {
 /**
  * Where `since` and `HEAD` part, and the files the base's branch changed
  * between the base's commit and there, named the way the run names files.
- * Absent when git could not say.
+ * Refused with git's answer when git cannot say: without it, the base
+ * branch's own motion would be read as this change's.
  */
 async function movedOnBase(
   at: string,
   since: string,
   root: string,
-): Promise<{ readonly mergeBase: string; readonly files: readonly string[] } | undefined> {
+): Promise<{ readonly mergeBase: string; readonly files: readonly string[] }> {
   const run = promisify(execFile);
   try {
     const top = (await run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).stdout.trim();
     const mergeBase = (await run('git', ['merge-base', since, 'HEAD'], { cwd: top })).stdout.trim();
-    const base = (await run('git', ['rev-parse', `${at}^{commit}`], { cwd: top })).stdout.trim();
-    if (base === mergeBase) return { mergeBase, files: [] };
-    const { stdout } = await run('git', ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', base, mergeBase], {
+    if (at === mergeBase) return { mergeBase, files: [] };
+    const { stdout } = await run('git', ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', at, mergeBase], {
       cwd: top,
       maxBuffer: 32 * 1024 * 1024,
     });
     const files = stdout.split('\0').filter((file) => file !== '').map((file) => relative(root, join(top, file)));
     return { mergeBase, files: files.sort() };
-  } catch {
-    return undefined;
+  } catch (error) {
+    const said = (error as { stderr?: unknown }).stderr;
+    throw new OperatorError(
+      `What the branch of \`${since}\` changed after ${at} could not be read, so the base is not compared: ` +
+        `${typeof said === 'string' && said.trim() !== '' ? said.trim() : error instanceof Error ? error.message : String(error)}. ` +
+        'A shallow clone has only the tip: check out every commit with `fetch-depth: 0` and `filter: tree:0` on `actions/checkout`.',
+      { kind: 'undiffed' },
+    );
   }
 }

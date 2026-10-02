@@ -16,12 +16,17 @@ function index(tests: readonly ExecutionTest[], blocks: readonly ExecutionBlock[
   return { tests, modules: [{ file: 'src/total.ts', blocks }] };
 }
 
+/** No file changed between the two texts. */
+const UNCHANGED = { diff: new Map() };
+
 describe('what a change moved', () => {
   it('names a region nobody walks any more as lost, one fewer case as thinned, and a new walker as gained', () => {
     const base = index([A, B], [block('apply', 1, [0]), block('round', 10, [0, 1]), block('clamp', 20, [])]);
     const now = index([A, B], [block('apply', 5, []), block('round', 14, [1]), block('clamp', 24, [0])]);
+    // Four lines written above the first, so every region stands four lower now.
+    const diff = new Map([['src/total.ts', [{ oldStart: 0, oldCount: 0, newStart: 1, newCount: 4 }]]]);
 
-    const motion = caseMotion(base, now);
+    const motion = caseMotion(base, now, { diff });
 
     expect(motion.regions.map((region) => [region.name, region.motion, region.startLine])).toEqual([
       ['apply', 'lost', 5],
@@ -42,7 +47,7 @@ describe('what a change moved', () => {
     const base = index([A, B], [block('apply', 1, [0, 1])]);
     const now = index([A, { ...B, stopped: true }], [block('apply', 1, [])]);
 
-    const [region] = caseMotion(base, now).regions;
+    const [region] = caseMotion(base, now, UNCHANGED).regions;
 
     expect(region!.motion).toBe('hidden');
     expect(region!.stopped).toBeUndefined();
@@ -58,7 +63,7 @@ describe('what a change moved', () => {
     };
     const now = index([A], [block('gone', 1, [0], 'method'), block('fresh', 9, [0])]);
 
-    const motion = caseMotion(base, now);
+    const motion = caseMotion(base, now, UNCHANGED);
 
     expect(motion.regions).toEqual([]);
     expect(motion.unread).toEqual(['src/unloaded.ts']);
@@ -68,31 +73,15 @@ describe('what a change moved', () => {
     const base = index([A], [block('apply', 1, [0])]);
     const now = index([A], [{ ...block('apply', 1, []), crossings: [{ test: 0, distance: 0, loaded: true }] }]);
 
-    expect(caseMotion(base, now).counts.lost).toBe(1);
-    expect(caseMotion(base, now, { exclude: new Set(['src/total.ts']) }).regions).toEqual([]);
-  });
-});
-
-describe('a region an edit beside it renumbered', () => {
-  const C = { id: 'c.test.ts > three', file: 'c.test.ts', name: 'three', stopped: false };
-
-  it('is paired by its cases, not its occurrence, and is named as renumbered rather than lost and gained', () => {
-    // The first of three `.filter` callbacks is deleted: by occurrence the second now is the first at the base.
-    const base = index([A, B, C], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [1]), block('pick/filter.arg0', 9, [2])]);
-    const now = index([A, B, C], [block('pick/filter.arg0', 5, [1]), block('pick/filter.arg0', 9, [2])]);
-
-    const motion = caseMotion(base, now);
-
-    expect(motion.regions).toEqual([]);
-    expect(motion.testFiles).toEqual([]);
-    expect(motion.renumbered.map((region) => region.startLine)).toEqual([5, 9]);
+    expect(caseMotion(base, now, UNCHANGED).counts.lost).toBe(1);
+    expect(caseMotion(base, now, { ...UNCHANGED, exclude: new Set(['src/total.ts']) }).regions).toEqual([]);
   });
 
-  it('still reads a sibling whose cases changed by its address', () => {
+  it('reads a sibling whose cases changed on the lines it stands on', () => {
     const base = index([A, B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [1])]);
     const now = index([A, B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [])]);
 
-    const motion = caseMotion(base, now);
+    const motion = caseMotion(base, now, UNCHANGED);
 
     expect(motion.regions.map((region) => [region.startLine, region.motion])).toEqual([[5, 'lost']]);
     expect(motion.renumbered).toEqual([]);

@@ -59,22 +59,51 @@ async function keep(file: string, now: ExecutionIndex, layers: { readonly before
   });
 }
 
+const cwd = process.cwd();
+afterEach(() => process.chdir(cwd));
+
+const git = (at: string, args: readonly string[]): string =>
+  execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
+
+/** A checkout with `main` at `first`, and the change on a branch of its own. */
+async function checkout(): Promise<{ root: string; first: string }> {
+  const root = await mkdtemp(join(tmpdir(), 'variance-covering-against-'));
+  await mkdir(join(root, 'src'), { recursive: true });
+  git(root, ['init', '--quiet', '--initial-branch', 'main']);
+  git(root, ['config', 'user.email', 'fixture@example.test']);
+  git(root, ['config', 'user.name', 'Fixture']);
+  await writeFile(join(root, 'src/total.ts'), 'export const total = 1;\n');
+  await writeFile(join(root, 'src/other.ts'), 'export const other = 1;\n');
+  await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => {});\n');
+  git(root, ['add', '-A']);
+  git(root, ['commit', '--quiet', '-m', 'first']);
+  process.chdir(root);
+  return { root, first: git(root, ['rev-parse', 'HEAD']) };
+}
+
+/** A commit no clone has: forty hex digits that name no object. */
+const ABSENT = 'f'.repeat(40);
+
+/** The cases `discounts` ran at the base: both functions. */
+const RETIRED: ExecutionIndex = {
+  tests: [DISCOUNTS],
+  modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [0])] }],
+};
+
 describe('what the last run moved', () => {
   it('compares the last run with the cases it retired, and names what a test stopped calling', async () => {
-    const dir = await records();
-    const execution = join(dir, 'coverage.bin');
+    const { first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
     await keep(execution, index([0, 1], [1]), {
-      last: { at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
-      before: { tests: [DISCOUNTS], modules: [
-        { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [0])] },
-      ] },
+      last: { commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: RETIRED,
     });
 
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     expect(answer.motion?.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'lost']]);
     const text = formatCovering(answer, 'text');
-    expect(text).toContain('Against the run before it: 1 lost.');
+    expect(text).toContain(`Against the run before it at ${first.slice(0, 12)}: 1 lost.`);
     expect(text).toContain('  lost     src/total.ts 30-34 function round — was total.test.ts > discounts');
     expect(text).toContain('total.test.ts no longer enters round in src/total.ts (1 region).');
   });
@@ -89,6 +118,42 @@ describe('what the last run moved', () => {
     expect(answer.motion?.moved).toBeUndefined();
     expect(formatCovering(answer, 'text')).toContain('Nothing to compare:');
   });
+
+  it('refuses cases it retired that name no commit, and says when that happens', async () => {
+    const { first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    // A run at the commit the last one was made at ran the file again, so what
+    // it retired was recorded over more than one tree and names no `before`.
+    await keep(execution, index([0, 1], [1]), {
+      last: { commit: first, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: RETIRED,
+    });
+
+    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]))).rejects.toMatchObject({
+      exitCode: 2,
+      message: expect.stringContaining('The run before the last one names no commit it was recorded at'),
+    });
+    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]))).rejects.toThrow(
+      'a run at the same commit ran one of its test files again',
+    );
+  });
+
+  it('refuses cases it retired at a commit this clone does not have, and names how to fetch it', async () => {
+    await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    await keep(execution, index([0, 1], [1]), {
+      last: { commit: ABSENT, before: ABSENT, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: RETIRED,
+    });
+
+    const refused = covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
+
+    await expect(refused).rejects.toMatchObject({
+      exitCode: 2,
+      message: expect.stringContaining(`was recorded at ${ABSENT}, which this clone does not have`),
+    });
+    await expect(refused).rejects.toThrow(`git fetch origin ${ABSENT}`);
+  });
 });
 
 describe('what the runs at one commit moved', () => {
@@ -96,12 +161,13 @@ describe('what the runs at one commit moved', () => {
     // TanStack Query's first cycle: a whole run into an empty cache, then the
     // selected file again. `flow.test.tsx` ran once, over no index, so no case
     // of it came before, and `round`, which only it enters, gained nothing.
-    const dir = await records();
-    const execution = join(dir, 'coverage.bin');
+    const { root, first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
     const full = index([0], [1]);
     await keep(execution, full, {
       last: {
-        commit: 'c', at: '2026-09-25T00:00:00.000Z', files: ['flow.test.tsx', 'total.test.ts'], unbased: ['flow.test.tsx'], cases: [DISCOUNTS.id],
+        commit: 'c', before: first, at: '2026-09-25T00:00:00.000Z', files: ['flow.test.tsx', 'total.test.ts'],
+        unbased: ['flow.test.tsx'], cases: [DISCOUNTS.id],
       },
       before: { tests: [DISCOUNTS], modules: [
         { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [])] },
@@ -109,7 +175,7 @@ describe('what the runs at one commit moved', () => {
     });
 
     const wrote = await runsWrote(execution, { commit: 'c', files: ['flow.test.tsx', 'total.test.ts'] } as CommitRuns);
-    const motion = await motionOfRuns(full, execution, wrote, dir);
+    const motion = await motionOfRuns(full, execution, wrote, root);
 
     expect(motion.moved?.regions).toEqual([]);
     expect(motion.unbased).toEqual(['flow.test.tsx']);
@@ -119,29 +185,7 @@ describe('what the runs at one commit moved', () => {
 });
 
 describe('what a change moved against the base', () => {
-  const cwd = process.cwd();
-  afterEach(() => process.chdir(cwd));
-
-  const git = (at: string, args: readonly string[]): string =>
-    execFileSync('git', args, { cwd: at, stdio: 'pipe', encoding: 'utf8' }).trim();
-
-  /** A checkout with `main` at `first`, and the change on a branch of its own. */
-  async function checkout(): Promise<{ root: string; first: string }> {
-    const root = await mkdtemp(join(tmpdir(), 'variance-covering-against-'));
-    await mkdir(join(root, 'src'), { recursive: true });
-    git(root, ['init', '--quiet', '--initial-branch', 'main']);
-    git(root, ['config', 'user.email', 'fixture@example.test']);
-    git(root, ['config', 'user.name', 'Fixture']);
-    await writeFile(join(root, 'src/total.ts'), 'export const total = 1;\n');
-    await writeFile(join(root, 'src/other.ts'), 'export const other = 1;\n');
-    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => {});\n');
-    git(root, ['add', '-A']);
-    git(root, ['commit', '--quiet', '-m', 'first']);
-    process.chdir(root);
-    return { root, first: git(root, ['rev-parse', 'HEAD']) };
-  }
-
-  async function recorded(base: ExecutionIndex, now: ExecutionIndex, commit: string) {
+  async function recorded(base: ExecutionIndex, now: ExecutionIndex, commit: string | undefined) {
     const dir = await records();
     const against = join(dir, 'base.bin');
     await keep(against, base, { last: { commit, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] } });
@@ -234,6 +278,34 @@ describe('what a change moved against the base', () => {
 
     await expect(covering(parse(['--since', 'main', '--against', join(root, 'missing.bin'), '--execution', execution])))
       .rejects.toThrow(/needs no `--against`/);
+  });
+
+  it('refuses a base recorded at a commit this clone does not have, and names how to fetch it', async () => {
+    const { root } = await checkout();
+    git(root, ['checkout', '--quiet', '-b', 'change']);
+    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
+    const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), ABSENT);
+
+    const refused = covering(parse(['--since', 'main', '--against', against, '--execution', execution]));
+
+    await expect(refused).rejects.toMatchObject({
+      exitCode: 2,
+      message: expect.stringContaining(`The base \`${against}\` was recorded at ${ABSENT}, which this clone does not have`),
+    });
+    await expect(refused).rejects.toThrow(`git fetch origin ${ABSENT}`);
+    await expect(refused).rejects.toThrow('fetch-depth: 0');
+  });
+
+  it('refuses a base that names no commit', async () => {
+    const { root } = await checkout();
+    git(root, ['checkout', '--quiet', '-b', 'change']);
+    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
+    const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), undefined);
+
+    await expect(covering(parse(['--since', 'main', '--against', against, '--execution', execution]))).rejects.toMatchObject({
+      exitCode: 2,
+      message: expect.stringContaining(`The base \`${against}\` names no commit it was recorded at`),
+    });
   });
 
   it('refuses `--against` without a diff', () => {

@@ -148,8 +148,16 @@ variance covering --since origin/main --against base/coverage.bin --format refs
 Regions the base branch changed after the base was recorded are left out and
 named; do not charge them to the change.
 
+Regions are paired through git's diff from the commit the base was recorded at,
+so the clone needs that commit. When the base names no commit, or names one the
+clone does not have, the command exits 2 with an `undiffed` refusal and compares
+nothing. Fetch the commit (`git fetch origin <sha>`) or check out every commit
+(`fetch-depth: 0`) and ask again; do not read the refusal as *nothing moved*.
+
 Without a base record, `--cases last` compares the last run with the one before
-it, which answers *what did my last change do to the cases*:
+it, which answers *what did my last change do to the cases*. It needs the last
+run at an earlier commit: a second run at the same commit that re-ran a test
+file is refused the same way, so commit before you compare:
 
 ```bash
 variance covering --file src/checkout/total.ts --cases last --format refs
