@@ -168,8 +168,11 @@ export type CaseLanding =
  * its cases are laid as the run its own last-run section names: the files it
  * ran, each finished, at its commit. Such a run finished every file it was
  * handed, since one that could not finish a file records that file's row as
- * coverage. A shard that names no last run cannot say which files its cases
- * replace, and lays nothing.
+ * coverage. One that names no last run, as a record that crossed a checkout
+ * does, is laid as a run of the files its cases are of, at no commit: those
+ * are the files its index answers for, and each case it holds replaces that
+ * file's. A shard with neither coverage nor an index this build reads holds
+ * nothing to lay.
  *
  * Nothing is written here. The landing writes the sections into the record it
  * writes, under that record's lock.
@@ -184,8 +187,8 @@ export function landCases(
   let laid = 0;
   for (const shard of shards) {
     const kept = caseSectionsAt(shard.path);
-    const run = shard.coverage ?? lastRunOf(kept);
     const fresh = layableIndex(kept.index);
+    const run = shard.coverage ?? lastRunOf(kept) ?? indexRunOf(fresh);
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // FIXME: each shard is laid as a run of its own, so the last-run layer
@@ -209,6 +212,13 @@ function lastRunOf(kept: CaseSections): LaidRun | undefined {
     tests: last.files.map((file) => ({ file, complete: true })),
     ...(last.commit === undefined ? {} : { commit: last.commit }),
   };
+}
+
+/** A run of the files `index`'s cases are of, each finished; `undefined` without an index. */
+function indexRunOf(index: Uint8Array | undefined): LaidRun | undefined {
+  const tests = index === undefined ? undefined : openSetExecutionIndex(index)?.tests;
+  if (tests === undefined) return undefined;
+  return { tests: [...new Set(tests.map((test) => test.file))].sort(codeUnitOrder).map((file) => ({ file, complete: true })) };
 }
 
 /** The shard's index spelled as sets, when it has one this build can read. */

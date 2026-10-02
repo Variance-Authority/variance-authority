@@ -1023,8 +1023,12 @@ A file that holds case sections and no coverage section opens as a record
 without coverage, `RecordWithoutCoverage`, and not as a record of tests that
 reach nothing. Selection narrows nothing over it: `variance select` skips
 nothing and says the record holds no coverage, and `variance run --since` runs
-every test file. A file that holds some of the coverage sections and not the
-others is refused as broken. `withoutCoverage` answers from the header alone.
+every test file. A run writes one when it keeps its cases and instruments no
+module. It travels like any record: `variance share` publishes it under the commit its
+cases were recorded at, and a worktree fetches it from the mainline and lays it
+under its first run, still narrowing nothing. A file that holds some of the
+coverage sections and not the others is refused as broken. `withoutCoverage`
+answers from the header alone.
 
 One older layout is read rather than refused: the one written before
 `tests.duration` existed, which the JVM agent still writes. It opens with every

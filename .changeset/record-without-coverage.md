@@ -20,10 +20,13 @@ holds no coverage, `variance run --since` runs every test file, and
 slice and says why. Landing shards with `variance journeys` folds them over no
 coverage and keeps the record's cases; a shard that holds cases and no coverage folds
 nothing and lands its cases, and landed where no coverage stands it writes a
-record of cases and no coverage. A worktree seeds from such a record, and a
-fetched mainline record of that kind is laid, with its cases and no runs
-record. A record that holds some coverage
-sections and not the others is still refused as broken.
+record of cases and no coverage. A shard that names no last run, as one that
+crossed a checkout does, lands its cases for the files they are of.
+`variance share` publishes such a record under the commit its cases were
+recorded at, without the whole-run check a record that narrows would need, and
+a mainline fetch keeps it as the base. A worktree seeds from it and lays it with
+its cases and no runs record. A record that holds some coverage sections and
+not the others is still refused as broken.
 
 `recordOfCases` writes a record from case sections alone, and
 `withoutCoverage` answers from a record's header whether it holds no coverage.

@@ -8,6 +8,7 @@ import {
   readTestCoverage,
   RecordWithoutCoverage,
   recordOfCases,
+  sharedRecord,
   testCoverageFile,
   withoutCoverage,
   writeTestCoverage,
@@ -143,6 +144,22 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     await expect(readTestCoverage(into)).rejects.toBeInstanceOf(RecordWithoutCoverage);
     await expect(stat(commitRunsFile(into))).rejects.toThrow();
     expect(caseSectionsAt(into).index).toBeDefined();
+  });
+
+  it('lays the cases of one that names no last run, for the files those cases are of', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    // A shard that crossed a checkout keeps its index and drops the run that wrote it.
+    const shard = join(home, 'shard-shared.bin');
+    await writeFile(shard, sharedRecord(await readFile(await uncoveredShard(first, caseSectionsAt(record).index!))));
+    expect(caseSectionsAt(shard).last).toBeUndefined();
+
+    const landed = await landJourneys(dir, [shard], record);
+
+    expect(landed.cases).toEqual({ laid: record, shards: 1 });
+    const last = JSON.parse(Buffer.from(caseSectionsAt(record).last!).toString('utf8')) as { commit?: string; files: string[] };
+    expect(last.files).toEqual(['test/total.test.ts']);
+    expect(last.commit).toBeUndefined();
   });
 
   it('folds the shards that measured something, and lays every shard\'s cases in the order they were named', async () => {

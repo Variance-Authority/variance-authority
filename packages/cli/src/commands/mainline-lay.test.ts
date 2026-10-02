@@ -6,11 +6,14 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
 import {
+  caseSectionsAt,
   commitRunsFile,
   landRun,
   readCommitRuns,
+  recordOfCases,
   seedTestCoverage,
   testCoverageFile,
+  withoutCoverage,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
@@ -126,5 +129,44 @@ describe('a fetched record this build does not read', () => {
     await writeFile(join(worktree, 'src/total.ts'), 'export const changed = true;\n');
     const { err } = await selectedIn(worktree);
     expect(err).toContain(`record of "unit": read from the primary checkout's, at ${primary}`);
+  });
+});
+
+describe('a mainline record whose run instrumented nothing', () => {
+  it('is published, fetched and laid under a worktree\'s first record, which narrows nothing', async () => {
+    const { ci, origin } = await gitPublished(home, { publish: false });
+    await git(ci, 'commit', '--quiet', '--allow-empty', '-m', 'second');
+    const head = await git(ci, 'rev-parse', 'HEAD');
+    await git(ci, 'push', '--quiet', 'origin', 'main');
+    // CI's run at `head` kept its cases and instrumented no module.
+    const record = testCoverageFile(ci, { suite: 'unit' });
+    await recordIn(ci, head, ['test/total.test.ts'], [DISCOUNTS]);
+    const index = caseSectionsAt(record).index!;
+    await rm(record);
+    await rm(commitRunsFile(record), { force: true });
+    const files = ['test/other.test.ts', 'test/total.test.ts'];
+    const last = { commit: head, at: '2026-01-01T00:00:00.000Z', files, began: true, cases: [] };
+    await writeFile(record, recordOfCases({ index, last: Buffer.from(JSON.stringify(last)) }));
+    expect(withoutCoverage(record)).toBe(true);
+    const collected = join(home, 'collected.txt');
+    await writeFile(collected, `${files.join('\n')}\n`);
+
+    const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected });
+    expect(done).toHaveProperty('published');
+
+    const primary = join(home, 'clone');
+    await git(home, 'clone', '--quiet', origin, primary);
+    process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'laptop-cache');
+    const worktree = join(home, 'feature');
+    await git(primary, 'worktree', 'add', '--quiet', '--detach', worktree);
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: head } });
+    const own = testCoverageFile(worktree, { suite: 'unit' });
+    expect(await seedTestCoverage(own, worktree)).toMatchObject({ from: 'mainline' });
+    expect(withoutCoverage(own)).toBe(true);
+    expect(caseSectionsAt(own).index).toBeDefined();
+
+    await writeFile(join(worktree, 'src/total.ts'), 'export const changed = true;\n');
+    const { err } = await selectedIn(worktree);
+    expect(err).toContain('holds no coverage');
   });
 });

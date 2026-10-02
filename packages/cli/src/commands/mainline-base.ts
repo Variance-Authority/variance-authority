@@ -173,7 +173,11 @@ export async function mainlineBase(
   const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
   const kept = await keep(selection.writeCoverageBytes, coverage, record);
   if (kept !== undefined) return unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
-  const refused = refusal(selection.askCoverageFile, coverage, found.commit);
+  // A record of cases alone was published by a run that instrumented no module.
+  // The share kept the run that names its commit off the line, and the publisher
+  // checked that commit against the entry's, so the entry's stands for it. No
+  // reader measures a diff from it: each says it holds no coverage.
+  const refused = selection.withoutCoverage(coverage) ? undefined : refusal(selection.askCoverageFile, coverage, found.commit);
   if (refused !== undefined) {
     await rm(layer, { recursive: true, force: true });
     return unread(refused);
