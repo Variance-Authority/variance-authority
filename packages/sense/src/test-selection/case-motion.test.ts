@@ -127,4 +127,16 @@ describe('a region nobody walks any more, read with the file graph', () => {
     expect(region!.motion).toBe('lost');
     expect(region!.stopped).toBeUndefined();
   });
+
+  it('is hidden, naming no case, when no test file imports it at all', () => {
+    // The graph holds `src/total.ts`, so it can answer, and its answer is that no test file loads it.
+    const unimported = relationsOfFiles([{ file: 'src/total.ts' }, { file: 'a.test.ts' }, { file: 'b.test.ts' }]);
+    const base = index([A, B], [block('apply', 1, [0])]);
+    const now = index([A, { ...B, stopped: true }], [block('apply', 1, [])]);
+
+    const [region] = caseMotion(base, now, { relations: unimported }).regions;
+
+    expect(region!.motion).toBe('hidden');
+    expect(region!.stopped).toBeUndefined();
+  });
 });
