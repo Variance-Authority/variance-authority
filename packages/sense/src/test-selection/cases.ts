@@ -231,18 +231,33 @@ export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>):
  * positional id — which moves when a case is inserted above it. Two cases in
  * one file may share a name; the repeat is numbered, in {@link inCaseOrder}, so
  * the second is `name#1` rather than indistinguishable. Every writer of an
- * index, and everything that joins a case by its id, numbers through here.
+ * index, and everything that joins a case by its id, numbers through here; the
+ * native fold numbers with `CaseIds` in `case_id.rs`, in the same words.
+ *
+ * A suite whose second `pays` would take the id of a case named `pays#1` is
+ * refused: one id cannot hold two cases' journeys.
  */
 export function caseIds(cases: Iterable<CaseCoordinate>): ReadonlyMap<string, string> {
   const seen = new Map<string, number>();
   const ids = new Map<string, string>();
+  // The name of the case holding each id handed out.
+  const held = new Map<string, string>();
   for (const coordinate of inCaseOrder(cases)) {
     const key = caseKey(coordinate);
     if (ids.has(key)) continue;
-    const named = `${coordinate.file} > ${coordinate.name}`;
+    const { file, name } = coordinate;
+    const named = `${file} > ${name}`;
     const repeat = seen.get(named) ?? 0;
     seen.set(named, repeat + 1);
-    ids.set(key, repeat === 0 ? named : `${named}#${repeat}`);
+    const id = repeat === 0 ? named : `${named}#${repeat}`;
+    const holder = held.get(id);
+    if (holder !== undefined) {
+      const literal = id.slice(file.length + 3);
+      const numbered = holder === literal ? name : holder;
+      throw new Error(`cannot number the cases of ${file}: "${literal}" is the name of one case and the number of a repeated "${numbered}". Rename one of them.`);
+    }
+    held.set(id, name);
+    ids.set(key, id);
   }
   return ids;
 }
