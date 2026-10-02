@@ -145,19 +145,20 @@ describe('parseArgs', () => {
   });
 
   it('reads distillation evidence without project configuration', () => {
-    expect(parseArgs(['distill', '--test', 'redraw', '--eyes', 'eyes.json', '--format', 'json']))
+    // No record named is the checkout's own record, which the command finds
+    // from the root; unnamed, the root is here.
+    expect(parseArgs(['distill', '--test', 'redraw', '--format', 'json']))
       .toEqual({
         command: 'distill',
         test: 'redraw',
-        eyes: resolve('eyes.json'),
-        // Eyes names source absolutely and Sense names it relative to the
-        // project root, so the comparison needs a root; unnamed, it is here.
         root: resolve(process.cwd()),
         format: 'json',
       });
-    expect(parseArgs(['distill', '--test', 'redraw', '--eyes', 'eyes.json', '--root', 'elsewhere']))
-      .toMatchObject({ root: resolve('elsewhere') });
+    expect(parseArgs(['distill', '--test', 'redraw', '--execution', 'coverage.bin', '--root', 'elsewhere']))
+      .toMatchObject({ execution: resolve('coverage.bin'), root: resolve('elsewhere') });
     expect(parseArgs(['distill', '--test', 'redraw'])).not.toHaveProperty('execution');
+    // The archive flag is gone, not ignored: a journal is read from the record.
+    expect(attempt(['distill', '--test', 'redraw', '--eyes', 'eyes.json']).message).toContain('--eyes');
     expect(attempt(['distill', '--execution', 'execution.json']).message).toContain('--test');
   });
 

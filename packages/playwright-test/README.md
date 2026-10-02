@@ -558,6 +558,17 @@ Playwright can be asked to run, and the file-level record already names that.
 What a declared head executed is joined to the test that sent the request, so a
 branch that only ever ran in a service still names its test.
 
+### Keep what each test looked at
+
+Extend your `test` with `varianceFixtures`, then with `eyesFixtures` from
+[`@variance-authority/eyes/playwright`](https://variance-authority.dev/reference/packages/eyes),
+and the record also keeps each test's Eyes journal: which elements it queried,
+operated and read, and the React component behind each one.
+
+The journal is kept under the same case id as the test's crossings, and under
+its attempt, `testInfo.retry + 1`, so a retried test keeps both.
+`variance distill --test '<case id>'` reads the two together.
+
 ### Optional fixture composition
 
 | Fixture | Purpose | Default |

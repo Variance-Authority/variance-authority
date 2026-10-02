@@ -115,10 +115,10 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to
   // produce a diff — which is what an operator would see if the commit were
-  // looked for first and the answer were "pass --since".
-  if (!found.held) {
-    return said({ at, ground: { kind: 'no-journal' } });
-  }
+  // looked for first and the answer were "pass --since". So is a record whose
+  // run instrumented nothing, read off its header: it measured nothing either.
+  if (!found.held) return said({ at, ground: { kind: 'no-journal' } });
+  if (selection.withoutCoverage(at)) return said({ at, ground: { kind: 'no-coverage' } });
 
   // The position, and nothing else decoded to reach it. A snapshot of this
   // repository holds hundreds of thousands of regions and this asks it for

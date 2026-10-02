@@ -141,7 +141,7 @@ export function nameIndex(ids: Iterable<string>, grammar: NamesConfig): NameInde
   for (const id of ids) {
     const name = readName(id, grammar);
     names.set(id, name);
-    const key = keyOf(name.stem, name.coordinate);
+    const key = coordinateKey(name.stem, name.coordinate);
     const here = at.get(key);
     if (here === undefined) at.set(key, [id]);
     else here.push(id);
@@ -172,40 +172,52 @@ export function nameIndex(ids: Iterable<string>, grammar: NamesConfig): NameInde
  */
 export function structuralParent(id: string, index: NameIndex): StructuralLink | undefined {
   const name = index.names.get(id);
-  if (name === undefined || name.coordinate.length === 0) return undefined;
+  if (name === undefined) return undefined;
+  const walked = stepTowardBase(name.coordinate, index.grammar, (coordinate) =>
+    (index.at.get(coordinateKey(name.stem, coordinate)) ?? []).filter((other) => other !== id));
+  if (walked === undefined || walked.found.length === 0) return undefined;
+  if (walked.found.length === 1) {
+    return { ok: true, parent: walked.found[0]!, step: { axis: walked.axis, from: walked.to, to: walked.from } };
+  }
+  return {
+    ok: false,
+    because:
+      `its name puts it one step from \`${walked.axis}\` at \`${walked.to}\`, and ` +
+      `${walked.found.length} subjects in this run are named that: ` +
+      walked.found.map((other) => `\`${other}\``).join(', '),
+  };
+}
 
-  const last = name.coordinate.at(-1)!;
-  const axis = index.grammar.axes.find((entry) => entry.axis === last.axis);
+/**
+ * The walk toward the base on a coordinate's last axis, over whatever is
+ * placed at each coordinate: a subject by its name, or a case by what it said.
+ *
+ * From the value below the one held back to the base, the first coordinate
+ * `at` names anybody at wins. The base is never in a coordinate — a name at
+ * its base is a name without the axis — so the last step, `values[0]`, is the
+ * axis dropped. Everyone at that coordinate is returned, and what several mean
+ * is the caller's: a subject's parent must be one, a twin is read and may be
+ * many. A walk that finds nobody ends at the base with `found` empty.
+ *
+ * Nothing when the coordinate carries no axis: a stem is not a variation of
+ * anything.
+ */
+export function stepTowardBase<Placed>(
+  coordinate: readonly NamedAxis[],
+  grammar: NamesConfig,
+  at: (coordinate: readonly NamedAxis[]) => readonly Placed[],
+): { readonly axis: string; readonly from: string; readonly to: string; readonly found: readonly Placed[] } | undefined {
+  const last = coordinate.at(-1);
+  if (last === undefined) return undefined;
+  const axis = grammar.axes.find((entry) => entry.axis === last.axis);
   if (axis === undefined) return undefined;
-
-  const held = name.coordinate.slice(0, -1);
-
-  // From the value below this one back to the base. The base is never in a
-  // coordinate — a name at its base is a name without the axis — so the last
-  // step of the walk, `values[0]`, is the axis dropped.
+  const held = coordinate.slice(0, -1);
   for (let below = axis.values.indexOf(last.value) - 1; below >= 0; below--) {
     const value = axis.values[below]!;
-    const coordinate = below === 0 ? held : [...held, { axis: last.axis, value }];
-    const others = (index.at.get(keyOf(name.stem, coordinate)) ?? []).filter(
-      (other) => other !== id,
-    );
-
-    if (others.length === 1) {
-      const step = { axis: last.axis, from: value, to: last.value };
-      return { ok: true, parent: others[0]!, step };
-    }
-    if (others.length > 1) {
-      return {
-        ok: false,
-        because:
-          `its name puts it one step from \`${axis.axis}\` at \`${value}\`, and ` +
-          `${others.length} subjects in this run are named that: ` +
-          others.map((other) => `\`${other}\``).join(', '),
-      };
-    }
+    const found = at(below === 0 ? held : [...held, { axis: last.axis, value }]);
+    if (found.length > 0) return { axis: last.axis, from: last.value, to: value, found };
   }
-
-  return undefined;
+  return { axis: last.axis, from: last.value, to: axis.values[0]!, found: [] };
 }
 
 /** What the axis is when nobody says otherwise. */
@@ -213,7 +225,8 @@ function baseOf(grammar: NamesConfig, axis: string): string | undefined {
   return grammar.axes.find((entry: AxisConfig) => entry.axis === axis)?.values[0];
 }
 
-function keyOf(stem: string, coordinate: readonly NamedAxis[]): string {
+/** The key of a stem at a coordinate, which {@link NameIndex.at} is keyed by. */
+export function coordinateKey(stem: string, coordinate: readonly NamedAxis[]): string {
   return `${stem} ${coordinate.map((entry) => `${entry.axis}=${entry.value}`).join('|')}`;
 }
 

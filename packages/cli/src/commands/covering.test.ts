@@ -9,6 +9,7 @@ import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { encodeExecutionIndex } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
+import { refold } from './covering-reach.js';
 import { indexOutput } from './index-command.js';
 
 const INDEX = {
@@ -268,6 +269,44 @@ describe('narrowing the witnesses to what is nearby', () => {
     expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
     expect(formatCovering(answer, 'text'))
       .toContain('1 of 2 named tests kept.');
+  });
+
+  it('joins two neighbouring ranges a narrowing made agree, and counts the cases of the file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'variance-in-package-'));
+    await writeFile(join(dir, 'package.json'), '{"name":"root"}');
+    await mkdir(join(dir, 'apps', 'web'), { recursive: true });
+    await writeFile(join(dir, 'apps', 'web', 'package.json'), '{"name":"web"}');
+    const execution = join(dir, 'cases.json');
+    const block = (name: string, startLine: number, endLine: number, tests: readonly number[]) => ({
+      kind: 'function', name, path: 'entry', startLine, endLine, source: true,
+      crossings: tests.map((test) => ({ test, distance: 0 })),
+    });
+    await writeFile(execution, JSON.stringify({
+      tests: [
+        { id: 'here', file: 'apps/web/total.test.ts', name: 'discounts' },
+        { id: 'there', file: 'flow.test.tsx', name: 'checks out' },
+      ],
+      modules: [{
+        file: 'apps/web/src/total.ts',
+        blocks: [block('applyDiscount', 10, 20, [0, 1]), block('round', 21, 30, [0]), block('format', 40, 44, [0])],
+      }],
+    }));
+
+    const answer = await covering(parse(['--file', 'apps/web/src/total.ts', '--in-package', '--root', dir, '--execution', execution]));
+
+    expect(answer.ranges?.map((range) => [range.startLine, range.endLine, range.tests.map((test) => test.id)]))
+      .toEqual([[10, 30, ['here']], [40, 44, ['here']]]);
+    expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
+  });
+
+  it('keeps apart two neighbours whose stopped cases differ', () => {
+    const range = (startLine: number, endLine: number, stopped?: readonly string[]) => ({
+      startLine, endLine, tests: [],
+      ...(stopped === undefined ? {} : { stopped: stopped.map((id) => ({ id, file: 'a.test.ts', name: id })) }),
+    });
+
+    expect(refold([range(1, 2, ['a']), range(3, 4, ['a']), range(5, 6, ['b']), range(7, 8)]).map((one) => [one.startLine, one.endLine]))
+      .toEqual([[1, 4], [5, 6], [7, 8]]);
   });
 
   it('prints no depth beside a witness', async () => {

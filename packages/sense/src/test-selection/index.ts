@@ -65,7 +65,7 @@ export {
 } from './execution-format.js';
 export { mergeExecutionIndexes } from './execution-merge.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
-export { journeyGaps, type JourneyGaps } from './execution-set-format.js';
+export { encodeAsSetExecutionIndex, journeyGaps, type JourneyGaps } from './execution-set-format.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { readingLines, type FileReading } from './reading-lines.js';
 export {
@@ -184,16 +184,10 @@ export {
   type LandedShard,
   type LastCaseRun,
 } from './case-landing.js';
-export {
-  caseIndexOf,
-  caseSectionsAt,
-  caseSectionsOf,
-  keepsCases,
-  recordedCases,
-  sharedRecord,
-  withCaseSections,
-  type CaseSections,
-} from './case-record.js';
+export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordedCases, recordedEyesAt, recordedEyesOf } from './case-record.js';
+export { recordOfCases, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
+export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
+export { RecordWithoutCoverage } from './format-validation.js';
 export {
   commitRunsAfter,
   commitRunsFile,

@@ -422,18 +422,14 @@ nobody else has, that is the whole diagnosis — pin one painter for laptop and
 CI, either the same container image or one `"renderer": { "endpoint": … }` both
 use, and re-approve under it. See [placement](placement.md).
 
-**Test evidence joins on test id.** Eyes writes a per-test archive; Sense
-writes the execution record. They relate only where both producers emitted the
-same test id — the runner's own identifier for the test. Titles and file paths
-are presentation and are never used as a fallback identity, so two records that
-disagree on the id do not join at all rather than joining wrongly.
-`variance distill --test <id> --eyes <path>` is where you check it: it reads the
-archive and the execution record your last recorded run left, and what comes
-back for one test id tells you which of the two answered. Without `--eyes` it
-distills from the execution record alone; with nothing recorded and no archive,
-it exits `2` saying so. If the id you have from one file returns nothing from the
-other, the runner that wrote the second file named the test differently, and the
-id in each file is what to compare.
+**Test evidence joins on the case.** Sense writes the execution record, and
+Eyes writes each case's journal into the same record, under the case the
+recording runs and its attempt. Titles and file paths are presentation and are
+never used as a fallback identity: two readings join only on the case id the
+record holds. `variance distill` is where you read the two together: `--test`
+and `--file` find one case in the record's case index, by its id, its title or
+a part of either, and everything else is read by that case's id. It says when
+the record keeps no Eyes journal rather than reading that as an empty one.
 
 Within a joined test, three things stay distinct and are not read as each
 other: which DOM the test attended to, which React components re-rendered
@@ -607,7 +603,7 @@ Each durable output is kept, shared and reused on its own terms:
 | render cache | local XDG cache or backend cache | machine or backend cache scope | yes: avoids repainting an identical document under one painter |
 | source index | versioned binary generation under the configured root; local XDG scan namespace by default | exact artifact through CI cache, shared volume, or artifact transfer | yes: reuses validated source, name, and graph sections |
 | runtime coverage | default `coverage.bin` cache or configured file artifact | restored CI cache, shared volume, or explicit artifact transfer | yes: selects tests for later source changes |
-| Eyes attention | test process memory or a runner-owned JSON attachment containing an Eyes archive | whoever can read the test artifact | no: it explains the test execution that produced it |
+| Eyes attention | the run's record, `coverage.bin`, beside its case index | the machine that ran it; `variance share` or a configured carry uploads it with the record and names it | no: it explains the test execution that produced it |
 | scenario execution | process memory or opt-in scenario archive root | whoever can read the admitted semantic text | assessment and presentation; not automatic visual selection |
 | presentation reading | caller process memory; only the projected signal persists, inside the run report | whoever has the reading; the signal goes with the report | no: each run senses its own pages |
 | history facts | operator history service | authenticated clients in the configured project scope | yes: current values, recurrence, churn, flakiness, and drift |

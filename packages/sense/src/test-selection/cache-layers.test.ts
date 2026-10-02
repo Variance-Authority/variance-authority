@@ -4,14 +4,17 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import { cacheLayers, cacheRootFor, layeredFiles, repositoryLayers } from './cache-layers.js';
-import { caseSectionsAt } from './case-record.js';
+import { caseSectionsAt, recordOfCases, withoutCoverage } from './case-record.js';
+import { commitRunsFile } from './commit-runs.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
+import { encodeRecordedEyes } from './eyes-record.js';
 import { recordStore, recordStores } from './instrumented-modules.js';
 import {
   mainlineReadRoot,
   readTestCoverage,
   readableTestCoverage,
+  RecordWithoutCoverage,
   seedTestCoverage,
   testCoverageFile,
   writeFetchedMainline,
@@ -241,6 +244,58 @@ describe('the snapshot a checkout starts from', () => {
     expect(seeded.last).toBeUndefined();
   });
 
+  test('a worktree takes the repository\'s Eyes section when it reads, and drops one this build cannot read', async () => {
+    const cases = encodeSetExecutionIndex({
+      tests: [{ id: 'a > b', file: 'a.test.ts', name: 'b' }],
+      modules: [],
+      sets: new CrossingSets(1).pool(),
+    });
+    const readable = encodeRecordedEyes({ watched: ['a > b'], journals: [] });
+    for (const [eyes, kept] of [
+      [readable, readable],
+      [Buffer.from('{"version":2,"watched":[],"journals":[]}\n'), undefined],
+      [Buffer.from('not json'), undefined],
+    ] as const) {
+      const at = await checkout();
+      const cacheRoot = resolve(at, 'cache');
+      const primary = resolve(at, 'primary');
+      await writeTestCoverage(testCoverageFile(primary, { cacheRoot }), snapshot, { index: cases, eyes });
+
+      const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
+      const file = testCoverageFile(path, { cacheRoot });
+      await seedTestCoverage(file, path, cacheRoot);
+
+      const seeded = caseSectionsAt(file);
+      expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
+      expect(seeded.eyes === undefined ? undefined : Buffer.from(seeded.eyes)).toEqual(kept === undefined ? undefined : Buffer.from(kept));
+    }
+  });
+
+  test('a worktree starts from a repository record that holds cases and no coverage, and it still narrows nothing', async () => {
+    const at = await checkout();
+    const cacheRoot = resolve(at, 'cache');
+    const primary = resolve(at, 'primary');
+    const base = testCoverageFile(primary, { cacheRoot });
+    const cases = encodeSetExecutionIndex({
+      tests: [{ id: 'a > b', file: 'a.test.ts', name: 'b' }],
+      modules: [],
+      sets: new CrossingSets(1).pool(),
+    });
+    await mkdir(dirname(base), { recursive: true });
+    await writeFile(base, recordOfCases({ index: cases, last: Buffer.from('{"files":[],"cases":[]}') }));
+
+    const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
+    const file = testCoverageFile(path, { cacheRoot });
+    await expect(seedTestCoverage(file, path, cacheRoot)).resolves.toEqual({ from: 'primary', file: base });
+
+    const seeded = caseSectionsAt(file);
+    expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
+    expect(seeded.last).toBeUndefined();
+    expect(withoutCoverage(file)).toBe(true);
+    await expect(readTestCoverage(file)).rejects.toBeInstanceOf(RecordWithoutCoverage);
+    await expect(stat(commitRunsFile(file))).rejects.toThrow();
+  });
+
   test('a reader takes the repository snapshot without making a copy of it', async () => {
     const at = await checkout();
     const cacheRoot = resolve(at, 'cache');
@@ -309,5 +364,15 @@ describe('the snapshot a checkout starts from', () => {
     // One that reads is the base, over the same layer.
     await writeTestCoverage(fetched, snapshot);
     expect(await readableTestCoverage(other, { cacheRoot, suite: 'unit' })).toBe(fetched);
+
+    // So is one whose run instrumented nothing: its cases are laid, and it
+    // narrows nothing.
+    const cases = encodeSetExecutionIndex({ tests: [{ id: 'a > b', file: 'a.test.ts', name: 'b' }], modules: [], sets: new CrossingSets(1).pool() });
+    await writeFile(fetched, recordOfCases({ index: cases }));
+    const laid = testCoverageFile(other, { cacheRoot, suite: 'unit' });
+    await expect(seedTestCoverage(laid, other, cacheRoot)).resolves.toMatchObject({ from: 'mainline' });
+    const seeded = caseSectionsAt(laid);
+    expect(seeded.index === undefined ? undefined : Buffer.from(seeded.index)).toEqual(cases);
+    expect(withoutCoverage(laid)).toBe(true);
   });
 });

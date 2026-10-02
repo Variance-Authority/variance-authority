@@ -43,7 +43,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { layCases, type FreshCases } from './case-landing.js';
-import { casesRecordedOver, withCaseSections } from './case-record.js';
+import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
 import { layeredCoverage } from './format-layer.js';
 import { openTestCoverage } from './format-view.js';
@@ -131,7 +131,10 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
  *
  * `cases` is the run's own case index, laid over the cases the record holds
  * (`case-landing.ts`) and written with the coverage, in the same write. A run
- * that kept no cases carries the record's as they were.
+ * that kept no cases carries the record's as they were. A run that instrumented
+ * no module lands its cases and nothing else ({@link landUncovered}), except a
+ * file it could not finish measuring: probes that fired where nothing could
+ * place them leave the file incomplete, which selects it, and that row lands.
  *
  * The caller holds the index lock: the base read here, the write after it and
  * the record of both are one read-modify-write, so two processes finishing
@@ -144,10 +147,19 @@ export async function landRun(
   cacheRoot?: string,
   cases?: FreshCases,
 ): Promise<void> {
+  if (current.modules.length === 0) {
+    // A complete row over no module would say its file reaches nothing. An
+    // incomplete one says its file must run, which is true without a module.
+    const selecting = current.tests.filter((test) => !test.complete);
+    if (selecting.length === 0) return landUncovered(coverageFile, root, cases);
+    if (selecting.length < current.tests.length) {
+      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases);
+    }
+  }
   const before = await recordedSnapshot(coverageFile);
   const held = await heldCommitRuns(coverageFile);
   const previous = casesRecordedOver(coverageFile);
-  const laid = cases === undefined ? previous : layCases(previous, cases.fresh, root, cases.run);
+  const laid = cases === undefined ? previous : layCases(previous, cases.fresh, root, cases.run, cases.eyes);
   const coverage = await layeredCoverage(coverageFile, current, root);
   const bytes = Object.values(laid).every((part) => part === undefined) ? coverage : withCaseSections(coverage, laid);
   await writeCoverageBytes(coverageFile, bytes);
@@ -171,6 +183,36 @@ export async function landRun(
     const tree = kept.length > 0 ? workingTree(root) : undefined;
     const state = { commit: current.commit, ...(tree === undefined ? {} : { tree }) };
     await writeOwnLayer(coverageFile, ownLayerAfter(layer, state, current.tests.map((test) => test.file)));
+  }
+}
+
+/**
+ * Land a run that instrumented no module. Its coverage is absent, not empty: a
+ * record saying its tests reach nothing would let every later selection skip
+ * them. So only the cases move. The record keeps the coverage it held, section
+ * for section; a record with none to keep is the cases alone, which a reader
+ * answers *unmeasured* for (`RecordWithoutCoverage`); and a run that kept no
+ * cases writes nothing.
+ *
+ * The runs record and the ledger are left as they were: they say where tests
+ * stand, and this run measured nothing for a test to stand on.
+ */
+async function landUncovered(coverageFile: string, root: string, cases: FreshCases | undefined): Promise<void> {
+  if (cases === undefined) return;
+  const laid = layCases(casesRecordedOver(coverageFile), cases.fresh, root, cases.run, cases.eyes);
+  const held = await coveredRecord(coverageFile);
+  if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, laid));
+  return writeCoverageBytes(coverageFile, recordOfCases(laid));
+}
+
+/** The record at `coverageFile` when it holds coverage this build opens; `undefined` when it is missing, unreadable or without coverage. */
+async function coveredRecord(coverageFile: string): Promise<Buffer | undefined> {
+  try {
+    const bytes = await readFile(coverageFile);
+    openTestCoverage(bytes);
+    return bytes;
+  } catch {
+    return undefined;
   }
 }
 

@@ -1,47 +1,53 @@
 // compass: variance-authority/runtime/attention
-import { readEyesArchive } from '@variance-authority/eyes/archive';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { parseEyesJournal } from '@variance-authority/eyes/archive';
 import {
   distill,
   formatDistillation,
   type Distillation,
+  type EyesAttempt,
 } from '@variance-authority/distill';
+import { recordedEyesOf } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
+import { executionIndexOf, recordedExecutionFile } from './execution-input.js';
 
 export interface DistillOptions {
+  /** The case's id, its exact title, or a part of the title. */
   readonly test?: string;
-  /** A fragment of the test file's path, which narrows `test`. */
+  /** A part of the test file's path, which narrows `test`. */
   readonly file?: string;
-  readonly eyes?: string;
-  /** Absent, the index a recorded run left beside the record is read. */
+  /** The record to read; when unnamed, the one a reader of the checkout reads. */
   readonly execution?: string;
-  /** The one declared suite whose recorded index is read. */
+  /** The one declared suite whose record is read. */
   readonly suite?: string;
-  /**
-   * The project root both producers recorded against.
-   *
-   * Eyes names a component's source with an absolute path and Sense names an
-   * entered module relative to the project root, so the two are compared
-   * against this. When it is wrong the reading says so rather than reporting
-   * every entered file as an opportunity.
-   */
-  readonly root?: string;
+  /** The checkout whose record is read, and the root the record's paths are relative to. */
+  readonly root: string;
 }
 
-/** Read portable observations and produce one test's deterministic distillation. */
+/**
+ * Read one case out of a record and produce its deterministic distillation.
+ *
+ * The record holds the case index and, when the run opted into Eyes, every
+ * attempt's journal. A record named with `--execution` may also be a case
+ * index on its own, which has no journals to read.
+ */
 export async function distillFiles(options: DistillOptions): Promise<Distillation> {
-  const from = options.execution ?? (await recorded(options));
+  const record = options.execution ?? (await recordedExecutionFile(options.root, options.suite));
+  if (!existsSync(record)) {
+    throw new OperatorError(`distill reads a record, and nothing is recorded at ${record}`);
+  }
   try {
-    const [eyes, execution] = await Promise.all([
-      options.eyes === undefined ? undefined : readEyesArchive(options.eyes),
-      from === undefined ? undefined : readExecutionIndex(from),
-    ]);
+    // One read: the index and the journals are then one run's, whatever lands between.
+    const bytes = await readFile(record);
+    const execution = executionIndexOf(bytes);
+    const section = recordedEyesOf(bytes);
     return distill({
       ...(options.test === undefined ? {} : { test: options.test }),
       ...(options.file === undefined ? {} : { file: options.file }),
-      ...(options.root === undefined ? {} : { root: options.root }),
-      ...(eyes === undefined ? {} : { eyes }),
-      ...(execution === undefined ? {} : { execution }),
+      root: options.root,
+      execution,
+      ...(section === undefined ? {} : { eyes: journalsOf(section.journals), watched: section.watched }),
     });
   } catch (error) {
     if (error instanceof OperatorError) throw error;
@@ -49,18 +55,12 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   }
 }
 
-/**
- * The index a recorded run left, or none when nothing is recorded and an Eyes
- * archive can still be read alone. With neither, the refusal says where the
- * index was looked for.
- */
-async function recorded(options: DistillOptions): Promise<string | undefined> {
-  try {
-    return await recordedExecutionFile(options.root ?? process.cwd(), options.suite);
-  } catch (error) {
-    if (options.eyes !== undefined && error instanceof OperatorError && error.kind === 'unrecorded') return undefined;
-    throw error;
-  }
+function journalsOf(journals: NonNullable<ReturnType<typeof recordedEyesOf>>['journals']): readonly EyesAttempt[] {
+  return journals.map((row) => ({
+    case: row.case,
+    attempt: row.attempt,
+    journal: parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`),
+  }));
 }
 
 export function formatDistill(result: Distillation, format: 'text' | 'json'): string {

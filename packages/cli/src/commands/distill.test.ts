@@ -1,28 +1,37 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { encodeExecutionIndex, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  encodeExecutionIndex,
+  testCoverageFile,
+  withCaseSections,
+  writeTestCoverage,
+} from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { distillFiles, formatDistill } from './distill.js';
 
+const CASE = 'test/cart.spec.ts > adds one item';
 const cwd = process.cwd();
+const made: string[] = [];
 
 beforeEach(() => {
   process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-distill-cache-'));
+  made.push(process.env['VARIANCE_AUTHORITY_CACHE']);
 });
 
 afterEach(() => {
   process.chdir(cwd);
   delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
 function checkout(): string {
   // The cache is keyed by the path the checkout is at, which a temporary directory's name is not on macOS.
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-distill-')));
+  made.push(root);
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
   process.chdir(root);
   return root;
@@ -35,6 +44,45 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
   return { code, out, err };
 }
 
+/** What a click on the cart's button leaves in a journal, addressed to `file`. */
+function clicked(file: string) {
+  return {
+    complete: true,
+    attention: [{
+      kind: 'document-event', event: 'click', trusted: true, sequence: 0,
+      target: { nodeName: 'button', provenance: { status: 'resolved', provenance: {
+        owners: [{ name: 'Cart', propsDigest: 'cart' }],
+        source: { file, line: 3, column: 1 },
+      } } },
+    }],
+  };
+}
+
+/** The checkout's own record: one case, its crossings, and, when given, its journals. */
+async function recorded(root: string, journals?: readonly unknown[], watched = [CASE]): Promise<string> {
+  const at = testCoverageFile(root);
+  await writeTestCoverage(at, {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: 'test/cart.spec.ts', complete: true, preconditions: [] }],
+    modules: [],
+  });
+  const block = { kind: 'function' as const, name: 'Cart', path: 'entry', startLine: 1, endLine: 9, source: true };
+  writeFileSync(at, withCaseSections(readFileSync(at), {
+    index: encodeExecutionIndex({
+      tests: [{ id: CASE, file: 'test/cart.spec.ts', name: 'adds one item' }],
+      modules: [
+        { file: 'src/cart.tsx', blocks: [{ ...block, crossings: [{ test: 0, distance: 1 }] }] },
+        { file: 'src/price.ts', blocks: [{ ...block, name: 'price', crossings: [{ test: 0, distance: 2 }] }] },
+      ],
+    }),
+    ...(journals === undefined ? {} : {
+      eyes: Buffer.from(`${JSON.stringify({ version: 1, watched, journals })}\n`),
+    }),
+  }));
+  return at;
+}
+
 const plain = {
   tests: [{ id: 'plain', file: 'plain.test.ts', name: 'works' }],
   modules: [{ file: 'plain.ts', blocks: [{
@@ -43,7 +91,8 @@ const plain = {
   }] }],
 };
 
-async function recorded(at: string, execution: typeof plain): Promise<void> {
+/** A record at `at` holding `execution` as its case index, and no journals. */
+async function indexed(at: string, execution: typeof plain): Promise<void> {
   await writeTestCoverage(at, {
     version: 3,
     instrumentation: 'fixture-instrumentation',
@@ -54,30 +103,62 @@ async function recorded(at: string, execution: typeof plain): Promise<void> {
 }
 
 describe('the CLI distillation boundary', () => {
-  it('reads execution JSON without a project config and preserves missing attention', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'variance-distill-'));
-    const execution = join(dir, 'execution.json');
-    await writeFile(execution, JSON.stringify(plain));
+  it('reads the checkout\'s own record, every attempt of the case named', async () => {
+    const root = checkout();
+    await recorded(root, [
+      { case: CASE, attempt: 1, journal: clicked('src/cart.tsx') },
+      { case: CASE, attempt: 2, journal: clicked('src/cart.tsx') },
+    ]);
 
-    const result = await distillFiles({ test: 'plain', execution });
+    const result = await distillFiles({ test: CASE, root });
 
-    expect(result.execution?.entered).toEqual([{ file: 'plain.ts', distance: 1 }]);
-    expect(result.execution?.opportunities).toBeUndefined();
-    expect(formatDistill(result, 'json')).toContain('"entered"');
+    expect(result.attempts?.map((attempt) => attempt.attempt)).toEqual([1, 2]);
+    // The record's paths are relative to the checkout on both sides, and join.
+    expect(result.execution.opportunities).toEqual([{ file: 'src/price.ts', distance: 2 }]);
+    const text = formatDistill(result, 'text');
+    expect(text).toContain('Eyes journal, attempt 1: complete.');
+    expect(text).toContain('Eyes journal, attempt 2: complete.');
   });
 
-  it('reads the index a recorded run left, naming the test by file and title', async () => {
-    const at = testCoverageFile(checkout());
-    await recorded(at, plain);
+  it('reads a record that kept no journals as one without Eyes', async () => {
+    const root = checkout();
+    await recorded(root);
+    const result = await distillFiles({ test: CASE, root });
+    expect(result.attempts).toBeUndefined();
+    expect(formatDistill(result, 'text')).toContain('the record keeps no Eyes journals');
+  });
 
-    const answer = await run(['distill', '--file', 'plain.test', '--test', 'work', '--format', 'json']);
+  it('tells a case its run did not watch from a watched case that handed no journal', async () => {
+    const root = checkout();
+    await recorded(root, [], []);
+    const unwatched = formatDistill(await distillFiles({ test: CASE, root }), 'text');
+    expect(unwatched).toContain('this case\'s run did not opt into Eyes.');
+    // One reason, said once: an unwatched case is not a watched one missing its journal.
+    expect(unwatched).not.toContain('keeps no Eyes journal for this case');
+    await recorded(root, []);
+    expect(formatDistill(await distillFiles({ test: CASE, root }), 'text'))
+      .toContain('the record keeps no Eyes journal for this case.');
+  });
+
+  it('names the case by its file and a part of its title, and reads its journals by id', async () => {
+    const root = checkout();
+    await recorded(root, [{ case: CASE, attempt: 1, journal: clicked('src/cart.tsx') }]);
+
+    const answer = await run(['distill', '--file', 'cart.spec', '--test', 'one item', '--format', 'json']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
-    expect(JSON.parse(answer.out).test.id).toBe('plain');
-    expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'plain.ts', distance: 1 }]);
+    expect(JSON.parse(answer.out).test.id).toBe(CASE);
+    expect(JSON.parse(answer.out).attempts).toHaveLength(1);
   });
 
-  it('refuses as `unrecorded` when nothing is recorded and no Eyes archive is named', async () => {
+  it('refuses a name no recorded case has', async () => {
+    const root = checkout();
+    await recorded(root);
+    await expect(distillFiles({ test: 'removes one item', root }))
+      .rejects.toThrow('The record holds no case matching `removes one item`.');
+  });
+
+  it('refuses as `unrecorded` when nothing is recorded', async () => {
     const root = checkout();
 
     const answer = await run(['distill', '--test', 'plain']);
@@ -86,32 +167,30 @@ describe('the CLI distillation boundary', () => {
     expect(answer.err).toContain(`nothing is recorded in \`${root}\``);
   });
 
-  it('reads an Eyes archive alone when nothing is recorded', async () => {
-    const root = checkout();
-    const eyes = join(root, 'eyes.json');
-    writeFileSync(eyes, JSON.stringify({
-      eyesVersion: 1,
-      tests: [{ id: 'plain', title: 'works', file: 'plain.test.ts', complete: true, attention: [] }],
-    }));
-
-    const answer = await run(['distill', '--test', 'plain', '--eyes', eyes]);
-
-    expect(answer.code).toBe(EXIT_CLEAN);
-    expect(answer.out).toContain('Runtime journey: unavailable');
-  });
-
   it('reads the record of the suite `--suite` names', async () => {
     const root = checkout();
     writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, e2e: { kind: 'e2e' } } }));
     const unit = { ...plain, modules: [{ ...plain.modules[0]!, file: 'unit.ts' }] };
     const e2e = { ...plain, modules: [{ ...plain.modules[0]!, file: 'e2e.ts' }] };
-    await recorded(testCoverageFile(root, { suite: 'unit' }), unit);
-    await recorded(testCoverageFile(root, { suite: 'e2e' }), e2e);
+    await indexed(testCoverageFile(root, { suite: 'unit' }), unit);
+    await indexed(testCoverageFile(root, { suite: 'e2e' }), e2e);
 
     const answer = await run(['distill', '--test', 'plain', '--suite', 'unit', '--format', 'json']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
     expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'unit.ts', distance: 1 }]);
+  });
+
+  it('reads a case index named with --execution, which carries no journals', async () => {
+    const root = checkout();
+    const execution = join(root, 'execution.json');
+    writeFileSync(execution, JSON.stringify(plain));
+
+    const result = await distillFiles({ test: 'plain', execution, root });
+
+    expect(result.execution.entered).toEqual([{ file: 'plain.ts', distance: 1 }]);
+    expect(result.execution.opportunities).toBeUndefined();
+    expect(formatDistill(result, 'json')).toContain('"entered"');
   });
 
   it('takes the recorded index or a named one, never both', async () => {

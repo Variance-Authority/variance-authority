@@ -101,8 +101,10 @@ export class OperatorError extends Error {
  * an editor stops asking instead of starting a process per keystroke.
  * `unloaded`: the record holds no row for the file because the run never loaded
  * it, which is a statement about the suite, not about the file's tests.
+ * `unmeasured`: the record holds no case's preconditions, so a `--where` has
+ * nothing to read — which is not the same as no case having said it.
  */
-export type RefusalKind = 'unrecorded' | 'unloaded';
+export type RefusalKind = 'unrecorded' | 'unloaded' | 'unmeasured';
 
 /**
  * Whether an error is a statement about the operator's configuration.

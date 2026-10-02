@@ -12,8 +12,10 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
+import { heardAcross, heardOf } from './case-precondition-column.js';
 import { packCase, settledAcross, timedAcross, unpackCase } from './cases.js';
 import { codeUnitOrder, isMissing } from './instrumented-modules.js';
+import type { ObservedEyes } from './eyes-record.js';
 import { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
 
 /**
@@ -104,14 +106,19 @@ export async function foldStage(directory: string): Promise<StagedExecution> {
   // How each case settled and what it cost ride beside the join, which knows
   // neither: a case retried in another worker settled once it finished once,
   // and cost both attempts.
-  const settled = new Map<string, { stopped?: boolean; duration?: number }>();
+  // Its Eyes journals ride the same way, every attempt kept: a retry is a
+  // second journal, never a replacement of the first.
+  const settled = new Map<string, { stopped?: boolean; duration?: number; said?: ObservedCase['said']; eyes?: readonly ObservedEyes[] }>();
   const staging = staged.flatMap((one) =>
     (one.cases ?? []).map((observed) => {
       const owner = packCase(observed.file, observed.name, observed.id);
       const held = settled.get(owner) ?? {};
+      const eyes = [...(held.eyes ?? []), ...(observed.eyes ?? [])];
       settled.set(owner, {
         ...settledAcross(held.stopped, observed.stopped),
         ...timedAcross(held.duration, observed.duration),
+        ...heardOf(heardAcross(held.said, observed.said)),
+        ...(held.eyes === undefined && observed.eyes === undefined ? {} : { eyes }),
       });
       return { owner, journal: observed.journal };
     }),

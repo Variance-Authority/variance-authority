@@ -44,79 +44,73 @@ exercises the same behaviour. Initialization may supply something the test
 needs, and a component can influence the result without being directly used.
 Distill identifies candidates; the confirming run establishes which ones can go.
 
-Name the test with `--test` and the file that declares it with `--file`.
-`--test` takes the recorded id, the test's exact title, or a part of the title;
+Name the case with `--test` and the file that declares it with `--file`.
+`--test` takes the recorded id, the case's exact title, or a part of the title;
 `--file` takes any part of the test file's path:
 
 ```bash
-variance distill --file test/checkout.test.tsx --test submits --eyes .variance/eyes.json
+variance distill --file test/checkout.spec.ts --test submits
 ```
 
-When more than one test fits, Distill prints the ids of up to five of them and
+When more than one case fits, Distill prints the ids of up to five of them and
 stops. Pass one of those ids to `--test`. `--file` without `--test` reads the
-file's only test, or prints the ids of its tests when it has more than one.
+file's only case, or prints the ids of its cases when it has more than one.
 
-The execution half is the [execution record](execution-record.md) your last
-recorded run left: a run wrapped in [Sense](../packages/sense/README.md)'s
-`withTestSelection` writes it, and `distill` finds it the way
-[test selection](selecting.md) does. With more than one declared suite, name
-the one to read with `--suite <name>`. `--execution <path>` reads an index from
-anywhere else instead, including JSON from a tool that already records per-test
-crossings.
-
-Distill looks for the test in the Eyes archive first. When the archive has it,
-Distill reads the [execution record](execution-record.md) by that test's exact
-id. When there is no archive, or the archive has no test that fits, Distill
-looks for the test in the execution record.
+Distill reads the record your last recorded run wrote, `coverage.bin`, and finds
+it the way [test selection](selecting.md) does. With more than one declared
+suite, name the one to read with `--suite <name>`. Pass `--execution <path>` to
+read another record, or a case index another tool exported as JSON. Whatever
+names the case, Distill finds it in the record's case index and reads the
+journals and the covered source by its id.
 
 The command is deterministic. The same inputs produce the same ordering and
 the same answer; it does not open a browser, run a test, or edit source.
 
-## Both recordings must key the test the same way
+## One record holds both readings
 
-With both files supplied, Distill joins them on **exact id**. It does not fall
+A run that records with [Sense](../packages/sense/README.md) and watches its
+page with [Eyes](eyes.md) writes both readings into the same record, keyed by
+the same case. Sense keys a case by its coordinate: the project-relative test
+file, then the describe path and the test name, joined by ` > `.
+
+```text
+test/checkout.spec.ts > checkout > submits
+```
+
+That is the id `--test` takes. Distill looks it up exactly. It does not fall
 back to a title or a file, because a title is not unique and a file contains
-many cases, and a guessed join would put one test's attention beside another's
-execution.
-
-[Sense](../packages/sense/README.md) keys a case by its coordinate: the
-project-relative test file, then the describe path and the test name, joined by
-` > `.
+many cases, and a guessed match would put one test's attention beside another's
+execution:
 
 ```text
-test/checkout.test.tsx > checkout > submits
+The record holds no case with id checkout submits. No title or file join was guessed.
+It records 214 case id(s), of which:
+  test/checkout.spec.ts > checkout > submits
+  ...
 ```
 
-So that is the id to give [Eyes](eyes.md) when you open each test's journal. The
-per-test hook in the [distill
-README](../packages/distill/README.md#both-halves-must-use-the-same-test-id)
-builds it. A runner's own positional id — `875862714_0` — is unique within the
-run and archives without complaint, but matches nothing in the execution index:
+A case Playwright retried keeps a journal for every attempt, numbered from 1,
+and Distill prints each one. An opportunity is a file no attempt addressed.
+
+A record whose run did not use Eyes still answers what the case entered, and
+says the attention half is missing:
 
 ```text
-Runtime journey: supplied, but it contains no test with exact id 875862714_0.
-No title or file join was guessed.
+Distillation opportunities: unavailable; the record keeps no Eyes journals; the run did not opt into Eyes.
 ```
 
-The refusal goes on to list a few of the ids the index does store, so the two
-shapes can be compared where the failure appears. Two cases in one file that
-share a coordinate are numbered, the second as `<coordinate>#1`.
+The journals stay in the record on the machine that ran the test. They leave it
+only with the record: through `variance share`, or through a host cache the
+config gives the suite to. Both name the journals among what they upload.
 
-## Both recordings must name source from the same root
+## Both readings name source from the same root
 
-Eyes names a component's source with the path the bundler handed over, which is
-absolute. Sense names a covered module relative to the project root. Distill
-brings the two to one shape against `--root`, which defaults to the directory
-you run it in. Pass `--root <path>` when you run it from somewhere else:
-
-```bash
-variance distill --test '<recorded-test-id>' \
-  --eyes .variance/eyes.json \
-  --root /path/to/project
-```
-
-When the root cannot reconcile the two — no addressed source file matches any
-covered module — you get no opportunity list at all:
+Eyes names a component's source relative to the repository root, the way Sense
+names a covered module. A JSON index another tool exported may name its modules
+from somewhere else; Distill brings the two to one shape against `--root`, which
+defaults to the directory you run it in. When the root cannot reconcile them —
+no addressed source file matches any covered module — you get no opportunity
+list at all:
 
 ```text
 Distillation opportunities: unavailable; none of the 1 addressed source file(s)
@@ -127,8 +121,7 @@ Comparing paths that disagree in shape would report every covered file as an
 opportunity, including the component the test addressed, so the reading names
 what it could not establish instead. Where only some addressed files fail to
 match, the list stands and the leftovers are printed under **Addressed source
-this run never covered** — usually a module nothing instrumented, and otherwise
-the same root mismatch showing in part.
+this run never covered**: usually a module nothing instrumented.
 
 ## The three readings
 
@@ -213,9 +206,7 @@ Distill separates the two. Every covered module is read
 [region by region](execution-record.md#blocks):
 [`loadedOnly`](../packages/distill/README.md#api)
 marks a module whose only crossings are the consequence of loading
-it, and `unentered` names the declarations the test never reached. A module
-that declares nothing below its top level, such as a file of constants or a
-barrel of re-exports, is not marked: loading it ran everything it has.
+it, and `unentered` names the declarations the test never reached.
 
 ```text
 Loaded but not covered: 1 module(s).
@@ -234,7 +225,7 @@ keep it.
 
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
-| CLI | the run was recorded and Eyes wrote an archive | `variance distill --file <path> --test <title> --eyes <path>` |
+| CLI | the run recorded in this checkout, or a record you name | `variance distill --file <path> --test <title> [--suite <name> \| --execution <path>]` |
 | [MCP](agent-questions.md#distill-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
 | [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 

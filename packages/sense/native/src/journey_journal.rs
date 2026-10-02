@@ -2,9 +2,13 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::case_preconditions::{self, Precondition};
 use crate::order;
 
 const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02];
+/// `VAEYS`: an Eyes frame rides beside the case frames (`eyes-frame.cts`) and
+/// crosses nothing, so every fold steps over it.
+const EYES_MAGIC: [u8; 8] = [0x56, 0x41, 0x45, 0x59, 0x53, 0x00, 0x00, 0x01];
 /// A module is named by its path: tag `1`, then the path. Tag `0`, a numbered
 /// module, is refused as damage — nothing writes one (ADR-0056, amended).
 const NAMED: u8 = 1;
@@ -19,6 +23,8 @@ pub struct Test {
     pub name: String,
     /// How the case settled: [`UNSETTLED`], [`FINISHED`] or [`STOPPED`].
     pub settled: u8,
+    /// What the case said it arranged, resolved; `None` where nobody listened.
+    pub preconditions: Option<Vec<Precondition>>,
 }
 
 /// The `tests.stopped` column's three states, as `execution-set-format.ts`
@@ -68,6 +74,7 @@ struct Coordinate {
     id: String,
     settled: u8,
     journey: String,
+    said: Option<Vec<Precondition>>,
     frame: usize,
 }
 
@@ -108,6 +115,7 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
             file: coordinate.file,
             name: coordinate.name,
             settled: coordinate.settled,
+            preconditions: coordinate.said.map(case_preconditions::resolve),
         });
     }
     let mut tests_by_file = HashMap::new();
@@ -248,6 +256,7 @@ impl Visitor for InspectVisitor<'_> {
                 id: id.to_owned(),
                 settled,
                 journey: journey_of(packed).to_owned(),
+                said: case_preconditions::said_of(packed)?.map(|said| case_preconditions::checkout(self.root, said)),
                 frame: self.frame,
             });
             self.frame += 1;
@@ -309,6 +318,9 @@ fn frames(
 }
 
 fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
+    if raw.starts_with(&EYES_MAGIC) {
+        return Ok(());
+    }
     let mut read = Reader::new(raw);
     for expected in MAGIC {
         if read.byte()? != expected {
@@ -430,9 +442,10 @@ pub fn unpack_case(packed: &str) -> (&str, &str, &str, u8) {
 
 /// The journey a frame belongs to: the fifth field of its owner, after the
 /// settling, empty when the case never handed one out. `packJourney` in
-/// `journal-format.cts`.
+/// `journal-format.cts`. A sixth field, what the case said it arranged, is
+/// [`case_preconditions::said_of`]'s.
 pub fn journey_of(packed: &str) -> &str {
-    packed.splitn(5, '\0').nth(4).unwrap_or("")
+    packed.split('\0').nth(4).unwrap_or("")
 }
 
 pub fn project_path(root: &Path, file: &str) -> String {

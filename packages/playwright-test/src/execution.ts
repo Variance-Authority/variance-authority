@@ -20,16 +20,17 @@ import type { Page, TestInfo } from '@playwright/test';
 import {
   drainExecution,
   joinObservations,
+  listenForPreconditions,
   preconditionOf,
   recordExecution,
   stageExecution,
   stagingDirectory,
   type EvaluatingPage,
-  type ExecutedModule,
   type InstrumentMode,
-  type ModuleId,
   type ObservedCase,
+  type ObservedEyes,
   type ObservedSubject,
+  type PreconditionStanding,
 } from '@variance-authority/sense/journal';
 import {
   journeyReportFrom,
@@ -42,7 +43,8 @@ import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/s
 import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { listen, type Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
-import { ownerOf, type ObservedTest } from './test-coordinate.js';
+import { absorb, accumulation, type Accumulated } from './accumulated.js';
+import { caseKey, ownerOf, type ObservedTest } from './test-coordinate.js';
 
 export { ownerOf, testOf, type ObservedTest } from './test-coordinate.js';
 
@@ -148,15 +150,16 @@ export interface ExecutionRecorder {
    * and the case each sum their attempts; nothing here reads a clock.
    */
   readonly mark: (owner: string, complete: boolean, subject?: ObservedTest, duration?: number) => void;
+  /**
+   * Keep one attempt's Eyes journal for its case, counted from 1, or without
+   * one, that the attempt opened a journal. The record joins it to the case by
+   * the id the index gives the case; see `case-scope.ts`.
+   */
+  readonly eyes: (owner: string, subject: ObservedTest, attempt: number, journal?: Readonly<Record<string, unknown>>) => void;
+  /** The checkout every path this recorder writes is named against. */
+  readonly root: string;
   /** Merge this worker's contribution into the index, or explain the silence. */
   readonly close: () => Promise<void>;
-}
-
-interface Accumulated {
-  readonly hits: Map<ModuleId, Set<number>>;
-  /** Of `hits`, the ordinals a module entered while evaluating: every spec's. */
-  readonly shared: Map<ModuleId, Set<number>>;
-  complete: boolean;
 }
 
 /** How long a worker waits at its end for requests a head is still serving. */
@@ -173,9 +176,14 @@ const SETTLING_MS = 5_000;
 export function createExecutionRecorder(
   recording: ExecutionRecording = {},
   wire?: Wire,
+  standing?: () => PreconditionStanding,
 ): ExecutionRecorder {
   const start = resolve(recording.root ?? process.cwd());
   const root = repositoryRoot(start);
+  // What each case said it arranged, where a runner says where a call stands:
+  // taken when the case is marked, which is after its `afterEach` ran.
+  const listener = standing === undefined ? undefined : listenForPreconditions(root, standing);
+  const heard = new Map<string, NonNullable<ObservedCase['said']>>();
   const owners = new Map<string, Accumulated>();
   // Kept beside the owners rather than derived from them: a case is a window
   // inside a file's window, and both are wanted whole. The key carries all
@@ -193,6 +201,8 @@ export function createExecutionRecorder(
   const stopped = new Map<string, boolean>();
   // What the runner counted, per owner and per case key, summed over attempts.
   const spent = new Map<string, number>();
+  // Each case's Eyes journals, one per attempt that handed one over.
+  const looked = new Map<string, ObservedEyes[]>();
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
   const reports: JourneyReport[] = [];
   let seen = false;
@@ -218,13 +228,19 @@ export function createExecutionRecorder(
   };
 
   return {
+    root,
     owner: (testInfo) => ownerOf(root, testInfo),
+    eyes: (owner, subject, attempt, journal) => {
+      caseOf(owner, subject);
+      const key = caseKey(owner, subject.id);
+      looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
+    },
     note: async (page, owner, subject) => {
       const journal = await drainExecution(page);
       if (journal === undefined) return;
       seen = true;
       instrumentation = journal.instrumentation;
-      const accumulated = owners.get(owner) ?? { hits: new Map(), shared: new Map(), complete: true };
+      const accumulated = owners.get(owner) ?? accumulation();
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
       if (subject === undefined) return;
@@ -262,8 +278,14 @@ export function createExecutionRecorder(
     mark: (owner, complete, subject, duration) => {
       if (duration !== undefined) add(owner, duration);
       if (subject !== undefined) {
-        const key = `${owner}\u0000${subject.id}`;
+        const key = caseKey(owner, subject.id);
         if (duration !== undefined) add(key, duration);
+        const said = listener?.take(key) ?? [];
+        if (said.length > 0) {
+          heard.set(key, [...(heard.get(key) ?? []), ...said]);
+          // A case that only said something is still a case.
+          caseOf(owner, subject);
+        }
         stopped.set(key, stopped.get(key) === false ? false : !complete);
         // A case that stopped before the page had anything to drain is still a
         // case, and the one a reader most needs to hear about.
@@ -284,6 +306,7 @@ export function createExecutionRecorder(
 
     close: async () => {
       try {
+        listener?.close();
         await settled();
         await contribute();
       } finally {
@@ -310,18 +333,6 @@ export function createExecutionRecorder(
     }
   }
 
-  /** Fold one drained window into an accumulation, keeping evaluation apart. */
-  function absorb(accumulated: Accumulated, journal: { modules: readonly ExecutedModule[] }): void {
-    for (const module of journal.modules) {
-      const ordinals = accumulated.hits.get(module.id) ?? new Set<number>();
-      for (const ordinal of module.hits) ordinals.add(ordinal);
-      accumulated.hits.set(module.id, ordinals);
-      const shared = accumulated.shared.get(module.id) ?? new Set<number>();
-      for (const ordinal of module.shared) shared.add(ordinal);
-      accumulated.shared.set(module.id, shared);
-    }
-  }
-
   /** An accumulation as a journal again, which is what both records are made of. */
   function journalOf(accumulated: Accumulated) {
     return {
@@ -339,7 +350,7 @@ export function createExecutionRecorder(
     const key = `${owner}\u0000${subject.id}`;
     const held = cases.get(key) ?? {
       of: { file: owner, name: subject.name, id: subject.id },
-      hits: { hits: new Map(), shared: new Map(), complete: true },
+      hits: accumulation(),
     };
     cases.set(key, held);
     return held.hits;
@@ -350,10 +361,14 @@ export function createExecutionRecorder(
     return [...cases].map(([key, held]) => {
       const settled = stopped.get(key);
       const duration = spent.get(key);
+      const eyes = looked.get(key);
+      const said = listener === undefined ? undefined : (heard.get(key) ?? []);
       return {
         ...held.of,
+        ...(said === undefined ? {} : { said }),
         ...(settled === undefined ? {} : { stopped: settled }),
         ...(duration === undefined ? {} : { duration }),
+        ...(eyes === undefined ? {} : { eyes }),
         journal: journalOf(held.hits),
       };
     });

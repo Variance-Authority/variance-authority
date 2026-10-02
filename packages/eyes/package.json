@@ -40,14 +40,6 @@
     "./archive": {
       "types": "./dist/archive.d.ts",
       "default": "./dist/archive.js"
-    },
-    "./collect": {
-      "types": "./dist/collect.d.ts",
-      "default": "./dist/collect.js"
-    },
-    "./reporter": {
-      "types": "./dist/reporter.d.ts",
-      "default": "./dist/reporter.js"
     }
   },
   "main": "./dist/index.js",
@@ -86,6 +78,8 @@
     "@testing-library/react": "16.3.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@variance-authority/playwright-test": "workspace:^",
+    "@variance-authority/sense": "workspace:^",
     "jsdom": "^30.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

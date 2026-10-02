@@ -147,20 +147,20 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
-variance distill [--test <name>] [--file <path>] [--eyes <path>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
+variance distill [--test <name>] [--file <path>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
-variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] [--suite <name>] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
+variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--prune]
@@ -297,42 +297,37 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
 
 ### Distill: find a smaller test boundary
 
-`distill` reads two recordings your test run writes, and neither comes from
-`variance run`:
+`distill` reads the record your test run writes, which does not come from
+`variance run`. The record holds two readings of each case:
 
-- **the Eyes archive** — what each test queried, operated and read. Install
-  [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes),
-  record a journal per test, and fold the directory once where the run ends with
-  `writeEyesArchive('.variance/eyes.json', await gatherEyesArchive('.variance/eyes'))`
-  from `@variance-authority/eyes/collect`;
-- **the execution index** — which files and regions each test covered. Install
+- **which files and regions the case covered** — install
   [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-  and wrap the Vitest config in `withTestSelection(config)`. The record it
-  writes carries the index, and `distill` reads it from the record `covering`
-  reads; `--suite <name>` picks one declared suite's, and `--execution <path>`
-  reads any other record, or JSON from a tool that already records per-test
-  crossings.
+  and wrap the runner config in `withTestSelection`;
+- **what the case queried, operated and read** — in a Playwright suite recorded
+  that way, extend `test` with the fixtures from
+  [`@variance-authority/eyes/playwright`](https://variance-authority.dev/reference/packages/eyes),
+  and each attempt's journal lands in the record under its case.
 
-Without `--eyes`, execution alone lists covered source but produces no
+A record without journals still lists covered source, but produces no
 opportunities, because missing attention is not an empty addressed surface.
-With `--eyes` and nothing recorded, the execution half is reported unavailable.
 
-Name the test by the file that declares it and its title:
+Name the case by the file that declares it and its title:
 
 ```bash
-variance distill --file test/checkout.test.tsx --test submits --eyes .variance/eyes.json
+variance distill --file test/checkout.spec.ts --test submits
 ```
 
-`--file` takes any part of the test file's path. `--test` takes the recorded
-`id`, the exact title, or a part of the title, compared without case. Either
-flag may be given alone. When more than one test fits, the command prints up to
-five of their ids and stops; pass one of them to `--test`. With `--eyes`, the
-test is looked up in the archive first, and the execution index is then read
-by that test's exact `id`, so the two recordings must use the same ids to join.
+`--file` takes any part of the test file's path. `--test` takes the case's
+`id`, its exact title, or a part of the title, compared without case. Either
+flag may be given alone. When more than one case fits, the command prints up to
+five of their ids and stops; pass one of them to `--test`. A case Playwright
+retried prints every attempt's journal, numbered from 1.
 
-From the root `variance.config.json`, `distill` reads only the declared suites,
-to find the record `--suite` names; no other setting changes its answer. It
-reports addressed targets by authored Arrange/Act/Assert phase, React update initiators inside and outside those target paths, and files
+`distill` reads the record `covering` reads; `--suite <name>` picks one declared
+suite's, and `--execution <path>` reads any other record, or JSON from a tool
+that already records per-test crossings. From the root `variance.config.json` it
+reads only the declared suites. It reports addressed targets by authored Arrange/Act/Assert
+phase, React update initiators inside and outside those target paths, and files
 covered by the exact test id without addressed source attribution:
 
 ```text
@@ -351,7 +346,7 @@ Covered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/top-nav.tsx
 ```
 
-The command options are `test`, `eyes`, `execution`, and `format`; their flag
+The command options are `test`, `execution`, `root`, and `format`; their flag
 forms are shown in the synopsis above.
 
 `--format json` returns the same ordered analysis as data. The command always
@@ -538,6 +533,41 @@ src/checkout/total.test.ts no longer enters applyDiscount in src/checkout/total.
 ```
 
 The words are the ones `--against` uses below.
+
+#### Reading the cases that arranged a state
+
+A case that says what it arranged with
+[`variancePrecondition`](../sense#name-what-a-case-arranged) carries it on its
+row, and every case `covering` lists prints it with the call that said it.
+`--where` keeps the cases that said it, in every form of the question:
+
+```bash
+variance covering --file src/checkout/total.ts --line 48 --where network=mocked
+```
+
+```text
+Kept the 2 of 6 cases that said network=mocked.
+2 named tests covered line 48 of src/checkout/total.ts:
+  src/checkout/total.test.ts — 2/6
+    pays — network=mocked (src/checkout/total.test.ts:12)
+    refunds behind a flag — flag=ff-on (src/checkout/total.test.ts:31), network=mocked (src/checkout/total.test.ts:12)
+      twin at flag=ff-off: refunds
+```
+
+`--where network` keeps every value of `network`, and every repeated `--where`
+must hold. Two values said at one level print as a contradiction, and match a
+`--where` naming either. A record made before cases said anything answers
+`unmeasured` rather than an empty list, and a case nobody listened to is counted
+apart from the cases that said nothing.
+
+When `names.axes` in `variance.config.json` declares the name, the value is
+read on that axis. `values[0]` is the base, and a case that never said the name
+stands at it, so `--where flag=ff-off` keeps it. A value outside the axis is
+printed by name with its site, and kept. Beside each case is its twin: the case
+one step toward the base on its last declared axis, holding every other
+precondition the same, looked up among every case the question reached before
+`--where` narrowed it. Several twins are printed with their count, and none as
+`no twin recorded`.
 
 #### Asking about the text you hold
 

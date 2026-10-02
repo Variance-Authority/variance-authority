@@ -43,12 +43,13 @@ analyzer and printer:
 npm install --save-dev @variance-authority/cli
 ```
 
-## The two evidence files you need first
+## The record you need first
 
-Neither file comes from `distill`, and neither comes from `variance run`. Your
-own test run writes them.
+`distill` reads one file, the record your own test run writes. It does not come
+from `distill`, and it does not come from `variance run`. The record holds two
+readings of each case.
 
-**An execution index** — which files and which functions inside them each test
+**The case index** — which files and which functions inside them each test
 covered, meaning ran code in rather than merely imported. Install
 [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
 and wrap your Vitest config:
@@ -67,83 +68,51 @@ export default withTestSelection(
 );
 ```
 
-Every wrapped run writes the per-case recording into its per-file snapshot,
-and `variance distill` reads it from there. A test file that runs in a page is
-recorded per file only, so a browser-mode run does not write the recording
-`distill` needs.
+Every wrapped run writes the per-case recording into its record,
+`coverage.bin`, and `distill` reads that record as it is. A test file that runs in a page is
+recorded per file only, so a browser-mode run does not write the file `distill`
+needs.
 
-**An Eyes archive** — which elements each test addressed, and the React
-component behind each one. Install
-[`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes),
-record a journal per test, and fold the directory once where the run ends:
+**The Eyes journals** — which elements each case addressed, and the React
+component behind each one. In a Playwright suite wrapped in `withTestSelection`,
+install [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes)
+and extend `test` with its fixtures after the recording's own:
 
 ```bash
-npm install --save-dev @variance-authority/eyes @variance-authority/react @testing-library/react
+npm install --save-dev @variance-authority/eyes @variance-authority/react @variance-authority/playwright-test
 ```
 
 ```ts
-// vitest.setup.eyes.ts
-import { screen } from '@testing-library/react';
-import { getNames } from '@vitest/runner/utils';
-import { recordEyesTest } from '@variance-authority/eyes/collect';
-import { watchTest } from '@variance-authority/eyes/rtl';
-import { afterEach, beforeEach } from 'vitest';
+// test/fixtures.ts
+import { test as base } from '@playwright/test';
+import { varianceFixtures } from '@variance-authority/playwright-test';
+import { eyesFixtures } from '@variance-authority/eyes/playwright';
 
-let attention: ReturnType<typeof watchTest>;
-
-beforeEach(({ task }) => {
-  const file = task.file?.name ?? '';              // project-relative, as Sense records it
-  const name = getNames(task).slice(1).join(' > '); // describe path, then the test name
-  attention = watchTest(screen, { id: `${file} > ${name}`, title: task.name, file });
-});
-
-afterEach(async () => {
-  await recordEyesTest('.variance/eyes', attention.close());
-});
+export const test = base.extend(varianceFixtures).extend(eyesFixtures);
 ```
 
-```ts
-// vitest.globalSetup.eyes.ts
-import { gatherEyesArchive, resetEyesJournals, writeEyesArchive }
-  from '@variance-authority/eyes/collect';
+Each attempt's journal lands in the record under the case that ran it. A case
+Playwright retried keeps one journal per attempt, numbered from 1, and the
+attempt is never part of the case id.
 
-export async function setup(): Promise<void> {
-  await resetEyesJournals('.variance/eyes');
-}
+### One id joins the two readings
 
-export async function teardown(): Promise<void> {
-  await writeEyesArchive('.variance/eyes.json', await gatherEyesArchive('.variance/eyes'));
-}
-```
-
-That is three of the four pieces Eyes needs; the React commit tap and the runner
-wiring are in the
-[Eyes README](https://variance-authority.dev/reference/packages/eyes).
-
-### Both halves must use the same test id
-
-`distill` joins the two files on **exact id** and guesses nothing — not by
-title, not by file. So the id you hand `watchTest` is the one decision that
-makes the two recordings one reading.
-
-Sense keys a case by its coordinate: the project-relative test file, then the
-describe path and the test name, joined by ` > `.
+`distill` joins the two readings on **exact case id** and guesses nothing — not
+by title, not by file. Sense keys a case by its coordinate: the
+repository-relative test file, then the describe path and the test name, joined
+by ` > `.
 
 ```text
-test/checkout.test.tsx > checkout > submits
+test/checkout.spec.ts > checkout > submits
 ```
 
-The `beforeEach` above builds that string, which is why it uses `getNames`
-rather than the runner's `task.id`. A positional id such as `875862714_0` is
-unique and archives fine; it simply matches nothing in the execution index, and
-you get:
+The Eyes fixture takes its case from the recording, so both readings carry that
+id without anything for you to build. An id the record does not hold is
+refused, and the refusal lists some of the ids it does:
 
 ```text
-Runtime journey: supplied, but it contains no test with exact id 875862714_0.
+The record holds no case with id checkout submits. No title or file join was guessed.
 ```
-
-The refusal lists a few of the ids the index does contain, so the mismatch is
-visible in the output rather than something to go and reconstruct.
 
 ### Arrange, Act and Assert are read, not guessed
 
@@ -167,43 +136,47 @@ A test with no phase markers still works. Its observations are reported under
 
 ## Run it
 
-From the command line, naming the test and the file that declares it:
+From the command line, in the checkout that ran the test, naming the case and
+the file that declares it:
 
 ```bash
-variance distill --file test/checkout.test.tsx --test submits --eyes .variance/eyes.json
+variance distill --file test/checkout.spec.ts --test submits
 ```
 
-`--test` takes the recorded id, the test's exact title, or a part of the title.
-`--file` takes any part of the test file's path. When more than one test fits,
+`--test` takes the case's id, its exact title, or a part of the title.
+`--file` takes any part of the test file's path. When more than one case fits,
 the command prints their ids and stops, and you pass one of them to `--test`.
 
-`--execution <path>` reads an execution index other than the recorded one, such
-as JSON from a tool that already records per-test crossings.
+`distill` reads the record `covering` reads; `--suite <name>` picks one declared
+suite's, and `--execution <path>` names another record, or a case index another
+tool exported as JSON. Add `--format json` for the analyzer result instead of
+the text.
 
-Add `--format json` for the analyzer result instead of the text.
-
-From Node, reading the same two recordings:
+From Node, `distill` takes the readings already in hand. Here a case index
+another tool exported as JSON, and one journal for its only attempt:
 
 ```ts
 import { readFile } from 'node:fs/promises';
-import { readEyesArchive } from '@variance-authority/eyes/archive';
-import { decodeExecutionIndex, testCoverageFile }
-  from '@variance-authority/sense/test-selection';
-import { distill, formatDistillation } from '@variance-authority/distill';
+import { parseEyesJournal } from '@variance-authority/eyes/archive';
+import { distill, formatDistillation, parseExecutionIndex }
+  from '@variance-authority/distill';
 
-const eyes = await readEyesArchive('.variance/eyes.json');
-const execution = decodeExecutionIndex(
-  await readFile(testCoverageFile(process.cwd())),
+const test = 'test/checkout.spec.ts > checkout > submits';
+const execution = parseExecutionIndex(
+  JSON.parse(await readFile('execution.json', 'utf8')),
 );
+const journal = parseEyesJournal(JSON.parse(await readFile('journal.json', 'utf8')));
 
-console.log(formatDistillation(distill({ file: 'test/checkout.test.tsx', test: 'submits', eyes, execution })));
+console.log(formatDistillation(distill({
+  test,
+  execution,
+  eyes: [{ case: test, attempt: 1, journal }],
+})));
 ```
 
-`decodeExecutionIndex` reads the case index out of the record. For an index
-another tool spelled as JSON, `parseExecutionIndex` from
-`@variance-authority/distill` validates it at the process boundary and throws
-naming the offending field. Pass an `ExecutionIndex` you already have and it
-returns it unchanged.
+`parseExecutionIndex` and `parseEyesJournal` validate untyped JSON at the
+process boundary and throw naming the offending field. Pass an `ExecutionIndex`
+you already have and it returns it unchanged.
 
 ## What you get
 
@@ -214,7 +187,7 @@ neither finding is permission to delete anything:
 
 ```text
 checkout submits — test/checkout.test.tsx [test/checkout.test.tsx > checkout submits]
-Eyes journal: complete.
+Eyes journal, attempt 1: complete.
 2 target snapshot(s); 0 had no live React Fiber.
 
 arrange:
@@ -230,7 +203,7 @@ React update initiators:
     outside addressed component paths: Clock
 
 Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.
-Runtime journey: 3 source file(s) covered by exact test id.
+Runtime journey: 3 source file(s) covered by exact case id.
   depth 0 — src/analytics.ts
   depth 0 — src/checkout/form.tsx
   depth 0 — src/heavy-chart.tsx
@@ -281,15 +254,15 @@ handler, installs a polyfill, or builds a singleton is one the test is standing
 on. Make the substitution, rerun that exact test, and compare the new reading
 against this one before you keep the edit.
 
-## Without an Eyes archive
+## Without Eyes journals
 
-Supply only an execution index and you still get the covered-source reading and
+A record whose run did not use Eyes, or a JSON case index, still gives you the covered-source reading and
 the loaded-but-not-covered finding, which is what makes a plain Node unit test
 or a non-React harness worth distilling.
 
 The opportunity comparison is then reported unavailable rather than empty. A
 test whose attention was never recorded and a test that addressed nothing are
-different situations, and `distill` will not print one as the other. Supply a
+different situations, and `distill` will not print one as the other. A
 complete Eyes journal that happens to be empty and the comparison proceeds with
 a measured-empty addressed surface.
 
@@ -297,19 +270,23 @@ a measured-empty addressed surface.
 
 | Export | What it is |
 | --- | --- |
-| `distill(input)` | `DistillInput` in, `Distillation` out. Throws when no supplied evidence has the named test, or when more than one test fits `test` and `file`. |
+| `distill(input)` | `DistillInput` in, `Distillation` out. Throws when the execution index holds no case that fits `test` and `file`, or more than one. |
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
 
-`DistillInput` names the test by `test`, `file`, or both — `file` alone when the
-file holds one test — plus an optional `eyes` archive and `execution` index. `Distillation` is a plain data result: `attention` is the per-phase
+`DistillInput` names the case by `test`, `file`, or both — `file` alone when
+the file holds one case — and carries the `execution` index, an optional `root`,
+and optional `eyes`: one `EyesAttempt` per recorded attempt, each a `case`, an
+`attempt` numbered from 1, and its `journal`. The case is found in the index
+alone, and the journals are read by its id. `attempts` on the result carries
+each attempt's attention. `Distillation` is a plain data result: `attention` is the per-phase
 `AddressedPhase` and `UpdatePhase` records, and `execution` lists `EnteredFile`
 by file and `EnteredModule` region by region. A `Region` is one instrumented
 declaration — a module's top level, or a function — with its name and line
 range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
 `loadedOnly` is the flag behind the loaded-but-not-covered finding.
 
-Ordering is deterministic. The same two files produce the same answer.
+Ordering is deterministic. The same record produces the same answer.
 
 ---
 

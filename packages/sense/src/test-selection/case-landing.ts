@@ -14,8 +14,10 @@ import { layerBefore, layerCaseIndex } from './case-layer.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoverageTest } from './index.js';
+import type { ExecutionTest } from './reverse.js';
 
 /** What a run tells the case index about the files it was handed. */
 export interface LaidRun {
@@ -29,6 +31,8 @@ export interface LaidRun {
 export interface FreshCases {
   readonly fresh: Uint8Array;
   readonly run: LaidRun;
+  /** The cases that opened Eyes journals and the journals they handed over; absent when no case composed Eyes. */
+  readonly eyes?: EyesSection;
 }
 
 /**
@@ -74,13 +78,22 @@ export interface LastCaseRun {
  * one more invocation of the same suite, not a new change, so what the runs
  * before it retired stays under what this one retired.
  *
+ * `eyes` are the run's Eyes, laid by {@link layEyes}: a case that ran has its
+ * journals replaced by the run's, and has none when the run opened none.
+ *
  * Nothing is written here. The caller writes the result into the record with
  * the coverage it lands, in one write under the record's lock, so the two
  * always answer for the same runs.
  */
-export function layCases(previous: CaseSections, fresh: Uint8Array, root: string, run: LaidRun): CaseSections {
+export function layCases(
+  previous: CaseSections,
+  fresh: Uint8Array,
+  root: string,
+  run: LaidRun,
+  eyes?: EyesSection,
+): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
-  const { merged, last, before: retired } = layerCaseIndex(previous.index, fresh, {
+  const { merged, cases, last, announced, before: retired } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present: (test) => existsSync(resolve(root, test)),
@@ -108,11 +121,13 @@ export function layCases(previous: CaseSections, fresh: Uint8Array, root: string
     ...(retired === undefined || began ? { began: true } : {}),
     cases: last,
   };
+  const journals = layEyes(previous.eyes, eyes, cases, announced);
   return {
     index: merged,
     last: Buffer.from(`${JSON.stringify(named, null, 2)}\n`),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
+    ...(journals === undefined ? {} : { eyes: journals }),
   };
 }
 
@@ -126,10 +141,14 @@ export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
   }
 }
 
-/** One shard a landing folded: where its record is, and the runs it names. */
+/**
+ * One shard a landing folded: where its record is, and the runs it names.
+ * `coverage` is absent for a shard whose run instrumented nothing, whose record
+ * holds its cases and no coverage.
+ */
 export interface LandedShard {
   readonly path: string;
-  readonly coverage: LaidRun;
+  readonly coverage?: LaidRun;
 }
 
 /** What a landing did to the cases of the record it wrote. */
@@ -160,6 +179,16 @@ export type CaseLanding =
  * A shard that finished no file is skipped: its seam keeps no cases for such a
  * run either, and laying it would change nothing.
  *
+ * A shard whose run instrumented nothing has no coverage to name its files, and
+ * its cases are laid as the run its own last-run section names: the files it
+ * ran, each finished, at its commit. Such a run finished every file it was
+ * handed, since one that could not finish a file records that file's row as
+ * coverage. One that names no last run, as a record that crossed a checkout
+ * does, is laid as a run of the files its cases are of, at no commit: those
+ * are the files its index answers for, and each case it holds replaces that
+ * file's. A shard with neither coverage nor an index this build reads holds
+ * nothing to lay.
+ *
  * Nothing is written here. The landing writes the sections into the record it
  * writes, under that record's lock.
  */
@@ -172,14 +201,18 @@ export function landCases(
   let sections = previous;
   let laid = 0;
   for (const shard of shards) {
-    const fresh = layableIndex(caseSectionsAt(shard.path).index);
+    const kept = caseSectionsAt(shard.path);
+    const fresh = layableIndex(kept.index);
+    const run = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
+    if (run === undefined) continue;
     if (fresh !== undefined) {
       // FIXME: each shard is laid as a run of its own, so the last-run layer
       // names only the last shard's cases, and `covering --cases last` after a
       // landing answers from that shard rather than from the whole fold.
-      sections = layCases(sections, fresh, root, shard.coverage);
+      // A section this build cannot read is laid as a shard that opened none.
+      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes));
       laid += 1;
-    } else if (shard.coverage.tests.some((test) => test.complete)) {
+    } else if (run.tests.some((test) => test.complete)) {
       const removed = Object.values(previous).some((part) => part !== undefined);
       return { landing: { unanswered: record, shard: shard.path, removed }, sections: {} };
     }
@@ -187,11 +220,29 @@ export function landCases(
   return { landing: { laid: record, shards: laid }, sections };
 }
 
-/** The shard's index spelled as sets, when it has one this build can read. */
-function layableIndex(bytes: Uint8Array | undefined): Uint8Array | undefined {
+/** The run a shard's own last-run section names, every file of it finished; `undefined` when it names none. */
+function lastRunOf(kept: CaseSections): LaidRun | undefined {
+  const last = lastCaseRunOf(kept);
+  if (last === undefined) return undefined;
+  return {
+    tests: last.files.map((file) => ({ file, complete: true })),
+    ...(last.commit === undefined ? {} : { commit: last.commit }),
+  };
+}
+
+/** A run of the files an index's cases are of, each finished. */
+function indexRunOf(tests: readonly ExecutionTest[]): LaidRun {
+  return { tests: [...new Set(tests.map((test) => test.file))].sort(codeUnitOrder).map((file) => ({ file, complete: true })) };
+}
+
+/** The shard's index spelled as sets, with its cases, when it has one this build can read. */
+function layableIndex(bytes: Uint8Array | undefined): { readonly bytes: Uint8Array; readonly tests: readonly ExecutionTest[] } | undefined {
   if (bytes === undefined) return undefined;
   try {
-    return openSetExecutionIndex(bytes) === undefined ? encodeAsSetExecutionIndex(decodeExecutionIndex(bytes)) : bytes;
+    const opened = openSetExecutionIndex(bytes);
+    if (opened !== undefined) return { bytes, tests: opened.tests };
+    const rows = decodeExecutionIndex(bytes);
+    return { bytes: encodeAsSetExecutionIndex(rows), tests: rows.tests };
   } catch {
     return undefined;
   }

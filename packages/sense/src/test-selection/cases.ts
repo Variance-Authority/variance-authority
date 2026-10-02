@@ -119,10 +119,13 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
+import eyesFrames from './eyes-frame.cjs';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import { codeUnitOrder, isMissing, projectPath } from './instrumented-modules.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
+import { checkoutSaid, heardAcross, heardOf, type Said } from './case-precondition-column.js';
+import preconditions from './case-preconditions.cjs';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 
@@ -189,11 +192,62 @@ export interface CaseJournal {
    * carried them on the case itself rather than in a report at the run's end.
    */
   readonly duration?: number;
+  /**
+   * What the case said it arranged, each site named from the checkout; absent
+   * where the frame's writer never listened.
+   */
+  readonly said?: Said;
   readonly modules: readonly {
     readonly id: ModuleId;
     readonly hits: readonly number[];
     readonly shared: readonly number[];
   }[];
+}
+
+/** Where a case is, and the runner's id for it: what a run tells two cases apart by. */
+export interface CaseCoordinate {
+  readonly file: string;
+  readonly name: string;
+  readonly id: string;
+}
+
+/** One key per case of a run, for a map from a coordinate to anything. */
+export function caseKey(coordinate: CaseCoordinate): string {
+  return `${coordinate.file}\0${coordinate.name}\0${coordinate.id}`;
+}
+
+/** `cases` in the order the index numbers them: by file, then name, then the runner's id. */
+export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>): Case[] {
+  // Ordered before they are numbered, so the index reads the same whichever
+  // worker finished first and whichever order the frames landed on disk.
+  return [...cases].sort((left, right) =>
+    codeUnitOrder(left.file, right.file) ||
+    codeUnitOrder(left.name, right.name) ||
+    codeUnitOrder(left.id, right.id),
+  );
+}
+
+/**
+ * The id the case index gives each of a run's cases, by {@link caseKey}.
+ *
+ * A name is the coordinate, so the identity is the name and not the runner's
+ * positional id — which moves when a case is inserted above it. Two cases in
+ * one file may share a name; the repeat is numbered, in {@link inCaseOrder}, so
+ * the second is `name#1` rather than indistinguishable. Every writer of an
+ * index, and everything that joins a case by its id, numbers through here.
+ */
+export function caseIds(cases: Iterable<CaseCoordinate>): ReadonlyMap<string, string> {
+  const seen = new Map<string, number>();
+  const ids = new Map<string, string>();
+  for (const coordinate of inCaseOrder(cases)) {
+    const key = caseKey(coordinate);
+    if (ids.has(key)) continue;
+    const named = `${coordinate.file} > ${coordinate.name}`;
+    const repeat = seen.get(named) ?? 0;
+    seen.set(named, repeat + 1);
+    ids.set(key, repeat === 0 ? named : `${named}#${repeat}`);
+  }
+  return ids;
 }
 
 /**
@@ -229,37 +283,25 @@ export function executionIndexFrom(
       modules: [...first.modules, ...journal.modules],
       ...settledAcross(first.stopped, journal.stopped),
       ...timedAcross(first.duration, journal.duration),
+      ...heardOf(heardAcross(first.said, journal.said)),
     });
   }
   const cases = [...byCase.values()];
 
-  // Ordered before they are numbered, so the index reads the same whichever
-  // worker finished first and whichever order the frames landed on disk.
-  const ordered = [...cases].sort((left, right) =>
-    codeUnitOrder(left.file, right.file) ||
-    codeUnitOrder(left.name, right.name) ||
-    codeUnitOrder(left.id, right.id),
-  );
-
-  // A name is the coordinate, so the identity is the name and not the runner's
-  // positional id — which moves when a case is inserted above it. Two cases in
-  // one file may share a name; the repeat is numbered, in the order above, so
-  // the second is `name#1` rather than indistinguishable.
-  const seen = new Map<string, number>();
+  const ordered = inCaseOrder(cases);
+  const ids = caseIds(ordered);
   const tests: ExecutionTest[] = ordered.map((journal) => {
-    const coordinate = `${journal.file} > ${journal.name}`;
-    const repeat = seen.get(coordinate) ?? 0;
-    seen.set(coordinate, repeat + 1);
     // One owner or the other: a driver that carries the time on the case has no
     // end-of-run report to join, and a runner that reports at the end writes
     // frames that carry none.
     const duration = durations(journal.file, journal.name, journal.id) ?? journal.duration;
     return {
-      id: repeat === 0 ? coordinate : `${coordinate}#${repeat}`,
+      id: ids.get(caseKey(journal))!,
       file: journal.file,
       name: journal.name,
       ...(journal.stopped === undefined ? {} : { stopped: journal.stopped }),
       ...(duration === undefined ? {} : { duration }),
+      ...(journal.said === undefined ? {} : { preconditions: preconditions.resolve(journal.said) }),
     };
   });
 
@@ -375,13 +417,17 @@ export async function readCaseJournals(
   const journals: CaseJournal[] = [];
   for (const name of names) {
     for (const frame of unpackFrames(await readFile(resolve(directory, name)))) {
+      // An Eyes journal rides the same file; it is the fold's, not a case frame.
+      if (eyesFrames.decodeEyesFrame(frame) !== undefined) continue;
       const read = journalFormat.decodeJournal(frame);
       const { file, name: caseName, id, stopped } = unpackCase(read.testFile);
+      const said = preconditions.saidOf(read.testFile);
       journals.push({
         file: projectPath(root, file),
         name: caseName,
         id,
         ...(stopped === undefined ? {} : { stopped }),
+        ...(said === undefined ? {} : { said: checkoutSaid(root, said) }),
         modules: read.modules,
       });
     }

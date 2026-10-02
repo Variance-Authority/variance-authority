@@ -11,6 +11,7 @@
 
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { AMBIENT, type CaseJournal } from './cases.js';
+import type { ObservedEyes } from './eyes-record.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ExecutionJournal } from './probes.js';
@@ -74,7 +75,18 @@ export interface ObservedCase {
   readonly stopped?: boolean;
   /** {@link ExecutionTest.duration}: the runner's milliseconds, summed over the attempts this source saw. */
   readonly duration?: number;
+  /**
+   * What the case said it arranged, as {@link CaseJournal.said}: sites named
+   * from the checkout, absent where the driver never listened.
+   */
+  readonly said?: CaseJournal['said'];
   readonly journal: ExecutionJournal;
+  /**
+   * The Eyes journals the case handed over, one per attempt this source saw.
+   * Absent when the case composed no Eyes, which is not the same as a journal
+   * that recorded nothing.
+   */
+  readonly eyes?: readonly ObservedEyes[];
 }
 
 /**
@@ -194,6 +206,7 @@ export function caseJournals(cases: readonly ObservedCase[]): readonly CaseJourn
       id: observed.id,
       ...(observed.stopped === undefined ? {} : { stopped: observed.stopped }),
       ...(observed.duration === undefined ? {} : { duration: observed.duration }),
+      ...(observed.said === undefined ? {} : { said: observed.said }),
       modules: observed.journal.modules,
     })),
     ...files.map((file) => ({ file, name: AMBIENT, id: AMBIENT, modules: shared })),

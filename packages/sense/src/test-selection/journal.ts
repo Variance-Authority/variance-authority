@@ -46,6 +46,7 @@ import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { executionIndexFrom } from './cases.js';
+import { eyesOfCases } from './eyes-record.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import {
   caseJournals,
@@ -98,6 +99,8 @@ export type { InstrumentMode };
 // joined: both are the journal seam's surface, and neither is this file's
 // subject, which is the one call that turns a journal into the index.
 export { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
+export type { ObservedEyes } from './eyes-record.js';
+export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
 export {
   STAGE_VARIABLE,
   closeStage,
@@ -393,12 +396,14 @@ export async function recordExecution(
   // suite's cases stay. A Storybook row is a story, not a file, so its cases are
   // laid over by id and never replaced by file.
   const observed = options.cases ?? [];
+  const eyes = eyesOfCases(observed);
   const cases =
     observed.length === 0
       ? undefined
       : {
           fresh: encodeAsSetExecutionIndex(executionIndexFrom(caseJournals(observed), byId)),
           run: { tests, ...(commit === undefined ? {} : { commit }) },
+          ...(eyes === undefined ? {} : { eyes }),
         };
   const merged = await withIndexLock(coverageFile, async () => {
     await landRun(coverageFile, current, root, options.cacheRoot, cases);

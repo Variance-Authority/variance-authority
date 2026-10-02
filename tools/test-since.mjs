@@ -9,11 +9,13 @@ import {
   groupByDistance,
   readCommitRuns,
   readTestCoverage,
+  RecordWithoutCoverage,
   remaining,
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
 import { readChange, suiteFiles } from './since-change.mjs';
 import { importGraph } from './since-graph.mjs';
+import { MATRIX_FLAGS, matrixOf, runnerOf } from './since-shard.mjs';
 import { costLine, describeRange, distanceLines, explain, findingLines, helpLines, readingLines, recordLine, runningLines } from './since-report.mjs';
 
 /**
@@ -170,27 +172,110 @@ async function main() {
   // distance, and answering it with the whole run would answer a different
   // question.
   const asked = distanceAt < 0 ? undefined : (argv[distanceAt + 1] ?? '');
-  const ref = argv.find((argument, at) => !argument.startsWith('-') && at !== distanceAt + 1);
+  const valued = ['--at-distance', ...MATRIX_FLAGS].flatMap((flag) => {
+    const at = argv.indexOf(flag);
+    return at < 0 ? [] : [at + 1];
+  });
+  const ref = argv.find((argument, at) => !argument.startsWith('-') && !valued.includes(at));
+  const matrix = matrixOf(argv);
+  if (matrix.refused !== undefined) {
+    say(`test:since: ${matrix.refused}.`);
+    return 1;
+  }
+  const { only, shard, into, whole } = matrix;
 
   // Each slice is read from its own record and run under its own config, in
   // the order `yarn test` runs them, and the first red slice ends the run: a
   // unit failure is the cheaper one to read, and the slices after it would
   // spend minutes saying less.
-  const slices = slicesOf(ROOT);
+  const slices = slicesOf(ROOT).filter((slice) => only === undefined || slice.suite === only);
+  if (slices.length === 0) {
+    say(`test:since: no slice is named \`${only}\`; \`variance.config.json\` declares ${slicesOf(ROOT).map((slice) => slice.suite).join(', ')}.`);
+    return 1;
+  }
   for (const [at, slice] of slices.entries()) {
     if (at > 0) say('');
     if (slices.length > 1) say(`test:since: the ${slice.suite} slice, from ${slice.config}.`);
-    const status = await sinceSlice(slice, { dryRun, asked, ref });
+    const status = await sinceSlice(slice, { dryRun, asked, ref, shard, into, whole });
     if (status !== 0) return status;
   }
   return 0;
 }
 
+/**
+ * What the snapshot at `snapshotFile` lets this run narrow on: its coverage, the
+ * whole slice and why, or a refusal and its status.
+ *
+ * The reader throws on purpose: a caller about to *exclude* tests must not be
+ * handed an empty answer where an unreadable file would read as nothing
+ * recorded. So the absences are answered apart. No file is the one
+ * {@link sinceSlice} answers before asking — ordinary, and the operator's next
+ * move is to run the suite once. Nothing whole is the widen at the bottom — the
+ * snapshot read, and had nothing to say about any file this suite collects. A
+ * record whose run instrumented nothing holds that run's cases and no
+ * coverage: it is unmeasured, not a record of tests that reach nothing, so it
+ * is no opinion, the slice runs whole, and the run that follows lays its
+ * coverage under those cases. The last is neither: the bytes are there and this
+ * build does not know the format, which happens across a format version and is
+ * fixed by recording again rather than by reading further.
+ *
+ * The path is worth printing in full. The snapshot lives outside the
+ * repository, under a directory keyed by this checkout's absolute path:
+ * `git clean` does not reach it, and two checkouts of the same repository do
+ * not share one.
+ *
+ * The refusal says only to record again. A recording run layers onto whatever
+ * it finds and treats bytes it cannot decode as nothing to layer onto, so it
+ * replaces this file rather than failing on it and there is nothing to delete
+ * first. Nothing is narrowed on a file this cannot read: a run that ignored it
+ * would look exactly like a run with nothing recorded.
+ */
+export async function snapshotReading(snapshotFile) {
+  try {
+    return { coverage: await readTestCoverage(snapshotFile) };
+  } catch (error) {
+    if (error instanceof RecordWithoutCoverage) {
+      return {
+        whole: [
+          'test:since: the execution snapshot holds cases and no coverage, so the whole slice runs, and records itself.',
+          `  at ${snapshotFile}`,
+          '  The run that wrote it instrumented nothing, so it says nothing about which tests a change reaches.',
+        ],
+      };
+    }
+    if (error?.code === 'ENOENT') {
+      return {
+        status: 1,
+        lines: [
+          'test:since: the execution snapshot went away while this was reading it.',
+          `  looked in ${snapshotFile}`,
+          '  Run `yarn test` once and ask again.',
+        ],
+      };
+    }
+    return {
+      status: 1,
+      lines: [
+        `test:since: the execution snapshot is not one this build can read: ${error?.message ?? error}.`,
+        `  at ${snapshotFile}`,
+        '  Run `yarn test` once to replace it.',
+      ],
+    };
+  }
+}
+
 /** One slice's reading and run. */
-async function sinceSlice({ suite: name, config }, { dryRun, asked, ref }) {
-  const vitest = (...files) => spawnSync('yarn', ['vitest', 'run', '--config', config, ...files], { cwd: ROOT, stdio: 'inherit' }).status ?? 1;
+async function sinceSlice({ suite: name, config }, { dryRun, asked, ref, shard, into, whole }) {
+  let durations = new Map();
+  const vitest = runnerOf({ root: ROOT, config, shard, into, say, durations: () => durations });
   const base = await recordToRead(ROOT, { suite: name });
   const snapshotFile = base.file;
+  if (whole) {
+    const read = existsSync(snapshotFile) ? await snapshotReading(snapshotFile) : {};
+    durations = new Map((read.coverage?.tests ?? []).flatMap((test) => (test.duration === undefined ? [] : [[test.file, test.duration]])));
+    say('test:since: `--whole` skips the reading, so the whole slice runs.');
+    return dryRun ? 0 : vitest();
+  }
   if (base.from === 'none' || !existsSync(snapshotFile)) {
     // No record is no opinion, so the slice runs whole, and the run is what
     // records it. A slice no record is carried for reads this way in CI.
@@ -202,54 +287,23 @@ async function sinceSlice({ suite: name, config }, { dryRun, asked, ref }) {
     return dryRun ? 0 : vitest();
   }
 
-  /**
-   * A snapshot this build cannot decode, which is neither of the other two absences.
-   *
-   * The reader throws on purpose: a caller about to *exclude* tests must not be
-   * handed an empty answer where an unreadable file would read as nothing
-   * recorded. So the three cases are answered apart. No file is the one above —
-   * ordinary, and the operator's next move is to run the suite once. Nothing
-   * whole is the widen at the bottom — the snapshot read, and had nothing to say
-   * about any file this suite collects. This one is neither: the bytes are there
-   * and this build does not know the format, which happens across a format
-   * version and is fixed by recording again rather than by reading further.
-   *
-   * The path is worth printing in full. The snapshot lives outside the
-   * repository, under a directory keyed by this checkout's absolute path:
-   * `git clean` does not reach it, and two checkouts of the same repository do
-   * not share one.
-   *
-   * The message says only to record again. A recording run layers onto
-   * whatever it finds and treats bytes it cannot decode as nothing to layer
-   * onto, so it replaces this file rather than failing on it and there is
-   * nothing to delete first. Nothing is narrowed on a file this cannot read: a
-   * run that ignored it would look exactly like a run with nothing recorded.
-   */
-  let coverage;
-  try {
-    coverage = await readTestCoverage(snapshotFile);
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      say(
-        'test:since: the execution snapshot went away while this was reading it.',
-        `  looked in ${snapshotFile}`,
-        '  Run `yarn test` once and ask again.',
-      );
-      return 1;
-    }
-    say(
-      `test:since: the execution snapshot is not one this build can read: ${error?.message ?? error}.`,
-      `  at ${snapshotFile}`,
-      '  Run `yarn test` once to replace it.',
-    );
-    return 1;
+  const snapshot = await snapshotReading(snapshotFile);
+  if (snapshot.whole !== undefined) {
+    say(...snapshot.whole);
+    return dryRun ? 0 : vitest();
   }
+  if (snapshot.coverage === undefined) {
+    say(...snapshot.lines);
+    return snapshot.status;
+  }
+  const { coverage } = snapshot;
 
   // What the runner reported each file cost when it was recorded; a file it did
   // not time is absent here, and the cost line counts it apart.
   const recorded = new Map(
     coverage.tests.flatMap((test) => (test.duration === undefined ? [] : [[test.file, test.duration]])),
   );
+  durations = recorded;
 
   if (ref === undefined && coverage.commit === undefined) {
     say(

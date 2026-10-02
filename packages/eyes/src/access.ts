@@ -137,12 +137,22 @@ export interface EyesLog {
 interface EyesTestBase {
   /** Stable producer identity. Titles are not required to be unique. */
   readonly id: string;
-  /** Which run of `id` this is, counted from 0. Absent for a runner that does not retry. */
+  /** Which run of `id` this is, counted from 1. Absent for a runner that does not retry. */
   readonly attempt?: number;
   readonly title: string;
   readonly file?: string;
   readonly attention: readonly Attention[];
 }
+
+/**
+ * One test's attention, closed, with nothing naming the test.
+ *
+ * What a recording run keeps for a case: the record already names the case and
+ * the attempt, so the journal carries neither, and joins by where it is kept.
+ */
+export type EyesJournal =
+  | { readonly complete: true; readonly attention: readonly Attention[] }
+  | { readonly complete: false; readonly because: string; readonly attention: readonly Attention[] };
 
 /** One runner-identified test journal with explicit collection completeness. */
 export type EyesTestAttention =
@@ -152,6 +162,12 @@ export type EyesTestAttention =
 /** Serializable, test-scoped attention evidence for readers in another process. */
 export interface EyesArchive {
   readonly eyesVersion: 1;
+  /**
+   * The ids of the tests whose run opened a journal, handed one over or not.
+   * Absent when the producer did not say, and then every test is read as
+   * watched.
+   */
+  readonly watched?: readonly string[];
   readonly tests: readonly EyesTestAttention[];
 }
 
@@ -180,15 +196,23 @@ export function createEyesLog(): EyesLog {
   };
 }
 
-/** Copy complete or explicitly partial test journals into one portable value. */
-export function createEyesArchive(tests: readonly EyesTestAttention[]): EyesArchive {
+/**
+ * Copy complete or explicitly partial test journals into one portable value,
+ * with the ids of the tests whose run opened a journal when the producer knows
+ * them.
+ */
+export function createEyesArchive(tests: readonly EyesTestAttention[], watched?: readonly string[]): EyesArchive {
   const ids = new Set<string>();
   const copied = tests.map((test) => {
     if (test.id === '' || test.title === '') throw new Error('eyes test id and title are required');
     // A retry is a second journal under the same id, and a different one: the
-    // attempt is part of the identity, so neither overwrites the other.
-    const identity = eyesJournalName(test);
-    if (ids.has(identity)) throw new Error(`duplicate eyes test id: ${identity}`);
+    // attempt is the second half of the identity, so neither overwrites the other.
+    const identity = `${test.id}\u0000${test.attempt ?? ''}`;
+    if (ids.has(identity)) {
+      throw new Error(
+        `duplicate eyes test id: ${test.id}${test.attempt === undefined ? '' : `, attempt ${test.attempt}`}`,
+      );
+    }
     ids.add(identity);
     if (!test.complete && test.because.trim() === '') {
       throw new Error(`partial eyes test ${test.id} requires a reason`);
@@ -203,19 +227,14 @@ export function createEyesArchive(tests: readonly EyesTestAttention[]): EyesArch
       attention: test.attention.map((entry) => ({ ...entry })),
     };
   });
-  return { eyesVersion: 1, tests: copied };
-}
-
-/** One journal's identity: the test id, and the attempt when there is one. */
-export function eyesJournalName(test: { readonly id: string; readonly attempt?: number }): string {
-  return test.attempt === undefined ? test.id : `${test.id} #${test.attempt}`;
+  return { eyesVersion: 1, ...(watched === undefined ? {} : { watched: [...watched] }), tests: copied };
 }
 
 /** How a runner names the test whose journal this is. */
 export interface EyesTestIdentity {
   /** Stable producer identity. Titles are not required to be unique. */
   readonly id: string;
-  /** Which run of `id` this is, counted from 0, for a runner that retries. */
+  /** Which run of `id` this is, counted from 1, for a runner that retries. */
   readonly attempt?: number;
   readonly title: string;
   readonly file?: string;
@@ -241,16 +260,21 @@ export function eyesTestAttention(
   attention: readonly Attention[],
   because?: string,
 ): EyesTestAttention {
-  const base = {
+  return {
     id: identity.id,
     ...(identity.attempt === undefined ? {} : { attempt: identity.attempt }),
     title: identity.title,
     ...(identity.file === undefined ? {} : { file: identity.file }),
-    attention: attention.map((entry) => ({ ...entry })) as readonly Attention[],
+    ...eyesJournal(attention, because),
   };
+}
+
+/** {@link eyesTestAttention} for a journal the record names, so it carries no identity. */
+export function eyesJournal(attention: readonly Attention[], because?: string): EyesJournal {
+  const copied = attention.map((entry) => ({ ...entry })) as readonly Attention[];
   const reason = because ?? dropped(attention);
-  if (reason === undefined) return { ...base, complete: true };
-  return { ...base, complete: false, because: reason };
+  if (reason === undefined) return { complete: true, attention: copied };
+  return { complete: false, because: reason, attention: copied };
 }
 
 /** How many entries this log recorded that are not in the journal handed over. */
