@@ -167,19 +167,19 @@ describe('variance restrictions over declared roles', () => {
     ]);
   });
 
-  it('holds a component a story or an example is collocated with to its role, and passes what the catalog only imports', async () => {
+  it('holds what a story or an example imports from its own directory to its role, whatever the names, and passes what it imports from elsewhere', async () => {
     checkout({
       'lib/src/index.ts': 'export const run = () => 1;\n',
-      'lib/src/Button.tsx': "import { makeFixture } from './fixture';\nexport const Button = () => makeFixture();\n",
-      'lib/src/Button.stories.tsx': "import { Button } from './Button';\nimport { decorate } from './decorate';\nexport default { component: Button, decorators: [decorate] };\n",
-      'lib/src/decorate.ts': "import { makeFixture } from './fixture';\nexport const decorate = () => makeFixture();\n",
+      'lib/src/checkout/PayButton.tsx': "import { makeFixture } from '../fixture';\nexport const PayButton = () => makeFixture();\n",
+      'lib/src/checkout/Checkout.stories.tsx': "import { PayButton } from './PayButton';\nimport { decorate } from '../../storybook/decorate';\nexport default { component: PayButton, decorators: [decorate] };\n",
+      'lib/storybook/decorate.ts': "import { makeFixture } from '../src/fixture';\nexport const decorate = () => makeFixture();\n",
       'lib/src/Card.tsx': '/** @production */\nexport const Card = () => 1;\n',
-      'lib/src/Card.examples.tsx': "import { Card } from './Card';\nexport const plain = Card;\n",
+      'lib/src/gallery.examples.tsx': "import { Card } from './Card';\nexport const plain = Card;\n",
     });
     await run(['index']);
 
     expect((await run(['restrictions'])).out).toBe([
-      'lib/src/Button.tsx:1 ships makeFixture, declared @testOnly at lib/src/fixture.ts:5',
+      'lib/src/checkout/PayButton.tsx:1 ships makeFixture, declared @testOnly at lib/src/fixture.ts:5',
       '1 declared role contradicted. No .relations.json is tracked in this checkout, so nothing is restricted.',
       '',
     ].join('\n'));
