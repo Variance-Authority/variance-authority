@@ -342,7 +342,7 @@ Covered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/top-nav.tsx
 ```
 
-The command options are `test`, `eyes`, `execution`, and `format`; their flag
+The command options are `test`, `execution`, `root`, and `format`; their flag
 forms are shown in the synopsis above.
 
 `--format json` returns the same ordered analysis as data. The command always

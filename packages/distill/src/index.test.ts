@@ -292,6 +292,26 @@ describe('a named import nothing ever calls', () => {
     expect(text).toContain('Mocking removes the top level too');
   });
 
+  it('proposes nothing for a module whose top level is all it declares', () => {
+    // Constants and a barrel of re-exports: the import ran every line the file
+    // has, so there is no declaration below the top level the test left alone.
+    const execution: ExecutionIndex = {
+      tests: [{ id: 'reads', file: 'test/reads.case.ts', name: 'reads the limits' }],
+      modules: [
+        { file: 'src/limits.ts', blocks: [region('module', '', 1, 3, [{ test: 0, distance: 0 }])] },
+        { file: 'src/index.ts', blocks: [region('module', '', 1, 2, [{ test: 0, distance: 0 }])] },
+      ],
+    };
+    const result = distill({ test: 'reads', execution });
+    expect(result.execution?.modules).toMatchObject([
+      { file: 'src/index.ts', loadedOnly: false, entered: [], unentered: [] },
+      { file: 'src/limits.ts', loadedOnly: false, entered: [], unentered: [] },
+    ]);
+    const text = formatDistillation(result);
+    expect(text).toContain('Loaded but not covered: 0 module(s).');
+    expect(text).not.toContain('substitution to try');
+  });
+
   it('marks a region a producer says the module evaluated, not only the root', () => {
     // A top-level call enters a function without any test calling it. Only a
     // producer that watched the evaluation can say so, and one that can is

@@ -1,8 +1,8 @@
 # Pre-verify
 
-Phase 4 of [`AGENTS.md`](../../AGENTS.md). Run what the change reached, near end
-first, then the gate — in a checkout you have reconciled, so a failure means the
-change.
+Phase 4 of [`AGENTS.md`](../../AGENTS.md). Run what the change reached in
+waves, near end first, and leave the gate to CI — in a checkout you have
+reconciled, so a failure means the change.
 
 ## Look around
 
@@ -27,7 +27,7 @@ existed. A stale `node_modules` does the same one layer down — *Invalid hook c
 not one. Both are worst in a fresh worktree, which starts with neither:
 
 ```bash
-yarn install && yarn build && yarn verify
+yarn install && yarn build
 ```
 
 **Is every new file tracked?** The checks read the index with `git ls-files`. A
@@ -47,16 +47,50 @@ average above the core count means the run is contended. A browser
 suite under contention fails in teardown, and the failure moves between runs —
 the exact signature this project exists to tell apart from a real one.
 
-## The loop
+## The waves
+
+Verification runs in waves, nearest and cheapest first, and each wave starts
+only when the one before it is green:
 
 ```bash
-yarn test:since --at-distance 0-2   # while the edit is still open
-yarn test:since --at-distance 2-4   # before handing the change over
-yarn build && yarn verify           # the gate, and the only green that counts
+yarn verify:near    # 1. lint, tsc --build, test:since --at-distance 0-2
+yarn verify:rules   # 2. yarn check, once near is green
+yarn verify:far     # 3. test:since --at-distance 3-, once, before the PR
 ```
 
-`verify` is `yarn lint && yarn check && yarn measure && yarn test`, in that
-order. `check` is the `tools/*.check.ts` suite, which includes the documentation
+The order is the order failures arrive in. Lint and an incremental
+`tsc --build` take about a second each, and a test within two imports of the
+edit fails first and for the simplest reason, so the near wave answers in
+seconds and is the only wave the edit loop repeats. It type-checks with
+`tsc --build`, not `yarn typecheck`, whose `--force` rebuilds every project.
+The repository checks are minutes and cannot be selected, so they run once the
+change has stopped moving. The far wave is the
+rest of the selection — `0-2` and `3-` partition it, so together they run every
+selected file exactly once — and it runs once, as the last thing before the
+pull request.
+
+**A red wave sends you back to the edit, then to wave 1**, not to the wave that
+failed: the fix is a new edit, and its nearest tests are wave 1's. **A green
+wave is not run again** on code that has not changed since. A run repeated to
+be sure is the time this loop exists to save.
+
+**A failure is reproduced on its own file**, `yarn vitest run --config <slice
+config> <file>`, never by re-running the wave. One file re-run under a quiet
+machine says whether it was the change; a wave re-run says it again slower.
+
+**A slice the reading runs whole is not a wave.** `yarn test:since --dry-run`
+first: when it prints `running the whole slice`, the near wave is the whole
+suite and `--at-distance` is never consulted. Run the test files you edited by
+path, wave 2, and push — CI runs the whole suite on its own runners.
+
+**The gate is CI's.** `verify` is `yarn lint && yarn check && yarn measure &&
+yarn test`, and the check workflow runs every part of it on the pull request:
+`rules` runs lint and wave 2, the build type-checks, `suite` runs the test legs
+of waves 1 and 3, `measure` times the product on a
+quiet machine. Running `yarn verify` locally repeats that at laptop speed. Run
+it, or `yarn measure`, only to reproduce a check that failed there.
+
+`check` is the `tools/*.check.ts` suite, which includes the documentation
 checks: every link resolves, every path named in prose exists, every `file:line`
 lands where it says, stated counts are the counts, and the CLI command lists
 match the binary's own table. `measure` runs the `*.measure.ts` files that gate
@@ -128,22 +162,19 @@ test:since: running the whole suite — the install could not be compared agains
 ```
 
 So a green `test:since` is a smaller claim than a green `verify`: use it in the
-loop, and report against the gate.
+waves, and report against CI's gate.
 
 **Distance.** Every selected test carries its distance from the change — the
 number of imports between them, counted through the modules that test actually
 entered. The near ones fail first and for the simplest reason. `0-2` is *no more
 than two imports away*, not *the first two groups*: a change whose nearest test
 is five hops out answers it with nothing, which is the true answer. Start at
-`0` — a test whose own source you just edited. The overlap at two hops is
-deliberate: it reconnects the wider run to the boundary the edit loop already
-exercised.
+`0` — a test whose own source you just edited.
 
-The loop is not a partition. `2-4` leaves anything five hops or further out, and
-every test the reading could not place, to `yarn verify`. For a partition, run
-`0-2` then `3-`: a leg open at the top carries the tests with no measurable
-distance, so the two legs run every selected file exactly once. Every run prints
-how many selected files its leg left behind, and the range that runs them.
+The near and far waves are a partition: `0-2` then `3-`. A leg open at the top
+carries the tests with no measurable distance, so the two legs run every
+selected file exactly once. Every run prints how many selected files its leg
+left behind, and the range that runs them.
 
 `--at-distance` narrows a reading; it cannot narrow a widening. When the reading
 could not be made, the run is the whole suite and the flag is never consulted,

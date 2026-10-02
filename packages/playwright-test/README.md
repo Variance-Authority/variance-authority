@@ -549,7 +549,8 @@ a snapshot names the recipe its ordinals were cut by, and a merge discards a
 layer cut by another one, so a build probing under `entries` and a reporter
 folding under `presence` would each wipe the other every run.
 
-Every run writes the execution index beside the coverage index. The index
+Every run writes the execution index into the coverage index, as a section of
+the same file, so both travel together. The index
 answers *which tests walk this branch* — the question `variance covering` and
 `@variance-authority/distill` are asked — and it is a row per test per region.
 Selection does not read it: a spec file is the smallest thing
