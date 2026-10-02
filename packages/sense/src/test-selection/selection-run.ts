@@ -130,12 +130,10 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
  *
  * The directories are the ones the workers were handed when the shims were
  * written. The last fold removed them, and each worker recreates the one it
- * writes to, so a rerun's journals are its own. The readings are the rerun's
- * own too: one a run before it made can be of a text the disk no longer holds.
+ * writes to, so a rerun's journals are its own.
  */
 export function reopenRun(run: SelectionRun): void {
   run.settled = false;
-  run.readings.clear();
 }
 
 /** The run a half that was handed only the snapshot's path is taking part in. */

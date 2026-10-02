@@ -372,9 +372,16 @@ export function recordedReading(
   reading: CapturedModule,
 ): CapturedModule {
   readings.set(host, reading);
-  // `readings` holds `reading` at least, so the first host is one it holds.
+  return heldReading(name, readings)!;
+}
+
+/**
+ * The reading {@link recordedReading} records of `name` from the readings it
+ * holds, or nothing once none is held.
+ */
+export function heldReading(name: string, readings: ReadonlyMap<string, CapturedModule>): CapturedModule | undefined {
   const [first] = [...readings.keys()].sort(codeUnitOrder);
-  return readings.get(name) ?? readings.get(first!)!;
+  return readings.get(name) ?? (first === undefined ? undefined : readings.get(first));
 }
 
 /** What one test file's run counted, per module, under the ids the modules reported. */
