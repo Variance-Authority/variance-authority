@@ -86,6 +86,23 @@ describe('variance restrictions over declared roles', () => {
     ].join('\n'));
   });
 
+  it('follows a test-only name re-exported under a new name, and passes the file that only re-exports it', async () => {
+    checkout({
+      'lib/src/renamed.ts': "export { makeFixture as madeHere } from './fixture';\n",
+      'lib/src/index.ts': "import { madeHere } from './renamed';\nexport const run = () => madeHere();\n",
+    });
+    await run(['index']);
+
+    const found = await run(['restrictions']);
+
+    expect(found.code).toBe(EXIT_REVIEW);
+    expect(found.out).toBe([
+      'lib/src/index.ts:1 ships madeHere, declared @testOnly at lib/src/fixture.ts:5',
+      '1 declared role contradicted. No .relations.json is tracked in this checkout, so nothing is restricted.',
+      '',
+    ].join('\n'));
+  });
+
   it('names a shipped file that re-exports test-only names under a namespace', async () => {
     checkout({ 'lib/src/index.ts': "export * as fixtures from './fixture';\nexport const run = () => 1;\n" });
     await run(['index']);
