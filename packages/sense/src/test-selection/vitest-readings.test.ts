@@ -1,0 +1,194 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { decodeTestCoverage } from './format.js';
+import { withTestSelection } from './vitest.js';
+import type { TestCoverage } from './index.js';
+import type { TransformingContext } from './probes.js';
+
+/**
+ * A monorepo's own tests load `src/cart.ts`, and another package's tests reach
+ * the same code through its manifest as `dist/cart.js`, whose map leads back to
+ * the source. Both are recorded under `src/cart.ts`, and the two readings cut
+ * different regions: the build is what `tsc` made of the text, not the text.
+ */
+const SOURCE = [
+  'export function total(items) {',
+  '  if (items.length === 0) {',
+  '    return 0;',
+  '  }',
+  '  return items.reduce((sum, item) => sum + item, 0);',
+  '}',
+  '',
+].join('\n');
+
+/** What a build emitted for {@link SOURCE}: the branch folded into an expression. */
+const BUILT = [
+  'export function total(items) {',
+  '  return items.length === 0 ? 0 : items.reduce(function (sum, item) { return sum + item; }, 0);',
+  '}',
+  '',
+].join('\n');
+
+/** What an older build emitted for {@link SOURCE}, into `lib/`: the branch kept, the callback a function. */
+const LEGACY = [
+  'export function total(items) {',
+  '  if (items.length === 0) return 0;',
+  '  return items.reduce(function (sum, item) { return sum + item; }, 0);',
+  '}',
+  '',
+].join('\n');
+
+/** {@link SOURCE} once a comment was written above it, between two runs of a watching runner. */
+const EDITED = `// What a cart holds.\n${SOURCE}`;
+
+/** Another module of the package, whose tests load it and not the cart. */
+const RATE = 'export const rate = 0.2;\n';
+
+type Transform = (this: TransformingContext | undefined, code: string, id: string) => unknown;
+
+type Reading = 'source' | 'build' | 'legacy' | 'rate';
+
+/**
+ * What one run records of the readings `order` names, or, with `rerun`, what
+ * the run records when it reruns and the rerun transformed only what `rerun`
+ * names, after what `changed` names changed on disk: {@link EDITED} replaced
+ * the source, or a watching build wrote `dist/cart.js` again.
+ */
+async function recorded(
+  order: readonly Reading[],
+  projects: 1 | 2 = 1,
+  rerun?: readonly Reading[],
+  changed: 'source' | 'build' | 'nothing' = 'source',
+): Promise<TestCoverage['modules']> {
+  const root = await mkdtemp(resolve(tmpdir(), 'variance-two-readings-'));
+  const coverageFile = resolve(root, 'coverage.bin');
+  try {
+    await mkdir(resolve(root, 'src'), { recursive: true });
+    await mkdir(resolve(root, 'dist'), { recursive: true });
+    await writeFile(resolve(root, 'src/cart.ts'), SOURCE, 'utf8');
+    await mkdir(resolve(root, 'lib'), { recursive: true });
+    await writeFile(resolve(root, 'dist/cart.js'), BUILT, 'utf8');
+    await writeFile(resolve(root, 'lib/cart.js'), LEGACY, 'utf8');
+    await writeFile(resolve(root, 'src/rate.ts'), RATE, 'utf8');
+    const configured = withTestSelection({}, { root, coverageFile, include: () => true });
+    const plugin = (configured.plugins as unknown as Array<{
+      transform: Transform;
+      watchChange(id: string): void;
+    }>)[0]!;
+    // A `projects` layout wraps each project's config, and each brings a plugin of its own.
+    const other = projects === 1
+      ? plugin
+      : (withTestSelection({}, { root, coverageFile, include: () => true }).plugins as unknown as Array<{
+          transform: Transform;
+        }>)[0]!;
+    const reporter = (configured.test!.reporters as unknown as Array<{
+      onFinished(files: readonly []): Promise<void>;
+      onWatcherRerun(): void;
+    }>)[1]!;
+    // A build of the edited source maps its first line one line further down.
+    let first = 'AAAA';
+    // `tsc`'s map: one source, the file the build was made from, line for line.
+    const built: TransformingContext = {
+      getCombinedSourcemap: () => ({
+        version: 3,
+        sources: ['../src/cart.ts'],
+        names: [],
+        mappings: `${first};AACA;AACA`,
+      }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
+    };
+    const legacy: TransformingContext = {
+      getCombinedSourcemap: () => ({
+        version: 3,
+        sources: ['../src/cart.ts'],
+        names: [],
+        mappings: `${first};AACA;AAGA;AACA`,
+      }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
+    };
+    const transform = (readings: readonly Reading[], source: string): void => {
+      for (const reading of readings) {
+        if (reading === 'source') plugin.transform.call(undefined, source, resolve(root, 'src/cart.ts'));
+        else if (reading === 'build') other.transform.call(built, BUILT, resolve(root, 'dist/cart.js'));
+        else if (reading === 'legacy') other.transform.call(legacy, LEGACY, resolve(root, 'lib/cart.js'));
+        else plugin.transform.call(undefined, RATE, resolve(root, 'src/rate.ts'));
+      }
+    };
+    transform(order, SOURCE);
+    await reporter.onFinished([]);
+    if (rerun !== undefined) {
+      // What Vite's watcher tells every plugin once a file changed on disk.
+      if (changed === 'source') {
+        await writeFile(resolve(root, 'src/cart.ts'), EDITED, 'utf8');
+        first = 'AACA';
+        plugin.watchChange(resolve(root, 'src/cart.ts'));
+      } else if (changed === 'build') {
+        await writeFile(resolve(root, 'dist/cart.js'), BUILT, 'utf8');
+        plugin.watchChange(resolve(root, 'dist/cart.js'));
+      }
+      reporter.onWatcherRerun();
+      transform(rerun, changed === 'source' ? EDITED : SOURCE);
+      await reporter.onFinished([]);
+    }
+    return decodeTestCoverage(await readFile(coverageFile)).modules;
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+describe('a module two transforms both name', () => {
+  it('is recorded the same whichever reading the runner transformed last', async () => {
+    const sourceFirst = await recorded(['source', 'build']);
+    const buildFirst = await recorded(['build', 'source']);
+
+    expect(sourceFirst.map((module) => module.file)).toEqual(['src/cart.ts']);
+    expect(buildFirst).toEqual(sourceFirst);
+  });
+
+  it('is recorded as its source reading, which a run without the build also records', async () => {
+    const alone = await recorded(['source']);
+
+    expect(await recorded(['source', 'build'])).toEqual(alone);
+    expect(await recorded(['build', 'source'])).toEqual(alone);
+  });
+
+  it('is recorded the same when each reading came through another project\'s plugin', async () => {
+    expect(await recorded(['build', 'source'], 2)).toEqual(await recorded(['source']));
+    expect(await recorded(['source', 'build'], 2)).toEqual(await recorded(['source']));
+  });
+
+  it('is recorded as the build whose file sorts first when the run loaded no source', async () => {
+    const dist = await recorded(['build']);
+
+    expect(await recorded(['legacy'])).not.toEqual(dist);
+    expect(await recorded(['legacy', 'build'])).toEqual(dist);
+    expect(await recorded(['build', 'legacy'])).toEqual(dist);
+  });
+
+  it('is recorded from the readings a rerun made of the text on disk, not one a run before it made', async () => {
+    const rebuilt = await recorded([], 1, ['build']);
+
+    expect(rebuilt[0]!.blocks.find((block) => block.name === 'total')!.startLine).toBe(2);
+    expect(await recorded(['source', 'build'], 1, ['build'])).toEqual(rebuilt);
+  });
+
+  it('is recorded as its source reading when a rerun transformed only the build and the source did not change', async () => {
+    expect(await recorded(['source', 'build'], 1, ['build'], 'nothing')).toEqual(await recorded(['source']));
+  });
+
+  it('is carried from the text on disk by a rerun that loaded no reading of it once its source changed', async () => {
+    const carried = (await recorded(['source'], 1, ['rate'])).find((module) => module.file === 'src/cart.ts');
+
+    expect(carried!.blocks.find((block) => block.name === 'total')!.startLine).toBe(2);
+  });
+
+  it('is carried from the text on disk, not a build of the text before it, once its source changed', async () => {
+    const carried = (await recorded(['source', 'build'], 1, ['rate'])).find((module) => module.file === 'src/cart.ts');
+
+    expect(carried!.blocks.find((block) => block.name === 'total')!.startLine).toBe(2);
+  });
+
+  it('is recorded without the reading of a build written again that the rerun did not load', async () => {
+    expect(await recorded(['build', 'legacy'], 1, ['legacy'], 'build')).toEqual(await recorded(['legacy']));
+  });
+});
