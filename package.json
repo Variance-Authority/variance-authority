@@ -34,8 +34,8 @@
     "typecheck": "tsc --build --force",
     "verify": "yarn lint && yarn check && yarn measure && yarn test",
     "verify:far": "yarn test:since --at-distance 3-",
-    "verify:near": "yarn test:since --at-distance 0-2",
-    "verify:rules": "yarn lint && yarn check"
+    "verify:near": "yarn lint && tsc --build && yarn test:since --at-distance 0-2",
+    "verify:rules": "yarn check"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.1",

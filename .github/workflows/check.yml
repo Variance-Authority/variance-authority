@@ -308,8 +308,10 @@ jobs:
       # counts every file, and a file that did not run keeps the rows the
       # mainline recorded for it.
       #
-      # It runs in two waves, the same two a developer runs: the tests within two
-      # imports of the change, then the rest. The near wave fails first and for
+      # It runs in two waves, the test legs of the two a developer runs: the
+      # tests within two imports of the change, then the rest. Lint and the
+      # types, which `verify:near` runs first on a laptop, are the `rules` job
+      # and the build here. The near wave fails first and for
       # the simplest reason, and a red one ends the step before the far wave
       # spends minutes saying less. The waves partition the selection, so no
       # file runs twice: a slice the near wave ran whole stamps its record with
@@ -326,7 +328,7 @@ jobs:
           SELECT: ${{ github.event_name == 'pull_request' && steps.base.outputs.based == 'true' }}
         run: |
           if [ "$SELECT" = true ]; then
-            yarn verify:near
+            yarn test:since --at-distance 0-2
             yarn verify:far
           else
             yarn test

@@ -53,15 +53,18 @@ Verification runs in waves, nearest and cheapest first, and each wave starts
 only when the one before it is green:
 
 ```bash
-yarn verify:near    # 1. test:since --at-distance 0-2, while the edit is open
-yarn verify:rules   # 2. yarn lint && yarn check, once near is green
+yarn verify:near    # 1. lint, tsc --build, test:since --at-distance 0-2
+yarn verify:rules   # 2. yarn check, once near is green
 yarn verify:far     # 3. test:since --at-distance 3-, once, before the PR
 ```
 
-The order is the order failures arrive in. A test within two imports of the edit
-fails first and for the simplest reason, and it answers in seconds, so it is
-the only wave the edit loop repeats. The rules are minutes and cannot be
-selected, so they run once the change has stopped moving. The far wave is the
+The order is the order failures arrive in. Lint and an incremental
+`tsc --build` take about a second each, and a test within two imports of the
+edit fails first and for the simplest reason, so the near wave answers in
+seconds and is the only wave the edit loop repeats. It type-checks with
+`tsc --build`, not `yarn typecheck`, whose `--force` rebuilds every project.
+The repository checks are minutes and cannot be selected, so they run once the
+change has stopped moving. The far wave is the
 rest of the selection — `0-2` and `3-` partition it, so together they run every
 selected file exactly once — and it runs once, as the last thing before the
 pull request.
@@ -82,7 +85,8 @@ path, wave 2, and push — CI runs the whole suite on its own runners.
 
 **The gate is CI's.** `verify` is `yarn lint && yarn check && yarn measure &&
 yarn test`, and the check workflow runs every part of it on the pull request:
-`rules` is wave 2, `suite` runs waves 1 and 3, `measure` times the product on a
+`rules` runs lint and wave 2, the build type-checks, `suite` runs the test legs
+of waves 1 and 3, `measure` times the product on a
 quiet machine. Running `yarn verify` locally repeats that at laptop speed. Run
 it, or `yarn measure`, only to reproduce a check that failed there.
 
