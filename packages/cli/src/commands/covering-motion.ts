@@ -182,9 +182,14 @@ async function againstBefore(
     return { base };
   }
   if (files !== undefined) held = keepFiles(held, files);
-  const now = keepCases(full, new Set(cases));
+  const asked = new Set(cases);
+  const now = keepCases(full, asked);
+  // The cases left out of the comparison, most of them retained from earlier
+  // runs, stand at both ends: a region one of them still calls into did not
+  // lose every case to the ones that ran.
+  const retained = keepCases(full, new Set(full.tests.filter((test) => !asked.has(test.id)).map((test) => test.id)));
   const exclude = new Set(parting?.files ?? []);
-  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude });
+  const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, retained });
   return { base, moved: file === undefined ? moved : within(moved, file) };
 }
 

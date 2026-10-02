@@ -28,9 +28,9 @@ export interface MovedRegion {
 /** One region whose cases moved, with the cases at each end. */
 export interface RegionMotion extends MovedRegion {
   readonly motion: RegionMotionKind;
-  /** The cases that called into it at the base, as the base records them. */
+  /** The cases that called into it at the base, as the base records them, and the retained cases that still do. */
   readonly before: readonly ExecutionTest[];
-  /** The cases that call into it now. */
+  /** The cases that call into it now, retained ones included. */
   readonly now: readonly ExecutionTest[];
   /**
    * On `hidden`: the stopped cases that could have reached it. Absent when the
@@ -74,6 +74,14 @@ export interface CaseMotionOptions {
   readonly relations?: Relations;
   /** Modules left out of the comparison, such as the ones the base's branch changed since the fork. */
   readonly exclude?: ReadonlySet<string>;
+  /**
+   * The current record's cases left out of the comparison, which neither
+   * `base` nor `now` holds: those that did not run again and retain an earlier
+   * recording. A region one of them calls into kept that case, so it is
+   * counted at both ends, and the region is never lost or gained because the
+   * cases that did run moved past it.
+   */
+  readonly retained?: ExecutionIndex;
 }
 
 /**
@@ -100,6 +108,8 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
   const current = new Map(now.modules.map((module) => [module.file, module]));
   const unread: string[] = [];
   const renumbered: MovedRegion[] = [];
+  const retained = options.retained;
+  const kept = new Map(retained?.modules.map((module) => [module.file, module]));
   for (const held of base.modules) {
     if (options.exclude?.has(held.file) === true) continue;
     const module = current.get(held.file);
@@ -110,12 +120,16 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
     let stopped: ReadonlySet<number> | undefined | null = null;
     const paired = byCases(base, now, held, module);
     renumbered.push(...paired.renumbered.map((block) => place(module.file, block)));
+    const keptBy = keptCallers(retained, kept.get(module.file), module);
     for (const [row, block] of paired.pairs) {
       const region = place(module.file, block);
-      const before = callers(base, row);
-      const after = callers(now, block);
-      const was = filesOf(before);
-      const is = filesOf(after);
+      const ran = callers(base, row);
+      const runs = callers(now, block);
+      const was = filesOf(ran);
+      const is = filesOf(runs);
+      const still = keptBy(block);
+      const before = [...ran, ...still];
+      const after = [...runs, ...still];
       for (const file of is) if (!was.has(file)) reachOf(file).entered.push(region);
       for (const file of was) if (!is.has(file)) reachOf(file).left.push(region);
       const moved = { ...region, before, now: after };
@@ -225,6 +239,25 @@ export function matched(base: ExecutionModule, now: ExecutionModule): readonly (
 export function regionAddresses(blocks: readonly ExecutionBlock[]): readonly (readonly [string, ExecutionBlock])[] {
   const seen = new Map<string, number>();
   return blocks.map((block) => [addressKey(`${block.name}\0${block.path}`, seen), block] as const);
+}
+
+/**
+ * The retained cases that call into each of a module's regions now, found by
+ * the address the region holds in `module`: the retained index may be a cut of
+ * the module other than the one `now` holds.
+ */
+function keptCallers(
+  retained: ExecutionIndex | undefined,
+  held: ExecutionModule | undefined,
+  module: ExecutionModule,
+): (block: ExecutionBlock) => readonly ExecutionTest[] {
+  if (retained === undefined || held === undefined) return () => [];
+  const byAddress = new Map(regionAddresses(held.blocks));
+  const addresses = new Map(regionAddresses(module.blocks).map(([address, block]) => [block, address]));
+  return (block) => {
+    const row = byAddress.get(addresses.get(block)!);
+    return row === undefined || row.kind !== block.kind ? [] : callers(retained, row);
+  };
 }
 
 /** The cases that called into a region, once each, in record order. */

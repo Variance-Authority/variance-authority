@@ -63,7 +63,8 @@ describe('what the last run moved', () => {
   it('compares the last run with the cases it retired, and names what a test stopped calling', async () => {
     const dir = await records();
     const execution = join(dir, 'coverage.bin');
-    await keep(execution, index([0, 1], [1]), {
+    // No case of the record calls `round` now, the retained `flow.test.tsx` included.
+    await keep(execution, index([0, 1], []), {
       last: { at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
       before: { tests: [DISCOUNTS], modules: [
         { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [0])] },
@@ -115,6 +116,32 @@ describe('what the runs at one commit moved', () => {
     expect(motion.unbased).toEqual(['flow.test.tsx']);
     expect(motion.unwritten).toEqual([]);
     expect(motionText(motion)).toContain('Not compared, no case of these was recorded before this commit\'s first run: flow.test.tsx.');
+  });
+
+  it('keeps the cases of a test file that did not run again on both sides of a region', async () => {
+    // Only `total.test.ts` ran at this commit. It stopped calling `round` and
+    // started calling `format`, but `flow.test.tsx`, which did not run again,
+    // retains its earlier recording of both: `round` kept one case rather than
+    // losing every case, and `format` gained none it did not have.
+    const dir = await records();
+    const execution = join(dir, 'coverage.bin');
+    const full = index([0], [1], [0, 1]);
+    await keep(execution, full, {
+      last: { commit: 'c', at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: { tests: [DISCOUNTS], modules: [
+        { file: 'src/total.ts', blocks: [block('applyDiscount', 10, [0]), block('round', 30, [0])] },
+        { file: 'src/other.ts', blocks: [block('format', 1, [])] },
+      ] },
+    });
+
+    const wrote = await runsWrote(execution, { commit: 'c', files: ['total.test.ts'] } as CommitRuns);
+    const motion = await motionOfRuns(full, execution, wrote, dir);
+
+    expect(motion.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'thinned']]);
+    const text = motionText(motion);
+    expect(text).toContain('Against the run before it: 1 thinned.');
+    expect(text).toContain('  thinned  src/total.ts 30-34 function round — was 2 cases, now only flow.test.tsx > checks out');
+    expect(text).toContain('total.test.ts now enters format in src/other.ts (1 region), and no longer enters round in src/total.ts (1 region).');
   });
 });
 
