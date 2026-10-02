@@ -312,6 +312,13 @@ function selectionPlugin(
       }
     },
     configResolved: declareConfig(run, declared, [setupId, runnerId]),
+    // A file that changed is transformed again when a rerun loads it, and until
+    // then its reading is of a text the disk no longer holds: a build loaded
+    // without it would be joined to it. Only that file's: a reading of a file
+    // that did not change is still the text the rerun loads.
+    watchChange(id) {
+      modules.delete(projectPath(root, cleanId(id)));
+    },
     transform(code, id) {
       // The setup module installs the probe log; instrumented, its own header
       // would ask for the log's root before the module has installed it.

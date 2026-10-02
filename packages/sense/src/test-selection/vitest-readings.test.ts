@@ -47,11 +47,22 @@ const LEGACY = [
   '',
 ].join('\n');
 
+/** {@link SOURCE} once a comment was written above it, between two runs of a watching runner. */
+const EDITED = `// What a cart holds.\n${SOURCE}`;
+
 type Transform = (this: TransformingContext | undefined, code: string, id: string) => unknown;
 
+type Reading = 'source' | 'build' | 'legacy';
+
+/**
+ * What one run records of the readings `order` names, or, with `rerun`, what
+ * the run records when it reruns after {@link EDITED} replaced the source and
+ * the rerun transformed only what `rerun` names.
+ */
 async function recorded(
-  order: readonly ('source' | 'build' | 'legacy')[],
+  order: readonly Reading[],
   projects: 1 | 2 = 1,
+  rerun?: readonly Reading[],
 ): Promise<TestCoverage['modules']> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-two-readings-'));
   const coverageFile = resolve(root, 'coverage.bin');
@@ -63,7 +74,10 @@ async function recorded(
     await writeFile(resolve(root, 'dist/cart.js'), BUILT, 'utf8');
     await writeFile(resolve(root, 'lib/cart.js'), LEGACY, 'utf8');
     const configured = withTestSelection({}, { root, coverageFile, include: () => true });
-    const plugin = (configured.plugins as unknown as Array<{ transform: Transform }>)[0]!;
+    const plugin = (configured.plugins as unknown as Array<{
+      transform: Transform;
+      watchChange(id: string): void;
+    }>)[0]!;
     // A `projects` layout wraps each project's config, and each brings a plugin of its own.
     const other = projects === 1
       ? plugin
@@ -72,14 +86,17 @@ async function recorded(
         }>)[0]!;
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
+      onWatcherRerun(): void;
     }>)[1]!;
+    // A build of the edited source maps its first line one line further down.
+    let first = 'AAAA';
     // The build's map: one source, the file the build was made from, line for line after the helper.
     const built: TransformingContext = {
       getCombinedSourcemap: () => ({
         version: 3,
         sources: ['../src/cart.ts'],
         names: [],
-        mappings: ';AAAA;AACA;AACA;AACA;AACA;AACA',
+        mappings: `;${first};AACA;AACA;AACA;AACA;AACA`,
       }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
     };
     const legacy: TransformingContext = {
@@ -87,15 +104,27 @@ async function recorded(
         version: 3,
         sources: ['../src/cart.ts'],
         names: [],
-        mappings: 'AAAA;AACA;AAGA;AACA',
+        mappings: `${first};AACA;AAGA;AACA`,
       }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
     };
-    for (const reading of order) {
-      if (reading === 'source') plugin.transform.call(undefined, SOURCE, resolve(root, 'src/cart.ts'));
-      else if (reading === 'build') other.transform.call(built, BUILT, resolve(root, 'dist/cart.js'));
-      else other.transform.call(legacy, LEGACY, resolve(root, 'lib/cart.js'));
-    }
+    const transform = (readings: readonly Reading[], source: string): void => {
+      for (const reading of readings) {
+        if (reading === 'source') plugin.transform.call(undefined, source, resolve(root, 'src/cart.ts'));
+        else if (reading === 'build') other.transform.call(built, BUILT, resolve(root, 'dist/cart.js'));
+        else other.transform.call(legacy, LEGACY, resolve(root, 'lib/cart.js'));
+      }
+    };
+    transform(order, SOURCE);
     await reporter.onFinished([]);
+    if (rerun !== undefined) {
+      await writeFile(resolve(root, 'src/cart.ts'), EDITED, 'utf8');
+      // Vite's watcher names the changed file to every plugin before the rerun starts.
+      plugin.watchChange(resolve(root, 'src/cart.ts'));
+      first = 'AACA';
+      reporter.onWatcherRerun();
+      transform(rerun, EDITED);
+      await reporter.onFinished([]);
+    }
     return decodeTestCoverage(await readFile(coverageFile)).modules;
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -144,5 +173,12 @@ describe('a module two transforms both name', () => {
     for (const block of joined!.blocks) {
       expect([cut(legacy).has(place(block)), cut(build).has(place(block))]).toEqual([true, true]);
     }
+  });
+
+  it('is recorded from the readings a rerun made of the text on disk, not one a run before it made', async () => {
+    const rebuilt = await recorded([], 1, ['build']);
+
+    expect(rebuilt[0]!.blocks.find((block) => block.name === 'total')!.startLine).toBe(2);
+    expect(await recorded(['source', 'build'], 1, ['build'])).toEqual(rebuilt);
   });
 });
