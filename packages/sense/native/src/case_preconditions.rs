@@ -7,7 +7,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::journey_journal::project_path;
+use crate::case_owner::project_path;
 use crate::order;
 
 /// A case whose producer never listened: `UNHEARD` in `case-precondition-column.ts`.
