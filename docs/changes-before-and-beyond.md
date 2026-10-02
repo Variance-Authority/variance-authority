@@ -112,7 +112,8 @@ kind:
 {
   "before": [".github/workflows", ".nvmrc"],
   "suites": {
-    "unit": { "kind": "unit", "before": ["vitest.config.ts", "test/setup.ts"] }
+    "unit": { "kind": "unit", "before": ["vitest.config.ts", "test/setup.ts"] },
+    "e2e": { "kind": "e2e", "relations": false, "before": ["playwright.config.ts", "src/main.tsx"] }
   },
   "source": { "dirs": ["src"], "relations": true }
 }
@@ -149,6 +150,13 @@ imports, and the Vitest, Jest and Rstest integrations take a `preconditions`
 option: every test they record declares each file it lists, and a change to one
 selects every test that declares it. A changed file nothing imports and nothing
 declares selects nothing, and `select` names it.
+
+An end-to-end suite reaches your app through a browser and imports none of it,
+so the import graph names none of its tests, or names a unit test's neighbour by
+accident. Give such a suite `"relations": false` and list the files it rests on
+in its own `before`. A changed file its record did not measure then selects
+nothing in that suite, without a walk, and `select` names it declined; a change
+to an entry point runs the suite whole.
 
 ## What comes with a declared entry point
 

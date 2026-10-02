@@ -269,7 +269,10 @@ module with a row is, with every export counted as changed: the subjects that
 entered a function reading one of them are selected. A path that reading cannot
 answer, such as a stylesheet, a module whose loading does something, or a text
 that does not parse, is answered by the measured files that import it, and one
-nothing measured imports keeps no subject in the run. Two refusals stand over the record, because it
+nothing measured imports keeps no subject in the run. A suite that declares
+[`"relations": false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
+asks the graph nothing: a file its record did not measure keeps no subject in
+that suite's run, and the run names it declined. Two refusals stand over the record, because it
 never saw what they are about — a change to a file named in
 [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.

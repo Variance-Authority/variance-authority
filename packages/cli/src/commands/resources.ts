@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
 import { createHttpHistoryStore } from '@variance-authority/history/client';
 import type { PngDecoder } from '@variance-authority/png';
-import { cacheRootFor, type ExecutionNarrowing } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, type ExecutionNarrowing, type Unmeasured } from '@variance-authority/sense/test-selection';
 import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
 import { createRemoteStore } from '@variance-authority/remote/store';
 import { createDurableStore } from '@variance-authority/store/durable';
@@ -172,6 +172,8 @@ export async function journeyAgainst(
   /** A snapshot somewhere other than this repository's cache — one named by `--execution`. */
   at?: string,
   checkout: string = root,
+  /** `nothing` for a suite that declines relations: a file its record did not measure selects nobody. */
+  unmeasured?: Unmeasured,
 ): Promise<ExecutionNarrowing | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   const file = at ?? (await suiteRecord(root));
@@ -183,6 +185,7 @@ export async function journeyAgainst(
       keptText: selection.keptTexts(checkout),
       root,
       ...(relations === undefined ? {} : { relations }),
+      ...(unmeasured === undefined ? {} : { unmeasured }),
     });
   } catch (error) {
     if (isMissing(error)) return undefined;

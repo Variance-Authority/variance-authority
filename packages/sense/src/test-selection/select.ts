@@ -9,6 +9,7 @@ import { rebasedChange } from './text-diff.js';
 import { readChange, readRowless, type FileReading } from './reading.js';
 import { bindsOnly } from './inert.js';
 import { disownedIn } from './shadowed.js';
+import { routeOf } from './route.js';
 
 export type { ExecutionNarrowingOptions, FileReading, ImporterReason };
 
@@ -48,9 +49,19 @@ export interface ExecutionNarrowing {
    * on such a file declares it as a precondition, and it stops appearing here.
    * A moved package is never here; its measured importers answer for it.
    *
-   * Empty is the ordinary state.
+   * Empty is the ordinary state, and always empty in a suite that declines
+   * relations, which never asks the graph (`declined`).
    */
   readonly unread: readonly string[];
+
+  /**
+   * Changed paths the record did not measure, in a suite that declines
+   * relations (`ExecutionNarrowingOptions.unmeasured`): no row under any name
+   * and no test declaring it. Each selects nothing, because the suite said the
+   * import graph does not name its audience. Absent when the suite asks the
+   * graph; empty when it declines and every changed path was measured.
+   */
+  readonly declined?: readonly string[];
 
   /**
    * Changed modules whose recording was cut from a different text than the one
@@ -179,7 +190,8 @@ function readDiff(
   coverage: TestCoverageView,
   diff: string,
   options: ExecutionNarrowingOptions,
-): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings'>> {
+): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings'>> &
+  Pick<ExecutionNarrowing, 'declined'> {
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
@@ -228,6 +240,9 @@ function readDiff(
       rowsOf.set(name, rows);
     }
     if (rowsOf.size === 0) {
+      // Nothing measured it under a row, and a suite that declines relations
+      // asks nothing else; the tests that declare it are read below either way.
+      if (routeOf(false, options.unmeasured) === 'nothing') continue;
       // No row to charge, so its readers answer for it where a reading can be
       // made. A file read that way is answered, and the walk over its importers
       // below — which charges them whole — is for what the reading left.
@@ -329,7 +344,10 @@ function readDiff(
   // name beside it. A file `knownAs` gives no name at all was asked about
   // under nothing, and is reported.
   const measured = (file: string): boolean => knownAs(file).some((name) => !unmatched.has(name));
-  const unread = answered.unread.filter((name) => !measured(name)).sort(codeUnitOrder);
+  const unmeasured = answered.unread.filter((name) => !measured(name)).sort(codeUnitOrder);
+  // A suite that declines relations never asked the graph, so nothing it
+  // holds is unread: what the record did not measure was declined.
+  const declining = options.unmeasured === 'nothing';
 
   const because = [...selected]
     .map(([test, via]): SelectionCause => ({ test: coverage.string(coverage.testPath.at(test)), via }))
@@ -337,7 +355,8 @@ function readDiff(
 
   return {
     entered: because.map((cause) => cause.test),
-    unread,
+    unread: declining ? [] : unmeasured,
+    ...(declining ? { declined: unmeasured } : {}),
     stale: [...stale].sort(codeUnitOrder),
     because,
     readings,

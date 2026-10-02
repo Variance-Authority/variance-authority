@@ -15,7 +15,9 @@
 //! module to shape a mock — is the region's `loaded` flag, credited to no case
 //! and answered by the graph, which is where the mocks are.
 //! A bumped package arrives as the files that import it, changed whole
-//! (`beyondReach`), and is answered as they are.
+//! (`beyondReach`), and is answered as they are. A suite that declines relations
+//! asks the graph nothing about a file with no row: a test file still selects
+//! itself, and any other is `declined` (`test-selection/route.ts`).
 //!
 //! Only the regions a change lands on have their sets expanded, and each test is
 //! looked at once per module, so the cost follows the change and not the day of
@@ -37,6 +39,8 @@ pub struct JourneySelection {
     pub entered: Vec<String>,
     /// Changed paths neither the record nor the graph knows.
     pub unread: Vec<String>,
+    /// Changed paths with no row, in a suite that declines relations; empty otherwise.
+    pub declined: Vec<String>,
 }
 
 struct Selecting<'a> {
@@ -147,6 +151,7 @@ fn select(
     file: &str,
     changed: &[JourneyChange],
     graph: Option<&JourneyGraph>,
+    declines: bool,
 ) -> Result<JourneySelection, String> {
     let journey = Journey::open(file)?;
     let tests = journey.test_file_names()?;
@@ -159,9 +164,21 @@ fn select(
         seen: vec![false; journey.tests()],
     };
     let mut unread = Vec::new();
+    let mut declined = Vec::new();
     for change in changed {
         let ranges = pairs(&change.ranges);
         let module = journey.module_of(&change.file)?;
+        if module.is_none() && declines {
+            // A test file the record holds a case of selects itself, which is
+            // all the record says of a file it has no row for.
+            match selecting.held.get(change.file.as_str()).copied() {
+                Some(test) => {
+                    selecting.entered.insert(test);
+                }
+                None => declined.push(change.file.clone()),
+            }
+            continue;
+        }
         if let Some(file) = selecting.change(&change.file, &ranges, module, change.read.as_deref())? {
             unread.push(file);
         }
@@ -170,16 +187,19 @@ fn select(
         whole: selecting.held.iter().map(|test| (*test).to_owned()).collect(),
         entered: selecting.entered.iter().map(|test| (*test).to_owned()).collect(),
         unread,
+        declined,
     })
 }
 
 /// The test files `changed` needs, read off the journey file at `file` and,
-/// when given, the file graph. Unsorted: the caller orders by code unit.
+/// when given, the file graph. `declines` is a suite that asks the graph
+/// nothing about a file with no row. Unsorted: the caller orders by code unit.
 #[napi(catch_unwind)]
 pub fn select_journeys(
     file: String,
     changed: Vec<JourneyChange>,
     graph: Option<JourneyGraph>,
+    declines: Option<bool>,
 ) -> napi::Result<JourneySelection> {
-    select(&file, &changed, graph.as_ref()).map_err(napi::Error::from_reason)
+    select(&file, &changed, graph.as_ref(), declines == Some(true)).map_err(napi::Error::from_reason)
 }

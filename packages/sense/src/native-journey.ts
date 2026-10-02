@@ -21,6 +21,8 @@ export interface NativeJourneySelection {
   readonly whole: readonly string[];
   readonly entered: readonly string[];
   readonly unread: readonly string[];
+  /** Absent from an addon built before a suite could decline relations. */
+  readonly declined?: readonly string[];
 }
 
 export interface NativeJourneyChange {

@@ -284,6 +284,7 @@ export async function selectionFor(
         journey,
         {
           unread: journal?.unread ?? [],
+          declined: journal?.declined ?? [],
           stale: journal?.stale ?? [],
         },
         before,
@@ -397,7 +398,7 @@ function notesFor(
     readonly unwatched?: readonly string[];
   },
   journey: { readonly skipped: readonly unknown[]; readonly whole?: string } | undefined,
-  journal: { readonly unread: readonly string[]; readonly stale: readonly string[] },
+  journal: { readonly unread: readonly string[]; readonly declined: readonly string[]; readonly stale: readonly string[] },
   before: BeforeReach | undefined,
 ): readonly string[] {
   const ruled = answer.skipped.length + (journey?.skipped.length ?? 0);
@@ -406,6 +407,7 @@ function notesFor(
   const unwatched = kept.length === 0 ? (answer.unwatched ?? []) : [];
   const { stale } = journal;
   const unentered = journal.unread;
+  const { declined } = journal;
 
   const unread = before?.unread ?? [];
 
@@ -448,6 +450,12 @@ function notesFor(
           `the execution journal records nothing about ${many(unentered.length, 'changed file')} ` +
             `(${unentered.slice(0, 3).join(', ')}${unentered.length > 3 ? ', …' : ''}), so ` +
             `${unentered.length === 1 ? 'it kept' : 'they kept'} no subject in the run.`,
+        ]),
+    ...(declined.length === 0
+      ? []
+      : [
+          `the suite declines relations, so ${many(declined.length, 'changed file')} its record did not measure ` +
+            `(${declined.slice(0, 3).join(', ')}${declined.length > 3 ? ', …' : ''}) kept no subject in the run.`,
         ]),
     ...(stale.length === 0
       ? []
