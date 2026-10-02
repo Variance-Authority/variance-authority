@@ -10,8 +10,9 @@
  *   image path the report names to that image's digest. The report names its
  *   images relative to itself and the line keeps them by digest, so the table is
  *   what lets a reader on another machine open the picture a record points at.
- * - **`suite-v1/<suite>`** is the suite's coverage record and, when it has them,
- *   its per-case index and its runs record. All name files repository-relative, so they read the
+ * - **`suite-v1/<suite>`** is the suite's coverage record, with the per-case
+ *   index inside it when the run kept one, and its runs record when it has one.
+ *   All name files repository-relative, so they read the
  *   same from any checkout. The module-name table is not in it: that table
  *   numbers the modules the *next* instrumented build emits, and a reader of a
  *   finished record never consults it.

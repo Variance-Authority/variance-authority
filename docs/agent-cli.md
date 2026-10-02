@@ -223,7 +223,7 @@ an answer may be taken to claim are one boundary whichever transport asks:
 variance distill \
   --test 'checkout submits' \
   --eyes .variance/eyes.json \
-  --execution .variance/execution.json
+  --execution <cache>/test-selection/<digest>/coverage.bin
 ```
 
 This command does not read `variance.config.json`. It combines one test's

@@ -174,7 +174,7 @@ array of either evidence file:
 variance distill \
   --test '<recorded-test-id>' \
   --eyes .variance/eyes.json \
-  --execution .variance/execution.json
+  --execution <cache>/test-selection/<digest>/coverage.bin
 ```
 
 With an Eyes archive, `--test` also accepts a test title, or a title fragment
@@ -186,18 +186,20 @@ From Node, reading the same two files:
 ```ts
 import { readFile } from 'node:fs/promises';
 import { readEyesArchive } from '@variance-authority/eyes/archive';
-import { distill, formatDistillation, parseExecutionIndex }
-  from '@variance-authority/distill';
+import { distill, formatDistillation } from '@variance-authority/distill';
+import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
 const eyes = await readEyesArchive('.variance/eyes.json');
-const execution = parseExecutionIndex(
-  JSON.parse(await readFile('.variance/execution.json', 'utf8')),
+const execution = decodeExecutionIndex(
+  await readFile('<cache>/test-selection/<digest>/coverage.bin'),
 );
 
 console.log(formatDistillation(distill({ test: 'checkout submits', eyes, execution })));
 ```
 
-`parseExecutionIndex` validates untyped JSON at the process boundary and throws
+`decodeExecutionIndex` reads the case index out of the record. For an index
+another tool spelled as JSON, `parseExecutionIndex` from
+`@variance-authority/distill` validates it at the process boundary and throws
 naming the offending field. Pass an `ExecutionIndex` you already have and it
 returns it unchanged.
 
