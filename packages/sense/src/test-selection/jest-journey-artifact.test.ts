@@ -48,12 +48,17 @@ describe.runIf(nativeAvailable())('stitched shard artifacts', () => {
       owner('retried', [['flag', 'ff-off', `${file}:12`, 1]]),
       owner('heard once'),
       owner('unheard'),
+      // Work that outlived `pays` in this shard: a second frame, the same case.
+      owner('pays', []),
     ]);
     const output = resolve(root, 'journeys.bin');
 
     await stitchJourneyArtifacts([first, second], output);
 
     const stitched = decodeExecutionIndex(await readFile(output));
+    expect(stitched.tests.map((test) => test.id)).toEqual([
+      'test/pay.test.ts > heard once', 'test/pay.test.ts > pays', 'test/pay.test.ts > retried', 'test/pay.test.ts > unheard',
+    ]);
     expect(Object.fromEntries(stitched.tests.map((test) => [test.name, test.preconditions]))).toEqual({
       'heard once': [],
       pays: [{ name: 'network', value: 'mocked', site: 'test/pay.test.ts:9', level: preconditions.CASE_LEVEL }],
