@@ -118,6 +118,30 @@ describe('reading a block back to where it was written', () => {
     expect(extentOf(onCarried(2), onCarried(10))).toEqual([2, 2]);
   });
 
+  it('carries no origin across code the map left unmapped', () => {
+    // Line 1 ends in unmapped code, so the origin line 2 opens with is that
+    // line's own, not one carried over.
+    const extentOf = sourceLines(
+      CARRIED,
+      { sources: ['app/src/a.ts'], mappings: 'AAAA,C;AAAA,EACA' },
+      '/repo/app/src/a.ts',
+    );
+
+    expect(extentOf(onCarried(1), onCarried(2))).toEqual([1, 2]);
+  });
+
+  it('carries no origin across a generated line with none', () => {
+    // An unmapped `if (a) x();` between the origin and the line that repeats it.
+    const extentOf = sourceLines(
+      `\n${CARRIED}`,
+      { sources: ['app/src/a.ts'], mappings: 'AAAA;;AAAA,EACA' },
+      '/repo/app/src/a.ts',
+    );
+    const shifted = (column: number): number => onCarried(column) + 1;
+
+    expect(extentOf(shifted(1), shifted(2))).toEqual([1, 2]);
+  });
+
   it('reads past another file the map also names to the origin carried over', () => {
     // A segment of `other.ts` between the carried one and `if (b)`.
     const extentOf = sourceLines(

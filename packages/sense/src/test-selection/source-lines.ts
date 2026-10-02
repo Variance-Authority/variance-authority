@@ -369,6 +369,8 @@ function decode(mappings: string): readonly (readonly Segment[])[] {
   while (index < mappings.length) {
     const char = mappings[index];
     if (char === ';') {
+      // Only the line just above can carry an origin onto the next one.
+      if (segments.length === 0) previous = undefined;
       lines.push(segments);
       segments = [];
       column = 0;
@@ -383,7 +385,11 @@ function decode(mappings: string): readonly (readonly Segment[])[] {
     const first = vlq(mappings, index);
     column += first.value;
     index = first.next;
-    if (boundary(mappings, index)) continue;
+    if (boundary(mappings, index)) {
+      // Unmapped code: what follows it carries nothing over.
+      previous = undefined;
+      continue;
+    }
 
     const second = vlq(mappings, index);
     source += second.value;
