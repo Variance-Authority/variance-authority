@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
 import { pruneWhenDue } from '@variance-authority/sense/test-selection';
 import { withTestSelection } from '@variance-authority/sense/vitest';
+import { pruneCacheWhenDue } from './packages/cli/dist/commands/prune-cache.js';
 import { nativeSources } from './tools/native-sources.mjs';
 import { probeable } from './tools/page-side.mjs';
 
@@ -94,14 +95,18 @@ const instrumentable = (file: string) =>
  * a fold first, and the recording credited that file with the walk: which file
  * that was depended on scheduling, so the prune's regions moved between files
  * from one run to the next. Pruned here, as it is made, it is due in no test
- * file. `prune.test.ts` exercises the prune on purpose, in a cache of its own,
- * and `tools/suite-cache.check.ts` holds this one to never being due.
+ * file. `variance run` keeps a second stamp, which a case under `cases/` reaches
+ * from a process of its own that inherits this cache, and it is claimed here
+ * too. `prune.test.ts` and `prune-cache.test.ts` exercise the two prunes on
+ * purpose, each in a cache of its own, and `tools/suite-cache.check.ts` holds
+ * this one to never being due.
  */
 async function runCache(): Promise<string> {
   const cache = mkdtempSync(join(tmpdir(), 'va-test-cache-'));
   // `pruneWhenDue` stamps only a cache that holds a `test-selection` directory.
   mkdirSync(join(cache, 'test-selection'));
   await pruneWhenDue(cache);
+  await pruneCacheWhenDue({ cacheRoot: cache });
   return cache;
 }
 

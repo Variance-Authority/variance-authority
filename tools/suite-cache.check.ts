@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pruneWhenDue } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
+import { pruneCacheWhenDue } from '../packages/cli/dist/commands/prune-cache.js';
 import { suite } from '../vitest.config.mjs';
 
 /**
@@ -18,8 +19,14 @@ import { suite } from '../vitest.config.mjs';
  * and a pull request that touched none of them read as one that lost their
  * cases.
  *
- * The prune is exercised on purpose, in its own temporary cache, by
- * `packages/sense/src/test-selection/prune.test.ts`.
+ * The CLI keeps a second stamp at the cache's root, and `variance run` prunes
+ * by it when it ends. The cases under `cases/` start that command in a process
+ * of their own, which inherits the same cache, so the first of them to end a
+ * run walked the CLI's directories and the rest did not.
+ *
+ * Both prunes are exercised on purpose, each in its own temporary cache, by
+ * `packages/sense/src/test-selection/prune.test.ts` and
+ * `packages/cli/src/commands/prune-cache.test.ts`.
  */
 describe("the suite's cache", () => {
   it('is not due for a prune when the first file ends a fold, nor when the next one does', async () => {
@@ -30,5 +37,13 @@ describe("the suite's cache", () => {
 
     expect(await pruneWhenDue(cache!)).toBeUndefined();
     expect(await pruneWhenDue(cache!)).toBeUndefined();
+  });
+
+  it("is not due for the CLI's prune when the first run ends, nor when the next one does", async () => {
+    const cache = suite.test?.env?.['VARIANCE_AUTHORITY_CACHE'];
+    expect(cache).toEqual(expect.any(String));
+
+    expect(await pruneCacheWhenDue({ cacheRoot: cache! })).toBeUndefined();
+    expect(await pruneCacheWhenDue({ cacheRoot: cache! })).toBeUndefined();
   });
 });
