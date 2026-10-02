@@ -18,6 +18,9 @@
 //!   that loaded the file saw it;
 //! - a read into another pure binding — `const B = { a: A }` — moves the change
 //!   to `B`, and `B`'s readers are asked in turn;
+//! - a read the module converts as it loads — `const B = A * 2`, `` `${A}` ``,
+//!   `-A`, `{ [A]: 1 }` — is a load as well: the conversion can throw or run the
+//!   value's own code, so a test that never reads `B` still sees the change;
 //! - a name the file exports is the caller's to ask of the files that import it,
 //!   and there only by the names they import it under.
 //!
@@ -49,6 +52,8 @@ struct Read {
     line: u32,
     at: Where,
     into: Option<String>,
+    /// Converted as the module loads, by an operator or a template.
+    converted: bool,
 }
 
 /// One walk over a file, which every question about its readers is asked of.
@@ -140,7 +145,7 @@ pub fn readers_of(reading: &Reading, seeds: impl IntoIterator<Item = (String, St
             Where::Escape => {
                 load.insert(origin.clone());
             }
-            Where::Top if read.into.is_none() => {
+            Where::Top if read.into.is_none() || read.converted => {
                 load.insert(origin.clone());
             }
             Where::Top => {}

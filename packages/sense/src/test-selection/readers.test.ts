@@ -68,6 +68,50 @@ describe.runIf(nativeAvailable())('the readers of a changed value', () => {
     });
   });
 
+  // A value converted as the module loads can throw or run its own code there —
+  // `1n * 2` throws, a `toString` runs inside a template — so a read under the
+  // conversion is a load, whichever binding it lands in.
+  it.each([
+    ['an arithmetic operator', 'const DOUBLED = LIMIT * 2;'],
+    ['a template literal', 'const LABEL = `${LIMIT} items`;'],
+    ['a unary minus', 'const NEGATIVE = -LIMIT;'],
+    ['a unary plus', 'const NUMBER = +LIMIT;'],
+    ['a bitwise not', 'const INVERTED = ~LIMIT;'],
+    ['a loose equality', 'const TEN = LIMIT == 10;'],
+    ['a relational comparison', 'const SMALL = LIMIT < 10;'],
+    ['an `in` test', "const HAS = 'size' in LIMIT;"],
+    ['an `instanceof` test', 'const IS = LIMIT instanceof Object;'],
+    ['a computed key', 'const KEYED = { [LIMIT]: true };'],
+    ['a conversion nested in a pure value', 'const NESTED = { limits: [LIMIT * 2] };'],
+    ['a default export', 'export default LIMIT * 2;'],
+  ])('reads a value converted by %s at top level as a load', (_, line) => {
+    const text = ['const LIMIT = 10;', line, ''].join('\n');
+    expect(readersOf('src/limits.ts', text, ['LIMIT'], false)?.load).toEqual(['LIMIT']);
+  });
+
+  it.each([
+    ['a plain copy', 'const COPY = LIMIT;'],
+    ['an object value', 'const WRAPPED = { limit: LIMIT };'],
+    ['a strict equality', 'const TEN = LIMIT === 10;'],
+    ['a strict inequality', 'const OTHER = LIMIT !== 10;'],
+    ['a logical not', 'const NONE = !LIMIT;'],
+    ['a `typeof`', 'const KIND = typeof LIMIT;'],
+    ['a nullish fallback', 'const SET = LIMIT ?? 1;'],
+    ['a condition', 'const PICKED = LIMIT ? 1 : 2;'],
+    ['an instance field, which runs when the class is constructed', 'class Box { size = LIMIT * 2; }'],
+  ])('reads a value held by %s at top level as no load', (_, line) => {
+    const text = ['const LIMIT = 10;', line, ''].join('\n');
+    expect(readersOf('src/limits.ts', text, ['LIMIT'], false)?.load).toEqual([]);
+  });
+
+  it('still moves a converted value to the binding that holds it', () => {
+    const text = ['const LIMIT = 10;', 'const DOUBLED = LIMIT * 2;', 'export { DOUBLED };', ''].join('\n');
+    expect(readersOf('src/limits.ts', text, ['LIMIT'], false)).toMatchObject({
+      load: ['LIMIT'],
+      exported: [{ name: 'DOUBLED', origin: 'LIMIT' }],
+    });
+  });
+
   it('answers nothing for a text that does not parse', () => {
     expect(readersOf('src/broken.ts', 'export const = ;\n', ['LIMIT'], false)).toBeNull();
   });
