@@ -8,14 +8,19 @@ import {
   type Distillation,
   type EyesAttempt,
 } from '@variance-authority/distill';
-import { recordedEyesOf, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { recordedEyesOf } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { executionIndexOf } from './execution-input.js';
+import { executionIndexOf, recordedExecutionFile } from './execution-input.js';
 
 export interface DistillOptions {
-  readonly test: string;
-  /** The record to read; the checkout's own, `testCoverageFile(root)`, when unnamed. */
+  /** The case's id, its exact title, or a part of the title. */
+  readonly test?: string;
+  /** A part of the test file's path, which narrows `test`. */
+  readonly file?: string;
+  /** The record to read; when unnamed, the one a reader of the checkout reads. */
   readonly execution?: string;
+  /** The one declared suite whose record is read. */
+  readonly suite?: string;
   /** The checkout whose record is read, and the root the record's paths are relative to. */
   readonly root: string;
 }
@@ -28,7 +33,7 @@ export interface DistillOptions {
  * index on its own, which has no journals to read.
  */
 export async function distillFiles(options: DistillOptions): Promise<Distillation> {
-  const record = options.execution ?? testCoverageFile(options.root);
+  const record = options.execution ?? (await recordedExecutionFile(options.root, options.suite));
   if (!existsSync(record)) {
     throw new OperatorError(`distill reads a record, and nothing is recorded at ${record}`);
   }
@@ -38,7 +43,8 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     const execution = executionIndexOf(bytes);
     const section = recordedEyesOf(bytes);
     return distill({
-      test: options.test,
+      ...(options.test === undefined ? {} : { test: options.test }),
+      ...(options.file === undefined ? {} : { file: options.file }),
       root: options.root,
       execution,
       ...(section === undefined ? {} : { eyes: journalsOf(section.journals), watched: section.watched }),
