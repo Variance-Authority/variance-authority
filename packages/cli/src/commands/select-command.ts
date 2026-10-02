@@ -53,7 +53,7 @@ import { many } from './reach.js';
 import { journeySuite, restingOf } from './select-before.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
-import { landingRecord, recordedSuite } from './suite-record.js';
+import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
 import {
   formatSelection,
   selectionNotes,
@@ -105,6 +105,8 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   ) {
     return await journeyOutput({ ...request, execution: request.execution });
   }
+  // A snapshot named by path is the record, and so is the one `--suite` names.
+  oneRecord(request.suite, request.execution, '--execution');
   const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
   const { at, source } = found;
   const said = (input: Parameters<typeof saidOf>[0]) =>
@@ -213,7 +215,8 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // What the suite rests on before reach, moved by any group's diff or bump, runs the whole suite.
   const suite = (await recordedSuite(here, request.suite, 'landing')).declared?.name;
   const bumped = [...installs.values()].flatMap((one) => compared(one)?.packages ?? []);
-  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.whole)])], bumped);
+  const movedFiles = [...moved.values()].flatMap((one) => one.files);
+  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.whole), ...movedFiles])], bumped);
   const rested = { ...recorded, ...rest };
   if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } });
   // The files a stand reads whole leave the hunk diff, so none is also read by
@@ -429,13 +432,13 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     why: 'a whole-file change is answered by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
-  // What the suite rests on, moved by the patch or its bump, runs the whole suite.
-  const { whole, ...rest } = await restingOf(here, await journeySuite(here, request.suite), relations, [...selection.changedLines(text).keys()], installed?.packages ?? []);
-  const base = { at: request.execution, given: true, ...rest };
-  if (whole !== undefined) return saidOf({ ...base, ground: { kind: 'before', whole } }, request);
   // A package whose manifest moved is every file of it, changed whole.
   const moved = movedPackages(relations, installed);
   const changed = selection.changedLines(withMovedPackages(text, moved.files));
+  // What the suite rests on, moved by the patch, a manifest or a bump, runs the whole suite.
+  const { whole, ...rest } = await restingOf(here, await journeySuite(here, request.suite), relations, [...changed.keys()], installed?.packages ?? []);
+  const base = { at: request.execution, given: true, ...rest };
+  if (whole !== undefined) return saidOf({ ...base, ground: { kind: 'before', whole } }, request);
   const preimages = await patchPreimages(text, request.cwd);
   const { read, readings } = selection.readJourneyChange(text, (file) => preimages.get(file), {
     root: request.cwd,

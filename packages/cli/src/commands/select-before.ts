@@ -33,7 +33,8 @@ export interface Rests {
 /**
  * Walk `suite`'s declared entries down `relations`, and name what of `changed`
  * and `packages` lies in that closure. `suite` is the suite whose record is
- * read, `undefined` for a repository that declares none.
+ * read; `undefined` reads what every suite rests on, which is the repository's
+ * own list when it declares no suites.
  */
 export async function restsOf(
   root: string,
@@ -43,7 +44,9 @@ export async function restsOf(
   packages: readonly string[],
 ): Promise<Rests> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const entries = selection.beforeOf(root, suite);
+  const entries = suite === undefined
+    ? [...selection.beforeOf(root, undefined), ...(selection.declaredSuites(root) ?? []).flatMap((one) => one.before ?? [])]
+    : selection.beforeOf(root, suite);
   const whose = suite === undefined ? 'this repository' : `the suite ${suite}`;
   if (entries.length === 0) {
     return {
@@ -103,9 +106,9 @@ export async function restingOf(
 /**
  * The suite a journey file speaks for: the one named, or the only one declared.
  *
- * Undefined otherwise, and then only the repository's own `before` is read. A
- * journey file is not kept per suite, so several suites with none named is not
- * refused here as it is where a record is read; it reads what all of them rest on.
+ * Undefined otherwise. A journey file is not kept per suite, so several suites
+ * with none named is not refused here as it is where a record is read: the file
+ * may be any suite's, and what every one of them rests on is read.
  */
 export async function journeySuite(root: string, named: string | undefined): Promise<string | undefined> {
   if (named !== undefined) return named;

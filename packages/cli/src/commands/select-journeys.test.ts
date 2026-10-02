@@ -140,8 +140,8 @@ describe('selecting from a journey file', () => {
   });
 
   it('runs every test when a package the declared setup loads was bumped', async () => {
-    root = await declaring({ before: ['vitest.config.ts'] }, {
-      'vitest.config.ts': "import './test/setup';\nexport default {};\n",
+    root = await declaring({ before: ['vitest.config.ts', 'test/setup.ts'] }, {
+      'vitest.config.ts': "export default { test: { setupFiles: ['./test/setup.ts'] } };\n",
       'test/setup.ts': "import left from 'left';\nexport const ready = left;\n",
     });
     git('add', '.');
@@ -152,6 +152,38 @@ describe('selecting from a journey file', () => {
     const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
     expect(said.out).toBe('');
     expect(said.err).toContain('every suite here rests on deep');
+  });
+
+  it('runs every test when a manifest that moved changes how the declared setup loads', async () => {
+    root = await declaring({ before: ['test/setup.ts'] }, {
+      'test/setup.ts': 'export const ready = 1;\n',
+      'test/package.json': JSON.stringify({ name: 'fixture-test', type: 'commonjs' }),
+    });
+    git('add', '.');
+    git('commit', '-qm', 'before');
+    writeFileSync(join(root, 'test/package.json'), JSON.stringify({ name: 'fixture-test', type: 'module' }));
+    writeFileSync(join(root, 'change.patch'), git('diff'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('rests on test/setup.ts');
+  });
+
+  it('reads the `before` of the suite `--suite` names', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit', before: ['.nvmrc'] }, e2e: { kind: 'e2e' } } });
+    writeFileSync(join(root, 'change.patch'), patch(6) + added('.nvmrc'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true, suite: 'unit' });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('the suite unit rests on .nvmrc');
+  });
+
+  // A journey file is not kept per suite, so with none named it may be any
+  // suite's, and what any of them rests on is read.
+  it('reads the `before` of every suite when several are declared and none is named', async () => {
+    root = await declaring({ suites: { unit: { kind: 'unit', before: ['.nvmrc'] }, e2e: { kind: 'e2e' } } });
+    writeFileSync(join(root, 'change.patch'), patch(6) + added('.nvmrc'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
+    expect(said.err).toContain('every suite here rests on .nvmrc');
   });
 
   async function declaring(config: unknown, files: Readonly<Record<string, string>> = {}): Promise<string> {

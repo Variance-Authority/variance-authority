@@ -126,13 +126,28 @@ describe('`--suite` beside a path', () => {
       '`--suite` and `--execution` both name the record; pass one',
     );
     expect(() => oneRecord('unit', undefined, '--into')).not.toThrow();
-    expect(() => parseArgs(['select', '--suite', 'unit', '--execution', 'x'])).toThrow(
-      '`--suite` and `--execution` both name the record',
-    );
     expect(() => parseArgs(['journeys', 'shard.bin', '--into', 'x', '--suite', 'unit'])).toThrow(
       '`--suite` and `--into` both name the record',
     );
     expect(parseArgs(['run', '--since', 'main', '--suite', 'stories'])).toMatchObject({ suite: 'stories' });
+  });
+});
+
+describe('`variance select --suite` beside `--execution`', () => {
+  // A journey file is not a record, and `--suite` beside one says whose
+  // `before` it is read against; a snapshot named by path is the record.
+  test('is parsed, since only the file it names says whether it is a record', () => {
+    expect(parseArgs(['select', '--suite', 'unit', '--execution', 'x'])).toMatchObject({ suite: 'unit' });
+  });
+
+  test('is refused for a snapshot named by path, because both name the record', async () => {
+    const at = await repository(TWO);
+    const file = resolve(at, 'coverage.va');
+    await writeTestCoverage(file, { version: 3, instrumentation: 'fixture', commit: 'c0ffee', tests: [], modules: [] });
+
+    await expect(selectOutput({ cwd: at, format: 'plain', noGit: true, execution: file, suite: 'unit' })).rejects.toThrow(
+      '`--suite` and `--execution` both name the record; pass one',
+    );
   });
 });
 

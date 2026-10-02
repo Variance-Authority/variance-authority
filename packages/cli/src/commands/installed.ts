@@ -188,9 +188,9 @@ async function installDiffAt(
  * nobody committed, and it is the working tree's file when that file hashes to
  * the same name.
  *
- * `undefined` when the patch leaves every lockfile alone. A lockfile the patch
- * changes and git cannot produce at both ends is a sentence, for the reason
- * {@link installDiff} gives one.
+ * `undefined` when the patch leaves every lockfile alone and moves no manifest.
+ * A lockfile the patch changes and git cannot produce at both ends is a
+ * sentence, for the reason {@link installDiff} gives one.
  */
 export async function installDiffOfPatch(patch: string, root: string = process.cwd()): Promise<InstallDiff | undefined> {
   const names = await import('@variance-authority/sense/lock')
@@ -198,8 +198,22 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
     .catch(() => undefined);
   if (names === undefined) return undefined;
 
+  // Every manifest the patch names, read by the same blob names. One with no
+  // `index` line has no ends to read, and is a move.
+  const blobs = new Map(entriesIn(patch, (path) => pathTail(path) === MANIFEST).map((entry) => [entry.path, entry]));
+  const moved = await movedManifests([...blobs.keys()], async (file) => {
+    const entry = blobs.get(file)!;
+    if (!entry.indexed) return [undefined, undefined];
+    return await Promise.all([
+      entry.before === undefined ? undefined : blob(entry.before, root),
+      entry.after === undefined
+        ? undefined
+        : blob(entry.after, root).then((text) => text ?? worktree(file, entry.after!, root)),
+    ]);
+  });
   const found = entriesIn(patch, (path) => names.includes(pathTail(path)))[0];
-  if (found === undefined) return undefined;
+  // An `exports` or a `type` is not the install's business, so it moves with every lockfile alone.
+  if (found === undefined) return moved.length === 0 ? undefined : { packages: [], manifests: [MANIFEST], moved };
   const manifests = [pathTail(found.path), MANIFEST];
   if (found.before === undefined || found.after === undefined) {
     return {
@@ -221,19 +235,6 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
         'there is no install to compare it against and any package in it may have moved',
     };
   }
-  // Every manifest the patch names, read by the same blob names. One with no
-  // `index` line has no ends to read, and is a move.
-  const blobs = new Map(entriesIn(patch, (path) => pathTail(path) === MANIFEST).map((entry) => [entry.path, entry]));
-  const moved = await movedManifests([...blobs.keys()], async (file) => {
-    const entry = blobs.get(file)!;
-    if (!entry.indexed) return [undefined, undefined];
-    return await Promise.all([
-      entry.before === undefined ? undefined : blob(entry.before, root),
-      entry.after === undefined
-        ? undefined
-        : blob(entry.after, root).then((text) => text ?? worktree(file, entry.after!, root)),
-    ]);
-  });
   const lockfile = async () => (await import('@variance-authority/sense/lock')).readLockfile(found.path, after);
   return await compared(found.path, before, lockfile, manifests, moved);
 }

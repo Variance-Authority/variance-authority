@@ -29,8 +29,8 @@ describe('a diff that moved what the suite rests on', () => {
     delete process.env['VARIANCE_AUTHORITY_CACHE'];
   });
 
-  it('runs every test when the setup the declared config loads changed', async () => {
-    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts'] } } });
+  it('runs every test when the declared setup changed', async () => {
+    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] } } });
 
     write(root, 'test/setup.ts', "import 'left-pad';\nexport const ready = 2;\n");
     const said = await select(root);
@@ -41,7 +41,7 @@ describe('a diff that moved what the suite rests on', () => {
   });
 
   it('runs every test when a package the setup imports was bumped', async () => {
-    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts'] } } });
+    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] } } });
 
     write(root, 'package-lock.json', npmLock('1.4.0'));
     const said = await select(root);
@@ -58,6 +58,30 @@ describe('a diff that moved what the suite rests on', () => {
 
     expect(said.out).toBe('');
     expect(said.err).toContain('rests on .github/workflows/test.yml');
+  });
+
+  it('runs every test when a manifest that moved changes how the declared setup loads', async () => {
+    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] } } });
+
+    // No package was bumped and no line of the setup changed; the manifest
+    // beside it changed how Node loads it.
+    write(root, 'test/package.json', JSON.stringify({ name: 'fixture-test', type: 'module' }));
+    const said = await select(root);
+
+    expect(said.out).toBe('');
+    expect(said.err).toContain('rests on test/setup.ts');
+  });
+
+  // A runner reads its setup files from a string in its config, which is not an
+  // import, so the setup is before reach only when it is named beside the config.
+  it('does not follow the setup files a declared config names as strings', async () => {
+    const root = await recorded({ suites: { unit: { kind: 'unit', before: ['vitest.config.ts'] } } });
+
+    write(root, 'test/setup.ts', "import 'left-pad';\nexport const ready = 2;\n");
+    const said = await select(root);
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\n');
+    expect(said.err).not.toContain('rests on');
   });
 
   it('reads an undeclared setup like any other file, and says nothing is declared', async () => {
@@ -86,8 +110,9 @@ const PAD = ['export function pad(text: string): string {', "  return text.padSt
 
 const FILES: Readonly<Record<string, string>> = {
   'src/pad.ts': PAD,
-  'vitest.config.ts': "export default { test: { setupFiles: ['./test/setup.ts'] } };\nimport './test/setup.ts';\n",
+  'vitest.config.ts': "export default { test: { setupFiles: ['./test/setup.ts'] } };\n",
   'test/setup.ts': "import 'left-pad';\nexport const ready = 1;\n",
+  'test/package.json': JSON.stringify({ name: 'fixture-test', type: 'commonjs' }),
   'package.json': JSON.stringify({ name: 'fixture', dependencies: { 'left-pad': '^1.0.0' } }),
   '.nvmrc': '22\n',
 };

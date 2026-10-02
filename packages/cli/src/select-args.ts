@@ -2,7 +2,6 @@ import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 import type { SelectFormat } from './commands/select.js';
-import { oneRecord } from './commands/suite-record.js';
 
 export interface ParsedSelect {
   readonly command: 'select';
@@ -14,7 +13,10 @@ export interface ParsedSelect {
   readonly execution?: string;
   /** `--diff <path>`, or `-` for stdin: the change, handed in rather than read from git. */
   readonly diff?: string;
-  /** `--suite <name>`: whose record is read, when more than one suite is declared. */
+  /**
+   * `--suite <name>`: whose record is read, when more than one suite is declared;
+   * beside a journey file, whose `before` it is read against.
+   */
   readonly suite?: string;
 }
 
@@ -39,7 +41,6 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
   const execution = flags.values.get('--execution');
   const diff = flags.values.get('--diff');
   const suite = flags.values.get('--suite');
-  oneRecord(suite, execution, '--execution');
   if (diff !== undefined && execution === undefined) {
     throw new OperatorError(
       '`--diff` is read against a journey file, and none was named: pass `--execution <path>`',

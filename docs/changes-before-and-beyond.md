@@ -112,11 +112,16 @@ kind:
 {
   "before": [".github/workflows", ".nvmrc"],
   "suites": {
-    "unit": { "kind": "unit", "before": ["vitest.config.ts"] }
+    "unit": { "kind": "unit", "before": ["vitest.config.ts", "test/setup.ts"] }
   },
   "source": { "dirs": ["src"], "relations": true }
 }
 ```
+
+A runner config names its setup files and its environment as strings —
+`setupFiles: ['./test/setup.ts']`, `testEnvironment: 'jsdom'` — and a string
+is not an import, so nothing in the graph runs from the config to them. Name
+each setup file beside the config.
 
 Each entry is matched against the diff by path, so naming a directory of
 workflows is one line rather than one per file. A directory is also walked: every
@@ -145,27 +150,26 @@ declares selects nothing, and `select` names it.
 
 ## What comes with a declared entry point
 
-The config file is one name. The setup module it loads, the fixture only that
-setup imports, the polyfill, the environment package it names: each is an
-ordinary file that nothing imports, whose change reaches no component, and
-which on its own narrows a run to nothing. Declared once at the top, they
-arrive together — the entry point is the one thing walked **along** the arrows
+A declared file is one name. The fixture only the setup imports, the polyfill,
+the DOM package it registers: each is an ordinary file or package that nothing
+in a test imports, whose change reaches no component, and which on its own
+narrows a run to nothing. Declared once, they arrive with the file that
+imports them — the entry point is the one thing walked **along** the arrows
 instead of against them.
 
 ```mermaid
 flowchart LR
   config["vitest.config.ts<br/>declared"]
-  setup["test/setup.ts"]
+  setup["test/setup.ts<br/>declared"]
   fixtures["test/fixtures.ts"]
-  env["jest-environment-jsdom"]
+  env["global-jsdom"]
   jsdom["jsdom"]
   theme["src/theme.ts<br/>sensed"]
   tokens["src/tokens.css"]
   button["Button.tsx"]
 
-  config --> setup
-  config --> env
   setup --> fixtures
+  setup --> env
   setup --> theme
   env --> jsdom
   theme --> tokens
@@ -197,7 +201,8 @@ that finds it too wide narrows what it declares.
 A `jsdom` bump is beyond reach, and the environment it is wired into is before
 reach — the only arrow in the first figure that points back to the left. The
 install comparison names `jsdom`; the harness depends on it through
-`jest-environment-jsdom`, three edges out from a config file; and no file you
-wrote ever spells the word. Undeclared, that diff narrows to whatever else it
+`global-jsdom`, which the declared setup imports; and no file you wrote ever
+spells the word. An environment the config names only by string is not
+imported by anything, so its packages are not reached. Undeclared, that diff narrows to whatever else it
 touched. Declared, the run is whole, and it says `jsdom`.
 

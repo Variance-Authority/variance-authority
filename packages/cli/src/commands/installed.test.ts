@@ -1,8 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { installDiff, installDiffs, installedDepends, type DiffPoint } from './installed.js';
+import { installDiff, installDiffOfPatch, installDiffs, installedDepends, type DiffPoint } from './installed.js';
 
 /**
  * Reading the install at two revisions.
@@ -166,6 +167,19 @@ describe('which changed manifests the install does not speak for', () => {
     const diff = await installDiff(at(repo), ['packages/ds/package.json'], repo);
 
     expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
+  });
+
+  // A manifest's `type` is not the lockfile's business, so a patch that moves
+  // it leaves the lockfile alone, and the move is still read off the patch.
+  it('carries a manifest a handed-in patch moved, though it left every lockfile alone', async () => {
+    const repo = await workspace(MANIFEST);
+    const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' });
+    git('init', '-q');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base');
+    await writeFile(join(repo, 'packages/ds/package.json'), text({ ...MANIFEST, type: 'module' }), 'utf8');
+
+    expect(await installDiffOfPatch(git('diff'), repo)).toEqual({ packages: [], manifests: ['package.json'], moved: ['packages/ds/package.json'] });
   });
 
   it('carries a manifest the base did not have, since it makes a package', async () => {

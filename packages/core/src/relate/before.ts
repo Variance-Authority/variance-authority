@@ -34,11 +34,16 @@
  *
  * ## What declaring one buys beyond its own name
  *
- * Everything below it. A `setup.ts` the config loads, a fixture module only
- * that setup imports, a polyfill, the environment package it names: each is an
- * ordinary file the scan already holds, that nothing imports, whose change
- * reaches no component and narrows the run to nothing. Declared, the entry
- * point is walked *along* the arrows once and that whole set comes with it.
+ * Everything below it. A fixture module only the setup imports, a polyfill,
+ * the environment package it registers: each is an ordinary file the scan
+ * already holds, that nothing in a test imports, whose change reaches no
+ * component and narrows the run to nothing. Declared, the entry point is walked
+ * *along* the arrows once and that whole set comes with it.
+ *
+ * Only along imports. A runner config names its setup files as strings, and a
+ * string is no edge, so the setup is declared beside the config rather than
+ * found below it. Reading what a runner would make of its own config is the
+ * runner's answer, and guessing at it here would be wrong the day it changed.
  *
  * ## Where the descent stops
  *
@@ -53,7 +58,7 @@
  * ## Where the two ends meet
  *
  * The same walk carries into the package layer, and that is the whole of the
- * mixed case. A config imports `jest-environment-jsdom`, which rests on
+ * mixed case. A setup imports `jest-environment-jsdom`, which rests on
  * `jsdom`; `jsdom` is bumped; the install comparison names it. It is a package
  * the harness reaches, so the run does not narrow — and no file in the
  * repository ever wrote the word. A change beyond reach, arriving before it.
