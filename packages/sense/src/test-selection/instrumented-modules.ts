@@ -340,41 +340,6 @@ export function projectPath(root: string, file: string): string {
   return relative(root, file).split(sep).join('/');
 }
 
-/**
- * The record of a name two transforms both answer to, as a function of every
- * reading of it and not of which arrived last.
- *
- * A package's own tests load `src/thing.ts`, and another package's tests reach
- * it as `dist/thing.js`, whose map `recordedFrame` follows back to the
- * same name. Each is cut from its own text, so the two block tables differ, and
- * a runner transforms them in whatever order its workers ask: a record that
- * kept the last one varied from run to run over the same code and tests.
- *
- * The source reading wins — the one whose host file is the name itself —
- * because it is the reading every run of the name has: a run that never loads
- * the build records it, and a run that does must not record something else for
- * the same text. Its regions are also cut from the text a diff's lines number,
- * with no build's map between them. Readings with no source among them fall to
- * the first host in code-unit order.
- *
- * `readings` is keyed by each reading's host file, repository-relative, so a
- * re-transform of one host replaces its own reading and no other.
- */
-// FIXME: the losing reading's probes still report under the same id, so its
-// ordinals are read against the winner's table. Joining needs each reading to
-// report under an id of its own and the fold to reconcile one file's tables, as
-// `reconcileRegions` in `execution-merge.ts` does across shards.
-export function recordedReading(
-  name: string,
-  readings: ReadonlyMap<string, CapturedModule>,
-): CapturedModule {
-  const own = readings.get(name);
-  if (own !== undefined) return own;
-  const [first] = [...readings.keys()].sort(codeUnitOrder);
-  if (first === undefined) throw new Error(`\`${name}\` has no reading to record`);
-  return readings.get(first)!;
-}
-
 /** What one test file's run counted, per module, under the ids the modules reported. */
 export interface ReadJournal {
   readonly testFile: string;

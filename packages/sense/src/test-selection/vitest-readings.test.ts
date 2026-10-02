@@ -23,10 +23,17 @@ const SOURCE = [
   '',
 ].join('\n');
 
-/** What a build emitted for {@link SOURCE}: the branch folded into an expression. */
+/**
+ * What a build emitted for {@link SOURCE}: a helper the source never wrote,
+ * which the map gives no origin, and the callback wrapped in it.
+ */
 const BUILT = [
+  "var __name = (target, value) => Object.defineProperty(target, 'name', { value, configurable: true });",
   'export function total(items) {',
-  '  return items.length === 0 ? 0 : items.reduce(function (sum, item) { return sum + item; }, 0);',
+  '  if (items.length === 0) {',
+  '    return 0;',
+  '  }',
+  "  return items.reduce(__name(function (sum, item) { return sum + item; }, 'sum'), 0);",
   '}',
   '',
 ].join('\n');
@@ -55,13 +62,13 @@ async function recorded(
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
     }>)[1]!;
-    // `tsc`'s map: one source, the file the build was made from, line for line.
+    // The build's map: one source, the file the build was made from, line for line after the helper.
     const built: TransformingContext = {
       getCombinedSourcemap: () => ({
         version: 3,
         sources: ['../src/cart.ts'],
         names: [],
-        mappings: 'AAAA;AACA;AACA',
+        mappings: ';AAAA;AACA;AACA;AACA;AACA;AACA',
       }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
     };
     for (const reading of order) {
@@ -84,15 +91,23 @@ describe('a module two transforms both name', () => {
     expect(buildFirst).toEqual(sourceFirst);
   });
 
-  it('is recorded as its source reading, which a run without the build also records', async () => {
-    const alone = await recorded(['source']);
+  it('is recorded at the regions both readings cut, each where both readings put it', async () => {
+    const place = (block: TestCoverage['modules'][number]['blocks'][number]): string =>
+      JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
+    const [joined] = await recorded(['source', 'build']);
+    const [source] = await recorded(['source']);
+    const [build] = await recorded(['build']);
+    const cut = (module: typeof joined): ReadonlySet<string> => new Set(module!.blocks.map(place));
 
-    expect(await recorded(['source', 'build'])).toEqual(alone);
-    expect(await recorded(['build', 'source'])).toEqual(alone);
+    expect(joined!.blocks.length).toBeGreaterThan(1);
+    for (const block of joined!.blocks) {
+      expect([cut(source).has(place(block)), cut(build).has(place(block))]).toEqual([true, true]);
+    }
+    expect(joined!.blocks.map((block) => block.ordinal)).toEqual(joined!.blocks.map((_, at) => at));
   });
 
   it('is recorded the same when each reading came through another project\'s plugin', async () => {
-    expect(await recorded(['build', 'source'], 2)).toEqual(await recorded(['source']));
-    expect(await recorded(['source', 'build'], 2)).toEqual(await recorded(['source']));
+    expect(await recorded(['build', 'source'], 2)).toEqual(await recorded(['source', 'build']));
+    expect(await recorded(['source', 'build'], 2)).toEqual(await recorded(['source', 'build']));
   });
 });
