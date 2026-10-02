@@ -23,10 +23,17 @@ const SOURCE = [
   '',
 ].join('\n');
 
-/** What a build emitted for {@link SOURCE}: the branch folded into an expression. */
+/**
+ * What a build emitted for {@link SOURCE}: a helper the source never wrote,
+ * which the map gives no origin, and the callback wrapped in it.
+ */
 const BUILT = [
+  "var __name = (target, value) => Object.defineProperty(target, 'name', { value, configurable: true });",
   'export function total(items) {',
-  '  return items.length === 0 ? 0 : items.reduce(function (sum, item) { return sum + item; }, 0);',
+  '  if (items.length === 0) {',
+  '    return 0;',
+  '  }',
+  "  return items.reduce(__name(function (sum, item) { return sum + item; }, 'sum'), 0);",
   '}',
   '',
 ].join('\n');
@@ -89,13 +96,13 @@ async function recorded(
     }>)[1]!;
     // A build of the edited source maps its first line one line further down.
     let first = 'AAAA';
-    // `tsc`'s map: one source, the file the build was made from, line for line.
+    // The build's map: one source, the file the build was made from, line for line after the helper.
     const built: TransformingContext = {
       getCombinedSourcemap: () => ({
         version: 3,
         sources: ['../src/cart.ts'],
         names: [],
-        mappings: `${first};AACA;AACA`,
+        mappings: `;${first};AACA;AACA;AACA;AACA;AACA`,
       }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
     };
     const legacy: TransformingContext = {
@@ -145,24 +152,39 @@ describe('a module two transforms both name', () => {
     expect(buildFirst).toEqual(sourceFirst);
   });
 
-  it('is recorded as its source reading, which a run without the build also records', async () => {
-    const alone = await recorded(['source']);
+  it('is recorded at the regions both readings cut, each where both readings put it', async () => {
+    const place = (block: TestCoverage['modules'][number]['blocks'][number]): string =>
+      JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
+    const [joined] = await recorded(['source', 'build']);
+    const [source] = await recorded(['source']);
+    const [build] = await recorded(['build']);
+    const cut = (module: typeof joined): ReadonlySet<string> => new Set(module!.blocks.map(place));
 
-    expect(await recorded(['source', 'build'])).toEqual(alone);
-    expect(await recorded(['build', 'source'])).toEqual(alone);
+    expect(joined!.blocks.length).toBeGreaterThan(1);
+    for (const block of joined!.blocks) {
+      expect([cut(source).has(place(block)), cut(build).has(place(block))]).toEqual([true, true]);
+    }
+    expect(joined!.blocks.map((block) => block.ordinal)).toEqual(joined!.blocks.map((_, at) => at));
   });
 
   it('is recorded the same when each reading came through another project\'s plugin', async () => {
-    expect(await recorded(['build', 'source'], 2)).toEqual(await recorded(['source']));
-    expect(await recorded(['source', 'build'], 2)).toEqual(await recorded(['source']));
+    expect(await recorded(['build', 'source'], 2)).toEqual(await recorded(['source', 'build']));
+    expect(await recorded(['source', 'build'], 2)).toEqual(await recorded(['source', 'build']));
   });
 
-  it('is recorded as the build whose file sorts first when the run loaded no source', async () => {
-    const dist = await recorded(['build']);
+  it('is recorded at the regions two builds both cut when the run loaded no source', async () => {
+    const place = (block: TestCoverage['modules'][number]['blocks'][number]): string =>
+      JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
+    const [joined] = await recorded(['legacy', 'build']);
+    const [legacy] = await recorded(['legacy']);
+    const [build] = await recorded(['build']);
+    const cut = (module: typeof joined): ReadonlySet<string> => new Set(module!.blocks.map(place));
 
-    expect(await recorded(['legacy'])).not.toEqual(dist);
-    expect(await recorded(['legacy', 'build'])).toEqual(dist);
-    expect(await recorded(['build', 'legacy'])).toEqual(dist);
+    expect(await recorded(['build', 'legacy'])).toEqual([joined]);
+    expect(joined!.blocks.length).toBeGreaterThan(1);
+    for (const block of joined!.blocks) {
+      expect([cut(legacy).has(place(block)), cut(build).has(place(block))]).toEqual([true, true]);
+    }
   });
 
   it('is recorded from the readings a rerun made of the text on disk, not one a run before it made', async () => {
@@ -172,8 +194,15 @@ describe('a module two transforms both name', () => {
     expect(await recorded(['source', 'build'], 1, ['build'])).toEqual(rebuilt);
   });
 
-  it('is recorded as its source reading when a rerun transformed only the build and the source did not change', async () => {
-    expect(await recorded(['source', 'build'], 1, ['build'], 'nothing')).toEqual(await recorded(['source']));
+  it('is recorded from both readings when a rerun transformed only the build and the source did not change', async () => {
+    expect(await recorded(['source', 'build'], 1, ['build'], 'nothing')).toEqual(await recorded(['source', 'build']));
+  });
+
+  it('is recorded from the source a rerun read alone, not joined to a build of the text before it', async () => {
+    const rebuilt = await recorded([], 1, ['source']);
+
+    expect(rebuilt[0]!.blocks.find((block) => block.name === 'total')!.startLine).toBe(2);
+    expect(await recorded(['source', 'build'], 1, ['source'])).toEqual(rebuilt);
   });
 
   it('is carried from the text on disk by a rerun that loaded no reading of it once its source changed', async () => {

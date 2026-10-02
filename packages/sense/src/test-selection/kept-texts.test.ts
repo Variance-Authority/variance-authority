@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { repositoryLayers } from './cache-layers.js';
 import { landRun } from './commit-runs.js';
-import { narrowByExecution, testCoverageFile, type TestCoverage } from './index.js';
+import { narrowByExecution, testCoverageFile, type FileReading, type TestCoverage } from './index.js';
 import { KEPT_TEXTS, keepRecordedTexts, keptTexts } from './kept-texts.js';
 import { openTestCoverage } from './format-view.js';
 import { encodeTestCoverage } from './format.js';
@@ -110,6 +110,16 @@ async function select(at: Checkout, coverageFile: string, root = at.root): Promi
   return { entered, stale };
 }
 
+/** What the same selection says about how it read each changed file. */
+async function readingsOf(at: Checkout, coverageFile: string): Promise<readonly FileReading[] | undefined> {
+  const diff = (await promisify(execFile)('git', ['diff', '--no-renames', at.commit], { cwd: at.root })).stdout;
+  const { readings } = await narrowByExecution(coverageFile, diff, {
+    sourceAt: textAtRecording(at.root, [FILE]),
+    keptText: keptTexts(at.root, at.cacheRoot),
+  });
+  return readings;
+}
+
 describe('a run recorded over an edit keeps the text it ran over', () => {
   it('reads a change against a clean-tree recording by its regions, and keeps nothing', async () => {
     await checkout(async (at) => {
@@ -151,11 +161,14 @@ describe('a run recorded over an edit keeps the text it ran over', () => {
     });
   });
 
-  it('selects nobody for a diff that arrives at the text the tests ran over', async () => {
+  it('selects nobody for a diff that arrives at the text the tests ran over, and says the tests ran it', async () => {
     await checkout(async (at) => {
       const coverageFile = await recordOver(at, FIRST_EDITED);
 
       expect(await select(at, coverageFile)).toEqual({ entered: [], stale: [] });
+      // The parser was never asked: the reading is the kept text's, not a
+      // verdict that the runtime text is equal.
+      expect(await readingsOf(at, coverageFile)).toEqual([{ file: FILE, verdict: 'none', names: [], kept: true }]);
     });
   });
 

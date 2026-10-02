@@ -253,6 +253,14 @@ describe('the frame both entries share', () => {
     expect(unframe(new Uint8Array([1, 2]))).toBe('the entry has no header line');
   });
 
+  it('refuses bytes whose first line is not a list of named parts, rather than guessing at one', () => {
+    const line = (header: string) => new TextEncoder().encode(`${header}\n`);
+
+    expect(unframe(line('{"format":1,'))).toBe('the entry header is not JSON');
+    expect(unframe(line('{"format":1}'))).toBe('the entry header is not a list of parts');
+    expect(unframe(line('[["a"]]'))).toBe('the entry header names a part without a name and a length');
+  });
+
   it('hands each part back at the start of its own buffer, wherever the header left it', () => {
     const parts = unframe(frame([['odd', new Uint8Array([1])], ['words', new Uint8Array(8)]]));
     if (typeof parts === 'string') throw new Error(parts);

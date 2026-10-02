@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::case_id;
 use crate::case_preconditions;
 use crate::journey_columns::{self, Column};
 use crate::journey_journal::Test;
@@ -180,6 +181,9 @@ pub fn encode(
     for test in tests {
         strings.extend([test.id.clone(), test.file.clone(), test.name.clone()]);
     }
+    // Carried only when every case has one, so a stitch never joins half its cases by it.
+    let runners: Option<Vec<&str>> = tests.iter().map(|test| test.runner.as_deref()).collect();
+    strings.extend(runners.iter().flatten().map(|runner| (*runner).to_owned()));
     strings.extend(said.iter().flatten().cloned());
     for held in modules {
         strings.push(held.module.file.clone());
@@ -254,6 +258,9 @@ pub fn encode(
         Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()),
         Column::Words("sets.off", sets.offsets().to_vec()),
     ];
+    if let Some(runners) = runners.filter(|runners| !runners.is_empty()) {
+        columns.push(Column::Words(case_id::COLUMN, runners.into_iter().map(id).collect()));
+    }
     if said.iter().any(Option::is_some) {
         let words = said.iter().map(|text| text.as_deref().map_or(case_preconditions::UNHEARD, id)).collect();
         columns.push(Column::Words(case_preconditions::COLUMN, words));

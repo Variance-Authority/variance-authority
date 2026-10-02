@@ -4,6 +4,7 @@ use std::fs;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
+use crate::case_id::{self, CaseIds};
 use crate::case_preconditions;
 use crate::journey_columns;
 use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
@@ -79,42 +80,64 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         return Err("no journey artifacts were named".to_owned());
     }
     let mut shards = Vec::with_capacity(files.len());
-    let mut tests_by_id: HashMap<String, Test> = HashMap::new();
     let mut inventories: HashMap<String, Vec<Vec<Block>>> = HashMap::new();
     for file in files {
         let bytes = fs::read(file).map_err(|error| format!("cannot read {file}: {error}"))?;
         let shard = read_shard(&bytes, &mut inventories)
             .map_err(|error| format!("cannot read journey artifact {file}: {error}"))?;
-        for test in &shard.tests {
-            if let Some(before) = tests_by_id.get_mut(&test.id) {
-                if before.file != test.file || before.name != test.name {
-                    return Err(format!(
-                        "cannot stitch journey artifacts: test id {:?} names two tests",
-                        test.id
-                    ));
-                }
-                before.settled = journey_journal::settled_across(before.settled, test.settled);
-                before.preconditions = case_preconditions::across(before.preconditions.take(), test.preconditions.clone());
-            } else {
-                tests_by_id.insert(test.id.clone(), test.clone());
-            }
-        }
         shards.push(shard);
     }
+    // A case id numbers a case among the cases its own shard ran, so a shard
+    // that ran only the second of two cases sharing a name calls it by the
+    // first one's id. Where every shard carries the runner's ids, a case is
+    // joined by its own and the union is numbered again, as one fold over every
+    // shard's frames numbers it; otherwise it is joined by case id.
+    let by_runner = shards.iter().all(|shard| shard.tests.iter().all(|test| test.runner.is_some()));
+    let key = |test: &Test| -> (String, String, String) {
+        match &test.runner {
+            Some(runner) if by_runner => (test.file.clone(), test.name.clone(), runner.clone()),
+            _ => (test.id.clone(), String::new(), String::new()),
+        }
+    };
+    let mut tests_by_key: HashMap<(String, String, String), Test> = HashMap::new();
+    for test in shards.iter().flat_map(|shard| &shard.tests) {
+        if let Some(before) = tests_by_key.get_mut(&key(test)) {
+            if before.file != test.file || before.name != test.name {
+                return Err(format!(
+                    "cannot stitch journey artifacts: test id {:?} names two tests",
+                    test.id
+                ));
+            }
+            before.settled = journey_journal::settled_across(before.settled, test.settled);
+            before.preconditions = case_preconditions::across(before.preconditions.take(), test.preconditions.clone());
+        } else {
+            tests_by_key.insert(key(test), test.clone());
+        }
+    }
 
-    let mut tests: Vec<Test> = tests_by_id.into_values().collect();
+    let mut tests: Vec<Test> = tests_by_key.into_values().collect();
+    if by_runner {
+        tests.sort_by(|left, right| {
+            let runner = |test: &Test| test.runner.clone().unwrap_or_default();
+            case_id::order((&left.file, &left.name, &runner(left)), (&right.file, &right.name, &runner(right)))
+        });
+        let mut ids = CaseIds::default();
+        for test in &mut tests {
+            test.id = ids.next(&test.file, &test.name)?;
+        }
+    }
     tests.sort_by(|left, right| {
         order::code_unit(&left.id, &right.id)
             .then_with(|| order::code_unit(&left.file, &right.file))
             .then_with(|| order::code_unit(&left.name, &right.name))
     });
-    let test_at: HashMap<&str, u32> = tests
+    let test_at: HashMap<(String, String, String), u32> = tests
         .iter()
         .enumerate()
-        .map(|(at, test)| (test.id.as_str(), at as u32))
+        .map(|(at, test)| (key(test), at as u32))
         .collect();
     for shard in &mut shards {
-        shard.local_to_global = shard.tests.iter().map(|test| test_at[&*test.id]).collect();
+        shard.local_to_global = shard.tests.iter().map(|test| test_at[&key(test)]).collect();
     }
 
     let mut shapes: Vec<(String, Vec<Vec<Block>>)> = inventories.into_iter().collect();
@@ -259,10 +282,13 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
     let settled = decoded.bytes("tests.stopped").ok();
     // A shard whose producer never listened to a case has no precondition column.
     let said = if decoded.has(case_preconditions::COLUMN) { Some(decoded.words(case_preconditions::COLUMN)?) } else { None };
+    // A shard written before cases carried their runner's id is joined by case id.
+    let runners = if decoded.has(case_id::COLUMN) { Some(decoded.words(case_id::COLUMN)?) } else { None };
     if files.len() != ids.len()
         || names.len() != ids.len()
         || settled.as_ref().is_some_and(|column| column.len() != ids.len())
         || said.as_ref().is_some_and(|column| column.len() != ids.len())
+        || runners.as_ref().is_some_and(|column| column.len() != ids.len())
     {
         return Err("test columns disagree".to_owned());
     }
@@ -271,6 +297,7 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
             id: string(&strings, ids[at])?.to_owned(),
             file: string(&strings, files[at])?.to_owned(),
             name: string(&strings, names[at])?.to_owned(),
+            runner: runners.as_ref().map(|column| string(&strings, column[at]).map(str::to_owned)).transpose()?,
             settled: settled.as_ref().map_or(journey_journal::UNSETTLED, |column| column[at]),
             preconditions: match said.as_ref().map(|column| column[at]) {
                 None | Some(case_preconditions::UNHEARD) => None,
