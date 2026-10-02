@@ -5,8 +5,9 @@
  * folded in, and its ledger (`own-layer.ts`) says which tests are whose. When
  * a fetch brings a newer snapshot of the mainline, the record is rebuilt from
  * that snapshot's bytes with this checkout's tests laid over it, the way a
- * run's are: their rows, their crossings and their cases replace the
- * milestone's, and every other test is the new milestone's, unaltered.
+ * run's are: their rows, their crossings, their cases and their cases' Eyes
+ * journals replace the milestone's, and every other test is the new
+ * milestone's, unaltered.
  *
  * Only forward along HEAD's history. The new snapshot must be an ancestor of
  * HEAD and descend from the pinned one; a snapshot of a commit this branch
@@ -26,6 +27,7 @@ import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { layerCaseIndex } from './case-layer.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
 import { decodeSetExecutionIndex, encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { layEyes, readableEyes } from './eyes-record.js';
 import { decodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
 import { openTestCoverage, wholeCoverage } from './format-view.js';
@@ -120,7 +122,10 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   const subset = { ...ownSubset(own, kept), instrumentation };
   const bytes = layerTestCoverage(milestone, subset, await carriedSources(root, milestone, subset));
 
-  const cases = repinnedCases(caseSectionsOf(milestone).index, caseSectionsOf(ownBytes).index, kept);
+  const ownCases = caseSectionsOf(ownBytes);
+  const milestoneCases = caseSectionsOf(milestone);
+  const cases = repinnedCases(milestoneCases.index, ownCases.index, kept);
+  const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const view = openTestCoverage(bytes);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
   const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, states, recorded, kept);
@@ -130,7 +135,10 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   // record beside the old rows would read changes since the old pin as
   // nobody's. The cases go in the same write; the last run and what it laid
   // over describe a run over the old pin and go with it.
-  await writeCoverageBytes(coverageFile, withCaseSections(bytes, cases === undefined ? {} : { index: cases }));
+  await writeCoverageBytes(coverageFile, withCaseSections(bytes, {
+    ...(cases === undefined ? {} : { index: cases }),
+    ...(eyes === undefined ? {} : { eyes }),
+  }));
   if (runs === undefined) await rm(commitRunsFile(coverageFile), { force: true });
   else await writeCommitRuns(commitRunsFile(coverageFile), runs);
   await writeOwnLayer(coverageFile, { pinned: { mainline: record.mainline, commit: record.commit }, ran: states });
@@ -186,6 +194,32 @@ function repinnedCases(milestone: Uint8Array | undefined, own: Uint8Array | unde
     }),
   });
   return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true }).merged;
+}
+
+/**
+ * The Eyes section once the record stands on the milestone: the journals of
+ * the cases of `tests` are the record's own, as a run of them would have laid
+ * them, and every other case's are the milestone's. A case the repinned index
+ * no longer holds has none, and a section that does not read is none.
+ */
+function repinnedEyes(
+  milestone: Uint8Array | undefined,
+  own: { readonly index?: Uint8Array; readonly eyes?: Uint8Array },
+  merged: Uint8Array | undefined,
+  tests: ReadonlySet<string>,
+): Uint8Array | undefined {
+  const index = merged === undefined ? undefined : openSetExecutionIndex(merged);
+  if (index === undefined) return undefined;
+  const ran = own.index === undefined || openSetExecutionIndex(own.index) === undefined
+    ? []
+    : decodeSetExecutionIndex(own.index).tests.filter((test) => tests.has(test.file)).map((test) => test.id);
+  const ours = new Set(ran);
+  const held = readableEyes(own.eyes);
+  const fresh = held === undefined ? undefined : {
+    watched: held.watched.filter((id) => ours.has(id)),
+    journals: held.journals.filter((row) => ours.has(row.case)),
+  };
+  return layEyes(milestone, fresh, index.tests.map((test) => test.id), ran);
 }
 
 /**
