@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -87,6 +87,47 @@ describe('createGitLineCell', () => {
     const read = await readLine(cellAt('reader'), MAIN);
     if ('kind' in read) throw new Error(read.kind);
     expect(read.manifest.entries.map((held) => held.name)).toEqual(['report-v1', 'suite-v1/app', 'suite-v1/web']);
+  });
+
+  // The lease above is checked against what the remote advertised. A remote
+  // that moves while the pack uploads — a hosted remote, while another run's
+  // publish lands — refuses at its own ref update instead, `[remote rejected]`.
+  it('re-reads and keeps both entries when another cache wrote while the push was in flight', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    await publishLine(cellAt('slow'), MAIN, [entry('suite-v1/web', 'aaaa', 'web')], { descends, image });
+    const before = git(remote, 'rev-parse', REF).trim();
+    await publishLine(cellAt('fast'), MAIN, [entry('suite-v1/app', 'aaaa', 'app')], { descends, image });
+    const landed = git(remote, 'rev-parse', REF).trim();
+    git(remote, 'update-ref', REF, before);
+    const hook = join(remote, 'hooks', 'pre-receive');
+    await writeFile(
+      hook,
+      [
+        '#!/bin/sh',
+        'unset GIT_QUARANTINE_PATH GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES',
+        `git update-ref ${REF} ${landed}`,
+        'rm -f "$0"',
+        '',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+
+    const result = await publishLine(cellAt('slow'), MAIN, [entry('report-v1', 'aaaa', 'r')], { descends, image });
+    expect(result).toMatchObject({ written: ['report-v1'], attempts: 2 });
+    const read = await readLine(cellAt('reader'), MAIN);
+    if ('kind' in read) throw new Error(read.kind);
+    expect(read.manifest.entries.map((held) => held.name)).toEqual(['report-v1', 'suite-v1/app', 'suite-v1/web']);
+  });
+
+  it('reports a push the remote refuses while the line stands where it was read', async () => {
+    const image = async (): Promise<Uint8Array> => ascii('png');
+    await publishLine(cellAt('a'), MAIN, [entry('suite-v1/web', 'aaaa', 'web')], { descends, image });
+    const before = git(remote, 'rev-parse', REF).trim();
+    await writeFile(join(remote, 'hooks', 'pre-receive'), '#!/bin/sh\necho "declined by policy" >&2\nexit 1\n', { mode: 0o755 });
+
+    const result = await publishLine(cellAt('a'), MAIN, [entry('report-v1', 'aaaa', 'r')], { descends, image });
+    expect(result).toMatchObject({ kind: 'unreachable' });
+    expect(git(remote, 'rev-parse', REF).trim()).toBe(before);
   });
 
   it('tells nothing published from a remote that cannot be reached', async () => {
