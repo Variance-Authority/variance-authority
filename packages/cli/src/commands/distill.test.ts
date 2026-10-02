@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, writeFile } from 'node:fs/promises';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { encodeExecutionIndex, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { join } from 'node:path';
+import { encodeExecutionIndex, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
@@ -58,8 +58,13 @@ describe('the CLI distillation boundary', () => {
 
   it('reads the index a recorded run left, naming the test by file and title', async () => {
     const at = testCoverageFile(checkout());
-    mkdirSync(dirname(at), { recursive: true });
-    writeFileSync(`${at}.cases.bin`, encodeExecutionIndex(plain));
+    await writeTestCoverage(at, {
+      version: 3,
+      instrumentation: 'fixture-instrumentation',
+      tests: [{ file: 'plain.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    });
+    writeFileSync(at, withCaseSections(readFileSync(at), { index: encodeExecutionIndex(plain) }));
 
     const answer = await run(['distill', '--file', 'plain.test', '--test', 'work', '--format', 'json']);
 
