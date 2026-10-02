@@ -167,19 +167,20 @@ A test with no phase markers still works. Its observations are reported under
 
 ## Run it
 
-From the command line, where `<recorded-test-id>` is the id a test is recorded
-under:
+From the command line, naming the test and the file that declares it:
 
 ```bash
-variance distill --test '<recorded-test-id>' --eyes .variance/eyes.json
+variance distill --file test/checkout.test.tsx --test submits --eyes .variance/eyes.json
 ```
+
+`--test` takes the recorded id, the test's exact title, or a part of the title.
+`--file` takes any part of the test file's path. When more than one test fits,
+the command prints their ids and stops, and you pass one of them to `--test`.
 
 `--execution <path>` reads an execution index other than the recorded one, such
 as JSON from a tool that already records per-test crossings.
 
-With an Eyes archive, `--test` also accepts a test title, or a title fragment
-that matches exactly one test. Add `--format json` for the analyzer result
-instead of the text.
+Add `--format json` for the analyzer result instead of the text.
 
 From Node, reading the same two recordings:
 
@@ -195,7 +196,7 @@ const execution = decodeExecutionIndex(
   await readFile(`${testCoverageFile(process.cwd())}.cases.bin`),
 );
 
-console.log(formatDistillation(distill({ test: 'checkout submits', eyes, execution })));
+console.log(formatDistillation(distill({ file: 'test/checkout.test.tsx', test: 'submits', eyes, execution })));
 ```
 
 An index another tool wrote as JSON goes through `parseExecutionIndex` instead,
@@ -295,7 +296,7 @@ a measured-empty addressed surface.
 
 | Export | What it is |
 | --- | --- |
-| `distill(input)` | `DistillInput` in, `Distillation` out. Throws when no supplied evidence contains the named test, or when a title fragment matches more than one. |
+| `distill(input)` | `DistillInput` in, `Distillation` out. Throws when no supplied evidence has the named test, or when more than one test fits `test` and `file`. |
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
 

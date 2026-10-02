@@ -17,7 +17,13 @@ type CommitAttention = Extract<Attention, { kind: 'react-commit' }>;
 type Updater = NonNullable<CommitAttention['commit']['updaters']>[number];
 
 export interface DistillInput {
-  readonly test: string;
+  /**
+   * The test to read: its id, its exact title, or a fragment of the title that
+   * only one test has. Absent, `file` has to name a file with one test.
+   */
+  readonly test?: string;
+  /** A fragment of the path of the file that declares the test, which narrows `test`. */
+  readonly file?: string;
   readonly eyes?: EyesArchive;
   readonly execution?: ExecutionIndex;
   /**
@@ -155,10 +161,19 @@ const AVAILABLE_SHOWN = 5;
 
 /** Distil supplied observations into deterministic reduction opportunities. */
 export function distill(input: DistillInput): Distillation {
-  const eyesTest = input.eyes === undefined ? undefined : locateEyesTest(input.eyes, input.test);
-  const executionTest = locateExecutionTest(input.execution, input.test, eyesTest?.id);
+  if (input.test === undefined && input.file === undefined) {
+    throw new Error('name a test, a file, or both');
+  }
+  const eyesTest = input.eyes === undefined
+    ? undefined
+    : locate(input.eyes.tests, input, (test) => test.title, 'Eyes');
+  const executionTest = input.execution === undefined
+    ? undefined
+    : eyesTest === undefined
+      ? locate(input.execution.tests, input, (test) => test.name, 'recorded')
+      : input.execution.tests.find((test) => test.id === eyesTest.id);
   if (eyesTest === undefined && executionTest === undefined) {
-    throw new Error(`no supplied evidence contains test ${input.test}`);
+    throw new Error(`no supplied evidence has a test ${question(input)}`);
   }
 
   const identity = eyesTest ?? executionTest!;
@@ -180,28 +195,46 @@ export function distill(input: DistillInput): Distillation {
   };
 }
 
-function locateEyesTest(archive: EyesArchive, asked: string): EyesTestAttention | undefined {
-  const byId = archive.tests.find((test) => test.id === asked);
-  if (byId !== undefined) return byId;
-  const exact = archive.tests.filter((test) => test.title === asked);
-  if (exact.length === 1) return exact[0];
-  const partial = archive.tests.filter((test) =>
-    test.title.toLowerCase().includes(asked.toLowerCase()));
-  if (partial.length === 1) return partial[0];
-  if (partial.length > 1) {
-    throw new Error(`${partial.length} Eyes tests match ${asked}; use a stable test id`);
+/**
+ * The one test the question names: by id, then by exact title, then by a
+ * fragment of the title, each among the tests whose file path contains `file`.
+ * Two or more answers are refused with their ids, which is how a reader who
+ * knows a file and a title finds the id to ask with.
+ */
+function locate<Test extends { readonly id: string; readonly file?: string }>(
+  tests: readonly Test[],
+  input: DistillInput,
+  titleOf: (test: Test) => string,
+  producer: string,
+): Test | undefined {
+  const { test: asked, file } = input;
+  const inFile = file === undefined ? tests : tests.filter((test) => test.file?.includes(file) === true);
+  const found = asked === undefined ? inFile : named(inFile, asked, titleOf);
+  if (found.length > 1) {
+    const shown = found.slice(0, AVAILABLE_SHOWN).map((test) => test.id).join(', ');
+    const more = found.length > AVAILABLE_SHOWN ? `, and ${found.length - AVAILABLE_SHOWN} more` : '';
+    throw new Error(`${found.length} ${producer} tests ${question(input)}: ${shown}${more}; name one by its id`);
   }
-  return undefined;
+  return found[0];
 }
 
-function locateExecutionTest(
-  index: ExecutionIndex | undefined,
+function named<Test extends { readonly id: string }>(
+  tests: readonly Test[],
   asked: string,
-  eyesId: string | undefined,
-): ExecutionIndex['tests'][number] | undefined {
-  if (index === undefined) return undefined;
-  const id = eyesId ?? asked;
-  return index.tests.find((test) => test.id === id);
+  titleOf: (test: Test) => string,
+): readonly Test[] {
+  const byId = tests.find((test) => test.id === asked);
+  if (byId !== undefined) return [byId];
+  const exact = tests.filter((test) => titleOf(test) === asked);
+  if (exact.length === 1) return exact;
+  return tests.filter((test) => titleOf(test).toLowerCase().includes(asked.toLowerCase()));
+}
+
+/** The question as a reader typed it, for a refusal to repeat. */
+function question(input: DistillInput): string {
+  const test = input.test === undefined ? '' : `matching \`${input.test}\``;
+  const file = input.file === undefined ? '' : `in \`${input.file}\``;
+  return [test, file].filter((part) => part !== '').join(' ');
 }
 
 function attentionOf(test: EyesTestAttention): NonNullable<Distillation['attention']> {

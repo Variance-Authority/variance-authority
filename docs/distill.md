@@ -44,12 +44,17 @@ exercises the same behaviour. Initialization may supply something the test
 needs, and a component can influence the result without being directly used.
 Distill identifies candidates; the confirming run establishes which ones can go.
 
-Replace `<recorded-test-id>` below with the `id` of an entry in the evidence
-file's `tests` array.
+Name the test with `--test` and the file that declares it with `--file`.
+`--test` takes the recorded id, the test's exact title, or a part of the title;
+`--file` takes any part of the test file's path:
 
 ```bash
-variance distill --test '<recorded-test-id>' --eyes .variance/eyes.json
+variance distill --file test/checkout.test.tsx --test submits --eyes .variance/eyes.json
 ```
+
+When more than one test fits, Distill prints the ids of up to five of them and
+stops. Pass one of those ids to `--test`. `--file` without `--test` reads the
+file's only test, or prints the ids of its tests when it has more than one.
 
 The execution half is the [execution record](execution-record.md) your last
 recorded run left: a run wrapped in [Sense](../packages/sense/README.md)'s
@@ -59,10 +64,10 @@ the one to read with `--suite <name>`. `--execution <path>` reads an index from
 anywhere else instead, including JSON from a tool that already records per-test
 crossings.
 
-With Eyes evidence, `--test` also accepts a unique test title, such as
-`'checkout submits'`, or a title fragment that matches only one test. Distill
-resolves it to the Eyes ID and looks up that exact ID in the [execution record](execution-record.md).
-With execution evidence alone, supply the recorded ID.
+Distill looks for the test in the Eyes archive first. When the archive has it,
+Distill reads the [execution record](execution-record.md) by that test's exact
+id. When there is no archive, or the archive has no test that fits, Distill
+looks for the test in the execution record.
 
 The command is deterministic. The same inputs produce the same ordering and
 the same answer; it does not open a browser, run a test, or edit source.
@@ -227,7 +232,7 @@ keep it.
 
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
-| CLI | the run was recorded and Eyes wrote an archive | `variance distill --test <id> --eyes <path>` |
+| CLI | the run was recorded and Eyes wrote an archive | `variance distill --file <path> --test <title> --eyes <path>` |
 | [MCP](agent-questions.md#distill-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
 | [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 

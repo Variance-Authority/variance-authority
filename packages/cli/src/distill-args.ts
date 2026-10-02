@@ -5,7 +5,9 @@ import { oneRecord } from './commands/suite-record.js';
 
 export interface ParsedDistill {
   readonly command: 'distill';
-  readonly test: string;
+  readonly test?: string;
+  /** A fragment of the test file's path; with no `test`, the file's one test. */
+  readonly file?: string;
   readonly eyes?: string;
   /** Absent, the index a recorded run left beside the record is read. */
   readonly execution?: string;
@@ -20,7 +22,10 @@ export interface ParsedDistill {
 export function parseDistill(flags: Flags): ParsedDistill {
   noPositionals(flags.positionals, 'distill');
   const test = flags.values.get('--test');
-  if (test === undefined) throw new OperatorError('distill needs `--test <id>`');
+  const file = flags.values.get('--file');
+  if (test === undefined && file === undefined) {
+    throw new OperatorError('distill needs `--test <name>`, `--file <path>`, or both');
+  }
   const format = flags.values.get('--format') ?? 'text';
   if (format !== 'text' && format !== 'json') {
     throw new OperatorError(`--format must be text or json, not \`${format}\``);
@@ -31,7 +36,8 @@ export function parseDistill(flags: Flags): ParsedDistill {
   oneRecord(suite, execution, '--execution');
   return {
     command: 'distill',
-    test,
+    ...(test === undefined ? {} : { test }),
+    ...(file === undefined ? {} : { file }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     ...(eyes === undefined ? {} : { eyes: resolve(eyes) }),
     ...(execution === undefined ? {} : { execution: resolve(execution) }),

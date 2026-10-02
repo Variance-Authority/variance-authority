@@ -9,7 +9,9 @@ import { OperatorError } from '../exit.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 
 export interface DistillOptions {
-  readonly test: string;
+  readonly test?: string;
+  /** A fragment of the test file's path, which narrows `test`. */
+  readonly file?: string;
   readonly eyes?: string;
   /** Absent, the index a recorded run left beside the record is read. */
   readonly execution?: string;
@@ -35,7 +37,8 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
       from === undefined ? undefined : readExecutionIndex(from),
     ]);
     return distill({
-      test: options.test,
+      ...(options.test === undefined ? {} : { test: options.test }),
+      ...(options.file === undefined ? {} : { file: options.file }),
       ...(options.root === undefined ? {} : { root: options.root }),
       ...(eyes === undefined ? {} : { eyes }),
       ...(execution === undefined ? {} : { execution }),

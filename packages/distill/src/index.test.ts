@@ -270,3 +270,37 @@ describe('a named import nothing ever calls', () => {
     ] }] })).toThrow('loaded must be boolean');
   });
 });
+
+describe('naming the test', () => {
+  const recorded: ExecutionIndex = { tests: [
+    { id: 'test/checkout.test.tsx > checkout > submits', file: 'test/checkout.test.tsx', name: 'checkout > submits' },
+    { id: 'test/checkout.test.tsx > checkout > cancels', file: 'test/checkout.test.tsx', name: 'checkout > cancels' },
+    { id: 'test/cart.test.tsx > cart > submits', file: 'test/cart.test.tsx', name: 'cart > submits' },
+  ], modules: [] };
+
+  it('finds a recorded test by a part of its name within a file', () => {
+    expect(distill({ file: 'checkout.test', test: 'submits', execution: recorded }).test.id)
+      .toBe('test/checkout.test.tsx > checkout > submits');
+    expect(distill({ file: 'cart', execution: recorded }).test.id).toBe('test/cart.test.tsx > cart > submits');
+  });
+
+  it('refuses a name more than one test fits, and names each one by its id', () => {
+    expect(() => distill({ test: 'SUBMITS', execution: recorded })).toThrow(
+      '2 recorded tests matching `SUBMITS`: test/checkout.test.tsx > checkout > submits, '
+        + 'test/cart.test.tsx > cart > submits; name one by its id',
+    );
+    expect(() => distill({ file: 'checkout', execution: recorded })).toThrow('2 recorded tests in `checkout`');
+    expect(() => distill({ file: 'nowhere', test: 'submits', execution: recorded }))
+      .toThrow('no supplied evidence has a test matching `submits` in `nowhere`');
+    expect(() => distill({ execution: recorded })).toThrow('name a test, a file, or both');
+  });
+
+  it('narrows Eyes titles by file, then joins the execution record on the Eyes id', () => {
+    const eyes: EyesArchive = { eyesVersion: 1, tests: recorded.tests.map(({ id, file, name }) => ({
+      id, file, title: name, complete: true, attention: [],
+    })) };
+    const result = distill({ file: 'cart', test: 'submits', eyes, execution: recorded });
+    expect(result.test.id).toBe('test/cart.test.tsx > cart > submits');
+    expect(result.execution?.joined).toBe(true);
+  });
+});

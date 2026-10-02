@@ -56,14 +56,15 @@ describe('the CLI distillation boundary', () => {
     expect(formatDistill(result, 'json')).toContain('"entered"');
   });
 
-  it('reads the index a recorded run left when no `--execution` is named', async () => {
+  it('reads the index a recorded run left, naming the test by file and title', async () => {
     const at = testCoverageFile(checkout());
     mkdirSync(dirname(at), { recursive: true });
     writeFileSync(`${at}.cases.bin`, encodeExecutionIndex(plain));
 
-    const answer = await run(['distill', '--test', 'plain', '--format', 'json']);
+    const answer = await run(['distill', '--file', 'plain.test', '--test', 'work', '--format', 'json']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
+    expect(JSON.parse(answer.out).test.id).toBe('plain');
     expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'plain.ts', distance: 1 }]);
   });
 

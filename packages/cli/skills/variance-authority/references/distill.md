@@ -1,7 +1,9 @@
 # Distill a test, then verify the reduction
 
 `variance distill` reads no config and no report, so it answers in a checkout
-that has never configured this tool. `--test <id>` is required. The execution
+that has never configured this tool. `--test` takes a recorded id, an exact title or a part of one, and
+`--file` a part of the test file's path; give either or both. More than one
+fitting test is refused with their ids. The execution
 half is the index the last recorded run left, unless `--execution <path>` names
 another; `--suite <name>` picks one declared suite's. `--root` (default: the working directory) is the project root
 both producers recorded against: Eyes names files by absolute path and the
@@ -10,7 +12,7 @@ unjoined. `--format json` returns the same reading as data, and the
 `variance_distill` MCP tool returns the same deterministic reading.
 
 ```bash
-variance distill --test checkout-submits --eyes eyes.json
+variance distill --file checkout.test.tsx --test submits --eyes eyes.json
 ```
 
 ## The two input files

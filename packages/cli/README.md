@@ -154,7 +154,7 @@ variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
-variance distill --test <id> [--eyes <path>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
+variance distill [--test <name>] [--file <path>] [--eyes <path>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
@@ -316,19 +316,18 @@ Without `--eyes`, execution alone lists covered source but produces no
 opportunities, because missing attention is not an empty addressed surface.
 With `--eyes` and nothing recorded, the execution half is reported unavailable.
 
-Replace `<recorded-test-id>` with an entry's `id` from the recording's `tests`
-array:
+Name the test by the file that declares it and its title:
 
 ```bash
-variance distill --test '<recorded-test-id>' --eyes .variance/eyes.json
+variance distill --file test/checkout.test.tsx --test submits --eyes .variance/eyes.json
 ```
 
-`--test` identifies an entry in the evidence file's `tests` array by its `id`.
-When both evidence files are supplied, their IDs must agree to join the readings.
-A file path works only when it is the recorded ID. With Eyes evidence, a unique
-exact title or unique case-insensitive title fragment also resolves to an ID;
-ambiguous title matches are refused. Execution evidence is always matched by
-exact ID, including after Eyes resolves a title.
+`--file` takes any part of the test file's path. `--test` takes the recorded
+`id`, the exact title, or a part of the title, compared without case. Either
+flag may be given alone. When more than one test fits, the command prints up to
+five of their ids and stops; pass one of them to `--test`. With `--eyes`, the
+test is looked up in the archive first, and the execution index is then read
+by that test's exact `id`, so the two recordings must use the same ids to join.
 
 `distill` does not read project configuration. It reports addressed targets by authored Arrange/Act/Assert
 phase, React update initiators inside and outside those target paths, and files
