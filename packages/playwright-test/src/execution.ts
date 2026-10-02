@@ -29,6 +29,7 @@ import {
   type InstrumentMode,
   type ModuleId,
   type ObservedCase,
+  type ObservedEyes,
   type ObservedSubject,
 } from '@variance-authority/sense/journal';
 import {
@@ -148,6 +149,13 @@ export interface ExecutionRecorder {
    * and the case each sum their attempts; nothing here reads a clock.
    */
   readonly mark: (owner: string, complete: boolean, subject?: ObservedTest, duration?: number) => void;
+  /**
+   * Keep one attempt's Eyes journal for its case, counted from 1. The record
+   * joins it to the case by the id the index gives the case; see `case-scope.ts`.
+   */
+  readonly eyes: (owner: string, subject: ObservedTest, attempt: number, journal: Readonly<Record<string, unknown>>) => void;
+  /** The checkout every path this recorder writes is named against. */
+  readonly root: string;
   /** Merge this worker's contribution into the index, or explain the silence. */
   readonly close: () => Promise<void>;
 }
@@ -193,6 +201,8 @@ export function createExecutionRecorder(
   const stopped = new Map<string, boolean>();
   // What the runner counted, per owner and per case key, summed over attempts.
   const spent = new Map<string, number>();
+  // Each case's Eyes journals, one per attempt that handed one over.
+  const looked = new Map<string, ObservedEyes[]>();
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
   const reports: JourneyReport[] = [];
   let seen = false;
@@ -218,7 +228,13 @@ export function createExecutionRecorder(
   };
 
   return {
+    root,
     owner: (testInfo) => ownerOf(root, testInfo),
+    eyes: (owner, subject, attempt, journal) => {
+      caseOf(owner, subject);
+      const key = `${owner}\u0000${subject.id}`;
+      looked.set(key, [...(looked.get(key) ?? []), { attempt, journal }]);
+    },
     note: async (page, owner, subject) => {
       const journal = await drainExecution(page);
       if (journal === undefined) return;
@@ -350,10 +366,12 @@ export function createExecutionRecorder(
     return [...cases].map(([key, held]) => {
       const settled = stopped.get(key);
       const duration = spent.get(key);
+      const eyes = looked.get(key);
       return {
         ...held.of,
         ...(settled === undefined ? {} : { stopped: settled }),
         ...(duration === undefined ? {} : { duration }),
+        ...(eyes === undefined ? {} : { eyes }),
         journal: journalOf(held.hits),
       };
     });
