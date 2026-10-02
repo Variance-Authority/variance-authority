@@ -26,9 +26,7 @@ import {
   stageExecution,
   stagingDirectory,
   type EvaluatingPage,
-  type ExecutedModule,
   type InstrumentMode,
-  type ModuleId,
   type ObservedCase,
   type ObservedEyes,
   type ObservedSubject,
@@ -45,6 +43,7 @@ import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/s
 import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { listen, type Wire } from '@variance-authority/wire/listen';
 import { resolve } from 'node:path';
+import { absorb, accumulation, type Accumulated } from './accumulated.js';
 import { caseKey, ownerOf, type ObservedTest } from './test-coordinate.js';
 
 export { ownerOf, testOf, type ObservedTest } from './test-coordinate.js';
@@ -163,13 +162,6 @@ export interface ExecutionRecorder {
   readonly close: () => Promise<void>;
 }
 
-interface Accumulated {
-  readonly hits: Map<ModuleId, Set<number>>;
-  /** Of `hits`, the ordinals a module entered while evaluating: every spec's. */
-  readonly shared: Map<ModuleId, Set<number>>;
-  complete: boolean;
-}
-
 /** How long a worker waits at its end for requests a head is still serving. */
 const SETTLING_MS = 5_000;
 
@@ -240,7 +232,7 @@ export function createExecutionRecorder(
     owner: (testInfo) => ownerOf(root, testInfo),
     eyes: (owner, subject, attempt, journal) => {
       caseOf(owner, subject);
-      const key = `${owner}\u0000${subject.id}`;
+      const key = caseKey(owner, subject.id);
       looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
     },
     note: async (page, owner, subject) => {
@@ -248,7 +240,7 @@ export function createExecutionRecorder(
       if (journal === undefined) return;
       seen = true;
       instrumentation = journal.instrumentation;
-      const accumulated = owners.get(owner) ?? { hits: new Map(), shared: new Map(), complete: true };
+      const accumulated = owners.get(owner) ?? accumulation();
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
       if (subject === undefined) return;
@@ -341,18 +333,6 @@ export function createExecutionRecorder(
     }
   }
 
-  /** Fold one drained window into an accumulation, keeping evaluation apart. */
-  function absorb(accumulated: Accumulated, journal: { modules: readonly ExecutedModule[] }): void {
-    for (const module of journal.modules) {
-      const ordinals = accumulated.hits.get(module.id) ?? new Set<number>();
-      for (const ordinal of module.hits) ordinals.add(ordinal);
-      accumulated.hits.set(module.id, ordinals);
-      const shared = accumulated.shared.get(module.id) ?? new Set<number>();
-      for (const ordinal of module.shared) shared.add(ordinal);
-      accumulated.shared.set(module.id, shared);
-    }
-  }
-
   /** An accumulation as a journal again, which is what both records are made of. */
   function journalOf(accumulated: Accumulated) {
     return {
@@ -370,7 +350,7 @@ export function createExecutionRecorder(
     const key = `${owner}\u0000${subject.id}`;
     const held = cases.get(key) ?? {
       of: { file: owner, name: subject.name, id: subject.id },
-      hits: { hits: new Map(), shared: new Map(), complete: true },
+      hits: accumulation(),
     };
     cases.set(key, held);
     return held.hits;
