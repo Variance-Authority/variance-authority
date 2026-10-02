@@ -15,6 +15,7 @@ import {
 import { sourceStem } from './page-side.mjs';
 import { readChange, suiteFiles } from './since-change.mjs';
 import { importGraph } from './since-graph.mjs';
+import { MATRIX_FLAGS, matrixOf, runnerOf } from './since-shard.mjs';
 import { costLine, describeRange, distanceLines, explain, findingLines, helpLines, readingLines, recordLine, runningLines } from './since-report.mjs';
 
 /**
@@ -171,17 +172,31 @@ async function main() {
   // distance, and answering it with the whole run would answer a different
   // question.
   const asked = distanceAt < 0 ? undefined : (argv[distanceAt + 1] ?? '');
-  const ref = argv.find((argument, at) => !argument.startsWith('-') && at !== distanceAt + 1);
+  const valued = ['--at-distance', ...MATRIX_FLAGS].flatMap((flag) => {
+    const at = argv.indexOf(flag);
+    return at < 0 ? [] : [at + 1];
+  });
+  const ref = argv.find((argument, at) => !argument.startsWith('-') && !valued.includes(at));
+  const matrix = matrixOf(argv);
+  if (matrix.refused !== undefined) {
+    say(`test:since: ${matrix.refused}.`);
+    return 1;
+  }
+  const { only, shard, into, whole } = matrix;
 
   // Each slice is read from its own record and run under its own config, in
   // the order `yarn test` runs them, and the first red slice ends the run: a
   // unit failure is the cheaper one to read, and the slices after it would
   // spend minutes saying less.
-  const slices = slicesOf(ROOT);
+  const slices = slicesOf(ROOT).filter((slice) => only === undefined || slice.suite === only);
+  if (slices.length === 0) {
+    say(`test:since: no slice is named \`${only}\`; \`variance.config.json\` declares ${slicesOf(ROOT).map((slice) => slice.suite).join(', ')}.`);
+    return 1;
+  }
   for (const [at, slice] of slices.entries()) {
     if (at > 0) say('');
     if (slices.length > 1) say(`test:since: the ${slice.suite} slice, from ${slice.config}.`);
-    const status = await sinceSlice(slice, { dryRun, asked, ref });
+    const status = await sinceSlice(slice, { dryRun, asked, ref, shard, into, whole });
     if (status !== 0) return status;
   }
   return 0;
@@ -250,10 +265,17 @@ export async function snapshotReading(snapshotFile) {
 }
 
 /** One slice's reading and run. */
-async function sinceSlice({ suite: name, config }, { dryRun, asked, ref }) {
-  const vitest = (...files) => spawnSync('yarn', ['vitest', 'run', '--config', config, ...files], { cwd: ROOT, stdio: 'inherit' }).status ?? 1;
+async function sinceSlice({ suite: name, config }, { dryRun, asked, ref, shard, into, whole }) {
+  let durations = new Map();
+  const vitest = runnerOf({ root: ROOT, config, shard, into, say, durations: () => durations });
   const base = await recordToRead(ROOT, { suite: name });
   const snapshotFile = base.file;
+  if (whole) {
+    const read = existsSync(snapshotFile) ? await snapshotReading(snapshotFile) : {};
+    durations = new Map((read.coverage?.tests ?? []).flatMap((test) => (test.duration === undefined ? [] : [[test.file, test.duration]])));
+    say('test:since: `--whole` skips the reading, so the whole slice runs.');
+    return dryRun ? 0 : vitest();
+  }
   if (base.from === 'none' || !existsSync(snapshotFile)) {
     // No record is no opinion, so the slice runs whole, and the run is what
     // records it. A slice no record is carried for reads this way in CI.
@@ -281,6 +303,7 @@ async function sinceSlice({ suite: name, config }, { dryRun, asked, ref }) {
   const recorded = new Map(
     coverage.tests.flatMap((test) => (test.duration === undefined ? [] : [[test.file, test.duration]])),
   );
+  durations = recorded;
 
   if (ref === undefined && coverage.commit === undefined) {
     say(
