@@ -28,7 +28,7 @@ function clicked(file: string) {
 }
 
 /** The checkout's own record: one case, its crossings, and, when given, its journals. */
-async function recorded(root: string, journals?: readonly unknown[]): Promise<string> {
+async function recorded(root: string, journals?: readonly unknown[], watched = [CASE]): Promise<string> {
   const at = testCoverageFile(root);
   await writeTestCoverage(at, {
     version: 3,
@@ -46,7 +46,7 @@ async function recorded(root: string, journals?: readonly unknown[]): Promise<st
       ],
     }),
     ...(journals === undefined ? {} : {
-      eyes: Buffer.from(`${JSON.stringify({ version: 1, watched: [CASE], journals })}\n`),
+      eyes: Buffer.from(`${JSON.stringify({ version: 1, watched, journals })}\n`),
     }),
   }));
   return at;
@@ -85,6 +85,20 @@ describe('the CLI distillation boundary', () => {
       const result = await distillFiles({ test: CASE, root });
       expect(result.attempts).toBeUndefined();
       expect(formatDistill(result, 'text')).toContain('the record keeps no Eyes journals');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('tells a case its run did not watch from a watched case that handed no journal', async () => {
+    const root = await checkout();
+    try {
+      await recorded(root, [], []);
+      expect(formatDistill(await distillFiles({ test: CASE, root }), 'text'))
+        .toContain('this case\'s run did not opt into Eyes.');
+      await recorded(root, []);
+      expect(formatDistill(await distillFiles({ test: CASE, root }), 'text'))
+        .toContain('the record keeps no Eyes journal for this case.');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

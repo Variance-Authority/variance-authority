@@ -35,6 +35,12 @@ export interface DistillInput {
    */
   readonly eyes?: readonly EyesAttempt[];
   /**
+   * The cases whose test opened an Eyes journal, handed over or not. Absent
+   * when the record does not say, and then every case of a run with Eyes is
+   * read as watched.
+   */
+  readonly watched?: readonly string[];
+  /**
    * The root both sides' paths are relative to. A record names every path
    * against the checkout, so it is needed only for evidence that names a
    * source absolutely.
@@ -190,7 +196,14 @@ export function distill(input: DistillInput): Distillation {
       ...(identity.file === undefined ? {} : { file: identity.file }),
     },
     ...(attempts === undefined ? {} : { attempts }),
-    execution: executionOf(input.execution, test, attempts, addressed, input.root),
+    execution: executionOf(
+      input.execution,
+      test,
+      attempts,
+      addressed,
+      input.root,
+      input.watched === undefined || input.watched.includes(identity.id),
+    ),
   };
 }
 
@@ -320,13 +333,14 @@ function executionOf(
   attempts: readonly AttemptAttention[] | undefined,
   addressed: ReadonlySet<string> | undefined,
   root: string | undefined,
+  watched: boolean,
 ): Distillation['execution'] {
   const modules = index.modules.flatMap((module) => enteredModule(module, test))
     .sort((left, right) => left.distance - right.distance || compare(left.file, right.file));
   const entered = modules.map(({ file, distance }) => ({ file, distance }));
   return {
     entered,
-    ...opportunitiesOf(entered, attempts, addressed, root),
+    ...opportunitiesOf(entered, attempts, addressed, root, watched),
     modules,
   };
 }
@@ -345,6 +359,7 @@ function opportunitiesOf(
   attempts: readonly AttemptAttention[] | undefined,
   addressed: ReadonlySet<string> | undefined,
   root: string | undefined,
+  watched: boolean,
 ): Pick<
   Distillation['execution'],
   'opportunities' | 'withheld' | 'addressedNotEntered'
@@ -352,7 +367,9 @@ function opportunitiesOf(
   if (attempts === undefined || addressed === undefined) {
     return { withheld: 'the record keeps no Eyes journals; the run did not opt into Eyes.' };
   }
-  if (attempts.length === 0) return { withheld: 'the record keeps no Eyes journal for this case.' };
+  if (attempts.length === 0) {
+    return { withheld: watched ? 'the record keeps no Eyes journal for this case.' : 'this case\'s run did not opt into Eyes.' };
+  }
   const attribution = attribute(root, entered.map(({ file }) => file), addressed);
   if (!attribution.joined) return { withheld: attribution.because };
   return {

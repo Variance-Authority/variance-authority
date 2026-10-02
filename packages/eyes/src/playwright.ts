@@ -11,7 +11,7 @@ import {
   type EyesLog,
   type TargetSnapshot,
 } from './access.js';
-import { handToRunningCase } from './case.js';
+import { handToRunningCase, watchRunningCase } from './case.js';
 import { bundleEyesAgent } from './bundle.js';
 import {
   EYES_AGENT,
@@ -76,6 +76,7 @@ export const eyesFixtures: Fixtures<
   // eslint-disable-next-line no-empty-pattern
   eyes: async ({}, use) => {
     const log = createEyesLog();
+    watchRunningCase();
     await use(log);
     handToRunningCase(eyesJournal(log.drain()));
   },

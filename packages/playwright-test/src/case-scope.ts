@@ -27,6 +27,8 @@ interface CaseScope {
   readonly root: string;
   /** Keep a journal for the running case, under this attempt. */
   readonly eyes: (journal: Readonly<Record<string, unknown>>) => boolean;
+  /** Say the running case opened a journal, so a case that hands none over is told apart from one that opened none. */
+  readonly watch: () => void;
 }
 
 type Holder = { [CASE_SCOPE]?: unknown };
@@ -48,6 +50,7 @@ export function enterCase(recorder: ExecutionRecorder, testInfo: TestInfo): () =
       recorder.eyes(owner, subject, attempt, journal);
       return true;
     },
+    watch: () => recorder.eyes(owner, subject, attempt),
   };
   const before = holder[CASE_SCOPE];
   holder[CASE_SCOPE] = scope;

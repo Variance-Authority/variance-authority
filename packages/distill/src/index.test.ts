@@ -85,6 +85,16 @@ describe('distill', () => {
       .toContain('Eyes attention: unavailable; the record keeps no Eyes journal for this case.');
   });
 
+  it('tells a case whose run did not watch it from a watched case that handed no journal', () => {
+    const elsewhere = [{ ...EYES[0]!, case: 'another-case' }];
+    const unwatched = distill({ test: 'redraw-test', eyes: elsewhere, watched: ['another-case'], execution: EXECUTION });
+    expect(unwatched.execution.withheld).toBe('this case\'s run did not opt into Eyes.');
+    const watched = distill({
+      test: 'redraw-test', eyes: elsewhere, watched: ['another-case', 'redraw-test'], execution: EXECUTION,
+    });
+    expect(watched.execution.withheld).toBe('the record keeps no Eyes journal for this case.');
+  });
+
   it('reads a retried case attempt by attempt, and counts what any attempt addressed', () => {
     // Attempt 1 addressed the panel; the retry addressed the navigation too.
     const navigation: TargetSnapshot = { ...TARGET, provenance: { status: 'resolved', provenance: {

@@ -150,10 +150,11 @@ export interface ExecutionRecorder {
    */
   readonly mark: (owner: string, complete: boolean, subject?: ObservedTest, duration?: number) => void;
   /**
-   * Keep one attempt's Eyes journal for its case, counted from 1. The record
-   * joins it to the case by the id the index gives the case; see `case-scope.ts`.
+   * Keep one attempt's Eyes journal for its case, counted from 1, or without
+   * one, that the attempt opened a journal. The record joins it to the case by
+   * the id the index gives the case; see `case-scope.ts`.
    */
-  readonly eyes: (owner: string, subject: ObservedTest, attempt: number, journal: Readonly<Record<string, unknown>>) => void;
+  readonly eyes: (owner: string, subject: ObservedTest, attempt: number, journal?: Readonly<Record<string, unknown>>) => void;
   /** The checkout every path this recorder writes is named against. */
   readonly root: string;
   /** Merge this worker's contribution into the index, or explain the silence. */
@@ -233,7 +234,7 @@ export function createExecutionRecorder(
     eyes: (owner, subject, attempt, journal) => {
       caseOf(owner, subject);
       const key = `${owner}\u0000${subject.id}`;
-      looked.set(key, [...(looked.get(key) ?? []), { attempt, journal }]);
+      looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
     },
     note: async (page, owner, subject) => {
       const journal = await drainExecution(page);

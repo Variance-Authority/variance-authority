@@ -15,6 +15,7 @@ const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].
 interface Scope {
   readonly root: string;
   eyes(journal: Readonly<Record<string, unknown>>): boolean;
+  watch(): void;
 }
 
 const scopeNow = (): Scope | undefined => (globalThis as { [CASE_SCOPE]?: Scope })[CASE_SCOPE];
@@ -77,6 +78,28 @@ describe('the case a Playwright test runs as', () => {
           { case: 'tests/checkout.spec.ts > checkout > pays', attempt: 2, journal: { complete: true, attention: [], seen: 1 } },
         ],
       });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('names a case whose test opened a journal and handed none over, apart from a run that opened none', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-playwright-case-scope-'));
+    try {
+      const cacheRoot = resolve(root, 'cache');
+      await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
+      testSelectionProbes({ root, cacheRoot }).transform(SOURCE, resolve(root, 'price.js'));
+      const coverageFile = resolve(root, 'coverage.bin');
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      const page = {
+        evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: 'price.js', hits: [0], shared: [] }] }),
+      } as unknown as Page;
+      await ran(recorder, root, {}, async () => {
+        scopeNow()!.watch();
+        await recorder.note(page, 'tests/checkout.spec.ts', { name: 'checkout > pays', id: 'runner-id-1' });
+      });
+      await recorder.close();
+      expect(recordedEyesAt(coverageFile)).toEqual({ watched: ['tests/checkout.spec.ts > checkout > pays'], journals: [] });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

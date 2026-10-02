@@ -9,7 +9,7 @@ import {
   type EyesTestAttention,
   type EyesTestIdentity,
 } from './access.js';
-import { handToRunningCase } from './case.js';
+import { handToRunningCase, watchRunningCase } from './case.js';
 import { snapshotArguments } from './arguments.js';
 import { observeDocumentEvents, observeReactCommits } from './observe.js';
 import { snapshotNode } from './snapshot.js';
@@ -253,6 +253,7 @@ export function watchTest(
   }
 
   let closed: EyesJournal | undefined;
+  watchRunningCase();
   return {
     log: watching.log,
     close(because) {

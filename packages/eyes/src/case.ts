@@ -22,6 +22,7 @@ const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 interface RecordingScope {
   readonly root: string;
   readonly eyes: (journal: Readonly<Record<string, unknown>>) => boolean;
+  readonly watch?: () => void;
 }
 
 function recordingScope(): RecordingScope | undefined {
@@ -39,6 +40,19 @@ export function handToRunningCase(journal: EyesJournal): boolean {
   const scope = recordingScope();
   if (scope === undefined) return false;
   return scope.eyes(relativeTo(journal, scope.root) as unknown as Readonly<Record<string, unknown>>);
+}
+
+/**
+ * Tell the running case a journal was opened for it, so the record tells a case
+ * that never handed one over apart from a case that opened none.
+ *
+ * `false` when no recording run is in scope, or its scope takes no such word.
+ */
+export function watchRunningCase(): boolean {
+  const watch = recordingScope()?.watch;
+  if (typeof watch !== 'function') return false;
+  watch();
+  return true;
 }
 
 /** `journal` with every source location spelled relative to `root`. */

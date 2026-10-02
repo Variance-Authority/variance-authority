@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { eyesJournal, type Attention } from './access.js';
-import { handToRunningCase } from './case.js';
+import { handToRunningCase, watchRunningCase } from './case.js';
 
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 type Holder = { [CASE_SCOPE]?: unknown };
@@ -44,6 +44,22 @@ const ATTENTION = [
   },
   { sequence: 2, kind: 'rtl-query', query: 'getByText', arguments: [{ kind: 'regexp', source: 'Add', flags: 'i' }], outcome: 'absent' },
 ] as unknown as readonly Attention[];
+
+describe('a journal opened for the running case', () => {
+  it('tells the case it is watched, so a test that never hands one over is told apart from one that opened none', () => {
+    let watched = 0;
+    (globalThis as Holder)[CASE_SCOPE] = { root: '/work/app', eyes: () => true, watch: () => void watched++ };
+    expect(watchRunningCase()).toBe(true);
+    expect(watched).toBe(1);
+  });
+
+  it('is no one\'s when no recording run is in scope, or its scope takes no word of one', () => {
+    (globalThis as Holder)[CASE_SCOPE] = undefined;
+    expect(watchRunningCase()).toBe(false);
+    (globalThis as Holder)[CASE_SCOPE] = { root: '/work/app', eyes: () => true };
+    expect(watchRunningCase()).toBe(false);
+  });
+});
 
 describe('a journal handed to the running case', () => {
   it('names the files it saw against the checkout the record names them against', () => {

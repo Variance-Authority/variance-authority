@@ -33,12 +33,12 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   }
   try {
     const execution = await readExecutionIndex(record);
-    const eyes = keepsEyes(record) ? journalsAt(record) : undefined;
+    const section = keepsEyes(record) ? recordedEyesAt(record) : undefined;
     return distill({
       test: options.test,
       root: options.root,
       execution,
-      ...(eyes === undefined ? {} : { eyes }),
+      ...(section === undefined ? {} : { eyes: journalsOf(section.journals), watched: section.watched }),
     });
   } catch (error) {
     if (error instanceof OperatorError) throw error;
@@ -46,8 +46,8 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   }
 }
 
-function journalsAt(record: string): readonly EyesAttempt[] {
-  return (recordedEyesAt(record)?.journals ?? []).map((row) => ({
+function journalsOf(journals: NonNullable<ReturnType<typeof recordedEyesAt>>['journals']): readonly EyesAttempt[] {
+  return journals.map((row) => ({
     case: row.case,
     attempt: row.attempt,
     journal: parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`),
