@@ -162,6 +162,22 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     expect(last.commit).toBeUndefined();
   });
 
+  it('lays nothing of one whose cases this build cannot read and that names no run, and keeps the record as it was', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    await ranWhole(record, first);
+    const before = await readFile(record);
+    // An index no version of this build spells, and nothing else: no coverage, no last run.
+    const shard = join(home, 'shard-unreadable.bin');
+    await writeFile(shard, recordOfCases({ index: Buffer.from([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]) }));
+    expect(withoutCoverage(shard)).toBe(true);
+
+    const landed = await landJourneys(dir, [shard], record);
+
+    expect(landed.cases).toEqual({ laid: record, shards: 0 });
+    expect(await readFile(record)).toEqual(before);
+  });
+
   it('folds the shards that measured something, and lays every shard\'s cases in the order they were named', async () => {
     const { dir, first } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });

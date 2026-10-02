@@ -16,6 +16,7 @@ import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { CoverageTest } from './index.js';
+import type { ExecutionTest } from './reverse.js';
 
 /** What a run tells the case index about the files it was handed. */
 export interface LaidRun {
@@ -188,13 +189,13 @@ export function landCases(
   for (const shard of shards) {
     const kept = caseSectionsAt(shard.path);
     const fresh = layableIndex(kept.index);
-    const run = shard.coverage ?? lastRunOf(kept) ?? indexRunOf(fresh);
+    const run = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // FIXME: each shard is laid as a run of its own, so the last-run layer
       // names only the last shard's cases, and `covering --cases last` after a
       // landing answers from that shard rather than from the whole fold.
-      sections = layCases(sections, fresh, root, run);
+      sections = layCases(sections, fresh.bytes, root, run);
       laid += 1;
     } else if (run.tests.some((test) => test.complete)) {
       const removed = Object.values(previous).some((part) => part !== undefined);
@@ -214,18 +215,19 @@ function lastRunOf(kept: CaseSections): LaidRun | undefined {
   };
 }
 
-/** A run of the files `index`'s cases are of, each finished; `undefined` without an index. */
-function indexRunOf(index: Uint8Array | undefined): LaidRun | undefined {
-  const tests = index === undefined ? undefined : openSetExecutionIndex(index)?.tests;
-  if (tests === undefined) return undefined;
+/** A run of the files an index's cases are of, each finished. */
+function indexRunOf(tests: readonly ExecutionTest[]): LaidRun {
   return { tests: [...new Set(tests.map((test) => test.file))].sort(codeUnitOrder).map((file) => ({ file, complete: true })) };
 }
 
-/** The shard's index spelled as sets, when it has one this build can read. */
-function layableIndex(bytes: Uint8Array | undefined): Uint8Array | undefined {
+/** The shard's index spelled as sets, with its cases, when it has one this build can read. */
+function layableIndex(bytes: Uint8Array | undefined): { readonly bytes: Uint8Array; readonly tests: readonly ExecutionTest[] } | undefined {
   if (bytes === undefined) return undefined;
   try {
-    return openSetExecutionIndex(bytes) === undefined ? encodeAsSetExecutionIndex(decodeExecutionIndex(bytes)) : bytes;
+    const opened = openSetExecutionIndex(bytes);
+    if (opened !== undefined) return { bytes, tests: opened.tests };
+    const rows = decodeExecutionIndex(bytes);
+    return { bytes: encodeAsSetExecutionIndex(rows), tests: rows.tests };
   } catch {
     return undefined;
   }

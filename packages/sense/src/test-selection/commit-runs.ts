@@ -41,7 +41,7 @@
  * they ran, so it is recorded by the same rules as a run.
  */
 
-import { readFile, rm } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { layCases, type FreshCases } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
@@ -202,8 +202,6 @@ async function landUncovered(coverageFile: string, root: string, cases: FreshCas
   const laid = layCases(casesRecordedOver(coverageFile), cases.fresh, root, cases.run);
   const held = await coveredRecord(coverageFile);
   if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, laid));
-  // The landing dropped every case and there is no coverage to keep: no record.
-  if (Object.values(laid).every((part) => part === undefined)) return rm(coverageFile, { force: true });
   return writeCoverageBytes(coverageFile, recordOfCases(laid));
 }
 

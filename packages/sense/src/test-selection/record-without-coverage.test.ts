@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { caseSectionsAt } from './case-record.js';
+import { caseSectionsAt, keepsCases, withoutCoverage } from './case-record.js';
 import { commitRunsFile, landRun } from './commit-runs.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
@@ -121,6 +121,16 @@ describe('a record without coverage', () => {
 
     expect(decodeTestCoverage(readFileSync(record)).tests.map((test) => test.file)).toEqual(['a.test.ts']);
     expect(caseSectionsAt(record).index).toBeDefined();
+  });
+
+  it('is not answered from a header the file ends inside, which a reader refuses on its own terms', async () => {
+    await landRun(record, uninstrumented, root, undefined, fresh());
+    const whole = readFileSync(record);
+    const header = whole.readUInt32LE(0);
+    await writeFile(record, whole.subarray(0, 4 + Math.floor(header / 2)));
+
+    expect(withoutCoverage(record)).toBe(false);
+    expect(keepsCases(record)).toBe(false);
   });
 
   it('narrows nothing: selection answers that it read no record', async () => {
