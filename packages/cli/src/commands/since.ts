@@ -14,10 +14,11 @@
  */
 
 import { execFile } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { join, relative } from 'node:path';
 import { OperatorError } from '../exit.js';
-import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
+import type { DiffPoint } from './installed.js';
 import type { MovedExports } from './reach.js';
 import { suiteRecord } from './suite-record.js';
 
@@ -214,9 +215,19 @@ async function mergeBase(run: Run, ref: string, repository: string): Promise<str
  * character outside ASCII arrives quoted, and a quoted path is passed through
  * untouched for the reader to decode; it is repository-relative then, which is
  * the run's coordinate only when the run is at the top level.
+ *
+ * `here` is read with its links resolved, because git spells the top level that
+ * way: a run started under a link — every temporary directory on macOS, through
+ * `/var` — would otherwise name each file by climbing out of the link and back.
  */
 function inCoordinates(diff: string, here: string, repository: string): string {
-  const move = (path: string): string => relative(here, join(repository, path));
+  let from = here;
+  try {
+    from = realpathSync(here);
+  } catch {
+    // A directory that cannot be resolved is named as given.
+  }
+  const move = (path: string): string => relative(from, join(repository, path));
   return diff
     .split('\n')
     .map((line) => {
@@ -395,106 +406,4 @@ export async function topLevel(from: string, run: Run = promisify(execFile)): Pr
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/** What a run was asked to narrow by, before any of it has been resolved. */
-export interface NarrowingRequest {
-  /** `--since <ref>`. */
-  readonly since?: string;
-  /** `--against <ref>`. */
-  readonly against?: string;
-  /** Whether a file graph is configured, which is what makes `--since` imply `--against`. */
-  readonly relations: boolean;
-  /** `--suite <name>`: whose record's commit the diff is measured from. */
-  readonly suite?: string;
-}
-
-/**
- * Resolve every ref a run was given, and the coordinate it was not.
- *
- * One fetch for both verbs when they name the same ref, and `--since` implies
- * `--against` wherever a graph is configured: the walk has already happened by
- * then, and a run that narrowed itself and could not say why is the one shape
- * worth avoiding.
- *
- * `index` is read whether or not the run narrows, because it is the answer to
- * *what would `--since` have cost* — and a run that never asks cannot put that
- * in the report, which leaves narrowing an option nobody reading the run knows
- * is there. Its commit is also where the journal's diff is measured from, since
- * the journal's line ranges are in that commit's coordinates and nothing else's;
- * beyond that it is carried and never acted on. Narrowing is the operator's
- * decision and stays one.
- */
-export async function narrowingFor(
-  request: NarrowingRequest,
-  dirs: readonly string[],
-): Promise<{
-  readonly since?: {
-    readonly ref: string;
-    readonly changed: readonly string[];
-    readonly install?: InstallDiff;
-    readonly movedExports?: MovedExports;
-    readonly diff?: string;
-  };
-  readonly against?: {
-    readonly ref: string;
-    readonly changed: readonly string[];
-    readonly install?: InstallDiff;
-    readonly movedExports?: MovedExports;
-  };
-  readonly index?: { readonly commit: string; readonly changed: number };
-}> {
-  const index = await indexPosition(process.cwd(), dirs, request.suite);
-  const diff =
-    request.since === undefined ? undefined : await diffSince(request.since, dirs, index?.commit);
-  // The install is read at the same point the file list is measured from. A
-  // diff of files against the merge base beside a diff of packages against
-  // anything else would report bumps nobody made every time `main` moved.
-  const changed = request.since === undefined ? undefined : await changedSince(request.since, dirs);
-  // The changed files are read at that point too, from both texts.
-  const point = request.since === undefined ? undefined : await diffPoint(request.since, dirs);
-  const installed = changed === undefined ? undefined : await installDiff(point, changed);
-  const movedExports = changed === undefined ? undefined : await movedSince(point, changed);
-  const since =
-    request.since === undefined || changed === undefined
-      ? undefined
-      : {
-          ref: request.since,
-          changed,
-          ...(installed === undefined ? {} : { install: installed }),
-          ...(movedExports === undefined ? {} : { movedExports }),
-          ...(diff === undefined ? {} : { diff }),
-        };
-  const againstRef = request.against ?? (request.relations ? request.since : undefined);
-  const against =
-    againstRef === undefined
-      ? undefined
-      : againstRef === since?.ref
-        ? {
-            ref: againstRef,
-            changed: since.changed,
-            ...(installed === undefined ? {} : { install: installed }),
-            ...(movedExports === undefined ? {} : { movedExports }),
-          }
-        : await (async () => {
-            const changed = await changedSince(againstRef, dirs);
-            // A second ref is a second install. Explaining a run by one diff's
-            // packages while narrowing it by another's would put a bump in the
-            // report that no selected subject was selected for.
-            const at = await diffPoint(againstRef, dirs);
-            const read = await installDiff(at, changed);
-            const still = await movedSince(at, changed);
-            return {
-              ref: againstRef,
-              changed,
-              ...(read === undefined ? {} : { install: read }),
-              ...(still === undefined ? {} : { movedExports: still }),
-            };
-          })();
-
-  return {
-    ...(since === undefined ? {} : { since }),
-    ...(against === undefined ? {} : { against }),
-    ...(index === undefined ? {} : { index }),
-  };
 }

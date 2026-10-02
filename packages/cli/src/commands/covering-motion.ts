@@ -12,7 +12,6 @@
  */
 
 import { execFile } from 'node:child_process';
-import { realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import {
@@ -417,12 +416,10 @@ function within(moved: CaseMotion, file: string): CaseMotion {
  * The diff from the commit a base was recorded at to the tree, by file, which
  * pairs regions by the lines they stand on. Empty when the commit is not an
  * object name, which is all that reaches the diff, or the diff cannot be read.
- * The root is read through its links, as git names the top level, or every path
- * the diff holds climbs out of it and pairs nothing.
  */
 export async function diffFromBase(at: string | undefined, root: string): Promise<{ readonly diff?: ReadonlyMap<string, readonly Hunk[]> }> {
   if (at === undefined || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(at)) return {};
-  const diff = await diffSince(at, [], at, { cwd: await realpath(root).catch(() => root),unified: 0 });
+  const diff = await diffSince(at, [], at, { cwd: root, unified: 0 });
   return diff === undefined ? {} : { diff: hunksByFile(diff) };
 }
 

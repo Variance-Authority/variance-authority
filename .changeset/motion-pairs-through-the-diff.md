@@ -14,3 +14,7 @@ gained them; it now reports the inserted callback as written and nothing lost.
 `caseMotion` and `coverageChange` take the diff as `diff`, read by
 `hunksByFile` from `@variance-authority/sense/test-selection`. Without it,
 regions are paired by address as before.
+
+A diff read from a directory reached through a symbolic link, as every
+temporary directory on macOS is, now names its files from that directory rather
+than climbing out of the link and back in, which matched nothing.
