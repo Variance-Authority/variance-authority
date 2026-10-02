@@ -20,6 +20,7 @@ import {
   withCaseSections,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { readEyesRecord } from './eyes-record.js';
 import { serveEyesRecord } from './server.js';
 import { eyesToolByName } from './tools.js';
 
@@ -207,6 +208,20 @@ describe('an Eyes archive a run produced', () => {
       } finally {
         stop();
       }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('names each journal by its case, with the title and the file the case index gives', async () => {
+    const directory = await scratch();
+    try {
+      const log = createEyesLog();
+      recorded(log);
+      const archive = await readEyesRecord(await written(directory, log));
+      expect(archive.tests.map(({ id, attempt, title, file }) => ({ id, attempt, title, file }))).toEqual([
+        { id: 'redraw-test', attempt: 1, title: 'redraws the canvas', file: 'test/drawing.test.tsx' },
+      ]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
