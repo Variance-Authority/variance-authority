@@ -35,7 +35,7 @@ import {
 import type { ParsedCoverage } from '../coverage-args.js';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
-import { baseCommit } from './covering-motion.js';
+import { baseCommit, diffFromBase } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
@@ -150,7 +150,11 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       ...named,
       from,
       ...(recorded === undefined ? {} : { recorded }),
-      base: { from: found.from, ...(found.commit === undefined ? {} : { commit: found.commit }), change: coverageChange(base, index) },
+      base: {
+        from: found.from,
+        ...(found.commit === undefined ? {} : { commit: found.commit }),
+        change: coverageChange(base, index, await diffFromBase(found.commit, request.root)),
+      },
     });
   }
 

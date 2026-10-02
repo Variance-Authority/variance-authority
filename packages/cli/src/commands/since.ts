@@ -107,19 +107,20 @@ export async function changedSince(ref: string, roots: readonly string[] = []): 
  * already refused the file list a moment earlier with a sentence naming the ref;
  * failing twice for one cause would replace that sentence with this one. And the
  * journal only ever *removes* subjects, so its absence is a wider run, never a
- * quieter one.
+ * quieter one. `unified` is the context written around each hunk; `0` gives the
+ * line map the hunk headers alone carry.
  */
 export async function diffSince(
   ref: string,
   roots: readonly string[] = [],
   from?: string,
-  options: { readonly reverse?: boolean; readonly cwd?: string } = {},
+  options: { readonly reverse?: boolean; readonly cwd?: string; readonly unified?: number } = {},
 ): Promise<string | undefined> {
   const run = promisify(execFile);
   const here = options.cwd ?? process.cwd();
   const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]), run);
   if (repository === undefined) return undefined;
-  const side = options.reverse === true ? REVERSED : [];
+  const side = [...(options.reverse === true ? REVERSED : []), ...(options.unified === undefined ? [] : [`-U${options.unified}`])];
 
   try {
     // FIXME: a changed submodule is one `Subproject commit` hunk under its gitlink
