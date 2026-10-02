@@ -128,7 +128,7 @@ const SEAT = /^(.*)#(\d+)$/;
  * key read back off the address — everything up to the numbered step, plus what
  * was being counted — and the number is the seat the region took at it.
  */
-export function seatsOf(block: CoverageBlock): readonly (readonly [string, number])[] {
+export function seatsOf(block: Pick<CoverageBlock, 'name' | 'path'>): readonly (readonly [string, number])[] {
   const found: (readonly [string, number])[] = [];
   const steps = (path: string, from: string): string => {
     let at = from;
@@ -192,10 +192,10 @@ export function seatsOf(block: CoverageBlock): readonly (readonly [string, numbe
  * it was it is a file charged whole until some run records it again.
  */
 export function sameNumbering(
-  before: readonly CoverageBlock[],
-  after: readonly CoverageBlock[],
+  before: readonly Pick<CoverageBlock, 'name' | 'path'>[],
+  after: readonly Pick<CoverageBlock, 'name' | 'path'>[],
 ): boolean {
-  const seats = (blocks: readonly CoverageBlock[]): ReadonlyMap<string, ReadonlySet<number>> => {
+  const seats = (blocks: readonly Pick<CoverageBlock, 'name' | 'path'>[]): ReadonlyMap<string, ReadonlySet<number>> => {
     const sites = new Map<string, Set<number>>();
     for (const block of blocks) {
       for (const [site, seat] of seatsOf(block)) {

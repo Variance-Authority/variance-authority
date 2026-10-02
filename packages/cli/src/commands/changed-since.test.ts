@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -227,6 +227,23 @@ describe('what a diff touched, named the way the run names files', () => {
     expect(diff).toContain('--- a/src/a.ts\n+++ /dev/null');
     expect(diff).toContain('--- /dev/null\n+++ b/src/b.ts');
     expect(diff).not.toContain('rename from');
+  });
+
+  it('names files from a directory reached through a link as the checkout names them', async () => {
+    // Git spells the top level with every link resolved, and a run started at
+    // the link would otherwise name each changed file by climbing out of the
+    // link and back in, which matches nothing it holds. macOS reaches every
+    // temporary directory this way, through `/var`.
+    const root = mkdtempSync(join(tmpdir(), 'va-since-'));
+    repo(root);
+    commit(root, { 'src/a.ts': 'export const a = 1;\n' }, 'first');
+    writeFileSync(join(root, 'src/a.ts'), 'export const a = 2;\n');
+    const link = join(mkdtempSync(join(tmpdir(), 'va-since-link-')), 'checkout');
+    symlinkSync(root, link);
+
+    const diff = await diffSince('main', [], undefined, { cwd: link });
+    expect(diff).toContain('diff --git a/src/a.ts b/src/a.ts\n');
+    expect(diff).toContain('--- a/src/a.ts\n+++ b/src/a.ts\n');
   });
 
   it('refuses rather than answering a broken git with an empty diff', async () => {

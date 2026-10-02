@@ -116,15 +116,12 @@
  * ({@link ExecutionBlock.loaded}).
  */
 
-import { readFile, readdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
-import eyesFrames from './eyes-frame.cjs';
 import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
-import { codeUnitOrder, isMissing, projectPath } from './instrumented-modules.js';
+import { codeUnitOrder } from './instrumented-modules.js';
 import { UNTIMED, type CaseDurations } from './case-durations.js';
-import { checkoutSaid, heardAcross, heardOf, type Said } from './case-precondition-column.js';
+import { heardAcross, heardOf, type Said } from './case-precondition-column.js';
 import preconditions from './case-preconditions.cjs';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
@@ -234,18 +231,33 @@ export function inCaseOrder<Case extends CaseCoordinate>(cases: Iterable<Case>):
  * positional id — which moves when a case is inserted above it. Two cases in
  * one file may share a name; the repeat is numbered, in {@link inCaseOrder}, so
  * the second is `name#1` rather than indistinguishable. Every writer of an
- * index, and everything that joins a case by its id, numbers through here.
+ * index, and everything that joins a case by its id, numbers through here; the
+ * native fold numbers with `CaseIds` in `case_id.rs`, in the same words.
+ *
+ * A suite whose second `pays` would take the id of a case named `pays#1` is
+ * refused: one id cannot hold two cases' journeys.
  */
 export function caseIds(cases: Iterable<CaseCoordinate>): ReadonlyMap<string, string> {
   const seen = new Map<string, number>();
   const ids = new Map<string, string>();
+  // The name of the case holding each id handed out.
+  const held = new Map<string, string>();
   for (const coordinate of inCaseOrder(cases)) {
     const key = caseKey(coordinate);
     if (ids.has(key)) continue;
-    const named = `${coordinate.file} > ${coordinate.name}`;
+    const { file, name } = coordinate;
+    const named = `${file} > ${name}`;
     const repeat = seen.get(named) ?? 0;
     seen.set(named, repeat + 1);
-    ids.set(key, repeat === 0 ? named : `${named}#${repeat}`);
+    const id = repeat === 0 ? named : `${named}#${repeat}`;
+    const holder = held.get(id);
+    if (holder !== undefined) {
+      const literal = id.slice(file.length + 3);
+      const numbered = holder === literal ? name : holder;
+      throw new Error(`cannot number the cases of ${file}: "${literal}" is the name of one case and the number of a repeated "${numbered}". Rename one of them.`);
+    }
+    held.set(id, name);
+    ids.set(key, id);
   }
   return ids;
 }
@@ -394,43 +406,4 @@ export function countCrossings(index: ExecutionIndex): number {
   let total = 0;
   for (const module of index.modules) for (const block of module.blocks) total += block.crossings.length;
   return total;
-}
-
-/**
- * The case frames a run left, joined back to the files they belong to.
- *
- * Each `.vac` file is one test file's buckets — the ambient one and a frame per
- * case — and each frame names itself with the packed coordinate. Nothing here
- * decides what a case reached; that is {@link executionIndexFrom}'s job.
- */
-export async function readCaseJournals(
-  directory: string,
-  root: string,
-): Promise<readonly CaseJournal[]> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
-  }
-  const journals: CaseJournal[] = [];
-  for (const name of names) {
-    for (const frame of unpackFrames(await readFile(resolve(directory, name)))) {
-      // An Eyes journal rides the same file; it is the fold's, not a case frame.
-      if (eyesFrames.decodeEyesFrame(frame) !== undefined) continue;
-      const read = journalFormat.decodeJournal(frame);
-      const { file, name: caseName, id, stopped } = unpackCase(read.testFile);
-      const said = preconditions.saidOf(read.testFile);
-      journals.push({
-        file: projectPath(root, file),
-        name: caseName,
-        id,
-        ...(stopped === undefined ? {} : { stopped }),
-        ...(said === undefined ? {} : { said: checkoutSaid(root, said) }),
-        modules: read.modules,
-      });
-    }
-  }
-  return journals;
 }

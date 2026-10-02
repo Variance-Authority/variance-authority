@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   caseSectionsAt,
   commitRunsFile,
+  encodeExecutionIndex,
+  lastCaseRunOf,
   readTestCoverage,
   RecordWithoutCoverage,
   recordOfCases,
@@ -12,10 +14,11 @@ import {
   testCoverageFile,
   withoutCoverage,
   writeTestCoverage,
+  type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { landJourneys } from './land.js';
-import { published, ranWhole, wholeRecord } from './mainline-fixture.js';
+import { probedModule, published, ranWhole, wholeRecord } from './mainline-fixture.js';
 
 /**
  * The cases in the record a landing writes, in the primary checkout: the ones
@@ -95,6 +98,44 @@ describe('landJourneys and the cases in the record', () => {
     expect(landed.observations).toBe(1);
     expect(landed.cases).toEqual({ laid: record, shards: 0 });
     expect((await readExecutionIndex(record)).tests.map((test) => test.file)).toEqual(['test/total.test.ts']);
+  });
+});
+
+describe('landJourneys and the run its shards were', () => {
+  /** A case of `file` that said `user` was `value` in its body. */
+  function said(file: string, name: string, value: string): ExecutionTest {
+    return { id: `${file} > ${name}`, file, name, stopped: false, preconditions: [{ name: 'user', value, site: `${file}:2`, level: 65535 }] };
+  }
+
+  /** A shard at `commit` that finished `test`'s file, entered `src/total.ts`, and kept `test` as its one case. */
+  async function casedShard(name: string, commit: string, test: ExecutionTest): Promise<string> {
+    const shard = join(home, name);
+    const block = { kind: 'function', name: 'applyDiscount', path: 'applyDiscount', startLine: 1, endLine: 3, source: true, crossings: [{ test: 0, distance: 0 }] };
+    await writeTestCoverage(shard, {
+      version: 3,
+      instrumentation: 'fixture',
+      commit,
+      tests: [{ file: test.file, complete: true, preconditions: [] }],
+      modules: [probedModule([test.file])],
+    }, { index: encodeExecutionIndex({ tests: [test], modules: [{ file: 'src/total.ts', blocks: [block] }] }) });
+    return shard;
+  }
+
+  it('names every case the shards ran as the last run, each with the preconditions it named', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const discounts = said('test/total.test.ts', 'discounts', 'member');
+    const alone = said('test/other.test.ts', 'stands alone', 'guest');
+    const shards = [await casedShard('shard-1.bin', first, discounts), await casedShard('shard-2.bin', first, alone)];
+
+    const landed = await landJourneys(dir, shards, record);
+
+    expect(landed.cases).toEqual({ laid: record, shards: 2 });
+    const last = lastCaseRunOf(caseSectionsAt(record))!;
+    expect(last).toMatchObject({ commit: first, files: ['test/other.test.ts', 'test/total.test.ts'] });
+    expect(last.cases).toEqual([alone.id, discounts.id]);
+    const named = (await readExecutionIndex(record)).tests.filter((test) => last.cases.includes(test.id));
+    expect(named.map((test) => [test.id, test.preconditions])).toEqual([[alone.id, alone.preconditions], [discounts.id, discounts.preconditions]]);
   });
 });
 
