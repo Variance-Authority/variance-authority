@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-10-02 06:01'
-updated_date: '2026-10-02 07:31'
+updated_date: '2026-10-02 07:53'
 labels: []
 dependencies:
   - TASK-24.1
@@ -34,3 +34,9 @@ A run that keeps cases but instruments no module still writes the record, with i
 4. Readers: variance select answers a no-coverage ground and skips nothing; journeyAgainst narrows nothing on it.
 5. Warning, docs (docs/execution-record.md), changeset, surface.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented on feat/record-without-coverage (05996d48, 5ebcb18a). landRun: a run with no module rows lands only its cases (landUncovered) - a case-only record via recordOfCases when no coverage is held, the held coverage carried unchanged otherwise, nothing when it kept no cases, and no runs record. Its incomplete rows still land as coverage, since they select their files. openTestCoverage throws RecordWithoutCoverage when no coverage section is present; a partial set stays broken. CLI: variance select answers no-coverage and skips nothing; run --since and journeys read it as no record; land folds over it and keeps its cases (FIXME: a case-only shard is refused with its cases). AC1: record-without-coverage.test.ts 'writes the record with its case sections and no coverage section'; runner.integration 'says so when no process instrumented anything'. AC2: record-without-coverage.test.ts 'narrows nothing: selection answers that it read no record'; select-without-coverage.test.ts. Open: seeding a worktree from a case-only base record seeds nothing.
+<!-- SECTION:NOTES:END -->
