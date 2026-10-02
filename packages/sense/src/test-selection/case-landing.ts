@@ -225,12 +225,12 @@ export function landCases(
  * The sections with the last-run layer naming every case the landing's shards
  * recorded, not only the last shard's: the shards are one run, and `covering
  * --cases last` answers from the whole of it. A case a later shard's run
- * retired is not in the index, and is not named.
+ * retired is not in the index, and is not named. The sections are what
+ * `layCases` wrote, which always holds a last-run layer and an index it opened.
  */
 function lastOfEveryShard(sections: CaseSections, ran: ReadonlySet<string>): CaseSections {
-  const last = lastCaseRunOf(sections);
-  const index = sections.index === undefined ? undefined : openSetExecutionIndex(sections.index);
-  if (last === undefined || index === undefined) return sections;
+  const last = lastCaseRunOf(sections)!;
+  const index = openSetExecutionIndex(sections.index!)!;
   const cases = index.tests.flatMap((test) => (ran.has(test.id) ? [test.id] : []));
   return { ...sections, last: spelledLast({ ...last, cases }) };
 }

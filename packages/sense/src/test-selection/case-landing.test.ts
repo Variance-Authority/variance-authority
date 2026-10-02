@@ -102,6 +102,20 @@ describe('landCases', () => {
     expect(read(sections.before)).toEqual({ 'b.test.ts > two': ['beta'] });
   });
 
+  it('names no case of the last run that a later shard retired by finishing its file again', async () => {
+    // Both shards ran `c`; the second finished it without `c.test.ts > gone`, so the index no longer holds that case.
+    const first = await shard('shard-1.bin', index({ 'b.test.ts > two': ['gamma'], 'c.test.ts > gone': ['beta'] }));
+    const second = await shard('shard-2.bin', index({ 'c.test.ts > three': ['alpha'] }));
+
+    const { sections } = landCases(record, previous, root, [
+      { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts'), whole('c.test.ts')] } },
+      { path: second, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
+    ]);
+
+    expect(Object.keys(read(sections.index))).not.toContain('c.test.ts > gone');
+    expect(lastCaseRunOf(sections)?.cases).toEqual(['b.test.ts > two', 'c.test.ts > three']);
+  });
+
   it('drops the index and both of its layers when a shard that finished a file left no index it can lay', async () => {
     const held = { ...previous, before: index({ 'a.test.ts > one': ['alpha'] }) };
     // Bytes no reader in this build can decode, so no run is laid from them.
