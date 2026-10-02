@@ -199,7 +199,7 @@ export async function landRun(
  */
 async function landUncovered(coverageFile: string, root: string, cases: FreshCases | undefined): Promise<void> {
   if (cases === undefined) return;
-  const laid = layCases(casesRecordedOver(coverageFile), cases.fresh, root, cases.run);
+  const laid = layCases(casesRecordedOver(coverageFile), cases.fresh, root, cases.run, cases.eyes);
   const held = await coveredRecord(coverageFile);
   if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, laid));
   return writeCoverageBytes(coverageFile, recordOfCases(laid));

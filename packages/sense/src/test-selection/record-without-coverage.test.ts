@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { caseSectionsAt, keepsCases, withoutCoverage } from './case-record.js';
+import { caseSectionsAt, keepsCases, recordedEyesAt, withoutCoverage } from './case-record.js';
 import { commitRunsFile, landRun } from './commit-runs.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
@@ -71,6 +71,13 @@ describe('an uninstrumented run that keeps cases', () => {
     expect(caseSectionsAt(record).index).toBeDefined();
     // It measured nothing, so it claims no test stands at its commit.
     expect(existsSync(commitRunsFile(record))).toBe(false);
+  });
+
+  it('keeps the Eyes its cases handed beside them', async () => {
+    const eyes = { watched: ['a.test.ts > one'], journals: [{ case: 'a.test.ts > one', attempt: 1, journal: { complete: true } }] };
+    await landRun(record, uninstrumented, root, undefined, { ...fresh(), eyes });
+
+    expect(recordedEyesAt(record)).toEqual(eyes);
   });
 
   it('carries the coverage of the record it lands over as it was, under its own cases', async () => {
