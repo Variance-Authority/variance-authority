@@ -1,16 +1,16 @@
 # Distill a test, then verify the reduction
 
-`variance distill` reads no config and no report. The two paths are its whole
-input, so it answers in a checkout that has never configured this tool.
-`--test <id>` is required, and so is at least one of `--eyes` and
-`--execution`. `--root` (default: the working directory) is the project root
+`variance distill` reads no config and no report, so it answers in a checkout
+that has never configured this tool. `--test <id>` is required. The execution
+half is the index the last recorded run left, unless `--execution <path>` names
+another; `--suite <name>` picks one declared suite's. `--root` (default: the working directory) is the project root
 both producers recorded against: Eyes names files by absolute path and the
 execution index by project-relative path, and a wrong root leaves the two
 unjoined. `--format json` returns the same reading as data, and the
 `variance_distill` MCP tool returns the same deterministic reading.
 
 ```bash
-variance distill --test checkout-submits --eyes eyes.json --execution execution.json
+variance distill --test checkout-submits --eyes eyes.json
 ```
 
 ## The two input files
@@ -63,9 +63,9 @@ block needs `kind`, `name` (empty for a module root), `path`, `startLine`,
 ```
 
 A Vitest, Jest, rstest or Playwright run wrapped in `withTestSelection` writes
-the index `covering` reads, `<recording>.cases.bin`, and `--execution` takes
-that file as it is. Otherwise, supply JSON from a tool that already records
-per-test crossings, or run `distill` with `--eyes` alone.
+the index `covering` reads, `<recording>.cases.bin`, and `distill` reads it
+without being told where. Otherwise, pass `--execution` JSON from a tool that
+already records per-test crossings, or run `distill` with `--eyes` alone.
 
 Those two files, through the command above, answer:
 

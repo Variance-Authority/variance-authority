@@ -6,12 +6,15 @@ import {
   type Distillation,
 } from '@variance-authority/distill';
 import { OperatorError } from '../exit.js';
-import { readExecutionIndex } from './execution-input.js';
+import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 
 export interface DistillOptions {
   readonly test: string;
   readonly eyes?: string;
+  /** Absent, the index a recorded run left beside the record is read. */
   readonly execution?: string;
+  /** The one declared suite whose recorded index is read. */
+  readonly suite?: string;
   /**
    * The project root both producers recorded against.
    *
@@ -25,15 +28,11 @@ export interface DistillOptions {
 
 /** Read portable observations and produce one test's deterministic distillation. */
 export async function distillFiles(options: DistillOptions): Promise<Distillation> {
-  if (options.eyes === undefined && options.execution === undefined) {
-    throw new OperatorError('distill needs --eyes <path>, --execution <path>, or both');
-  }
+  const from = options.execution ?? (await recorded(options));
   try {
     const [eyes, execution] = await Promise.all([
       options.eyes === undefined ? undefined : readEyesArchive(options.eyes),
-      options.execution === undefined
-        ? undefined
-        : readExecutionIndex(options.execution),
+      from === undefined ? undefined : readExecutionIndex(from),
     ]);
     return distill({
       test: options.test,
@@ -44,6 +43,20 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
   } catch (error) {
     if (error instanceof OperatorError) throw error;
     throw new OperatorError(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * The index a recorded run left, or none when nothing is recorded and an Eyes
+ * archive can still be read alone. With neither, the refusal says where the
+ * index was looked for.
+ */
+async function recorded(options: DistillOptions): Promise<string | undefined> {
+  try {
+    return await recordedExecutionFile(options.root ?? process.cwd(), options.suite);
+  } catch (error) {
+    if (options.eyes !== undefined && error instanceof OperatorError && error.kind === 'unrecorded') return undefined;
+    throw error;
   }
 }
 

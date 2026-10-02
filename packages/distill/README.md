@@ -64,14 +64,13 @@ import { withTestSelection } from '@variance-authority/sense/vitest';
 
 export default withTestSelection(
   defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-  { executionFile: '.variance/execution.json' },
 );
 ```
 
 Every wrapped run writes the per-case recording beside its per-file snapshot,
-and `executionFile` names where it goes. A test file that runs in a page is
-recorded per file only, so a browser-mode run does not write the file `distill`
-needs.
+and `variance distill` reads it from there. A test file that runs in a page is
+recorded per file only, so a browser-mode run does not write the recording
+`distill` needs.
 
 **An Eyes archive** — which elements each test addressed, and the React
 component behind each one. Install
@@ -168,39 +167,41 @@ A test with no phase markers still works. Its observations are reported under
 
 ## Run it
 
-From the command line, where `<recorded-test-id>` is an `id` from the `tests`
-array of either evidence file:
+From the command line, where `<recorded-test-id>` is the id a test is recorded
+under:
 
 ```bash
-variance distill \
-  --test '<recorded-test-id>' \
-  --eyes .variance/eyes.json \
-  --execution .variance/execution.json
+variance distill --test '<recorded-test-id>' --eyes .variance/eyes.json
 ```
+
+`--execution <path>` reads an execution index other than the recorded one, such
+as JSON from a tool that already records per-test crossings.
 
 With an Eyes archive, `--test` also accepts a test title, or a title fragment
 that matches exactly one test. Add `--format json` for the analyzer result
 instead of the text.
 
-From Node, reading the same two files:
+From Node, reading the same two recordings:
 
 ```ts
 import { readFile } from 'node:fs/promises';
 import { readEyesArchive } from '@variance-authority/eyes/archive';
-import { distill, formatDistillation, parseExecutionIndex }
-  from '@variance-authority/distill';
+import { decodeExecutionIndex, testCoverageFile }
+  from '@variance-authority/sense/test-selection';
+import { distill, formatDistillation } from '@variance-authority/distill';
 
 const eyes = await readEyesArchive('.variance/eyes.json');
-const execution = parseExecutionIndex(
-  JSON.parse(await readFile('.variance/execution.json', 'utf8')),
+const execution = decodeExecutionIndex(
+  await readFile(`${testCoverageFile(process.cwd())}.cases.bin`),
 );
 
 console.log(formatDistillation(distill({ test: 'checkout submits', eyes, execution })));
 ```
 
-`parseExecutionIndex` validates untyped JSON at the process boundary and throws
-naming the offending field. Pass an `ExecutionIndex` you already have and it
-returns it unchanged.
+An index another tool wrote as JSON goes through `parseExecutionIndex` instead,
+which validates untyped JSON at the process boundary and throws naming the
+offending field. Pass an `ExecutionIndex` you already have and it returns it
+unchanged.
 
 ## What you get
 

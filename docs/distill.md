@@ -48,11 +48,16 @@ Replace `<recorded-test-id>` below with the `id` of an entry in the evidence
 file's `tests` array.
 
 ```bash
-variance distill \
-  --test '<recorded-test-id>' \
-  --eyes .variance/eyes.json \
-  --execution .variance/execution.json
+variance distill --test '<recorded-test-id>' --eyes .variance/eyes.json
 ```
+
+The execution half is the [execution record](execution-record.md) your last
+recorded run left: a run wrapped in [Sense](../packages/sense/README.md)'s
+`withTestSelection` writes it, and `distill` finds it the way
+[test selection](selecting.md) does. With more than one declared suite, name
+the one to read with `--suite <name>`. `--execution <path>` reads an index from
+anywhere else instead, including JSON from a tool that already records per-test
+crossings.
 
 With Eyes evidence, `--test` also accepts a unique test title, such as
 `'checkout submits'`, or a title fragment that matches only one test. Distill
@@ -102,7 +107,6 @@ you run it in. Pass `--root <path>` when you run it from somewhere else:
 ```bash
 variance distill --test '<recorded-test-id>' \
   --eyes .variance/eyes.json \
-  --execution .variance/execution.json \
   --root /path/to/project
 ```
 
@@ -223,7 +227,7 @@ keep it.
 
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
-| CLI | the evidence is in portable files | `variance distill --test <id> --eyes <path> --execution <path>` |
+| CLI | the run was recorded and Eyes wrote an archive | `variance distill --test <id> --eyes <path>` |
 | [MCP](agent-questions.md#distill-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
 | [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 

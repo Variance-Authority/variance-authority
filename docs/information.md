@@ -427,12 +427,13 @@ writes the execution record. They relate only where both producers emitted the
 same test id — the runner's own identifier for the test. Titles and file paths
 are presentation and are never used as a fallback identity, so two records that
 disagree on the id do not join at all rather than joining wrongly.
-`variance distill --test <id> --eyes <path> --execution <path>` is where you
-check it: give it both files and one test id, and what comes back tells you
-which of the two answered. Supply only one of the two flags and it distills
-from that one; supply neither and it exits `2` saying so. If the id you have
-from one file returns nothing from the other, the runner that wrote the second
-file named the test differently, and the id in each file is what to compare.
+`variance distill --test <id> --eyes <path>` is where you check it: it reads the
+archive and the execution record your last recorded run left, and what comes
+back for one test id tells you which of the two answered. Without `--eyes` it
+distills from the execution record alone; with nothing recorded and no archive,
+it exits `2` saying so. If the id you have from one file returns nothing from the
+other, the runner that wrote the second file named the test differently, and the
+id in each file is what to compare.
 
 Within a joined test, three things stay distinct and are not read as each
 other: which DOM the test attended to, which React components re-rendered

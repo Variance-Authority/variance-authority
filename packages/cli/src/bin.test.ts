@@ -157,7 +157,7 @@ describe('parseArgs', () => {
       });
     expect(parseArgs(['distill', '--test', 'redraw', '--eyes', 'eyes.json', '--root', 'elsewhere']))
       .toMatchObject({ root: resolve('elsewhere') });
-    expect(attempt(['distill', '--test', 'redraw']).message).toContain('needs --eyes');
+    expect(parseArgs(['distill', '--test', 'redraw'])).not.toHaveProperty('execution');
     expect(attempt(['distill', '--execution', 'execution.json']).message).toContain('--test');
   });
 

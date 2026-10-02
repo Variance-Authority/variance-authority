@@ -154,7 +154,7 @@ variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
-variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
+variance distill --test <id> [--eyes <path>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
@@ -297,7 +297,7 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
 
 ### Distill: find a smaller test boundary
 
-`distill` reads two evidence files your test run writes, and neither comes from
+`distill` reads two recordings your test run writes, and neither comes from
 `variance run`:
 
 - **the Eyes archive** — what each test queried, operated and read. Install
@@ -307,21 +307,20 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
   from `@variance-authority/eyes/collect`;
 - **the execution index** — which files and regions each test covered. Install
   [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-  and wrap the Vitest config in `withTestSelection(config, {
-  executionFile: '.variance/execution.json' })`.
+  and wrap the Vitest config in `withTestSelection(config)`. `distill` reads
+  the index the last recorded run left, as `covering` does; `--suite <name>`
+  picks one declared suite's, and `--execution <path>` reads any other index,
+  including JSON from a tool that already records per-test crossings.
 
-Either file may be omitted and the missing domain stays unavailable; execution
-alone lists covered source but produces no opportunities, because missing
-attention is not an empty addressed surface.
+Without `--eyes`, execution alone lists covered source but produces no
+opportunities, because missing attention is not an empty addressed surface.
+With `--eyes` and nothing recorded, the execution half is reported unavailable.
 
-Replace `<recorded-test-id>` with an entry's `id` from the evidence file's
-`tests` array:
+Replace `<recorded-test-id>` with an entry's `id` from the recording's `tests`
+array:
 
 ```bash
-variance distill \
-  --test '<recorded-test-id>' \
-  --eyes .variance/eyes.json \
-  --execution .variance/execution.json
+variance distill --test '<recorded-test-id>' --eyes .variance/eyes.json
 ```
 
 `--test` identifies an entry in the evidence file's `tests` array by its `id`.
@@ -331,8 +330,7 @@ exact title or unique case-insensitive title fragment also resolves to an ID;
 ambiguous title matches are refused. Execution evidence is always matched by
 exact ID, including after Eyes resolves a title.
 
-`distill` reads the paths named on the command line and does not read project
-configuration. It reports addressed targets by authored Arrange/Act/Assert
+`distill` does not read project configuration. It reports addressed targets by authored Arrange/Act/Assert
 phase, React update initiators inside and outside those target paths, and files
 covered by the exact test id without addressed source attribution:
 

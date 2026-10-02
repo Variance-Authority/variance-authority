@@ -1,12 +1,16 @@
 import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
+import { oneRecord } from './commands/suite-record.js';
 
 export interface ParsedDistill {
   readonly command: 'distill';
   readonly test: string;
   readonly eyes?: string;
+  /** Absent, the index a recorded run left beside the record is read. */
   readonly execution?: string;
+  /** The one declared suite whose recorded index is read. */
+  readonly suite?: string;
   /** The project root both producers recorded against; defaults to the working directory. */
   readonly root: string;
   readonly format: 'text' | 'json';
@@ -23,15 +27,15 @@ export function parseDistill(flags: Flags): ParsedDistill {
   }
   const eyes = flags.values.get('--eyes');
   const execution = flags.values.get('--execution');
-  if (eyes === undefined && execution === undefined) {
-    throw new OperatorError('distill needs --eyes <path>, --execution <path>, or both');
-  }
+  const suite = flags.values.get('--suite');
+  oneRecord(suite, execution, '--execution');
   return {
     command: 'distill',
     test,
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     ...(eyes === undefined ? {} : { eyes: resolve(eyes) }),
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
+    ...(suite === undefined ? {} : { suite }),
     format,
   };
 }
