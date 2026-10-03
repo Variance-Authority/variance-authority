@@ -18,17 +18,20 @@ import { writeTestCoverage } from './index.js';
 /** The regions of `src/shared.ts`, which every run here loads whole. */
 const regions = ['alpha', 'beta', 'gamma'];
 
-/** A case index as a fold writes one: each case by id, and the regions of `src/shared.ts` it called. */
-function index(calls: Record<string, readonly string[]>): Buffer {
+/**
+ * A case index as a fold writes one: each case by id, and the regions of
+ * `src/shared.ts` it called, one a line in the order `layout` names them.
+ */
+function index(calls: Record<string, readonly string[]>, layout: readonly string[] = regions): Buffer {
   const cases = Object.keys(calls);
   const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
   const sets = new CrossingSets(tests.length);
   sets.intern([]);
   const module: SetExecutionModule = {
     file: 'src/shared.ts',
-    blocks: regions.map((name, line) => ({ kind: 'function', name, path: name, startLine: line + 1, endLine: line + 1, source: true })),
-    called: Uint32Array.from(regions, (name) => sets.intern(cases.flatMap((id, at) => (calls[id]!.includes(name) ? [at] : [])))),
-    loaded: new Uint8Array(regions.length),
+    blocks: layout.map((name, line) => ({ kind: 'function', name, path: name, startLine: line + 1, endLine: line + 1, source: true })),
+    called: Uint32Array.from(layout, (name) => sets.intern(cases.flatMap((id, at) => (calls[id]!.includes(name) ? [at] : [])))),
+    loaded: new Uint8Array(layout.length),
   };
   return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
 }
@@ -114,6 +117,59 @@ describe('landCases', () => {
 
     expect(Object.keys(read(sections.index))).not.toContain('c.test.ts > gone');
     expect(lastCaseRunOf(sections)?.cases).toEqual(['b.test.ts > two', 'c.test.ts > three']);
+  });
+
+  it('cuts every shard\'s before layer from the index the landing began with, at the text it was cut from', async () => {
+    // Both shards ran over a `src/shared.ts` that gained `delta` above the
+    // rest. The first shard re-cut the module to that text; the second's
+    // cases of it before the change are the base's, at the base's lines.
+    const head = ['delta', ...regions];
+    const changed = [{ file: 'src/shared.ts', sourceDigest: 'v1:head' }];
+    const first = await shard('shard-1.bin', index({ 'a.test.ts > one': ['alpha'] }, head));
+    const second = await shard('shard-2.bin', index({ 'b.test.ts > two': ['beta'] }, head));
+
+    const { sections } = landCases(record, previous, root, [
+      { path: first, coverage: { commit: 'c0ffee', tests: [whole('a.test.ts')], modules: changed } },
+      { path: second, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: changed } },
+    ], new Map([['src/shared.ts', 'v1:base']]));
+
+    const before = decodeExecutionIndex(sections.before!);
+    expect(before.modules.map((module) => [module.file, module.blocks.map((block) => `${block.name}@${block.startLine}`)])).toEqual([
+      ['src/shared.ts', ['alpha@1', 'beta@2', 'gamma@3']],
+    ]);
+    expect(read(sections.before)).toEqual({ 'a.test.ts > one': ['alpha'], 'b.test.ts > two': ['beta'] });
+    expect(lastCaseRunOf(sections)).toMatchObject({ before: 'l0ca1', beforeTexts: { 'src/shared.ts': 'v1:base' } });
+  });
+
+  it('names the text a run at the same commit re-cut a before module to, so a reader can tell it from the base', () => {
+    // Two local invocations at one commit: the second has only the index the
+    // first laid, whose `src/shared.ts` is already cut to the new text.
+    const head = ['delta', ...regions];
+    const changed = [{ file: 'src/shared.ts', sourceDigest: 'v1:head' }];
+    const once = layCases(previous, index({ 'a.test.ts > one': ['alpha'] }, head), root, {
+      commit: 'c0ffee', tests: [whole('a.test.ts')], modules: changed,
+    }, undefined, new Map([['src/shared.ts', 'v1:base']]));
+    expect(lastCaseRunOf(once)?.beforeTexts).toEqual({ 'src/shared.ts': 'v1:base' });
+
+    const twice = layCases(once, index({ 'b.test.ts > two': ['beta'] }, head), root, {
+      commit: 'c0ffee', tests: [whole('b.test.ts')], modules: changed,
+    }, undefined, new Map([['src/shared.ts', 'v1:head']]));
+
+    expect(lastCaseRunOf(twice)?.beforeTexts).toEqual({ 'src/shared.ts': 'v1:head' });
+  });
+
+  it('names no text for a before layer kept in the row spelling, so a reader compares it as it always did', () => {
+    // A record the row-spelling seams laid at this commit: neither layer opens as sets, so this run cuts no before of its own.
+    const rows = encodeExecutionIndex(decodeExecutionIndex(index({ 'a.test.ts > one': ['alpha'] })));
+    const last = JSON.parse(previous.last!.toString()) as object;
+    const laid = { index: rows, before: rows, last: Buffer.from(JSON.stringify({ ...last, commit: 'c0ffee' })) };
+
+    const sections = layCases(laid, index({ 'b.test.ts > two': ['beta'] }), root, {
+      commit: 'c0ffee', tests: [whole('b.test.ts')], modules: [{ file: 'src/shared.ts', sourceDigest: 'v1:head' }],
+    }, undefined, new Map([['src/shared.ts', 'v1:base']]));
+
+    expect(Buffer.from(sections.before!).equals(rows)).toBe(true);
+    expect(lastCaseRunOf(sections)?.beforeTexts).toBeUndefined();
   });
 
   it('drops the index and both of its layers when a shard that finished a file left no index it can lay', async () => {

@@ -10,6 +10,7 @@
  */
 
 import { execFile } from 'node:child_process';
+import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import { hunksByFile, type Hunk } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
@@ -52,4 +53,37 @@ export async function diffFromBase(
   const diff = await diffSince(at, [], at, { cwd: root, unified: 0 });
   if (diff === undefined) return refuse(`was recorded at ${at}, and git could not read the diff from it to the working tree, so it is not compared.`);
   return { commit: at, diff: hunksByFile(diff) };
+}
+
+/**
+ * Where `since` and `HEAD` part, and the files the base's branch changed
+ * between the base's commit and there, named the way the run names files.
+ * Refused with git's answer when git cannot say: without it, the base
+ * branch's own motion would be read as this change's.
+ */
+export async function movedOnBase(
+  at: string,
+  since: string,
+  root: string,
+): Promise<{ readonly mergeBase: string; readonly files: readonly string[] }> {
+  const run = promisify(execFile);
+  try {
+    const top = (await run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).stdout.trim();
+    const mergeBase = (await run('git', ['merge-base', since, 'HEAD'], { cwd: top })).stdout.trim();
+    if (at === mergeBase) return { mergeBase, files: [] };
+    const { stdout } = await run('git', ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', at, mergeBase], {
+      cwd: top,
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    const files = stdout.split('\0').filter((file) => file !== '').map((file) => relative(root, join(top, file)));
+    return { mergeBase, files: files.sort() };
+  } catch (error) {
+    const said = (error as { stderr?: unknown }).stderr;
+    throw new OperatorError(
+      `What the branch of \`${since}\` changed after ${at} could not be read, so the base is not compared: ` +
+        `${typeof said === 'string' && said.trim() !== '' ? said.trim() : error instanceof Error ? error.message : String(error)}. ` +
+        'A shallow clone has only the tip: check out every commit with `fetch-depth: 0` and `filter: tree:0` on `actions/checkout`.',
+      { kind: 'undiffed' },
+    );
+  }
 }

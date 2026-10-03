@@ -15,15 +15,20 @@ import type { CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import type { CaseTwin } from '@variance-authority/sense/test-selection';
-import { heldText, twinText, whereText } from './covering-where.js';
+import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
+import { caseNameOf, twinText, whereText } from './covering-where.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
 /** Say the answer in the shape the caller asked for. */
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...scopeText(answer), ...whereText(answer.where), text(answer), ...motionText(answer.motion)].join('\n')}\n`;
+  return `${[...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...motionText(answer.motion)].join('\n')}\n`;
+}
+
+/** A block that says nothing is left out, not printed as an empty line. */
+function said(block: string): readonly string[] {
+  return block === '' ? [] : [block];
 }
 
 function text(answer: Covering): string {
@@ -34,13 +39,9 @@ function text(answer: Covering): string {
   const tests = answer.tests ?? [];
   const target = answer.target ?? { function: '' };
   const where = 'line' in target ? `line ${target.line}` : `function ${target.function}`;
-  const ran = answer.where?.ran ?? 0;
-  if (tests.length === 0 && ran > 0) {
-    // The filter emptied the list, not the record: said as the bare *no named test*, it reads as nothing running the code.
-    return [
-      `\`--where ${answer.where!.asked.join(' --where ')}\` left none of the ${ran === 1 ? 'named test' : `${ran} named tests`} that covered ${where} of ${answer.file}.`,
-      ...narrowedText(answer),
-    ].join('\n');
+  if (tests.length === 0 && (answer.where?.of ?? 0) > 0) {
+    // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
+    return narrowedText(answer).join('\n');
   }
   if (tests.length === 0) {
     return [
@@ -110,7 +111,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     } else if (printed.has(key)) {
       lines.push(`  the same ${range.tests.length === 1 ? 'named test' : `${range.tests.length} named tests`} as ${printed.get(key)}`);
     } else {
-      lines.push(...caseLines(range.tests, '  '));
+      lines.push(...caseLines(range.tests, '  ', [], answer.twins));
       printed.set(key, place);
     }
   }
@@ -168,17 +169,23 @@ export function narrowedText(answer: Covering): readonly string[] {
  *
  * The words live in `@variance-authority/sense/test-selection` beside
  * `coveringChange`, because two surfaces ask for them and a reading with two
- * renderers has two answers. All this adds is the provenance the CLI is the
- * only one able to state: the ref the diff was taken against, the file the
- * index was read from, and the commit it stands at.
+ * renderers has two answers. All this adds is what the CLI is the only one
+ * able to state: the ref the diff was taken against, the file the index was
+ * read from, the commit it stands at, and each case's twin, which needs the
+ * checkout's `names.axes`.
  */
 function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
-  // FIXME: the case lines print no preconditions or twins here, where refs and
-  // json carry them — needs `formatCoveringChange` to take what a case said.
+  const twinOf = new Map((answer.twins ?? []).map((twin) => [twin.case, twin]));
   return formatCoveringChange(changed, {
     ...(answer.since === undefined ? {} : { since: answer.since }),
     from: answer.from,
     ...(answer.at === undefined ? {} : { at: answer.at }),
+  }, (test, indent) => {
+    const twin = twinOf.get(test.id);
+    return {
+      tail: heldText(test.preconditions),
+      under: twin === undefined ? [] : [twinText(twin, caseNameOf, indent)],
+    };
   });
 }
 
@@ -214,7 +221,7 @@ function caseLines(
       const twin = twinOf.get(test.id);
       return [
         `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test.preconditions)}`,
-        ...twin === undefined ? [] : [twinText(twin, (id) => names.get(id) ?? id.slice(id.indexOf(' > ') + 3), `${indent}    `)],
+        ...twin === undefined ? [] : [twinText(twin, (id) => names.get(id) ?? caseNameOf(id), `${indent}    `)],
       ];
     }),
   ]);

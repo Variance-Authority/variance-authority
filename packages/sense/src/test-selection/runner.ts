@@ -345,7 +345,9 @@ export function observeTestFile(file: string): TestFileObserver | undefined {
     );
   }
   observing = testFile;
-  const collector = collectors.scoped(globalThis as { __VA__?: unknown }, recording.continuations);
+  // Given the checkout, the scope names a precondition's call site from it, as
+  // every other host's does, and keeps what Eyes hands each case.
+  const collector = collectors.scoped(globalThis as { __VA__?: unknown }, recording.continuations, undefined, recording.root);
   let loaded: ReadonlyMap<ModuleId, Uint32Array> | undefined;
   let ordinal = 0;
   let finished = false;

@@ -1,5 +1,6 @@
 import { settledAcross } from './cases.js';
 import { preconditionsAcross } from './case-precondition-column.js';
+import { addressKey } from './merge-carry.js';
 import type {
   ExecutionBlock,
   ExecutionCrossing,
@@ -128,20 +129,20 @@ export function reconcileRegions<Region extends Shape = Shape>(
     return { blocks: inventories[0]!, lands: [inventories[0]!.map((_, at) => at)] };
   }
   const base = [...inventories].sort(inventoryOrder)[0] ?? [];
-  const held = inventories.map((inventory) => new Set(inventory.map(regionKey)));
+  const keyed = inventories.map(regionKeys);
+  const held = keyed.map((keys) => new Set(keys));
   const blocks: Region[] = [];
   const at = new Map<string, number>();
-  for (const block of base) {
-    const key = regionKey(block);
-    if (!at.has(key) && held.every((keys) => keys.has(key))) {
+  for (const [index, key] of regionKeys(base).entries()) {
+    if (held.every((keys) => keys.has(key))) {
       at.set(key, blocks.length);
-      blocks.push(block);
+      blocks.push(base[index]!);
     }
   }
   const shared = blocks.slice();
   let spanning: number | undefined;
-  const lands = inventories.map((inventory) => inventory.map((block) => {
-    const found = at.get(regionKey(block)) ?? enclosing(shared, block);
+  const lands = inventories.map((inventory, which) => inventory.map((block, index) => {
+    const found = at.get(keyed[which]![index]!) ?? enclosing(shared, block);
     if (found !== undefined) return found;
     spanning ??= blocks.push(whole(wholeFile(inventories, base[0]))) - 1;
     return spanning;
@@ -175,6 +176,21 @@ function wholeFile(inventories: readonly (readonly Shape[])[], first: Shape | un
 
 function regionKey(block: Shape): string {
   return JSON.stringify([block.kind, block.name, block.path, block.startLine, block.endLine, block.source]);
+}
+
+/**
+ * Each region's key, told apart from the regions of the same shape before it.
+ *
+ * Two callbacks handed to one call on one line are both `f/find.arg0` at
+ * `entry` on that line, and only their place says which is which. Keyed by
+ * shape alone, the second is the first: the join keeps one region, and every
+ * reading's second callback lands on it. So repeats are numbered in the order
+ * the inventory holds them, which is the order the recipe cut them in every
+ * reading, as {@link addressKey} numbers repeated addresses.
+ */
+function regionKeys(inventory: readonly Shape[]): readonly string[] {
+  const seen = new Map<string, number>();
+  return inventory.map((block) => addressKey(regionKey(block), seen));
 }
 
 function inventoryKey(inventory: readonly Shape[]): string {
