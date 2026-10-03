@@ -584,8 +584,9 @@ receipt--ff-on: taken in tests/checkout.spec.ts > mocked > photographs the recei
 
 The observation carries the case as `case`. The line after the subject closes a
 failing `toBeUnchanged` message, and the whole line is a `variance` annotation
-in Playwright's report under the test, passing or not. Without `varianceExecution` nothing listens, and
-the line reads *preconditions unmeasured* rather than *nothing arranged*.
+in Playwright's report under the test, passing or not. Without
+`varianceExecution` nothing listens: no annotation is added, and a failing
+message reads *preconditions unmeasured* rather than *nothing arranged*.
 
 ### Optional fixture composition
 

@@ -146,11 +146,11 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
     ]);
   });
 
-  it('says a snapshot from a run that did not listen left its preconditions unmeasured', () => {
-    expect(annotated('deaf', 'photographs the receipt')).toEqual([
-      `receipt--ff-on: taken in ${spec} > mocked > photographs the receipt, preconditions unmeasured: ` +
-        'varianceExecution is off, so nothing listened for variancePrecondition',
-    ]);
+  // A run that did not listen has nothing to say under a passing test, so the
+  // default run's report stays as it was; a failing message still says
+  // unmeasured (docket.test.ts).
+  it('adds no annotation for a snapshot from a run that did not listen', () => {
+    expect(annotated('deaf', 'photographs the receipt')).toEqual([]);
   });
 
   it.todo('throws for a call at the top level or in a describe callback of the first file a worker loads — needs the listener installed before the worker fixture, which Playwright sets up after the file is collected');

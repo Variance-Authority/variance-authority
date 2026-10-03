@@ -1,4 +1,4 @@
-import { checkoutSaid, type CasePrecondition } from './case-precondition-column.js';
+import { checkoutSaid, preconditionsHeard, type CasePrecondition } from './case-precondition-column.js';
 import preconditions from './case-preconditions.cjs';
 import type { ObservedCase } from './observed.js';
 
@@ -67,7 +67,7 @@ export function listenForPreconditions(root: string, standing: () => Preconditio
   };
   return {
     take: (key) => checkoutSaid(root, heard.take(key)),
-    held: (key) => preconditions.resolve(checkoutSaid(root, [...heard.held(key)])),
+    held: (key) => preconditionsHeard(root, [...heard.held(key)]).preconditions ?? [],
     close: () => {
       if (before === undefined) delete holder[preconditions.PRECONDITION];
       else holder[preconditions.PRECONDITION] = before;

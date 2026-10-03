@@ -180,9 +180,10 @@ the CLI, so a test worker cannot read it; the comparison waits on the grammar
 moving into `@variance-authority/sense`, as the suite declaration did.
 
 Under Playwright the `variance` fixture carries both on the observation as
-`case`, closes a failing assertion's message with them, and adds them as a
-`variance` annotation that Playwright's report shows under the test whether it
-passed or not.
+`case`, closes a failing assertion's message with them, and, when the run
+listened, adds them as a `variance` annotation that Playwright's report shows
+under the test whether it passed or not. A run that did not listen adds no
+annotation: under a passing test nobody asked.
 
 ## What would discharge it
 

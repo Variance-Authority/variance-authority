@@ -292,7 +292,9 @@ export const varianceFixtures: Fixtures<
       // snapshot was taken under. Annotated as well as carried, so the report
       // shows it under a passing test too.
       const taken = snapshotCaseOf(testInfo, varianceRecorder);
-      testInfo.annotations.push({ type: 'variance', description: `${observed.subject}: ${arrangedText(taken)}` });
+      if (taken.preconditions !== undefined) {
+        testInfo.annotations.push({ type: 'variance', description: `${observed.subject}: ${arrangedText(taken)}` });
+      }
       return { ...observed, case: taken };
     };
 
