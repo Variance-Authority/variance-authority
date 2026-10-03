@@ -1,5 +1,5 @@
 ---
-'@variance-authority/cli': minor
+'@variance-authority/cli': patch
 '@variance-authority/sense': minor
 ---
 
@@ -10,6 +10,6 @@ The `names.axes` grammar is now exported from `@variance-authority/sense/test-se
 the field, `readName`, `nameIndex` and `structuralParent` for a subject id, and
 `heldValues`, `outsideVocabulary` and `caseTwins` for what a case said on the same
 axes. `variance run` pairs a subject with its parent, and `variance covering
---where` reads a case's axis and twin, through these one implementation, so a
+--where` reads a case's axis and twin, through this one implementation, so a
 reader outside the CLI holds a case to the same vocabulary and base. The config
 refuses what it refused, with the same messages.

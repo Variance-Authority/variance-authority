@@ -3,10 +3,10 @@ import {
   NameGrammarError,
   nameIndex,
   parseNameGrammar,
-  readName,
   structuralParent,
   type NameGrammar,
 } from './index.js';
+import { readName } from './name-grammar.js';
 
 /**
  * A name, read as the coordinate it is.

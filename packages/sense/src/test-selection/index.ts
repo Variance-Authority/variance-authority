@@ -50,7 +50,7 @@ export {
   type SourceTestRange,
 } from './reverse.js';
 export { anyStopped } from './stopped.js';
-export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, readName, structuralParent } from './name-grammar.js';
+export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
 export { caseTwins, heldValues, outsideVocabulary, type CaseTwin, type OutsideVocabulary } from './case-axes.js';
 export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } from './placed.js';

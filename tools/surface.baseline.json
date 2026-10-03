@@ -2851,7 +2851,6 @@
         "readCommitRuns": "function",
         "readFetchedMainline": "function",
         "readJourneyChange": "function",
-        "readName": "function",
         "readOwnLayer": "function",
         "readTestCoverage": "function",
         "readableTestCoverage": "function",

@@ -74,8 +74,6 @@ than holding three hundred **subjects** to compare four.
   `resolveParents`, `variationsWanted`, `variationsOf`, `namedParent`; the name rule
 - `packages/sense/src/test-selection/name-grammar.ts` — `parseNameGrammar`,
   `readName`, `structuralParent`, `stepTowardBase`; the axis grammar
-- `packages/sense/src/test-selection/case-axes.ts` — `heldValues`,
-  `outsideVocabulary`, `caseTwins`; a case read on the same axes
 
 ## Diagram
 
