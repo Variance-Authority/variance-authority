@@ -129,6 +129,15 @@ describe('`--where` counts the cases that covered what was asked', () => {
     expect(answer).toContain('src/cart.ts is not the text the suite ran over');
   });
 
+  it('still counts a function found in a file whose recorded text is gone, since its cases are listed', () => {
+    const answer = formatCovering({
+      file: 'src/cart.ts', frame: 'stale', from: 'coverage.bin', target: { function: 'round' }, tests: [],
+      where: { asked: ['flag=ff-on'], kept: 0, of: 0, unmeasured: 0, outside: [] },
+    }, 'text');
+
+    expect(answer).toContain('No case covered function round of src/cart.ts, so none said flag=ff-on.');
+  });
+
   it('counts the whole-file answer out of the cases that covered the file', async () => {
     expect(await text(['--file', 'src/cart.ts', '--where', 'flag=ff-on']))
       .toContain('Kept the 2 of 5 cases that covered src/cart.ts and said flag=ff-on.\n');

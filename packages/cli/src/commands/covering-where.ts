@@ -275,11 +275,18 @@ export function twinText(twin: CoveringTwin, nameOf: (id: string) => string, ind
 }
 
 /** What `--where` kept, said before the cases it kept. */
+/**
+ * Over text the record cannot place, a file answer lists no case, and *none
+ * covered it* would be a claim the record never made. A function is still found
+ * by name there, and its cases are listed and counted.
+ */
+export function placesNoCase(answer: Pick<Covering, 'frame' | 'tests'>): boolean {
+  return answer.frame === 'stale' && answer.tests === undefined;
+}
+
 export function whereText(answer: Covering): readonly string[] {
   const where = answer.where;
-  // Over text the record cannot place, no case is listed, and *none covered it*
-  // would be a claim the record never made.
-  if (where === undefined || answer.frame === 'stale') return [];
+  if (where === undefined || placesNoCase(answer)) return [];
   const asked = where.asked.join(' and ');
   const target = coveredText(answer);
   const cases = `case${where.of === 1 ? '' : 's'}`;

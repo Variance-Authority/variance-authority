@@ -57,7 +57,7 @@ import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
-import { listedIn, namesAt, twinsOf, whereCases, whereOver, type CoveringTwin, type CoveringWhere } from './covering-where.js';
+import { listedIn, namesAt, placesNoCase, twinsOf, whereCases, whereOver, type CoveringTwin, type CoveringWhere } from './covering-where.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
@@ -173,7 +173,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   // Twins and counts are read among every case the question reached before `--where` narrowed it.
   const listed = listedIn(answer);
   const twins = names === undefined ? undefined : twinsOf(listed, reached ?? listed, names);
-  if (where !== undefined) where = whereOver(where, listed, reached ?? listed, names);
+  if (where !== undefined) where = placesNoCase(answer) ? undefined : whereOver(where, listed, reached ?? listed, names);
   const motion = await motionFor(request, answer.from, scope, full);
   const files = answer.tests === undefined || whole === undefined
     ? undefined
