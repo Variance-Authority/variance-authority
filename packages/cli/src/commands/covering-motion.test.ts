@@ -480,5 +480,14 @@ describe('the before layer of a landing', () => {
     const compared = await read();
     expect(compared.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['applyDiscount', 'lost'], ['round', 'lost']]);
     expect(compared.unmeasured).toBeUndefined();
+
+    // A layer that names texts, but none for this module, was cut from a text nobody knew.
+    await keep(execution, full, { before: RETIRED, last: { ...last, beforeTexts: { 'src/other.ts': digestString(BASE_TEXT) } } });
+    const unnamed = await read();
+    expect(unnamed.moved?.regions).toEqual([]);
+    expect(unnamed.unmeasured).toEqual(['src/total.ts']);
+    expect(motionText(unnamed)).toContain(
+      `Not compared, the cases before were recorded over another text than ${base.slice(0, 12)} holds: src/total.ts.`,
+    );
   });
 });
