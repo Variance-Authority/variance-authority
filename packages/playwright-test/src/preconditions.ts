@@ -3,9 +3,9 @@
  *
  * The worker runs one test at a time, and `test.info()` names it in the body
  * and in every hook. Which hook is running Playwright knows and does not
- * publish: `_currentHookType` is read, and a worker without it places no call,
- * because a call it cannot tell from a `beforeAll`'s is not guessed to be the
- * body's.
+ * publish: `_currentHookType` is read. A recording worker without it fails at
+ * setup, in `enterDescribes`; anywhere else a call it cannot tell from a
+ * `beforeAll`'s is placed on no case, not guessed to be the body's.
  *
  * Nor does it publish which `describe` declared a running `beforeEach`. The
  * worker runs a test from a clone of the file's suite tree, which its loader
@@ -16,7 +16,9 @@
  * timeout slot holds.
  */
 
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { test, type TestInfo } from '@playwright/test';
 import type { PreconditionStanding } from '@variance-authority/sense/journal';
 import { caseKey, testOf } from './test-coordinate.js';
@@ -162,16 +164,30 @@ function fromPlaywright(): NodeJS.Require {
 /**
  * The worker's own test loader, resolved through `@playwright/test` so it
  * reads the loader instance the worker used, and its cached suite tree.
+ *
+ * Playwright 1.62 and 1.63 bundle it into `lib/common/index.js`; 1.58 and 1.59
+ * keep it in `lib/common/testLoader.js`, which no export names and the worker
+ * requires by that path. Either is reached by file path from the installed
+ * package, so the module instance is the one the worker required.
  */
 function loadTestFile(): (file: string) => Promise<LoadedSuite> {
-  let common: { testLoader?: { loadTestFile?: unknown } };
+  let root: string;
   try {
-    common = fromPlaywright()('playwright/lib/common') as typeof common;
+    root = dirname(fromPlaywright().resolve('playwright/package.json'));
   } catch {
-    throw missing('playwright/lib/common');
+    throw missing('playwright/package.json');
   }
-  const load = common.testLoader?.loadTestFile;
-  if (typeof load !== 'function') throw missing('testLoader.loadTestFile in playwright/lib/common');
+  const bundled = join(root, 'lib/common/index.js');
+  const separate = join(root, 'lib/common/testLoader.js');
+  let load: unknown;
+  if (existsSync(separate)) {
+    load = (fromPlaywright()(separate) as { loadTestFile?: unknown }).loadTestFile;
+  } else if (existsSync(bundled)) {
+    load = (fromPlaywright()(bundled) as { testLoader?: { loadTestFile?: unknown } }).testLoader?.loadTestFile;
+  } else {
+    throw missing('lib/common/index.js or lib/common/testLoader.js');
+  }
+  if (typeof load !== 'function') throw missing('testLoader.loadTestFile');
   return load as (file: string) => Promise<LoadedSuite>;
 }
 

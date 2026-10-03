@@ -11,7 +11,8 @@ contradiction. A helper that declares a `beforeEach` from one line in a
 `describe` and again in one inside it is placed at the depth of the one running.
 
 Playwright does not publish which `describe` declared a hook, so a recording
-worker reads it from Playwright's internals, verified on 1.62.1. A Playwright
-that lacks one of them fails every recorded test at setup, naming the internal
-and its version, rather than placing a `beforeEach` precondition at a guessed
-level.
+worker reads it from Playwright's internals: run on 1.62.1, and read in the
+source of 1.58, 1.59 and 1.63, whose test loader sits at either of two paths. A
+Playwright that lacks one of them fails every recorded test at setup, naming
+the internal and its version, rather than placing a `beforeEach` precondition at
+a guessed level.
