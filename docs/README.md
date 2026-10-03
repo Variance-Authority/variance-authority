@@ -43,6 +43,12 @@ depend on.
 <p>Keep the relation a coverage percentage is folded from: for each named test case, the regions of your source it ran.</p>
 <em>Record test-level coverage →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="case-preconditions.md">
+<span>Coverage</span>
+<strong>Know which state each covering test ran under</strong>
+<p>Record a flag, a mocked response or a fixture on each test, then keep only the tests that ran a line with sale prices mocked or the flag on.</p>
+<em>Record the state each test ran under →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="distill.md">
 <span>Test reduction</span>
 <strong>Make one test smaller</strong>

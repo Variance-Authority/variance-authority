@@ -34,7 +34,7 @@ It reads no config and no run, so it is the whole install check.
 | `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `gaps`, `orient`, `journey-map`, `stack`, `slowest-tests`) | none | the checkout |
 | `watch`, `distill`, `reach` | none | see the reference that owns it |
 | `index` | none | the checkout; it writes what [test selection](references/test-selection.md) and [orient](references/orient.md) read |
-| `covering`, `story`, `select`, `coverage`, `review` | optional; only the root file's `suites` and `cacheRoot` are read | the test-selection recording; with more than one suite declared, `--suite <name>`; `variance --help` lists the flags of `coverage` and `review` |
+| `covering`, `story`, `select`, `coverage`, `review` | optional; only the root file's `suites` and `cacheRoot` are read; `covering` also reads `names` | the test-selection recording; with more than one suite declared, `--suite <name>`; `variance --help` lists the flags of `coverage` and `review` |
 | `carry` | optional; with `--config`, its baselines and report | what the host moves between jobs; `variance --help` lists its flags |
 | `layers`, `restrictions` | none | the checkout; `variance --help` lists their flags |
 
@@ -61,6 +61,7 @@ when its condition holds, not before.
 | What is a suite that has not finished doing? | [live run](references/live-run.md) | nothing arrives: [producers](references/producers.md) |
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |
 | Which tests ran this line? What did my change do to the cases? | [covering](references/covering.md) | |
+| Which of them ran it with sale prices mocked or a flag on? What did a test arrange, and where is its flag-off twin? | [case preconditions](references/case-preconditions.md) | |
 | Where does this one test, or the few I am looking into, go, and in what order? | [story](references/story.md) | |
 | Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md); you need distances, the `because` trail or a diff that is not a ref: [selection API](references/selection-api.md) |
 | What can this test be reduced to? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
