@@ -22,6 +22,34 @@ resolves later without the context.
 mean to change, or a finding outside the task, comes out and goes to its own
 change.
 
+**What kind is it, and is it whole?** The title's prefix names the PR's kind,
+in the form its commits already use: `fix(store): …`. The kind is the task's,
+and its row below says what the PR carries to be complete. Everything the task
+needs rides in its PR, whatever kind that part would be alone: the tests for the
+code it wrote, the writing that names it, a refactor it stands on in whatever
+code.
+
+| Kind | The body shows | Complete when it carries | Never contains |
+|---|---|---|---|
+| `feat` | A capability that does not exist, or behaviour that works as built and is wanted different, and who asked for it | Tests that fail on the base, with those that pinned the old behaviour amended; the page, README or help text that names it, rewritten where it described the old; a changeset, saying what an upgrader does when behaviour changed | A test still asserting the old behaviour |
+| `fix` | Behaviour that departs from what a doc, spec, test or issue states, quoted | A test that fails on the base; every place the same defect lives, with the search that found them quoted in the body; a changeset when a package ships | Behaviour nobody stated |
+| `perf` | A cost, measured | The same measurement before and after (CI's `measure` job on the base and on the PR, or a named benchmark), its command and machine quoted in the body | A changed assertion |
+| `refactor` | A shape that makes a named next change hard | Every existing test unchanged and green on both sides | A changed assertion |
+| `test` | Behaviour on the base that no test pins | Tests that pass on the base | A test for code an open PR adds: it goes in that PR |
+| `docs` | A sentence that is wrong, missing or unclear, quoted | The writing, held to [`docs/AGENTS.md`](../../docs/AGENTS.md) when it is published | Product code |
+| `ci`, `chore` | A workflow, tool or dependency that fails or costs | The run on the PR that exercises the changed workflow or tool, checked in the [outer loop](outer-loop.md) | Product code |
+| `revert` | The merged PR it undoes, and what that PR broke | The revert of that PR's merge commit | Any change beyond the revert and its changeset |
+
+Every kind that changes a published package carries a changeset, or `yarn
+changeset --empty`, as [change](change.md) says; a row names one only where it
+says something particular. A test that fails on the base in a `test` PR is
+wrong or has found a defect; when it has found one, the PR is a `fix`. A
+`refactor` or `perf` that has to change an assertion changes behaviour, and is
+a `feat` or a `fix`. A `docs`, `ci` or `chore` task that needs product code
+takes the kind of that code's change. A pin written green first for behaviour
+nothing covered, as [change](change.md) asks, passes on the base in any kind.
+The release PR that changesets opens is not written by hand and has no kind.
+
 **Does it carry its changeset?** `yarn changeset status --since=origin/main`
 fails the same way CI does when a published package changed and no changeset
 came with it. See [change](change.md).

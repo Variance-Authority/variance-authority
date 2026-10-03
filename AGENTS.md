@@ -50,8 +50,9 @@ Look around:
   the exception: written only when the PR can show nothing existing could carry
   it. A second implementation is a defect.
 
-Leave with the sentence of done, what existing code it is reached from, the gate it is measured against, and only the
-questions that are the asker's to answer.
+Leave with the sentence of done, the kind of its PR, what existing code it is
+reached from, the gate it is measured against, and only the questions that are
+the asker's to answer.
 
 ## Inner loop
 
@@ -127,6 +128,8 @@ Look around:
   change every answer CI is about to give. If the rebase brought anything in,
   pre-verify again.
 - Open PRs touching the same files: `gh pr list --json number,title,files`.
+- The PR's kind, its title's prefix, and whether it carries everything that
+  kind needs, as [pull request](.agents/references/pull-request.md) lists them.
 
 Then push the branch, write the body to
 [`.github/pull_request_template.md`](.github/pull_request_template.md), and have
