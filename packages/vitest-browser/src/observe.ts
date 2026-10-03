@@ -111,6 +111,8 @@ export type Deliver = (request: ObserveRequest) => Promise<Observed>;
  * assertUnchanged(await variance(screen.container));
  * ```
  */
+// FIXME: an observation here names no case and carries no preconditions; the
+// Playwright fixture's does (spec 0093, "A snapshot taken inside a case").
 export async function variance(
   target: VarianceSubject,
   options: VarianceOptions = {},

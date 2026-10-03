@@ -569,6 +569,24 @@ The journal is kept under the same case id as the test's crossings, and under
 its attempt, `testInfo.retry + 1`, so a retried test keeps both.
 `variance distill --test '<case id>'` reads the two together.
 
+### Read what a snapshot was taken under
+
+A snapshot taken with `variance(locator)` names the case it was taken in: the
+spec file, the declaration path and `testInfo.testId`, the case id the record
+keeps. It also carries what the case had said with
+[`variancePrecondition`](../sense#name-what-a-case-arranged) by then, each with
+the `file:line` that said it. A call after the snapshot is on the case's row and
+not on the snapshot.
+
+```text
+receipt--ff-on: taken in tests/checkout.spec.ts > mocked > photographs the receipt, arranged flag="ff-on" (tests/checkout.spec.ts:40), network="mocked" (tests/checkout.spec.ts:27)
+```
+
+The observation carries the case as `case`. The line after the subject closes a
+failing `toBeUnchanged` message, and the whole line is a `variance` annotation
+in Playwright's report under the test, passing or not. Without `varianceExecution` nothing listens, and
+the line reads *preconditions unmeasured* rather than *nothing arranged*.
+
 ### Optional fixture composition
 
 | Fixture | Purpose | Default |

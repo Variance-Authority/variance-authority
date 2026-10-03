@@ -32,6 +32,7 @@ import { runOf, type VarianceRun } from './run.js';
 import { settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
 import { varianceDocumentFixtures } from './documents.js';
+import { arrangedText, snapshotCaseOf } from './arranged.js';
 import { withEvidence, type Observed } from './evidence.js';
 import { engineOf, promote } from './promote.js';
 import {
@@ -260,7 +261,7 @@ export const varianceFixtures: Fixtures<
     // Nothing is drained here. The page belongs to the test's context, and the
     // context drains every document it held once the test is done with it —
     // for every spec, including the ones that never destructure this fixture.
-    { page, varianceBundle, varianceRenderer, varianceStore, varianceJourney, varianceVantage },
+    { page, varianceBundle, varianceRecorder, varianceRenderer, varianceStore, varianceJourney, varianceVantage },
     use,
     testInfo,
   ) => {
@@ -287,7 +288,12 @@ export const varianceFixtures: Fixtures<
       for (const [name, path] of Object.entries(observed.evidence ?? {})) {
         await testInfo.attach(`${observed.subject} ${name}`, { path, contentType: 'image/png' });
       }
-      return observed;
+      // Read now rather than when the case ends: a later call is not what this
+      // snapshot was taken under. Annotated as well as carried, so the report
+      // shows it under a passing test too.
+      const taken = snapshotCaseOf(testInfo, varianceRecorder);
+      testInfo.annotations.push({ type: 'variance', description: `${observed.subject}: ${arrangedText(taken)}` });
+      return { ...observed, case: taken };
     };
 
     await use(

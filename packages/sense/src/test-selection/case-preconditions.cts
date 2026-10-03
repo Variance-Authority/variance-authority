@@ -91,6 +91,8 @@ function recorder(
   /** The case `key` names is entered: what its `beforeEach`es said is its own. */
   entered(key: string, token?: unknown): void;
   take(key: string): Said[];
+  /** What the case `key` names has said so far, left in place for {@link take}. */
+  held(key: string): readonly Said[];
   /** Forget the file: a collector, and its recorder, end with their file. */
   finish(): void;
 } {
@@ -195,6 +197,7 @@ function recorder(
       byCase.delete(key);
       return own;
     },
+    held: (key) => [...(byCase.get(key) ?? [])],
     finish() {
       byCase.clear();
       pending.clear();

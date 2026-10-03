@@ -1,6 +1,7 @@
 import { summarizeObservation } from '@variance-authority/observe';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { Observation } from '@variance-authority/observe';
+import { arrangedText, type SnapshotCase } from './arranged.js';
 
 /**
  * What a failing assertion prints — one line of this package's own, over the
@@ -18,10 +19,14 @@ import type { Observation } from '@variance-authority/observe';
  * The message is the product. `1530 pixels differ` is what the incumbent prints
  * and it is unassignable — the only available response is to open the image and
  * look, which is the expensive act this is meant to replace.
+ *
+ * A snapshot taken inside a case closes with that case and what it had
+ * arranged, so a reviewer reads the conditions beside the change.
  */
 export function describeObservation(
-  observation: Observation,
+  observation: Observation & { readonly case?: SnapshotCase },
   source?: SourceIndex,
 ): string {
-  return summarizeObservation(observation, source === undefined ? {} : { source });
+  const summary = summarizeObservation(observation, source === undefined ? {} : { source });
+  return observation.case === undefined ? summary : `${summary}\n${arrangedText(observation.case)}`;
 }

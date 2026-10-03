@@ -23,6 +23,9 @@ export interface CasePrecondition {
   readonly level: number;
 }
 
+/** The names a row holds under more than one value: what its case contradicted. */
+export const contradictions: (row: readonly CasePrecondition[]) => readonly string[] = preconditions.contradictions;
+
 /** What a frame owner carries: the calls as the realm heard them. */
 export type Said = NonNullable<ReturnType<typeof preconditions.saidOf>>;
 

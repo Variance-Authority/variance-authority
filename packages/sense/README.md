@@ -1946,6 +1946,17 @@ which case a call stands in at the moment it is made.
 `variance covering --where network=mocked` keeps the cases that said it — see
 [`variance covering`](../cli#reading-the-cases-that-arranged-a-state).
 
+A snapshot you take with the `variance` fixture of
+[`@variance-authority/playwright-test`](../playwright-test) inside a case names
+that case — its file, its declaration path and Playwright's test id, as the row
+names it — and what the case had said by the time the snapshot was taken. The
+fixture puts both on the observation as `case`, at the foot of a failing
+assertion's message, and in a `variance` annotation Playwright's report shows
+under the test, passing or not. A run that does not record execution reads
+*preconditions unmeasured*, never *nothing arranged*. The recorder's own view
+is `PreconditionListener.held(key)`: what the case has said so far, resolved as
+its row would be, left in place for the row.
+
 ### Ask the index about a diff
 
 `coveringChange` joins changed lines to the cases that went there, and

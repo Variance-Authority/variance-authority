@@ -148,6 +148,40 @@ Absent is not empty. A recording that kept no cases, or was made before this
 column existed, answers `--where` with **unmeasured**, never with "no case
 declared it".
 
+## A snapshot taken inside a case
+
+A visual snapshot is taken part-way through a case, and the reviewer judging
+it needs the conditions it was taken under. The case's row cannot answer that:
+it holds what the case had said when it *ended*, and a call after the snapshot
+is on the row and was not in force when the page was photographed. So a
+snapshot carries two things:
+
+- **The case's key, carried, not copied.** Its test file, declaration path and
+  runner id, the identity the row already has. A snapshot joins its case on
+  that key; it is never given a second one.
+- **Its own view of the preconditions:** what the case had said by the moment
+  the snapshot was taken, resolved by the rules above, with each call site.
+  The recorder answers it without taking what it holds, so the row still
+  receives every call.
+
+Absent is not empty here either. A snapshot from a run that did not listen
+reads **unmeasured**; one from a listening case that said nothing reads
+*nothing arranged*.
+
+**Where the subject and the case disagree.** A subject id may encode an axis
+`names.axes` declares — `receipt--ff-on` is at `flag=ff-on` — and the case may
+say the same axis. Where both speak, the subject's value is compared with what
+the case said, a case that never named the axis standing at the base. A
+difference is reported by the axis's name with the call site that said the
+case's value, and neither side is taken as the truth: a snapshot named `ff-on`
+from a case that arranged `ff-off` is a mislabelled subject or a mis-arranged
+case, and only the author knows which.
+
+Under Playwright the `variance` fixture carries both on the observation as
+`case`, closes a failing assertion's message with them, and adds them as a
+`variance` annotation that Playwright's report shows under the test whether it
+passed or not.
+
 ## What would discharge it
 
 1. The entry `@variance-authority/sense/precondition` with `variancePrecondition`,
@@ -171,3 +205,8 @@ declared it".
    on fixtures where two cases differ only in `flag`, where three hold the same
    coordinate, and where no case holds it; and `--where flag=ff-on` printing an
    `ff-off` twin the filter left out of the answer.
+6. A snapshot inside a case: the case's key and the preconditions in force when
+   it was taken, unmeasured from a run that did not listen, on Playwright and in
+   the Vitest browser realm; the disagreement between a subject's coordinate and
+   the case's value, reported by axis name; and the snapshot named on the case's
+   row and in the run's one record, so a reviewer reaches one from the other.

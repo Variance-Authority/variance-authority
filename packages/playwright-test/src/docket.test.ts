@@ -76,4 +76,24 @@ describe('describeObservation', () => {
 
     expect(message).toContain('in checkbox "Mark as done"');
   });
+
+  it('closes with the case the snapshot was taken in and what it had arranged', () => {
+    const message = describeObservation({
+      ...observation(),
+      case: {
+        file: 'tests/checkout.spec.ts',
+        name: 'mocked > pays',
+        id: 'abc-123',
+        preconditions: [{ name: 'network', value: 'mocked', site: 'tests/checkout.spec.ts:12', level: 0xffff }],
+      },
+    });
+
+    expect(message.split('\n').at(-1)).toBe(
+      'taken in tests/checkout.spec.ts > mocked > pays, arranged network="mocked" (tests/checkout.spec.ts:12)',
+    );
+  });
+
+  it('says nothing of a case for a snapshot taken outside one', () => {
+    expect(describeObservation(observation({ verdict: 'new', because: 'no baseline' }))).not.toContain('taken in');
+  });
 });
