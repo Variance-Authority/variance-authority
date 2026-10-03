@@ -88,6 +88,10 @@ than any of them.
   case — a cleanup, a timer that fires after the case settled. Nothing there
   belongs to one case, so nothing is guessed: the error names the call site and
   says to move it into the case body or a `beforeEach`.
+- **A call in the callback of Playwright's `test.skip`, `test.fixme`,
+  `test.fail` or `test.slow`** is unsupported. That callback decides whether
+  and how a case runs, and arranges nothing. No code refuses the call, so what
+  it records there is not specified.
 - **A `beforeEach` that throws** takes what it said with it. Its case never
   runs, and the next case begins with nothing held.
 
