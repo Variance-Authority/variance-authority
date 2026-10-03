@@ -221,6 +221,19 @@ describe('a case read along a declared axis', () => {
     ]);
   });
 
+  it('says the filter left none of the cases that ran a function, not that nothing ran it', async () => {
+    const record = await recorded(MEASURED);
+
+    const answer = await covering(parse([
+      '--file', 'src/cart.ts', '--function', 'total', '--execution', record.execution, '--root', record.root, '--where', 'network=live',
+    ]));
+
+    expect(answer.where).toMatchObject({ kept: 0, of: 6, ran: 6 });
+    const text = formatCovering(answer, 'text');
+    expect(text).toContain('Kept the 0 of 6 cases that said network=live.\n`--where network=live` left none of the 6 named tests that covered function total of src/cart.ts.');
+    expect(text).not.toContain('No named test covered');
+  });
+
   it('prints a value outside the vocabulary under what it kept', async () => {
     const record = await recorded([row('flag typo', [{ name: 'flag', value: 'ff-onn', site: at(30), level: 1 }])], true);
 

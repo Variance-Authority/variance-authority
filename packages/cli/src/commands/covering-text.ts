@@ -33,6 +33,14 @@ function text(answer: Covering): string {
   const tests = answer.tests ?? [];
   const target = answer.target ?? { function: '' };
   const where = 'line' in target ? `line ${target.line}` : `function ${target.function}`;
+  const ran = answer.where?.ran ?? 0;
+  if (tests.length === 0 && ran > 0) {
+    // The filter emptied the list, not the record: said as the bare *no named test*, it reads as nothing running the code.
+    return [
+      `\`--where ${answer.where!.asked.join(' --where ')}\` left none of the ${ran === 1 ? 'named test' : `${ran} named tests`} that covered ${where} of ${answer.file}.`,
+      ...narrowedText(answer),
+    ].join('\n');
+  }
   if (tests.length === 0) {
     return [
       `No named test covered ${where} of ${answer.file}${unentered(answer.stopped)}`,

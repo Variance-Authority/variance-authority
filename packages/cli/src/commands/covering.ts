@@ -184,7 +184,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     ...answer,
     ...(files === undefined ? {} : { files }),
     ...(scope === undefined ? {} : { scope }),
-    ...(where === undefined ? {} : { where }),
+    ...(where === undefined ? {} : { where: reached === undefined ? where : { ...where, ran: reached.length } }),
     ...(twins === undefined || twins.length === 0 ? {} : { twins }),
     ...(motion === undefined ? {} : { motion }),
   };

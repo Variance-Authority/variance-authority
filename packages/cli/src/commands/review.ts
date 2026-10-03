@@ -33,6 +33,7 @@ import {
   type CommitRuns,
   type CoveringRegion,
   type ExecutionIndex,
+  type ExecutionTest,
   type FileReading,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
@@ -93,6 +94,8 @@ export interface ReviewCase {
   readonly file: string;
   /** The title with every `describe` it sits in, joined by ` > `. */
   readonly name: string;
+  /** What it said it arranged, as `covering` reads it: empty is heard-nothing, absent is a record that did not listen. */
+  readonly preconditions?: ExecutionTest['preconditions'];
 }
 
 export interface ReviewFile {
@@ -227,9 +230,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   const from = await recordedExecutionFile(root, request.suite, recorded.file);
   const now = inTreeLines(changedLines(backward), root, readings);
   const { index } = await readExecutionFor(from, now);
-  const covered = new Map(
-    coveringChange(index, now, { relations }).map((file) => [file.file, file]),
-  );
+  const covered = new Map(coveringChange(index, now, { relations }).map((file) => [file.file, file]));
   const full = await readExecutionIndex(from);
   const held = await baseIndex(against, from, request.against === undefined && against !== undefined ? mainline : undefined);
   // With no base named, the base is the layer the runs at this commit retired,
@@ -355,7 +356,7 @@ function regionOf(
     cases: called.length,
     tests: [...new Set(called.map((test) => test.file))].sort(),
     called: called
-      .map((test) => ({ file: test.file, name: test.name }))
+      .map((test) => ({ file: test.file, name: test.name, ...(test.preconditions === undefined ? {} : { preconditions: test.preconditions }) }))
       .sort((left, right) => order(left.file, right.file) || order(left.name, right.name)),
   };
 }
