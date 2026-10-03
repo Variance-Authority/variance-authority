@@ -165,7 +165,8 @@ function saidPath(called: ReviewCase): { readonly path: readonly string[] } {
 function spanned(called: readonly ReviewCase[]): string {
   const byName = new Map<string, Map<string, NonNullable<ReviewCase['preconditions']>[number]>>();
   for (const held of called.flatMap((one) => one.preconditions ?? [])) {
-    byName.set(held.name, (byName.get(held.name) ?? new Map()).set(String(held.value), held));
+    // `true` and `'true'` print apart (`flag`, `flag=true`), so they are two values; the text leads so the order is the printed one.
+    byName.set(held.name, (byName.get(held.name) ?? new Map()).set(`${String(held.value)}\0${typeof held.value}`, held));
   }
   const said = [...byName]
     .filter(([, values]) => values.size > 1)

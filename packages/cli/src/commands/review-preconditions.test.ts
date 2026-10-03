@@ -134,6 +134,17 @@ describe('the cases a review lists under a changed function, with what each arra
     expect(markdown).toContain('— 2 cases in 1 test file; ran under Locale=de, Locale=fr, zone=West, zone=east</summary>');
   });
 
+  it('keeps a flag set and a flag said as the text `true` apart, as `covering` prints them', async () => {
+    const { root, first } = await changed([
+      row('set', [{ name: 'flag', value: true, site: `${SPEC}:1`, level: 1 }]),
+      row('said', [{ name: 'flag', value: 'true', site: `${SPEC}:5`, level: 1 }]),
+    ]);
+
+    const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
+
+    expect(markdown).toContain('— 2 cases in 1 test file; ran under flag, flag=true</summary>');
+  });
+
   it('prints a value as its text, never as markup the comment would render', async () => {
     const { root, first } = await changed([
       row('bold', [{ name: 'label', value: '<b>x</b>', site: `${SPEC}:1`, level: 1 }]),
