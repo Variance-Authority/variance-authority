@@ -1902,29 +1902,64 @@ changed; selecting test files over every region there is reads the snapshot.
 
 ### Name what a case arranged
 
-A case that mocks the network, turns a flag on or seeds a cart leaves no trace
-of it in the code it ran. Say it, and the state lands on the case's row in the
+A case that sets a flag, mocks what a call returns or seeds a cart leaves no
+trace of it in the code it ran. Say it in the test helper that arranges it, and
+the state is recorded on the row of every case that calls the helper, in the
 `cases` section, with the `file:line` of the call that said it:
 
 ```ts
+// test/flags.ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
+import { type Flag, flags } from '../src/flags.js';
+
+export function setFlag(flag: Flag): void {
+  flags.discount = flag;
+  variancePrecondition({ flag });
+}
+```
+
+```ts
+// test/prices.ts
+import { variancePrecondition } from '@variance-authority/sense/precondition';
+import { vi } from 'vitest';
+import { fetchPrices } from '../src/checkout/prices.js';
+
+const TABLES = { full: { apple: 2, pear: 3 }, discounted: { apple: 1, pear: 2 } };
+
+export function pricesReturn(table: keyof typeof TABLES): void {
+  vi.mocked(fetchPrices).mockResolvedValue(TABLES[table]);
+  variancePrecondition({ prices: table });
+}
+```
+
+```ts
+// test/refund.test.ts
+import { beforeEach, expect, it, vi } from 'vitest';
+import { refund } from '../src/checkout/refund.js';
+import { setFlag } from './flags.js';
+import { pricesReturn } from './prices.js';
+
+vi.mock('../src/checkout/prices.js');
 
 beforeEach(() => {
-  variancePrecondition('network', 'mocked');
+  pricesReturn('discounted');
 });
 
-it('refunds behind a flag', () => {
-  variancePrecondition({ flag: 'ff-on' });
-  // …
+it('refunds the discounted total behind the flag', async () => {
+  setFlag('ff-on');
+  expect(await refund(['apple', 'pear'])).toBe(-2.7);
 });
 ```
 
-Said in a case body, it is that case's. Said in a `beforeEach`, it is the case
-the hook runs for, at the level of the `describe` that declared the hook. The
-body overrides a `beforeEach`, an inner `describe`'s `beforeEach` overrides an
-outer one's, and two values said at one level are kept as a contradiction, not
-resolved. A call in `afterEach` is reported with its site and lands on no case.
-`variancePrecondition('seeded')` holds `true`.
+Said in a case body, or in a helper the body calls, it is that case's. Said in
+a `beforeEach`, or in a helper the hook calls, it is the case the hook runs
+for, at the level of the `describe` that declared the hook. The body overrides
+a `beforeEach`, an inner `describe`'s `beforeEach` overrides an outer one's,
+and two values said at one level are kept as a contradiction, not resolved. A
+call in `afterEach` is reported with its site and recorded on no case. One
+record can name several: `variancePrecondition({ flag: 'ff-on', prices:
+'discounted' })`, and one value that is not a string, finite number or boolean
+drops the whole record, with a warning.
 
 A precondition belongs to a test, so a call made where no case is running
 throws: in a `describe` callback, a `beforeAll` or `afterAll`, at the file's top
@@ -1933,9 +1968,9 @@ What a `beforeEach` said before it threw reaches no case.
 
 The entry imports nothing. Without a recording the call is one property read
 and does nothing, in Node and in a page. A row says `preconditions: []` for a
-case that was listened to and said nothing, and has no `preconditions` for a
-case nobody listened to. A named precondition never selects or excludes a
-test: nothing in a checkout changes it, so it is read and never diffed.
+case recorded with the listener that said nothing, and has no `preconditions`
+for a case recorded by a runner without the listener. A named precondition
+never selects or excludes a test, because nothing in a checkout changes it.
 
 Vitest, Jest, Rstest and Playwright all listen. Under Playwright, a call at the
 top level or in a `describe` callback of the first file a worker loads is made
@@ -1943,8 +1978,10 @@ before the worker listens, and records nothing rather than throwing. A seam that
 standing)` from `@variance-authority/sense/journal`, where `standing` says
 which case a call stands in at the moment it is made.
 
-`variance covering --where network=mocked` keeps the cases that said it — see
-[`variance covering`](../cli#reading-the-cases-that-arranged-a-state).
+`variance covering --where prices=discounted` keeps the cases that said it — see
+[`variance covering`](../cli#reading-the-cases-that-arranged-a-state), and
+[case preconditions](https://variance-authority.dev/docs/case-preconditions)
+for why a case says it and how to read it back.
 
 A snapshot you take with the `variance` fixture of
 [`@variance-authority/playwright-test`](../playwright-test) inside a case names

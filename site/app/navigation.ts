@@ -85,6 +85,10 @@ export const NAVIGATION = [
         label: "Coverage that names the test",
       },
       {
+        href: "/docs/case-preconditions",
+        label: "Name what a case arranged",
+      },
+      {
         href: "/docs/run-relevant-work",
         label: "Run relevant work",
         cluster: "Run less of the suite",
