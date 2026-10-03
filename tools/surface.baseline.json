@@ -2654,6 +2654,7 @@
         "CoveragePrecondition": "interface",
         "CoverageShard": "interface",
         "CoverageTest": "interface",
+        "CoveringCaseNote": "type",
         "CoveringChange": "interface",
         "CoveringChangeHeading": "interface",
         "CoveringChangeOptions": "interface",
