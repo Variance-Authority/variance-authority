@@ -106,7 +106,8 @@ export function preconditionColumn(
  * run are: per name the narrowest level wins, so a body one run reached
  * overrides the `beforeEach` a run that never reached it heard, and two values
  * at that level are both kept, which is the contradiction a retry that changed
- * its mind is. Unmeasured only where neither run was listened to.
+ * its mind is. A value both runs said keeps the site `before` said it at.
+ * Unmeasured only where neither run was listened to.
  */
 export function preconditionsAcross(
   before: readonly CasePrecondition[] | undefined,

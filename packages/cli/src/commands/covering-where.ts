@@ -277,7 +277,9 @@ export function twinText(twin: CoveringTwin, nameOf: (id: string) => string, ind
 /** What `--where` kept, said before the cases it kept. */
 export function whereText(answer: Covering): readonly string[] {
   const where = answer.where;
-  if (where === undefined) return [];
+  // Over text the record cannot place, no case is listed, and *none covered it*
+  // would be a claim the record never made.
+  if (where === undefined || answer.frame === 'stale') return [];
   const asked = where.asked.join(' and ');
   const target = coveredText(answer);
   const cases = `case${where.of === 1 ? '' : 's'}`;

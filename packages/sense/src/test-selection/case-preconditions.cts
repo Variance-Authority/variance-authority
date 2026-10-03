@@ -308,7 +308,9 @@ function saidOf(packed: string): readonly Said[] | undefined {
  * arrive in the order they were made, a later frame's after an earlier one's.
  * One value is the answer, two are a contradiction the reader reports — a retry
  * that says something else is the same contradiction. Ordered by name, then
- * value, so the row reads the same whichever worker wrote first.
+ * value, so which names and values a row holds is the same whichever worker
+ * wrote first; the site is the earliest call's, so across merged records it is
+ * the one from the record passed first.
  */
 function resolve(said: readonly Said[]): CasePrecondition[] {
   const byName = new Map<string, Said[]>();

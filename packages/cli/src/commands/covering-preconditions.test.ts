@@ -119,6 +119,16 @@ describe('`--where` counts the cases that covered what was asked', () => {
       .toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none said flag=ff-half.\n');
   });
 
+  it('says no count over a file whose recorded text is gone, where no case can be placed', () => {
+    const answer = formatCovering({
+      file: 'src/cart.ts', frame: 'stale', from: 'coverage.bin',
+      where: { asked: ['flag=ff-on'], kept: 0, of: 0, unmeasured: 0, outside: [] },
+    }, 'text');
+
+    expect(answer).not.toMatch(/No case covered|Kept/);
+    expect(answer).toContain('src/cart.ts is not the text the suite ran over');
+  });
+
   it('counts the whole-file answer out of the cases that covered the file', async () => {
     expect(await text(['--file', 'src/cart.ts', '--where', 'flag=ff-on']))
       .toContain('Kept the 2 of 5 cases that covered src/cart.ts and said flag=ff-on.\n');
