@@ -39,13 +39,14 @@ The test says it, at runtime, from the test body, a hook or a helper:
 ```ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
-variancePrecondition('network', 'mocked');
-variancePrecondition({ flag: 'ff-on', colour: 'green' });
-variancePrecondition('seeded-cart');
+variancePrecondition({ network: 'mocked' });
+variancePrecondition({ flag: 'ff-on', colour: 'green', 'seeded-cart': true });
 ```
 
-- **A value is a string, number or boolean.** Without one the precondition holds
-  `true`: the state is present, with nothing further to say about it.
+- **One form: a record of names to values.** A value is a string, number or
+  boolean, always said; a state that is present with nothing further to say
+  holds `true`. A bare name and a name-value pair are refused, so every call
+  reads the same.
 - **The entry imports nothing.** It reads one function from
   `globalThis[Symbol.for('variance-authority.test-selection.precondition')]`,
   which a recording installs, and calls it. Without a recording the call does
@@ -143,11 +144,18 @@ When `names.axes` declares the name, the value is read against that axis:
 - **The twin.** A case's twin is found as ADR-0046 finds a parent: move its last
   declared axis one step toward the base, keep every other precondition, and
   take the nearest coordinate a recorded case actually holds. The twin is looked
-  up among every case the same question reached before `--where` narrowed it,
-  so `--where flag=ff-on` still prints each case's `ff-off` twin. `covering`
-  prints it beside the case: the `ff-off` twin of an `ff-on` case, with what each
-  ran. Several cases at that coordinate are all printed with their count; none is
-  printed as *no twin recorded*.
+  up among the cases of the same test file that the same question reached
+  before `--where` narrowed it, so `--where flag=ff-on` still prints each
+  case's `ff-off` twin. Another file's case is never a twin: a case that names
+  nothing stands at the base of every axis, and across files every such case
+  would be the twin of every case that names a value. `covering` prints the
+  twin beside the case, in every form that lists cases, with or without
+  `--where`: the `ff-off` twin of an `ff-on` case, with what each ran. Several
+  cases at that coordinate are printed as their count and the first three
+  names. When no recorded case holds it, the case is printed with *no twin
+  recorded*.
+- **The count.** `--where` says how many of the cases that covered the line,
+  function, file or change it kept, out of how many covered it.
 
 Absent is not empty. A recording that kept no cases, or was made before this
 column existed, answers `--where` with **unmeasured**, never with "no case

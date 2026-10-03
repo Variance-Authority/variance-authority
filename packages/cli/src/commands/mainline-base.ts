@@ -41,7 +41,7 @@ import { parseShare } from '../config-share.js';
 import { ConfigError, messageOf } from '../config-values.js';
 import { distanceFrom, readerMainline, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
-import { checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
+import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
 
 /**
@@ -229,7 +229,7 @@ export async function mainlineBase(
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
   // `planCachePrune` states, never the one just named.
-  const pruned = selection.prunedLine(await pruneCacheWhenDue({ cacheRoot }, checkoutOwners(root, now)));
+  const pruned = selection.prunedLine(await pruneCacheWhenDue({ cacheRoot }, checkoutOwners(root, now)), CACHE_PRUNE_REASONS);
   return {
     suite,
     mainline: found.mainline,
