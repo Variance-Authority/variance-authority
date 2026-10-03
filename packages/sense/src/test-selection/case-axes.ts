@@ -14,7 +14,7 @@
  * cannot disagree on which value a case holds.
  */
 
-import type { CasePrecondition } from './case-precondition-column.js';
+import { preconditionText, type CasePrecondition } from './case-precondition-column.js';
 import { axisOf, coordinateKey, stepTowardBase, type NamedAxis, type NameGrammar } from './name-grammar.js';
 import type { ExecutionTest } from './reverse.js';
 
@@ -64,7 +64,12 @@ export function outsideVocabulary(said: readonly CasePrecondition[], grammar: Na
 }
 
 /**
- * Each listed case's twin, looked up among every case reached.
+ * Each listed case's twin, looked up among the cases of its own test file
+ * reached.
+ *
+ * Only its own file: a case that said nothing stands at the base of every
+ * axis, so across files every such case would be the twin of every case that
+ * said a value — a list of strangers, not the case beside it.
  *
  * From the value below the case's on its last declared axis toward the base,
  * the first coordinate a reached case holds. A coordinate several cases hold
@@ -86,13 +91,13 @@ export function caseTwins(
   for (const test of reached) {
     const here = place(test);
     if (here === undefined) continue;
-    const key = coordinateKey(here.stem, here.coordinate);
+    const key = `${test.file}\0${coordinateKey(here.stem, here.coordinate)}`;
     at.set(key, [...at.get(key) ?? [], test.id]);
   }
   return listed.flatMap((test) => {
     const here = place(test);
     const walked = here === undefined ? undefined : stepTowardBase(here.coordinate, grammar, (coordinate) =>
-      (at.get(coordinateKey(here.stem, coordinate)) ?? []).filter((other) => other !== test.id));
+      (at.get(`${test.file}\0${coordinateKey(here.stem, coordinate)}`) ?? []).filter((other) => other !== test.id));
     if (walked === undefined) return [];
     const twins = [...walked.found].sort(byCodeUnit);
     return [{ case: test.id, axis: walked.axis, from: walked.from, to: walked.to, twins }];
@@ -133,4 +138,9 @@ function placeOf(test: ExecutionTest, grammar: NameGrammar): Placed | undefined 
 
 function byCodeUnit(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/** What a case said, after its name, or nothing when it said nothing. */
+export function heldText(said: readonly CasePrecondition[] | undefined): string {
+  return said === undefined || said.length === 0 ? '' : ` — ${preconditionText(said)}`;
 }

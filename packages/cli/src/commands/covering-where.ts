@@ -22,7 +22,6 @@ import { ConfigError, messageOf } from '../config-values.js';
 import { said } from '../here.js';
 import { DEFAULT_CONFIG } from '../usage.js';
 import { OperatorError } from '../exit.js';
-import { preconditionText } from '@variance-authority/sense/journal';
 import {
   heldValues,
   outsideVocabulary,
@@ -32,18 +31,18 @@ import {
   type NameGrammar,
 } from '@variance-authority/sense/test-selection';
 import type { WhereCondition } from '../covering-args.js';
+import type { Covering } from './covering.js';
 
 type CasePrecondition = NonNullable<ExecutionTest['preconditions']>[number];
 
-/** What `--where` kept, out of how many, and what it could not read. */
+/** What `--where` kept, out of the cases that covered what was asked, and what it could not read. */
 export interface CoveringWhere {
   /** The conditions, as given. */
   readonly asked: readonly string[];
   readonly kept: number;
+  /** The cases that covered the line, function, file or change before `--where` narrowed them. */
   readonly of: number;
-  /** Under a line or function question: how many named tests covered it before `--where` narrowed them. */
-  readonly ran?: number;
-  /** Cases on a row nobody listened to: whether they said any of it is unmeasured. */
+  /** Of those, cases on a row nobody listened to: whether they said any of it is unmeasured. */
   readonly unmeasured: number;
   /** Values a kept case said on a declared axis that the axis does not name. */
   readonly outside: readonly string[];
@@ -115,24 +114,88 @@ function outside(kept: readonly ExecutionTest[], names: NameGrammar | undefined)
   return [...notes];
 }
 
-/** What a case said, after its name, or nothing when it said nothing. */
-export function heldText(said: readonly CasePrecondition[] | undefined): string {
-  return said === undefined || said.length === 0 ? '' : ` — ${preconditionText(said)}`;
+/**
+ * Every case an answer lists, once: on the line or function, in a range of the
+ * file, in a changed region, or declared by a changed test file.
+ */
+export function listedIn(answer: {
+  readonly tests?: readonly ExecutionTest[];
+  readonly ranges?: readonly { readonly tests: readonly ExecutionTest[] }[];
+  readonly changed?: readonly {
+    readonly regions: readonly { readonly tests: readonly ExecutionTest[] }[];
+    readonly cases: readonly ExecutionTest[];
+  }[];
+}): readonly ExecutionTest[] {
+  const every = [
+    ...answer.tests ?? [],
+    ...(answer.ranges ?? []).flatMap((range) => range.tests),
+    ...(answer.changed ?? []).flatMap((file) => [...file.regions.flatMap((region) => region.tests), ...file.cases]),
+  ];
+  return [...new Map(every.map((test) => [test.id, test])).values()];
 }
 
-/** The lines a twin prints under its case. */
+/**
+ * What `--where` kept, counted against what the question reached: the cases
+ * that covered the line, function, file or change, before `--where` narrowed
+ * them. A count against the whole record would say how many cases a suite
+ * has, which is not what was asked.
+ */
+export function whereOver(
+  where: CoveringWhere,
+  kept: readonly ExecutionTest[],
+  reached: readonly ExecutionTest[],
+  names: NameGrammar | undefined,
+): CoveringWhere {
+  return {
+    asked: where.asked,
+    kept: kept.length,
+    of: reached.length,
+    unmeasured: reached.filter((test) => test.preconditions === undefined).length,
+    outside: outside(kept, names),
+  };
+}
+
+/** Names a twin line prints before it says how many more there are. */
+const TWINS_NAMED = 3;
+
+/** The line a twin prints under its case: a few names, and a count when there are more. */
 export function twinText(twin: CaseTwin, nameOf: (id: string) => string, indent: string): string {
   const at = `${twin.axis}=${twin.to}`;
   if (twin.twins.length === 0) return `${indent}no twin recorded at ${at}`;
-  const names = twin.twins.map(nameOf).join(', ');
+  const named = twin.twins.slice(0, TWINS_NAMED).map(nameOf);
+  const more = twin.twins.length - named.length;
+  const names = `${named.join(', ')}${more === 0 ? '' : `, and ${more} more`}`;
   return twin.twins.length === 1 ? `${indent}twin at ${at}: ${names}` : `${indent}${twin.twins.length} twins at ${at}: ${names}`;
 }
 
 /** What `--where` kept, said before the cases it kept. */
-export function whereText(where: CoveringWhere | undefined): readonly string[] {
-  if (where === undefined) return [];
+/** A case's name from its id, `file > name`; an id with no file part is its own name. */
+export function caseNameOf(id: string): string {
+  const at = id.indexOf(' > ');
+  return at === -1 ? id : id.slice(at + 3);
+}
+
+/**
+ * Over text the record cannot place, a file answer lists no case, and *none
+ * covered it* would be a claim the record never made. A function is still found
+ * by name there, and its cases are listed and counted.
+ */
+export function placesNoCase(answer: Pick<Covering, 'frame' | 'tests'>): boolean {
+  return answer.frame === 'stale' && answer.tests === undefined;
+}
+
+export function whereText(answer: Covering): readonly string[] {
+  const where = answer.where;
+  if (where === undefined || placesNoCase(answer)) return [];
+  const asked = where.asked.join(' and ');
+  const target = coveredText(answer);
+  const cases = `case${where.of === 1 ? '' : 's'}`;
   return [
-    `Kept the ${where.kept} of ${where.of} case${where.of === 1 ? '' : 's'} that said ${where.asked.join(' and ')}.`,
+    where.of === 0
+      ? `No case covered ${target}, so none said ${asked}.`
+      : where.kept === 0
+        ? `Kept none of the ${where.of} ${cases} that covered ${target}: ${noneSaid(where, asked)}.`
+        : `Kept the ${where.kept} of ${where.of} ${cases} that covered ${target} and said ${asked}.`,
     ...where.unmeasured === 0 ? [] : [
       `${where.unmeasured} case${where.unmeasured === 1 ? ' was' : 's were'} not listened to, so whether ${
         where.unmeasured === 1 ? 'it' : 'they'
@@ -140,4 +203,19 @@ export function whereText(where: CoveringWhere | undefined): readonly string[] {
     ],
     ...where.outside.map((note) => `  ${note}`),
   ];
+}
+
+/** *None said it* is claimed only of the cases that were listened to; the rest are counted apart. */
+function noneSaid(where: CoveringWhere, asked: string): string {
+  if (where.unmeasured === 0) return `none said ${asked}`;
+  const heard = where.of - where.unmeasured;
+  return heard === 0 ? 'none of them was listened to' : `none of the ${heard} listened to said ${asked}`;
+}
+
+/** What the question asked about, as the count names it. */
+function coveredText(answer: Covering): string {
+  if (answer.changed !== undefined) return answer.since === undefined ? 'the change' : `the change since ${answer.since}`;
+  const target = answer.target;
+  if (target === undefined) return answer.file ?? '';
+  return `${'line' in target ? `line ${target.line}` : `function ${target.function}`} of ${answer.file ?? ''}`;
 }

@@ -1,8 +1,5 @@
-import { isAbsolute } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import preconditions from './case-preconditions.cjs';
 import { column, type Stored } from './format-layout.js';
-import { projectPath } from './instrumented-modules.js';
 import type { ExecutionTest } from './reverse.js';
 
 /**
@@ -32,13 +29,13 @@ export function preconditionText(said: readonly CasePrecondition[]): string {
   const byName = new Map<string, CasePrecondition[]>();
   for (const held of said) byName.set(held.name, [...byName.get(held.name) ?? [], held]);
   return [...byName].map(([name, held]) => held.length === 1
-    ? `${preconditionValueText(held[0]!)} (${held[0]!.site})`
+    ? `${valued(held[0]!)} (${held[0]!.site})`
     : `${name} contradicted: ${held.map((one) => `${String(one.value)} (${one.site})`).join(', ')}`,
   ).join(', ');
 }
 
 /** One thing a case said: `flag=ff-on`, or the bare name for `true`. */
-export function preconditionValueText(held: CasePrecondition): string {
+export function valued(held: CasePrecondition): string {
   return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
 }
 
@@ -71,22 +68,7 @@ export function preconditionsHeard(root: string, said: Said | undefined): { read
 
 /** The calls with each site named from the checkout, for a reader that resolves them later. */
 export function checkoutSaid(root: string, said: Said): Said {
-  return said.map(([name, value, site, level]) => [name, value, checkoutSite(root, site), level]);
-}
-
-function checkoutSite(root: string, site: string): string {
-  const colon = site.lastIndexOf(':');
-  if (colon <= 0) return site;
-  let file = site.slice(0, colon);
-  if (file.startsWith('file:')) file = fileURLToPath(file);
-  else if (/^https?:/u.test(file)) {
-    const served = /\/@fs(\/.*)$/u.exec(new URL(file).pathname);
-    // FIXME: a browser realm's site served from the dev server's root, not
-    // `/@fs/`, keeps its URL — needs the server's root to name the file.
-    if (served === null) return site;
-    file = decodeURIComponent(served[1]!);
-  }
-  return isAbsolute(file) ? `${projectPath(root, file)}${site.slice(colon)}` : site;
+  return said.map(([name, value, site, level]) => [name, value, preconditions.checkoutSite(root, site), level]);
 }
 
 /**
@@ -143,7 +125,8 @@ export function preconditionColumn(
  * run are: per name the narrowest level wins, so a body one run reached
  * overrides the `beforeEach` a run that never reached it heard, and two values
  * at that level are both kept, which is the contradiction a retry that changed
- * its mind is. Unmeasured only where neither run was listened to.
+ * its mind is. A value both runs said keeps the site `before` said it at.
+ * Unmeasured only where neither run was listened to.
  */
 export function preconditionsAcross(
   before: readonly CasePrecondition[] | undefined,

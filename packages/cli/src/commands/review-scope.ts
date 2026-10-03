@@ -8,8 +8,7 @@
  * a title a tool reading the comment can resolve, never only a count.
  */
 
-import { preconditionValueText } from '@variance-authority/sense/journal';
-import { heldText } from './covering-where.js';
+import { heldText, valued } from '@variance-authority/sense/test-selection';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** Functions named in the first line before the rest are counted. */
@@ -172,7 +171,7 @@ function spanned(called: readonly ReviewCase[]): string {
   const said = [...byName]
     .filter(([, values]) => values.size > 1)
     .sort(([left], [right]) => order(left, right))
-    .flatMap(([, values]) => [...values].sort(([left], [right]) => order(left, right)).map(([, held]) => escape(preconditionValueText(held))));
+    .flatMap(([, values]) => [...values].sort(([left], [right]) => order(left, right)).map(([, held]) => escape(valued(held))));
   return said.length === 0 ? '' : `; ran under ${said.join(', ')}`;
 }
 

@@ -226,9 +226,9 @@ describe('a case read along a declared axis', () => {
       '--file', 'src/cart.ts', '--function', 'total', '--execution', record.execution, '--root', record.root, '--where', 'network=live',
     ]));
 
-    expect(answer.where).toMatchObject({ kept: 0, of: 6, ran: 6 });
+    expect(answer.where).toMatchObject({ kept: 0, of: 6 });
     const text = formatCovering(answer, 'text');
-    expect(text).toContain('Kept the 0 of 6 cases that said network=live.\n`--where network=live` left none of the 6 named tests that covered function total of src/cart.ts.');
+    expect(text).toContain('Kept none of the 6 cases that covered function total of src/cart.ts: none said network=live.');
     expect(text).not.toContain('No named test covered');
   });
 

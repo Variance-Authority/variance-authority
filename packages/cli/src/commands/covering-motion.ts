@@ -11,14 +11,12 @@
  * the edit you just ran.
  */
 
-import { execFile } from 'node:child_process';
-import { join, relative } from 'node:path';
-import { promisify } from 'node:util';
 import {
   anyStopped,
   caseMotion,
   caseSectionsAt,
   decodeExecutionIndex,
+  lastCaseRunOf,
   recordedCommit,
   type CaseMotion,
   type CommitRuns,
@@ -31,7 +29,8 @@ import { OperatorError } from '../exit.js';
 import type { ParsedCovering } from '../covering-args.js';
 import { keepCases, type CoveringScope } from './covering-scope.js';
 import { readExecutionIndex } from './execution-input.js';
-import { diffFromBase } from './base-diff.js';
+import { diffFromBase, movedOnBase } from './base-diff.js';
+import { cutElsewhere } from './before-texts.js';
 import { relationsFor } from './source-graph.js';
 
 /** Which record the answer was compared with, and what of it was left out. */
@@ -71,6 +70,13 @@ export interface CoveringMotion {
    * are none.
    */
   readonly unbased?: readonly string[];
+  /**
+   * Modules whose cases before were recorded over another text than the
+   * commit they are compared from holds, so their regions stand on lines that
+   * commit does not have. They are not compared, and nothing in them is lost
+   * or gained. Absent when there are none, and when the layer names no texts.
+   */
+  readonly unmeasured?: readonly string[];
   /**
    * The file naming the run that wrote the case index last, when it is there
    * and could not be read. Which files a run at this commit wrote is then not
@@ -172,7 +178,8 @@ async function againstBefore(
   },
 ): Promise<CoveringMotion> {
   const unread: MotionBase = { from, kind: 'before', ...(at === undefined ? {} : { at }) };
-  const before = caseSectionsAt(from).before;
+  const sections = caseSectionsAt(from);
+  const before = sections.before;
   if (before === undefined) return { base: unread }; // kept no before layer: nothing to compare, unlike one that does not read
   let held: ExecutionIndex;
   try {
@@ -184,14 +191,18 @@ async function againstBefore(
   const parting = since === undefined ? undefined : await movedOnBase(commit, since, root);
   const base: MotionBase = { ...unread, ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }) };
   if (files !== undefined) held = keepFiles(held, files);
+  const cased = held.modules
+    .filter((module) => (file === undefined || module.file === file) && module.blocks.some((block) => block.crossings.length > 0))
+    .map((module) => module.file);
+  const elsewhere = cutElsewhere(cased, lastCaseRunOf(sections)?.beforeTexts, commit, root);
   const asked = new Set(cases);
   const now = keepCases(full, asked);
   // A case of a file no run here ran retains an earlier recording, which stands
   // at both ends. A case a run here recorded says nothing of what came before.
   const retained = keepCases(full, new Set(full.tests.filter((test) => !asked.has(test.id) && !ran.has(test.file)).map((test) => test.id)));
-  const exclude = new Set(parting?.files ?? []);
+  const exclude = new Set([...(parting?.files ?? []), ...elsewhere]);
   const moved = caseMotion(held, now, { ...(await graphFor(now, root)), exclude, retained, diff });
-  return { base, moved: file === undefined ? moved : within(moved, file) };
+  return { base, moved: file === undefined ? moved : within(moved, file), ...(elsewhere.length === 0 ? {} : { unmeasured: elsewhere }) };
 }
 
 /** The before layer, as a refusal names it, and why it can name no commit. */
@@ -343,6 +354,11 @@ export function motionText(
     lines.push(...notListed(mismatched.length - listed, 'row'));
   }
   if (moved.unread.length > 0) lines.push(`Not compared, the current record has no row for: ${listedOf(moved.unread, listed, 'file')}.`);
+  if (motion.unmeasured !== undefined && motion.unmeasured.length > 0) {
+    lines.push(`Not compared, the cases before were recorded over another text than ${base.at!.slice(0, 12)} holds: ${
+      listedOf(motion.unmeasured, listed, 'file')
+    }.`);
+  }
   lines.push(...unwritten);
   return lines;
 }
@@ -460,38 +476,5 @@ function lastRun(record: string): LastCaseRun | 'unreadable' | undefined {
     return typeof run === 'object' && run !== null && Array.isArray(run.files) ? run as LastCaseRun : 'unreadable';
   } catch {
     return 'unreadable';
-  }
-}
-
-/**
- * Where `since` and `HEAD` part, and the files the base's branch changed
- * between the base's commit and there, named the way the run names files.
- * Refused with git's answer when git cannot say: without it, the base
- * branch's own motion would be read as this change's.
- */
-async function movedOnBase(
-  at: string,
-  since: string,
-  root: string,
-): Promise<{ readonly mergeBase: string; readonly files: readonly string[] }> {
-  const run = promisify(execFile);
-  try {
-    const top = (await run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).stdout.trim();
-    const mergeBase = (await run('git', ['merge-base', since, 'HEAD'], { cwd: top })).stdout.trim();
-    if (at === mergeBase) return { mergeBase, files: [] };
-    const { stdout } = await run('git', ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', at, mergeBase], {
-      cwd: top,
-      maxBuffer: 32 * 1024 * 1024,
-    });
-    const files = stdout.split('\0').filter((file) => file !== '').map((file) => relative(root, join(top, file)));
-    return { mergeBase, files: files.sort() };
-  } catch (error) {
-    const said = (error as { stderr?: unknown }).stderr;
-    throw new OperatorError(
-      `What the branch of \`${since}\` changed after ${at} could not be read, so the base is not compared: ` +
-        `${typeof said === 'string' && said.trim() !== '' ? said.trim() : error instanceof Error ? error.message : String(error)}. ` +
-        'A shallow clone has only the tip: check out every commit with `fetch-depth: 0` and `filter: tree:0` on `actions/checkout`.',
-      { kind: 'undiffed' },
-    );
   }
 }
