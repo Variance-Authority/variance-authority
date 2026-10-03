@@ -126,7 +126,7 @@ describe('createGitLineCell', () => {
     await writeFile(join(remote, 'hooks', 'pre-receive'), '#!/bin/sh\necho "declined by policy" >&2\nexit 1\n', { mode: 0o755 });
 
     const result = await publishLine(cellAt('a'), MAIN, [entry('report-v1', 'aaaa', 'r')], { descends, image });
-    expect(result).toMatchObject({ kind: 'unreachable' });
+    expect(result).toMatchObject({ kind: 'unreachable', detail: expect.stringMatching(/pre-receive hook declined.*declined by policy/) });
     expect(git(remote, 'rev-parse', REF).trim()).toBe(before);
   });
 
@@ -141,7 +141,7 @@ describe('createGitLineCell', () => {
     );
 
     const result = await publishLine(cellAt('a'), MAIN, [entry('report-v1', 'aaaa', 'r')], { descends, image });
-    expect(result).toMatchObject({ kind: 'unreachable', detail: expect.stringMatching(/failed to push some refs/) });
+    expect(result).toMatchObject({ kind: 'unreachable', detail: expect.stringMatching(/pre-receive hook declined.*declined by policy/) });
   });
 
   it('tells nothing published from a remote that cannot be reached', async () => {

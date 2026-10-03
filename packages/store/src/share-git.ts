@@ -264,7 +264,7 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       if (pushed.code !== 0) {
         const now = await remoteAt(ref);
         if (now !== undefined && now !== (write.expected ?? '')) return 'conflict';
-        return missOf(pushed);
+        return missOf(pushed, refusalOf(pushed));
       }
       await git(['update-ref', ref, sha]);
       return 'written';
@@ -335,12 +335,24 @@ function runGit(
   });
 }
 
-function missOf(ran: Ran): ShareMiss {
-  const detail = ran.stderr.trim().split('\n').at(-1) ?? `git exited ${String(ran.code)}`;
+function missOf(ran: Ran, said?: string): ShareMiss {
+  const detail = said ?? ran.stderr.trim().split('\n').at(-1) ?? `git exited ${String(ran.code)}`;
   if (/authentication failed|permission denied|could not read username|terminal prompts disabled|403|repository not found/i.test(ran.stderr)) {
     return { kind: 'refused', detail };
   }
   return { kind: 'unreachable', detail };
+}
+
+/**
+ * Why the remote refused a push, in its own words: the reason `--porcelain`
+ * gives the refused ref, then every `remote:` line its hooks printed. Git's
+ * last line, "failed to push some refs", names neither.
+ */
+function refusalOf(pushed: Ran): string | undefined {
+  const reason = text(pushed.stdout).split('\n').find((row) => row.startsWith('!\t'))?.split('\t').at(2);
+  const said = pushed.stderr.split('\n').filter((row) => row.startsWith('remote: ')).map((row) => row.slice(8).trim()).filter(Boolean);
+  const parts = [reason, ...said].filter((part): part is string => part !== undefined && part !== '');
+  return parts.length === 0 ? undefined : parts.join('; ');
 }
 
 function text(bytes: Uint8Array): string {
