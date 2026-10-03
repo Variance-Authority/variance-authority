@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import { caseMotion } from './case-motion.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionTest } from './reverse.js';
 
@@ -88,6 +89,80 @@ describe('what a change moved', () => {
   });
 });
 
+describe('a region nobody walks any more, read with the file graph', () => {
+  // `a.test.ts` imports `src/total.ts`; `b.test.ts` imports nothing of it.
+  const relations = relationsOfFiles([
+    { file: 'src/total.ts' },
+    { file: 'a.test.ts', edges: [{ to: 'src/total.ts', kind: 'imports' as const }] },
+    { file: 'b.test.ts' },
+  ]);
+
+  it('is hidden, and names the stopped cases whose files import it as the ones that could have reached it', () => {
+    const base = index([A, B], [block('apply', 1, [0])]);
+    const now = index([{ ...A, stopped: true }, B], [block('apply', 1, [])]);
+
+    const [region] = caseMotion(base, now, { ...UNCHANGED, relations }).regions;
+
+    expect(region!.motion).toBe('hidden');
+    expect(region!.stopped?.map((test) => test.id)).toEqual([A.id]);
+  });
+
+  it('is lost when the only case that stopped imports nothing of it', () => {
+    const base = index([A, B], [block('apply', 1, [0])]);
+    const now = index([A, { ...B, stopped: true }], [block('apply', 1, [])]);
+
+    const [region] = caseMotion(base, now, { ...UNCHANGED, relations }).regions;
+
+    expect(region!.motion).toBe('lost');
+    expect(region!.stopped).toBeUndefined();
+  });
+
+  it('is hidden, naming no case, when no test file imports it at all', () => {
+    // The graph holds `src/total.ts`, so it can answer, and its answer is that no test file loads it.
+    const unimported = relationsOfFiles([{ file: 'src/total.ts' }, { file: 'a.test.ts' }, { file: 'b.test.ts' }]);
+    const base = index([A, B], [block('apply', 1, [0])]);
+    const now = index([A, { ...B, stopped: true }], [block('apply', 1, [])]);
+
+    const [region] = caseMotion(base, now, { ...UNCHANGED, relations: unimported }).regions;
+
+    expect(region!.motion).toBe('hidden');
+    expect(region!.stopped).toBeUndefined();
+  });
+});
+
+describe('the cases the comparison left out', () => {
+  it('stand at both ends of a region they reach in the cut of the module the current record holds', () => {
+    const base = index([A], [block('apply', 1, [0]), block('round', 10, [])]);
+    const now = index([A], [block('apply', 1, []), block('round', 10, [0])]);
+    const retained = index([B], [block('apply', 1, [0]), block('round', 10, [0])]);
+
+    // `apply` keeps B's case rather than losing every case, and `round` had B's before A reached it.
+    expect(caseMotion(base, now, { ...UNCHANGED, retained }).regions.map((region) => [region.name, region.motion])).toEqual([['apply', 'thinned']]);
+  });
+
+  it('count a case the base also holds once at each end', () => {
+    const base = index([A, B], [block('apply', 1, [0, 1])]);
+    const now = index([A, B], [block('apply', 1, [])]);
+    const retained = index([A], [block('apply', 1, [0])]);
+
+    expect(caseMotion(base, now, { ...UNCHANGED, retained }).regions.map((region) => [region.name, region.motion, region.before.length])).toEqual([
+      ['apply', 'thinned', 2],
+    ]);
+    expect(caseMotion(index([A], [block('apply', 1, [0])]), index([A], [block('apply', 1, [])]), { ...UNCHANGED, retained }).regions).toEqual([]);
+  });
+
+  it('credit nothing in a cut of the module other than the one the current record holds', () => {
+    // The retained cut still holds the first of two `.filter` callbacks, which
+    // the current record does not: by occurrence, its case would land on the
+    // second callback, which no case reaches.
+    const base = index([A], [block('pick/filter.arg0', 5, [0])]);
+    const now = index([A], [block('pick/filter.arg0', 5, [])]);
+    const retained = index([B], [block('pick/filter.arg0', 1, [0]), block('pick/filter.arg0', 5, [])]);
+
+    expect(caseMotion(base, now, { ...UNCHANGED, retained }).regions.map((region) => [region.startLine, region.motion])).toEqual([[5, 'lost']]);
+  });
+});
+
 describe('a region paired through the diff from the base', () => {
   // Lines 1-4 are removed, so every line after them is numbered four lower now.
   const diff = new Map([['src/total.ts', [{ oldStart: 1, oldCount: 4, newStart: 0, newCount: 0 }]]]);
@@ -108,6 +183,17 @@ describe('a region paired through the diff from the base', () => {
     expect(motion.renumbered.map((region) => region.startLine)).toEqual([1, 5]);
   });
 
+  it('credits the cases left out of the comparison to the region its lines paired', () => {
+    const base = index([A], [block('apply', 5, [0])]);
+    const now = index([A], [block('apply', 1, [])]);
+    const retained = index([B], [block('apply', 1, [0])]);
+
+    expect(caseMotion(base, now, { diff }).regions.map((region) => [region.startLine, region.motion])).toEqual([[1, 'lost']]);
+    expect(caseMotion(base, now, { diff, retained }).regions.map((region) => [region.startLine, region.motion, region.before.length])).toEqual([
+      [1, 'thinned', 2],
+    ]);
+  });
+
   it('pairs no row with a region the build wrote and the source does not hold', () => {
     const base = index([A], [block('helper', 5, [0])]);
     const now = index([A], [{ ...block('helper', 1, []), source: false }]);
@@ -117,3 +203,8 @@ describe('a region paired through the diff from the base', () => {
     expect(motion.regions).toEqual([]);
   });
 });
+
+// Without the diff — a base whose commit is unknown or not in the clone — a sibling written before another whose
+// cases also changed takes that one's occurrence: the address pairs the displaced row with the new region (lost) and
+// the next row with the displaced region (gained). `coverage-sibling.test.ts` shows the diff pairing it truly.
+it.todo('reports no motion for a sibling neither the diff nor its cases can tell from its neighbour — needs a rule for what an ambiguous occurrence pairing is reported as, without a diff to pair it');

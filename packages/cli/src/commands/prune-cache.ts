@@ -216,7 +216,7 @@ export interface BothPruned {
   readonly commits: Pruned<CachePruneReason> | undefined;
 }
 
-/** Prune both halves of the cache now, whenever the last prune was: `variance doctor --prune`. */
+/** Prune both halves of the cache now, whenever the last prune was. */
 export async function pruneNow(config: Pick<Config, 'cacheRoot'>): Promise<BothPruned> {
   const root = cacheOf(config);
   return {
@@ -226,12 +226,21 @@ export async function pruneNow(config: Pick<Config, 'cacheRoot'>): Promise<BothP
 }
 
 /**
+ * `variance prune`: both halves now, and what was taken.
+ *
+ * The cache is the repository's, from `cacheRootFor`, so it needs no project
+ * config. A test runner's fold never prunes: what a cache shared beyond one run
+ * loses is decided here or at the end of `variance run`, never as a side effect
+ * of a test file finishing.
+ */
+export async function pruneOutput(config: Pick<Config, 'cacheRoot'> = {}): Promise<string> {
+  return prunedLines(await pruneNow(config)) || 'cache: nothing to prune\n';
+}
+
+/**
  * Prune both halves when due, and say what was taken: the end of `variance run`.
  *
- * The test-selection half is also pruned where a test runner folds its record,
- * so a machine that only runs tests is pruned too; this call covers the machine
- * that only runs `variance`. Each half keeps its own stamp, so neither run walks
- * twice in a day.
+ * Each half keeps its own stamp, so neither walks twice in a day.
  */
 export async function pruneWhenDueLines(config: Pick<Config, 'cacheRoot'>): Promise<string> {
   return prunedLines({ selection: await pruneWhenDue(cacheOf(config)), commits: await pruneCacheWhenDue(config) });

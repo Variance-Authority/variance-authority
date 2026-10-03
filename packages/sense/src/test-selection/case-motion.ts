@@ -29,9 +29,9 @@ export interface MovedRegion {
 /** One region whose cases moved, with the cases at each end. */
 export interface RegionMotion extends MovedRegion {
   readonly motion: RegionMotionKind;
-  /** The cases that called into it at the base, as the base records them. */
+  /** The cases that called into it at the base, as the base records them, and the retained cases that still do. */
   readonly before: readonly ExecutionTest[];
-  /** The cases that call into it now. */
+  /** The cases that call into it now, retained ones included. */
   readonly now: readonly ExecutionTest[];
   /**
    * On `hidden`: the stopped cases that could have reached it. Absent when the
@@ -76,6 +76,15 @@ export interface CaseMotionOptions {
   /** Modules left out of the comparison, such as the ones the base's branch changed since the fork. */
   readonly exclude?: ReadonlySet<string>;
   /**
+   * The current record's cases left out of the comparison, which neither
+   * `base` nor `now` holds: those that did not run again and retain an earlier
+   * recording, cut as `now` is. A region one of them calls into kept that
+   * case, so it is counted at both ends, and the region is never lost or
+   * gained because the cases that did run moved past it. A module cut
+   * otherwise credits none of them.
+   */
+  readonly retained?: ExecutionIndex;
+  /**
    * The `-U0` diff from the text the base was recorded over to the text the
    * current record was, by file, as `hunksByFile` reads it; a file it does not
    * hold did not change. It is the only pairing: a caller that cannot read it
@@ -107,6 +116,8 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
   const current = new Map(now.modules.map((module) => [module.file, module]));
   const unread: string[] = [];
   const renumbered: MovedRegion[] = [];
+  const retained = options.retained;
+  const kept = new Map(retained?.modules.map((module) => [module.file, module]));
   for (const held of base.modules) {
     if (options.exclude?.has(held.file) === true) continue;
     const module = current.get(held.file);
@@ -117,12 +128,19 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
     let stopped: ReadonlySet<number> | undefined | null = null;
     const paired = throughLines(held, module, options.diff.get(module.file) ?? []);
     renumbered.push(...paired.renumbered.map((block) => place(module.file, block)));
+    const keptBy = keptCallers(retained, kept.get(module.file), module);
     for (const [row, block] of paired.pairs) {
       const region = place(module.file, block);
-      const before = callers(base, row);
-      const after = callers(now, block);
-      const was = filesOf(before);
-      const is = filesOf(after);
+      const ran = callers(base, row);
+      const runs = callers(now, block);
+      const was = filesOf(ran);
+      const is = filesOf(runs);
+      const still = keptBy(block);
+      // A retained case the base also holds is one case: counted once at each end.
+      const ranIds = new Set(ran.map((test) => test.id));
+      const runsIds = new Set(runs.map((test) => test.id));
+      const before = [...ran, ...still.filter((test) => !ranIds.has(test.id))];
+      const after = [...runs, ...still.filter((test) => !runsIds.has(test.id))];
       for (const file of is) if (!was.has(file)) reachOf(file).entered.push(region);
       for (const file of was) if (!is.has(file)) reachOf(file).left.push(region);
       const moved = { ...region, before, now: after };
@@ -234,6 +252,31 @@ function matched(base: ExecutionModule, now: ExecutionModule): readonly (readonl
 export function regionAddresses(blocks: readonly ExecutionBlock[]): readonly (readonly [string, ExecutionBlock])[] {
   const seen = new Map<string, number>();
   return blocks.map((block) => [addressKey(`${block.name}\0${block.path}`, seen), block] as const);
+}
+
+/**
+ * The retained cases that call into each of a module's regions now, read from
+ * the same region of the same cut: retained cases are part of the record `now`
+ * is cut from, so their module lists the same regions in the same order. A
+ * module cut otherwise credits nothing, because an occurrence among siblings
+ * of one name can name another sibling there.
+ */
+function keptCallers(
+  retained: ExecutionIndex | undefined,
+  held: ExecutionModule | undefined,
+  module: ExecutionModule,
+): (block: ExecutionBlock) => readonly ExecutionTest[] {
+  if (retained === undefined || held === undefined || !sameCut(held, module)) return () => [];
+  const at = new Map(module.blocks.map((block, position) => [block, position]));
+  return (block) => callers(retained, held.blocks[at.get(block)!]!);
+}
+
+function sameCut(left: ExecutionModule, right: ExecutionModule): boolean {
+  return left.blocks.length === right.blocks.length && left.blocks.every((block, at) => {
+    const other = right.blocks[at]!;
+    return block.kind === other.kind && block.name === other.name && block.path === other.path &&
+      block.startLine === other.startLine && block.endLine === other.endLine;
+  });
 }
 
 /** The cases that called into a region, once each, in record order. */

@@ -61,6 +61,7 @@
         "ListSubjects": "interface",
         "MainlineMissed": "interface",
         "MainlineRecord": "interface",
+        "MissedMainline": "interface",
         "NotObserved": "interface",
         "NotObservedKind": "type",
         "OPERATOR_ERROR_MARKER": "const",
@@ -125,6 +126,7 @@
         "questions": "function",
         "readCandidate": "function",
         "readCliRunReport": "function",
+        "readMissedMainline": "function",
         "readVantage": "function",
         "recordOf": "function",
         "renderComment": "function",
@@ -138,7 +140,8 @@
         "watch": "function",
         "watching": "function",
         "writeArtifactToDisk": "function",
-        "writeCliRunReport": "function"
+        "writeCliRunReport": "function",
+        "writeMissedMainline": "function"
       }
     }
   },

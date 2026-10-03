@@ -110,6 +110,7 @@ interface VitePlugin extends ConfigPlugin {
     id: string,
   ) => { code: string; map: null } | null;
   readonly closeBundle: () => Promise<void>;
+  readonly watchChange: (id: string) => void;
 }
 
 /**
@@ -312,6 +313,18 @@ function selectionPlugin(
       }
     },
     configResolved: declareConfig(run, declared, [setupId, runnerId]),
+    // A file changed on disk, so its reading describes text the disk no longer
+    // holds, and a rerun transforms it again only if a test still loads it.
+    // So does every reading named after it: a build's regions sit on the lines
+    // the file had when the build was made, and a rerun would join them to the
+    // file's new ones. Nothing else goes: Vite serves an unchanged file from
+    // its cache, and a reading of it is the text that runs.
+    watchChange(id) {
+      const changed = projectPath(root, cleanId(id));
+      for (const [moduleId, module] of modules) {
+        if (moduleId === changed || module.file === changed) modules.delete(moduleId);
+      }
+    },
     transform(code, id) {
       // The setup module installs the probe log; instrumented, its own header
       // would ask for the log's root before the module has installed it.
@@ -333,27 +346,27 @@ function selectionPlugin(
         (at) => readFileSync(at, 'utf8'),
       );
 
-      // Under its path, the same one every other seam instruments under, so a
-      // journal reads the same whoever produced it. Vitest re-transforms every
-      // run in this process, so the records stay in this map rather than going
-      // to the store a build needs — writing two hundred thousand files to read
-      // them back a second later is ceremony, not durability.
+      // Named after the file its map leads to, the same name every other seam
+      // instruments under, so a journal reads the same whoever produced it. Its
+      // probes report under the file the transform was handed: a source and its
+      // build both answer to the name, each with its own regions, and the fold
+      // joins them (see `joinReadings`). Vitest re-transforms every run in this
+      // process, so the records stay in this map rather than going to the store
+      // a build needs — writing two hundred thousand files to read them back a
+      // second later is ceremony, not durability.
       const name = projectPath(root, wrote);
-      const moduleId = name;
+      const moduleId = projectPath(root, file);
       const done = instrument(code, name, moduleId, { mode });
-      if (done === undefined) {
-        modules.set(moduleId, { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] });
-        return null;
-      }
-
-      modules.set(moduleId, {
-        file: name,
-        id: moduleId,
-        sourceDigest,
-        instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
-      });
-      return { code: done.code, map: null };
+      modules.set(moduleId, done === undefined
+        ? { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] }
+        : {
+            file: name,
+            id: moduleId,
+            sourceDigest,
+            instrumented: true,
+            blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+          });
+      return done === undefined ? null : { code: done.code, map: null };
     },
   };
 }

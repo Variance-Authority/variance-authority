@@ -14,14 +14,13 @@
  * against whichever the project installed.
  */
 
-import { readFile, readdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { digestString } from '../digest.js';
 import type { ModuleId } from '../instrument/index.js';
 import journalFormat from './journal-format.cjs';
 import {
-  isMissing,
   projectPath,
+  readWritten,
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
@@ -461,18 +460,12 @@ interface WrittenFile extends RunnerTask {
  * reads the same tree.
  *
  * Empty when no runner of this seam's wrote any: the project brought its own,
- * or no file ran.
+ * or no file ran. In the order of what the trees hold, which is the same
+ * whichever worker finished first.
  */
 export async function readFinished(directory: string): Promise<readonly FinishedFile[]> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
-  }
-  const trees = await Promise.all(names.map(async (name) =>
-    JSON.parse(await readFile(resolve(directory, name), 'utf8')) as readonly WrittenFile[]));
+  const trees = (await readWritten(directory)).map((bytes) =>
+    JSON.parse(bytes.toString('utf8')) as readonly WrittenFile[]);
   // A tree that does not say is read as one the runner may have cut.
   return trees.flat().map((file) => ({
     filepath: file.filepath,
@@ -482,15 +475,7 @@ export async function readFinished(directory: string): Promise<readonly Finished
   }));
 }
 
+/** The journals a run's workers wrote, in the order of what they hold. */
 export async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
-  }
-  return Promise.all(
-    names.map(async (name) => journalFormat.decodeJournal(await readFile(resolve(directory, name)))),
-  );
+  return (await readWritten(directory)).map((bytes) => journalFormat.decodeJournal(bytes));
 }

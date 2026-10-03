@@ -23,13 +23,18 @@
  * whole of the store's timeout. So the record fetched last, by this checkout or
  * by the primary checkout it was cut from, is reused for
  * {@link MAINLINE_REUSE_MS} while the reader's mainline is still the one it was
- * fetched from, and a remote that could not be reached is not asked again for
- * as long. Past that the mainline is asked again, and when it does not answer,
- * the record fetched last is still the base, and the note says why it was not
- * refreshed. `variance share --suite <name>` always asks.
+ * fetched from. A line that gave no record, because it could not be reached,
+ * held none, or held one this version cannot keep, is not asked again for as
+ * long either: its answer stands, and the note says when it was given. Every
+ * reader of a sitting, and every job of a CI run handed the read root, reads
+ * the same answer, never a record the line came to hold in between. Past that
+ * the mainline is asked again, and when it does not answer, the record fetched
+ * last is still the base, and the note says why it was not refreshed.
+ * `variance share --suite <name>` always asks.
  */
 
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { DeclaredSuite, LastFetched, RootConfig } from '@variance-authority/sense/test-selection';
 import { parseShare } from '../config-share.js';
@@ -41,7 +46,7 @@ import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from
 
 /**
  * How long the record fetched last stands for the mainline's without asking the
- * remote again, and how long a remote that could not be reached is left alone.
+ * remote again, and how long the line's answer that it gave none stands.
  *
  * Long enough that an edit loop of `yarn test:since` asks once, and short
  * enough that a record `main` published while you worked arrives in the same
@@ -49,8 +54,8 @@ import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from
  */
 export const MAINLINE_REUSE_MS = 10 * 60_000;
 
-/** Where a checkout notes that the remote was asked and did not answer, beside `fetched.json`. */
-const UNREACHED = 'unreached.json';
+/** Where a checkout notes that the line was asked and gave no record, beside `fetched.json`. */
+const MISSED = 'missed.json';
 
 /** The mainline's record of one suite, written where this checkout reads it. */
 export interface MainlineRecord {
@@ -70,8 +75,12 @@ export interface MainlineRecord {
   readonly runs?: string;
   /** When it was fetched, as an ISO time: now, unless it is the record fetched earlier. */
   readonly fetched: string;
-  /** Present when it is the record fetched earlier: reused within the window, or kept because the mainline did not answer now. */
-  readonly earlier?: { readonly reused: true } | { readonly unanswered: MainlineMiss };
+  /**
+   * Present when it is the record fetched earlier: reused within the window, or
+   * kept because the mainline gave no record, now or, as `asked` says, earlier
+   * within the window.
+   */
+  readonly earlier?: { readonly reused: true } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
   readonly pruned?: string;
 }
@@ -85,6 +94,17 @@ export interface MainlineMissed {
   readonly holds?: readonly string[];
   /** `false` when the root config's `share` section stopped the read before the share was asked. */
   readonly shareAsked?: false;
+  /** When the line gave this answer, as an ISO time, when it was earlier within the window and not now. */
+  readonly asked?: string;
+}
+
+/** The line's answer that it gave no record: which mainline, when, and why. */
+export interface MissedMainline {
+  readonly mainline: string;
+  /** When the line was asked, as an ISO time. */
+  readonly at: string;
+  readonly miss: MainlineMiss;
+  readonly holds?: readonly string[];
 }
 
 export type MainlineBase = MainlineRecord | MainlineMissed;
@@ -141,23 +161,31 @@ export async function mainlineBase(
     if (last !== undefined && last.mainline === mainline && now - Date.parse(last.fetched) < MAINLINE_REUSE_MS) {
       return earlier(place, root, last, { reused: true });
     }
-    const unreached = await unreachedIn(readRoot);
-    if (unreached !== undefined && unreached.mainline === mainline && now - Date.parse(unreached.at) < MAINLINE_REUSE_MS) {
-      const miss: MainlineMiss = { kind: 'unreachable', detail: `${unreached.detail}, at ${unreached.at}; asked again ${MAINLINE_REUSE_MS / 60_000} minutes after that` };
-      if (last !== undefined) return earlier(place, root, last, { unanswered: miss });
-      return { suite, mainline: unreached.mainline, miss };
+    const noted = readMissedMainline(readRoot);
+    if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MAINLINE_REUSE_MS) {
+      if (last !== undefined) return earlier(place, root, last, { unanswered: noted.miss, asked: noted.at });
+      return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
     }
   }
 
+  const asked = new Date(now).toISOString();
   const found = await mainlineSuite(place, suite, { env, cwd: root });
   if ('miss' in found) {
-    if (found.miss.kind === 'unreachable' && found.mainline !== undefined) {
-      await noteUnreached(readRoot, { mainline: found.mainline, at: new Date(now).toISOString(), detail: found.miss.detail });
+    // With no mainline, or no credential, the line was not asked: that is this
+    // environment's answer, not the line's, and the next reader in the same
+    // environment finds it the same way, or in a fixed one finds the line.
+    if (found.mainline !== undefined && found.miss.kind !== 'unconfigured') {
+      const { miss, holds } = found;
+      await noteMissed(readRoot, { mainline: found.mainline, at: asked, miss, ...(holds === undefined ? {} : { holds }) });
     }
     if (last !== undefined) return earlier(place, root, last, { unanswered: found.miss });
     return { suite, ...found };
   }
-  const unread = (detail: string): MainlineMissed => ({ suite, mainline: found.mainline, miss: { kind: 'unreadable', detail } });
+  const unread = async (detail: string): Promise<MainlineMissed> => {
+    const miss: MainlineMiss = { kind: 'unreadable', detail };
+    await noteMissed(readRoot, { mainline: found.mainline, at: asked, miss });
+    return { suite, mainline: found.mainline, miss };
+  };
 
   const layer = join(readRoot, found.commit);
   const coverage = join(layer, 'coverage.bin');
@@ -167,12 +195,12 @@ export async function mainlineBase(
   try {
     index = selection.caseSectionsOf(found.coverage).index;
   } catch (error) {
-    return unread(`the record published at ${found.commit} does not read: ${messageOf(error)}`);
+    return await unread(`the record published at ${found.commit} does not read: ${messageOf(error)}`);
   }
   const casesUnread = index === undefined ? undefined : decodes(index);
   const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
   const kept = await keep(selection.writeCoverageBytes, coverage, record);
-  if (kept !== undefined) return unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
+  if (kept !== undefined) return await unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
   // A record of cases alone was published by a run that instrumented no module.
   // The share kept the run that names its commit off the line, and the publisher
   // checked that commit against the entry's, so the entry's stands for it. No
@@ -180,7 +208,7 @@ export async function mainlineBase(
   const refused = selection.withoutCoverage(coverage) ? undefined : refusal(selection.askCoverageFile, coverage, found.commit);
   if (refused !== undefined) {
     await rm(layer, { recursive: true, force: true });
-    return unread(refused);
+    return await unread(refused);
   }
 
   // The runs record, beside the record under the name every reader looks for
@@ -195,9 +223,9 @@ export async function mainlineBase(
 
   // Named last, once every file it names is in place, so a seam that reads the
   // name finds them.
-  const fetched = new Date(now).toISOString();
+  const fetched = asked;
   await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched });
-  await rm(join(readRoot, UNREACHED), { force: true });
+  await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
   // `planCachePrune` states, never the one just named.
@@ -238,28 +266,34 @@ async function earlier(
   };
 }
 
-interface Unreached {
-  readonly mainline: string;
-  readonly at: string;
-  readonly detail: string;
-}
-
-async function unreachedIn(readRoot: string): Promise<Unreached | undefined> {
+/**
+ * The line's answer that it gave no record, as `readRoot` keeps it, or
+ * `undefined` when it keeps none that reads.
+ */
+export function readMissedMainline(readRoot: string): MissedMainline | undefined {
+  let value: Partial<MissedMainline>;
   try {
-    const value = JSON.parse(await readFile(join(readRoot, UNREACHED), 'utf8')) as Partial<Unreached>;
-    return typeof value.mainline === 'string' && typeof value.at === 'string' && typeof value.detail === 'string'
-      ? { mainline: value.mainline, at: value.at, detail: value.detail }
-      : undefined;
+    value = JSON.parse(readFileSync(join(readRoot, MISSED), 'utf8')) as Partial<MissedMainline>;
   } catch {
     return undefined;
   }
+  const miss = value.miss as { kind?: unknown; detail?: unknown } | undefined;
+  const reads = typeof miss?.kind === 'string' && (miss.detail === undefined || typeof miss.detail === 'string');
+  if (typeof value.mainline !== 'string' || typeof value.at !== 'string' || Number.isNaN(Date.parse(value.at)) || !reads) return undefined;
+  const holds = Array.isArray(value.holds) && value.holds.every((name) => typeof name === 'string') ? value.holds : undefined;
+  return { mainline: value.mainline, at: value.at, miss: value.miss as MainlineMiss, ...(holds === undefined ? {} : { holds }) };
 }
 
-/** Best effort: a cache that cannot hold the note costs the next reader one more wait, and nothing else. */
-async function noteUnreached(readRoot: string, unreached: Unreached): Promise<void> {
+/** Keep the line's answer that it gave no record under `readRoot`, where {@link readMissedMainline} reads it. */
+export async function writeMissedMainline(readRoot: string, missed: MissedMainline): Promise<void> {
+  await mkdir(readRoot, { recursive: true });
+  await writeFile(join(readRoot, MISSED), `${JSON.stringify(missed)}\n`);
+}
+
+/** Best effort: a cache that cannot hold the note costs the next reader one more ask, and nothing else. */
+async function noteMissed(readRoot: string, missed: MissedMainline): Promise<void> {
   try {
-    await mkdir(readRoot, { recursive: true });
-    await writeFile(join(readRoot, UNREACHED), `${JSON.stringify(unreached)}\n`);
+    await writeMissedMainline(readRoot, missed);
   } catch {
     // Nothing to do: see above.
   }
@@ -343,7 +377,8 @@ export function mainlineRead(read: MainlineRecord): string {
     ? ''
     : 'reused' in read.earlier
       ? `, fetched at ${read.fetched} and reused for ${String(MAINLINE_REUSE_MS / 60_000)} minutes`
-      : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(read.earlier.unanswered)}`;
+      : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(read.earlier.unanswered)}` +
+        answeredAt(read.earlier.asked);
   return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +
     `${describeDistance(read.distance)}; kept at ${read.coverage}` +
     (read.casesUnread === undefined ? '' : `; ${read.casesUnread}`) +
@@ -363,7 +398,12 @@ export function mainlineMissed(missed: MainlineMissed): string {
   if (missed.shareAsked === false) return `record of "${missed.suite}": the share was not asked; ${said}`;
   const opening = missed.miss.kind === 'absent' ? 'the share has none either' : "the mainline's was not read";
   const line = missed.mainline === undefined ? 'no mainline' : `mainline ${missed.mainline}`;
-  return `record of "${missed.suite}": ${opening}; ${line}: ${said}`;
+  return `record of "${missed.suite}": ${opening}; ${line}: ${said}${answeredAt(missed.asked)}`;
+}
+
+/** When the line's answer was given, for one given earlier within the window. */
+function answeredAt(asked: string | undefined): string {
+  return asked === undefined ? '' : `; that was the line's answer at ${asked}, which stands for ${String(MAINLINE_REUSE_MS / 60_000)} minutes`;
 }
 
 /**

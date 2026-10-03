@@ -154,7 +154,7 @@ variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
-variance distill --test <id> [--execution <path>] [--root <path>] [--format text|json]
+variance distill [--test <name>] [--file <path>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
@@ -163,7 +163,8 @@ variance changelog [--config <path>] [--component <text>] [--subject <id>] [--li
 variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
-variance doctor  [--config <path>] [--prune]
+variance doctor  [--config <path>]
+variance prune
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]
 variance carry   restore | save [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
@@ -183,7 +184,8 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `changelog` | reads back why the baselines are what they are |
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
-| `doctor` | says what this machine can observe, before a run, not after one, and with `--prune` removes cache entries whose checkout, worktree, process or commit is gone |
+| `doctor` | says what this machine can observe, before a run, not after one |
+| `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
 | `share` | says what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
@@ -311,18 +313,22 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
 A record without journals still lists covered source, but produces no
 opportunities, because missing attention is not an empty addressed surface.
 
-Replace `<recorded-test-id>` with a case id the record holds:
+Name the case by the file that declares it and its title:
 
 ```bash
-variance distill --test '<recorded-test-id>'
+variance distill --file test/checkout.spec.ts --test submits
 ```
 
-`--test` is matched exactly, never by title or file. An id the record does not
-hold is refused, and the refusal lists some of the ids it does. A case Playwright
+`--file` takes any part of the test file's path. `--test` takes the case's
+`id`, its exact title, or a part of the title, compared without case. Either
+flag may be given alone. When more than one case fits, the command prints up to
+five of their ids and stops; pass one of them to `--test`. A case Playwright
 retried prints every attempt's journal, numbered from 1.
 
-`distill` reads the checkout's own record, or the one `--execution` names, and
-does not read project configuration. It reports addressed targets by authored Arrange/Act/Assert
+`distill` reads the record `covering` reads; `--suite <name>` picks one declared
+suite's, and `--execution <path>` reads any other record, or JSON from a tool
+that already records per-test crossings. From the root `variance.config.json` it
+reads only the declared suites. It reports addressed targets by authored Arrange/Act/Assert
 phase, React update initiators inside and outside those target paths, and files
 covered by the exact test id without addressed source attribution:
 

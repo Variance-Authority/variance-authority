@@ -1792,6 +1792,10 @@ gained. `diff` is the `-U0` diff from the text `base` was recorded over to the
 text `now` was, by file, and it is the only way a region is paired: it carries
 each region at the base to the lines it stands on now. `relations` lets it name the stopped case behind a hidden region, and
 `exclude` leaves out modules whose motion belongs to another change.
+When you
+compare only the cases that ran, pass the rest of the record as `retained`: a
+region one of those cases reaches keeps it at both ends, so it is not lost
+because the cases that ran stopped reaching it.
 `decodeExecutionIndex` reads the index out of the record:
 
 ```ts

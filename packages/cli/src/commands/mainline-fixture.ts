@@ -266,7 +266,10 @@ export async function recordIn(
       sourceDigest: digestString(BEFORE),
       instrumented: true,
       blocks: [{
-        ordinal: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
+        ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module',
+        startLine: 1, endLine: 3, source: true, testFiles: [...covering],
+      }, {
+        ordinal: 1, owner: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
         startLine: 1, endLine: 3, source: true, testFiles: [...covering],
       }],
     }],
@@ -337,7 +340,10 @@ export async function ranHere(dir: string, at: string): Promise<void> {
       sourceDigest: digestString(after),
       instrumented: true,
       blocks: [{
-        ordinal: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
+        ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module',
+        startLine: 1, endLine: 3, source: true, testFiles: ['test/total.test.ts'],
+      }, {
+        ordinal: 1, owner: 0, kind: 'function', digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
         startLine: 1, endLine: 3, source: true, testFiles: ['test/total.test.ts'],
       }],
     }],

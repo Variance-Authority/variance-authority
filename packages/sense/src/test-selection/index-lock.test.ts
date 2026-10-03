@@ -208,8 +208,7 @@ describe('a run the snapshot lock refuses', () => {
     // Written a moment ago by somebody else, which is what a live holder in
     // another process looks like from here.
     if (busy) await writeFile(`${coverageFile}.lock`, '1\n');
-    // A cache of its own: a run marks its checkout and prunes the cache when a
-    // prune is due, and a prune that frees another test's layers warns too.
+    // A cache of its own: a run marks its checkout in it.
     process.env['VARIANCE_AUTHORITY_CACHE'] = resolve(root, 'variance-cache');
     warned = [];
     console.warn = (message: string): void => void warned.push(message);

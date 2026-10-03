@@ -36,6 +36,7 @@ export const COMMANDS = [
   'push',
   'serve',
   'doctor',
+  'prune',
   'share',
   'carry',
   'comment',
@@ -114,7 +115,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--at',
     '--format',
   ],
-  distill: ['--test', '--execution', '--root', '--format'],
+  distill: ['--test', '--file', '--execution', '--suite', '--root', '--format'],
   story: ['--file', '--name', '--label', '--in', '--around', '--whole', '--compare', '--root', '--format'],
   watch: [],
   adjudicate: ['--claims', '--exit-zero-on-changes'],
@@ -127,7 +128,8 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   review: ['--coverage', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
-  doctor: ['--prune'],
+  doctor: [],
+  prune: [],
   share: ['--mainline', '--publish', '--suite', '--collected'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
@@ -147,7 +149,7 @@ export const USAGE = [
   'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]',
   'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]',
-  'variance distill --test <id> [--execution <path>] [--root <path>] [--format text|json]',
+  'variance distill [--test <name>] [--file <path>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]',
   'variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]',
   'variance watch',
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
@@ -156,7 +158,8 @@ export const USAGE = [
   'variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>',
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
-  'variance doctor  [--config <path>] [--prune]',
+  'variance doctor  [--config <path>]',
+  'variance prune',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | --suite <name> [--publish [--collected <file>]]',
   'variance carry   restore | save [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',
@@ -172,11 +175,13 @@ export const USAGE = [
  * `select` and `reach` do not read project configuration. One holds a live
  * listener; the next five read evidence a run left behind, named on the command line or found
  * where a run puts it; the last three are asked by a repository whose tests another runner runs, and
- * which may have configured this tool for nothing else. `carry` is on the list
+ * which may have configured this tool for nothing else. `prune` reads the
+ * repository's cache, which the root config or `VARIANCE_AUTHORITY_CACHE` names
+ * whether or not a project is configured. `carry` is on the list
  * for the same reason and names `--config` itself: the suites it carries are
  * the repository root's, and a project is read only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'reach', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'reach', 'prune', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

@@ -576,8 +576,8 @@ test-selection recording is never pruned while its checkout exists. Not a
 
 ### Implementation aliases
 
-`planPrune`, `pruneWhenDue`, `planCachePrune`, `sweepRenderCache`;
-`variance doctor --prune`
+`planPrune`, `pruneWhenDue`, `pruneNow`, `planCachePrune`, `sweepRenderCache`;
+`variance prune`
 
 ## **Flake**
 

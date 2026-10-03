@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -8,10 +8,41 @@ import {
   withCaseSections,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { main } from '../bin.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { distillFiles, formatDistill } from './distill.js';
 
 const CASE = 'test/cart.spec.ts > adds one item';
+const cwd = process.cwd();
+const made: string[] = [];
+
+beforeEach(() => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-distill-cache-'));
+  made.push(process.env['VARIANCE_AUTHORITY_CACHE']);
+});
+
+afterEach(() => {
+  process.chdir(cwd);
+  delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
+function checkout(): string {
+  // The cache is keyed by the path the checkout is at, which a temporary directory's name is not on macOS.
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-distill-')));
+  made.push(root);
+  execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
+  process.chdir(root);
+  return root;
+}
+
+async function run(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
+  let out = '';
+  let err = '';
+  const code = await main(argv, { out: (text) => { out += text; }, err: (text) => { err += text; } });
+  return { code, out, err };
+}
 
 /** What a click on the cart's button leaves in a journal, addressed to `file`. */
 function clicked(file: string) {
@@ -52,100 +83,122 @@ async function recorded(root: string, journals?: readonly unknown[], watched = [
   return at;
 }
 
-async function checkout(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'variance-distill-'));
+const plain = {
+  tests: [{ id: 'plain', file: 'plain.test.ts', name: 'works' }],
+  modules: [{ file: 'plain.ts', blocks: [{
+    kind: 'function', name: 'work', path: 'entry', startLine: 1, endLine: 2,
+    source: true, crossings: [{ test: 0, distance: 1 }],
+  }] }],
+};
+
+/** A record at `at` holding `execution` as its case index, and no journals. */
+async function indexed(at: string, execution: typeof plain): Promise<void> {
+  await writeTestCoverage(at, {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: 'plain.test.ts', complete: true, preconditions: [] }],
+    modules: [],
+  });
+  writeFileSync(at, withCaseSections(readFileSync(at), { index: encodeExecutionIndex(execution) }));
 }
 
 describe('the CLI distillation boundary', () => {
   it('reads the checkout\'s own record, every attempt of the case named', async () => {
-    const root = await checkout();
-    try {
-      await recorded(root, [
-        { case: CASE, attempt: 1, journal: clicked('src/cart.tsx') },
-        { case: CASE, attempt: 2, journal: clicked('src/cart.tsx') },
-      ]);
+    const root = checkout();
+    await recorded(root, [
+      { case: CASE, attempt: 1, journal: clicked('src/cart.tsx') },
+      { case: CASE, attempt: 2, journal: clicked('src/cart.tsx') },
+    ]);
 
-      const result = await distillFiles({ test: CASE, root });
+    const result = await distillFiles({ test: CASE, root });
 
-      expect(result.attempts?.map((attempt) => attempt.attempt)).toEqual([1, 2]);
-      // The record's paths are relative to the checkout on both sides, and join.
-      expect(result.execution.opportunities).toEqual([{ file: 'src/price.ts', distance: 2 }]);
-      const text = formatDistill(result, 'text');
-      expect(text).toContain('Eyes journal, attempt 1: complete.');
-      expect(text).toContain('Eyes journal, attempt 2: complete.');
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+    expect(result.attempts?.map((attempt) => attempt.attempt)).toEqual([1, 2]);
+    // The record's paths are relative to the checkout on both sides, and join.
+    expect(result.execution.opportunities).toEqual([{ file: 'src/price.ts', distance: 2 }]);
+    const text = formatDistill(result, 'text');
+    expect(text).toContain('Eyes journal, attempt 1: complete.');
+    expect(text).toContain('Eyes journal, attempt 2: complete.');
   });
 
   it('reads a record that kept no journals as one without Eyes', async () => {
-    const root = await checkout();
-    try {
-      await recorded(root);
-      const result = await distillFiles({ test: CASE, root });
-      expect(result.attempts).toBeUndefined();
-      expect(formatDistill(result, 'text')).toContain('the record keeps no Eyes journals');
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+    const root = checkout();
+    await recorded(root);
+    const result = await distillFiles({ test: CASE, root });
+    expect(result.attempts).toBeUndefined();
+    expect(formatDistill(result, 'text')).toContain('the record keeps no Eyes journals');
   });
 
   it('tells a case its run did not watch from a watched case that handed no journal', async () => {
-    const root = await checkout();
-    try {
-      await recorded(root, [], []);
-      const unwatched = formatDistill(await distillFiles({ test: CASE, root }), 'text');
-      expect(unwatched).toContain('this case\'s run did not opt into Eyes.');
-      // One reason, said once: an unwatched case is not a watched one missing its journal.
-      expect(unwatched).not.toContain('keeps no Eyes journal for this case');
-      await recorded(root, []);
-      expect(formatDistill(await distillFiles({ test: CASE, root }), 'text'))
-        .toContain('the record keeps no Eyes journal for this case.');
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+    const root = checkout();
+    await recorded(root, [], []);
+    const unwatched = formatDistill(await distillFiles({ test: CASE, root }), 'text');
+    expect(unwatched).toContain('this case\'s run did not opt into Eyes.');
+    // One reason, said once: an unwatched case is not a watched one missing its journal.
+    expect(unwatched).not.toContain('keeps no Eyes journal for this case');
+    await recorded(root, []);
+    expect(formatDistill(await distillFiles({ test: CASE, root }), 'text'))
+      .toContain('the record keeps no Eyes journal for this case.');
   });
 
-  it('refuses an id the record does not hold', async () => {
-    const root = await checkout();
-    try {
-      await recorded(root, [{ case: CASE, attempt: 1, journal: clicked('src/cart.tsx') }]);
-      await expect(distillFiles({ test: 'adds one item', root }))
-        .rejects.toThrow('The record holds no case with id adds one item.');
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+  it('names the case by its file and a part of its title, and reads its journals by id', async () => {
+    const root = checkout();
+    await recorded(root, [{ case: CASE, attempt: 1, journal: clicked('src/cart.tsx') }]);
+
+    const answer = await run(['distill', '--file', 'cart.spec', '--test', 'one item', '--format', 'json']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(JSON.parse(answer.out).test.id).toBe(CASE);
+    expect(JSON.parse(answer.out).attempts).toHaveLength(1);
   });
 
-  it('says where it looked when the checkout has no record', async () => {
-    const root = await checkout();
-    try {
-      await expect(distillFiles({ test: CASE, root }))
-        .rejects.toThrow(`nothing is recorded at ${testCoverageFile(root)}`);
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+  it('refuses a name no recorded case has', async () => {
+    const root = checkout();
+    await recorded(root);
+    await expect(distillFiles({ test: 'removes one item', root }))
+      .rejects.toThrow('The record holds no case matching `removes one item`.');
+  });
+
+  it('refuses as `unrecorded` when nothing is recorded', async () => {
+    const root = checkout();
+
+    const answer = await run(['distill', '--test', 'plain']);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain(`nothing is recorded in \`${root}\``);
+  });
+
+  it('reads the record of the suite `--suite` names', async () => {
+    const root = checkout();
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, e2e: { kind: 'e2e' } } }));
+    const unit = { ...plain, modules: [{ ...plain.modules[0]!, file: 'unit.ts' }] };
+    const e2e = { ...plain, modules: [{ ...plain.modules[0]!, file: 'e2e.ts' }] };
+    await indexed(testCoverageFile(root, { suite: 'unit' }), unit);
+    await indexed(testCoverageFile(root, { suite: 'e2e' }), e2e);
+
+    const answer = await run(['distill', '--test', 'plain', '--suite', 'unit', '--format', 'json']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'unit.ts', distance: 1 }]);
   });
 
   it('reads a case index named with --execution, which carries no journals', async () => {
-    const root = await checkout();
-    try {
-      const execution = join(root, 'execution.json');
-      await writeFile(execution, JSON.stringify({
-        tests: [{ id: 'plain', file: 'plain.test.ts', name: 'works' }],
-        modules: [{ file: 'plain.ts', blocks: [{
-          kind: 'function', name: 'work', path: 'entry', startLine: 1, endLine: 2,
-          source: true, crossings: [{ test: 0, distance: 1 }],
-        }] }],
-      }));
+    const root = checkout();
+    const execution = join(root, 'execution.json');
+    writeFileSync(execution, JSON.stringify(plain));
 
-      const result = await distillFiles({ test: 'plain', execution, root });
+    const result = await distillFiles({ test: 'plain', execution, root });
 
-      expect(result.execution.entered).toEqual([{ file: 'plain.ts', distance: 1 }]);
-      expect(result.execution.opportunities).toBeUndefined();
-      expect(formatDistill(result, 'json')).toContain('"entered"');
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+    expect(result.execution.entered).toEqual([{ file: 'plain.ts', distance: 1 }]);
+    expect(result.execution.opportunities).toBeUndefined();
+    expect(formatDistill(result, 'json')).toContain('"entered"');
+  });
+
+  it('takes the recorded index or a named one, never both', async () => {
+    checkout();
+
+    const answer = await run(['distill', '--test', 'plain', '--suite', 'unit', '--execution', 'x.json']);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain('--execution');
   });
 });
