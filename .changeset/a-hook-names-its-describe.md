@@ -1,5 +1,5 @@
 ---
-'@variance-authority/playwright-test': patch
+'@variance-authority/playwright-test': minor
 ---
 
 A `variancePrecondition` said in a Playwright `beforeEach` sits at the level of
@@ -9,3 +9,9 @@ the `describe` that declared the hook, as it does under Vitest, Jest and Rstest:
 same name, where both were read at the case's innermost `describe` and kept as a
 contradiction. A helper that declares a `beforeEach` from one line in a
 `describe` and again in one inside it is placed at the depth of the one running.
+
+Playwright does not publish which `describe` declared a hook, so a recording
+worker reads it from Playwright's internals, verified on 1.62.1. A Playwright
+that lacks one of them fails every recorded test at setup, naming the internal
+and its version, rather than placing a `beforeEach` precondition at a guessed
+level.

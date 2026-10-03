@@ -66,13 +66,13 @@ export const varianceCompletedFixtures: Fixtures<
       // one and torn down before it: Eyes hands its journal over in its own
       // teardown, while the case is still the one running.
       // Before any `beforeEach` runs, too, which is what a precondition said in
-      // one needs: the `describe` that declared it.
+      // one needs: the `describe` that declared it. Read first, so a worker
+      // that cannot say it fails here with no case left open.
+      if (varianceRecorder !== undefined) await enterDescribes(testInfo);
       const leave = varianceRecorder === undefined ? undefined : enterCase(varianceRecorder, testInfo);
-      const forget = varianceRecorder === undefined ? undefined : await enterDescribes(testInfo);
       try {
         await use();
       } finally {
-        forget?.();
         leave?.();
       }
       // After `use`, which is where the runner has already decided this test.

@@ -53,3 +53,35 @@ describe('playwrightStanding', () => {
     expect(playwrightStanding(() => 'tests/checkout.spec.ts')()).toMatchObject({ at: 'outside' });
   });
 });
+
+describe('enterDescribes', () => {
+  // A worker that cannot say a hook's describe refuses once, at setup, and the
+  // same for every test after; each case loads the module fresh for that.
+  const fresh = async () => {
+    vi.resetModules();
+    return await import('./preconditions.js');
+  };
+  const worker = (fields: object): TestInfo =>
+    ({
+      _currentHookType: () => undefined,
+      _timeoutManager: { _running: { runnable: { type: 'beforeEach' } } },
+      ...fields,
+    }) as unknown as TestInfo;
+
+  it('refuses at setup naming the internal it lacks and the installed Playwright, then every test the same', async () => {
+    const { enterDescribes, playwrightVersion } = await fresh();
+    const refusal = `Playwright ${playwrightVersion()} has no TestInfo._requireFile`;
+    await expect(enterDescribes(worker({}))).rejects.toThrow(refusal);
+    await expect(enterDescribes(worker({ _requireFile: '/repo/tests/checkout.spec.ts' }))).rejects.toThrow(refusal);
+  });
+
+  // That the installed Playwright has every internal read, and that they say
+  // the right describe, is the real run in `preconditions.chromium.test.ts`.
+  it('reaches the installed test loader, which holds no tree for a file its worker never loaded', async () => {
+    const { enterDescribes, playwrightVersion } = await fresh();
+    expect(playwrightVersion()).toMatch(/^\d+\.\d+\.\d+/);
+    await expect(enterDescribes(worker({ _requireFile: '/repo/tests/never-loaded.spec.ts' }))).rejects.toThrow(
+      `has no suite tree cached for /repo/tests/never-loaded.spec.ts in the testLoader its worker used`,
+    );
+  });
+});

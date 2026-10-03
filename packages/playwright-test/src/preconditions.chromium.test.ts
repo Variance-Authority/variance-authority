@@ -93,6 +93,13 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
     expect(row('live', 'replays a recording').preconditions?.some((held) => held.value === 'mocked')).toBe(false);
   });
 
+  // A Playwright without one of the internals read refuses at setup, so every
+  // test fails and the run exits non-zero before any row is written.
+  it('reads every internal it needs to say a hook’s describe from the installed Playwright', () => {
+    expect(output).not.toMatch(/cannot say which describe declared a beforeEach/);
+    expect(row('flag on', 'reads the exception').preconditions).not.toEqual([]);
+  });
+
   it('lets a beforeEach inside a describe override one at the top of the file', () => {
     expect(row('flag on', 'reads the exception').preconditions).toEqual([said('flag', 'ff-on', 'describe flag')]);
   });

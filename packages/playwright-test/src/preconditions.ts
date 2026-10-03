@@ -8,11 +8,12 @@
  * body's.
  *
  * Nor does it publish which `describe` declared a running `beforeEach`. The
- * worker runs a test from the file's suite tree, which its loader keeps per
- * file, and every hook in it carries the location it was declared at. So the
- * test's own `describe`s are read from that tree once, before its hooks run,
- * and the running hook is found among them by its location — the one the
- * worker's timeout slot holds for it.
+ * worker runs a test from a clone of the file's suite tree, which its loader
+ * keeps per file, and a clone shares its hooks with the tree it was made from.
+ * So each `beforeEach`'s depth is read from that tree once per file, before a
+ * test's hooks run, keyed by the location object Playwright made when the hook
+ * was declared; the running hook is the one whose location object the worker's
+ * timeout slot holds.
  */
 
 import { createRequire } from 'node:module';
@@ -20,61 +21,95 @@ import { test, type TestInfo } from '@playwright/test';
 import type { PreconditionStanding } from '@variance-authority/sense/journal';
 import { caseKey, testOf } from './test-coordinate.js';
 
-/** Where Playwright says a function was declared. */
+/** Where Playwright says a function was declared: one object per declaration. */
 interface Location {
   readonly file: string;
   readonly line: number;
   readonly column: number;
 }
 
-/** A `beforeEach` around a test: where it was declared, and how many `describe`s enclose it. */
-interface DeclaredHook extends Location {
-  readonly depth: number;
-}
-
 /** The parts of the loader's suite tree this module reads. */
 interface LoadedSuite {
-  readonly _type?: string;
-  readonly _entries?: readonly (LoadedSuite | LoadedTest)[];
-  readonly _hooks?: readonly { readonly type: string; readonly location: Location }[];
-  readonly parent?: LoadedSuite;
+  readonly _type?: unknown;
+  readonly _entries?: unknown;
+  readonly _hooks?: unknown;
 }
 
-interface LoadedTest {
-  readonly parent?: LoadedSuite;
-  titlePath(): string[];
+interface LoadedHook {
+  readonly type: string;
+  readonly location: Location;
 }
 
 /** The parts of a worker's `TestInfo` that Playwright keeps to itself. */
 interface WorkerTestInfo {
+  readonly _currentHookType?: unknown;
   readonly _requireFile?: unknown;
   readonly _timeoutManager?: { readonly _running?: { readonly runnable?: { readonly location?: Location } } };
-  readonly _steps?: readonly WorkerStep[];
 }
 
-interface WorkerStep {
-  readonly category?: string;
-  readonly location?: Location;
-  readonly steps?: readonly WorkerStep[];
-}
+/** How many `describe`s enclose each `beforeEach` read so far, by its declared location. */
+const depths = new WeakMap<Location, number>();
 
-/** The `beforeEach` hooks around the test running in this worker, root to leaf. */
-let entered: { readonly testId: string; readonly hooks: readonly DeclaredHook[] } | undefined;
+/** The test files whose `beforeEach`s are in `depths`. */
+const read = new Set<string>();
+
+/** Why this worker cannot say a hook's `describe`, once found. */
+let unread: Error | undefined;
 
 /**
- * Read which `describe` declared each `beforeEach` around a test, before its
- * hooks run, and return what forgets it.
+ * Read which `describe` declared each `beforeEach` in a test's file, before
+ * its hooks run.
  *
- * A test the loader holds no tree for is entered with nothing, and a call from
- * its `beforeEach` is then placed on no case rather than at a guessed level.
+ * Every read here is of something Playwright keeps to itself. When one is
+ * missing this throws, in the worker, naming that internal and the installed
+ * Playwright, and throws the same for every test after: a worker that cannot
+ * say a hook's `describe` fails at setup, not at the first precondition a hook
+ * happens to say.
  */
-export async function enterDescribes(testInfo: TestInfo): Promise<() => void> {
-  const hooks = await declaredHooks(testInfo);
-  const mine = hooks === undefined ? undefined : { testId: testInfo.testId, hooks };
-  entered = mine;
-  return () => {
-    if (entered === mine) entered = undefined;
-  };
+export async function enterDescribes(testInfo: TestInfo): Promise<void> {
+  if (unread !== undefined) throw unread;
+  try {
+    await readDescribes(testInfo as unknown as WorkerTestInfo);
+  } catch (error) {
+    unread = error as Error;
+    throw unread;
+  }
+}
+
+async function readDescribes(worker: WorkerTestInfo): Promise<void> {
+  if (typeof worker._currentHookType !== 'function') throw missing('TestInfo._currentHookType()');
+  if (worker._timeoutManager?._running?.runnable === undefined) {
+    throw missing('TestInfo._timeoutManager._running.runnable');
+  }
+  const file = worker._requireFile;
+  if (typeof file !== 'string') throw missing('TestInfo._requireFile');
+  if (read.has(file)) return;
+  const load = loadTestFile();
+  let root: LoadedSuite;
+  try {
+    // A file the loader has cached comes back from the cache. It is called
+    // without the config a first load needs, so a file it does not hold — a
+    // second copy of Playwright, with a cache of its own — rejects before
+    // anything is loaded.
+    root = await load(file);
+  } catch {
+    throw missing(`suite tree cached for ${file} in the testLoader its worker used`);
+  }
+  readSuite(root, 0);
+  read.add(file);
+}
+
+function readSuite(suite: LoadedSuite, enclosing: number): void {
+  if (typeof suite._type !== 'string') throw missing('Suite._type');
+  if (!Array.isArray(suite._hooks)) throw missing('Suite._hooks');
+  if (!Array.isArray(suite._entries)) throw missing('Suite._entries');
+  const depth = suite._type === 'describe' ? enclosing + 1 : enclosing;
+  for (const hook of suite._hooks as readonly LoadedHook[]) {
+    if (hook.type === 'beforeEach') depths.set(hook.location, depth);
+  }
+  for (const entry of suite._entries as readonly LoadedSuite[]) {
+    if ('_entries' in entry) readSuite(entry, depth);
+  }
 }
 
 /**
@@ -90,7 +125,8 @@ export function playwrightStanding(owner: (testInfo: TestInfo) => string): () =>
     } catch {
       return { at: 'outside', because: 'ran outside a running test' };
     }
-    const hookType = (info as { _currentHookType?: unknown })._currentHookType;
+    const worker = info as unknown as WorkerTestInfo;
+    const hookType = worker._currentHookType;
     if (typeof hookType !== 'function') {
       return { at: 'outside', because: 'ran in a Playwright worker that does not say which hook is running' };
     }
@@ -100,9 +136,13 @@ export function playwrightStanding(owner: (testInfo: TestInfo) => string): () =>
       case undefined:
         return { at: 'case', key };
       case 'beforeEach': {
-        const depth = runningDepth(info);
+        const location = worker._timeoutManager?._running?.runnable?.location;
+        const depth = location === undefined ? undefined : depths.get(location);
         if (depth === undefined) {
-          return { at: 'outside', because: 'ran in a beforeEach whose describe this Playwright worker does not say' };
+          return {
+            at: 'outside',
+            because: `ran in a beforeEach whose describe Playwright ${playwrightVersion()} did not say; say it in the test body`,
+          };
         }
         return { at: 'beforeEach', key, depth };
       }
@@ -114,90 +154,38 @@ export function playwrightStanding(owner: (testInfo: TestInfo) => string): () =>
   };
 }
 
-/**
- * How many `describe`s enclose the `beforeEach` running now.
- *
- * One line can declare a hook at two depths of one test, when a helper that
- * calls `test.beforeEach` is called in a `describe` and again in one inside
- * it. Playwright runs those root to leaf, and opens a step for each at its
- * location, so the steps already opened at that location say which of them is
- * running.
- */
-function runningDepth(info: TestInfo): number | undefined {
-  if (entered === undefined || entered.testId !== info.testId) return undefined;
-  const worker = info as unknown as WorkerTestInfo;
-  const location = worker._timeoutManager?._running?.runnable?.location;
-  if (location === undefined) return undefined;
-  const candidates = entered.hooks.filter((hook) => at(hook, location));
-  if (candidates.length <= 1) return candidates[0]?.depth;
-  const opened = hookSteps(worker._steps ?? [], location);
-  return candidates[opened - 1]?.depth;
-}
-
-function hookSteps(steps: readonly WorkerStep[], location: Location): number {
-  let count = 0;
-  for (const step of steps) {
-    if (step.category === 'hook' && step.location !== undefined && at(step.location, location)) count += 1;
-    count += hookSteps(step.steps ?? [], location);
-  }
-  return count;
-}
-
-function at(one: Location, other: Location): boolean {
-  return one.file === other.file && one.line === other.line && one.column === other.column;
+/** Playwright as the worker loaded it, resolved through `@playwright/test`. */
+function fromPlaywright(): NodeJS.Require {
+  return createRequire(createRequire(import.meta.url).resolve('@playwright/test'));
 }
 
 /**
- * The `beforeEach` hooks around one test, root to leaf, each with its depth:
- * `0` at the top of the file, one deeper for each `describe` around it.
- *
- * The worker loaded the test's file before running it, so the loader answers
- * from its cache; a file it does not hold is not loaded here.
- */
-async function declaredHooks(testInfo: TestInfo): Promise<readonly DeclaredHook[] | undefined> {
-  const file = (testInfo as unknown as WorkerTestInfo)._requireFile;
-  if (typeof file !== 'string') return undefined;
-  let root: LoadedSuite;
-  try {
-    root = await loadTestFile()(file);
-  } catch {
-    return undefined;
-  }
-  const matching = testsOf(root).filter((candidate) => {
-    const path = candidate.titlePath();
-    const tail = testInfo.titlePath.slice(-path.length);
-    return tail.length === path.length && tail.every((title, index) => title === path[index]);
-  });
-  if (matching.length !== 1) return undefined;
-  const suites: LoadedSuite[] = [];
-  for (let suite = matching[0]!.parent; suite !== undefined; suite = suite.parent) suites.unshift(suite);
-  const hooks: DeclaredHook[] = [];
-  let depth = 0;
-  for (const suite of suites) {
-    if (suite._type === 'describe') depth += 1;
-    for (const hook of suite._hooks ?? []) {
-      if (hook.type === 'beforeEach') hooks.push({ ...hook.location, depth });
-    }
-  }
-  return hooks;
-}
-
-function testsOf(suite: LoadedSuite): LoadedTest[] {
-  return (suite._entries ?? []).flatMap((entry) =>
-    '_entries' in entry ? testsOf(entry as LoadedSuite) : [entry as LoadedTest],
-  );
-}
-
-/**
- * The worker's own test loader, resolved through `@playwright/test` so it is
- * the copy the worker loaded the file with, and its cache is the one read.
+ * The worker's own test loader, resolved through `@playwright/test` so it
+ * reads the loader instance the worker used, and its cached suite tree.
  */
 function loadTestFile(): (file: string) => Promise<LoadedSuite> {
-  const fromTest = createRequire(createRequire(import.meta.url).resolve('@playwright/test'));
-  const common = fromTest('playwright/lib/common') as {
-    testLoader?: { loadTestFile?: (file: string) => Promise<LoadedSuite> };
-  };
+  let common: { testLoader?: { loadTestFile?: unknown } };
+  try {
+    common = fromPlaywright()('playwright/lib/common') as typeof common;
+  } catch {
+    throw missing('playwright/lib/common');
+  }
   const load = common.testLoader?.loadTestFile;
-  if (load === undefined) throw new Error('this Playwright has no test loader');
-  return load;
+  if (typeof load !== 'function') throw missing('testLoader.loadTestFile in playwright/lib/common');
+  return load as (file: string) => Promise<LoadedSuite>;
+}
+
+/** The installed Playwright's version, as its package says it. */
+export function playwrightVersion(): string {
+  try {
+    return (fromPlaywright()('playwright/package.json') as { version: string }).version;
+  } catch {
+    return 'of an unknown version';
+  }
+}
+
+function missing(internal: string): Error {
+  return new Error(
+    `variancePrecondition cannot say which describe declared a beforeEach: Playwright ${playwrightVersion()} has no ${internal}`,
+  );
 }
