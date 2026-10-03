@@ -184,6 +184,23 @@ describe('an entry whose record keeps no cases and that carries no runs', () => 
   });
 });
 
+describe('a fetch when the daily prune of the cache is due', () => {
+  it('names what the prune took in the CLI cache\'s own words', async () => {
+    const { origin, first } = await gitPublished(home);
+    const { dir, base } = await laptop(origin);
+    // `scans/` has no writer, so a due prune removes it whatever git answers.
+    const scans = join(cacheRootFor(dir), 'scans');
+    await mkdir(scans, { recursive: true });
+    await writeFile(join(scans, 'left.bin'), 'left by an old version');
+
+    const read = await base(NOW);
+
+    expect(read).toMatchObject({ commit: first, fetched: at(NOW) });
+    expect(read).toHaveProperty('pruned', expect.stringMatching(/^cache: freed \d+\.\d MiB in .+: 1 directory nothing writes any more$/u));
+    expect(existsSync(scans)).toBe(false);
+  });
+});
+
 describe('a record path the checkout cannot ask about', () => {
   it('is refused with the file system\'s answer, never read as a checkout that has recorded nothing', async () => {
     const { origin } = await gitPublished(home);
