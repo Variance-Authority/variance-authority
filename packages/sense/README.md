@@ -1903,27 +1903,31 @@ changed; selecting test files over every region there is reads the snapshot.
 ### Name what a case arranged
 
 A case that mocks the network, turns a flag on or seeds a cart leaves no trace
-of it in the code it ran. Say it, and the state lands on the case's row in the
-`cases` section, with the `file:line` of the call that said it:
+of it in the code it ran. Say it in the helper that arranges it, and the state
+lands on the row of every case that calls the helper, in the `cases` section,
+with the `file:line` of the call that said it:
 
 ```ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
-beforeEach(() => {
-  variancePrecondition({ network: 'mocked' });
-});
+function setFlag(flag: 'ff-off' | 'ff-on'): void {
+  flags.refund = flag;
+  variancePrecondition({ flag });
+}
+
+beforeEach(() => mockNetwork()); // says { network: 'mocked' } the same way
 
 it('refunds behind a flag', () => {
-  variancePrecondition({ flag: 'ff-on' });
+  setFlag('ff-on');
   // …
 });
 ```
 
-Said in a case body, it is that case's. Said in a `beforeEach`, it is the case
-the hook runs for, at the level of the `describe` that declared the hook. The
-body overrides a `beforeEach`, an inner `describe`'s `beforeEach` overrides an
-outer one's, and two values said at one level are kept as a contradiction, not
-resolved. A call in `afterEach` is reported with its site and lands on no case.
+Said in a case body, or in a helper the body calls, it is that case's. Said in
+a `beforeEach`, or in a helper the hook calls, it is the case the hook runs
+for, at the level of the `describe` that declared the hook. The body overrides
+a `beforeEach`, an inner `describe`'s `beforeEach` overrides an outer one's,
+and two values said at one level are kept as a contradiction, not resolved. A call in `afterEach` is reported with its site and lands on no case.
 One record can name several: `variancePrecondition({ flag: 'ff-on', colour: 'green' })`.
 
 A precondition belongs to a test, so a call made where no case is running

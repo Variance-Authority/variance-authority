@@ -85,19 +85,27 @@ variance covering --file src/checkout/total.ts --function applyDiscount --where 
 ## Declare what this test arranged
 
 ```ts
+// test/flags.ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
-beforeEach(() => {
-  variancePrecondition({ network: 'mocked' });
-});
+export function setFlag(flag: 'ff-off' | 'ff-on'): void {
+  flags.discount = flag;
+  variancePrecondition({ flag });
+}
+
+// test/total.test.ts
+beforeEach(() => mockNetwork()); // mockNetwork says { network: 'mocked' } the same way
 
 it('discounts behind the flag', () => {
-  variancePrecondition({ flag: 'ff-on' });
+  setFlag('ff-on');
 });
 ```
 
-- Say it beside the arrangement: in the case body or a `beforeEach`. A
-  file-wide state goes in a top-level `beforeEach`.
+- Put the call in the helper that arranges the state, so arranging it says it.
+  Do not write a second `variancePrecondition` beside a helper call. The site on
+  the row is the line in the helper.
+- The helper runs in the case body or a `beforeEach`. A file-wide state goes in
+  a top-level `beforeEach`.
 - In a `describe` callback, `beforeAll`, `afterAll` or at the file's top level
   the call throws and the test file fails (`ran outside a running case`).
 - In an `afterEach` it warns and records nothing.

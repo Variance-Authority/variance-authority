@@ -18,23 +18,37 @@ the flag on and one with it off, look the same in the recording. The difference
 between them lives in the test file, and of a test file the recording keeps
 only the names of its cases.
 
-So the case says it, as part of its Arrange:
+So the code that arranges the state says it. The test helper that turns the
+flag on is the place:
 
 ```ts
+// test/flags.ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
+import { flags } from '../src/flags.js';
+
+export function setFlag(flag: 'ff-off' | 'ff-on'): void {
+  flags.discount = flag;
+  variancePrecondition({ flag });
+}
+```
+
+A case calls the helper once, and setting the flag says it:
+
+```ts
+// test/total.test.ts
 import { expect, it } from 'vitest';
 import { total } from '../src/checkout/total.js';
 import { setFlag } from './flags.js';
 
 it('discounts behind the flag', () => {
   setFlag('ff-on');
-  variancePrecondition({ flag: 'ff-on' });
   expect(total([5], 2)).toBe(3);
 });
 ```
 
 Both this case and one without the flag run `applyDiscount`; only this one's
-row says `flag=ff-on`, with the `file:line` of the call.
+row says `flag=ff-on`, with the `file:line` of the call in `setFlag`. Every
+case that sets the flag through the helper says it, and none says it twice.
 
 Reading the difference back from the test source does not work either. A mock
 set up three `describe` levels out, a `beforeEach` that one nested block
@@ -91,8 +105,10 @@ everything under this heading describes a recorded run.
 
 ### Where a call lands
 
-Say it where you arrange it. This file mocks the network for one `describe`
-and turns a flag on in one case:
+Say it where you arrange it. In this file the calls stand where the helpers
+that mock the network and turn the flag on would be called; a helper's call
+lands exactly where the helper was called from. The file mocks the network for
+one `describe` and turns a flag on in one case:
 
 ```ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
