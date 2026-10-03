@@ -2,7 +2,8 @@
 
 Phases 6 and 7 of [`AGENTS.md`](../../AGENTS.md). Once the PR is open, other
 parties answer: CI, CodeRabbit, the person who asked. A PR is handed over only
-when every check is green and every finding is classified.
+when every check is green on a branch that contains its base, and every finding
+is classified.
 
 ## Labels
 
@@ -21,11 +22,11 @@ When you [hand it over](#handing-over), swap them:
 gh pr edit <n> --remove-label agent:debugging --add-label agent:done
 ```
 
-`agent:done` means what handing over means: every check green and every finding
-classified. A cycle that stops short of that, because you are blocked or waiting
-on the person who asked, takes `agent:debugging` off and does not put
-`agent:done` on. A PR with neither label is one nobody is working on and nobody
-has finished, and the report says why.
+`agent:done` means what handing over means: every check green on a branch that
+contains its base, and every finding classified. A cycle that stops short of
+that, because you are blocked or waiting on the person who asked, takes
+`agent:debugging` off and does not put `agent:done` on. A PR with neither label
+is one nobody is working on and nobody has finished, and the report says why.
 
 **A cycle ends in one of those two states, never with `agent:debugging` left on.**
 Nothing tells you when the last check turns green. A failure, a comment or a
@@ -109,3 +110,22 @@ The report starts from the task as it was set in [refine](refine.md): which
 parts are done, where they live, and what is not done. Then the CodeRabbit
 findings you acted on and the ones you set aside, and why. It ends with what you
 need from the person who asked, even when that is one line.
+
+## Merging
+
+A PR is green against the base it lands on, not the base it branched from. Two
+PRs, each green on its own base, can together break `main`. Whoever merges
+checks, immediately before merging, that the PR's current head contains its
+base:
+
+```bash
+git fetch origin && git merge-base --is-ancestor origin/main "$(gh pr view <n> --json headRefOid --jq .headRefOid)"
+```
+
+If it does not, the branch is rebased onto `origin/main` or merges it, and is
+[pre-verified](pre-verify.md) and watched green once more before it merges.
+`main` takes one merge at a time, so the PR merged next is checked against the
+`main` the last one made. Auto-merge skips this check, so it stays off.
+
+These rules bind whoever merges, an agent or a person, until `main` itself
+requires an up-to-date branch.

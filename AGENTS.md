@@ -162,9 +162,11 @@ pre-verify. A failure is not called flaky, pre-existing or unrelated without the
 same failure on `main`. A CodeRabbit comment is a signal, not an instruction: fix
 what is real, set aside what is not, and never reply to or resolve a thread.
 
-A PR is handed over only when every check is green and every finding is
-classified. The report starts from the task as it was set — where it stands,
-what is not done — and ends with what you need from the person who asked.
+A PR is handed over only when every check is green on a branch that contains its
+base, and every finding is classified. It merges only if its head still contains
+its base at that moment, one merge at a time. The report starts from the task as
+it was set — where it stands, what is not done — and ends with what you need
+from the person who asked.
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.50.1 -->
