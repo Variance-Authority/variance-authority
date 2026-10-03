@@ -270,8 +270,9 @@ export async function answerConfigless(
     // `VARIANCE_AUTHORITY_CACHE`, and a checkout whose tests another runner
     // records has it whether or not a visual suite is configured.
     case 'prune': {
-      streams.out(await pruneOutput());
-      return EXIT_CLEAN;
+      const { text, exit } = await pruneOutput();
+      streams.out(text);
+      return exit;
     }
   }
 }

@@ -21,6 +21,8 @@ export async function reviewWithCoverage(request: ParsedReview): Promise<Review>
         ...(request.against === undefined || suite !== request.suite ? {} : { against: request.against }),
       }));
     } catch (error) {
+      // A base it cannot diff from is not a suite's missing reading: the review fails on it, as `coverage` does.
+      if (error instanceof OperatorError && error.kind === 'undiffed') throw error;
       readings.push({ ...(suite === undefined ? {} : { suite }), missed: messageOf(error), ...(error instanceof OperatorError && error.kind === 'unrecorded' ? { unrecorded: true as const } : {}) });
     }
   }

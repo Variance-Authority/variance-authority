@@ -13,7 +13,7 @@
  * one as input, and none is written into the record.
  */
 
-import { caseMotion, matched, matchedThrough, regionAddresses, type CaseMotionOptions, type TestFileMotion } from './case-motion.js';
+import { caseMotion, matchedThrough, regionAddresses, type CaseMotionOptions, type TestFileMotion } from './case-motion.js';
 import type { ExecutionBlock, ExecutionIndex } from './reverse.js';
 import { SUITE_KINDS, type SuiteKind } from './suites.js';
 
@@ -185,11 +185,11 @@ export interface SuiteChange {
 }
 
 /**
- * What changed one suite's count between `base` and `now`. Given the diff
- * between the texts the two were recorded over, regions are paired through it,
- * as the motion pairs them.
+ * What changed one suite's count between `base` and `now`. Regions are paired
+ * through the diff between the texts the two were recorded over, as the motion
+ * pairs them.
  */
-export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, options: Pick<CaseMotionOptions, 'diff'> = {}): SuiteChange {
+export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, options: Pick<CaseMotionOptions, 'diff'>): SuiteChange {
   const motion = caseMotion(base, now, options);
   const current = new Map(now.modules.map((module) => [module.file, module]));
   const held = new Set(base.modules.map((module) => module.file));
@@ -212,8 +212,7 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
       tally(departed, was.blocks);
       continue;
     }
-    const hunks = options.diff === undefined ? undefined : options.diff.get(module.file) ?? [];
-    const pairs = hunks === undefined ? matched(was, module) : matchedThrough(was, module, hunks);
+    const pairs = matchedThrough(was, module, options.diff.get(module.file) ?? []);
     const paired = { base: new Set(pairs.map(([row]) => row)), now: new Set(pairs.map(([, block]) => block)) };
     tally(deleted, was.blocks.filter((block) => !paired.base.has(block)));
     tally(written, module.blocks.filter((block) => !paired.now.has(block)));

@@ -74,7 +74,7 @@ function text(answer: Coverage): string {
       lines.push(...namedTestFiles(suite, suite.base.change.testFiles));
     }
     lines.push('', ...answer.suites.flatMap((suite) => suite.base === undefined ? [] : [
-      `${suite.suite ?? 'the record'} compared with ${suite.base.from}${suite.base.commit === undefined ? '' : `, recorded at ${short(suite.base.commit)}`}`,
+      `${suite.suite ?? 'the record'} compared with ${suite.base.from}, recorded at ${short(suite.base.commit)}`,
     ]));
   } else {
     const missed = answer.suites.filter((suite) => suite.baseMissed !== undefined);
@@ -146,7 +146,7 @@ export function coverageBreakdown(answer: Coverage): readonly string[] {
     const name = suite.suite ?? 'the record';
     if (suite.recorded !== undefined) lines.push('', `${name} recorded at ${short(suite.recorded)}.`);
     if (suite.base !== undefined) {
-      lines.push('', `${name} compared with ${suite.base.commit === undefined ? suite.base.from : short(suite.base.commit)}.`);
+      lines.push('', `${name} compared with ${short(suite.base.commit)}.`);
       lines.push('', `Regions that changed the count: ${parts(suite.base.change).join(' · ')}.`);
       lines.push(...namedTestFiles(suite, suite.base.change.testFiles).map((line) => `- ${line.trim()}`));
     }

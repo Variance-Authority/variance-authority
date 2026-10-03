@@ -42,6 +42,7 @@ import {
   type Pruned,
 } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 import { headPast } from '../share-lines.js';
 import { cacheOf, sharedReportRoot, shareRoot, suiteIndexRoot } from './resources.js';
 
@@ -226,15 +227,16 @@ export async function pruneNow(config: Pick<Config, 'cacheRoot'>): Promise<BothP
 }
 
 /**
- * `variance prune`: both halves now, and what was taken.
+ * `variance prune`: both halves now, what was taken, and {@link prunedExit} for what was not.
  *
  * The cache is the repository's, from `cacheRootFor`, so it needs no project
  * config. A test runner's fold never prunes: what a cache shared beyond one run
  * loses is decided here or at the end of `variance run`, never as a side effect
  * of a test file finishing.
  */
-export async function pruneOutput(config: Pick<Config, 'cacheRoot'> = {}): Promise<string> {
-  return prunedLines(await pruneNow(config)) || 'cache: nothing to prune\n';
+export async function pruneOutput(config: Pick<Config, 'cacheRoot'> = {}): Promise<{ text: string; exit: ExitCode }> {
+  const pruned = await pruneNow(config);
+  return { text: prunedLines(pruned) || 'cache: nothing to prune\n', exit: prunedExit(pruned) };
 }
 
 /**
@@ -246,10 +248,16 @@ export async function pruneWhenDueLines(config: Pick<Config, 'cacheRoot'>): Prom
   return prunedLines({ selection: await pruneWhenDue(cacheOf(config)), commits: await pruneCacheWhenDue(config) });
 }
 
-/** One line per half that took something, each ending in a newline; empty when neither did. */
+/** One line per half that took something, and one per entry it could not remove, each ending in a newline; empty when neither half did either. */
 export function prunedLines(pruned: BothPruned): string {
   return [prunedLine(pruned.selection), prunedLine(pruned.commits, CACHE_PRUNE_REASONS)]
     .filter((line) => line !== '')
     .map((line) => `${line}\n`)
     .join('');
+}
+
+/** {@link EXIT_OPERATOR} when either half could not remove an entry its plan named: the machine, not a finding, is wrong. */
+export function prunedExit(pruned: BothPruned): ExitCode {
+  const unremoved = (pruned.selection?.unremoved.length ?? 0) + (pruned.commits?.unremoved.length ?? 0);
+  return unremoved > 0 ? EXIT_OPERATOR : EXIT_CLEAN;
 }
