@@ -191,9 +191,10 @@ async function againstBefore(
   const parting = since === undefined ? undefined : await movedOnBase(commit, since, root);
   const base: MotionBase = { ...unread, ...(parting === undefined ? {} : { mergeBase: parting.mergeBase, leftOut: parting.files }) };
   if (files !== undefined) held = keepFiles(held, files);
-  const cased = held.modules.filter((module) => module.blocks.some((block) => block.crossings.length > 0)).map((module) => module.file);
-  const elsewhere = cutElsewhere(cased, lastCaseRunOf(sections)?.beforeTexts, commit, root)
-    .filter((module) => file === undefined || module === file);
+  const cased = held.modules
+    .filter((module) => (file === undefined || module.file === file) && module.blocks.some((block) => block.crossings.length > 0))
+    .map((module) => module.file);
+  const elsewhere = cutElsewhere(cased, lastCaseRunOf(sections)?.beforeTexts, commit, root);
   const asked = new Set(cases);
   const now = keepCases(full, asked);
   // A case of a file no run here ran retains an earlier recording, which stands
