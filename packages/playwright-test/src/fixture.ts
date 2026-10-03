@@ -32,7 +32,7 @@ import { runOf, type VarianceRun } from './run.js';
 import { settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
 import { varianceDocumentFixtures } from './documents.js';
-import { arrangedText, snapshotCaseOf } from './arranged.js';
+import { arrangedText, snapshotCaseOf, type SnapshotCase } from './arranged.js';
 import { withEvidence, type Observed } from './evidence.js';
 import { engineOf, promote } from './promote.js';
 import {
@@ -135,6 +135,12 @@ export interface VarianceRuntime {
    * at pixels should pay.
    */
   readonly evidence?: string;
+  /**
+   * The case this observation is made in, read the moment its document is
+   * captured: a precondition said while the observation is still comparing is
+   * not one the document was taken under. Absent outside a runner's case.
+   */
+  readonly arranged?: () => SnapshotCase;
 }
 
 /**
@@ -281,6 +287,7 @@ export const varianceFixtures: Fixtures<
           store: varianceStore,
           declared,
           evidence: testInfo.outputPath('variance'),
+          arranged: () => snapshotCaseOf(testInfo, varianceRecorder),
         },
         locator,
         options,
@@ -288,14 +295,13 @@ export const varianceFixtures: Fixtures<
       for (const [name, path] of Object.entries(observed.evidence ?? {})) {
         await testInfo.attach(`${observed.subject} ${name}`, { path, contentType: 'image/png' });
       }
-      // Read now rather than when the case ends: a later call is not what this
-      // snapshot was taken under. Annotated as well as carried, so the report
-      // shows it under a passing test too.
-      const taken = snapshotCaseOf(testInfo, varianceRecorder);
-      if (taken.preconditions !== undefined) {
+      // Annotated as well as carried, so the report shows it under a passing
+      // test too.
+      const taken = observed.case;
+      if (taken?.preconditions !== undefined) {
         testInfo.annotations.push({ type: 'variance', description: `${observed.subject}: ${arrangedText(taken)}` });
       }
-      return { ...observed, case: taken };
+      return observed;
     };
 
     await use(
@@ -324,7 +330,7 @@ export async function observeLocator(
   locator: Locator,
   options: VarianceOptions = {},
 ): Promise<Observed> {
-  const { page, run, renderer, store } = runtime;
+  const { page, run } = runtime;
   const subject: SubjectRef = {
     id: options.subjectId ?? subjectFromRun(run),
     kind: options.subjectKind ?? 'route',
@@ -354,6 +360,27 @@ export async function observeLocator(
   };
 
   const acquired = await acquireFrom(page, locator, request);
+  // Read at capture rather than when the case ends or the comparison returns:
+  // a later call is not what this document was taken under.
+  const taken = runtime.arranged?.();
+  const observed = await observeAcquired(runtime, locator, options, { subject, request, acquired });
+  return taken === undefined ? observed : { ...observed, case: taken };
+}
+
+/** The rest of an observation, from a document already captured. */
+async function observeAcquired(
+  runtime: VarianceRuntime,
+  locator: Locator,
+  options: VarianceOptions,
+  captured: {
+    readonly subject: SubjectRef;
+    readonly request: AcquireRequest;
+    readonly acquired: Awaited<ReturnType<typeof acquireFrom>>;
+  },
+): Promise<Observed> {
+  const { page, run, renderer, store } = runtime;
+  const { subject, request, acquired } = captured;
+  const materialization = runtime.materialization ?? { kind: 'deferred' };
   const { document, capture, suspense, accessibility } = acquired;
 
   // The engine's answer laid over the caller's index, read after the acquisition
