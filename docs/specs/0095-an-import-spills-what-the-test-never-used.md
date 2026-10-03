@@ -29,8 +29,14 @@ The fix is decided at an import someone wrote:
 - **Delete the import, or mock it**, when nothing behind it is used. An import
   kept for its side effects is mocked with a factory; an automock loads the real
   module to read its shape and saves nothing.
-- **Split the barrel and depend on what is needed**, when something behind it
-  is used, so the import that brings `Button` stops bringing everything else.
+- **Depend on what is needed**, when something behind it is used, so the
+  import that brings `Button` stops bringing everything else: import past the
+  barrel from inside its own package, import an entry point its package already
+  declares, or, in a product, split the barrel.
+
+Which of these a reading may propose depends on who the barrel's package is
+for (below). A published package is optimized for the people who install it,
+never for its own suite.
 
 The reading is deterministic and cheap. It reads the recording and the import
 graph a run already left, runs no test, needs no Eyes journal and no browser,
@@ -72,7 +78,7 @@ none of them.
 | Owning import | Reading | Proposal |
 |---|---|---|
 | In F, with only weight behind it | **A dead import.** F loaded everything behind it and used none of it. | Delete it, or mock it with a factory if it is there for its side effects. |
-| In F or a used file, with a barrel behind it that leads to used and weight files | **A barrel spill.** F used some of what the barrel re-exports and loaded the rest. | Split the barrel into entries that name what F uses, and import from the entry. |
+| In F or a used file, with a barrel behind it that leads to used and weight files | **A barrel spill.** F used some of what the barrel re-exports and loaded the rest. | The narrowest import the regime of the barrel's package allows (below). |
 | In a used file other than F | **An import F does not write.** A file F used imports something F never needed. | None at the test. The import is named with the file that writes it, as a fact about that file. |
 
 A spill is reported by its size, the files and lines it owns that F loaded and
@@ -85,9 +91,25 @@ The boundary is the package. A proposal names only a specifier F already
 writes, a path inside the importer's own package, or an entry point another
 package declares. It never names a file inside another package by a path its
 `exports` do not declare, and it never proposes rewriting an import to such a
-path. A barrel spill whose only narrower import would cross that line proposes
-the split to the barrel's package, and F keeps its import until the entry
-exists.
+path. 
+### Who the package is for
+
+The barrel's package decides which narrower import may be proposed, and its
+manifest says which kind it is. A package whose manifest declares
+`"private": true` is part of a **product**: nobody outside the repository
+imports it, its entry points are internal boundaries, and a barrel in it may be
+split into whatever entries its own importers need. Any other package is
+**published**: its entry points are what its users learn, and every new one is
+something more each of them has to know about it.
+
+| Barrel's package | May propose | Never proposes |
+|---|---|---|
+| Product | Splitting the barrel into entries that name what is used, and importing from them. | — |
+| Published | An import past the barrel from a file inside the same package; an entry point the package already declares in `exports`; deleting or mocking the import in the test. | A new entry point, or a split of a barrel the package publishes. |
+
+A published barrel spill that only a new entry would fix has no proposal. It is
+reported with its size and the test files it spills into, as the cost of the
+package's surface, and the import stays as it is.
 
 This replaces distill's proposal of `vi.mock('<loaded file>')` for each file
 loaded and not covered. The per-file reading stays as evidence, and the
@@ -135,12 +157,16 @@ top of this one, per case rather than per file, and is not part of this spec.
    neither import, a dynamic import read as unseen, and an automock that still
    loads.
 3. The least-knowledge rule, with a fixture whose only narrower import is a path
-   into another package that its `exports` do not declare, so the proposal goes
-   to the barrel's package and none names the internal.
-4. Distill's proposal at the import in place of the loaded file, in text and in
+   into another package that its `exports` do not declare, so no proposal names
+   the internal.
+4. The regime from the manifest: the same spill through a barrel in a private
+   package proposes the split; through a published package's barrel it
+   proposes an import from inside that package or an existing entry, and with
+   neither available it proposes nothing and reports the cost.
+5. Distill's proposal at the import in place of the loaded file, in text and in
    `--format json`.
-5. The question for one file and for the suite, measured on this repository and
+6. The question for one file and for the suite, measured on this repository and
    on the seven-MUI corpus, with its time stated against the time `covering`
    takes on the same record. One test file answers in under a second.
-6. The public page: [`optimize-a-test.md`](../optimize-a-test.md) states the
+7. The public page: [`optimize-a-test.md`](../optimize-a-test.md) states the
    reading and lands its terms before any output prints them.
