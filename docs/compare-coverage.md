@@ -92,7 +92,10 @@ instrument and no second run.
 | A suite that has not run | the last report, carried forward | `unrecorded`, never `0%` |
 
 The base for each suite is the record your mainline published to the
-[share](sharing.md). [The CLI reference](../packages/cli/README.md#coverage-how-much-each-kind-of-suite-runs-and-what-changed-it)
+[share](sharing.md). Its regions are paired with yours through git's diff from
+the commit it was recorded at, so your clone needs that commit: without it,
+`variance coverage` exits `2` and names the commit to fetch, rather than
+comparing regions that may not be the same code. [The CLI reference](../packages/cli/README.md#coverage-how-much-each-kind-of-suite-runs-and-what-changed-it)
 describes every line of the output.
 
 ## What it does not replace

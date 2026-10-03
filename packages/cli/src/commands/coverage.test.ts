@@ -121,13 +121,16 @@ describe('coverage of a repository that declares suites', () => {
 
   it('prints the count at the base and now, and the parts that add up to the change', async () => {
     const base = join(root, 'base', 'unit.bin');
+    // The base was recorded at a commit whose text the current record ran over too.
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'base'], { cwd: root });
+    const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
     await record(base, {
       tests: [UNIT],
       modules: [
         { file: 'src/pay.ts', blocks: [region('charge', true), region('refund', false), region('void', true)] },
         { file: 'src/legacy.ts', blocks: [region('old', true)] },
       ],
-    });
+    }, { commit, files: [] });
 
     const answer = await ask(['coverage', '--root', root, '--suite', 'unit', '--against', base]);
 
@@ -411,14 +414,15 @@ describe('coverage of a change no suite loads', () => {
     expect(answer.out).not.toContain('does not load');
   });
 
-  it('gives git no base commit that is not an object name, and prints the whole count instead', async () => {
+  it('gives git no base commit that is not an object name, and refuses to compare', async () => {
     await writeFile(join(repo, 'src/pay.ts'), 'export function charge() {}\n');
     await record(base, INDEX, { commit: '--output=diff.txt', files: [] });
 
     const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', base, '--format', 'markdown']);
 
-    expect(answer.out).toContain('| Suite | Regions executed by cases | Compared with baseline |');
-    expect(answer.out).not.toContain('does not load');
+    expect(answer.code).toBe(2);
+    expect(answer.out).toBe('');
+    expect(answer.err).toContain("which is not a commit's object name");
     await expect(access(join(repo, 'diff.txt'))).rejects.toThrow();
   });
 });

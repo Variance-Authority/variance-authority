@@ -159,7 +159,7 @@ export async function landRun(
   const before = await recordedSnapshot(coverageFile);
   const held = await heldCommitRuns(coverageFile);
   const previous = casesRecordedOver(coverageFile);
-  const laid = cases === undefined ? previous : layCases(previous, cases.fresh, root, cases.run, cases.eyes);
+  const laid = cases === undefined ? previous : layCases(previous, cases.fresh, root, cases.run, cases.eyes, before?.commit);
   const coverage = await layeredCoverage(coverageFile, current, root);
   const bytes = Object.values(laid).every((part) => part === undefined) ? coverage : withCaseSections(coverage, laid);
   await writeCoverageBytes(coverageFile, bytes);
@@ -199,7 +199,8 @@ export async function landRun(
  */
 async function landUncovered(coverageFile: string, root: string, cases: FreshCases | undefined): Promise<void> {
   if (cases === undefined) return;
-  const laid = layCases(casesRecordedOver(coverageFile), cases.fresh, root, cases.run, cases.eyes);
+  const stands = (await recordedSnapshot(coverageFile))?.commit;
+  const laid = layCases(casesRecordedOver(coverageFile), cases.fresh, root, cases.run, cases.eyes, stands);
   const held = await coveredRecord(coverageFile);
   if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, laid));
   return writeCoverageBytes(coverageFile, recordOfCases(laid));

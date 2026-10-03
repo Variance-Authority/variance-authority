@@ -61,8 +61,8 @@ export interface CaseMotion {
   readonly unread: readonly string[];
   /**
    * Regions an edit beside them renumbered: the address pairs them with a
-   * sibling of the same name, and their cases say which sibling they are. They
-   * are paired by their cases, so they did not move, and are named here rather
+   * sibling of the same name, and the diff says which sibling they are. They
+   * are paired by their lines, so they did not move, and are named here rather
    * than dropped without a word. Absent from an answer written before siblings
    * were paired, which never looked for them: that is not the same as none.
    */
@@ -86,32 +86,26 @@ export interface CaseMotionOptions {
   readonly retained?: ExecutionIndex;
   /**
    * The `-U0` diff from the text the base was recorded over to the text the
-   * current record was, by file, as `hunksByFile` reads it; a file it does not hold
-   * did not change. Absent when it could not be read, which leaves every
-   * module to the address.
+   * current record was, by file, as `hunksByFile` reads it; a file it does not
+   * hold did not change. It is the only pairing: a caller that cannot read it
+   * has nothing to compare.
    */
-  readonly diff?: ReadonlyMap<string, readonly Hunk[]>;
+  readonly diff: ReadonlyMap<string, readonly Hunk[]>;
 }
 
 /**
  * The regions whose cases moved between `base` and `now`.
  *
- * A region is matched by address — name path and structural path, told apart
- * by occurrence — and kind, the rule the case index carries its cases by
- * across runs, so a region an edit moved down the file is still the same
- * region. A region only one side holds did not move: the edit wrote or deleted
- * it, and the diff already says so. The occurrence counts siblings of one name,
- * so deleting the first of three `.filter` callbacks pairs the second with the
- * first: before the address is read, a region at the base and one now of the
- * same kind and name whose cases are the same cases are paired by them. Only calls count; a region entered while
- * its module evaluated was entered by whichever case imported it first.
- *
- * Given the diff between the two texts, a region is paired by its lines
- * instead ({@link matchedThrough}): a sibling written between two with the
- * same cases takes an occurrence number from the one after it, and neither the
- * address nor the cases can say which of the two is new. The diff can.
+ * A region is paired by its lines ({@link matchedThrough}): the diff between
+ * the two texts carries each row at the base to the lines it stands on now, so
+ * a region an edit moved down the file is still the same region. A region only
+ * one side holds did not move: the edit wrote or deleted it, and the diff
+ * already says so. Neither the address, whose occurrence counts siblings of
+ * one name, nor the cases can say which of two siblings an edit wrote between
+ * them is new; the diff can. Only calls count; a region entered while its
+ * module evaluated was entered by whichever case imported it first.
  */
-export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: CaseMotionOptions = {}): CaseMotion {
+export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: CaseMotionOptions): CaseMotion {
   const regions: RegionMotion[] = [];
   const reach = new Map<string, { entered: MovedRegion[]; left: MovedRegion[] }>();
   const reachOf = (file: string) => {
@@ -132,8 +126,7 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
       continue;
     }
     let stopped: ReadonlySet<number> | undefined | null = null;
-    const hunks = options.diff === undefined ? undefined : options.diff.get(module.file) ?? [];
-    const paired = hunks === undefined ? byCases(base, now, held, module) : throughLines(held, module, hunks);
+    const paired = throughLines(held, module, options.diff.get(module.file) ?? []);
     renumbered.push(...paired.renumbered.map((block) => place(module.file, block)));
     const keptBy = keptCallers(retained, kept.get(module.file), module);
     for (const [row, block] of paired.pairs) {
@@ -171,65 +164,6 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
 
 function place(file: string, block: ExecutionBlock): MovedRegion {
   return { file, kind: block.kind, name: block.name, startLine: block.startLine, endLine: block.endLine };
-}
-
-/**
- * The pairs `matched` makes, after first pairing each region whose cases name
- * it among siblings of one kind and name: a set of cases one base row and one
- * region now share, and no other sibling on either side holds. A region with
- * no cases names nothing, so it is left to the address. `renumbered` is each
- * region now the cases paired with a row the address would not have.
- */
-function byCases(
-  base: ExecutionIndex,
-  now: ExecutionIndex,
-  held: ExecutionModule,
-  module: ExecutionModule,
-): { readonly pairs: readonly (readonly [ExecutionBlock, ExecutionBlock])[]; readonly renumbered: readonly ExecutionBlock[] } {
-  const address = matched(held, module);
-  const siblings = (blocks: readonly ExecutionBlock[]) => {
-    const groups = new Map<string, ExecutionBlock[]>();
-    for (const block of blocks) {
-      const key = `${block.kind}\0${block.name}`;
-      const group = groups.get(key);
-      if (group === undefined) groups.set(key, [block]);
-      else group.push(block);
-    }
-    return groups;
-  };
-  const was = siblings(held.blocks);
-  const cases = new Map<ExecutionBlock, string>();
-  const named = (index: ExecutionIndex, block: ExecutionBlock) => {
-    let key = cases.get(block);
-    if (key === undefined) cases.set(block, (key = callers(index, block).map((test) => test.id).sort().join('\0')));
-    return key;
-  };
-  const chosen = new Map<ExecutionBlock, ExecutionBlock>();
-  for (const [key, group] of siblings(module.blocks.filter((block) => block.source))) {
-    const rows = was.get(key);
-    if (rows === undefined || (rows.length === 1 && group.length === 1)) continue;
-    const once = (index: ExecutionIndex, blocks: readonly ExecutionBlock[]) => {
-      const seen = new Map<string, ExecutionBlock | null>();
-      for (const block of blocks) {
-        const set = named(index, block);
-        if (set !== '') seen.set(set, seen.has(set) ? null : block);
-      }
-      return seen;
-    };
-    const atBase = once(base, rows);
-    for (const [set, block] of once(now, group)) {
-      const row = atBase.get(set);
-      if (block !== null && row !== undefined && row !== null) chosen.set(block, row);
-    }
-  }
-  if (chosen.size === 0) return { pairs: address, renumbered: [] };
-  const taken = new Set(chosen.values());
-  const pairs: (readonly [ExecutionBlock, ExecutionBlock])[] = [...chosen].map(([block, row]) => [row, block] as const);
-  const renumbered: ExecutionBlock[] = [];
-  const byAddress = new Map(address.map(([row, block]) => [block, row]));
-  for (const [block, row] of chosen) if (byAddress.get(block) !== row) renumbered.push(block);
-  for (const [row, block] of address) if (!chosen.has(block) && !taken.has(row)) pairs.push([row, block]);
-  return { pairs, renumbered };
 }
 
 /** The pairs the diff makes, and the regions now it paired with a row the address would not have. */
@@ -297,13 +231,10 @@ export function matchedThrough(
 }
 
 /**
- * The source regions both records hold, each with its row at the base.
- *
- * Exported so a reader counting what the two records hold joins them the way
- * the motion does, and a region counted as written is one the motion never
- * paired.
+ * The source regions both records hold at one address, each with its row at
+ * the base: the pairing the diff is checked against to name what it renumbered.
  */
-export function matched(base: ExecutionModule, now: ExecutionModule): readonly (readonly [ExecutionBlock, ExecutionBlock])[] {
+function matched(base: ExecutionModule, now: ExecutionModule): readonly (readonly [ExecutionBlock, ExecutionBlock])[] {
   const held = new Map(regionAddresses(base.blocks));
   const pairs: (readonly [ExecutionBlock, ExecutionBlock])[] = [];
   for (const [address, block] of regionAddresses(now.blocks)) {

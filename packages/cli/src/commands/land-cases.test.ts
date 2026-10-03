@@ -203,6 +203,23 @@ describe('landJourneys and a shard whose run instrumented nothing', () => {
     expect(last.commit).toBeUndefined();
   });
 
+  it('names the commit the record it lands over stands at as the before layer\'s, when that record crossed and names no run', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    await ranWhole(record, first);
+    const index = caseSectionsAt(record).index!;
+    // The mainline's record as its own landing left it, then crossed, as the CI record job lays it: it names no last run.
+    await landJourneys(dir, [await uncoveredShard(first, index, 'shard-main.bin')], record);
+    await writeFile(record, sharedRecord(await readFile(record)));
+    expect(caseSectionsAt(record).last).toBeUndefined();
+    const later = 'c'.repeat(40);
+
+    await landJourneys(dir, [await uncoveredShard(later, index, 'shard-change.bin')], record);
+
+    const last = JSON.parse(Buffer.from(caseSectionsAt(record).last!).toString('utf8')) as { commit?: string; before?: string };
+    expect(last).toMatchObject({ commit: later, before: first });
+  });
+
   it('lays nothing of one whose cases this build cannot read and that names no run, and keeps the record as it was', async () => {
     const { dir, first } = await published(home, { publish: false, record: wholeRecord });
     const record = testCoverageFile(dir, { suite: 'unit' });
