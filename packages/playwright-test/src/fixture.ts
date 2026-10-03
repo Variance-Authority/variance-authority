@@ -359,10 +359,13 @@ export async function observeLocator(
     ...(options.holdings !== undefined ? { holdings: options.holdings } : {}),
   };
 
-  const acquired = await acquireFrom(page, locator, request);
-  // Read at capture rather than when the case ends or the comparison returns:
-  // a later call is not what this document was taken under.
-  const taken = runtime.arranged?.();
+  // Read at capture rather than when the case ends, the accessibility tree is
+  // read or the comparison returns: a later call is not what this document was
+  // taken under.
+  let taken: SnapshotCase | undefined;
+  const acquired = await acquireFrom(page, locator, request, () => {
+    taken = runtime.arranged?.();
+  });
   const observed = await observeAcquired(runtime, locator, options, { subject, request, acquired });
   return taken === undefined ? observed : { ...observed, case: taken };
 }
