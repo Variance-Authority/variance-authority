@@ -91,7 +91,9 @@ Look around:
   run by something, every answer has an owner, one browser and one page, no
   magic and not alone, stop only what you started, a status claim is a marker.
 
-A finding outside the task becomes its own change, not part of this one.
+What the task needs, and a defect in its own diff, are fixed on its branch
+before it merges; a finding it neither needs nor wrote goes on its own branch,
+as [change](.agents/references/change.md) draws the line.
 
 ### 4. Pre-verify — [pre-verify](.agents/references/pre-verify.md)
 
