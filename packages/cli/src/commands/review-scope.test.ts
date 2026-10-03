@@ -11,7 +11,8 @@ const region = (kind: string, name: string, startLine: number, endLine: number, 
   written: true,
   cases: tests.length,
   tests: [...new Set(tests)].sort(),
-  called: tests.map((file, index) => ({ file, name: `caps > case ${index}` })),
+  // Cases a run listened to and that said nothing: what a case arranged is read in review-preconditions.test.ts.
+  called: tests.map((file, index) => ({ id: `${file} > caps > case ${index}`, file, name: `caps > case ${index}`, preconditions: [] })),
 });
 
 const review = (regions: readonly ReviewRegion[], record: Review['record'] = 'ran'): Review =>

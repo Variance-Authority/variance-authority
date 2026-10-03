@@ -140,7 +140,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
     // A new export changes what the module's namespace holds, so the reading is `values`, not `bodies`.
     expect(total?.verdict).toBe('values');
     expect(total?.regions?.map((region) => [region.name, region.reach, region.written, region.called])).toEqual([
-      ['applyDiscount', 'near', false, [{ file: 'test/total.test.ts', name: 'discounts' }]],
+      ['applyDiscount', 'near', false, [{ id: 'test/total.test.ts > discounts', file: 'test/total.test.ts', name: 'discounts' }]],
       ['round', 'unwalked', true, []],
     ]);
     expect(answer.files.find((file) => file.file === 'test/total.test.ts')?.cases).toEqual({ added: ['rounds'], removed: [] });

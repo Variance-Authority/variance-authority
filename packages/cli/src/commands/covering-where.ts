@@ -35,6 +35,8 @@ export interface CoveringWhere {
   readonly asked: readonly string[];
   readonly kept: number;
   readonly of: number;
+  /** Under a line or function question: how many named tests covered it before `--where` narrowed them. */
+  readonly ran?: number;
   /** Cases on a row nobody listened to: whether they said any of it is unmeasured. */
   readonly unmeasured: number;
   /** Values a kept case said on a declared axis that the axis does not name. */
@@ -209,7 +211,8 @@ export function heldText(said: readonly CasePrecondition[] | undefined): string 
   ).join(', ')}`;
 }
 
-function valued(held: CasePrecondition): string {
+/** One thing a case said: `flag=ff-on`, or the bare name for `true`. */
+export function valued(held: CasePrecondition): string {
   return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
 }
 
