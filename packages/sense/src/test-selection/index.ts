@@ -203,7 +203,7 @@ export {
   type StandingEntry,
 } from './commit-runs.js';
 export { askPerStand, readingFrom, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandReading } from './stands.js';
-export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
+export { caseMotion, type CaseMotion, type CaseMotionOptions, type MismatchedRow, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {
   countCoverage,
   coverageChange,

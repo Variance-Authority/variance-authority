@@ -682,7 +682,10 @@ stands on now, so a function your change moved down the file is still the same
 function. Siblings of one name, such as three `.filter` callbacks in one
 function, are told apart by their lines too, so deleting one of them does not
 read as the others losing and gaining theirs; the answer counts those as
-renumbered. Each region whose cases moved is one of four:
+renumbered. A region the diff carried onto lines where only a region of
+another path stands, with no edit in its function before it to explain the new
+path, is not compared: the answer lists it as not compared, with where it
+landed. Each region whose cases moved is one of four:
 
 - **lost**: cases walked it at the base, none do now, and every case that could
   have reached it finished. This is a regression.
