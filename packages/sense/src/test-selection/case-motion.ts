@@ -210,7 +210,7 @@ export interface Paired {
  * through the diff between the two texts: a row pairs with the region of its
  * kind and name standing on the lines the diff carried it to. A row an edit
  * touched is carried to an approximate range, so it pairs with the nearest
- * region of its kind and name overlapping it, after every untouched row has
+ * region of its kind, name and shape of path overlapping it, after every untouched row has
  * taken its own. A row the edit removed pairs with nothing, and a region the
  * edit wrote is paired by no row.
  *
@@ -257,6 +257,7 @@ export function matchedThrough(
     let nearest: ExecutionBlock | undefined;
     for (const block of named.get(key(row)) ?? []) {
       if (taken.has(block) || block.startLine > lines.endLine || block.endLine < lines.startLine) continue;
+      if (shapeOf(block.path) !== shapeOf(row.path)) continue;
       if (nearest === undefined || Math.abs(block.startLine - lines.startLine) < Math.abs(nearest.startLine - lines.startLine)) nearest = block;
     }
     if (nearest === undefined) continue;
@@ -274,10 +275,9 @@ export function matchedThrough(
  * edit above the region moves its lines and leaves its path alone.
  */
 function renumberedBy(hunks: readonly Hunk[], base: ExecutionModule, row: ExecutionBlock, block: ExecutionBlock): boolean {
+  if (shapeOf(row.path) !== shapeOf(block.path)) return false;
   const was = row.path.split('/');
   const is = block.path.split('/');
-  const shape = (segment: string) => segment.replace(/#\d+$/, '');
-  if (was.length !== is.length || was.some((segment, at) => shape(segment) !== shape(is[at]!))) return false;
   const at = was.findIndex((segment, index) => segment !== is[index]);
   const holder = at === 0 ? 'entry' : was.slice(0, at).join('/');
   const scope = base.blocks.find((one) => one.name === row.name && one.path === holder &&
@@ -287,6 +287,11 @@ function renumberedBy(hunks: readonly Hunk[], base: ExecutionModule, row: Execut
     const last = hunk.oldCount === 0 ? hunk.oldStart : hunk.oldStart + hunk.oldCount - 1;
     return hunk.oldStart < row.startLine && last >= from;
   });
+}
+
+/** A structural path without its occurrences: `if#1/then` is `if/then`, and never `if/else`. */
+function shapeOf(path: string): string {
+  return path.replace(/#\d+(?=\/|$)/g, '');
 }
 
 /**

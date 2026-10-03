@@ -34,6 +34,13 @@ describe('regions paired through the diff between two texts', () => {
     expect(matchedThrough(module([edited]), module([far, near]), HUNKS).pairs).toEqual([[edited, near]]);
   });
 
+  it('pairs a row the edit touched with no region of another shape, such as its own `if`\'s other branch', () => {
+    const otherwise = block('edited', 9, 11, 'if#0/else');
+    const then = block('edited', 6, 8, 'if#0/then');
+
+    expect(matchedThrough(module([otherwise]), module([then]), HUNKS).pairs).toEqual([]);
+  });
+
   it('pairs nothing with a row the edit removed, nor with one whose lines hold no region of its name', () => {
     const gone = block('gone', 1, 3);
     const stray = block('stray', 5, 5);
