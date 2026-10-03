@@ -85,6 +85,11 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright modifier that names a preconditi
     expect(body?.preconditions).toEqual([{ name: 'seeded', value: true, site: `${spec}:${line('body')}`, level: 0xffff }]);
   });
 
+  it('throws for a call in a worker fixture a per-case modifier asked for first, and lays it on no case', () => {
+    expect(heldNames()).not.toContain('stock');
+    expect(output).toMatch(new RegExp(`variancePrecondition at \\S*modifiers\\.spec\\.ts:${line('worker fixture')} ran in a worker fixture`));
+  });
+
   it('lays a call in a test fixture a modifier asked for first on the case it was set up for', () => {
     const asked = index.tests.find((test) => test.name === 'skipped by a fixture > runs past a fixture skip');
     expect(asked?.preconditions).toEqual([{ name: 'cart', value: 'filled', site: `${spec}:${line('fixture')}`, level: 0xffff }]);

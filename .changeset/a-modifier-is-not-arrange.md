@@ -12,4 +12,6 @@ that reads only worker fixtures. It now throws with its call site, as a call in
 a `beforeAll` does, because the callback decides whether and how the case runs
 and arranges nothing for it. Move the call into the case body or a
 `beforeEach`. A test fixture that says a precondition as it is set up still
-lands on its case, whichever callback asked for it first.
+lands on its case, whichever callback asked for it first; a worker fixture is
+set up for no one case, so a call in its setup throws when a callback asked for
+it first.

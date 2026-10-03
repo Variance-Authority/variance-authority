@@ -67,3 +67,26 @@ test.describe('skipped by a page', () => {
     expect(1).toBe(1);
   });
 });
+
+// `stock` is a worker fixture: it is set up once for the worker, under whichever
+// callback asks for it first, and every later case reuses it.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- the worker fixture adds no test fixture.
+const stocked = test.extend<{}, { stock: string }>({
+  stock: [
+    // eslint-disable-next-line no-empty-pattern -- Playwright reads a fixture's dependencies from this pattern.
+    async ({}, use) => {
+      variancePrecondition({ stock: 'warm' }); // worker fixture
+      await use('warm');
+    },
+    { scope: 'worker' },
+  ],
+});
+
+stocked.describe('skipped by a worker fixture and a page', () => {
+  // Reads `page`, so it runs for each case, and asks for `stock` first.
+  stocked.skip(({ stock, page }) => stock === 'cold' && page.viewportSize() === null);
+
+  stocked('runs past a worker fixture skip', () => {
+    expect(4).toBe(4);
+  });
+});

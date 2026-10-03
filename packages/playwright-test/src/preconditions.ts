@@ -48,7 +48,7 @@ interface WorkerTestInfo {
   readonly _requireFile?: unknown;
   readonly _timeoutManager?: {
     readonly currentSlotType?: unknown;
-    readonly _running?: { readonly runnable?: { readonly location?: Location; readonly fixture?: unknown } };
+    readonly _running?: { readonly runnable?: { readonly location?: Location; readonly fixture?: { readonly slot?: unknown } } };
   };
 }
 
@@ -179,9 +179,15 @@ function bodyOrModifier(worker: WorkerTestInfo, key: string): PreconditionStandi
   // FIXME: Playwright tears test fixtures down under the `test` slot too, so a
   // call in a fixture's cleanup lands on its case; spec 0093 throws for a cleanup.
   if (slot === 'test') return { at: 'case', key };
-  // FIXME: a worker fixture a worker-only modifier sets up passes here too and
-  // lands on the case about to run; the setup description carries no scope.
-  if (MODIFIERS.has(slot) && slots?._running?.runnable?.fixture !== undefined) return { at: 'case', key };
+  const fixture = slots?._running?.runnable?.fixture;
+  // A worker fixture is set up once for the worker and carries a slot of its
+  // own; a test fixture carries one only when it is given a timeout.
+  // FIXME: a test fixture given a timeout reads as a worker fixture here, so its
+  // call throws when a modifier asked for it first.
+  if (MODIFIERS.has(slot) && fixture !== undefined) {
+    if (fixture.slot === undefined) return { at: 'case', key };
+    return { at: 'outside', because: 'ran in a worker fixture, which is set up for no one test' };
+  }
   // FIXME: a worker-only modifier that runs first in a fresh worker runs before
   // the recorder is installed, so its call records nothing and throws nothing.
   if (MODIFIERS.has(slot)) {
