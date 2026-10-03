@@ -135,7 +135,7 @@ describe('rendering somewhere else', () => {
   });
 
   it('reports a render failure as a failure, never as a blank image', async () => {
-    variancePrecondition('remote', 'fails');
+    variancePrecondition({ remote: 'fails' });
     // A renderer that answers a broken document with an empty PNG produces a
     // comparison saying the whole subject changed, and the report then blames
     // whichever component sits under the pixels.
@@ -156,7 +156,7 @@ describe('rendering somewhere else', () => {
   });
 
   it('fails a request that hangs rather than stalling the run', async () => {
-    variancePrecondition('remote', 'hangs');
+    variancePrecondition({ remote: 'hangs' });
     server = await serveRenderer({
       identity: PINNED,
       identityFor: () => PINNED,
@@ -214,7 +214,7 @@ describe('rendering somewhere else', () => {
   });
 
   it('fails one document in a batch without failing the rest', async () => {
-    variancePrecondition('remote', 'fails');
+    variancePrecondition({ remote: 'fails' });
     // A malformed subject travelling with fifteen good ones must not turn the
     // fifteen into failures the operator has to re-run to find innocent.
     const renderer = echoRenderer();
@@ -240,7 +240,7 @@ describe('rendering somewhere else', () => {
   });
 
   it('refuses a raster the far end rendered under a different identity', async () => {
-    variancePrecondition('remote', 'garbled');
+    variancePrecondition({ remote: 'garbled' });
     // Silence here is the expensive failure: the caller has already keyed its
     // baseline lookup on the predicted identity, so storing a raster stamped
     // with another one files the image where nothing reads it, and every later

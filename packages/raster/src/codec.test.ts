@@ -82,7 +82,7 @@ describe('the component boxes a sidecar carries', () => {
   });
 
   it('leaves a baseline written before boxes existed without them', () => {
-    variancePrecondition('record', 'older');
+    variancePrecondition({ record: 'older' });
     const read = sidecarFrom(sidecar([BUTTON]));
 
     expect(read?.components).toHaveLength(1);
@@ -115,7 +115,7 @@ describe('the declared values a sidecar carries', () => {
   });
 
   it('leaves a baseline written before values existed without them', () => {
-    variancePrecondition('record', 'older');
+    variancePrecondition({ record: 'older' });
     const read = sidecarFrom(sidecar([BUTTON]));
 
     expect(read?.components?.[0] && 'values' in read.components[0]).toBe(false);

@@ -24,7 +24,7 @@ const descends = async (): Promise<boolean> => false;
  * protocol a hosted remote does, filters and leases included.
  */
 describe('createGitLineCell', () => {
-  beforeEach(() => variancePrecondition('remote', 'accepts'));
+  beforeEach(() => variancePrecondition({ remote: 'accepts' }));
   let home = '';
   let url = '';
   let remote = '';
@@ -122,7 +122,7 @@ describe('createGitLineCell', () => {
   });
 
   it('reports a push the remote refuses while the line stands where it was read', async () => {
-    variancePrecondition('remote', 'refuses');
+    variancePrecondition({ remote: 'refuses' });
     const image = async (): Promise<Uint8Array> => ascii('png');
     await publishLine(cellAt('a'), MAIN, [entry('suite-v1/web', 'aaaa', 'web')], { descends, image });
     const before = git(remote, 'rev-parse', REF).trim();
@@ -134,7 +134,7 @@ describe('createGitLineCell', () => {
   });
 
   it('reports the refused push when the remote cannot say where the line is after it', async () => {
-    variancePrecondition('remote', 'refuses');
+    variancePrecondition({ remote: 'refuses' });
     const image = async (): Promise<Uint8Array> => ascii('png');
     await publishLine(cellAt('a'), MAIN, [entry('suite-v1/web', 'aaaa', 'web')], { descends, image });
     const gone = join(home, 'gone.git');
@@ -149,7 +149,7 @@ describe('createGitLineCell', () => {
   });
 
   it('tells nothing published from a remote that cannot be reached', async () => {
-    variancePrecondition('remote', 'unreachable');
+    variancePrecondition({ remote: 'unreachable' });
     expect(await readLine(cellAt('a'), MAIN)).toEqual({ kind: 'absent' });
     const gone = createGitLineCell({ url: `file://${join(home, 'nowhere.git')}`, gitDir: join(home, 'c') });
     expect(await readLine(gone, MAIN)).toMatchObject({ kind: 'unreachable' });

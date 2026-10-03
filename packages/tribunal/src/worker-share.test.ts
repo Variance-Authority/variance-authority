@@ -38,7 +38,7 @@ let before: (method: string, path: string) => Promise<void>;
 
 beforeEach(async () => {
   bucket = createMemoryR2();
-  variancePrecondition('network', 'stubbed');
+  variancePrecondition({ network: 'stubbed' });
   worker = createTribunal({
     db: await createSqliteD1(),
     bucket,
@@ -138,7 +138,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a manifest write on a version that is not the stored one', async () => {
-    variancePrecondition('remote', 'refuses');
+    variancePrecondition({ remote: 'refuses' });
     await publishLine(cell(INGEST), MAIN, [entry('report-v1')], { descends, image });
     const path = `${ORIGIN}/share/mainline/release/2.0/manifest.json`;
     const put = (headers: Record<string, string>) =>
@@ -155,7 +155,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a manifest write that names no version, and stores nothing', async () => {
-    variancePrecondition('remote', 'refuses');
+    variancePrecondition({ remote: 'refuses' });
     await publishLine(cell(INGEST), MAIN, [entry('report-v1')], { descends, image });
     const path = `${ORIGIN}/share/mainline/release/2.0/manifest.json`;
     const version = async () =>
@@ -184,7 +184,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a blob whose bytes are not the digest it is stored under', async () => {
-    variancePrecondition('remote', 'refuses');
+    variancePrecondition({ remote: 'refuses' });
     const response = await worker.fetch(
       new Request(`${ORIGIN}/share/images/${'d'.repeat(64)}`, {
         method: 'PUT',
@@ -198,7 +198,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a line spelled differently from how the client spells it', async () => {
-    variancePrecondition('remote', 'refuses');
+    variancePrecondition({ remote: 'refuses' });
     const response = await worker.fetch(
       new Request(`${ORIGIN}/share/branch/feature%2Fx/manifest.json`, {
         headers: { authorization: `Bearer ${INGEST}` },
@@ -208,7 +208,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a key its store will not hold, and the publisher is told why rather than that the store failed', async () => {
-    variancePrecondition('remote', 'refuses');
+    variancePrecondition({ remote: 'refuses' });
     const put = bucket.put.bind(bucket);
     vi.spyOn(bucket, 'put').mockImplementation(async (key, ...rest) => {
       if (key.endsWith('/manifest.json')) throw new FoldedKey('the object key names "feature" where this store holds "Feature"');
@@ -243,7 +243,7 @@ describe('who opens the share', () => {
   });
 
   it('lets the share token read and refuses it the write, before any byte is stored', async () => {
-    variancePrecondition('token', 'share');
+    variancePrecondition({ token: 'share' });
     expect('manifest' in (await readLine(cell(SHARE), MAIN))).toBe(true);
 
     const keys = bucket.keys();
@@ -256,7 +256,7 @@ describe('who opens the share', () => {
   });
 
   it('refuses the review token, which decides on builds and does not open the share', async () => {
-    variancePrecondition('token', 'review');
+    variancePrecondition({ token: 'review' });
     expect(await readLine(cell(REVIEW), MAIN)).toMatchObject({ kind: 'refused' });
     const response = await worker.fetch(
       new Request(`${ORIGIN}/share/mainline/release/2.0/manifest.json`, {
@@ -268,7 +268,7 @@ describe('who opens the share', () => {
   });
 
   it('refuses a caller with no token, as it refuses one everywhere else', async () => {
-    variancePrecondition('token', 'none');
+    variancePrecondition({ token: 'none' });
     expect(await readLine(cell(), MAIN)).toMatchObject({ kind: 'refused' });
     expect(await publishLine(cell(), MAIN, [entry('report-v1')], { descends, image })).toMatchObject({
       kind: 'refused',
@@ -276,7 +276,7 @@ describe('who opens the share', () => {
   });
 
   it('keeps the share token out of every route that is not the share', async () => {
-    variancePrecondition('token', 'share');
+    variancePrecondition({ token: 'share' });
     for (const path of ['/review/builds', CHURN_PATH, '/baseline/find']) {
       const response = await worker.fetch(
         new Request(`${ORIGIN}${path}`, { method: 'POST', headers: { authorization: `Bearer ${SHARE}` }, body: '{}' }),

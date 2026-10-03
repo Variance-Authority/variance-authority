@@ -54,7 +54,7 @@ const PUMP_TEST_TIMEOUT_MS = 3 * REAL_CAP_MS;
 async function pastTheWait<T>(work: () => Promise<T>): Promise<T> {
   const nextTurn = setTimeout;
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  variancePrecondition('clock', 'faked');
+  variancePrecondition({ clock: 'faked' });
   try {
     let settled = false;
     const running = work().finally(() => {
@@ -133,7 +133,7 @@ describe('who may grow the index', () => {
   });
 
   it('gives up rather than merging over a holder that never lets go', async () => {
-    variancePrecondition('lock', 'held');
+    variancePrecondition({ lock: 'held' });
     const file = await index();
     let ran = false;
     // Held until this test says otherwise, which is what a hung or very slow

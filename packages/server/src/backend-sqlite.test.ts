@@ -124,7 +124,7 @@ describe('schema', () => {
   });
 
   it('refuses a database written by a newer schema version instead of misreading it', async () => {
-    variancePrecondition('record', 'newer');
+    variancePrecondition({ record: 'newer' });
     // The failure this prevents has no symptom: a newer shape read through older
     // assumptions answers drift questions with numbers that are wrong and
     // well-formed.

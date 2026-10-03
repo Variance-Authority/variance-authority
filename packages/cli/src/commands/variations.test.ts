@@ -179,7 +179,7 @@ describe('the parent a name names', () => {
 });
 
 describe('a name read through the configured grammar', () => {
-  beforeEach(() => variancePrecondition('grammar', 'declared'));
+  beforeEach(() => variancePrecondition({ grammar: 'declared' }));
   const names: NameGrammar = {
     axes: [
       { axis: 'state', values: ['default', 'empty'] },
@@ -249,7 +249,7 @@ describe('what the run has to hold on to', () => {
   });
 
   it('wants the leaves of a named lattice, which are the parent of nothing', () => {
-    variancePrecondition('grammar', 'declared');
+    variancePrecondition({ grammar: 'declared' });
     const names: NameGrammar = {
       axes: [
         { axis: 'offer', values: ['control', 'sale'] },

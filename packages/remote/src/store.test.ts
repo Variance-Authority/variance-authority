@@ -100,7 +100,7 @@ describe('a baseline store somewhere else', () => {
   });
 
   it('reports a subject nobody has rendered as a miss, and only then', async () => {
-    variancePrecondition('store', 'empty');
+    variancePrecondition({ store: 'empty' });
     // The one case allowed to be `null`: a server that positively said so.
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
@@ -163,7 +163,7 @@ describe('a baseline store somewhere else', () => {
   });
 
   it('reports a described subject nobody has rendered as a miss, and only then', async () => {
-    variancePrecondition('store', 'empty');
+    variancePrecondition({ store: 'empty' });
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
 
@@ -469,7 +469,7 @@ describe('a declared working set', () => {
   });
 
   it('refuses an unreachable endpoint rather than reading it as an empty set', async () => {
-    variancePrecondition('remote', 'unreachable');
+    variancePrecondition({ remote: 'unreachable' });
     // The failure this whole file is about, arriving one layer earlier. A
     // prefetch that answered "no baselines" to an outage would record the entire
     // suite as `new` and report success.

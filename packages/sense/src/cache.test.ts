@@ -103,7 +103,7 @@ describe('the cache on disk', () => {
   });
 
   it('discards a file an older shape wrote rather than reading it as this one', async () => {
-    variancePrecondition('record', 'older');
+    variancePrecondition({ record: 'older' });
     const file = await path();
     const stored = encodeSourceIndex({
       parses: new Map([[a, BUTTON]]),

@@ -87,7 +87,7 @@ describe('publishLine', () => {
   });
 
   it('keeps a newer format, and a newer version replaces an older one in its slot', async () => {
-    variancePrecondition('record', 'newer');
+    variancePrecondition({ record: 'newer' });
     const cell = memoryLineCell();
     await publishLine(cell, MAIN, [entry('suite-v1/web', 'aaaa')], { descends: linear, image: images });
     await publishLine(cell, MAIN, [entry('suite-v2/web', 'aaaa')], { descends: linear, image: images });
@@ -154,7 +154,7 @@ describe('publishLine', () => {
 
 describe('readLine and findEntry', () => {
   it('tell nothing published from a newer format', async () => {
-    variancePrecondition('record', 'newer');
+    variancePrecondition({ record: 'newer' });
     const cell = memoryLineCell();
     expect(await readLine(cell, MAIN)).toEqual({ kind: 'absent' });
     await publishLine(cell, MAIN, [entry('suite-v2/web', 'bbbb')], { descends: linear, image: images });

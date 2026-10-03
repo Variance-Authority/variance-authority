@@ -61,7 +61,7 @@ const PUMP_TEST_TIMEOUT_MS = 3 * REAL_CAP_MS;
 async function pastTheWait(work: () => Promise<unknown>): Promise<unknown> {
   const nextTurn = setTimeout;
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  variancePrecondition('clock', 'faked');
+  variancePrecondition({ clock: 'faked' });
   let settled = false;
   const running = work().then(
     () => undefined,
@@ -107,7 +107,7 @@ async function landing(): Promise<{ dir: string; record: string; shard: string }
 
 describe('landJourneys when another process holds a lock', () => {
   it('refuses on the snapshot, names its lock, and changes nothing, its cases included', async () => {
-    variancePrecondition('lock', 'held');
+    variancePrecondition({ lock: 'held' });
     const { dir, record, shard } = await landing();
     const snapshot = await readFile(record);
     // The fixture leaves no runs record beside the snapshot. One is written here, so a landing that changed it would show.

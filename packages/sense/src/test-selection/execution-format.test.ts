@@ -75,7 +75,7 @@ describe('the execution index as columns', () => {
   });
 
   it('reads rows written before a region carried the flag as flagging nothing', () => {
-    variancePrecondition('record', 'older');
+    variancePrecondition({ record: 'older' });
     const index: ExecutionIndex = {
       tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }],
       modules: [{
@@ -219,7 +219,7 @@ describe('the duration each case carries', () => {
   });
 
   it('is absent from every case of an index written before cases carried one', () => {
-    variancePrecondition('record', 'older');
+    variancePrecondition({ record: 'older' });
     const bytes = encodeExecutionIndex(timed);
     const headerLength = bytes.readUInt32LE(0);
     const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as {
