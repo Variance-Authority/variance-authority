@@ -12,7 +12,7 @@ const test = base.extend<VarianceFixtures & { cart: string }, VarianceWorkerFixt
   ...varianceFixtures,
   // eslint-disable-next-line no-empty-pattern -- Playwright reads a fixture's dependencies from this pattern.
   cart: async ({}, use) => {
-    variancePrecondition('cart', 'filled'); // fixture
+    variancePrecondition({ cart: 'filled' }); // fixture
     await use('filled');
   },
 });
@@ -31,7 +31,7 @@ test.beforeEach(async ({ page }) => {
 // Runs first, so the recorder is set up before the worker-fixture modifier,
 // which runs before any case of its describe.
 test('says it in its body', () => {
-  variancePrecondition('seeded'); // body
+  variancePrecondition({ seeded: true }); // body
 });
 
 test.describe('skipped by a fixture', () => {
@@ -46,7 +46,7 @@ test.describe('skipped by a fixture', () => {
 test.describe('slowed by a worker fixture', () => {
   // Reads only a worker fixture, so Playwright runs it once, before the describe.
   test.slow(({ browserName }) => {
-    variancePrecondition('engine', browserName); // slow modifier
+    variancePrecondition({ engine: browserName }); // slow modifier
     return false;
   });
 
@@ -59,7 +59,7 @@ test.describe('skipped by a page', () => {
   // Reads a test fixture, so Playwright runs it for each case, after the file's
   // beforeEach and before any beforeEach in this describe.
   test.skip(({ page }) => {
-    variancePrecondition('viewport', 'narrow'); // skip modifier
+    variancePrecondition({ viewport: 'narrow' }); // skip modifier
     return page.viewportSize() === null;
   });
 
