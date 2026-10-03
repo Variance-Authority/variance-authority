@@ -8,12 +8,12 @@ import { variancePrecondition } from '@variance-authority/sense/precondition';
 const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>(varianceFixtures);
 
 test.beforeEach(() => {
-  variancePrecondition('flag', 'ff-off'); // file flag
+  variancePrecondition({ flag: 'ff-off' }); // file flag
 });
 
 test.describe('flag on', () => {
   test.beforeEach(() => {
-    variancePrecondition('flag', 'ff-on'); // describe flag
+    variancePrecondition({ flag: 'ff-on' }); // describe flag
   });
 
   test('reads the exception', () => {
@@ -31,7 +31,7 @@ test.describe('flag left alone', () => {
 // helper called in a describe and again in one inside it does.
 const tiered = (tier: string) =>
   test.beforeEach(() => {
-    variancePrecondition('tier', tier); // helper tier
+    variancePrecondition({ tier }); // helper tier
   });
 
 test.describe('tier outer', () => {

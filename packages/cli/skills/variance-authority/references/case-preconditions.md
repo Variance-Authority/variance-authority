@@ -88,11 +88,11 @@ variance covering --file src/checkout/total.ts --function applyDiscount --where 
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
 beforeEach(() => {
-  variancePrecondition('network', 'mocked');
+  variancePrecondition({ network: 'mocked' });
 });
 
 it('discounts behind the flag', () => {
-  variancePrecondition('flag', 'ff-on');
+  variancePrecondition({ flag: 'ff-on' });
 });
 ```
 

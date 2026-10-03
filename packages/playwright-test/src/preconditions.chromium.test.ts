@@ -132,7 +132,5 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
     expect(index.tests.flatMap((test) => test.preconditions ?? []).some((held) => held.name === 'cleaned')).toBe(false);
   });
 
-  it.todo('lets a beforeEach inside a describe override one at the top of the file — needs the depth of the describe that declared the hook, which Playwright does not publish; every beforeEach reads at the case\'s innermost describe, so the two are a contradiction');
-
   it.todo('throws for a call at the top level or in a describe callback of the first file a worker loads — needs the listener installed before the worker fixture, which Playwright sets up after the file is collected');
 });

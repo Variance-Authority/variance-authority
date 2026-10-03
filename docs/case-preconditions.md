@@ -28,7 +28,7 @@ import { setFlag } from './flags.js';
 
 it('discounts behind the flag', () => {
   setFlag('ff-on');
-  variancePrecondition('flag', 'ff-on');
+  variancePrecondition({ flag: 'ff-on' });
   expect(total([5], 2)).toBe(3);
 });
 ```
@@ -66,18 +66,19 @@ knows which case is running and which hook it is in — places it.
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 ```
 
-The call takes a name and a value:
+The call takes a record of names to values, and one record can name several:
 
 ```ts
-variancePrecondition('network', 'mocked');
-variancePrecondition('seeded-cart', true);
+variancePrecondition({ network: 'mocked' });
+variancePrecondition({ flag: 'ff-on', colour: 'green' });
+variancePrecondition({ 'seeded-cart': true });
 ```
 
-The name is a string, and the value a string, a finite number or a boolean.
-Anything else is reported on the console and records nothing:
+A value is a string, a finite number or a boolean. Anything else is reported on
+the console and records nothing:
 
 ```text
-variance-authority: variancePrecondition at /home/you/shop/test/total.test.ts:24 takes a name and a string, number or boolean, or a record of them; nothing was recorded
+variance-authority: variancePrecondition at /home/you/shop/test/total.test.ts:24 takes a record of names to a string, number or boolean; nothing was recorded
 ```
 
 The `@variance-authority/sense/precondition` entry point imports nothing.
@@ -99,12 +100,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { total } from '../src/checkout/total.js';
 
 beforeEach(() => {
-  variancePrecondition('network', 'live');
+  variancePrecondition({ network: 'live' });
 });
 
 describe('offline', () => {
   beforeEach(() => {
-    variancePrecondition('network', 'mocked');
+    variancePrecondition({ network: 'mocked' });
   });
 
   it('pays', () => {
@@ -112,7 +113,7 @@ describe('offline', () => {
   });
 
   it('discounts behind the flag', () => {
-    variancePrecondition('flag', 'ff-on');
+    variancePrecondition({ flag: 'ff-on' });
     expect(total([5], 2)).toBe(3);
   });
 
@@ -211,7 +212,7 @@ record has seven cases, and the remaining examples come from it.
 
 - Values are compared as text, so `--where seeded-cart` and
   `--where seeded-cart=true` both keep a case that said
-  `variancePrecondition('seeded-cart', true)`. It prints as the bare name:
+  `variancePrecondition({ 'seeded-cart': true })`. It prints as the bare name:
   `seeds a cart — seeded-cart (test/refund.test.ts:28)`.
 - A contradiction prints both values with their sites, and a `--where` naming
   either one keeps it:

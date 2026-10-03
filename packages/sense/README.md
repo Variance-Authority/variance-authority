@@ -1910,7 +1910,7 @@ of it in the code it ran. Say it, and the state lands on the case's row in the
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
 beforeEach(() => {
-  variancePrecondition('network', 'mocked');
+  variancePrecondition({ network: 'mocked' });
 });
 
 it('refunds behind a flag', () => {
@@ -1924,7 +1924,7 @@ the hook runs for, at the level of the `describe` that declared the hook. The
 body overrides a `beforeEach`, an inner `describe`'s `beforeEach` overrides an
 outer one's, and two values said at one level are kept as a contradiction, not
 resolved. A call in `afterEach` is reported with its site and lands on no case.
-`variancePrecondition('seeded')` holds `true`.
+One record can name several: `variancePrecondition({ flag: 'ff-on', colour: 'green' })`.
 
 A precondition belongs to a test, so a call made where no case is running
 throws: in a `describe` callback, a `beforeAll` or `afterAll`, at the file's top
