@@ -86,14 +86,13 @@ async function readDescribes(worker: WorkerTestInfo): Promise<void> {
   const file = worker._requireFile;
   if (typeof file !== 'string') throw missing('TestInfo._requireFile');
   if (read.has(file)) return;
-  const load = loadTestFile();
   let root: LoadedSuite;
   try {
     // A file the loader has cached comes back from the cache. It is called
     // without the config a first load needs, so a file it does not hold — a
     // second copy of Playwright, with a cache of its own — rejects before
-    // anything is loaded.
-    root = await load(file);
+    // anything is loaded, as does a Playwright whose loader is elsewhere.
+    root = await loadTestFile()(file);
   } catch {
     throw missing(`suite tree cached for ${file} in the testLoader its worker used`);
   }
@@ -171,33 +170,20 @@ function fromPlaywright(): NodeJS.Require {
  * package, so the module instance is the one the worker required.
  */
 function loadTestFile(): (file: string) => Promise<LoadedSuite> {
-  let root: string;
-  try {
-    root = dirname(fromPlaywright().resolve('playwright/package.json'));
-  } catch {
-    throw missing('playwright/package.json');
-  }
-  const bundled = join(root, 'lib/common/index.js');
+  const root = dirname(fromPlaywright().resolve('playwright/package.json'));
   const separate = join(root, 'lib/common/testLoader.js');
-  let load: unknown;
   if (existsSync(separate)) {
-    load = (fromPlaywright()(separate) as { loadTestFile?: unknown }).loadTestFile;
-  } else if (existsSync(bundled)) {
-    load = (fromPlaywright()(bundled) as { testLoader?: { loadTestFile?: unknown } }).testLoader?.loadTestFile;
-  } else {
-    throw missing('lib/common/index.js or lib/common/testLoader.js');
+    return (fromPlaywright()(separate) as { loadTestFile: (file: string) => Promise<LoadedSuite> }).loadTestFile;
   }
-  if (typeof load !== 'function') throw missing('testLoader.loadTestFile');
-  return load as (file: string) => Promise<LoadedSuite>;
+  const bundled = fromPlaywright()(join(root, 'lib/common/index.js')) as {
+    testLoader: { loadTestFile: (file: string) => Promise<LoadedSuite> };
+  };
+  return bundled.testLoader.loadTestFile;
 }
 
 /** The installed Playwright's version, as its package says it. */
 export function playwrightVersion(): string {
-  try {
-    return (fromPlaywright()('playwright/package.json') as { version: string }).version;
-  } catch {
-    return 'of an unknown version';
-  }
+  return (fromPlaywright()('playwright/package.json') as { version: string }).version;
 }
 
 function missing(internal: string): Error {

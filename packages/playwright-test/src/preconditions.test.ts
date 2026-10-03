@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test, type TestInfo } from '@playwright/test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { playwrightStanding } from './preconditions.js';
@@ -73,6 +76,79 @@ describe('enterDescribes', () => {
     const refusal = `Playwright ${playwrightVersion()} has no TestInfo._requireFile`;
     await expect(enterDescribes(worker({}))).rejects.toThrow(refusal);
     await expect(enterDescribes(worker({ _requireFile: '/repo/tests/checkout.spec.ts' }))).rejects.toThrow(refusal);
+  });
+
+  // The installed loader, given the config a first load needs, caches the
+  // fixture's suite tree as the worker's own load does before its first test.
+  const flags = fileURLToPath(new URL('../test/fixtures/preconditions/tests/flags.spec.ts', import.meta.url));
+  interface Loaded {
+    title: string;
+    _type: string;
+    _hooks: { type: string; location: object }[];
+    _entries: Loaded[];
+  }
+  const loaded = async (): Promise<Loaded> => {
+    const playwright = createRequire(createRequire(import.meta.url).resolve('@playwright/test'));
+    const { testLoader } = playwright('playwright/lib/common') as {
+      testLoader: { loadTestFile: (file: string, config: object) => Promise<Loaded> };
+    };
+    return await testLoader.loadTestFile(flags, { config: { rootDir: dirname(flags), tags: [] } });
+  };
+  const beforeEachIn = (suite: Loaded, ...titles: string[]): object => {
+    const found = titles.reduce((at, title) => at._entries.find((entry) => entry.title === title)!, suite);
+    return found._hooks.find((hook) => hook.type === 'beforeEach')!.location;
+  };
+
+  it('places a running beforeEach at the describe that declared it, by the location object Playwright made for it', async () => {
+    const root = await loaded();
+    const { enterDescribes, playwrightStanding } = await fresh();
+    await enterDescribes(worker({ _requireFile: flags }));
+    // A second test of the same file finds it read.
+    await enterDescribes(worker({ _requireFile: flags }));
+    const standingAt = (location: object) => {
+      vi.spyOn(test, 'info').mockReturnValue({
+        ...infoWith(() => 'beforeEach'),
+        _timeoutManager: { _running: { runnable: { type: 'beforeEach', location } } },
+      } as unknown as TestInfo);
+      return playwrightStanding(() => 'tests/checkout.spec.ts')();
+    };
+    const key = 'tests/checkout.spec.ts\u0000t1';
+    expect(standingAt(beforeEachIn(root))).toEqual({ at: 'beforeEach', key, depth: 0 });
+    expect(standingAt(beforeEachIn(root, 'flag on'))).toEqual({ at: 'beforeEach', key, depth: 1 });
+    // One helper line declares both: equal locations, two objects, two depths.
+    const outer = beforeEachIn(root, 'tier outer');
+    const inner = beforeEachIn(root, 'tier outer', 'tier inner');
+    expect(inner).toEqual(outer);
+    expect(standingAt(outer)).toEqual({ at: 'beforeEach', key, depth: 1 });
+    expect(standingAt(inner)).toEqual({ at: 'beforeEach', key, depth: 2 });
+    expect(standingAt({ ...inner })).toMatchObject({ at: 'outside' });
+  });
+
+  it.each(['_type', '_hooks', '_entries'] as const)(
+    'throws at setup for a suite tree whose suites carry no %s',
+    async (field) => {
+      const root = await loaded();
+      const kept = root[field];
+      delete (root as Partial<Loaded>)[field];
+      try {
+        const { enterDescribes, playwrightVersion } = await fresh();
+        await expect(enterDescribes(worker({ _requireFile: flags }))).rejects.toThrow(
+          `Playwright ${playwrightVersion()} has no Suite.${field}`,
+        );
+      } finally {
+        Object.assign(root, { [field]: kept });
+      }
+    },
+  );
+
+  it.each([
+    ['TestInfo._currentHookType()', { _currentHookType: undefined }],
+    ['TestInfo._timeoutManager._running.runnable', { _timeoutManager: { _running: {} } }],
+  ])('throws at setup for a worker with no %s', async (internal, fields) => {
+    const { enterDescribes, playwrightVersion } = await fresh();
+    await expect(enterDescribes(worker({ _requireFile: flags, ...fields }))).rejects.toThrow(
+      `Playwright ${playwrightVersion()} has no ${internal}`,
+    );
   });
 
   // That the installed Playwright has every internal read, and that they say
