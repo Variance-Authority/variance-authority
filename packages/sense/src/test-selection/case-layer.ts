@@ -90,7 +90,7 @@ export function layerCaseIndex(
   const last = run.tests.map((test) => test.id);
   const announced = run.tests.filter((test) => files.ran.has(test.file)).map((test) => test.id);
   const held = openPrevious(previous);
-  const cut = (files.base === undefined ? undefined : openPrevious(files.base)) ?? held;
+  const cut = files.base === undefined ? held : openPrevious(files.base);
   // FIXME: no index is read as no other cases, and a landing that removed the
   // index leaves exactly that. The next local run then writes its own files'
   // cases alone, and that partial index stands for the whole suite beside a
