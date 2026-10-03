@@ -12,6 +12,6 @@ kind, name, path and lines, and two callbacks handed to one call on one line —
 on it, so the record held one region where the code has two. The tests that
 reached only the second callback were credited to the first, and a review
 reported the second as code no case ran, while the function it alone calls
-was reached. Regions of one
-shape are now matched by their place among each other, the n-th onto the n-th,
-in the record a run writes and in the journeys stitched from its stores.
+was reached. Regions of one shape are now matched by their place among each
+other, the n-th onto the n-th, in the record a run writes, in case indexes
+merged across shards and in the journeys stitched from a run's stores.
