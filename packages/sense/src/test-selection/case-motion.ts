@@ -67,6 +67,20 @@ export interface CaseMotion {
    * were paired, which never looked for them: that is not the same as none.
    */
   readonly renumbered?: readonly MovedRegion[];
+  /**
+   * Rows at the base the diff carried onto a region of another structural path
+   * — `if#0/then` onto `if#1/then`, or a `then` onto an `else` — where no edit
+   * inside the function holding it explains the change of path. The pair is not
+   * compared, and is named here rather than read as motion. Absent from an answer written before rows
+   * were checked against their path: that is not the same as none.
+   */
+  readonly mismatched?: readonly MismatchedRow[];
+}
+
+/** A base row, as the base places it, and the region now that stands on the lines the diff carried it to. */
+export interface MismatchedRow extends MovedRegion {
+  readonly path: string;
+  readonly now: MovedRegion & { readonly path: string };
 }
 
 /** What `caseMotion` may consult, and what it leaves out. */
@@ -116,6 +130,7 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
   const current = new Map(now.modules.map((module) => [module.file, module]));
   const unread: string[] = [];
   const renumbered: MovedRegion[] = [];
+  const mismatched: MismatchedRow[] = [];
   const retained = options.retained;
   const kept = new Map(retained?.modules.map((module) => [module.file, module]));
   for (const held of base.modules) {
@@ -128,6 +143,9 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
     let stopped: ReadonlySet<number> | undefined | null = null;
     const paired = throughLines(held, module, options.diff.get(module.file) ?? []);
     renumbered.push(...paired.renumbered.map((block) => place(module.file, block)));
+    for (const [row, block] of paired.mismatched) {
+      mismatched.push({ ...place(held.file, row), path: row.path, now: { ...place(module.file, block), path: block.path } });
+    }
     const keptBy = keptCallers(retained, kept.get(module.file), module);
     for (const [row, block] of paired.pairs) {
       const region = place(module.file, block);
@@ -159,7 +177,8 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
   const testFiles = [...reach]
     .map(([file, { entered, left }]) => ({ file, entered: inOrder(entered), left: inOrder(left) }))
     .sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : 0));
-  return { regions, counts, testFiles, unread: unread.sort(), renumbered: inOrder(renumbered) };
+  mismatched.sort((left, right) => (left.file < right.file ? -1 : left.file > right.file ? 1 : left.startLine - right.startLine));
+  return { regions, counts, testFiles, unread: unread.sort(), renumbered: inOrder(renumbered), mismatched };
 }
 
 function place(file: string, block: ExecutionBlock): MovedRegion {
@@ -171,11 +190,18 @@ function throughLines(
   held: ExecutionModule,
   module: ExecutionModule,
   hunks: readonly Hunk[],
-): { readonly pairs: readonly (readonly [ExecutionBlock, ExecutionBlock])[]; readonly renumbered: readonly ExecutionBlock[] } {
-  const pairs = matchedThrough(held, module, hunks);
+): Paired & { readonly renumbered: readonly ExecutionBlock[] } {
+  const { pairs, mismatched } = matchedThrough(held, module, hunks);
   const byAddress = new Map(matched(held, module).map(([row, block]) => [block, row]));
   const renumbered = pairs.filter(([row, block]) => byAddress.has(block) && byAddress.get(block) !== row).map(([, block]) => block);
-  return { pairs, renumbered };
+  return { pairs, mismatched, renumbered };
+}
+
+/** Rows paired with regions through the diff, and rows the diff carried onto a region of a path no edit explains. */
+export interface Paired {
+  readonly pairs: readonly (readonly [ExecutionBlock, ExecutionBlock])[];
+  /** Each row with the region it landed on, which it is not paired with. */
+  readonly mismatched: readonly (readonly [ExecutionBlock, ExecutionBlock])[];
 }
 
 /**
@@ -183,15 +209,20 @@ function throughLines(
  * through the diff between the two texts: a row pairs with the region of its
  * kind and name standing on the lines the diff carried it to. A row an edit
  * touched is carried to an approximate range, so it pairs with the nearest
- * region of its kind and name overlapping it, after every untouched row has
+ * region of its kind, name and branch ({@link leafOf}) overlapping it, after every untouched row has
  * taken its own. A row the edit removed pairs with nothing, and a region the
  * edit wrote is paired by no row.
+ *
+ * A row the edit left whole pairs with a region of its own structural path,
+ * or with one an edit renumbered ({@link renumberedBy}). A row that lands only
+ * on a region of another path is not paired: no edit explains the change of
+ * path, and it is returned as mismatched with the region it landed on.
  */
 export function matchedThrough(
   base: ExecutionModule,
   now: ExecutionModule,
   hunks: readonly Hunk[],
-): readonly (readonly [ExecutionBlock, ExecutionBlock])[] {
+): Paired {
   const named = new Map<string, ExecutionBlock[]>();
   const key = (block: ExecutionBlock) => `${block.kind}\0${block.name}`;
   for (const block of now.blocks) {
@@ -202,6 +233,7 @@ export function matchedThrough(
   }
   const taken = new Set<ExecutionBlock>();
   const pairs: (readonly [ExecutionBlock, ExecutionBlock])[] = [];
+  const mismatched: (readonly [ExecutionBlock, ExecutionBlock])[] = [];
   const touched: (readonly [ExecutionBlock, { readonly startLine: number; readonly endLine: number }])[] = [];
   for (const row of base.blocks) {
     const placed = placeThrough(hunks, row);
@@ -212,8 +244,11 @@ export function matchedThrough(
     }
     const there = (named.get(key(row)) ?? []).filter((block) =>
       !taken.has(block) && block.startLine === placed.lines.startLine && block.endLine === placed.lines.endLine);
-    const block = there.find((one) => one.path === row.path) ?? there[0];
-    if (block === undefined) continue;
+    const block = there.find((one) => one.path === row.path) ?? there.find((one) => renumberedBy(hunks, base, row, one));
+    if (block === undefined) {
+      if (there[0] !== undefined) mismatched.push([row, there[0]]);
+      continue;
+    }
     taken.add(block);
     pairs.push([row, block]);
   }
@@ -221,13 +256,43 @@ export function matchedThrough(
     let nearest: ExecutionBlock | undefined;
     for (const block of named.get(key(row)) ?? []) {
       if (taken.has(block) || block.startLine > lines.endLine || block.endLine < lines.startLine) continue;
+      if (leafOf(block.path) !== leafOf(row.path)) continue;
       if (nearest === undefined || Math.abs(block.startLine - lines.startLine) < Math.abs(nearest.startLine - lines.startLine)) nearest = block;
     }
     if (nearest === undefined) continue;
     taken.add(nearest);
     pairs.push([row, nearest]);
   }
-  return pairs;
+  return { pairs, mismatched };
+}
+
+/**
+ * Whether an edit can have renumbered `row` into `block`: both are the same
+ * branch of their region ({@link leafOf}), and the diff wrote or removed a line
+ * inside the function holding the row, before it. Only an edit before a region
+ * in its own function moves its occurrence or its depth: a sibling written or
+ * removed, an `else if` added, a statement wrapped. An edit above the function
+ * moves its lines and leaves its path alone. A row no function holds is
+ * renumbered by any edit above it.
+ */
+function renumberedBy(hunks: readonly Hunk[], base: ExecutionModule, row: ExecutionBlock, block: ExecutionBlock): boolean {
+  if (leafOf(row.path) !== leafOf(block.path)) return false;
+  const scope = base.blocks.find((one) => one.name === row.name && one.path === 'entry' &&
+    one.startLine <= row.startLine && one.endLine >= row.endLine);
+  const from = scope?.startLine ?? 0;
+  return hunks.some((hunk) => {
+    const last = hunk.oldCount === 0 ? hunk.oldStart : hunk.oldStart + hunk.oldCount - 1;
+    return hunk.oldStart < row.startLine && last >= from;
+  });
+}
+
+/**
+ * The last segment of a structural path without its occurrence: `if#1/then` and
+ * `for#0/body/if#0/then` are `then`, and never `else`. An edit can renumber a
+ * branch or nest it deeper; it cannot turn one branch into another.
+ */
+function leafOf(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1).replace(/#\d+$/, '');
 }
 
 /**

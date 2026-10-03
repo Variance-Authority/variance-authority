@@ -257,7 +257,8 @@ export function heldText(said: readonly CasePrecondition[] | undefined): string 
   ).join(', ')}`;
 }
 
-function valued(held: CasePrecondition): string {
+/** One thing a case said: `flag=ff-on`, or the bare name for `true`. */
+export function valued(held: CasePrecondition): string {
   return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
 }
 

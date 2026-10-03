@@ -566,7 +566,9 @@ The count is out of the cases that covered what you asked about, before
 every repeated `--where` must hold. Two values said at one level print as a contradiction, and match a
 `--where` naming either. A record made before cases said anything answers
 `unmeasured` rather than an empty list, and a case nobody listened to is counted
-apart from the cases that said nothing.
+apart from the cases that said nothing. When `--where` keeps none of the cases
+that covered a line or function, the answer says the filter left none of them
+and how many there were, rather than that no test covered it.
 
 When `names.axes` in `variance.config.json` declares the name, the value is
 read on that axis. `values[0]` is the base, and a case that never said the name
@@ -682,7 +684,10 @@ stands on now, so a function your change moved down the file is still the same
 function. Siblings of one name, such as three `.filter` callbacks in one
 function, are told apart by their lines too, so deleting one of them does not
 read as the others losing and gaining theirs; the answer counts those as
-renumbered. Each region whose cases moved is one of four:
+renumbered. A region the diff carried onto lines where only a region of
+another path stands, with no edit in its function before it to explain the new
+path, is not compared: the answer lists it as not compared, with where it
+landed. Each region whose cases moved is one of four:
 
 - **lost**: cases walked it at the base, none do now, and every case that could
   have reached it finished. This is a regression.
@@ -852,6 +857,16 @@ regions, test files whose reach moved, and files not compared, and counts the re
 GitHub rejects a comment longer than 65,536 characters, so a longer markdown
 review is cut at a line break before that length, and its last line says how
 many characters are not shown.
+
+Under each changed function a case ran, the markdown lists those cases by test
+file and title, and each case carries what it said it arranged, the way
+`covering` prints it: `refunds behind a flag — flag=ff-on
+(src/checkout/total.test.ts:31)`. When the cases said more than one value of a
+name, the function's line names every value — `ran under flag=ff-off,
+flag=ff-on` — so you see which conditions ran the change without asking
+`covering --where`. A record made before cases said anything says what they
+arranged is unmeasured, and cases nobody listened to are counted apart from the
+cases that said nothing.
 
 A comment shows part of the answer, and `review.json` holds all of it. Upload
 the `--out` directory as an artifact, and anyone with the GitHub CLI can print

@@ -22,7 +22,12 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...scopeText(answer), ...whereText(answer), text(answer), ...motionText(answer.motion)].join('\n')}\n`;
+  return `${[...scopeText(answer), ...whereText(answer), ...said(text(answer)), ...motionText(answer.motion)].join('\n')}\n`;
+}
+
+/** A block that says nothing is left out, not printed as an empty line. */
+function said(block: string): readonly string[] {
+  return block === '' ? [] : [block];
 }
 
 function text(answer: Covering): string {
@@ -33,6 +38,10 @@ function text(answer: Covering): string {
   const tests = answer.tests ?? [];
   const target = answer.target ?? { function: '' };
   const where = 'line' in target ? `line ${target.line}` : `function ${target.function}`;
+  if (tests.length === 0 && (answer.where?.of ?? 0) > 0) {
+    // `whereText` said the filter left none of the cases that covered it; *no named test covered* would read as nothing running the code.
+    return narrowedText(answer).join('\n');
+  }
   if (tests.length === 0) {
     return [
       `No named test covered ${where} of ${answer.file}${unentered(answer.stopped)}`,

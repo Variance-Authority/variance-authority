@@ -2702,6 +2702,7 @@
         "LastCaseRun": "interface",
         "LastFetched": "interface",
         "LineRange": "interface",
+        "MismatchedRow": "interface",
         "ModuleTexts": "type",
         "MovedRegion": "interface",
         "ObservedEyes": "interface",
