@@ -158,6 +158,20 @@ describe('landCases', () => {
     expect(lastCaseRunOf(twice)?.beforeTexts).toEqual({ 'src/shared.ts': 'v1:head' });
   });
 
+  it('names no text for a before layer kept in the row spelling, so a reader compares it as it always did', () => {
+    // A record the row-spelling seams laid at this commit: neither layer opens as sets, so this run cuts no before of its own.
+    const rows = encodeExecutionIndex(decodeExecutionIndex(index({ 'a.test.ts > one': ['alpha'] })));
+    const last = JSON.parse(previous.last!.toString()) as object;
+    const laid = { index: rows, before: rows, last: Buffer.from(JSON.stringify({ ...last, commit: 'c0ffee' })) };
+
+    const sections = layCases(laid, index({ 'b.test.ts > two': ['beta'] }), root, {
+      commit: 'c0ffee', tests: [whole('b.test.ts')], modules: [{ file: 'src/shared.ts', sourceDigest: 'v1:head' }],
+    }, undefined, new Map([['src/shared.ts', 'v1:base']]));
+
+    expect(Buffer.from(sections.before!).equals(rows)).toBe(true);
+    expect(lastCaseRunOf(sections)?.beforeTexts).toBeUndefined();
+  });
+
   it('drops the index and both of its layers when a shard that finished a file left no index it can lay', async () => {
     const held = { ...previous, before: index({ 'a.test.ts > one': ['alpha'] }) };
     // Bytes no reader in this build can decode, so no run is laid from them.

@@ -17,7 +17,9 @@ import { textAtRecording } from '@variance-authority/sense/test-selection';
 
 /**
  * The modules of `modules` whose text at `at` is not the one `texts` says
- * their regions were cut from, in code-unit order. A module `texts` does not
+ * their regions were cut from, in the order `modules` names them: a layer
+ * that names texts is spelled as sets, whose modules stand in code-unit order
+ * of path. A module `texts` does not
  * name was cut from a text nobody knew, and one `at` does not hold has no
  * lines there to stand on, so both are among them. With no `texts` at all, as
  * in a layer written before it named them, none is: that says nothing either
@@ -31,11 +33,9 @@ export function cutElsewhere(
 ): readonly string[] {
   if (texts === undefined) return [];
   const textAt = textAtRecording(root, modules);
-  return modules
-    .filter((file) => {
-      const cut = texts[file];
-      const text = cut === undefined ? undefined : textAt(file, at);
-      return text === undefined || digestString(text) !== cut;
-    })
-    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  return modules.filter((file) => {
+    const cut = texts[file];
+    const text = cut === undefined ? undefined : textAt(file, at);
+    return text === undefined || digestString(text) !== cut;
+  });
 }
