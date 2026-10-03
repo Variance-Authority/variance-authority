@@ -172,13 +172,13 @@ async function againstBefore(
   },
 ): Promise<CoveringMotion> {
   const unread: MotionBase = { from, kind: 'before', ...(at === undefined ? {} : { at }) };
+  const before = caseSectionsAt(from).before;
+  if (before === undefined) return { base: unread }; // kept no before layer: nothing to compare, unlike one that does not read
   let held: ExecutionIndex;
   try {
-    const before = caseSectionsAt(from).before;
-    if (before === undefined) return { base: unread };
     held = decodeExecutionIndex(before);
-  } catch {
-    return { base: unread };
+  } catch (error) {
+    throw new OperatorError(`the cases the last run retired in ${from} do not read (${error instanceof Error ? error.message : String(error)}), so what the run moved cannot be compared.`);
   }
   const { commit, diff } = await diffFromBase(at, root, BEFORE_LAYER);
   const parting = since === undefined ? undefined : await movedOnBase(commit, since, root);

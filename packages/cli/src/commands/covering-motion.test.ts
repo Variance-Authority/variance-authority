@@ -175,19 +175,17 @@ describe('what the last run moved', () => {
     await expect(refused).rejects.toThrow(`git fetch origin ${ABSENT}`);
   });
 
-  it('compares nothing with cases it retired that do not read', async () => {
-    const { first } = await checkout();
-    const execution = join(await records(), 'coverage.bin');
+  it('refuses a record whose retired cases do not read, rather than saying it holds none', async () => {
+    const dir = await records();
+    const execution = join(dir, 'coverage.bin');
     await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, {
-      index: encodeExecutionIndex(index([0, 1], [1])),
+      index: encodeExecutionIndex(index([0], [])),
       before: Buffer.from('not a case index'),
-      last: Buffer.from(JSON.stringify({ commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] })),
+      last: Buffer.from(JSON.stringify({ at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] })),
     });
 
-    const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
-
-    expect(answer.motion?.base).toEqual({ from: execution, kind: 'before', at: first });
-    expect(answer.motion?.moved).toBeUndefined();
+    await expect(covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution])))
+      .rejects.toThrow(new RegExp(`the cases the last run retired in ${execution.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')} do not read`, 'u'));
   });
 });
 
