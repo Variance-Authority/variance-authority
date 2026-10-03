@@ -52,8 +52,11 @@ describe('playwrightStanding', () => {
     expect(standingUnder(() => undefined, 'slow')).toMatchObject({ at: 'outside', because: expect.stringMatching(/test\.slow modifier/) });
   });
 
-  it('places a call in a test fixture a modifier set up on its case', () => {
-    expect(standingUnder(() => undefined, 'skip', { title: 'cart' })).toEqual({ at: 'case', key: 'tests/checkout.spec.ts\u0000t1' });
+  // A fixture a modifier set up lands on its case by its scope, read from the
+  // worker's suite tree, so where it lands is pinned by a real run in
+  // `preconditions-modifier.chromium.test.ts`.
+  it('places a call in a fixture a modifier set up, whose scope was never read, on no case', () => {
+    expect(standingUnder(() => undefined, 'skip', { title: 'cart' })).toMatchObject({ at: 'outside', because: expect.stringMatching(/scope/) });
   });
 
   it('guesses no body where the worker does not say which hook is running', () => {

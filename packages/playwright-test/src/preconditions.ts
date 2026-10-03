@@ -48,12 +48,29 @@ interface WorkerTestInfo {
   readonly _requireFile?: unknown;
   readonly _timeoutManager?: {
     readonly currentSlotType?: unknown;
-    readonly _running?: { readonly runnable?: { readonly location?: Location; readonly fixture?: { readonly slot?: unknown } } };
+    readonly _running?: { readonly runnable?: { readonly location?: Location; readonly fixture?: { readonly title?: unknown; readonly location?: Location } } };
   };
 }
 
 /** How many `describe`s enclose each `beforeEach` read so far, by its declared location. */
 const depths = new WeakMap<Location, number>();
+
+/** One `extend`'s fixtures, at the location object Playwright made for the call. */
+interface FixtureList {
+  readonly fixtures: Readonly<Record<string, unknown>>;
+  readonly location: Location;
+}
+
+interface FixtureOptions {
+  readonly scope?: string;
+  readonly title?: string;
+}
+
+/** Each fixture's scope by title, under the location of the `extend` that declared it. */
+const scopes = new WeakMap<Location, Map<string, string>>();
+
+/** The fixture lists whose fixtures are in `scopes`. */
+const fixturesRead = new WeakSet<object>();
 
 /** The test files whose `beforeEach`s are in `depths`. */
 const read = new Set<string>();
@@ -113,6 +130,31 @@ function readSuite(suite: LoadedSuite, enclosing: number): void {
   }
   for (const entry of suite._entries as readonly LoadedSuite[]) {
     if ('_entries' in entry) readSuite(entry, depth);
+    else readFixtures((entry as { readonly _testType?: { readonly fixtures?: unknown } })._testType?.fixtures);
+  }
+}
+
+/**
+ * Read the scope of every fixture a test's `extend`s declare, as Playwright
+ * registers them: a fixture declared again without options keeps the scope and
+ * title it was declared with.
+ */
+function readFixtures(lists: unknown): void {
+  if (!Array.isArray(lists)) throw missing('TestType.fixtures');
+  if (fixturesRead.has(lists)) return;
+  fixturesRead.add(lists);
+  const declared = new Map<string, { readonly scope: string; readonly title: string }>();
+  for (const list of lists as readonly FixtureList[]) {
+    const titles = scopes.get(list.location) ?? new Map<string, string>();
+    for (const [name, value] of Object.entries(list.fixtures)) {
+      const options = Array.isArray(value) && typeof value[1] === 'object' ? (value[1] as FixtureOptions) : undefined;
+      const previous = declared.get(name);
+      const scope = options === undefined ? (previous?.scope ?? 'test') : (options.scope ?? 'test');
+      const title = options === undefined ? (previous?.title ?? name) : (options.title ?? name);
+      declared.set(name, { scope, title });
+      titles.set(title, scope);
+    }
+    scopes.set(list.location, titles);
   }
 }
 
@@ -171,7 +213,10 @@ const MODIFIERS: ReadonlySet<unknown> = new Set(['skip', 'fixme', 'fail', 'slow'
  *
  * A test fixture the modifier asks for first is set up under the modifier's
  * slot, with the fixture on the running runnable. Its call stays on the case,
- * as it does when the case body asks for the fixture first.
+ * as it does when the case body asks for the fixture first. A worker fixture
+ * is set up there once for every case after, so its call is placed on none.
+ * The setup does not say its fixture's scope: it is read from the file's
+ * `extend`s with its `describe`s, by the fixture's title and declared location.
  */
 function bodyOrModifier(worker: WorkerTestInfo, key: string): PreconditionStanding {
   const slots = worker._timeoutManager;
@@ -180,13 +225,15 @@ function bodyOrModifier(worker: WorkerTestInfo, key: string): PreconditionStandi
   // call in a fixture's cleanup lands on its case; spec 0093 throws for a cleanup.
   if (slot === 'test') return { at: 'case', key };
   const fixture = slots?._running?.runnable?.fixture;
-  // A worker fixture is set up once for the worker and carries a slot of its
-  // own; a test fixture carries one only when it is given a timeout.
-  // FIXME: a test fixture given a timeout reads as a worker fixture here, so its
-  // call throws when a modifier asked for it first.
   if (MODIFIERS.has(slot) && fixture !== undefined) {
-    if (fixture.slot === undefined) return { at: 'case', key };
-    return { at: 'outside', because: 'ran in a worker fixture, which is set up for no one test' };
+    const scope = fixture.location === undefined ? undefined : scopes.get(fixture.location)?.get(String(fixture.title));
+    if (scope === 'test') return { at: 'case', key };
+    // A worker fixture is set up once for the worker; later cases reuse it.
+    if (scope === 'worker') return { at: 'outside', because: 'ran in a worker fixture, which is set up for no one test' };
+    return {
+      at: 'outside',
+      because: `ran in a fixture whose scope Playwright ${playwrightVersion()} did not say; say it in the test body`,
+    };
   }
   // FIXME: a worker-only modifier that runs first in a fresh worker runs before
   // the recorder is installed, so its call records nothing and throws nothing.

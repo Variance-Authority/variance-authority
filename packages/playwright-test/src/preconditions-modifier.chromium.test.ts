@@ -94,4 +94,9 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright modifier that names a preconditi
     const asked = index.tests.find((test) => test.name === 'skipped by a fixture > runs past a fixture skip');
     expect(asked?.preconditions).toEqual([{ name: 'cart', value: 'filled', site: `${spec}:${line('fixture')}`, level: 0xffff }]);
   });
+
+  it('lays a call in a test fixture with a timeout of its own on the case it was set up for', () => {
+    const asked = index.tests.find((test) => test.name === 'skipped by a timed fixture > runs past a timed fixture skip');
+    expect(asked?.preconditions).toEqual([{ name: 'shelf', value: 'stacked', site: `${spec}:${line('timed fixture')}`, level: 0xffff }]);
+  });
 });

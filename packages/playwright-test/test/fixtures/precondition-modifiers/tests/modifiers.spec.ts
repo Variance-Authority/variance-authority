@@ -69,9 +69,9 @@ test.describe('skipped by a page', () => {
 });
 
 // `stock` is a worker fixture: it is set up once for the worker, under whichever
-// callback asks for it first, and every later case reuses it.
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- the worker fixture adds no test fixture.
-const stocked = test.extend<{}, { stock: string }>({
+// callback asks for it first, and every later case reuses it. `shelf` is a test
+// fixture with a timeout of its own, set up for each case like `cart`.
+const stocked = test.extend<{ shelf: string }, { stock: string }>({
   stock: [
     // eslint-disable-next-line no-empty-pattern -- Playwright reads a fixture's dependencies from this pattern.
     async ({}, use) => {
@@ -80,6 +80,23 @@ const stocked = test.extend<{}, { stock: string }>({
     },
     { scope: 'worker' },
   ],
+  shelf: [
+    // eslint-disable-next-line no-empty-pattern -- Playwright reads a fixture's dependencies from this pattern.
+    async ({}, use) => {
+      variancePrecondition({ shelf: 'stacked' }); // timed fixture
+      await use('stacked');
+    },
+    { timeout: 5_000 },
+  ],
+});
+
+stocked.describe('skipped by a timed fixture', () => {
+  // Asks for `shelf` before the case does, so `shelf` is set up under this modifier.
+  stocked.skip(({ shelf }) => shelf === 'bare');
+
+  stocked('runs past a timed fixture skip', () => {
+    expect(5).toBe(5);
+  });
 });
 
 stocked.describe('skipped by a worker fixture and a page', () => {
