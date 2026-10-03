@@ -347,8 +347,9 @@ export function stepTowardBase<Placed>(
 ): (AxisStep & { readonly found: readonly Placed[] }) | undefined {
   const last = coordinate.at(-1);
   if (last === undefined) return undefined;
-  const axis = axisOf(grammar, last.axis);
-  if (axis === undefined) return undefined;
+  // Every coordinate is read off this grammar's own axes — a name by
+  // `readName`, a case by what it said on a declared axis — so its axis is here.
+  const axis = axisOf(grammar, last.axis)!;
   const held = coordinate.slice(0, -1);
   for (let below = axis.values.indexOf(last.value) - 1; below >= 0; below--) {
     const value = axis.values[below]!;

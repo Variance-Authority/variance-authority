@@ -72,7 +72,8 @@ describe('reading a name', () => {
   });
 
   it('does not find a value inside a longer word', () => {
-    expect(readName('story:checkout-glassware', GRAMMAR).axes).toEqual([]);
+    // `fibreglass` ends in `glass`, with no separator in front of it.
+    expect(readName('story:checkout--fibreglass', GRAMMAR)).toMatchObject({ stem: 'story:checkout--fibreglass', axes: [] });
   });
 });
 
@@ -180,5 +181,14 @@ describe('the grammar a repository declares', () => {
     expect(refusal({ axes: [{ axis: 'scheme', values: ['light', ''] }] })).toMatchObject({ field: 'names.axes[0].values[1]' });
     expect(refusal({ axes: [{ axis: ' ', values: ['light', 'dark'] }] })).toMatchObject({ field: 'names.axes[0].axis' });
     expect(refusal('axes')).toMatchObject({ field: 'names', message: 'here.json: "names" must be an object, not "axes"' });
+  });
+
+  it('says what it was given in place of a list of values', () => {
+    const values = (said: unknown) => refusal({ axes: [{ axis: 'scheme', values: said }] });
+    expect(values('light')).toMatchObject({ field: 'names.axes[0].values', said: 'must be an array of strings, not "light"' });
+    expect(values(undefined)).toMatchObject({ said: 'must be an array of strings, not nothing' });
+    expect(values(null)).toMatchObject({ said: 'must be an array of strings, not null' });
+    expect(values({ light: true })).toMatchObject({ said: 'must be an array of strings, not an object' });
+    expect(refusal([])).toMatchObject({ field: 'names', said: 'must be an object, not an array' });
   });
 });
