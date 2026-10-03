@@ -104,6 +104,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@variance-authority/remote": "workspace:^",
+    "@variance-authority/sense": "workspace:^",
     "pngjs": "^7.0.0",
     "react": "^19",
     "react-dom": "^19"

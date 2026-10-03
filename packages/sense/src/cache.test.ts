@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { variancePrecondition } from './test-selection/precondition.js';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import { memoryParseCache, openParseCache, type Parsed } from './cache.js';
@@ -102,6 +103,7 @@ describe('the cache on disk', () => {
   });
 
   it('discards a file an older shape wrote rather than reading it as this one', async () => {
+    variancePrecondition('record', 'older');
     const file = await path();
     const stored = encodeSourceIndex({
       parses: new Map([[a, BUTTON]]),

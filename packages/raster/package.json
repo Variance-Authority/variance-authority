@@ -45,5 +45,8 @@
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@variance-authority/sense": "workspace:^"
   }
 }

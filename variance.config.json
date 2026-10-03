@@ -17,6 +17,14 @@
     "kind": "git",
     "mainlines": ["main"]
   },
+  "names": {
+    "axes": [
+      { "axis": "clock", "values": ["wall", "faked"] },
+      { "axis": "grammar", "values": ["prefix", "declared"] },
+      { "axis": "record", "values": ["current", "older", "newer"] },
+      { "axis": "remote", "values": ["accepts", "refuses", "fails", "garbled", "hangs", "unreachable"] }
+    ]
+  },
   "tiers": [200000, 50000, 20000, 6000, 1500],
   "entrypoints": {
     "packages/cli": [

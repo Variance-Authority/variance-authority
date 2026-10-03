@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import type { DatabaseSync } from 'node:sqlite';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { Observation, RunRecord, TokenValue } from '@variance-authority/history';
@@ -123,6 +124,7 @@ describe('schema', () => {
   });
 
   it('refuses a database written by a newer schema version instead of misreading it', async () => {
+    variancePrecondition('record', 'newer');
     // The failure this prevents has no symptom: a newer shape read through older
     // assumptions answers drift questions with numbers that are wrong and
     // well-formed.

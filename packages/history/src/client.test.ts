@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createHttpHistoryStore, type RecordRequest } from './client.js';
 import { MAX_CURRENT_SUBJECTS } from './protocol.js';
 import type { Churn } from './store.js';
@@ -72,6 +73,7 @@ const EMPTY_CHURN: Churn = {
 };
 
 describe('the history client', () => {
+  beforeEach(() => variancePrecondition({ network: 'stubbed', remote: 'accepts' }));
   it('sends the operator’s bearer token with the run and its rows in one body', () => {
     const send = stubFetch(() => new Response(null, { status: 204 }));
     const store = createHttpHistoryStore({ endpoint: 'http://box:7788/', token: 'sekrit', fetch: send });
@@ -91,6 +93,7 @@ describe('the history client', () => {
   });
 
   it('throws on a transport failure rather than resolving to an empty churn', async () => {
+    variancePrecondition('remote', 'unreachable');
     const send = stubFetch(() => {
       throw new Error('ECONNREFUSED');
     });
@@ -102,6 +105,7 @@ describe('the history client', () => {
   });
 
   it('throws with the status when the service refuses the token', async () => {
+    variancePrecondition('remote', 'refuses');
     const send = stubFetch(() => new Response('bad token', { status: 401 }));
     const store = createHttpHistoryStore({ endpoint: 'http://box:7788', token: 'wrong', fetch: send });
 
@@ -111,6 +115,7 @@ describe('the history client', () => {
   });
 
   it('throws when a field the arithmetic needs is missing from the body', async () => {
+    variancePrecondition('remote', 'garbled');
     const send = stubFetch(() => ({ ...EMPTY_CHURN, changedRuns: undefined }));
     const store = createHttpHistoryStore({ endpoint: 'http://box:7788', token: 't', fetch: send });
 
@@ -168,6 +173,7 @@ describe('the history client', () => {
   });
 
   it('fails a request that hangs rather than stalling the run', async () => {
+    variancePrecondition('remote', 'hangs');
     const send = stubFetch(
       (_url, init) =>
         new Promise((_resolve, reject) => {
@@ -235,6 +241,7 @@ describe('the history client', () => {
   });
 
   it('rejects a row whose band or tier it does not recognise', async () => {
+    variancePrecondition('remote', 'garbled');
     const send = stubFetch(() => ({ observation: { ...OBSERVATION, profile: 'webkit' } }));
     const store = createHttpHistoryStore({ endpoint: 'http://box:7788', token: 't', fetch: send });
 

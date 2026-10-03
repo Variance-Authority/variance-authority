@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { RasterStoreError, type RasterStore } from '@variance-authority/raster';
@@ -62,6 +63,7 @@ async function deadEndpoint(): Promise<string> {
 }
 
 describe('a baseline store somewhere else', () => {
+  beforeEach(() => variancePrecondition({ network: 'loopback', remote: 'accepts' }));
   it('carries a baseline across the wire byte for byte', async () => {
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
@@ -98,6 +100,7 @@ describe('a baseline store somewhere else', () => {
   });
 
   it('reports a subject nobody has rendered as a miss, and only then', async () => {
+    variancePrecondition('store', 'empty');
     // The one case allowed to be `null`: a server that positively said so.
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
@@ -160,6 +163,7 @@ describe('a baseline store somewhere else', () => {
   });
 
   it('reports a described subject nobody has rendered as a miss, and only then', async () => {
+    variancePrecondition('store', 'empty');
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
 
@@ -168,7 +172,9 @@ describe('a baseline store somewhere else', () => {
 });
 
 describe('a store that cannot answer', () => {
+  beforeEach(() => variancePrecondition({ network: 'stubbed', remote: 'garbled' }));
   it('reports an unreachable endpoint as an error rather than as a missing baseline', async () => {
+    variancePrecondition({ network: 'loopback', remote: 'unreachable' });
     const store = createRemoteStore({ endpoint: await deadEndpoint() });
 
     await expect(store.find({ subject: 's' }, MAC)).rejects.toBeInstanceOf(RasterStoreError);
@@ -176,6 +182,7 @@ describe('a store that cannot answer', () => {
   });
 
   it('reports a refused token as an error rather than as a missing baseline', async () => {
+    variancePrecondition({ network: 'loopback', remote: 'refuses' });
     // A 401 is the most plausible misconfiguration of all, and the one whose
     // "answer" — nothing — reads exactly like an empty store.
     server = await serveRasterStore(createDurableStore(root), { token: 'sekrit' });
@@ -185,6 +192,7 @@ describe('a store that cannot answer', () => {
   });
 
   it('reports a failing backing store as an error rather than as a missing baseline', async () => {
+    variancePrecondition({ network: 'loopback', remote: 'fails' });
     const broken: RasterStore = {
       retention: 'durable',
       find: () => Promise.reject(new Error('disk went away')),
@@ -344,6 +352,7 @@ describe('a store that cannot answer', () => {
   });
 
   it('fails a lookup that hangs rather than stalling the run', async () => {
+    variancePrecondition({ network: 'loopback', remote: 'hangs' });
     // A store that never answers is indistinguishable from one that is thinking,
     // and a run that waits forever is a CI job someone cancels and re-runs.
     server = await serveRasterStore({
@@ -369,6 +378,7 @@ describe('a store that cannot answer', () => {
  * count is the whole claim.
  */
 describe('a declared working set', () => {
+  beforeEach(() => variancePrecondition({ network: 'loopback', remote: 'accepts' }));
   /** Counts by path, so "one request" is an assertion rather than a description. */
   function counting(): { fetch: typeof globalThis.fetch; paths: string[] } {
     const paths: string[] = [];
@@ -459,6 +469,7 @@ describe('a declared working set', () => {
   });
 
   it('refuses an unreachable endpoint rather than reading it as an empty set', async () => {
+    variancePrecondition('remote', 'unreachable');
     // The failure this whole file is about, arriving one layer earlier. A
     // prefetch that answered "no baselines" to an outage would record the entire
     // suite as `new` and report success.
