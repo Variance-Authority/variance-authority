@@ -4,6 +4,7 @@ import type { Observation } from '@variance-authority/observe';
 import { decode, diffImage } from '@variance-authority/png';
 import { fileNameFor, pictured, type Raster } from '@variance-authority/core/format';
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
+import type { SnapshotCase } from './arranged.js';
 
 /**
  * Where the three images a person looks at were written.
@@ -110,9 +111,13 @@ export async function writeEvidence(
   return { before: beforePath, after, diff };
 }
 
-/** An observation, and where its images were written when evidence was asked for. */
+/**
+ * An observation, and where its images were written when evidence was asked for.
+ * Taken through the runner's fixture, it names the case it was taken in.
+ */
 export interface Observed extends Observation {
   readonly evidence?: Evidence;
+  readonly case?: SnapshotCase;
 }
 
 /**

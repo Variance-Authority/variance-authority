@@ -1571,6 +1571,7 @@
         "ObservedTest": "interface",
         "PlaywrightSelectionConfig": "interface",
         "SELECTION_REPORTER": "const",
+        "SnapshotCase": "interface",
         "UnchangedOptions": "interface",
         "VarianceDesk": "interface",
         "VarianceEventFixtures": "interface",
@@ -2901,6 +2902,7 @@
         "writeTestCoverage": "function"
       },
       "./journal": {
+        "CasePrecondition": "interface",
         "EXECUTION_GLOBAL": "const",
         "EvaluatingPage": "interface",
         "ExecutedModule": "interface",
@@ -2928,6 +2930,7 @@
         "listenForPreconditions": "function",
         "openStage": "function",
         "preconditionOf": "function",
+        "preconditionText": "function",
         "recordExecution": "function",
         "stageExecution": "function",
         "stagingDirectory": "function",

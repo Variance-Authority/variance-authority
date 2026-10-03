@@ -1,3 +1,4 @@
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   LAYOUT_RECIPE,
@@ -236,6 +237,7 @@ describe('waiting for images', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    variancePrecondition({ clock: 'faked' });
   });
 
   afterEach(() => {

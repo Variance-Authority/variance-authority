@@ -8,11 +8,18 @@ import {
   type InstalledAgent,
 } from './page-agent.js';
 
-/** Acquire semantic material and the browser-native accessibility roots together. */
+/**
+ * Acquire semantic material and the browser-native accessibility roots together.
+ *
+ * `captured` runs the moment the page agent's document arrives, before the
+ * accessibility roots are read: anything it reads is what held when the
+ * document was taken, not what was said while the roots were still awaited.
+ */
 export async function acquireFrom(
   page: Page,
   locator: Locator,
   request: AcquireRequest,
+  captured?: () => void,
 ): Promise<Acquired & { readonly accessibility: AccessibilitySnapshot }> {
   const raw = await locator.evaluate(
     (element, [global, sent]: readonly [string, AcquireRequest]) => {
@@ -23,6 +30,7 @@ export async function acquireFrom(
     [AGENT, request] as const,
   );
   const acquired = JSON.parse(raw) as Acquired;
+  captured?.();
 
   try {
     const roots = [await locator.ariaSnapshot()];

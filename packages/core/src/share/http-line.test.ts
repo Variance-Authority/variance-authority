@@ -1,5 +1,6 @@
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { httpLineCell } from './http-line.js';
 import { findEntry, publishLine, readLine } from './publish.js';
@@ -50,6 +51,7 @@ afterEach(() => {
 
 describe('httpLineCell', () => {
   it('publishes and reads a line at its path, with images beside every line', async () => {
+    variancePrecondition({ network: 'stubbed', remote: 'accepts' });
     const { requests } = bucket();
     const cell = httpLineCell(options);
     const digest = 'd'.repeat(64);
@@ -66,6 +68,7 @@ describe('httpLineCell', () => {
   });
 
   it('writes the manifest against the ETag it read, and re-reads when it moved', async () => {
+    variancePrecondition({ network: 'stubbed', remote: 'accepts' });
     const { held } = bucket();
     const cell = httpLineCell(options);
     await publishLine(cell, MAIN, [{ name: 'suite-v1/web', commit: 'cccc', bytes: ascii('w') }], { descends, image });
@@ -83,19 +86,14 @@ describe('httpLineCell', () => {
   });
 
   it('tells nothing published from a refusal', async () => {
+    variancePrecondition({ network: 'stubbed', remote: 'refuses' });
     bucket();
     expect(await readLine(httpLineCell(options), MAIN)).toEqual({ kind: 'absent' });
     expect(await readLine(httpLineCell({ endpoint: options.endpoint }), MAIN)).toMatchObject({ kind: 'refused' });
   });
 
-  it("says the store's own reason with a refusal, and answers a store that failed as unreachable", async () => {
-    const answers: Record<string, { status: number; type?: string; body?: string }> = {
-      json: { status: 422, type: 'application/json; charset=utf-8', body: JSON.stringify({ error: 'the key names "Feature"\nand not "feature"' }) },
-      text: { status: 405, type: 'text/plain', body: 'share is not routed here' },
-      page: { status: 400, type: 'text/html', body: '<h1>Bad Request</h1>' },
-      busy: { status: 429 },
-      failed: { status: 500, type: 'application/json', body: JSON.stringify({ error: 'the disk is full' }) },
-    };
+  /** Stubs a store whose answer to each endpoint's first path segment is the one named, and reads the line there. */
+  function answering(answers: Record<string, { status: number; type?: string; body?: string }>) {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       const answer = answers[url.split('/')[3]!]!;
       const bytes = ascii(answer.body ?? '');
@@ -107,7 +105,16 @@ describe('httpLineCell', () => {
         text: async () => answer.body ?? '',
       };
     }));
-    const read = (name: string) => readLine(httpLineCell({ endpoint: `https://objects.test/${name}` }), MAIN);
+    return (name: string) => readLine(httpLineCell({ endpoint: `https://objects.test/${name}` }), MAIN);
+  }
+
+  it("says the store's own reason with a refusal", async () => {
+    variancePrecondition({ network: 'stubbed', remote: 'refuses' });
+    const read = answering({
+      json: { status: 422, type: 'application/json; charset=utf-8', body: JSON.stringify({ error: 'the key names "Feature"\nand not "feature"' }) },
+      text: { status: 405, type: 'text/plain', body: 'share is not routed here' },
+      page: { status: 400, type: 'text/html', body: '<h1>Bad Request</h1>' },
+    });
 
     expect(await read('json')).toEqual({
       kind: 'refused',
@@ -118,6 +125,15 @@ describe('httpLineCell', () => {
       detail: 'https://objects.test/text/mainline/release/2.0/manifest.json: HTTP 405: share is not routed here',
     });
     expect(await read('page')).toEqual({ kind: 'refused', detail: 'https://objects.test/page/mainline/release/2.0/manifest.json: HTTP 400' });
+  });
+
+  it('answers a store that is busy or failed as unreachable, with its own reason', async () => {
+    variancePrecondition({ network: 'stubbed', remote: 'fails' });
+    const read = answering({
+      busy: { status: 429 },
+      failed: { status: 500, type: 'application/json', body: JSON.stringify({ error: 'the disk is full' }) },
+    });
+
     expect(await read('busy')).toEqual({ kind: 'unreachable', detail: 'https://objects.test/busy/mainline/release/2.0/manifest.json: HTTP 429' });
     expect(await read('failed')).toEqual({
       kind: 'unreachable',
@@ -126,6 +142,7 @@ describe('httpLineCell', () => {
   });
 
   it('answers a store that cannot be reached as unreachable', async () => {
+    variancePrecondition({ network: 'stubbed', remote: 'unreachable' });
     vi.stubGlobal('fetch', vi.fn(async () => {
       throw new Error('getaddrinfo ENOTFOUND');
     }));
@@ -133,6 +150,7 @@ describe('httpLineCell', () => {
   });
 
   it('answers a store that takes a request and never replies as unreachable, saying it timed out', async () => {
+    variancePrecondition({ network: 'loopback', remote: 'hangs' });
     const waiting: ServerResponse[] = [];
     const server = createServer((_request, response) => void waiting.push(response));
     await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));

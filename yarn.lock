@@ -4862,6 +4862,8 @@ __metadata:
 "@variance-authority/core@workspace:^, @variance-authority/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@variance-authority/core@workspace:packages/core"
+  dependencies:
+    "@variance-authority/sense": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -5079,6 +5081,7 @@ __metadata:
   resolution: "@variance-authority/history@workspace:packages/history"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -5220,6 +5223,7 @@ __metadata:
   resolution: "@variance-authority/raster@workspace:packages/raster"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -5242,6 +5246,7 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/raster": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
     "@variance-authority/store": "workspace:^"
   languageName: unknown
   linkType: soft
@@ -5350,6 +5355,7 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/history": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
   bin:
     variance-authority-server: ./dist/bin.js
   languageName: unknown
@@ -5375,6 +5381,7 @@ __metadata:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/report": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -5411,6 +5418,7 @@ __metadata:
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/remote": "workspace:^"
     "@variance-authority/report": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
     "@variance-authority/server": "workspace:^"
     pngjs: "npm:^7.0.0"
     react: "npm:^19"

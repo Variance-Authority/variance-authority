@@ -6,6 +6,7 @@ export type {
   DirectObservationOptions,
   VarianceSession,
 } from './direct.js';
+export type { SnapshotCase } from './arranged.js';
 export type { Evidence, Observed } from './evidence.js';
 export { varianceFixtures } from './fixture.js';
 export type { VarianceFixtures, VarianceRuntime, VarianceWorkerFixtures } from './fixture.js';

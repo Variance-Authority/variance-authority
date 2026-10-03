@@ -35,6 +35,15 @@ test.describe('mocked', () => {
     variancePrecondition({ flag: 'ff-on' }); // case flag
     expect(0).toBe(0);
   });
+
+  test('photographs the receipt', async ({ page, variance }) => {
+    variancePrecondition({ flag: 'ff-on' }); // receipt flag
+    // Navigated rather than set, so the page runs the fixture's init script.
+    await page.route('http://receipt.test/', (route) => route.fulfill({ contentType: 'text/html', body: `<script>${COLLECTOR}</script><p>Paid</p>` }));
+    await page.goto('http://receipt.test/');
+    await variance(page.locator('p'), { subjectId: 'receipt--ff-on' });
+    variancePrecondition({ seeded: true }); // receipt seeded
+  });
 });
 
 test.describe('live', () => {

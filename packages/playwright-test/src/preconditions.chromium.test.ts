@@ -35,16 +35,31 @@ if (!BROWSER_AVAILABLE) {
   );
 }
 
+// The parts of Playwright's JSON report read here.
+interface PlaywrightNote { readonly type: string; readonly description?: string }
+interface PlaywrightSpec {
+  readonly title: string;
+  readonly tests: readonly {
+    readonly projectName: string;
+    readonly annotations: readonly PlaywrightNote[];
+    readonly results: readonly { readonly annotations?: readonly PlaywrightNote[] }[];
+  }[];
+}
+interface PlaywrightSuite { readonly specs?: readonly PlaywrightSpec[]; readonly suites?: readonly PlaywrightSuite[] }
+interface PlaywrightReport { readonly suites: readonly PlaywrightSuite[] }
+
 describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its preconditions', () => {
   let directory: string;
   let index: ExecutionIndex;
   let output: string;
   let source: Readonly<Record<string, readonly string[]>>;
+  let report: PlaywrightReport;
 
   beforeAll(async () => {
     directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-preconditions-playwright-'));
     const cacheRoot = resolve(directory, 'cache');
     const coverageFile = resolve(directory, 'coverage.bin');
+    const reportFile = resolve(directory, 'report.json');
     const cart = resolve(fixture, 'src/cart.ts');
     testSelectionProbes({ root: repository, cacheRoot }).transform(await readFile(cart, 'utf8'), cart);
     output = await execute(
@@ -52,12 +67,19 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
       [resolve(repository, 'node_modules/@playwright/test/cli.js'), 'test', '--config', resolve(fixture, 'playwright.config.mjs')],
       {
         cwd: fixture,
-        env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: cacheRoot },
+        env: {
+          ...process.env,
+          VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+          VARIANCE_AUTHORITY_CACHE: cacheRoot,
+          VARIANCE_AUTHORITY_BASELINES: resolve(directory, 'baselines'),
+          VARIANCE_AUTHORITY_REPORT: reportFile,
+        },
       },
     ).then(({ stdout, stderr }) => `${stdout}${stderr}`);
     index = decodeExecutionIndex(await readFile(coverageFile));
     const lines = async (file: string) => (await readFile(resolve(fixture, 'tests', file), 'utf8')).split('\n');
     source = { 'checkout.spec.ts': await lines('checkout.spec.ts'), 'flags.spec.ts': await lines('flags.spec.ts') };
+    report = JSON.parse(await readFile(reportFile, 'utf8')) as PlaywrightReport;
   }, 120_000);
 
   afterAll(async () => {
@@ -73,6 +95,14 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
   const line = (call: string): number => source[fileOf(call)]!.findIndex((text) => text.endsWith(`// ${call}`)) + 1;
   const said = (name: string, value: string | number | boolean, call: string) =>
     ({ name, value, site: `${specs}/${fileOf(call)}:${line(call)}`, level: levels[call] ?? 0xffff });
+  const annotated = (project: string, title: string): readonly string[] => {
+    const walk = (suite: PlaywrightSuite): PlaywrightSpec[] => [...(suite.specs ?? []), ...(suite.suites ?? []).flatMap(walk)];
+    const found = report.suites.flatMap(walk).filter((each) => each.title === title).flatMap((each) => each.tests)
+      .find((test) => test.projectName === project);
+    expect(found, `${title} in ${project}`).toBeDefined();
+    const notes = [...found!.annotations, ...found!.results.flatMap((result) => result.annotations ?? [])];
+    return [...new Set(notes.filter((note) => note.type === 'variance').map((note) => note.description))];
+  };
   const row = (...path: readonly string[]) => {
     const name = path.join(' > ');
     const found = index.tests.find((test) => test.name === name);
@@ -130,6 +160,26 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
   it('reports a call in afterEach with its site and lays it on no case', () => {
     expect(output).toMatch(new RegExp(`variancePrecondition at \\S*checkout\\.spec\\.ts:${line('after each')} ran after its case`));
     expect(index.tests.flatMap((test) => test.preconditions ?? []).some((held) => held.name === 'cleaned')).toBe(false);
+  });
+
+  it('names the case a snapshot was taken in, and what it had arranged by then', () => {
+    expect(row('mocked', 'photographs the receipt').preconditions).toEqual([
+      said('flag', 'ff-on', 'receipt flag'),
+      said('network', 'mocked', 'mocked each'),
+      said('seeded', true, 'receipt seeded'),
+    ]);
+    // The call after the snapshot is on the row and not on the snapshot.
+    expect(annotated('listening', 'photographs the receipt')).toEqual([
+      `receipt--ff-on: taken in ${specs}/checkout.spec.ts > mocked > photographs the receipt, arranged ` +
+        `flag=ff-on (${specs}/checkout.spec.ts:${line('receipt flag')}), network=mocked (${specs}/checkout.spec.ts:${line('mocked each')})`,
+    ]);
+  });
+
+  // A run that did not listen has nothing to say under a passing test, so the
+  // default run's report stays as it was; a failing message still says
+  // unmeasured (docket.test.ts).
+  it('adds no annotation for a snapshot from a run that did not listen', () => {
+    expect(annotated('deaf', 'photographs the receipt')).toEqual([]);
   });
 
   it.todo('throws for a call at the top level or in a describe callback of the first file a worker loads — needs the listener installed before the worker fixture, which Playwright sets up after the file is collected');
