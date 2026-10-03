@@ -52,14 +52,14 @@ export {
 export { anyStopped } from './stopped.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
-export { caseTwins, heldValues, outsideVocabulary, type CaseTwin, type OutsideVocabulary } from './case-axes.js';
+export { caseTwins, heldText, heldValues, outsideVocabulary, valued, type CaseTwin, type OutsideVocabulary } from './case-axes.js';
 export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } from './placed.js';
 export { stateOf, type RangeState } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
 export { unmeasuredOf, type Unmeasured } from './route.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
-export { formatCoveringChange, type CoveringChangeHeading } from './covering-change-text.js';
+export { formatCoveringChange, type CoveringCaseNote, type CoveringChangeHeading } from './covering-change-text.js';
 export {
   EXECUTION_FORMAT,
   decodeExecutionIndex,

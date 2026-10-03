@@ -8,7 +8,7 @@
  * a title a tool reading the comment can resolve, never only a count.
  */
 
-import { heldText, valued } from './covering-where.js';
+import { heldText, valued } from '@variance-authority/sense/test-selection';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** Functions named in the first line before the rest are counted. */

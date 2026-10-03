@@ -102,4 +102,13 @@ describe('a case twin', () => {
 
     expect(caseTwins(cases, cases, GRAMMAR)).toEqual([]);
   });
+
+  it('is looked for only in the case\'s own test file', () => {
+    const elsewhere: ExecutionTest = { id: 'refund.test.ts > plain', file: 'refund.test.ts', name: 'plain', preconditions: [] };
+    const cases = [row('on', [said('flag', 'ff-on', 2)]), elsewhere];
+
+    expect(caseTwins([cases[0]!], cases, GRAMMAR)).toEqual([
+      { case: `${SPEC} > on`, axis: 'flag', from: 'ff-on', to: 'ff-off', twins: [] },
+    ]);
+  });
 });

@@ -2,7 +2,6 @@
 //! `resolve` in `case-preconditions.cts` resolves it, and the
 //! `tests.casePreconditions` column `case-precondition-column.ts` spells.
 
-use std::cmp::Ordering;
 use std::path::Path;
 
 use serde_json::Value;
@@ -66,7 +65,7 @@ pub fn checkout(root: &Path, said: Vec<Precondition>) -> Vec<Precondition> {
 }
 
 /// Per name, the narrowest level wins; each distinct value said there is kept at
-/// the first site that said it, ordered by name, then value. `resolve`.
+/// the site of the call that said it first, ordered by name, then value. `resolve`.
 pub fn resolve(said: Vec<Precondition>) -> Vec<Precondition> {
     let mut resolved: Vec<(String, Precondition)> = Vec::new();
     let mut names: Vec<&str> = said.iter().map(|entry| entry.name.as_str()).collect();
@@ -80,10 +79,8 @@ pub fn resolve(said: Vec<Precondition>) -> Vec<Precondition> {
         let mut values: Vec<(String, Precondition)> = Vec::new();
         for entry in entries.filter(|entry| entry.level == narrowest) {
             let key = value_key(&entry.value);
-            match values.iter_mut().find(|(held, _)| *held == key) {
-                Some((_, held)) if order::code_unit(&entry.site, &held.site) == Ordering::Less => *held = entry.clone(),
-                Some(_) => {}
-                None => values.push((key, entry.clone())),
+            if !values.iter().any(|(held, _)| *held == key) {
+                values.push((key, entry.clone()));
             }
         }
         resolved.extend(values);
@@ -229,6 +226,6 @@ mod tests {
     #[test]
     fn keeps_the_first_site_of_a_value_said_twice() {
         let row = resolve(vec![said("n", Value::from("x"), "b:2", 1), said("n", Value::from("x"), "a:9", 1)]);
-        assert_eq!(row, vec![said("n", Value::from("x"), "a:9", 1)]);
+        assert_eq!(row, vec![said("n", Value::from("x"), "b:2", 1)]);
     }
 }
