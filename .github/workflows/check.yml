@@ -20,6 +20,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The merge queue on `main` runs this on each group, whose commit is the pull
+  # request laid on `main` and the groups queued ahead of it. With `check`
+  # required on `main`, the queue merges a group only when it is green, so two
+  # pull requests green on their own bases cannot break what `check` tests
+  # together through the queue. A group runs every file, as a push to `main`
+  # does, and publishes nothing.
+  merge_group:
   workflow_dispatch:
 
 # `pull-requests: write` is for the review comment and nothing else. A pull
@@ -145,8 +152,9 @@ jobs:
       #
       # The toolchain file names `stable`, not a version, so a Rust release can
       # change the answer with no file moving. A push to `main` therefore always
-      # runs, and so does a pull request whose base cannot be read: a base that
-      # is not there is not a base that matches.
+      # runs, and so do a merge group, which this step reads no base for, and a
+      # pull request whose base cannot be read: a base that is not there is not
+      # a base that matches.
       - name: native unit tests
         if: ${{ !cancelled() }}
         shell: bash
@@ -435,11 +443,11 @@ jobs:
       # near wave that ran whole would stamp nothing the far wave reads, and
       # the far wave would run the slice whole a second time.
       #
-      # A push to `main`, and a dispatch, run every file (`--whole`). That is
-      # the gate a selection is a smaller claim than, and it is what the record
-      # `main` publishes is cut from: every file observed at `main`'s own
-      # commit, so the next pull request selects from rows no older than its
-      # base.
+      # A push to `main`, a merge group and a dispatch run every file
+      # (`--whole`). That is the gate a selection is a smaller claim than, and
+      # on a push it is what the record `main` publishes is cut from: every file
+      # observed at `main`'s own commit, so the next pull request selects from
+      # rows no older than its base. A merge group publishes nothing.
       #
       # A shard records into `shard-record/`, a cache of its own, so its record
       # holds its own run alone and `record` below can fold the shards over the
@@ -535,7 +543,8 @@ jobs:
       #
       # The base: on a pull request the checkout is the merge of its head into
       # the base, and the merge's first parent is the base tip, so the change is
-      # the pull request's own. On a push it is the commit the push replaced.
+      # the pull request's own. On a push it is the commit the push replaced. In
+      # a merge group it is the commit the group is laid on.
       - name: what to carry
         id: carry
         shell: bash
