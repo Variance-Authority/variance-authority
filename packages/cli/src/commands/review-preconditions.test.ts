@@ -23,8 +23,8 @@ const AFTER = BEFORE.replace('0.9', '0.8');
 const SPEC = 'test/total.test.ts';
 const TEST = "import { applyDiscount } from '../src/total';\nit('discounts', () => applyDiscount(1));\n";
 
-function row(name: string, preconditions?: ExecutionTest['preconditions']): ExecutionTest {
-  return { id: `${SPEC} > ${name}`, file: SPEC, name, stopped: false, ...(preconditions === undefined ? {} : { preconditions }) };
+function row(name: string, preconditions?: ExecutionTest['preconditions'], id = `${SPEC} > ${name}`): ExecutionTest {
+  return { id, file: SPEC, name, stopped: false, ...(preconditions === undefined ? {} : { preconditions }) };
 }
 
 const SAID: readonly ExecutionTest[] = [
@@ -114,6 +114,47 @@ describe('the cases a review lists under a changed function, with what each arra
       '  - plain',
     ].join('\n'));
     expect(markdown).not.toContain('unmeasured');
+  });
+
+  it('orders the names the cases span, and each name\'s values, by code unit', async () => {
+    // Said out of order: `zone` before `Locale`, `east` before `West`, `fr` before `de`.
+    const { root, first } = await changed([
+      row('first', [
+        { name: 'zone', value: 'east', site: `${SPEC}:1`, level: 1 },
+        { name: 'Locale', value: 'fr', site: `${SPEC}:2`, level: 1 },
+      ]),
+      row('second', [
+        { name: 'zone', value: 'West', site: `${SPEC}:5`, level: 1 },
+        { name: 'Locale', value: 'de', site: `${SPEC}:6`, level: 1 },
+      ]),
+    ]);
+
+    const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
+
+    expect(markdown).toContain('— 2 cases in 1 test file; ran under Locale=de, Locale=fr, zone=West, zone=east</summary>');
+  });
+
+  it('prints a value as its text, never as markup the comment would render', async () => {
+    const { root, first } = await changed([
+      row('bold', [{ name: 'label', value: '<b>x</b>', site: `${SPEC}:1`, level: 1 }]),
+      row('closing', [{ name: 'label', value: '</summary>', site: `${SPEC}:5`, level: 1 }]),
+    ]);
+
+    const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
+
+    expect(markdown).toContain('ran under label=&lt;/summary&gt;, label=&lt;b&gt;x&lt;/b&gt;</summary>');
+    expect(markdown).toContain(`  - bold — label=&lt;b&gt;x&lt;/b&gt; (${SPEC}:1)`);
+    expect(markdown).not.toContain('<b>x</b>');
+    expect(markdown.split('</summary>').length).toBe(markdown.split('<summary>').length);
+  });
+
+  it('tells two cases of one title apart by the id their producer gave them', async () => {
+    const { root, first } = await changed([row('twin', []), row('twin', undefined, `${SPEC} > twin [2]`)]);
+
+    const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
+
+    expect(markdown).toContain('1 changed function — 2 cases in 1 test file</summary>');
+    expect(markdown).toContain('1 of 2 cases was not listened to, so what it arranged is unmeasured.');
   });
 
   it('says what the cases arranged is unmeasured, never none, from a record made before cases said anything', async () => {

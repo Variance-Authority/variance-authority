@@ -91,6 +91,8 @@ export interface ReviewRegion {
 }
 
 export interface ReviewCase {
+  /** The id its producer gave it: two cases may share a file and a title, never an id. */
+  readonly id: string;
   readonly file: string;
   /** The title with every `describe` it sits in, joined by ` > `. */
   readonly name: string;
@@ -347,16 +349,14 @@ function regionOf(
           ? state
           : 'unknown';
   return {
-    kind: region.kind,
-    name: region.name,
-    startLine: region.startLine,
-    endLine: region.endLine,
+    kind: region.kind, name: region.name,
+    startLine: region.startLine, endLine: region.endLine,
     reach,
     written: ranges.some((range) => range.start <= region.startLine && region.startLine <= range.end),
     cases: called.length,
     tests: [...new Set(called.map((test) => test.file))].sort(),
     called: called
-      .map((test) => ({ file: test.file, name: test.name, ...(test.preconditions === undefined ? {} : { preconditions: test.preconditions }) }))
+      .map((test) => ({ id: test.id, file: test.file, name: test.name, ...(test.preconditions === undefined ? {} : { preconditions: test.preconditions }) }))
       .sort((left, right) => order(left.file, right.file) || order(left.name, right.name)),
   };
 }

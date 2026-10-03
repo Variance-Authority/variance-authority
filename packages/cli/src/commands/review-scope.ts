@@ -94,7 +94,7 @@ export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) =
   if (rows.length === 0) return [];
   const byFile = new Map<string, ReviewRegion[]>();
   for (const [file, region] of rows) byFile.set(file, [...(byFile.get(file) ?? []), region]);
-  const cases = new Set(rows.flatMap(([, region]) => region.called.map((test) => `${test.file}\0${test.name}`))).size;
+  const cases = new Set(rows.flatMap(([, region]) => region.called.map((test) => test.id))).size;
   const tests = new Set(rows.flatMap(([, region]) => region.tests)).size;
   const counted = cases === 0 ? '' : ` — ${cases} case${cases === 1 ? '' : 's'} in ${tests} test file${tests === 1 ? '' : 's'}`;
   const lines = ['', `<details><summary>🧪 ${review.record === 'ran' ? 'What ran' : 'What the record ran for'} ${rows.length} changed function${
@@ -115,7 +115,7 @@ export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) =
  * --where` answers it.
  */
 function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
-  const heard = new Map(called.map((one) => [`${one.file}\0${one.name}`, one.preconditions !== undefined]));
+  const heard = new Map(called.map((one) => [one.id, one.preconditions !== undefined]));
   const unheard = [...heard.values()].filter((said) => !said).length;
   if (unheard === 0) return [];
   if (unheard === heard.size) return ["The record holds no case's preconditions, so what these cases arranged is unmeasured.", ''];
@@ -128,7 +128,7 @@ function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
 function shared(regions: readonly ReviewRegion[]): readonly (readonly ReviewRegion[])[] {
   const groups = new Map<string, ReviewRegion[]>();
   for (const region of [...regions].sort((left, right) => left.startLine - right.startLine)) {
-    const key = `${region.reach}\0${region.cases}\0${region.called.map((test) => `${test.file}\0${test.name}`).join('\0')}`;
+    const key = `${region.reach}\0${region.cases}\0${region.called.map((test) => test.id).join('\0')}`;
     groups.set(key, [...(groups.get(key) ?? []), region]);
   }
   return [...groups.values()];
@@ -153,7 +153,7 @@ function groupMarkdown(file: string, group: readonly ReviewRegion[], mark: (regi
 /** A case's title path, its last step carrying what the case said it arranged, as `covering` prints it. */
 function saidPath(called: ReviewCase): { readonly path: readonly string[] } {
   const path = called.name.split(' > ');
-  return { path: [...path.slice(0, -1), `${path.at(-1)!}${heldText(called.preconditions)}`] };
+  return { path: [...path.slice(0, -1), `${path.at(-1)!}${escape(heldText(called.preconditions))}`] };
 }
 
 /**
@@ -170,7 +170,7 @@ function spanned(called: readonly ReviewCase[]): string {
   const said = [...byName]
     .filter(([, values]) => values.size > 1)
     .sort(([left], [right]) => order(left, right))
-    .flatMap(([, values]) => [...values].sort(([left], [right]) => order(left, right)).map(([, held]) => valued(held)));
+    .flatMap(([, values]) => [...values].sort(([left], [right]) => order(left, right)).map(([, held]) => escape(valued(held))));
   return said.length === 0 ? '' : `; ran under ${said.join(', ')}`;
 }
 
