@@ -32,12 +32,13 @@ export function preconditionText(said: readonly CasePrecondition[]): string {
   const byName = new Map<string, CasePrecondition[]>();
   for (const held of said) byName.set(held.name, [...byName.get(held.name) ?? [], held]);
   return [...byName].map(([name, held]) => held.length === 1
-    ? `${valued(held[0]!)} (${held[0]!.site})`
+    ? `${preconditionValueText(held[0]!)} (${held[0]!.site})`
     : `${name} contradicted: ${held.map((one) => `${String(one.value)} (${one.site})`).join(', ')}`,
   ).join(', ');
 }
 
-function valued(held: CasePrecondition): string {
+/** One thing a case said: `flag=ff-on`, or the bare name for `true`. */
+export function preconditionValueText(held: CasePrecondition): string {
   return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
 }
 

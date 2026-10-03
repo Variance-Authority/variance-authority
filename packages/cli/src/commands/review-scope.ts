@@ -8,6 +8,8 @@
  * a title a tool reading the comment can resolve, never only a count.
  */
 
+import { preconditionValueText } from '@variance-authority/sense/journal';
+import { heldText } from './covering-where.js';
 import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
 
 /** Functions named in the first line before the rest are counted. */
@@ -93,12 +95,12 @@ export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) =
   if (rows.length === 0) return [];
   const byFile = new Map<string, ReviewRegion[]>();
   for (const [file, region] of rows) byFile.set(file, [...(byFile.get(file) ?? []), region]);
-  const cases = new Set(rows.flatMap(([, region]) => region.called.map((test) => `${test.file}\0${test.name}`))).size;
+  const cases = new Set(rows.flatMap(([, region]) => region.called.map((test) => test.id))).size;
   const tests = new Set(rows.flatMap(([, region]) => region.tests)).size;
   const counted = cases === 0 ? '' : ` — ${cases} case${cases === 1 ? '' : 's'} in ${tests} test file${tests === 1 ? '' : 's'}`;
   const lines = ['', `<details><summary>🧪 ${review.record === 'ran' ? 'What ran' : 'What the record ran for'} ${rows.length} changed function${
     rows.length === 1 ? '' : 's'
-  }${counted}</summary>`, ''];
+  }${counted}</summary>`, '', ...unheardMarkdown(rows.flatMap(([, region]) => region.called))];
   for (const [file, regions] of [...byFile].sort(([left], [right]) => order(left, right))) {
     lines.push(`<details><summary><code>${escape(file)}</code>: ${regions.length} function${regions.length === 1 ? '' : 's'}</summary>`, '');
     for (const group of shared(regions)) lines.push(...groupMarkdown(file, group, mark), '');
@@ -107,11 +109,27 @@ export function functionsMarkdown(review: Review, mark: (region: ReviewRegion) =
   return [...lines, '</details>'];
 }
 
+/**
+ * How many of the cases the record did not listen to for preconditions. A case
+ * that said nothing prints bare, and so does one nobody listened to, so the
+ * second is counted here rather than read as the first — the way `covering
+ * --where` answers it.
+ */
+function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
+  const heard = new Map(called.map((one) => [one.id, one.preconditions !== undefined]));
+  const unheard = [...heard.values()].filter((said) => !said).length;
+  if (unheard === 0) return [];
+  if (unheard === heard.size) return ["The record holds no case's preconditions, so what these cases arranged is unmeasured.", ''];
+  return [`${unheard} of ${heard.size} case${heard.size === 1 ? '' : 's'} ${unheard === 1 ? 'was' : 'were'} not listened to, so what ${
+    unheard === 1 ? 'it' : 'they'
+  } arranged is unmeasured.`, ''];
+}
+
 /** Functions the same cases ran, in line order; a set of cases is said once. */
 function shared(regions: readonly ReviewRegion[]): readonly (readonly ReviewRegion[])[] {
   const groups = new Map<string, ReviewRegion[]>();
   for (const region of [...regions].sort((left, right) => left.startLine - right.startLine)) {
-    const key = `${region.reach}\0${region.cases}\0${region.called.map((test) => `${test.file}\0${test.name}`).join('\0')}`;
+    const key = `${region.reach}\0${region.cases}\0${region.called.map((test) => test.id).join('\0')}`;
     groups.set(key, [...(groups.get(key) ?? []), region]);
   }
   return [...groups.values()];
@@ -120,17 +138,42 @@ function shared(regions: readonly ReviewRegion[]): readonly (readonly ReviewRegi
 function groupMarkdown(file: string, group: readonly ReviewRegion[], mark: (region: ReviewRegion) => string): readonly string[] {
   const [first] = group as [ReviewRegion];
   const names = group.map((region) => `<code>${escape(region.name)}</code>`).join(', ');
-  const summary = `${mark(first)} ${names}${ranBy(first)}`;
+  const summary = `${mark(first)} ${names}${ranBy(first)}${spanned(first.called)}`;
   const at = `${group.map((region) => `\`${file}:${lines(region)}\``).join(', ')}`;
   if (first.called.length === 0) return [`<details><summary>${summary}</summary>`, '', at, '', '</details>'];
   const titled = first.called.slice(0, TITLES);
   const body = [at, ''];
   for (const test of first.tests) {
     const named = titled.filter((called) => called.file === test);
-    if (named.length > 0) body.push(`- \`${test}\``, ...caseTree(named.map((called: ReviewCase) => ({ path: called.name.split(' > ') }))));
+    if (named.length > 0) body.push(`- \`${test}\``, ...caseTree(named.map(saidPath)));
   }
   if (first.called.length > TITLES) body.push(`- and ${first.called.length - TITLES} more cases`);
   return [`<details><summary>${summary}</summary>`, '', ...body, '', '</details>'];
+}
+
+/** A case's title path, its last step carrying what the case said it arranged, as `covering` prints it. */
+function saidPath(called: ReviewCase): { readonly path: readonly string[] } {
+  const path = called.name.split(' > ');
+  return { path: [...path.slice(0, -1), `${path.at(-1)!}${escape(heldText(called.preconditions))}`] };
+}
+
+/**
+ * Every value of a name the cases said, where they said more than one: the
+ * conditions the function ran under, which a reader would otherwise ask
+ * `covering --where` for. A name said at one value does not split the cases,
+ * so it is left to the case lines.
+ */
+function spanned(called: readonly ReviewCase[]): string {
+  const byName = new Map<string, Map<string, NonNullable<ReviewCase['preconditions']>[number]>>();
+  for (const held of called.flatMap((one) => one.preconditions ?? [])) {
+    // `true` and `'true'` print apart (`flag`, `flag=true`), so they are two values; the text leads so the order is the printed one.
+    byName.set(held.name, (byName.get(held.name) ?? new Map()).set(`${String(held.value)}\0${typeof held.value}`, held));
+  }
+  const said = [...byName]
+    .filter(([, values]) => values.size > 1)
+    .sort(([left], [right]) => order(left, right))
+    .flatMap(([, values]) => [...values].sort(([left], [right]) => order(left, right)).map(([, held]) => escape(preconditionValueText(held))));
+  return said.length === 0 ? '' : `; ran under ${said.join(', ')}`;
 }
 
 /**

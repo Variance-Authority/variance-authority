@@ -18,7 +18,7 @@ const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../..');
 const fixture = resolve(here, '../test/fixtures/preconditions');
-const spec = `${relative(repository, fixture)}/tests/checkout.spec.ts`;
+const specs = `${relative(repository, fixture)}/tests`;
 
 const BROWSER_AVAILABLE = ((): boolean => {
   try {
@@ -52,7 +52,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
   let directory: string;
   let index: ExecutionIndex;
   let output: string;
-  let source: readonly string[];
+  let source: Readonly<Record<string, readonly string[]>>;
   let report: PlaywrightReport;
 
   beforeAll(async () => {
@@ -77,7 +77,8 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
       },
     ).then(({ stdout, stderr }) => `${stdout}${stderr}`);
     index = decodeExecutionIndex(await readFile(coverageFile));
-    source = (await readFile(resolve(fixture, 'tests/checkout.spec.ts'), 'utf8')).split('\n');
+    const lines = async (file: string) => (await readFile(resolve(fixture, 'tests', file), 'utf8')).split('\n');
+    source = { 'checkout.spec.ts': await lines('checkout.spec.ts'), 'flags.spec.ts': await lines('flags.spec.ts') };
     report = JSON.parse(await readFile(reportFile, 'utf8')) as PlaywrightReport;
   }, 120_000);
 
@@ -85,12 +86,18 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
     await rm(directory, { recursive: true, force: true });
   });
 
-  const line = (call: string): number => source.findIndex((text) => text.endsWith(`// ${call}`)) + 1;
+  // The level each call is said at: the describes around the `beforeEach` that
+  // said it, or the case's own, which is narrower than any of them.
+  const levels: Readonly<Record<string, number>> = { 'mocked each': 1, 'file flag': 0, 'describe flag': 1 };
+  // Each call's comment is unique across the fixture's specs, so it names its file too.
+  const fileOf = (call: string): string =>
+    Object.keys(source).find((file) => source[file]!.some((text) => text.endsWith(`// ${call}`)))!;
+  const line = (call: string): number => source[fileOf(call)]!.findIndex((text) => text.endsWith(`// ${call}`)) + 1;
   const said = (name: string, value: string | number | boolean, call: string) =>
-    ({ name, value, site: `${spec}:${line(call)}`, level: call === 'mocked each' ? 1 : 0xffff });
+    ({ name, value, site: `${specs}/${fileOf(call)}:${line(call)}`, level: levels[call] ?? 0xffff });
   const annotated = (project: string, title: string): readonly string[] => {
-    const specs = (suite: PlaywrightSuite): PlaywrightSpec[] => [...(suite.specs ?? []), ...(suite.suites ?? []).flatMap(specs)];
-    const found = report.suites.flatMap(specs).filter((each) => each.title === title).flatMap((each) => each.tests)
+    const walk = (suite: PlaywrightSuite): PlaywrightSpec[] => [...(suite.specs ?? []), ...(suite.suites ?? []).flatMap(walk)];
+    const found = report.suites.flatMap(walk).filter((each) => each.title === title).flatMap((each) => each.tests)
       .find((test) => test.projectName === project);
     expect(found, `${title} in ${project}`).toBeDefined();
     const notes = [...found!.annotations, ...found!.results.flatMap((result) => result.annotations ?? [])];
@@ -114,6 +121,28 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
   it('carries what a beforeEach inside a describe said, which a sibling describe never hears', () => {
     expect(row('mocked', 'pays').preconditions).toEqual([said('network', 'mocked', 'mocked each')]);
     expect(row('live', 'replays a recording').preconditions?.some((held) => held.value === 'mocked')).toBe(false);
+  });
+
+  // A Playwright without one of the internals read refuses at setup, so every
+  // test fails and the run exits non-zero before any row is written.
+  it('reads every internal it needs to say a hook’s describe from the installed Playwright', () => {
+    expect(output).not.toMatch(/cannot say which describe declared a beforeEach/);
+    expect(row('flag on', 'reads the exception').preconditions).not.toEqual([]);
+  });
+
+  it('lets a beforeEach inside a describe override one at the top of the file', () => {
+    expect(row('flag on', 'reads the exception').preconditions).toEqual([said('flag', 'ff-on', 'describe flag')]);
+  });
+
+  it('keeps a beforeEach inside a describe from a sibling describe, which hears the top of the file', () => {
+    expect(row('flag left alone', 'reads the default').preconditions).toEqual([said('flag', 'ff-off', 'file flag')]);
+  });
+
+  it('places a beforeEach one helper declares at two depths at the depth of the one running', () => {
+    expect(row('tier outer', 'tier inner', 'reads the inner tier').preconditions).toEqual([
+      said('flag', 'ff-off', 'file flag'),
+      { ...said('tier', 'silver', 'helper tier'), level: 2 },
+    ]);
   });
 
   it('keeps two values said at one level as a contradiction', () => {
@@ -141,8 +170,8 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
     ]);
     // The call after the snapshot is on the row and not on the snapshot.
     expect(annotated('listening', 'photographs the receipt')).toEqual([
-      `receipt--ff-on: taken in ${spec} > mocked > photographs the receipt, arranged ` +
-        `flag=ff-on (${spec}:${line('receipt flag')}), network=mocked (${spec}:${line('mocked each')})`,
+      `receipt--ff-on: taken in ${specs}/checkout.spec.ts > mocked > photographs the receipt, arranged ` +
+        `flag=ff-on (${specs}/checkout.spec.ts:${line('receipt flag')}), network=mocked (${specs}/checkout.spec.ts:${line('mocked each')})`,
     ]);
   });
 

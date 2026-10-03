@@ -32,14 +32,14 @@ import { parseShare, type ShareConfig } from './config-share.js';
 import { parseBlanks, type BlankConfig } from './config-blank.js';
 import { parseSource, type ChangeConfig, type SourceConfig } from './config-source.js';
 import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
-import { parseNames, type NamesConfig } from './config-names.js';
+import type { NameGrammar } from '@variance-authority/sense/test-selection';
+import { parseNames } from './config-names.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
 import { parseRestsOn, type RestsOn } from './config-suites.js';
 import { parseDeclaredAt } from './config-declared.js';
 import { checkCarriers, parsePlacement, type Carrier } from './config-placement.js';
 
-export type { BlankConfig, ChangeConfig, IgnoreConfig, NamesConfig, SensitivityConfig, SourceConfig };
-export type { AxisConfig } from './config-names.js';
+export type { BlankConfig, ChangeConfig, IgnoreConfig, SensitivityConfig, SourceConfig };
 
 /**
  * The configuration file, and the rule that nothing else configures a run.
@@ -281,7 +281,7 @@ export interface Config extends RestsOn {
    * baseline (`checkout--default`), an axis with a vocabulary (`green`,
    * `glass`), and therefore the difference between two names of the same length.
    */
-  readonly names?: NamesConfig;
+  readonly names?: NameGrammar;
 
   /**
    * Which PNG decoder the raster tier uses.

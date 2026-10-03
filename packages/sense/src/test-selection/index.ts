@@ -50,6 +50,9 @@ export {
   type SourceTestRange,
 } from './reverse.js';
 export { anyStopped } from './stopped.js';
+export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
+export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
+export { caseTwins, heldValues, outsideVocabulary, type CaseTwin, type OutsideVocabulary } from './case-axes.js';
 export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } from './placed.js';
 export { stateOf, type RangeState } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
@@ -68,13 +71,7 @@ export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, 
 export { encodeAsSetExecutionIndex, journeyGaps, type JourneyGaps } from './execution-set-format.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { readingLines, type FileReading } from './reading-lines.js';
-export {
-  atDistance,
-  distanceRange,
-  groupByDistance,
-  remaining,
-  type DistanceGroup,
-} from './at-distance.js';
+export { atDistance, distanceRange, groupByDistance, remaining, type DistanceGroup } from './at-distance.js';
 export { distanceFromView, nearestFirst } from './distance.js';
 export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';
 export type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion };
@@ -203,7 +200,7 @@ export {
   type StandingEntry,
 } from './commit-runs.js';
 export { askPerStand, readingFrom, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandReading } from './stands.js';
-export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
+export { caseMotion, type CaseMotion, type CaseMotionOptions, type MismatchedRow, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {
   countCoverage,
   coverageChange,

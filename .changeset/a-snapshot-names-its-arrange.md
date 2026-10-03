@@ -20,7 +20,8 @@ arranged*.
 `PreconditionListener.held(key)` returns what a running case has said so far,
 resolved as its row would be, without taking it from the row.
 `@variance-authority/sense/journal` exports `CasePrecondition` and
-`preconditionText`, the one rendering `variance covering` and the snapshot
-share: `flag=ff-on (spec.ts:9)`, a bare `true` as its name, a contradiction
-with both values. `ExecutionRecorder.arranged(owner, test)` reads a case's view
+`preconditionText`, the one rendering `variance covering`, `variance review` and
+the snapshot share: `flag=ff-on (spec.ts:9)`, a bare `true` as its name, a
+contradiction with both values. `preconditionValueText` renders one said value
+without its site: `flag=ff-on`. `ExecutionRecorder.arranged(owner, test)` reads a case's view
 from a Playwright worker's recorder.

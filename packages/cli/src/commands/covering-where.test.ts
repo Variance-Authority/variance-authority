@@ -14,8 +14,6 @@ import {
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
-import { twinsOf } from './covering-where.js';
-import { nameIndex, structuralParent } from './names.js';
 
 const SPEC = 'checkout.test.ts';
 
@@ -221,6 +219,19 @@ describe('a case read along a declared axis', () => {
     ]);
   });
 
+  it('says the filter left none of the cases that ran a function, not that nothing ran it', async () => {
+    const record = await recorded(MEASURED);
+
+    const answer = await covering(parse([
+      '--file', 'src/cart.ts', '--function', 'total', '--execution', record.execution, '--root', record.root, '--where', 'network=live',
+    ]));
+
+    expect(answer.where).toMatchObject({ kept: 0, of: 6, ran: 6 });
+    const text = formatCovering(answer, 'text');
+    expect(text).toContain('Kept the 0 of 6 cases that said network=live.\n`--where network=live` left none of the 6 named tests that covered function total of src/cart.ts.');
+    expect(text).not.toContain('No named test covered');
+  });
+
   it('prints a value outside the vocabulary under what it kept', async () => {
     const record = await recorded([row('flag typo', [{ name: 'flag', value: 'ff-onn', site: at(30), level: 1 }])], true);
 
@@ -235,19 +246,5 @@ describe('a case read along a declared axis', () => {
     const refused = await ask(['flag=ff-on'], record).catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(ConfigError);
     expect((refused as Error).message).toMatch(/variance\.config\.json.*is not valid JSON/);
-  });
-
-  it('takes the step a subject named the same would take: the last declared axis, toward the base', () => {
-    // A characterization of the agreement: one step serves both readers.
-    const grammar = { axes: [{ axis: 'scheme', values: ['light', 'dark'] }, { axis: 'flag', values: ['ff-off', 'ff-half', 'ff-on'] }] };
-    const said = (name: string, scheme: string, flag: string): ExecutionTest =>
-      row(name, [{ name: 'scheme', value: scheme, site: at(1), level: 1 }, { name: 'flag', value: flag, site: at(2), level: 1 }]);
-    const cases = [said('dark ff-on', 'dark', 'ff-on'), said('dark ff-off', 'dark', 'ff-off'), said('light ff-on', 'light', 'ff-on')];
-
-    const parent = structuralParent('checkout-dark-ff-on', nameIndex(['checkout-dark-ff-on', 'checkout-dark', 'checkout-ff-on'], grammar));
-    expect(parent).toEqual({ ok: true, parent: 'checkout-dark', step: { axis: 'flag', from: 'ff-off', to: 'ff-on' } });
-    expect(twinsOf([cases[0]!], cases, grammar)).toEqual([
-      { case: `${SPEC} > dark ff-on`, axis: 'flag', from: 'ff-on', to: 'ff-off', twins: [`${SPEC} > dark ff-off`] },
-    ]);
   });
 });
