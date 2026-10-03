@@ -1,54 +1,56 @@
 # What the covering cases arranged
 
 A case that calls `variancePrecondition` from
-`@variance-authority/sense/precondition` carries the state it arranged on its
-row: a name, a value (string, finite number or boolean) and the `file:line` of
-the call. `variance covering` prints it beside every
-case a file, line or function answer lists, and `--where` keeps the cases that
-said it. A precondition never selects or excludes a test; it is read, never
-diffed. The public page is
+`@variance-authority/sense/precondition` has the state it arranged recorded on
+its row: a name, a value (string, finite number or boolean) and the `file:line`
+of the call. `variance covering` prints it beside every case it lists, and
+`--where` keeps the cases that said it. A precondition never selects or
+excludes a test. The public page is
 [case preconditions](https://variance-authority.dev/docs/case-preconditions).
 
-## Which tests ran this function with the network mocked
+## Which tests ran this function with sale prices
 
 ```bash
-variance covering --file src/checkout/total.ts --function applyDiscount --where network=mocked
+variance covering --file src/checkout/total.ts --function total --where prices=discounted
 ```
 
 ```text
-Kept the 3 of 3 cases that covered function applyDiscount of src/checkout/total.ts and said network=mocked.
-  flag=ff-half (test/refund.test.ts:11) is not one of ff-off, ff-on
-3 named tests covered function applyDiscount of src/checkout/total.ts:
+Kept the 4 of 6 cases that covered function total of src/checkout/total.ts and said prices=discounted.
+  flag=ff-half (test/flags.ts:6) is not one of ff-off, ff-on
+4 named tests covered function total of src/checkout/total.ts:
+  test/refund.test.ts — 2/2
+    refunds at the half rollout — flag=ff-half (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    refunds the discounted total behind the flag — flag=ff-on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+      no twin recorded at flag=ff-off
   test/total.test.ts — 2/4
-    offline > discounts behind the flag — flag=ff-on (test/total.test.ts:19), network=mocked (test/total.test.ts:11)
-      twin at flag=ff-off: offline > discounts without the flag
-    offline > discounts without the flag — network=mocked (test/total.test.ts:11)
-  test/refund.test.ts — 1/3
-    half rollout > discounts at half — flag=ff-half (test/refund.test.ts:11), network=mocked (test/refund.test.ts:11)
+    on sale > charges the sale price — flag=ff-off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    on sale > discounts the sale price behind the flag — flag=ff-on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+      twin at flag=ff-off: on sale > charges the sale price
 ```
 
-`Kept the 3 of 3` is out of the cases that covered the function before `--where`
-narrowed them, within the `--cases` scope when one is given; the answer below
-it is the kept cases. Repeat `--where` and every one must hold. `--where network` keeps
-every value. Values compare as text, so `--where seeded-cart` and
-`--where seeded-cart=true` are the same question.
+`Kept the 4 of 6` is out of the cases that covered the function before
+`--where`, within the `--cases` scope when one is given. Repeat `--where` and
+a case is kept only when it said all of them. `--where prices` keeps every value. Values compare as
+text, so `--where seeded-cart` and `--where seeded-cart=true` are the same
+question.
 
-## What did the tests covering this line arrange
+## What did the tests covering this function arrange
 
 ```bash
-variance covering --file src/checkout/total.ts --line 2
+variance covering --file src/checkout/total.ts --function total
 ```
 
 ```text
-    offline > discounts behind the flag — flag=ff-on (test/total.test.ts:19), network=mocked (test/total.test.ts:11)
-    pays against the live service — network=live (test/total.test.ts:6)
+    charges the full price — flag=ff-off (test/flags.ts:6), prices=full (test/prices.ts:12)
+    on sale > charges the sale price — flag=ff-off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 Each value is the one the case ran under: the case body overrides a
 `beforeEach`, an inner `describe`'s overrides an outer one's. The site is the
-call that won. `flag contradicted: ff-off (…:19), ff-on (…:18)` means two values
-were said at one level; both are kept, and a `--where` naming either keeps the
-case. Do not pick one. Under `--format json` each test has
+call that won, which is the line in the helper when a helper said it.
+`flag contradicted: ff-off (…), ff-on (…)` means two values were said at one
+level; both are kept, and a `--where` naming either keeps the case. Do not
+pick one. Under `--format json` each test has
 `preconditions: [{name, value, site, level}]`.
 
 ## Find the ff-off twin of this case
@@ -59,26 +61,30 @@ The axis must be declared in the root `variance.config.json`, base first:
 { "names": { "axes": [{ "axis": "flag", "values": ["ff-off", "ff-on"] }] } }
 ```
 
-Then ask at the case's value, with `--line` or `--function`:
+Then ask about the code, with or without `--where`:
 
 ```bash
-variance covering --file src/checkout/total.ts --function applyDiscount --where flag=ff-on
+variance covering --file src/checkout/total.ts --function total --where flag=ff-on
 ```
 
 ```text
-    offline > discounts behind the flag — flag=ff-on (test/total.test.ts:19), network=mocked (test/total.test.ts:11)
-      twin at flag=ff-off: offline > discounts without the flag
+    discounts the full price behind the flag — flag=ff-on (test/flags.ts:6), prices=full (test/prices.ts:12)
+      twin at flag=ff-off: charges the full price
 ```
 
-- A twin is one step toward the base on the case's last declared axis, saying
-  everything else the same (`network=mocked` must match too), among the cases
-  that covered the same line or function before `--where` narrowed them.
-- A case that never said `flag` stands at `ff-off`.
-- `2 twins at …` names several; `no twin recorded at flag=ff-off` means no case
-  covering this code ran it with the flag off. That is a missing test, not a
-  missing record.
-- Twins print only under `--where`, and only for `--line` or `--function`.
-  Under `--format json` they are `twins: [{case, axis, from, to, twins}]`.
+- A twin is the case with the nearest value toward the base on the last
+  declared axis the case is off its base on, with everything else the same (`prices=full` must
+  match too), among the cases of the same test file that covered the same code
+  before `--where`, within the `--cases` scope.
+- Twins print whenever `names.axes` is declared, with or without `--where`, in
+  every answer: line, function, whole file, `--since`.
+- A case that never said `flag` ran at the base value, `ff-off`.
+- `2 twins at …` names several. `no twin recorded at flag=ff-off` means no case
+  in this test file ran this code at `ff-off` with everything else the same.
+  The twin may be in another test file, which is not searched, or the code may
+  not run at `ff-off` at all. Check other files before writing a test.
+- Under `--format json` twins are `twins: [{case, axis, from, to, twins}]`; an
+  empty `twins` is `no twin recorded`.
 - `flag=ff-half (…) is not one of ff-off, ff-on` under the `Kept` line is a
   value outside the axis. The case is kept and has no twin on that axis.
 
@@ -87,17 +93,40 @@ variance covering --file src/checkout/total.ts --function applyDiscount --where 
 ```ts
 // test/flags.ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
+import { type Flag, flags } from '../src/flags.js'; // Flag = 'ff-off' | 'ff-on' | 'ff-half'
 
-export function setFlag(flag: 'ff-off' | 'ff-on'): void {
+export function setFlag(flag: Flag): void {
   flags.discount = flag;
   variancePrecondition({ flag });
 }
 
-// test/total.test.ts
-beforeEach(() => mockNetwork()); // mockNetwork says { network: 'mocked' } the same way
+// test/prices.ts
+import { variancePrecondition } from '@variance-authority/sense/precondition';
+import { vi } from 'vitest';
+import { fetchPrices } from '../src/checkout/prices.js';
 
-it('discounts behind the flag', () => {
-  setFlag('ff-on');
+const TABLES = { full: { apple: 2, pear: 3 }, discounted: { apple: 1, pear: 2 } };
+
+export function pricesReturn(table: keyof typeof TABLES): void {
+  vi.mocked(fetchPrices).mockResolvedValue(TABLES[table]);
+  variancePrecondition({ prices: table });
+}
+
+// test/refund.test.ts
+import { beforeEach, expect, it, vi } from 'vitest';
+import { refund } from '../src/checkout/refund.js';
+import { setFlag } from './flags.js';
+import { pricesReturn } from './prices.js';
+
+vi.mock('../src/checkout/prices.js');
+
+beforeEach(() => {
+  pricesReturn('discounted');
+});
+
+it('refunds at the half rollout', async () => {
+  setFlag('ff-half');
+  expect(await refund(['apple', 'pear'])).toBe(-2.85);
 });
 ```
 
@@ -106,22 +135,27 @@ it('discounts behind the flag', () => {
   the row is the line in the helper.
 - The helper runs in the case body or a `beforeEach`. A file-wide state goes in
   a top-level `beforeEach`.
-- In a `describe` callback, `beforeAll`, `afterAll` or at the file's top level
-  the call throws and the test file fails (`ran outside a running case`).
+- In a `beforeAll` or `afterAll` the call throws (`ran in a beforeAll, which
+  runs for no one case`); in a `describe` callback or at the file's top level it
+  throws `ran outside a running case`. Either fails the test file. Under
+  Playwright, a call at the top level or in a `describe` callback of the first
+  file a worker loads records nothing and does not throw.
 - In an `afterEach` it warns and records nothing.
+- One value that is not a string, finite number or boolean drops the whole
+  record, with a warning.
 - It only takes effect in a recorded run; record the suite again before asking.
 
 ## The answer says unmeasured — what now
 
 ```text
-`--where network=mocked` is unmeasured here: the record holds no case's preconditions. …
+`--where prices=discounted` is unmeasured here: the record holds no case's preconditions. …
 ```
 
-Exit `2`, `{"refused":"unmeasured"}` under `--format json`. No case in the
-record was listened to: it predates the calls or came from a runner that did
-not listen. Do not read it as *no case had the network mocked*. Record the
-suite again; asking again changes nothing.
+Exit `2`, `{"refused":"unmeasured"}` under `--format json`. No row in the
+record has a `preconditions` field: it was recorded by a runner without the
+precondition recording. Do not read it as *no case had sale prices*. Record the suite again;
+asking again changes nothing.
 
 `N cases were not listened to, so whether they said any of that is unmeasured.`
 under `Kept` is the partial form: the kept list is right for the cases that
-were listened to, and says nothing about those N.
+were recorded with preconditions, and says nothing about those N.

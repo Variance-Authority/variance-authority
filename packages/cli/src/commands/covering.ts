@@ -333,6 +333,9 @@ async function ask(
 }
 
 /** The state of one line or function, from the cases that entered it and those that stopped. */
+// FIXME: callers pass the cases `--where` kept, so a filter that keeps one of several covering cases makes
+// `alone` (text: "the only case that could have", JSON: `state: 'alone'`) about a line other cases also ran.
+// `stopped`, and the `--since` and whole-file region states, are read over the same narrowed index.
 function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined): Pick<Covering, 'state'> {
   const state = stateOf({ startLine: 0, endLine: 0, tests, ...(stopped === undefined ? {} : { stopped }) });
   return state === undefined ? {} : { state };

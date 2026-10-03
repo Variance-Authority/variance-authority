@@ -545,27 +545,28 @@ the commit before.
 
 A case that says what it arranged with
 [`variancePrecondition`](../sense#name-what-a-case-arranged) carries it on its
-row, and every case `covering` lists for a file, a line or a function prints
-it with the call that said it. `--where` keeps the cases that said it, in every
-form of the question.
-[Case preconditions](https://variance-authority.dev/docs/case-preconditions)
-covers where a call lands and how to read the answer:
+row, and every case `covering` lists prints it with the call that said it.
+`--where` keeps the cases that said it, in every form of the question:
 
 ```bash
-variance covering --file src/checkout/total.ts --line 48 --where network=mocked
+variance covering --file src/checkout/total.ts --function total --where flag=ff-on
 ```
 
 ```text
-Kept the 2 of 4 cases that covered line 48 of src/checkout/total.ts and said network=mocked.
-2 named tests covered line 48 of src/checkout/total.ts:
-  src/checkout/total.test.ts — 2/6
-    pays — network=mocked (src/checkout/total.test.ts:12)
-    refunds behind a flag — flag=ff-on (src/checkout/total.test.ts:31), network=mocked (src/checkout/total.test.ts:12)
-      twin at flag=ff-off: refunds
+Kept the 3 of 6 cases that covered function total of src/checkout/total.ts and said flag=ff-on.
+3 named tests covered function total of src/checkout/total.ts:
+  test/total.test.ts — 2/4
+    discounts the full price behind the flag — flag=ff-on (test/flags.ts:6), prices=full (test/prices.ts:12)
+      twin at flag=ff-off: charges the full price
+    on sale > discounts the sale price behind the flag — flag=ff-on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+      twin at flag=ff-off: on sale > charges the sale price
+  test/refund.test.ts — 1/2
+    refunds the discounted total behind the flag — flag=ff-on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+      no twin recorded at flag=ff-off
 ```
 
 The count is out of the cases that covered what you asked about, before
-`--where` narrowed them. `--where network` keeps every value of `network`, and
+`--where` narrowed them. `--where prices` keeps every value of `prices`, and
 every repeated `--where` must hold. Two values said at one level print as a contradiction, and match a
 `--where` naming either. A record made before cases said anything answers
 `unmeasured` rather than an empty list, and a case nobody listened to is counted

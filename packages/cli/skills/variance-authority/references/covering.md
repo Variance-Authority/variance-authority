@@ -4,8 +4,9 @@
 to ask about a test that may no longer be worth keeping. It reads the per-case
 execution index and names the tests that ran through a file, a line or a
 function. Of the root `variance.config.json` it reads only `suites` and
-`cacheRoot`, and `names` under `--where`. None of it is a verdict: execution says where a
-test went, never why the trip was worth taking.
+`cacheRoot`, and `names`, whose axes give `--where` its base values and each
+listed case its twin. None of it is a verdict: execution says where a test went,
+never why the trip was worth taking.
 
 ```bash
 variance covering --file src/checkout/total.ts --line 48

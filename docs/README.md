@@ -46,7 +46,7 @@ depend on.
 <a class="doc-link-card doc-link-card--compact" href="case-preconditions.md">
 <span>Coverage</span>
 <strong>Know what each covering test arranged</strong>
-<p>Have a case say the state it ran under, then keep only the tests that ran a line with the network mocked or the flag on.</p>
+<p>Have a case say the state it ran under, then keep only the tests that ran a line with sale prices mocked or the flag on.</p>
 <em>Name what a case arranged →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="distill.md">

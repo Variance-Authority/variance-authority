@@ -72,7 +72,7 @@ a report, not an input to the join: it lists a README, a fixture a test reads
 with `fs`, a script a test spawns. When your suite depends on one of those,
 name it in the integration's `preconditions` option; it then selects every test
 that declared it and leaves `unread`. That option names files. A state a case
-arranged, such as a mocked network, is a [case precondition](case-preconditions.md):
+arranged, such as what a mock returns, is a [case precondition](case-preconditions.md):
 nothing in a checkout changes it, so it never selects a test.
 
 After that join, distance can divide the measured part of `selected` into

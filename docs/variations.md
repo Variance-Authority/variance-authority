@@ -132,11 +132,11 @@ Two consequences to plan for:
 - **Two subjects that land on the same coordinate are refused by name.** You fix
   the names rather than find out which one the run picked.
 
-The same axes read what a test case says it arranged. Under
-`variance covering --where flag=ff-on`, a case that never said `flag` stands at
-`ff-off`, and each case off the base that covered the line or function you
-asked about is printed beside its twin, one step toward the base:
-see [case preconditions](case-preconditions.md#axes-and-twins).
+`variance covering` uses the same axes for what a test case says it arranged.
+A case that never said `flag` ran at the base value, `ff-off`, so
+`--where flag=ff-off` keeps it. Every case it lists that is not at the base
+prints [its twin](case-preconditions.md#twins): the case in the same test file
+nearest toward the base, with every other name the same.
 
 ## Declare the link where a name will not say it
 

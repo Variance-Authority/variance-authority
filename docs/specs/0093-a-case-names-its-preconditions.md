@@ -90,8 +90,7 @@ than any of them.
   says to move it into the case body or a `beforeEach`.
 - **A call in the callback of Playwright's `test.skip`, `test.fixme`,
   `test.fail` or `test.slow`** is unsupported. That callback decides whether
-  and how a case runs, and arranges nothing. No code refuses the call, so what
-  it records there is not specified.
+  a case runs and arranges nothing, so it is no place to say a precondition.
 - **A `beforeEach` that throws** takes what it said with it. Its case never
   runs, and the next case begins with nothing held.
 

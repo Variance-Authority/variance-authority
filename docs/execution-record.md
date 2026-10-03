@@ -17,7 +17,7 @@ modules, `B` the number of blocks in one module, `P` the total number of
 preconditions, and `C` the number of crossings, one per test that executed a
 block. A precondition on this page is a file a test's answer depends on. The
 state a case says it arranged is a [case precondition](case-preconditions.md),
-which is read and never diffed.
+which never selects a test.
 
 ## Where the file is, and what to do with it
 
