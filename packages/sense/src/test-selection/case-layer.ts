@@ -18,6 +18,13 @@ export interface CaseRunFiles {
   readonly finished: ReadonlySet<string>;
   /** Whether a test file the index holds is still in the checkout. */
   readonly present: (file: string) => boolean;
+  /**
+   * Whether the run recorded `file` from the text the index's regions of it
+   * were cut from. Same text is the same numbering, so its held cases land by
+   * address however the two cuts filled a counter, as the rows beside them do
+   * in `mergeCoverage`. Absent when nobody can say, and the numbering decides.
+   */
+  readonly sameText?: (file: string) => boolean;
 }
 
 export interface CaseLayers {
@@ -108,7 +115,7 @@ export function layerCaseIndex(
       if (kept !== undefined) modules.push(kept);
       continue;
     }
-    const lands = before === undefined ? undefined : landing(recorded, before);
+    const lands = before === undefined ? undefined : landing(recorded, before, files.sameText?.(file) === true);
     const called = new Uint32Array(recorded.blocks.length);
     const loaded = new Uint8Array(recorded.blocks.length);
     for (let block = 0; block < recorded.blocks.length; block += 1) {
@@ -187,10 +194,14 @@ function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetEx
  *
  * An address is half a seat among siblings: a function written in front of an
  * anonymous one takes the seat it held. Where the two cuts filled a counter
- * differently, an address names another region, and every region is -1.
+ * differently over different text, an address names another region, and every
+ * region is -1. Over the same text the seats are the text's: a run that read a
+ * file through its source and its build keeps only the regions both cut alike,
+ * so one cut can lack a region the other holds and still number the rest the
+ * same.
  */
-function landing(recorded: SetExecutionModule, before: SetExecutionModule): Int32Array {
-  if (!sameNumbering(before.blocks, recorded.blocks)) return new Int32Array(recorded.blocks.length).fill(-1);
+function landing(recorded: SetExecutionModule, before: SetExecutionModule, sameText: boolean): Int32Array {
+  if (!sameText && !sameNumbering(before.blocks, recorded.blocks)) return new Int32Array(recorded.blocks.length).fill(-1);
   const seen = new Map<string, number>();
   const heldAt = new Map<string, number>();
   for (const [at, block] of before.blocks.entries()) {

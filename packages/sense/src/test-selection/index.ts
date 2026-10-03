@@ -180,10 +180,12 @@ export { withIndexLock } from './index-lock.js';
 export {
   landCases,
   lastCaseRunOf,
+  textsOf,
   type CaseLanding,
   type LaidRun,
   type LandedShard,
   type LastCaseRun,
+  type ModuleTexts,
 } from './case-landing.js';
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordedCases, recordedEyesAt, recordedEyesOf } from './case-record.js';
 export { recordOfCases, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
@@ -230,6 +232,11 @@ export type WrittenLines =
   | { readonly startLine: number; readonly endLine: number }
   | { readonly startLine?: never; readonly endLine?: never };
 
+/**
+ * One region of a module's row: where the region sits among its module's
+ * regions, the source lines it was written on, if any, and the test files that
+ * entered it.
+ */
 export type CoverageBlock = CoverageRegion & WrittenLines;
 
 interface CoverageRegion {

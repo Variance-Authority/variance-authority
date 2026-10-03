@@ -16,7 +16,7 @@ import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import type { CoverageTest } from './index.js';
+import type { CoverageModule, CoverageTest } from './index.js';
 import type { ExecutionTest } from './reverse.js';
 
 /** What a run tells the case index about the files it was handed. */
@@ -25,6 +25,16 @@ export interface LaidRun {
   readonly tests: readonly Pick<CoverageTest, 'file' | 'complete'>[];
   /** The commit the run was made at, as the snapshot carries it. */
   readonly commit?: string;
+  /** The text each module the run recorded was cut from, as its coverage names it; absent when the run measured nothing. */
+  readonly modules?: readonly Pick<CoverageModule, 'file' | 'sourceDigest'>[];
+}
+
+/** The text each module of a case index was cut from, by file, as the coverage beside the index names it. */
+export type ModuleTexts = ReadonlyMap<string, string>;
+
+/** The text of each module `coverage` holds. */
+export function textsOf(coverage: Pick<LaidRun, 'modules'> | undefined): ModuleTexts {
+  return new Map((coverage?.modules ?? []).map((module) => [module.file, module.sourceDigest]));
 }
 
 /** One run's own case index, and what the run tells the index about its files. */
@@ -83,6 +93,11 @@ export interface LastCaseRun {
  * `eyes` are the run's Eyes, laid by {@link layEyes}: a case that ran has its
  * journals replaced by the run's, and has none when the run opened none.
  *
+ * `held` is the text each module of `previous`'s index was cut from. A module
+ * the run recorded from that same text lands its held cases by address, as its
+ * rows do; one whose text is not known on both sides lands them only where the
+ * two cuts numbered alike.
+ *
  * `stands` is the commit the record's snapshot stands at. When `previous`
  * names no last run, as a record that crossed a checkout does, the cases it
  * holds were recorded with that snapshot, so the before layer is named at it.
@@ -97,13 +112,16 @@ export function layCases(
   root: string,
   run: LaidRun,
   eyes?: EyesSection,
+  held?: ModuleTexts,
   stands?: string,
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
+  const recorded = textsOf(run);
   const { merged, cases, last, announced, before: retired } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present: (test) => existsSync(resolve(root, test)),
+    sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
   });
   const prior = lastCaseRunOf(previous);
   const again = run.commit !== undefined && prior?.commit === run.commit;
@@ -198,6 +216,10 @@ export type CaseLanding =
  * file's. A shard with neither coverage nor an index this build reads holds
  * nothing to lay.
  *
+ * `held` is the text each module of `previous`'s index was cut from, which the
+ * coverage beside it names. Each shard laid moves the modules it recorded to
+ * its own text, and the next shard is laid over that.
+ *
  * `stands` is the commit the record's snapshot stands at, which names the
  * before layer when `previous` names no last run — see {@link layCases}.
  *
@@ -209,9 +231,11 @@ export function landCases(
   previous: CaseSections,
   root: string,
   shards: readonly LandedShard[],
+  held?: ModuleTexts,
   stands?: string,
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
   let sections = previous;
+  const texts = new Map(held ?? []);
   let laid = 0;
   const ran = new Set<string>();
   for (const shard of shards) {
@@ -221,7 +245,8 @@ export function landCases(
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), stands);
+      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands);
+      for (const [file, text] of textsOf(run)) texts.set(file, text);
       for (const id of lastCaseRunOf(sections)?.cases ?? []) ran.add(id);
       laid += 1;
     } else if (run.tests.some((test) => test.complete)) {
