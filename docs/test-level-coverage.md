@@ -4,9 +4,9 @@ Ordinary coverage is a union: every region some test covered, with nothing left
 saying which test covered it. **Test-level coverage keeps the relation that
 union was folded from** — for each named test case, the regions of your source
 that case walked — so a line answers *which tests walk me* rather than *did
-anybody*. It is one axis added to a recording your suite can already make, and
-it is what separates a question you can act on from a percentage you can only
-watch.
+anybody*. It is what separates a question you can act on from a percentage you
+can only watch, and on three public suites recording it added 2% to 8% to a run
+where `--coverage` adds 26% to 30%.
 
 ## Record it, then ask
 
@@ -22,9 +22,8 @@ export default withTestSelection(
 );
 ```
 
-**Run the suite the way you run it.** No separate coverage pass, no second
-command, and the file-level snapshot the same run writes does not depend on the
-case axis — so whatever reads it in CI does not change.
+**Run the suite the way you run it.** No separate coverage pass and no second
+command.
 
 **Ask.** From a shell, about a place. Line 5 of `src/cart/total.ts` is the
 `HALF` branch of `applyDiscount`:
@@ -76,6 +75,10 @@ standing on a single point, and a region fourteen cases cross is a hub** — and
 a coverage percentage reports the two identically, at 100%, forever. The number
 is not wrong. It is a projection that answers a question nobody is asking by
 the time they are looking at a specific line.
+
+The relation also keeps a distinction the union folds away: a test that was in
+a region only while its module loaded is counted apart from a test that called
+into it.
 
 ## What it changes
 
@@ -140,7 +143,20 @@ where it was, and the cost moves onto the bill instead. At that end coverage
 is not slower. It is **30% more money, every run, forever**, for a union.
 
 The same three suites with the recorder installed are 9.05 s, 12.77 s and
-26.76 s: **+2%, +8% and +3%**.
+26.76 s: **+2%, +8% and +3%**. Each figure is the median of five runs of the
+whole suite, the first discarded as warm-up, with the caches cleared between
+runs, on an Apple M4 Max with 64 GB and Node 26.
+[Running less of the suite](selecting.md#what-recording-costs-while-the-suite-runs)
+has the full table, and the unrecorded control runs that show how far the
+machine itself varies. Those timings are the recorder writing the file-level
+part of the record; the case axis adds one attribution for each region a case
+ran. On Material UI pinned to two workers, where the suite takes a minute and a
+half, `--coverage` adds **19.3 seconds** a run and recording adds **2.1**.
+
+The record stays small enough to hand from one CI job to the next: the case axis
+costs about half a byte for each region a case ran, 0.46 MB for 906,578 of them,
+where one JSON object for each would be 27.2 MB. [Addressing
+scale](scale.md#the-per-case-index) has the sizes on three projects.
 
 What it costs *you* is not what it cost us:
 
@@ -194,99 +210,3 @@ returns sale prices and one whose mock returns full prices cover the same line.
 A case that says what it arranged has it on its row as a
 [case precondition](case-preconditions.md), and `variance covering --where`
 reads it.
-
-## Reference
-
-### Present, and recorded but uncovered
-
-Two more distinctions survive the fold only if the axis is there. A case that
-was inside a region **only while its module was evaluating** was present rather
-than exercising anything, so it is counted apart from one that called in. And a
-region **recorded but covered by nobody** is a different statement from a line
-in no recorded region at all: the first is a hole, the second is a coordinate
-the recording never claimed to cover.
-
-### How the cost was measured
-
-```mermaid
-xychart-beta horizontal
-  accTitle: Percent each instrument adds to a suite run
-  x-axis ["Zod, recording", "Zod, --coverage", "TanStack Query, recording", "TanStack Query, --coverage", "Material UI, recording", "Material UI, --coverage"]
-  y-axis "% added to the run" 0 --> 35
-  bar [2, 0, 8, 0, 3, 0]
-  bar [0, 30, 0, 29, 0, 26]
-  bar [0, 0, 0, 0, 0, 0]
-  bar [0, 0, 0, 0, 0, 0]
-```
-
-(Medians, warm-up discarded, both caches cleared between runs, on an Apple M4
-Max, 64 GB, Node 26. The full table is in [running less of the
-suite](selecting.md#what-recording-costs-while-the-suite-runs).)
-
-Two of the three suites above are short enough that you should not believe a
-percentage taken off them, and that objection is why the third is here. Every
-Material UI round runs the suite plain, recorded, and plain again; the two plain arms come
-out **0.1%** apart, so a 0.9 s recording cost is a signal rather than a warm
-disk. Run the same suite on two workers, where it takes a minute and a half
-instead of half a minute, and the two baseline arms land **0.02%** apart:
-**91.56 s** plain against **93.69 s** recorded, and **110.86 s** under
-`--coverage`. Recording does not grow with the clock, and at that length the
-comparison stops being a ratio and becomes a number you can spend — **19.3
-seconds a run for the union, 2.1 seconds for the relation**:
-
-```mermaid
-xychart-beta horizontal
-  accTitle: Seconds each instrument adds to Material UI's suite on two workers
-  x-axis ["recording, the relation", "--coverage, the union"]
-  y-axis "seconds added to 91.56" 0 --> 20
-  bar [2.1, 0]
-  bar [0, 19.3]
-  bar [0, 0]
-  bar [0, 0]
-```
-
-Those timings are the recorder writing the file-level axis; cases add an
-attribution per crossing on top of them.
-
-### The file
-
-The second cost is the file, and it is the one that quietly decides whether a
-thing survives contact with a build system. On three real projects, the same
-relation spelled two ways measured:
-
-- **Spelled the obvious way, it is 31 to 37 bytes per crossing.** One object
-  per crossing, with field names, is 27.2 MB of sidecar next to a 0.3 MB
-  record, against a CI artifact cap.
-- **Spelled as a dictionary, it is about half a byte per crossing.** Interned
-  sets and three parallel integer columns under run coding put the same
-  906,578 crossings in **0.46 MB**.
-
-### A bit of the technology
-
-**A probe, not a profiler.** The recorder emits a counter write at each region
-as your code is transformed, so what you pay tracks what your tests *ran*. The
-engine's own coverage is not fired but read, and the read hands back every
-script the worker had open — which is why reading native counters *per test*,
-the only way to get this axis out of the profiler, costs 2.1× to 2.7× on a
-jsdom suite and the probe costs a few percent.
-
-**A region is a block, not a line.** What gets an id is a lexical block — a
-function, a branch arm, a loop body, a handler — and what identifies it is its
-address in the module's tree rather than its place in the module's text. So
-inserting a function above it renumbers everything and retires nothing: a
-crossing is dropped only when the new text has no region at that address. Line
-numbers are coordinates *into* the recorded text, not the thing recorded.
-
-**A crossing is a pair.** One row is *this case covered this region*, and the
-index is those pairs and nothing else: three parallel integer columns, sorted
-case-major, delta-coded and run-compressed. Sorting case-major is what makes
-the run coding pay — a case's crossings arrive together, so the case column is
-a handful of runs rather than a million values. The sizes at four scales are in
-[addressing scale](scale.md#the-per-case-index).
-
-**The case axis is a sidecar.** It is written beside the record rather than
-into it, so the shared durable record CI hands between jobs stays file-level. A
-case axis over every region of a very large repository costs several times the
-record's size, and as a second file it is a second upload that a job which only
-selects files does without. Over the recording you run locally it is a fraction
-of a megabyte.

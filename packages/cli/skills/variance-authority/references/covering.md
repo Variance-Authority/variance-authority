@@ -89,7 +89,9 @@ Every range, and the answer about one line, has a `state`:
 | `unwalked` | no case ran it, and every case that could have finished |
 
 Read `hole` as unknown, never as untested. A range with no state is one the
-record cannot rank.
+record cannot rank. A `--line` outside every recorded range, such as a blank
+line, an import or a type declaration, is refused with exit `2`: no range
+covers it, which is not *no case ran it*.
 
 ## Ask about the text you are editing
 

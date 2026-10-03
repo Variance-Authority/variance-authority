@@ -32,7 +32,16 @@ Kept the 4 of 6 cases that covered function total of src/checkout/total.ts and s
 `--where`, within the `--cases` scope when one is given. Repeat `--where` and
 a case is kept only when it said all of them. `--where prices` keeps every value. Values compare as
 text, so `--where seeded-cart` and `--where seeded-cart=true` are the same
-question.
+question; a `true` value prints as the bare name, `seeded-cart`. `--where`
+works with `--line`, `--function`, a whole file and `--since`, in every format.
+
+`Kept none of the 6 cases that covered … : none said prices=sale.` means the
+cases exist and none said it. It is not *no test covers this*.
+
+Under `--format json` the answer has `where: {asked, kept, of, unmeasured,
+outside}`: `of` is the count before `--where`, `unmeasured` the cases recorded
+without the precondition listener, and `outside` the values said off a declared
+axis.
 
 ## What did the tests covering this function arrange
 
@@ -49,9 +58,14 @@ Each value is the one the case ran under: the case body overrides a
 `beforeEach`, an inner `describe`'s overrides an outer one's. The site is the
 call that won, which is the line in the helper when a helper said it.
 `flag contradicted: ff-off (…), ff-on (…)` means two values were said at one
-level; both are kept, and a `--where` naming either keeps the case. Do not
-pick one. Under `--format json` each test has
-`preconditions: [{name, value, site, level}]`.
+level; both are kept, and a `--where` naming either keeps the case. A retry
+that said a different value from an earlier attempt is the same contradiction.
+Do not pick one. Under `--format json` each test has
+`preconditions: [{name, value, site, level}]`: `level` is `0` for the file's
+top-level `beforeEach`, one more for each nested `describe`, and highest for the
+case body. `preconditions: []` means the case was listened to and said nothing;
+no `preconditions` field means its runner did not listen, which is unmeasured,
+not nothing.
 
 ## Find the ff-off twin of this case
 
@@ -78,7 +92,9 @@ variance covering --file src/checkout/total.ts --function total --where flag=ff-
   before `--where`, within the `--cases` scope.
 - Twins print whenever `names.axes` is declared, with or without `--where`, in
   every answer: line, function, whole file, `--since`.
-- A case that never said `flag` ran at the base value, `ff-off`.
+- A case that never said `flag` is read at the base value, `ff-off`, so
+  `--where flag=ff-off` keeps it. That reading comes from the config, not from
+  anything the run observed.
 - `2 twins at …` names several. `no twin recorded at flag=ff-off` means no case
   in this test file ran this code at `ff-off` with everything else the same.
   The twin may be in another test file, which is not searched, or the code may
@@ -136,11 +152,14 @@ it('refunds at the half rollout', async () => {
 - The helper runs in the case body or a `beforeEach`. A file-wide state goes in
   a top-level `beforeEach`.
 - In a `beforeAll` or `afterAll` the call throws (`ran in a beforeAll, which
-  runs for no one case`); in a `describe` callback or at the file's top level it
-  throws `ran outside a running case`. Either fails the test file. Under
+  runs for no one case`); in a `describe` callback, at the file's top level or
+  in work that outlives its case, such as a timer that fires after it settled,
+  it throws `ran outside a running case`. Either fails the test file. Under
   Playwright, a call at the top level or in a `describe` callback of the first
   file a worker loads records nothing and does not throw.
 - In an `afterEach` it warns and records nothing.
+- A `beforeEach` that throws records nothing on any case, including what it
+  said before the throw.
 - One value that is not a string, finite number or boolean drops the whole
   record, with a warning.
 - It only takes effect in a recorded run; record the suite again before asking.

@@ -2,10 +2,15 @@
 
 [Test-level coverage](test-level-coverage.md) tells you which tests ran a piece
 of code. A **case precondition** records the state each of those tests ran it
-under: a feature flag, what a mock returns, which user a fixture signs in.
-Coverage gives you the code path; case preconditions give that path its
-scenario. Unlike the file-level `preconditions` option in
-[distance](distance.md), a case precondition never selects a test.
+under: a feature flag, what a mock returns, which user a fixture signs in. You
+say it once, in the test helper that arranges the state, and `variance covering`
+prints it beside each test that ran the code. It is only read: a case
+precondition never selects or skips a test, unlike the file-level
+`preconditions` option in [distance](distance.md), which does. It is recorded in the same run as test-level coverage,
+under Vitest, Jest, Rstest or Playwright, so your suite needs that recording
+first.
+
+## The state coverage does not see
 
 Two tests can run exactly the same lines under different conditions:
 
@@ -31,7 +36,8 @@ export function setDiscountFlag(enabled: boolean): void {
 }
 ```
 
-Tests call the helper as they did before:
+The module the call comes from has no dependencies, and the call does nothing
+outside a recorded run, so a helper your tests share keeps it everywhere. Tests call the helper as they did before:
 
 ```ts
 // test/total.test.ts
@@ -50,8 +56,8 @@ it('applies the discount', async () => {
 });
 ```
 
-Record the suite with [test-level coverage](test-level-coverage.md), and
-`variance covering` answers which tests ran `total`, and in which state:
+Record the suite, and `variance covering` answers which tests ran `total`, and
+in which state:
 
 ```bash
 variance covering --file src/checkout/total.ts --function total
@@ -65,10 +71,9 @@ variance covering --file src/checkout/total.ts --function total
 ```
 
 `covering` calls each test a case, as the runners do: one `it` or `test`, by
-its file and its `describe` path. Each value carries the `file:line` of the call
-that recorded it. Here that is
-the line in the helper, so every test that uses `setDiscountFlag` points back to
-one place.
+its file and its `describe` path. Each value comes with the `file:line` of the
+call that recorded it. Here that is the line in the helper, so every test that
+uses `setDiscountFlag` points back to one place.
 
 ## Record state where you arrange it
 
@@ -160,10 +165,9 @@ Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and s
     sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
-- `--where prices` keeps every test that recorded `prices`, whatever its value.
-- `--where prices=discounted` keeps one value.
-- Repeat `--where` to require several:
-  `--where prices=discounted --where discount=on`.
+That is the question to ask before you change how sale prices are charged: not
+whether any test runs `total`, but which tests run it with the prices you are
+about to change.
 
 ## Twins
 
@@ -207,161 +211,17 @@ When no such test exists, the answer says so:
       no twin recorded at discount=off
 ```
 
-## Reference
+Twins are looked for in the same test file only, so `no twin recorded` is a
+question for you, not proof that no test anywhere runs this code with the
+discount off.
 
-### What `variancePrecondition` takes
+## Where to go next
 
-```ts
-import { variancePrecondition } from '@variance-authority/sense/precondition';
+- The `variance-authority` skill shipped with the CLI answers how to run all of
+  this, for you or a coding agent: every form of `--where`, contradictions,
+  several axes, the JSON answer and a record made without preconditions.
+- What `variancePrecondition` accepts, and where a call counts, is in
+  [`@variance-authority/sense`](../packages/sense/README.md#name-what-a-case-arranged).
+- How the coverage itself is recorded is
+  [test-level coverage](test-level-coverage.md).
 
-variancePrecondition({ discount: 'on', prices: 'discounted', 'seeded-cart': true });
-```
-
-The call takes a record of names to values. A value is a string, a finite
-number or a boolean. When one value is anything else, the whole record is
-dropped and the console names the call:
-
-```text
-variance-authority: variancePrecondition at test/cleanup.test.ts:9 takes a record of names to a string, number or boolean; nothing was recorded
-```
-
-The entry point has no dependencies and does not change what the test does.
-Without a recording the call does nothing, so a helper your tests share can
-keep it. Vitest, Jest, Rstest and Playwright record it when the suite is
-recorded with [test-level coverage](test-level-coverage.md).
-
-A value `true` prints as the bare name, so `{ 'seeded-cart': true }` prints
-`seeded-cart`. Values are compared as text, so `--where seeded-cart` and
-`--where seeded-cart=true` keep the same tests.
-
-### Which test a call is recorded on
-
-| Where the call runs | What is recorded |
-|---|---|
-| The test body, or a helper it calls | On that test |
-| A `beforeEach`, or a helper it calls | On the test the hook runs for, at the level of the `describe` that declared the hook |
-| A more deeply nested `beforeEach`, or the test body | Overrides the same name from an outer `beforeEach` |
-| Two different values at one level | Both, as a contradiction |
-| A `beforeEach` that throws | Nothing, including what it recorded before the throw |
-| An `afterEach` | Nothing, with a warning |
-| Where no test is running | An error that fails the test file |
-
-An `afterEach` runs after the test, so it does not describe the state the test
-ran under. The console names the call:
-
-```text
-variance-authority: variancePrecondition at test/cleanup.test.ts:5 ran after its case and is recorded on no case — say what a case arranged before it runs
-```
-
-No test is running in a `describe` callback, a `beforeAll` or `afterAll`, at a
-file's top level, or in work that outlives its test, such as a timer that fires
-after it settled. A call there throws:
-
-```text
-Error: variance-authority: variancePrecondition at test/misplaced.test.ts:5 ran outside a running case — a precondition belongs to the case it arranged, so say it in the case body or in a beforeEach
-```
-
-Under Playwright, a call at the top level or in a `describe` callback of the
-first file a worker loads records nothing and does not throw.
-
-State set up once for a whole file is still a state each test ran under, so
-record it from a top-level `beforeEach`.
-
-### Contradictions
-
-When one name gets two different values at the same level, as in
-
-```ts
-setDiscountFlag(false);
-setDiscountFlag(true);
-```
-
-in one test body, both values are kept rather than one picked. The answer
-prints `discount contradicted:` and both values, each with its site. A retry
-that records a different value from an earlier attempt is the same
-contradiction. A `--where` naming either value keeps the test.
-
-### What `--where` counts
-
-`--where` works with `--line`, `--function`, a whole file and `--since`, and in
-every format. The count in `Kept` is out of the tests that covered what you
-asked, before `--where`, and within the
-[`--cases`](../packages/cli/README.md#reading-the-test-you-are-writing) scope
-when you give one. When `--where` keeps none, the answer says so and counts
-them:
-
-```text
-Kept none of the 4 cases that covered function total of src/checkout/total.ts: none said prices=sale.
-```
-
-### An omitted name on an axis
-
-The recording holds only what was recorded. For a name declared as an axis,
-`variance covering` reads a test that recorded nothing for it at the axis's
-base: with `discount` declared as `["off", "on"]`, a test that never called
-`setDiscountFlag` is read as `discount=off`, and `--where discount=off` keeps
-it. This reading comes from your configuration, not from anything observed
-while the test ran.
-
-### Where twins are looked for
-
-`no twin recorded` means no test in the same file covered this code with
-`discount=off`, recorded or read at the base, and the same other preconditions.
-It does not claim no such test exists elsewhere, and on code that only runs
-with the discount on, such as an `applyDiscount` function, every `discount=on`
-test prints it.
-
-Twins are looked for only within one test file, among the tests that covered
-what you asked, before `--where` and within the `--cases` scope. Across files,
-a test that recorded nothing is read at the base of every axis, so it would be
-the twin of every test that recorded a value. Twins print with or without `--where`,
-in every answer.
-
-### Several axes
-
-With several axes declared, a test's twin differs from it on one axis only:
-the last axis, in the order you declare them, on which the test is away from
-the base, at the nearest value toward the base. Every other precondition, on an
-axis or not, has to match exactly, as
-[variations](variations.md#tell-it-what-the-words-mean) reads a subject's name.
-
-A value the axis does not list, such as `discount=half`, gives the test no twin
-on that axis. Under `--where`, it is printed under `Kept` with its site, and the
-test is kept:
-
-```text
-  discount=half (test/flags.ts:6) is not one of off, on
-```
-
-When several tests qualify as a twin, they print with their count.
-
-### JSON
-
-Under `--format json`, each test has `preconditions: [{name, value, site,
-level}]`, where `level` is `0` for the file's top-level `beforeEach`, one more
-for each nested `describe`, and highest for the test body. The answer has
-`where: {asked, kept, of, unmeasured, outside}`, where `outside` lists the
-values recorded off a declared axis, and `twins: [{case, axis, from, to,
-twins}]`, where an empty `twins` is `no twin recorded`.
-
-### An unmeasured record
-
-A row with `preconditions: []` was recorded by a runner that records
-preconditions, and the test recorded none. A row with no `preconditions` field
-was recorded by a runner that does not, and whether that test set any state is
-unmeasured. Unmeasured is never read as none.
-
-When no row in the record has the field, `--where` is refused with exit `2`
-rather than answered with no test, and under `--format json` stdout is
-`{"refused":"unmeasured"}`. Record the suite again to read the preconditions.
-When only some rows lack it, the answer counts them apart, in a line under
-`Kept`:
-
-```text
-3 cases were not listened to, so whether they said any of that is unmeasured.
-```
-
-### For a coding agent
-
-The [agent skill's reference](../packages/cli/skills/variance-authority/references/case-preconditions.md)
-answers the same questions for a coding agent.
