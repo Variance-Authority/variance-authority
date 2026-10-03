@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { fetchWithin } from './transport.js';
 
 /**
@@ -36,7 +37,9 @@ function refusesForeignSignals(seen: RequestInit[]): typeof globalThis.fetch {
 }
 
 describe('fetchWithin', () => {
+  beforeEach(() => variancePrecondition({ network: 'stubbed', remote: 'hangs' }));
   it('passes a response through untouched', async () => {
+    variancePrecondition({ remote: 'accepts' });
     const ok = new Response('{}', { status: 200 });
     const get = (() => Promise.resolve(ok)) as unknown as typeof globalThis.fetch;
 

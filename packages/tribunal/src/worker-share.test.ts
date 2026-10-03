@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { findEntry, httpLineCell, publishLine, readLine, type ShareLine } from '@variance-authority/core/share';
 import { CHURN_PATH } from '@variance-authority/history';
@@ -37,6 +38,7 @@ let before: (method: string, path: string) => Promise<void>;
 
 beforeEach(async () => {
   bucket = createMemoryR2();
+  variancePrecondition({ network: 'stubbed' });
   worker = createTribunal({
     db: await createSqliteD1(),
     bucket,
@@ -84,6 +86,7 @@ const entry = (name: string, text = name) => ({
 });
 
 describe('a tribunal as the store of an http share', () => {
+  beforeEach(() => variancePrecondition({ token: 'ingest', remote: 'accepts' }));
   it('holds a line a writer published and a reader reads, at the path the client spells', async () => {
     const published = await publishLine(cell(INGEST), MAIN, [entry('report-v1', 'the report')], {
       descends,
@@ -135,6 +138,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a manifest write on a version that is not the stored one', async () => {
+    variancePrecondition({ remote: 'refuses' });
     await publishLine(cell(INGEST), MAIN, [entry('report-v1')], { descends, image });
     const path = `${ORIGIN}/share/mainline/release/2.0/manifest.json`;
     const put = (headers: Record<string, string>) =>
@@ -151,6 +155,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a manifest write that names no version, and stores nothing', async () => {
+    variancePrecondition({ remote: 'refuses' });
     await publishLine(cell(INGEST), MAIN, [entry('report-v1')], { descends, image });
     const path = `${ORIGIN}/share/mainline/release/2.0/manifest.json`;
     const version = async () =>
@@ -179,6 +184,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a blob whose bytes are not the digest it is stored under', async () => {
+    variancePrecondition({ remote: 'refuses' });
     const response = await worker.fetch(
       new Request(`${ORIGIN}/share/images/${'d'.repeat(64)}`, {
         method: 'PUT',
@@ -192,6 +198,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a line spelled differently from how the client spells it', async () => {
+    variancePrecondition({ remote: 'refuses' });
     const response = await worker.fetch(
       new Request(`${ORIGIN}/share/branch/feature%2Fx/manifest.json`, {
         headers: { authorization: `Bearer ${INGEST}` },
@@ -201,6 +208,7 @@ describe('a tribunal as the store of an http share', () => {
   });
 
   it('refuses a key its store will not hold, and the publisher is told why rather than that the store failed', async () => {
+    variancePrecondition({ remote: 'refuses' });
     const put = bucket.put.bind(bucket);
     vi.spyOn(bucket, 'put').mockImplementation(async (key, ...rest) => {
       if (key.endsWith('/manifest.json')) throw new FoldedKey('the object key names "feature" where this store holds "Feature"');
@@ -228,12 +236,14 @@ describe('a tribunal as the store of an http share', () => {
 });
 
 describe('who opens the share', () => {
+  beforeEach(() => variancePrecondition({ store: 'seeded', remote: 'refuses' }));
   beforeEach(async () => {
     await publishLine(cell(INGEST), MAIN, [entry('report-v1')], { descends, image });
     requests = [];
   });
 
   it('lets the share token read and refuses it the write, before any byte is stored', async () => {
+    variancePrecondition({ token: 'share' });
     expect('manifest' in (await readLine(cell(SHARE), MAIN))).toBe(true);
 
     const keys = bucket.keys();
@@ -246,6 +256,7 @@ describe('who opens the share', () => {
   });
 
   it('refuses the review token, which decides on builds and does not open the share', async () => {
+    variancePrecondition({ token: 'review' });
     expect(await readLine(cell(REVIEW), MAIN)).toMatchObject({ kind: 'refused' });
     const response = await worker.fetch(
       new Request(`${ORIGIN}/share/mainline/release/2.0/manifest.json`, {
@@ -257,6 +268,7 @@ describe('who opens the share', () => {
   });
 
   it('refuses a caller with no token, as it refuses one everywhere else', async () => {
+    variancePrecondition({ token: 'none' });
     expect(await readLine(cell(), MAIN)).toMatchObject({ kind: 'refused' });
     expect(await publishLine(cell(), MAIN, [entry('report-v1')], { descends, image })).toMatchObject({
       kind: 'refused',
@@ -264,6 +276,7 @@ describe('who opens the share', () => {
   });
 
   it('keeps the share token out of every route that is not the share', async () => {
+    variancePrecondition({ token: 'share' });
     for (const path of ['/review/builds', CHURN_PATH, '/baseline/find']) {
       const response = await worker.fetch(
         new Request(`${ORIGIN}${path}`, { method: 'POST', headers: { authorization: `Bearer ${SHARE}` }, body: '{}' }),
@@ -287,6 +300,7 @@ describe('who opens the share', () => {
   });
 
   it('leaves the share alone when builds are swept', async () => {
+    variancePrecondition({ token: 'review', remote: 'accepts' });
     const keys = bucket.keys();
     expect((await worker.fetch(new Request(`${ORIGIN}/review/sweep?days=0`, { method: 'POST', headers: { authorization: `Bearer ${REVIEW}` }, body: '{}' }))).status).toBe(200);
     expect(bucket.keys()).toEqual(keys);

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { variancePrecondition } from './precondition.js';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { keepsCases } from './case-record.js';
 import { IndexLock, LOCK_POLL_MS, LOCK_WAIT_MS, withIndexLock } from './index-lock.js';
@@ -53,6 +54,7 @@ const PUMP_TEST_TIMEOUT_MS = 3 * REAL_CAP_MS;
 async function pastTheWait<T>(work: () => Promise<T>): Promise<T> {
   const nextTurn = setTimeout;
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  variancePrecondition({ clock: 'faked' });
   try {
     let settled = false;
     const running = work().finally(() => {
@@ -131,6 +133,7 @@ describe('who may grow the index', () => {
   });
 
   it('gives up rather than merging over a holder that never lets go', async () => {
+    variancePrecondition({ lock: 'held' });
     const file = await index();
     let ran = false;
     // Held until this test says otherwise, which is what a hung or very slow

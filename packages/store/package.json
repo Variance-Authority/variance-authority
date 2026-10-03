@@ -52,5 +52,8 @@
     "@variance-authority/core": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/report": "workspace:^"
+  },
+  "devDependencies": {
+    "@variance-authority/sense": "workspace:^"
   }
 }
