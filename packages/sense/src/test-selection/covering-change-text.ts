@@ -1,5 +1,18 @@
 import { heldText } from './case-axes.js';
+import type { RangeState } from './range-state.js';
 import type { CoveringChange, CoveringTest, ExecutionTest } from './reverse.js';
+
+/**
+ * A changed region with the state its caller read, when the caller read one.
+ *
+ * The listed cases can be fewer than the ones that covered the region — the CLI
+ * lists only the cases `--where` kept, and states the region over all of them —
+ * so where a state is given, it is what the words say, not the list's length.
+ */
+export type StatedCoveringRegion = CoveringChange['regions'][number] & { readonly state?: RangeState };
+
+/** A changed file whose regions may carry the state their caller read. */
+export type StatedCoveringChange = Omit<CoveringChange, 'regions'> & { readonly regions: readonly StatedCoveringRegion[] };
 
 /**
  * The review reading, in words, for whichever surface is asking.
@@ -62,7 +75,7 @@ export type CoveringCaseNote = (test: CoveringTest | ExecutionTest, indent: stri
  * it.
  */
 export function formatCoveringChange(
-  changed: readonly CoveringChange[],
+  changed: readonly StatedCoveringChange[],
   heading: CoveringChangeHeading = {},
   note: CoveringCaseNote = (test) => ({ tail: heldText(test.preconditions), under: [] }),
 ): string {
@@ -71,9 +84,9 @@ export function formatCoveringChange(
     return [`    ${describe(test)}${tail}`, ...under];
   };
   const regions = changed.flatMap((file) => file.regions);
-  const blind = regions.filter((region) => region.tests.length === 0);
+  const blind = regions.filter((region) => region.tests.length === 0 && !covered(region.state));
   const holes = blind.filter((region) => (region.stopped?.length ?? 0) > 0);
-  const alone = regions.filter((region) => region.tests.length === 1);
+  const alone = regions.filter((region) => region.state === undefined ? region.tests.length === 1 : region.state === 'alone');
   const silent = changed.filter((file) => !file.recorded && file.cases.length === 0);
 
   const lines = [
@@ -153,18 +166,27 @@ function extent(region: CoveringChange['regions'][number]): string {
  * could have reached and did not is a hole, not a region nobody walked, and a
  * single witness beside it is not known to be alone.
  */
-function claim(region: CoveringChange['regions'][number]): string {
+function claim(region: StatedCoveringRegion): string {
   const tests = region.tests.length;
   const stopped = region.stopped?.length ?? 0;
+  const also = stopped === 0 ? '' : `, and ${count(stopped, 'case')} that could have reached it stopped first`;
+  if (tests === 0 && covered(region.state)) {
+    return `covered only by ${region.state === 'alone' ? 'a case' : 'cases'} not listed here${also}`;
+  }
+  if (tests === 1 && stopped === 0 && region.state === 'walked') return '1 case listed, and cases not listed here also covered it';
   if (tests === 0) {
     if (stopped > 0) return `a hole: no case covered this region, and ${count(stopped, 'case')} that could have reached it stopped first`;
     return region.stopped === undefined
       ? 'no case covered this region'
       : 'no case covered this region, and every case that could have reached it finished';
   }
-  const also = stopped === 0 ? '' : `, and ${count(stopped, 'case')} that could have reached it stopped first`;
   if (tests === 1) return stopped === 0 ? '1 case, and it is the only witness' : `1 case${also}`;
   return `${tests} cases${also}`;
+}
+
+/** A state that says a case went there, whether or not it is listed. */
+function covered(state: RangeState | undefined): boolean {
+  return state === 'walked' || state === 'alone';
 }
 
 /**

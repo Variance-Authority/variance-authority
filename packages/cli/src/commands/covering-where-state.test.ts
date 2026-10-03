@@ -154,8 +154,12 @@ describe('`--where` narrows the cases listed, never the state of what they cover
     ]);
   });
 
-  it.todo(
-    'the `--since` text words `fee` as walked by a case `--where` left out, not as a hole nobody covered — needs ' +
-      '`formatCoveringChange` in sense, which the MCP tool shares, to word a region from its `state`',
-  );
+  it('words a changed region only an unlisted case ran as covered, not as a hole', async () => {
+    const record = await checkout();
+
+    const text = formatCovering(await ask(record, ['--since', 'main', '--where', 'flag=ff-on']), 'text');
+
+    expect(text).toContain('4 changed regions: 1 nothing covered (1 of them a hole), 0 covered by one case.');
+    expect(text).toContain('13-15 function fee — covered only by cases not listed here, and 1 case that could have reached it stopped first');
+  });
 });

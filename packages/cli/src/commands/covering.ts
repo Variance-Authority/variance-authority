@@ -220,8 +220,6 @@ async function ask(
     const relations = await fileGraph(request.root);
     const answer = coveringChange(index, changed, { relations });
     // Both readings land on the same blocks in the same order: `--where` narrows the cases, never the regions.
-    // FIXME: the `--since` text (`formatCoveringChange`) words a region from its listed cases and `stopped`, never
-    // `state`, so under `--where` a region only an unlisted case ran reads "a hole: no case covered this region".
     const reached = before === undefined ? answer : coveringChange(before, changed, { relations });
     if (before !== undefined) reach?.(listedIn({ changed: reached }));
     return {

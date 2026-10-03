@@ -126,6 +126,25 @@ describe('formatCoveringChange', () => {
     expect(text).toContain('12-14 function priceOf — 1 case, and 1 case that could have reached it stopped first');
   });
 
+  it('words a region from the state its caller read, when the listed cases are fewer than the ones that covered it', () => {
+    const text = formatCoveringChange([file({
+      regions: [
+        { ...region({ stopped: [] }), state: 'walked' as const },
+        { ...region({ startLine: 8, endLine: 10, tests: [witness('guest')], stopped: [] }), state: 'walked' as const },
+        { ...region({ startLine: 12, endLine: 14, stopped: [] }), state: 'unwalked' as const },
+      ],
+    })]);
+
+    expect(text.split('\n')[0]).toBe(
+      '1 changed file, 3 changed regions: 1 nothing covered, 0 covered by one case.',
+    );
+    expect(text).toContain('1-6 function priceOf — covered only by cases not listed here');
+    expect(text).toContain('8-10 function priceOf — 1 case listed, and cases not listed here also covered it');
+    expect(text).toContain(
+      '12-14 function priceOf — no case covered this region, and every case that could have reached it finished',
+    );
+  });
+
   it('carries what the caller knows about each listed case, on its line and under it', () => {
     const text = formatCoveringChange(
       [file({ regions: [region({ tests: [witness('guest')] })] }), file({ file: 'test/cart.test.ts', cases: [witness('member')] })],
