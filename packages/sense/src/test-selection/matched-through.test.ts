@@ -23,7 +23,7 @@ describe('regions paired through the diff between two texts', () => {
     const theirs = block('kept', 2, 4, 'other');
     const ours = block('kept', 2, 4);
 
-    expect(matchedThrough(module([kept]), module([theirs, ours]), HUNKS)).toEqual([[kept, ours]]);
+    expect(matchedThrough(module([kept]), module([theirs, ours]), HUNKS).pairs).toEqual([[kept, ours]]);
   });
 
   it('pairs a row the edit touched with the nearest region of its name still on its lines', () => {
@@ -31,7 +31,7 @@ describe('regions paired through the diff between two texts', () => {
     const near = block('edited', 6, 8);
     const far = block('edited', 8, 8);
 
-    expect(matchedThrough(module([edited]), module([far, near]), HUNKS)).toEqual([[edited, near]]);
+    expect(matchedThrough(module([edited]), module([far, near]), HUNKS).pairs).toEqual([[edited, near]]);
   });
 
   it('pairs nothing with a row the edit removed, nor with one whose lines hold no region of its name', () => {
@@ -41,7 +41,7 @@ describe('regions paired through the diff between two texts', () => {
 
     const now = module([block('gone', 1, 3), block('stray', 30, 30), block('edited', 40, 42)]);
 
-    expect(matchedThrough(module([gone, stray, edited]), now, HUNKS)).toEqual([]);
+    expect(matchedThrough(module([gone, stray, edited]), now, HUNKS)).toEqual({ pairs: [], mismatched: [] });
   });
 });
 

@@ -334,6 +334,14 @@ export function motionText(
       renumbered === 1 ? 'it' : 'them'
     } kept the same cases, so ${renumbered === 1 ? 'it is' : 'they are'} not counted as moved.`);
   }
+  const mismatched = moved.mismatched ?? [];
+  if (mismatched.length > 0) {
+    lines.push(`Not compared, ${mismatched.length} base row${mismatched.length === 1 ? '' : 's'} the diff put on a region of another path, which no edit renumbered, so the base does not match its own text:`);
+    for (const row of mismatched.slice(0, listed)) {
+      lines.push(`  ${place(row)} ${row.path} — now on ${row.now.startLine}-${row.now.endLine} ${row.now.path}`);
+    }
+    lines.push(...notListed(mismatched.length - listed, 'row'));
+  }
   if (moved.unread.length > 0) lines.push(`Not compared, the current record has no row for: ${listedOf(moved.unread, listed, 'file')}.`);
   lines.push(...unwritten);
   return lines;
@@ -411,6 +419,7 @@ function within(moved: CaseMotion, file: string): CaseMotion {
     testFiles,
     unread: moved.unread.filter((unread) => unread === file),
     ...(moved.renumbered === undefined ? {} : { renumbered: moved.renumbered.filter((region) => region.file === file) }),
+    ...(moved.mismatched === undefined ? {} : { mismatched: moved.mismatched.filter((row) => row.file === file) }),
   };
 }
 

@@ -295,6 +295,21 @@ describe('what a change moved against the base', () => {
     expect(formatCovering(answer, 'text')).toContain('no region moved.');
   });
 
+  it('names a base row the diff put on a region of another path as not compared, with where it landed', () => {
+    const row = { file: 'src/total.ts', kind: 'branch', name: 'apply', startLine: 12, endLine: 12, path: 'if#0/then' };
+    const moved = {
+      regions: [], counts: { lost: 0, hidden: 0, thinned: 0, gained: 0 }, testFiles: [], unread: [], renumbered: [],
+      mismatched: [{ ...row, now: { ...row, startLine: 13, endLine: 13, path: 'if#1/then' } }],
+    };
+
+    expect(motionText({ base: { from: 'base.json', kind: 'record' }, moved })).toEqual([
+      '',
+      'Against base.json, no region moved.',
+      'Not compared, 1 base row the diff put on a region of another path, which no edit renumbered, so the base does not match its own text:',
+      '  src/total.ts 12-12 branch apply if#0/then — now on 13-13 if#1/then',
+    ]);
+  });
+
   it('leaves out what the base branch changed after the base was recorded, and names it', async () => {
     const { root, first } = await checkout();
     await writeFile(join(root, 'src/other.ts'), 'export const other = 2;\n');
