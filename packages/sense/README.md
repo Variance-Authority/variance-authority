@@ -1939,7 +1939,9 @@ test: nothing in a checkout changes it, so it is read and never diffed.
 
 Vitest, Jest, Rstest and Playwright all listen. Under Playwright, a call at the
 top level or in a `describe` callback of the first file a worker loads is made
-before the worker listens, and records nothing rather than throwing. A seam that drives its own recorder calls `listenForPreconditions(root,
+before the worker listens, and records nothing rather than throwing. A call in
+the callback of `test.skip`, `test.fixme`, `test.fail` or `test.slow` throws:
+it decides whether and how the case runs, and arranges nothing for it. A seam that drives its own recorder calls `listenForPreconditions(root,
 standing)` from `@variance-authority/sense/journal`, where `standing` says
 which case a call stands in at the moment it is made.
 

@@ -87,6 +87,11 @@ than any of them.
   case — a cleanup, a timer that fires after the case settled. Nothing there
   belongs to one case, so nothing is guessed: the error names the call site and
   says to move it into the case body or a `beforeEach`.
+- **A call in a modifier's callback** — Playwright's `test.skip`, `test.fixme`,
+  `test.fail` or `test.slow` given a function — throws the same way: the
+  callback decides whether and how the case runs, and arranges nothing for it.
+  A test fixture the callback asks for is still set up for the case, and a call
+  in its setup lands on that case.
 - **A `beforeEach` that throws** takes what it said with it. Its case never
   runs, and the next case begins with nothing held.
 

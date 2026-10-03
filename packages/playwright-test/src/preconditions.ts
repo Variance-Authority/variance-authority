@@ -33,7 +33,7 @@ export function playwrightStanding(owner: (testInfo: TestInfo) => string): () =>
     const hook = (hookType as () => string | undefined).call(info);
     switch (hook) {
       case undefined:
-        return { at: 'case', key };
+        return bodyOrModifier(info, key);
       case 'beforeEach':
         // FIXME: the depth of the describe that declared the hook — needs the
         // hook's location; every `beforeEach` of a case reads as its innermost
@@ -46,4 +46,37 @@ export function playwrightStanding(owner: (testInfo: TestInfo) => string): () =>
         return { at: 'outside', because: `ran in a ${hook}, which runs for no one test` };
     }
   };
+}
+
+/** The modifiers that take a callback, which Playwright runs before the case to decide how it runs. */
+const MODIFIERS: ReadonlySet<unknown> = new Set(['skip', 'fixme', 'fail', 'slow']);
+
+/**
+ * Where a call stands when `_currentHookType` names no hook: the body, or a
+ * modifier's callback, which it reports the same way.
+ *
+ * A modifier decides whether the case runs, so it arranges nothing for it.
+ * Which one is running is the worker's timeout slot, and a worker that does
+ * not say so places no call, as one without `_currentHookType` does.
+ *
+ * A test fixture the modifier asks for first is set up under the modifier's
+ * slot, with the fixture on the running runnable. Its call stays on the case,
+ * as it does when the case body asks for the fixture first.
+ */
+function bodyOrModifier(info: TestInfo, key: string): PreconditionStanding {
+  const slots = (info as { _timeoutManager?: { currentSlotType?: unknown; _running?: { runnable?: { fixture?: unknown } } } })
+    ._timeoutManager;
+  const slot = typeof slots?.currentSlotType === 'function' ? (slots.currentSlotType as () => unknown).call(slots) : undefined;
+  // FIXME: Playwright tears test fixtures down under the `test` slot too, so a
+  // call in a fixture's cleanup lands on its case; spec 0093 throws for a cleanup.
+  if (slot === 'test') return { at: 'case', key };
+  // FIXME: a worker fixture a worker-only modifier sets up passes here too and
+  // lands on the case about to run; the setup description carries no scope.
+  if (MODIFIERS.has(slot) && slots?._running?.runnable?.fixture !== undefined) return { at: 'case', key };
+  // FIXME: a worker-only modifier that runs first in a fresh worker runs before
+  // the recorder is installed, so its call records nothing and throws nothing.
+  if (MODIFIERS.has(slot)) {
+    return { at: 'outside', because: `ran in a test.${String(slot)} modifier, which decides whether its case runs` };
+  }
+  return { at: 'outside', because: 'ran in a Playwright worker that does not say whether the case body is running' };
 }

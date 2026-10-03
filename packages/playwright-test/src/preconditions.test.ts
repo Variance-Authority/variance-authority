@@ -5,17 +5,18 @@ import { playwrightStanding } from './preconditions.js';
 // What a call is placed on is decided by what `test.info()` says when it is
 // made, so `test.info` is the seam: a worker's `TestInfo` cut to what is read.
 
-const infoWith = (hookType: unknown): TestInfo =>
+const infoWith = (hookType: unknown, slot: unknown, fixture?: object): TestInfo =>
   ({
     titlePath: ['checkout.spec.ts', 'mocked', 'pays'],
     project: { name: '' },
     file: '/repo/tests/checkout.spec.ts',
     testId: 't1',
     _currentHookType: hookType,
+    _timeoutManager: slot === null ? undefined : { currentSlotType: () => slot, _running: { runnable: { type: slot, fixture } } },
   }) as unknown as TestInfo;
 
-const standingUnder = (hookType: unknown) => {
-  vi.spyOn(test, 'info').mockReturnValue(infoWith(hookType));
+const standingUnder = (hookType: unknown, slot: unknown = 'test', fixture?: object) => {
+  vi.spyOn(test, 'info').mockReturnValue(infoWith(hookType, slot, fixture));
   return playwrightStanding(() => 'tests/checkout.spec.ts')();
 };
 
@@ -35,9 +36,25 @@ describe('playwrightStanding', () => {
     expect(standingUnder(() => 'afterAll')).toMatchObject({ at: 'outside', because: expect.stringMatching(/afterAll/) });
   });
 
+  it('places a call in a modifier’s callback on no case, naming the modifier', () => {
+    expect(standingUnder(() => undefined, 'skip')).toMatchObject({ at: 'outside', because: expect.stringMatching(/test\.skip modifier/) });
+    expect(standingUnder(() => undefined, 'fixme')).toMatchObject({ at: 'outside', because: expect.stringMatching(/test\.fixme modifier/) });
+    expect(standingUnder(() => undefined, 'fail')).toMatchObject({ at: 'outside', because: expect.stringMatching(/test\.fail modifier/) });
+    expect(standingUnder(() => undefined, 'slow')).toMatchObject({ at: 'outside', because: expect.stringMatching(/test\.slow modifier/) });
+  });
+
+  it('places a call in a test fixture a modifier set up on its case', () => {
+    expect(standingUnder(() => undefined, 'skip', { title: 'cart' })).toEqual({ at: 'case', key: 'tests/checkout.spec.ts\u0000t1' });
+  });
+
   it('guesses no body where the worker does not say which hook is running', () => {
     expect(standingUnder(undefined)).toMatchObject({ at: 'outside' });
     expect(standingUnder('beforeEach')).toMatchObject({ at: 'outside' });
+  });
+
+  it('guesses no body where the worker does not say whether the body is running', () => {
+    expect(standingUnder(() => undefined, null)).toMatchObject({ at: 'outside' });
+    expect(standingUnder(() => undefined, 'teardown')).toMatchObject({ at: 'outside' });
   });
 
   it('places a call outside a running test on no case', () => {
