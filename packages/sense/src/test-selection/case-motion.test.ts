@@ -236,6 +236,22 @@ describe('a branch whose lines carried it onto a branch of another path', () => 
     expect(motion.regions.map((region) => [region.startLine, region.motion])).toEqual([[12, 'lost']]);
     expect(motion.mismatched).toEqual([]);
   });
+
+  it('is paired when an `else if` written before it nested it one level deeper', () => {
+    const base = index([A], [{ ...block('casesMoved', 10, []), endLine: 14 }, branch('if#0/else/if#0/then', 13, [0])]);
+    // `} else if (first) {` is written on line 13, so the base branch stands on line 14 one `else` deeper.
+    const inside = new Map([['src/total.ts', [{ oldStart: 12, oldCount: 0, newStart: 13, newCount: 1 }]]]);
+    const now = index([A], [
+      { ...block('casesMoved', 10, []), endLine: 15 },
+      branch('if#0/else/if#0/then', 13, []),
+      branch('if#0/else/if#0/else/if#0/then', 14, []),
+    ]);
+
+    const motion = caseMotion(base, now, { diff: inside });
+
+    expect(motion.regions.map((region) => [region.startLine, region.motion])).toEqual([[14, 'lost']]);
+    expect(motion.mismatched).toEqual([]);
+  });
 });
 
 // Without the diff — a base whose commit is unknown or not in the clone — a sibling written before another whose

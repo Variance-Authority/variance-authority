@@ -336,7 +336,7 @@ export function motionText(
   }
   const mismatched = moved.mismatched ?? [];
   if (mismatched.length > 0) {
-    lines.push(`Not compared, ${mismatched.length} base row${mismatched.length === 1 ? '' : 's'} the diff put on a region of another path, which no edit renumbered, so the base does not match its own text:`);
+    lines.push(`Not compared, ${mismatched.length} base row${mismatched.length === 1 ? '' : 's'} the diff put on a region of another path that no edit explains:`);
     for (const row of mismatched.slice(0, listed)) {
       lines.push(`  ${place(row)} ${row.path} — now on ${row.now.startLine}-${row.now.endLine} ${row.now.path}`);
     }

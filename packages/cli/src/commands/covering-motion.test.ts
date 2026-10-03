@@ -305,7 +305,7 @@ describe('what a change moved against the base', () => {
     expect(motionText({ base: { from: 'base.json', kind: 'record' }, moved })).toEqual([
       '',
       'Against base.json, no region moved.',
-      'Not compared, 1 base row the diff put on a region of another path, which no edit renumbered, so the base does not match its own text:',
+      'Not compared, 1 base row the diff put on a region of another path that no edit explains:',
       '  src/total.ts 12-12 branch apply if#0/then — now on 13-13 if#1/then',
     ]);
   });

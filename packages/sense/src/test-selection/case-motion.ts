@@ -70,9 +70,8 @@ export interface CaseMotion {
   /**
    * Rows at the base the diff carried onto a region of another structural path
    * — `if#0/then` onto `if#1/then`, or a `then` onto an `else` — where no edit
-   * inside the region holding both could have renumbered it. The base row does
-   * not match the text it claims, so the pair is not compared, and is named
-   * here rather than read as motion. Absent from an answer written before rows
+   * inside the function holding it explains the change of path. The pair is not
+   * compared, and is named here rather than read as motion. Absent from an answer written before rows
    * were checked against their path: that is not the same as none.
    */
   readonly mismatched?: readonly MismatchedRow[];
@@ -210,14 +209,14 @@ export interface Paired {
  * through the diff between the two texts: a row pairs with the region of its
  * kind and name standing on the lines the diff carried it to. A row an edit
  * touched is carried to an approximate range, so it pairs with the nearest
- * region of its kind, name and shape of path overlapping it, after every untouched row has
+ * region of its kind, name and branch ({@link leafOf}) overlapping it, after every untouched row has
  * taken its own. A row the edit removed pairs with nothing, and a region the
  * edit wrote is paired by no row.
  *
  * A row the edit left whole pairs with a region of its own structural path,
  * or with one an edit renumbered ({@link renumberedBy}). A row that lands only
- * on a region of another path is not paired: the base row does not match the
- * text it claims, and it is returned as mismatched with the region it landed on.
+ * on a region of another path is not paired: no edit explains the change of
+ * path, and it is returned as mismatched with the region it landed on.
  */
 export function matchedThrough(
   base: ExecutionModule,
@@ -257,7 +256,7 @@ export function matchedThrough(
     let nearest: ExecutionBlock | undefined;
     for (const block of named.get(key(row)) ?? []) {
       if (taken.has(block) || block.startLine > lines.endLine || block.endLine < lines.startLine) continue;
-      if (shapeOf(block.path) !== shapeOf(row.path)) continue;
+      if (leafOf(block.path) !== leafOf(row.path)) continue;
       if (nearest === undefined || Math.abs(block.startLine - lines.startLine) < Math.abs(nearest.startLine - lines.startLine)) nearest = block;
     }
     if (nearest === undefined) continue;
@@ -268,30 +267,32 @@ export function matchedThrough(
 }
 
 /**
- * Whether an edit can have renumbered `row` into `block`: their paths differ
- * only in the occurrence of one segment, and the diff wrote or removed a line
- * between the start of the region holding both and the row. Only a sibling
- * written or removed before it, inside that region, moves an occurrence; an
- * edit above the region moves its lines and leaves its path alone.
+ * Whether an edit can have renumbered `row` into `block`: both are the same
+ * branch of their region ({@link leafOf}), and the diff wrote or removed a line
+ * inside the function holding the row, before it. Only an edit before a region
+ * in its own function moves its occurrence or its depth: a sibling written or
+ * removed, an `else if` added, a statement wrapped. An edit above the function
+ * moves its lines and leaves its path alone. A row no function holds is
+ * renumbered by any edit above it.
  */
 function renumberedBy(hunks: readonly Hunk[], base: ExecutionModule, row: ExecutionBlock, block: ExecutionBlock): boolean {
-  if (shapeOf(row.path) !== shapeOf(block.path)) return false;
-  const was = row.path.split('/');
-  const is = block.path.split('/');
-  const at = was.findIndex((segment, index) => segment !== is[index]);
-  const holder = at === 0 ? 'entry' : was.slice(0, at).join('/');
-  const scope = base.blocks.find((one) => one.name === row.name && one.path === holder &&
+  if (leafOf(row.path) !== leafOf(block.path)) return false;
+  const scope = base.blocks.find((one) => one.name === row.name && one.path === 'entry' &&
     one.startLine <= row.startLine && one.endLine >= row.endLine);
-  const from = scope?.startLine ?? 1;
+  const from = scope?.startLine ?? 0;
   return hunks.some((hunk) => {
     const last = hunk.oldCount === 0 ? hunk.oldStart : hunk.oldStart + hunk.oldCount - 1;
     return hunk.oldStart < row.startLine && last >= from;
   });
 }
 
-/** A structural path without its occurrences: `if#1/then` is `if/then`, and never `if/else`. */
-function shapeOf(path: string): string {
-  return path.replace(/#\d+(?=\/|$)/g, '');
+/**
+ * The last segment of a structural path without its occurrence: `if#1/then` and
+ * `for#0/body/if#0/then` are `then`, and never `else`. An edit can renumber a
+ * branch or nest it deeper; it cannot turn one branch into another.
+ */
+function leafOf(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1).replace(/#\d+$/, '');
 }
 
 /**
