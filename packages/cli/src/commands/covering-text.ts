@@ -15,7 +15,8 @@ import type { CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import { heldText, twinText, whereText, type CoveringTwin } from './covering-where.js';
+import type { CaseTwin } from '@variance-authority/sense/test-selection';
+import { heldText, twinText, whereText } from './covering-where.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
 /** Say the answer in the shape the caller asked for. */
@@ -196,7 +197,7 @@ function caseLines(
   tests: readonly CoveringTest[],
   indent: string,
   files: readonly CoveringFile[] = [],
-  twins: readonly CoveringTwin[] = [],
+  twins: readonly CaseTwin[] = [],
 ): readonly string[] {
   const twinOf = new Map(twins.map((twin) => [twin.case, twin]));
   const names = new Map(tests.map((test) => [test.id, caseName(test)]));

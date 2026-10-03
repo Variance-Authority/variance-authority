@@ -33,6 +33,7 @@
 import { realpath } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
+  caseTwins,
   changedLines,
   coveringChange,
   coveringTests,
@@ -42,6 +43,7 @@ import {
   stoppedBefore,
   stateOf,
   recordedCommit,
+  type CaseTwin,
   type CoveringChange,
   type CoveringRegion,
   type CoveringTest,
@@ -57,7 +59,7 @@ import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
-import { namesAt, twinsOf, whereCases, type CoveringTwin, type CoveringWhere } from './covering-where.js';
+import { namesAt, whereCases, type CoveringWhere } from './covering-where.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
@@ -121,7 +123,7 @@ export interface Covering {
   /** Under `--where`: how many cases said it, of how many, and what could not be read. */
   readonly where?: CoveringWhere;
   /** Under `--where` with `names.axes`: each listed case's twin one step toward the base. */
-  readonly twins?: readonly CoveringTwin[];
+  readonly twins?: readonly CaseTwin[];
   /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
   readonly motion?: CoveringMotion;
   /** The commit the record stands at, when it says. The diff is measured from it. */
@@ -173,7 +175,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   // The twin is looked up among every case the question reached before `--where` narrowed it.
   const twins = names === undefined || answer.tests === undefined
     ? undefined
-    : twinsOf(answer.tests, reached ?? [], names);
+    : caseTwins(answer.tests, reached ?? [], names);
   const motion = await motionFor(request, answer.from, scope, full);
   const files = answer.tests === undefined || whole === undefined
     ? undefined

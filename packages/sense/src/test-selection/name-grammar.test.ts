@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { NamesConfig } from '../config-names.js';
-import { nameIndex, readName, structuralParent } from './names.js';
+import {
+  NameGrammarError,
+  nameIndex,
+  parseNameGrammar,
+  structuralParent,
+  type NameGrammar,
+} from './index.js';
+import { readName } from './name-grammar.js';
 
 /**
  * A name, read as the coordinate it is.
@@ -12,7 +18,7 @@ import { nameIndex, readName, structuralParent } from './names.js';
  * together they are why a grammar exists.
  */
 
-const GRAMMAR: NamesConfig = {
+const GRAMMAR: NameGrammar = {
   axes: [
     { axis: 'state', values: ['default', 'empty', 'new-flow'] },
     { axis: 'colour', values: ['green', 'glass'] },
@@ -66,7 +72,8 @@ describe('reading a name', () => {
   });
 
   it('does not find a value inside a longer word', () => {
-    expect(readName('story:checkout-glassware', GRAMMAR).axes).toEqual([]);
+    // `fibreglass` ends in `glass`, with no separator in front of it.
+    expect(readName('story:checkout--fibreglass', GRAMMAR)).toMatchObject({ stem: 'story:checkout--fibreglass', axes: [] });
   });
 });
 
@@ -143,5 +150,45 @@ describe('walking one axis toward its base', () => {
       ok: false,
       because: expect.stringContaining('2 subjects'),
     });
+  });
+});
+
+describe('the grammar a repository declares', () => {
+  const refusal = (value: unknown): NameGrammarError | undefined => {
+    try {
+      parseNameGrammar(value, 'here.json');
+    } catch (error) {
+      if (error instanceof NameGrammarError) return error;
+      throw error;
+    }
+    return undefined;
+  };
+
+  it('keeps the axes and their values in the order they were written', () => {
+    expect(parseNameGrammar({ axes: [{ axis: 'scheme', values: ['light', 'dark'] }, { axis: 'flag', values: ['ff-off', 'ff-on'] }] }, 'here.json'))
+      .toEqual({ axes: [{ axis: 'scheme', values: ['light', 'dark'] }, { axis: 'flag', values: ['ff-off', 'ff-on'] }] });
+  });
+
+  it('refuses each grammar that cannot mean anything, naming the field and the file', () => {
+    expect(refusal({ axes: [] })).toMatchObject({ where: 'here.json', field: 'names.axes', said: expect.stringMatching(/non-empty array of axes/) });
+    expect(refusal({ axes: [{ axis: 'scheme', values: ['light'] }] }))
+      .toMatchObject({ field: 'names.axes[0].values', said: expect.stringMatching(/at least two values/) });
+    expect(refusal({ axes: [{ axis: 'scheme', values: ['light', 'dark'] }, { axis: 'scheme', values: ['a', 'b'] }] }))
+      .toMatchObject({ field: 'names.axes', said: expect.stringMatching(/"scheme" twice/) });
+    expect(refusal({ axes: [{ axis: 'scheme', values: ['light', 'dark'] }, { axis: 'mood', values: ['calm', 'dark'] }] }))
+      .toMatchObject({ field: 'names.axes', said: expect.stringMatching(/"dark".*"scheme".*"mood"/s) });
+    expect(refusal({ axis: [] })).toMatchObject({ field: 'names.axis', said: expect.stringMatching(/accepts axes/) });
+    expect(refusal({ axes: [{ axis: 'scheme', values: ['light', ''] }] })).toMatchObject({ field: 'names.axes[0].values[1]' });
+    expect(refusal({ axes: [{ axis: ' ', values: ['light', 'dark'] }] })).toMatchObject({ field: 'names.axes[0].axis' });
+    expect(refusal('axes')).toMatchObject({ field: 'names', message: 'here.json: "names" must be an object, not "axes"' });
+  });
+
+  it('says what it was given in place of a list of values', () => {
+    const values = (said: unknown) => refusal({ axes: [{ axis: 'scheme', values: said }] });
+    expect(values('light')).toMatchObject({ field: 'names.axes[0].values', said: 'must be an array of strings, not "light"' });
+    expect(values(undefined)).toMatchObject({ said: 'must be an array of strings, not nothing' });
+    expect(values(null)).toMatchObject({ said: 'must be an array of strings, not null' });
+    expect(values({ light: true })).toMatchObject({ said: 'must be an array of strings, not an object' });
+    expect(refusal([])).toMatchObject({ field: 'names', said: 'must be an object, not an array' });
   });
 });
