@@ -568,7 +568,11 @@ every repeated `--where` must hold. Two values said at one level print as a cont
 `unmeasured` rather than an empty list, and a case nobody listened to is counted
 apart from the cases that said nothing. When `--where` keeps none of the cases
 that covered a line or function, the answer says the filter left none of them
-and how many there were, rather than that no test covered it.
+and how many there were, rather than that no test covered it. The state of a
+line, function, range or changed region, and the cases that stopped before it,
+are read over the same cases before `--where`: a line three cases ran stays
+`walked` when `--where` keeps one of them, and a hole stays a hole when it
+leaves out the case that stopped.
 
 When `names.axes` in `variance.config.json` declares the name, the value is
 read on that axis. `values[0]` is the base, and a case that never said the name
