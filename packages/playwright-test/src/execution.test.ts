@@ -10,7 +10,7 @@ import {
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
 import {
   createExecutionRecorder,
@@ -21,6 +21,14 @@ import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 import type { PreconditionStanding } from '@variance-authority/sense/journal';
 import { caseKey } from './test-coordinate.js';
+
+// These drive the fixture with a `TestInfo` cut to what recording reads, which
+// carries none of the worker internals a hook's describe is read from; that
+// read is the real run in `preconditions.chromium.test.ts`, and is cut here.
+vi.mock('./preconditions.js', async (original) => ({
+  ...(await original<typeof import('./preconditions.js')>()),
+  enterDescribes: async () => {},
+}));
 
 const INSTRUMENTATION = 'sense:instrument/presence-v5';
 

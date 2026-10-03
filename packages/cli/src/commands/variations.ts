@@ -5,9 +5,8 @@ import {
 } from '@variance-authority/core/compare';
 import type { SemanticSnapshot } from '@variance-authority/core/format';
 import type { VariationRecord } from '@variance-authority/report';
-import type { NamesConfig } from '../config-names.js';
 import type { Plan, PlannedSubject } from './collector.js';
-import { BOUNDARY, nameIndex, structuralParent, type Step } from './names.js';
+import { NAME_BOUNDARY, nameIndex, structuralParent, type AxisStep, type NameGrammar } from '@variance-authority/sense/test-selection';
 
 /**
  * Subjects that are variations of other subjects, and what the variation is.
@@ -93,7 +92,7 @@ export type ParentLink =
        * which is `dark` here and `light` there" — the question a coordinate can
        * be asked and a pair of strings cannot.
        */
-      readonly step?: Step;
+      readonly step?: AxisStep;
     }
   | { readonly ok: false; readonly because: string };
 
@@ -127,7 +126,7 @@ function namedParent(id: string, ids: ReadonlySet<string>): string | undefined {
   for (const candidate of ids) {
     if (candidate === id || candidate.length >= id.length) continue;
     if (!id.startsWith(candidate)) continue;
-    if (!BOUNDARY.has(id[candidate.length]!)) continue;
+    if (!NAME_BOUNDARY.has(id[candidate.length]!)) continue;
     // A name that is only a separator longer adds no axis; it is a typo or a
     // trailing dash, and comparing a subject to it explains nothing.
     if (id.length <= candidate.length + 1) continue;
@@ -151,7 +150,7 @@ function namedParent(id: string, ids: ReadonlySet<string>): string | undefined {
  * would attach a difference to the wrong parent and print it with full
  * confidence.
  */
-export function resolveParents(plan: Plan, names?: NamesConfig): ReadonlyMap<string, ParentLink> {
+export function resolveParents(plan: Plan, names?: NameGrammar): ReadonlyMap<string, ParentLink> {
   const ids = new Set(plan.subjects.map((planned) => planned.subject.id));
   const links = new Map<string, ParentLink>();
   // Built once for the run, and only when a grammar was configured. Without one
@@ -240,7 +239,7 @@ export function resolveParents(plan: Plan, names?: NamesConfig): ReadonlyMap<str
  * same omission wearing a coincidence: a named variation survives only when it
  * happens to be somebody else's parent too.
  */
-export function variationsWanted(plan: Plan, names?: NamesConfig): ReadonlySet<string> {
+export function variationsWanted(plan: Plan, names?: NameGrammar): ReadonlySet<string> {
   const wanted = new Set<string>();
   for (const [subject, link] of resolveParents(plan, names)) {
     if (!link.ok) continue;
@@ -255,8 +254,8 @@ export interface VariationsInput {
   /** Snapshots kept for this run, by subject id. Parents, and the variations. */
   readonly snapshots: ReadonlyMap<string, SemanticSnapshot>;
 
-  /** The name grammar, when the config has one. See `config-names.ts`. */
-  readonly names?: NamesConfig;
+  /** The name grammar, when the config has one. See `name-grammar.ts` in `@variance-authority/sense`. */
+  readonly names?: NameGrammar;
 }
 
 /**
@@ -303,7 +302,7 @@ export function variationsOf(input: VariationsInput): readonly VariationRecord[]
   return records;
 }
 
-function recordOf(variation: Variation, how: Declaration, step?: Step): VariationRecord {
+function recordOf(variation: Variation, how: Declaration, step?: AxisStep): VariationRecord {
   // Roots first, collateral after. A variation's report is read top-down and the
   // first name in it is the one somebody will go look at, so it has to be the
   // component the difference originates in rather than whichever component the
@@ -331,7 +330,7 @@ function because(
   variation: Variation,
   named: readonly string[],
   how: Declaration,
-  step?: Step,
+  step?: AxisStep,
 ): string {
   // Said on every line rather than once at the top of the section, because a
   // record is read one at a time — through `variance_variations`, through the

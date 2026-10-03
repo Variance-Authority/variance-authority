@@ -204,6 +204,58 @@ describe('a region paired through the diff from the base', () => {
   });
 });
 
+describe('a branch whose lines carried it onto a branch of another path', () => {
+  // `casesMoved` holds two one-line `if (...) return` branches, and the head text has one line written above it.
+  function branch(path: string, line: number, tests: readonly number[]): ExecutionBlock {
+    return { ...block('casesMoved', line, tests, 'branch'), path, endLine: line };
+  }
+  const head = (tests: readonly number[]) =>
+    index([A], [{ ...block('casesMoved', 11, []), endLine: 14 }, branch('if#0/then', 12, tests), branch('if#1/then', 13, [])]);
+
+  it('is not paired when no edit could have renumbered it, and is named as mismatched', () => {
+    // The base reading stands one line lower than its text: its `if#0/then` claims the line its `if#1/then` is on.
+    const base = index([A], [{ ...block('casesMoved', 11, []), endLine: 14 }, branch('if#0/then', 12, [0]), branch('if#1/then', 13, [])]);
+    const above = new Map([['src/total.ts', [{ oldStart: 0, oldCount: 0, newStart: 1, newCount: 1 }]]]);
+
+    const motion = caseMotion(base, head([0]), { diff: above });
+
+    expect(motion.regions).toEqual([]);
+    expect(motion.mismatched).toEqual([
+      expect.objectContaining({ path: 'if#0/then', startLine: 12, now: expect.objectContaining({ path: 'if#1/then', startLine: 13 }) }),
+    ]);
+  });
+
+  it('is paired when an edit inside the function before it wrote a sibling that renumbered it', () => {
+    const base = index([A], [{ ...block('casesMoved', 10, []), endLine: 13 }, branch('if#0/then', 11, [0])]);
+    // A new first branch is written on line 11, so the base `if#0/then` stands on line 12 as `if#1/then`.
+    const inside = new Map([['src/total.ts', [{ oldStart: 10, oldCount: 0, newStart: 11, newCount: 1 }]]]);
+    const now = index([A], [{ ...block('casesMoved', 10, []), endLine: 14 }, branch('if#0/then', 11, []), branch('if#1/then', 12, [])]);
+
+    const motion = caseMotion(base, now, { diff: inside });
+
+    expect(motion.regions.map((region) => [region.startLine, region.motion])).toEqual([[12, 'lost']]);
+    expect(motion.mismatched).toEqual([]);
+  });
+
+  it('is paired when an `else if` written before it nested it one level deeper', () => {
+    const base = index([A], [{ ...block('casesMoved', 10, []), endLine: 14 }, branch('if#0/else/if#0/then', 13, [0])]);
+    // `} else if (first) {` is written on line 13, so the base branch stands on line 14 one `else` deeper.
+    const inside = new Map([['src/total.ts', [{ oldStart: 12, oldCount: 0, newStart: 13, newCount: 1 }]]]);
+    const now = index([A], [
+      { ...block('casesMoved', 10, []), endLine: 15 },
+      branch('if#0/else/if#0/then', 13, []),
+      branch('if#0/else/if#0/else/if#0/then', 14, []),
+    ]);
+
+    const motion = caseMotion(base, now, { diff: inside });
+
+    expect(motion.regions.map((region) => [region.startLine, region.motion])).toEqual([[14, 'lost']]);
+    expect(motion.mismatched).toEqual([]);
+  });
+
+  it.todo('refuses a module-level branch renumbered by an edit above it but outside its enclosing statement — needs a holder for a row no function holds, which is renumbered today by any edit above it');
+});
+
 // Without the diff — a base whose commit is unknown or not in the clone — a sibling written before another whose
 // cases also changed takes that one's occurrence: the address pairs the displaced row with the new region (lost) and
 // the next row with the displaced region (gained). `coverage-sibling.test.ts` shows the diff pairing it truly.
