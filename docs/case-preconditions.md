@@ -4,7 +4,8 @@
 of code. A **case precondition** records the state each of those tests ran it
 under: a feature flag, what a mock returns, which user a fixture signs in.
 Coverage gives you the code path; case preconditions give that path its
-scenario.
+scenario. Unlike the file-level `preconditions` option in
+[distance](distance.md), a case precondition never selects a test.
 
 Two tests can run exactly the same lines under different conditions:
 
@@ -164,20 +165,6 @@ Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and s
 - Repeat `--where` to require several:
   `--where prices=discounted --where discount=on`.
 
-On a name you declare as an axis, below, a test that recorded nothing for it is
-read at the axis's base, and `--where` matches it there.
-
-`--where` works with `--line`, `--function`, a whole file and `--since`, and in
-every format. The count in `Kept` is out of the tests that covered what you
-asked, before `--where`, and within the
-[`--cases`](../packages/cli/README.md#reading-the-test-you-are-writing) scope
-when you give one. When `--where` keeps none, the answer says so and counts
-them:
-
-```text
-Kept none of the 4 cases that covered function total of src/checkout/total.ts: none said prices=sale.
-```
-
 ## Twins
 
 Some preconditions have a meaningful base: flag off against flag on, default
@@ -219,17 +206,6 @@ When no such test exists, the answer says so:
     applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
       no twin recorded at discount=off
 ```
-
-That means no test in the same file covered this code with `discount=off`,
-recorded or read at the base, and the same other preconditions. It does not claim no such test exists elsewhere, and
-on code that only runs with the discount on, such as an `applyDiscount`
-function, every `discount=on` test prints it.
-
-Twins are looked for only within one test file, among the tests that covered
-what you asked, before `--where` and within the `--cases` scope. Across files,
-a test that recorded nothing is read at the base of every axis, so it would be
-the twin of every test that recorded a value. Twins print with or without `--where`,
-in every answer.
 
 ## Reference
 
@@ -305,6 +281,19 @@ prints `discount contradicted:` and both values, each with its site. A retry
 that records a different value from an earlier attempt is the same
 contradiction. A `--where` naming either value keeps the test.
 
+### What `--where` counts
+
+`--where` works with `--line`, `--function`, a whole file and `--since`, and in
+every format. The count in `Kept` is out of the tests that covered what you
+asked, before `--where`, and within the
+[`--cases`](../packages/cli/README.md#reading-the-test-you-are-writing) scope
+when you give one. When `--where` keeps none, the answer says so and counts
+them:
+
+```text
+Kept none of the 4 cases that covered function total of src/checkout/total.ts: none said prices=sale.
+```
+
 ### An omitted name on an axis
 
 The recording holds only what was recorded. For a name declared as an axis,
@@ -313,6 +302,20 @@ base: with `discount` declared as `["off", "on"]`, a test that never called
 `setDiscountFlag` is read as `discount=off`, and `--where discount=off` keeps
 it. This reading comes from your configuration, not from anything observed
 while the test ran.
+
+### Where twins are looked for
+
+`no twin recorded` means no test in the same file covered this code with
+`discount=off`, recorded or read at the base, and the same other preconditions.
+It does not claim no such test exists elsewhere, and on code that only runs
+with the discount on, such as an `applyDiscount` function, every `discount=on`
+test prints it.
+
+Twins are looked for only within one test file, among the tests that covered
+what you asked, before `--where` and within the `--cases` scope. Across files,
+a test that recorded nothing is read at the base of every axis, so it would be
+the twin of every test that recorded a value. Twins print with or without `--where`,
+in every answer.
 
 ### Several axes
 
@@ -358,8 +361,7 @@ When only some rows lack it, the answer counts them apart, in a line under
 3 cases were not listened to, so whether they said any of that is unmeasured.
 ```
 
-### Not the file-level `preconditions` option
+### For a coding agent
 
-A case precondition is a state and never selects a test. The integration's
-file-level `preconditions` option, described in [distance](distance.md), names
-a file a test reads, so that editing the file selects the test.
+The [agent skill's reference](../packages/cli/skills/variance-authority/references/case-preconditions.md)
+answers the same questions for a coding agent.

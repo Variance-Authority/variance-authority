@@ -12,7 +12,7 @@ With [Sense](../packages/sense/README.md) set up for your runner, every run
 records which code each test ran: each function, branch and loop body, as ran
 or not ran. That record is the test's [journey](journeys.md), and every run
 records one for every test. [`variance
-covering`](test-level-coverage.md#the-process) reads the journeys and names the
+covering`](test-level-coverage.md#record-it-then-ask) reads the journeys and names the
 tests that ran a function:
 
 ```bash
@@ -290,7 +290,7 @@ story when the code does not answer your question:
 - **You are about to change code you do not know.** The journey names the
   code a test ran. When the call goes through an interface, a plugin, or a
   handler registered in another file, the source does not show the order it
-  ran in. Ask [`variance covering`](test-level-coverage.md#the-process) which
+  ran in. Ask [`variance covering`](test-level-coverage.md#record-it-then-ask) which
   tests run the function, and read the stories of the first few it names.
 
   ```bash
