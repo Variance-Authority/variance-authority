@@ -15,8 +15,8 @@ import type { CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import type { CaseTwin } from '@variance-authority/sense/test-selection';
-import { caseNameOf, heldText, twinText, whereText } from './covering-where.js';
+import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
+import { caseNameOf, twinText, whereText } from './covering-where.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
 /** Say the answer in the shape the caller asked for. */

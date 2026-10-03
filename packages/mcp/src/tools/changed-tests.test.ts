@@ -47,6 +47,20 @@ describe('variance_changed_tests', () => {
     expect(text.indexOf('applies the staff discount')).toBeLessThan(text.indexOf('uses the guest price'));
   });
 
+  it('prints what each case said, where it said it, as `variance covering --since` does', () => {
+    const index: ExecutionIndex = {
+      ...INDEX,
+      tests: [INDEX.tests[0]!, {
+        ...INDEX.tests[1]!,
+        preconditions: [{ name: 'role', value: 'staff', site: 'test/cart.test.ts:4', level: 1 }],
+      }],
+    };
+    const text = changedTests.run(index, { diff: diff('src/cart/total.ts', 3) });
+
+    expect(text).toContain('applies the staff discount [staff] — role=staff (test/cart.test.ts:4)');
+    expect(text).toMatch(/uses the guest price \[guest\]$/m);
+  });
+
   it('answers a changed test file with the cases it declares, not with silence', () => {
     const text = changedTests.run(INDEX, { diff: diff('test/cart.test.ts', 4) });
 

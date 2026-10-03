@@ -1,3 +1,4 @@
+import { heldText } from './case-axes.js';
 import type { CoveringChange, CoveringTest, ExecutionTest } from './reverse.js';
 
 /**
@@ -38,8 +39,8 @@ export interface CoveringChangeHeading {
 
 /**
  * What a caller knows about a case beyond its name: a tail for its line, and
- * the lines under it. The CLI prints what the case said and its twin; the MCP
- * tool reads no config to find a twin, and says nothing more.
+ * the lines under it. Without one a case's line carries what it said; the CLI
+ * adds its twin, which needs the checkout's `names.axes` the MCP tool never reads.
  */
 export type CoveringCaseNote = (test: CoveringTest | ExecutionTest, indent: string) => {
   readonly tail: string;
@@ -63,7 +64,7 @@ export type CoveringCaseNote = (test: CoveringTest | ExecutionTest, indent: stri
 export function formatCoveringChange(
   changed: readonly CoveringChange[],
   heading: CoveringChangeHeading = {},
-  note: CoveringCaseNote = () => ({ tail: '', under: [] }),
+  note: CoveringCaseNote = (test) => ({ tail: heldText(test.preconditions), under: [] }),
 ): string {
   const witness = (test: CoveringTest | ExecutionTest): readonly string[] => {
     const { tail, under } = note(test, '      ');

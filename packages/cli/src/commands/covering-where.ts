@@ -155,25 +155,6 @@ export function whereOver(
   };
 }
 
-/**
- * What a case said, with the call that said it: `flag=ff-on (spec.ts:9)`. A
- * name said twice at one level is printed as the contradiction it is.
- */
-export function heldText(said: readonly CasePrecondition[] | undefined): string {
-  if (said === undefined || said.length === 0) return '';
-  const byName = new Map<string, CasePrecondition[]>();
-  for (const held of said) byName.set(held.name, [...byName.get(held.name) ?? [], held]);
-  return ` — ${[...byName].map(([name, held]) => held.length === 1
-    ? `${valued(held[0]!)} (${held[0]!.site})`
-    : `${name} contradicted: ${held.map((one) => `${String(one.value)} (${one.site})`).join(', ')}`,
-  ).join(', ')}`;
-}
-
-/** One thing a case said: `flag=ff-on`, or the bare name for `true`. */
-export function valued(held: CasePrecondition): string {
-  return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
-}
-
 /** Names a twin line prints before it says how many more there are. */
 const TWINS_NAMED = 3;
 

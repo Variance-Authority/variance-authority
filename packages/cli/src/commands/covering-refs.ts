@@ -14,8 +14,8 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { narrowedText, scopeText, staleText } from './covering-text.js';
 import type { Covering, StatedRegion } from './covering.js';
-import type { CaseTwin } from '@variance-authority/sense/test-selection';
-import { caseNameOf, heldText, twinText, whereText } from './covering-where.js';
+import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
+import { caseNameOf, twinText, whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'preconditions'>;
 
