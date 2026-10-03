@@ -125,6 +125,17 @@ describe('`--where` counts the cases that covered what was asked', () => {
       .toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none said flag=ff-half.\n');
   });
 
+  it('claims none said it only of the cases that were listened to', () => {
+    const answer = (unmeasured: number) => formatCovering({
+      file: 'src/cart.ts', from: 'coverage.bin', target: { line: 6 }, tests: [],
+      where: { asked: ['flag=ff-half'], kept: 0, of: 4, unmeasured, outside: [] },
+    }, 'text');
+
+    expect(answer(1)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of the 3 listened to said flag=ff-half.\n');
+    expect(answer(1)).toContain('1 case was not listened to');
+    expect(answer(4)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of them was listened to.\n');
+  });
+
   it('says no count over a file whose recorded text is gone, where no case can be placed', () => {
     const answer = formatCovering({
       file: 'src/cart.ts', frame: 'stale', from: 'coverage.bin',

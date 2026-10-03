@@ -300,7 +300,7 @@ export function whereText(answer: Covering): readonly string[] {
     where.of === 0
       ? `No case covered ${target}, so none said ${asked}.`
       : where.kept === 0
-        ? `Kept none of the ${where.of} ${cases} that covered ${target}: none said ${asked}.`
+        ? `Kept none of the ${where.of} ${cases} that covered ${target}: ${noneSaid(where, asked)}.`
         : `Kept the ${where.kept} of ${where.of} ${cases} that covered ${target} and said ${asked}.`,
     ...where.unmeasured === 0 ? [] : [
       `${where.unmeasured} case${where.unmeasured === 1 ? ' was' : 's were'} not listened to, so whether ${
@@ -309,6 +309,13 @@ export function whereText(answer: Covering): readonly string[] {
     ],
     ...where.outside.map((note) => `  ${note}`),
   ];
+}
+
+/** *None said it* is claimed only of the cases that were listened to; the rest are counted apart. */
+function noneSaid(where: CoveringWhere, asked: string): string {
+  if (where.unmeasured === 0) return `none said ${asked}`;
+  const heard = where.of - where.unmeasured;
+  return heard === 0 ? 'none of them was listened to' : `none of the ${heard} listened to said ${asked}`;
 }
 
 /** What the question asked about, as the count names it. */
