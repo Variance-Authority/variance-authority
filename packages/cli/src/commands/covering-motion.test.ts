@@ -128,6 +128,47 @@ describe('what the last run moved', () => {
     expect(answer.motion?.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'gained']]);
   });
 
+  it('names, in the module asked about, each retired row that stands on a region of another path', async () => {
+    // The retired layer claims the commit the last run was made at, yet on the
+    // lines of each of its branches the record now holds a branch of another
+    // path, and no edit lies between them to have renumbered one.
+    const { first } = await checkout();
+    const execution = join(await records(), 'coverage.bin');
+    const branch = (file: string, name: string, path: string, line: number, tests: readonly number[]) =>
+      ({ file, name, path, line, tests });
+    const layer = (rows: readonly ReturnType<typeof branch>[]): ExecutionIndex => ({
+      tests: [DISCOUNTS],
+      modules: ['src/other.ts', 'src/total.ts'].map((file) => ({
+        file,
+        blocks: rows.filter((row) => row.file === file).flatMap((row) => [
+          { kind: 'function', name: row.name, path: 'entry', startLine: row.line - 1, endLine: row.line + 1, source: true, crossings: [] },
+          { kind: 'branch', name: row.name, path: row.path, startLine: row.line, endLine: row.line, source: true,
+            crossings: row.tests.map((test) => ({ test, distance: 0 })) },
+        ]),
+      })),
+    });
+    await keep(execution, layer([
+      branch('src/total.ts', 'apply', 'if#1/then', 12, []),
+      branch('src/total.ts', 'round', 'if#0/then', 32, []),
+      branch('src/other.ts', 'format', 'if#1/then', 2, []),
+    ]), {
+      last: { commit: first, before: first, at: '2026-09-25T00:00:00.000Z', files: ['total.test.ts'], cases: [DISCOUNTS.id] },
+      before: layer([
+        branch('src/total.ts', 'round', 'if#0/else', 32, [0]),
+        branch('src/total.ts', 'apply', 'if#0/then', 12, [0]),
+        branch('src/other.ts', 'format', 'if#0/then', 2, [0]),
+      ]),
+    });
+
+    const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
+
+    expect(answer.motion?.moved?.regions).toEqual([]);
+    expect(answer.motion?.moved?.mismatched?.map((row) => [row.file, row.startLine, row.path, row.now.path])).toEqual([
+      ['src/total.ts', 12, 'if#0/then', 'if#1/then'],
+      ['src/total.ts', 32, 'if#0/else', 'if#0/then'],
+    ]);
+  });
+
   it('says there was nothing to compare when no run came before', async () => {
     const dir = await records();
     const execution = join(dir, 'coverage.bin');
