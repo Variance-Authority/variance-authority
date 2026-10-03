@@ -66,16 +66,15 @@ knows which case is running and which hook it is in — places it.
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 ```
 
-The call takes a name and a value, or a record of them:
+The call takes a name and a value:
 
 ```ts
 variancePrecondition('network', 'mocked');
-variancePrecondition({ flag: 'ff-on', locale: 'de' });
-variancePrecondition('seeded-cart'); // the value is true
+variancePrecondition('seeded-cart', true);
 ```
 
-A value is a string, a finite number or a boolean. Without a value the name
-is `true`. Anything else is reported on the console and records nothing:
+The name is a string, and the value a string, a finite number or a boolean.
+Anything else is reported on the console and records nothing:
 
 ```text
 variance-authority: variancePrecondition at /home/you/shop/test/total.test.ts:24 takes a name and a string, number or boolean, or a record of them; nothing was recorded
@@ -212,7 +211,7 @@ record has seven cases, and the remaining examples come from it.
 
 - Values are compared as text, so `--where seeded-cart` and
   `--where seeded-cart=true` both keep a case that said
-  `variancePrecondition('seeded-cart')`. It prints as the bare name:
+  `variancePrecondition('seeded-cart', true)`. It prints as the bare name:
   `seeds a cart — seeded-cart (test/refund.test.ts:28)`.
 - A contradiction prints both values with their sites, and a `--where` naming
   either one keeps it:

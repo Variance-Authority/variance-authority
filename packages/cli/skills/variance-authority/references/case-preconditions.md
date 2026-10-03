@@ -92,7 +92,7 @@ beforeEach(() => {
 });
 
 it('discounts behind the flag', () => {
-  variancePrecondition({ flag: 'ff-on' });
+  variancePrecondition('flag', 'ff-on');
 });
 ```
 
