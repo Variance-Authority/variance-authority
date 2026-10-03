@@ -545,8 +545,11 @@ the commit before.
 
 A case that says what it arranged with
 [`variancePrecondition`](../sense#name-what-a-case-arranged) carries it on its
-row, and every case `covering` lists prints it with the call that said it.
-`--where` keeps the cases that said it, in every form of the question:
+row, and every case `covering` lists for a file, a line or a function prints
+it with the call that said it. `--where` keeps the cases that said it, in every
+form of the question.
+[Case preconditions](https://variance-authority.dev/docs/case-preconditions)
+covers where a call lands and how to read the answer:
 
 ```bash
 variance covering --file src/checkout/total.ts --line 48 --where network=mocked

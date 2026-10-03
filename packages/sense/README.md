@@ -1944,7 +1944,9 @@ standing)` from `@variance-authority/sense/journal`, where `standing` says
 which case a call stands in at the moment it is made.
 
 `variance covering --where network=mocked` keeps the cases that said it — see
-[`variance covering`](../cli#reading-the-cases-that-arranged-a-state).
+[`variance covering`](../cli#reading-the-cases-that-arranged-a-state), and
+[case preconditions](https://variance-authority.dev/docs/case-preconditions)
+for why a case says it and how to read it back.
 
 ### Ask the index about a diff
 

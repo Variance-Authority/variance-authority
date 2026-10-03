@@ -4,7 +4,7 @@
 to ask about a test that may no longer be worth keeping. It reads the per-case
 execution index and names the tests that ran through a file, a line or a
 function. Of the root `variance.config.json` it reads only `suites` and
-`cacheRoot`. None of it is a verdict: execution says where a
+`cacheRoot`, and `names` under `--where`. None of it is a verdict: execution says where a
 test went, never why the trip was worth taking.
 
 ```bash
@@ -23,11 +23,8 @@ says two of that file's three cases ran through it, and the cases follow.
 - `--cases last` answers from the cases the last run recorded; `--cases <test
   file>` from the ones that test file declares.
 - `--where <name>[=<value>]` keeps the cases that said that precondition with
-  `variancePrecondition`; repeat it and every one must hold. Each listed case
-  prints what it said and where. An `unmeasured` refusal means the record holds
-  no case's preconditions: record again, do not read it as *no case did*. With
-  `names.axes` declaring the name, each case also prints its twin one step
-  toward the base.
+  `variancePrecondition`. Reading what cases arranged, their twins and an
+  `unmeasured` refusal is in [case preconditions](case-preconditions.md).
 - `--format refs` numbers each case once in a table at the end and names every
   range's cases by those numbers, so a module whose eleven cases all run it
   costs one table, not eleven names per range. It is the shortest answer to hand

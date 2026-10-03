@@ -43,6 +43,12 @@ depend on.
 <p>Keep the relation a coverage percentage is folded from: for each named test case, the regions of your source it ran.</p>
 <em>Record test-level coverage →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="case-preconditions.md">
+<span>Coverage</span>
+<strong>Know what each covering test arranged</strong>
+<p>Have a case say the state it ran under, then keep only the tests that ran a line with the network mocked or the flag on.</p>
+<em>Name what a case arranged →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="distill.md">
 <span>Test reduction</span>
 <strong>Make one test smaller</strong>

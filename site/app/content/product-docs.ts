@@ -61,6 +61,7 @@ import reasoning from "../../../docs/reasoning.md?raw";
 import runRelevantWork from "../../../docs/run-relevant-work.md?raw";
 import scale from "../../../docs/scale.md?raw";
 import testLevelCoverage from "../../../docs/test-level-coverage.md?raw";
+import casePreconditions from "../../../docs/case-preconditions.md?raw";
 import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
 import changesBeforeAndBeyond from "../../../docs/changes-before-and-beyond.md?raw";
@@ -113,6 +114,7 @@ const documents = [
   ["better-tests", betterTests, "docs/better-tests.md"],
   ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
   ["test-level-coverage", testLevelCoverage, "docs/test-level-coverage.md"],
+  ["case-preconditions", casePreconditions, "docs/case-preconditions.md"],
   ["run-relevant-work", runRelevantWork, "docs/run-relevant-work.md"],
   ["understand-execution", understandExecution, "docs/understand-execution.md"],
   ["understand-interface", understandInterface, "docs/understand-interface.md"],
