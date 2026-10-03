@@ -25,9 +25,9 @@ afterEach(() => {
 describe('variancePrecondition with no recording', () => {
   it('does nothing, and costs a property read', () => {
     expect(realm[PRECONDITION]).toBeUndefined();
-    expect(() => variancePrecondition('network', 'mocked')).not.toThrow();
+    expect(() => variancePrecondition({ network: 'mocked' })).not.toThrow();
     const started = performance.now();
-    for (let at = 0; at < 100_000; at += 1) variancePrecondition('network', 'mocked');
+    for (let at = 0; at < 100_000; at += 1) variancePrecondition({ network: 'mocked' });
     // A property read and a type check, measured: well under a microsecond a call.
     expect((performance.now() - started) / 100_000).toBeLessThan(0.001);
   });
@@ -44,7 +44,7 @@ describe('variancePrecondition with no recording', () => {
     realm[PRECONDITION] = () => {
       throw new Error('the recorder is broken');
     };
-    expect(() => variancePrecondition('network', 'mocked')).not.toThrow();
+    expect(() => variancePrecondition({ network: 'mocked' })).not.toThrow();
   });
 });
 
@@ -54,7 +54,7 @@ describe('the recorder a case scope installs', () => {
   it('puts a call in a case body on that case, at the case level, with the line that said it', () => {
     let running: string | undefined = keyOf('pays');
     const recorder = preconditions.recorder(globalThis, () => running);
-    variancePrecondition('network', 'mocked'); const line = new Error().stack!.split('\n')[1]!;
+    variancePrecondition({ network: 'mocked' }); const line = new Error().stack!.split('\n')[1]!;
     variancePrecondition({ flag: 'ff-on', seeded: true });
     running = undefined;
     const said = recorder.take(keyOf('pays'));
@@ -70,11 +70,11 @@ describe('the recorder a case scope installs', () => {
 
   it('throws for a call where no case is running, through the entry, with the line that made it', () => {
     const recorder = preconditions.recorder(globalThis, () => undefined);
-    expect(() => variancePrecondition('flag', 'ff-off')).toThrow(
+    expect(() => variancePrecondition({ flag: 'ff-off' })).toThrow(
       /variancePrecondition at \S*precondition\.test\.ts:\d+ ran outside a running case/,
     );
     recorder.phase({ kind: 'outside', because: 'ran in a beforeAll, which runs for no one case' });
-    expect(() => variancePrecondition('flag', 'ff-off')).toThrow(/ran in a beforeAll/);
+    expect(() => variancePrecondition({ flag: 'ff-off' })).toThrow(/ran in a beforeAll/);
     recorder.phase(undefined);
     expect(recorder.take(keyOf('pays'))).toEqual([]);
   });
@@ -82,9 +82,9 @@ describe('the recorder a case scope installs', () => {
   it('forgets what a beforeEach said for a case that never entered when the next case begins', () => {
     const recorder = preconditions.recorder(globalThis, () => undefined);
     recorder.begin();
-    recorder.within({ kind: 'each', depth: 1 }, () => variancePrecondition('doomed'));
+    recorder.within({ kind: 'each', depth: 1 }, () => variancePrecondition({ doomed: true }));
     recorder.begin();
-    recorder.within({ kind: 'each', depth: 0 }, () => variancePrecondition('network', 'live'));
+    recorder.within({ kind: 'each', depth: 0 }, () => variancePrecondition({ network: 'live' }));
     recorder.entered(keyOf('after doomed > pays'));
     expect(recorder.take(keyOf('after doomed > pays')).map(([name]) => name)).toEqual(['network']);
   });
@@ -93,8 +93,8 @@ describe('the recorder a case scope installs', () => {
     const recorder = preconditions.recorder(globalThis, () => undefined);
     const left = {};
     const right = {};
-    recorder.within({ kind: 'each', depth: 1, token: left }, () => variancePrecondition('lane', 'left'));
-    recorder.within({ kind: 'each', depth: 1, token: right }, () => variancePrecondition('lane', 'right'));
+    recorder.within({ kind: 'each', depth: 1, token: left }, () => variancePrecondition({ lane: 'left' }));
+    recorder.within({ kind: 'each', depth: 1, token: right }, () => variancePrecondition({ lane: 'right' }));
     recorder.entered(keyOf('right'), right);
     recorder.entered(keyOf('left'), left);
     expect(recorder.take(keyOf('left')).map(([, value]) => value)).toEqual(['left']);
@@ -103,7 +103,7 @@ describe('the recorder a case scope installs', () => {
 
   it('gives a beforeEach that names no case to the next case that opens', () => {
     const recorder = preconditions.recorder(globalThis, () => undefined);
-    recorder.within({ kind: 'each', depth: 1 }, () => variancePrecondition('network', 'mocked'));
+    recorder.within({ kind: 'each', depth: 1 }, () => variancePrecondition({ network: 'mocked' }));
     recorder.entered(keyOf('checkout > pays'));
     recorder.entered(keyOf('checkout > refunds'));
     expect(recorder.take(keyOf('checkout > pays')).map(([name, , , level]) => [name, level])).toEqual([['network', 1]]);
@@ -116,7 +116,7 @@ describe('the recorder a case scope installs', () => {
     const warn = console.warn;
     console.warn = (...args: unknown[]) => void warned.push(args.join(' '));
     try {
-      recorder.within({ kind: 'after' }, () => variancePrecondition('network', 'mocked'));
+      recorder.within({ kind: 'after' }, () => variancePrecondition({ network: 'mocked' }));
     } finally {
       console.warn = warn;
     }
@@ -132,14 +132,14 @@ describe('the recorder a case scope installs', () => {
     const warn = console.warn;
     console.warn = (...args: unknown[]) => void warned.push(args.join(' '));
     try {
-      recorder.within({ kind: 'after' }, () => variancePrecondition('network', 'mocked'));
-      variancePrecondition('when', new Date() as unknown as string);
+      recorder.within({ kind: 'after' }, () => variancePrecondition({ network: 'mocked' }));
+      variancePrecondition({ when: new Date() as unknown as string });
     } finally {
       console.warn = warn;
     }
     expect(String(warned[0])).toMatch(site);
     expect(String(warned[1])).toMatch(site);
-    expect(() => variancePrecondition('flag', 'ff-off')).toThrow(site);
+    expect(() => variancePrecondition({ flag: 'ff-off' })).toThrow(site);
   });
 
   it('refuses a value that is not a string, number or boolean, and records nothing', () => {
@@ -147,7 +147,7 @@ describe('the recorder a case scope installs', () => {
     const warn = console.warn;
     console.warn = () => {};
     try {
-      variancePrecondition('when', new Date() as unknown as string);
+      variancePrecondition({ when: new Date() as unknown as string });
     } finally {
       console.warn = warn;
     }
@@ -164,9 +164,9 @@ describe('where a hook stands, and what the recorder takes for a call', () => {
     const recorder = preconditions.recorder(globalThis, () => undefined, new AsyncLocalStorage());
     await recorder.within(each('pays'), async () => {
       await Promise.resolve();
-      variancePrecondition('network', 'mocked');
+      variancePrecondition({ network: 'mocked' });
     });
-    expect(() => variancePrecondition('flag')).toThrow(outside);
+    expect(() => variancePrecondition({ flag: true })).toThrow(outside);
     expect(recorder.take(keyOf('pays')).map(([name, value, , level]) => [name, value, level])).toEqual([['network', 'mocked', 1]]);
   });
 
@@ -175,63 +175,65 @@ describe('where a hook stands, and what the recorder takes for a call', () => {
     expect(() => recorder.within(each('pays'), () => {
       throw new Error('the hook failed');
     })).toThrow('the hook failed');
-    expect(() => variancePrecondition('flag')).toThrow(outside);
+    expect(() => variancePrecondition({ flag: true })).toThrow(outside);
 
     await recorder.within(each('pays'), async () => {
       await Promise.resolve();
-      variancePrecondition('flag', 'ff-on');
+      variancePrecondition({ flag: 'ff-on' });
     });
-    expect(() => variancePrecondition('flag')).toThrow(outside);
+    expect(() => variancePrecondition({ flag: true })).toThrow(outside);
 
     await expect(recorder.within(each('pays'), async () => {
       await Promise.resolve();
       throw new Error('the async hook failed');
     })).rejects.toThrow('the async hook failed');
-    expect(() => variancePrecondition('flag')).toThrow(outside);
+    expect(() => variancePrecondition({ flag: true })).toThrow(outside);
     expect(recorder.take(keyOf('pays')).map(([, value]) => value)).toEqual(['ff-on']);
   });
 
   it('forgets every case and every pending beforeEach when its file finishes', () => {
     const recorder = preconditions.recorder(globalThis, () => undefined);
-    recorder.within(each('pays'), () => variancePrecondition('network', 'mocked'));
-    recorder.within({ kind: 'each', depth: 0 }, () => variancePrecondition('seeded'));
+    recorder.within(each('pays'), () => variancePrecondition({ network: 'mocked' }));
+    recorder.within({ kind: 'each', depth: 0 }, () => variancePrecondition({ seeded: true }));
     recorder.finish();
     recorder.entered(keyOf('refunds'));
     expect(recorder.take(keyOf('pays'))).toEqual([]);
     expect(recorder.take(keyOf('refunds'))).toEqual([]);
   });
 
-  it('records nothing for an empty name, a record with a value beside it, or a record holding an empty name or an object', () => {
+  it('records nothing for a name, a name and a value, or a record holding an empty name or an object', () => {
     const recorder = preconditions.recorder(globalThis, () => keyOf('pays'));
     const warned: unknown[] = [];
     const warn = console.warn;
     console.warn = (...args: unknown[]) => void warned.push(args.join(' '));
+    const loose = variancePrecondition as (named: unknown, value?: unknown) => void;
     try {
-      variancePrecondition('');
-      (variancePrecondition as (named: unknown, value?: unknown) => void)({ flag: 'ff-on' }, 'ff-off');
+      loose('seeded');
+      loose('network', 'mocked');
       variancePrecondition({ '': 'ff-on' });
       variancePrecondition({ when: {} as unknown as string });
     } finally {
       console.warn = warn;
     }
     expect(warned).toHaveLength(4);
+    expect(warned[1]).toContain('takes a record of names to a string, number or boolean; nothing was recorded');
     expect(recorder.take(keyOf('pays'))).toEqual([]);
   });
 
   it('names a call it cannot place on a stack as no site, and a dev server\'s `/@fs/` URL as the file it serves', () => {
     const recorder = preconditions.recorder(globalThis, () => keyOf('pays'));
-    const say = realm[PRECONDITION] as (named: string, value: unknown, called: unknown) => void;
-    say('none', true, undefined);
-    say('short', true, { stack: 'Error\n    at entry (/repo/precondition.js:1:1)' });
-    say('served', true, {
+    const say = realm[PRECONDITION] as (named: unknown, value: unknown, called: unknown) => void;
+    say({ none: true }, undefined, undefined);
+    say({ short: true }, undefined, { stack: 'Error\n    at entry (/repo/precondition.js:1:1)' });
+    say({ served: true }, undefined, {
       stack: 'Error\n    at entry (http://localhost:5173/@fs/repo/precondition.js:1:1)\n' +
         '    at http://localhost:5173/@fs/repo/test/a.test.ts?v=1:4:7',
     });
-    say('named', true, {
+    say({ named: true }, undefined, {
       stack: 'entry@http://localhost:5173/@fs/repo/precondition.js:1:1\n' +
         'pays@http://localhost:5173/@fs/repo/test/a.test.ts:9:3',
     });
-    say('rooted', true, {
+    say({ rooted: true }, undefined, {
       stack: 'Error\n    at entry (http://localhost:5173/precondition.js:1:1)\n' +
         '    at http://localhost:5173/test/a.test.ts:2:5',
     });

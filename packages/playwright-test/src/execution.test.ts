@@ -349,9 +349,9 @@ describe('a worker that is one of several', () => {
 
       let standing: PreconditionStanding = { at: 'beforeEach', key: caseKey(owner, pays.id), depth: 1 };
       const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile }, undefined, () => standing);
-      variancePrecondition('network', 'live');
+      variancePrecondition({ network: 'live' });
       standing = { at: 'case', key: caseKey(owner, pays.id) };
-      variancePrecondition('network', 'mocked');
+      variancePrecondition({ network: 'mocked' });
       await recorder.note(
         pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
         owner,
@@ -359,7 +359,7 @@ describe('a worker that is one of several', () => {
       );
       recorder.mark(owner, true, pays);
       standing = { at: 'case', key: caseKey(owner, refunds.id) };
-      variancePrecondition('seeded');
+      variancePrecondition({ seeded: true });
       recorder.mark(owner, true, refunds);
       await recorder.close();
 
