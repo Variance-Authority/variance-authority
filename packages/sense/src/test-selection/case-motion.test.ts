@@ -252,6 +252,8 @@ describe('a branch whose lines carried it onto a branch of another path', () => 
     expect(motion.regions.map((region) => [region.startLine, region.motion])).toEqual([[14, 'lost']]);
     expect(motion.mismatched).toEqual([]);
   });
+
+  it.todo('refuses a module-level branch renumbered by an edit above it but outside its enclosing statement — needs a holder for a row no function holds, which is renumbered today by any edit above it');
 });
 
 // Without the diff — a base whose commit is unknown or not in the clone — a sibling written before another whose
