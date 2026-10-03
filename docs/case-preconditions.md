@@ -18,12 +18,30 @@ the flag on and one with it off, look the same in the recording. The difference
 between them lives in the test file, and of a test file the recording keeps
 only the names of its cases.
 
-Reading the difference back from the test source does not work either. A mock set up three `describe` levels out, a `beforeEach`
-that one nested block overrides, a helper that sets the flag for whoever calls
-it: the state a case ran under is resolved at run time, by the runner, in an
-order the source does not show. So the case says it, at the moment it
-arranges it, and the runner — which knows which case is running and which hook
-it is in — places it.
+So the case says it, as part of its Arrange:
+
+```ts
+import { variancePrecondition } from '@variance-authority/sense/precondition';
+import { expect, it } from 'vitest';
+import { total } from '../src/checkout/total.js';
+import { setFlag } from './flags.js';
+
+it('discounts behind the flag', () => {
+  setFlag('ff-on');
+  variancePrecondition('flag', 'ff-on');
+  expect(total([5], 2)).toBe(3);
+});
+```
+
+Both this case and one without the flag run `applyDiscount`; only this one's
+row says `flag=ff-on`, with the `file:line` of the call.
+
+Reading the difference back from the test source does not work either. A mock
+set up three `describe` levels out, a `beforeEach` that one nested block
+overrides, a helper that sets the flag for whoever calls it: the state a case
+ran under is resolved at run time, by the runner, in an order the source does
+not show. The case says it at the moment it arranges it, and the runner — which
+knows which case is running and which hook it is in — places it.
 
 ### What it is not
 
