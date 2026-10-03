@@ -25,6 +25,12 @@ export interface CaseRunFiles {
    * in `mergeCoverage`. Absent when nobody can say, and the numbering decides.
    */
   readonly sameText?: (file: string) => boolean;
+  /**
+   * The index the before layer is cut from, when it is not the one the run is
+   * laid over: the one a landing began with, which no shard it laid before
+   * this one has re-cut to the shards' text.
+   */
+  readonly base?: Uint8Array;
 }
 
 export interface CaseLayers {
@@ -84,6 +90,7 @@ export function layerCaseIndex(
   const last = run.tests.map((test) => test.id);
   const announced = run.tests.filter((test) => files.ran.has(test.file)).map((test) => test.id);
   const held = openPrevious(previous);
+  const cut = files.base === undefined ? held : openPrevious(files.base);
   // FIXME: no index is read as no other cases, and a landing that removed the
   // index leaves exactly that. The next local run then writes its own files'
   // cases alone, and that partial index stands for the whole suite beside a
@@ -132,7 +139,7 @@ export function layerCaseIndex(
     cases: tests.map((test) => test.id),
     last,
     announced,
-    before: beforeRun(held, new Set([...files.ran, ...run.tests.map((test) => test.file)])),
+    ...(cut === undefined ? {} : { before: beforeRun(cut, new Set([...files.ran, ...run.tests.map((test) => test.file)])) }),
   };
 }
 
