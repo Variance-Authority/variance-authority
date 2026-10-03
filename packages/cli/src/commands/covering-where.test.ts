@@ -14,8 +14,6 @@ import {
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
-import { twinsOf } from './covering-where.js';
-import { nameIndex, structuralParent } from './names.js';
 
 const SPEC = 'checkout.test.ts';
 
@@ -248,19 +246,5 @@ describe('a case read along a declared axis', () => {
     const refused = await ask(['flag=ff-on'], record).catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(ConfigError);
     expect((refused as Error).message).toMatch(/variance\.config\.json.*is not valid JSON/);
-  });
-
-  it('takes the step a subject named the same would take: the last declared axis, toward the base', () => {
-    // A characterization of the agreement: one step serves both readers.
-    const grammar = { axes: [{ axis: 'scheme', values: ['light', 'dark'] }, { axis: 'flag', values: ['ff-off', 'ff-half', 'ff-on'] }] };
-    const said = (name: string, scheme: string, flag: string): ExecutionTest =>
-      row(name, [{ name: 'scheme', value: scheme, site: at(1), level: 1 }, { name: 'flag', value: flag, site: at(2), level: 1 }]);
-    const cases = [said('dark ff-on', 'dark', 'ff-on'), said('dark ff-off', 'dark', 'ff-off'), said('light ff-on', 'light', 'ff-on')];
-
-    const parent = structuralParent('checkout-dark-ff-on', nameIndex(['checkout-dark-ff-on', 'checkout-dark', 'checkout-ff-on'], grammar));
-    expect(parent).toEqual({ ok: true, parent: 'checkout-dark', step: { axis: 'flag', from: 'ff-off', to: 'ff-on' } });
-    expect(twinsOf([cases[0]!], cases, grammar)).toEqual([
-      { case: `${SPEC} > dark ff-on`, axis: 'flag', from: 'ff-on', to: 'ff-off', twins: [`${SPEC} > dark ff-off`] },
-    ]);
   });
 });

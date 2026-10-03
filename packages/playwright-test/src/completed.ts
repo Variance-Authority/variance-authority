@@ -15,6 +15,7 @@ import type {
   TestInfo,
 } from '@playwright/test';
 import { enterCase } from './case-scope.js';
+import { enterDescribes } from './preconditions.js';
 import { testOf, type ExecutionRecorder } from './execution.js';
 
 /** The worker fixture the recorder lives on, for the halves that report to it. */
@@ -64,6 +65,10 @@ export const varianceCompletedFixtures: Fixtures<
       // Open for every fixture the test asked for, which are set up after this
       // one and torn down before it: Eyes hands its journal over in its own
       // teardown, while the case is still the one running.
+      // Before any `beforeEach` runs, too, which is what a precondition said in
+      // one needs: the `describe` that declared it. Read first, so a worker
+      // that cannot say it fails here with no case left open.
+      if (varianceRecorder !== undefined) await enterDescribes(testInfo);
       const leave = varianceRecorder === undefined ? undefined : enterCase(varianceRecorder, testInfo);
       try {
         await use();
