@@ -102,7 +102,15 @@ changed.
 against `AGENTS.md`, its references and the code. A real defect goes where
 [change](change.md) draws the line: in the task's diff or in work it needs, on
 this branch; otherwise on its own branch. A finding that contradicts a rule
-here, or misreads the code, is left as it is. Never reply to a thread, never
+here, or misreads the code, is left as it is.
+
+**A comment on a published page may be about its structure.** A reviewer asking
+why something is said, asking for an example, or adding a caveat to the first
+half of a page is saying the spine failed. Do not patch the line the comment is
+attached to. Go back to the brief, fix the outline, and run the `content-flow`
+reviewer again, as [content flow](content-flow.md) says. A correctness finding
+on a page may be fixed by moving the fact into the reference section or cutting
+it. Never reply to a thread, never
 resolve one, and never tick its autofix checkboxes.
 
 ## Handing over

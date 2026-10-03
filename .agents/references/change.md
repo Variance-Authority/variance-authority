@@ -68,6 +68,11 @@ against the base and refuses a pull request with neither. Tests, fixtures and a
 package's README do not count as a change; `changedFilePatterns` in
 [`.changeset/config.json`](../../.changeset/config.json) lists what does not.
 
+**What order does the page take?** A published page is outlined from a brief,
+not from the spec or the code, and is read cold by the `content-flow` reviewer
+before and after it changes. [Content flow](content-flow.md) holds the brief,
+the order and the gate. It comes before any sentence is written.
+
 **Who reads the sentence?** [`docs/AGENTS.md`](../../docs/AGENTS.md) holds who
 the reader is, what to read before writing, the editorial direction, and the
 register every published sentence is held to. It governs the whole published

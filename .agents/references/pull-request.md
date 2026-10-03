@@ -40,7 +40,7 @@ code.
 | `perf` | A cost, measured | The same measurement before and after (CI's `measure` job on the base and on the PR, or a named benchmark), its command and machine quoted in the body | A changed assertion |
 | `refactor` | A shape that makes a named next change hard | Every existing test unchanged and green on both sides | A changed assertion |
 | `test` | Behaviour on the base that no test pins | Tests that pass on the base | A test for code an open PR adds: it goes in that PR |
-| `docs` | A sentence that is wrong, missing or unclear, quoted | The writing, held to [`docs/AGENTS.md`](../../docs/AGENTS.md) when it is published | Product code |
+| `docs` | A sentence that is wrong, missing or unclear, quoted | The writing, with its structure held to [content flow](content-flow.md) and its sentences to [`docs/AGENTS.md`](../../docs/AGENTS.md) when it is published | Product code |
 | `ci`, `chore` | A workflow, tool or dependency that fails or costs | The run on the PR that exercises the changed workflow or tool, checked in the [outer loop](outer-loop.md) | Product code |
 | `revert` | The merged PR it undoes, and what that PR broke | The revert of that PR's merge commit | Any change beyond the revert and its changeset |
 
@@ -81,6 +81,15 @@ worktree and `origin/main`, never from local `main`:
    body true of the diff? Does each claimed behaviour have the test the body
    names, and, where it pins a change, does the body show that test failing on
    `origin/main`?
+
+When the change writes or rewrites a published page, a fourth runs first:
+
+4. **Flow** — the `content-flow` agent, given each changed page alone. Does
+   the page show what it gives the reader before its internals, and does every
+   section belong where it is? It reports what [content flow](content-flow.md)
+   asks for. A verdict of *reorder* or *re-spine* is blocking, and the other
+   three wait until it passes: a review of facts on a page whose structure will
+   change is spent twice.
 
 Each answers its own question; one reviewer finding nothing does not clear the
 others. Each marks a finding blocking or not. Fix the blocking ones, in the code

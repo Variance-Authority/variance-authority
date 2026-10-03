@@ -79,9 +79,12 @@ Look around:
   <path>`. A test is amended or added first, and fails on the code as it is,
   before the code changes. Behaviour nothing covers is pinned green first, in
   addition to that test, not instead of it.
-- Where each piece of writing goes, and [`docs/AGENTS.md`](docs/AGENTS.md)
-  before any published sentence: a README, `docs/`, the site, CLI output or an
-  error message.
+- Where each piece of writing goes. A published page — a README or `docs/` —
+  gets its structure from [content flow](.agents/references/content-flow.md)
+  before it is outlined: a brief, then a spine, then a cold read by the
+  `content-flow` reviewer. [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
+  published sentence: a README, `docs/`, the site, CLI output or an error
+  message.
 - Whether the change reaches a published package. If it does, it carries a
   changeset — `yarn changeset` — written as it is made, not at release time; a
   change that ships nothing worth naming carries `yarn changeset --empty`. CI

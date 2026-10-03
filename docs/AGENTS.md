@@ -1,5 +1,11 @@
 # Working on documentation
 
+Structure comes first, and it is not held here. Before you outline a page, read
+[content flow](../.agents/references/content-flow.md): the page's job, the
+brief, the order, and the cold read by the `content-flow` reviewer. This file
+governs what comes after the structure holds: links, publication and every
+sentence.
+
 ## What this file governs, and how to check it
 
 Public pages are the top-level `docs/*.md`, excluding this file and
@@ -217,8 +223,8 @@ language. That last part is not a small adjustment. It decides the words.
    or the arguments behind either.
 3. **What makes it true — the thing itself.** Code, output, a measurement, a
    recorded run. **No sentence is true because of another sentence in the
-   document.** A page is not an argument. Every paragraph stands on the product
-   directly. This is why *it does not follow that*, *hence*, *therefore*, *it
+   document.** A page may argue, but no claim in it rests on the claim before
+   it. Every paragraph stands on the product directly. This is why *it does not follow that*, *hence*, *therefore*, *it
    holds that* and *it suffices to* are out: each one says this sentence comes
    out of the last one, and none of them do.
 4. **Words mean what they say.** A term of art passes — `import`, `closure`,
