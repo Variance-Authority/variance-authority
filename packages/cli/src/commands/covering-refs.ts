@@ -14,7 +14,7 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { narrowedText, scopeText, staleText } from './covering-text.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, twinText, whereText, type CoveringTwin } from './covering-where.js';
+import { caseNameOf, heldText, twinText, whereText, type CoveringTwin } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'preconditions'>;
 
@@ -140,7 +140,7 @@ class Table {
         test.id === `${test.file} > ${test.name}` ? test.name : `${test.name} [${test.id}]`
       }${heldText(test.preconditions)}`);
       const twin = this.twins.get(test.id);
-      if (twin !== undefined) lines.push(twinText(twin, (id) => id.slice(id.indexOf(' > ') + 3), '      '));
+      if (twin !== undefined) lines.push(twinText(twin, caseNameOf, '      '));
     }
     return lines;
   }

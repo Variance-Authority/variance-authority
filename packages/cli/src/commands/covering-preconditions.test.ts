@@ -13,7 +13,7 @@ import {
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
-import { twinText } from './covering-where.js';
+import { caseNameOf, twinText } from './covering-where.js';
 
 /**
  * What a case said, printed beside it in every answer that lists it.
@@ -97,6 +97,11 @@ describe('a listed case carries what it said and its twin', () => {
 
   it('prints both in the whole-file answer', async () => {
     expect(await text(['--file', 'src/cart.ts'])).toContain('    on — flag=ff-on (a.test.ts:3)\n      twin at flag=ff-off: off\n');
+  });
+
+  it('names a twin by its case name, and by its whole id when the id holds no file part', () => {
+    expect(caseNameOf('a.test.ts > checkout > pays')).toBe('checkout > pays');
+    expect(caseNameOf('pays')).toBe('pays');
   });
 
   it('bounds a large twin set to a count and a few names', () => {

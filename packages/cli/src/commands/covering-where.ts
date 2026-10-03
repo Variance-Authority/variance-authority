@@ -275,6 +275,12 @@ export function twinText(twin: CoveringTwin, nameOf: (id: string) => string, ind
 }
 
 /** What `--where` kept, said before the cases it kept. */
+/** A case's name from its id, `file > name`; an id with no file part is its own name. */
+export function caseNameOf(id: string): string {
+  const at = id.indexOf(' > ');
+  return at === -1 ? id : id.slice(at + 3);
+}
+
 /**
  * Over text the record cannot place, a file answer lists no case, and *none
  * covered it* would be a claim the record never made. A function is still found
