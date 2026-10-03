@@ -24,10 +24,16 @@ afterEach(() => {
 });
 
 describe('playwrightStanding', () => {
-  it('places a call in the body on its case, and one in a beforeEach on the case it runs for', () => {
+  it('places a call in the body on its case, and one in afterEach after it', () => {
     expect(standingUnder(() => undefined)).toEqual({ at: 'case', key: 'tests/checkout.spec.ts\u0000t1' });
-    expect(standingUnder(() => 'beforeEach')).toMatchObject({ at: 'beforeEach', key: 'tests/checkout.spec.ts\u0000t1' });
     expect(standingUnder(() => 'afterEach')).toEqual({ at: 'after' });
+  });
+
+  // Where a beforeEach call lands, and at which describe's level, is pinned by a
+  // real run in `preconditions.chromium.test.ts`: the describe is read from the
+  // worker's suite tree, which no cut-down `TestInfo` carries.
+  it('places a call in a beforeEach whose describe was never read on no case', () => {
+    expect(standingUnder(() => 'beforeEach')).toMatchObject({ at: 'outside', because: expect.stringMatching(/describe/) });
   });
 
   it('places a call in a beforeAll or an afterAll on no case', () => {
