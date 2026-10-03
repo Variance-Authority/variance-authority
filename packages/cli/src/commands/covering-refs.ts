@@ -14,7 +14,8 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { narrowedText, scopeText, staleText } from './covering-text.js';
 import type { Covering, StatedRegion } from './covering.js';
-import { heldText, twinText, whereText, type CoveringTwin } from './covering-where.js';
+import type { CaseTwin } from '@variance-authority/sense/test-selection';
+import { heldText, twinText, whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'preconditions'>;
 
@@ -108,9 +109,9 @@ class Table {
   private readonly number = new Map<string, number>();
   private readonly cases: readonly Case[];
   private starred = false;
-  private readonly twins: ReadonlyMap<string, CoveringTwin>;
+  private readonly twins: ReadonlyMap<string, CaseTwin>;
 
-  constructor(named: readonly Case[], twins: readonly CoveringTwin[] = []) {
+  constructor(named: readonly Case[], twins: readonly CaseTwin[] = []) {
     this.twins = new Map(twins.map((twin) => [twin.case, twin]));
     const unique = new Map<string, Case>();
     for (const test of named) if (!unique.has(test.id)) unique.set(test.id, test);

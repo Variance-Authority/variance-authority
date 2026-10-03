@@ -212,8 +212,10 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
       tally(departed, was.blocks);
       continue;
     }
-    const pairs = matchedThrough(was, module, options.diff.get(module.file) ?? []);
-    const paired = { base: new Set(pairs.map(([row]) => row)), now: new Set(pairs.map(([, block]) => block)) };
+    // A mismatched row is not compared, so it counts as neither deleted nor written.
+    const { pairs, mismatched } = matchedThrough(was, module, options.diff.get(module.file) ?? []);
+    const compared = [...pairs, ...mismatched];
+    const paired = { base: new Set(compared.map(([row]) => row)), now: new Set(compared.map(([, block]) => block)) };
     tally(deleted, was.blocks.filter((block) => !paired.base.has(block)));
     tally(written, module.blocks.filter((block) => !paired.now.has(block)));
   }
