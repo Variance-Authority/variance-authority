@@ -153,4 +153,9 @@ describe('`--where` narrows the cases listed, never the state of what they cover
       ['fee', 'walked', [], ['b.test.ts > stops']],
     ]);
   });
+
+  it.todo(
+    'the `--since` text words `fee` as walked by a case `--where` left out, not as a hole nobody covered — needs ' +
+      '`formatCoveringChange` in sense, which the MCP tool shares, to word a region from its `state`',
+  );
 });
