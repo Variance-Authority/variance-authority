@@ -24,35 +24,28 @@ const PRECONDITION = Symbol.for('variance-authority.test-selection.precondition'
 /** Marks a call made where no case runs; mirrors `MISPLACED` in `case-preconditions.cts`. */
 const MISPLACED = Symbol.for('variance-authority.test-selection.precondition.misplaced');
 
-/** What a precondition holds. A precondition said without a value holds `true`. */
+/** What a precondition holds. */
 export type PreconditionValue = string | number | boolean;
 
 type Recorder = (named: unknown, value: unknown, called: Error) => void;
 
 /**
- * Say that the running case arranged `name`, holding `value`.
+ * Say what the running case arranged: `{ network: 'mocked', 'seeded-cart': true }`.
  *
  * Said in the case body, or in a `beforeEach` running for the case, it is the
  * case's. The body overrides a `beforeEach`, and an inner `describe`'s
  * `beforeEach` an outer one's; two values said at one level are recorded as a
  * contradiction. Said where no case is running, it throws.
+ *
+ * The call hands the record to the recording's listener, with an error whose
+ * stack names the call site; without a recording, it returns. The listener's
+ * error reaches the test only when it says no case is running.
  */
-export function variancePrecondition(name: string, value?: PreconditionValue): void;
-/** Say several preconditions at once: `{ flag: 'ff-on', colour: 'green' }`. */
-export function variancePrecondition(preconditions: Readonly<Record<string, PreconditionValue>>): void;
-/**
- * Hand the call to the recording's listener, with an error whose stack names
- * the call site; without a recording, return. The listener's error reaches the
- * test only when it says no case is running.
- */
-export function variancePrecondition(
-  named: string | Readonly<Record<string, PreconditionValue>>,
-  value?: PreconditionValue,
-): void {
+export function variancePrecondition(preconditions: Readonly<Record<string, PreconditionValue>>): void {
   const recorder = (globalThis as { [PRECONDITION]?: Recorder })[PRECONDITION];
   if (typeof recorder !== 'function') return;
   try {
-    recorder(named, value, new Error('variancePrecondition'));
+    recorder(preconditions, undefined, new Error('variancePrecondition'));
   } catch (thrown) {
     // A recorder's bug may not become a bug in the test it records; a call
     // where no case runs is the test's.

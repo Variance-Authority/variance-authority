@@ -22,7 +22,7 @@ await import(file);
 // `--says-a-wrong-value` adds a case that says a value no row can hold, for the
 // test that reads the warning the run prints about it.
 if (flag === '--says-a-wrong-value') {
-  cases.push({ name: ['says a wrong value'], body: () => variancePrecondition('when', new Date()) });
+  cases.push({ name: ['says a wrong value'], body: () => variancePrecondition({ when: new Date() }) });
 }
 
 let failed = false;

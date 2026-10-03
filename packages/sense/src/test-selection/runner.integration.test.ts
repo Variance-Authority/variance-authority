@@ -143,7 +143,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
   it('names a precondition\'s call site from the checkout in what it warns, as the row would', async () => {
     const { stderr } = await record('--says-a-wrong-value');
 
-    expect(stderr).toMatch(new RegExp(`variancePrecondition at ${at('worker.mjs')}:\\d+ takes a name and a string`));
+    expect(stderr).toMatch(new RegExp(`variancePrecondition at ${at('worker.mjs')}:\\d+ takes a record of names to a string`));
   }, 60_000);
 
   it('keeps a file incomplete when its probes fired and nothing the run reads says what they meant', async () => {

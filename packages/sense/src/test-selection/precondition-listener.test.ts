@@ -25,7 +25,7 @@ describe('a realm whose runner places each call itself', () => {
     let standing: PreconditionStanding = { at: 'case', key: 'pays' };
     const listener = listenForPreconditions(ROOT, () => standing);
 
-    variancePrecondition('network', 'mocked');
+    variancePrecondition({ network: 'mocked' });
     standing = { at: 'beforeEach', key: 'refunds', depth: 1 };
     variancePrecondition({ seeded: true });
     listener.close();
@@ -40,7 +40,7 @@ describe('a realm whose runner places each call itself', () => {
     const listener = listenForPreconditions(ROOT, () => standing);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    variancePrecondition('network', 'mocked');
+    variancePrecondition({ network: 'mocked' });
     standing = { at: 'case', key: 'pays' };
     listener.close();
 
@@ -52,7 +52,7 @@ describe('a realm whose runner places each call itself', () => {
   it('throws for a call no case is running, finishing the sentence with the runner\'s reason', () => {
     const listener = listenForPreconditions(ROOT, () => ({ at: 'outside', because: 'ran in a beforeAll' }));
 
-    expect(() => variancePrecondition('network', 'mocked')).toThrow(/ran in a beforeAll — a precondition belongs to the case/);
+    expect(() => variancePrecondition({ network: 'mocked' })).toThrow(/ran in a beforeAll — a precondition belongs to the case/);
     listener.close();
   });
 
