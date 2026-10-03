@@ -5,16 +5,16 @@ import { total } from '../src/cart';
 // records this file finds the line each row should cite.
 
 beforeEach(() => {
-  variancePrecondition('network', 'live'); // file default
+  variancePrecondition({ network: 'live' }); // file default
 });
 
 afterEach(() => {
-  variancePrecondition('cleaned'); // after each
+  variancePrecondition({ cleaned: true }); // after each
 });
 
 describe('mocked', () => {
   beforeEach(() => {
-    variancePrecondition('network', 'mocked'); // mocked each
+    variancePrecondition({ network: 'mocked' }); // mocked each
   });
 
   it('pays', () => {
@@ -40,7 +40,7 @@ it('mocked refunds', () => {
 
 describe('live', () => {
   beforeEach(() => {
-    variancePrecondition('region', 'eu'); // live each
+    variancePrecondition({ region: 'eu' }); // live each
   });
 
   it('pays', () => {
@@ -48,15 +48,15 @@ describe('live', () => {
   });
 
   it('replays a recording', () => {
-    variancePrecondition('network', 'recorded'); // case network
+    variancePrecondition({ network: 'recorded' }); // case network
     expect(total([5])).toBe(5);
   });
 });
 
 describe('contradicted', () => {
   beforeEach(() => {
-    variancePrecondition('flag', 'ff-on'); // contradicted on
-    variancePrecondition('flag', 'ff-off'); // contradicted off
+    variancePrecondition({ flag: 'ff-on' }); // contradicted on
+    variancePrecondition({ flag: 'ff-off' }); // contradicted off
   });
 
   it('pays', () => {
@@ -68,7 +68,7 @@ describe('contradicted', () => {
 // the next case, in a sibling describe, never hears it.
 describe('doomed', () => {
   beforeEach(() => {
-    variancePrecondition('doomed'); // doomed each
+    variancePrecondition({ doomed: true }); // doomed each
     throw new Error('the arrangement failed, so the case never runs');
   });
 
@@ -84,5 +84,5 @@ describe('after doomed', () => {
 });
 
 it('crosses nothing', () => {
-  variancePrecondition('seeded'); // seeded
+  variancePrecondition({ seeded: true }); // seeded
 });

@@ -39,13 +39,14 @@ The test says it, at runtime, from the test body, a hook or a helper:
 ```ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
 
-variancePrecondition('network', 'mocked');
-variancePrecondition({ flag: 'ff-on', colour: 'green' });
-variancePrecondition('seeded-cart');
+variancePrecondition({ network: 'mocked' });
+variancePrecondition({ flag: 'ff-on', colour: 'green', 'seeded-cart': true });
 ```
 
-- **A value is a string, number or boolean.** Without one the precondition holds
-  `true`: the state is present, with nothing further to say about it.
+- **One form: a record of names to values.** A value is a string, number or
+  boolean, always said; a state that is present with nothing further to say
+  holds `true`. A bare name and a name-value pair are refused, so every call
+  reads the same.
 - **The entry imports nothing.** It reads one function from
   `globalThis[Symbol.for('variance-authority.test-selection.precondition')]`,
   which a recording installs, and calls it. Without a recording the call does

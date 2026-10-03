@@ -19,12 +19,12 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(() => {
-  variancePrecondition('cleaned'); // after each
+  variancePrecondition({ cleaned: true }); // after each
 });
 
 test.describe('mocked', () => {
   test.beforeEach(() => {
-    variancePrecondition('network', 'mocked'); // mocked each
+    variancePrecondition({ network: 'mocked' }); // mocked each
   });
 
   test('pays', () => {
@@ -48,18 +48,18 @@ test.describe('mocked', () => {
 
 test.describe('live', () => {
   test('replays a recording', () => {
-    variancePrecondition('network', 'recorded'); // case network
+    variancePrecondition({ network: 'recorded' }); // case network
     expect(5).toBe(5);
   });
 });
 
 test('contradicted', () => {
-  variancePrecondition('flag', 'ff-on'); // contradicted on
-  variancePrecondition('flag', 'ff-off'); // contradicted off
+  variancePrecondition({ flag: 'ff-on' }); // contradicted on
+  variancePrecondition({ flag: 'ff-off' }); // contradicted off
 });
 
 test('crosses nothing', () => {
-  variancePrecondition('seeded'); // seeded
+  variancePrecondition({ seeded: true }); // seeded
 });
 
 test('says nothing', () => {
