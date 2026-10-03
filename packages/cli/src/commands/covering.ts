@@ -100,10 +100,12 @@ export interface Covering {
   /**
    * Present with `tests`, when it could be told: the cases that could have
    * reached the line or function and stopped before entering it. With no
-   * `tests`, a non-empty list is a hole and an empty one is unwalked.
+   * `tests`, a non-empty list is a hole and an empty one is unwalked. Read,
+   * like `state`, before `--where` narrows the cases: it is evidence for the
+   * state, which is a claim about every case, not about the ones listed.
    */
   readonly stopped?: readonly ExecutionTest[];
-  /** With `tests`: the one state the line or function is painted as, when it can be told. */
+  /** With `tests`: the one state the line or function is painted as, when it can be told, over the cases before `--where`. */
   readonly state?: RangeState;
   /** Present when the question named a file and nothing narrower. */
   readonly ranges?: readonly CoveringRange[];
@@ -217,10 +219,15 @@ async function ask(
     // is not listed under it, whatever it crossed there.
     const relations = await fileGraph(request.root);
     const answer = coveringChange(index, changed, { relations });
-    if (before !== undefined) reach?.(listedIn({ changed: coveringChange(before, changed, { relations }) }));
+    // Both readings land on the same blocks in the same order: `--where` narrows the cases, never the regions.
+    const reached = before === undefined ? answer : coveringChange(before, changed, { relations });
+    if (before !== undefined) reach?.(listedIn({ changed: reached }));
     return {
       since: request.since,
-      changed: answer.map((file) => ({ ...file, regions: file.regions.map(stated) })),
+      changed: answer.map((file, at) => ({
+        ...file,
+        regions: file.regions.map((region, of) => stated(region, reached[at]!.regions[of]!)),
+      })),
       ...(at === undefined ? {} : { at }),
       from,
     };
@@ -267,17 +274,18 @@ async function ask(
       );
     }
     const target = { file, line };
-    const graph = await loadersFor(index, target, request.root);
+    const graph = await loadersFor(before ?? index, target, request.root);
     const found = coveringTests(index, target, graph);
     const kept = near.whole ? found : found.filter(near.keep);
-    if (before !== undefined) reach?.(coveringTests(before, target, graph).filter(near.keep));
-    const stopped = stoppedBefore(index, target, graph);
+    const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
+    if (before !== undefined) reach?.(reached);
+    const stopped = stoppedBefore(before ?? index, target, graph);
     return {
       file: file,
       target: { line: held },
       tests: kept,
       ...(stopped === undefined ? {} : { stopped }),
-      ...stateFor(kept, stopped),
+      ...stateFor(reached, stopped),
       ...frame,
       from,
       ...countOf(near, kept.length, found.length),
@@ -300,17 +308,18 @@ async function ask(
       );
     }
     const target = { file, function: named };
-    const graph = await loadersFor(index, target, request.root);
+    const graph = await loadersFor(before ?? index, target, request.root);
     const found = coveringTests(index, target, graph);
     const kept = near.whole ? found : found.filter(near.keep);
-    if (before !== undefined) reach?.(coveringTests(before, target, graph).filter(near.keep));
-    const stopped = stoppedBefore(index, target, graph);
+    const reached = before === undefined ? kept : coveringTests(before, target, graph).filter(near.keep);
+    if (before !== undefined) reach?.(reached);
+    const stopped = stoppedBefore(before ?? index, target, graph);
     return {
       file: file,
       target: { function: named },
       tests: kept,
       ...(stopped === undefined ? {} : { stopped }),
-      ...stateFor(kept, stopped),
+      ...stateFor(reached, stopped),
       from,
       ...countOf(near, kept.length, found.length),
     };
@@ -319,31 +328,39 @@ async function ask(
   const graph = module.blocks.some((block) => block.loaded === true) || anyStopped(before ?? index)
     ? { relations: await fileGraph(request.root) }
     : {};
-  const found = coveringTestsInFile(index, file, graph);
-  if (before !== undefined) reach?.(listedIn({ tests: coveringTestsInFile(before, file, graph).flatMap((range) => range.tests).filter(near.keep) }));
-  if (near.whole) return { file: file, ranges: placeRanges(found, placement), ...frame, from };
+  // Each range is read and stated over the cases before `--where`, then lists only the cases it kept.
+  const found = coveringTestsInFile(before ?? index, file, graph);
+  const listed = before === undefined ? undefined : new Set(index.tests.map((test) => test.id));
+  const listing = (ranges: readonly CoveringRange[]): readonly CoveringRange[] => listed === undefined
+    ? ranges
+    : ranges.map((range) => ({ ...range, tests: range.tests.filter((test) => listed.has(test.id)) }));
+  if (before !== undefined) reach?.(listedIn({ tests: found.flatMap((range) => range.tests).filter(near.keep) }));
+  if (near.whole) return { file: file, ranges: listing(placeRanges(found, placement)), ...frame, from };
   const narrowed = refold(found.map((range) => ({ ...range, tests: range.tests.filter(near.keep) })));
   return {
     file: file,
-    ranges: placeRanges(narrowed, placement),
+    ranges: listing(placeRanges(narrowed, placement)),
     ...frame,
     from,
-    ...countOf(near, identities(narrowed), identities(found)),
+    ...countOf(near, identities(listing(narrowed)), identities(listing(found))),
   };
 }
 
-/** The state of one line or function, from the cases that entered it and those that stopped. */
-// FIXME: callers pass the cases `--where` kept, so a filter that keeps one of several covering cases makes
-// `alone` (text: "the only case that could have", JSON: `state: 'alone'`) about a line other cases also ran.
-// `stopped`, and the `--since` and whole-file region states, are read over the same narrowed index.
+/** The state of one line or function, from the cases that entered it and those that stopped, before `--where`. */
 function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined): Pick<Covering, 'state'> {
   const state = stateOf({ startLine: 0, endLine: 0, tests, ...(stopped === undefined ? {} : { stopped }) });
   return state === undefined ? {} : { state };
 }
 
-function stated(region: CoveringRegion): StatedRegion {
-  const state = regionState(region);
-  return state === undefined ? region : { ...region, state };
+/** A changed region as `--where` lists it, stated, with the cases that stopped, over every case that reached it. */
+function stated(listed: CoveringRegion, reached: CoveringRegion): StatedRegion {
+  const { stopped: _, ...region } = listed;
+  const state = regionState(reached);
+  return {
+    ...region,
+    ...(reached.stopped === undefined ? {} : { stopped: reached.stopped }),
+    ...(state === undefined ? {} : { state }),
+  };
 }
 
 /** The narrowing's own report, when there was a narrowing. */

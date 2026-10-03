@@ -105,7 +105,12 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     if (range.tests.length === 0) {
       // The header already says `unwalked` or `hole`; the stopped cases are the rest of a hole.
       const said = range.state === 'unwalked' || range.state === 'hole';
-      if (!said) lines.push(`  no named test covered this range${unentered(range.stopped)}`);
+      // Under `--where` the state is read over cases the list leaves out, so an empty list says nothing about them.
+      if (!said) {
+        lines.push(answer.where === undefined
+          ? `  no named test covered this range${unentered(range.stopped)}`
+          : '  no case `--where` kept covered this range');
+      }
       lines.push(...(range.stopped ?? []).map((test) =>
         said ? `  stopped first: ${test.file} > ${caseName(test)}` : `    stopped: ${test.file} > ${caseName(test)}`));
     } else if (printed.has(key)) {

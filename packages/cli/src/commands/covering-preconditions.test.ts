@@ -120,11 +120,6 @@ describe('`--where` counts the cases that covered what was asked', () => {
     expect(answer).toContain('Kept the 2 of 4 cases that covered function round of src/cart.ts and said flag=ff-on.\n');
   });
 
-  it.todo(
-    'says "the only case that could have" only when one case covered what was asked before `--where`, ' +
-      'not when `--where` kept one of several — needs `alone` decided over the cases reached before `--where`',
-  );
-
   it('says so when none of them said it', async () => {
     expect(await text(['--file', 'src/cart.ts', '--line', '6', '--where', 'flag=ff-half']))
       .toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none said flag=ff-half.\n');

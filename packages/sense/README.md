@@ -2025,7 +2025,10 @@ were only present while the module evaluated.
 
 The formatter takes what the caller can honestly say about provenance — the ref
 the diff was taken against, the file the index was read from, the commit it
-stands at — and prints nothing for a field it is not given. It lives here rather
+stands at — and prints nothing for a field it is not given. A region may also
+carry the `state` its caller read over more cases than it lists, as the CLI does
+under `--where`; the words then follow the state, so a region only an unlisted
+case ran reads as covered, not as a hole. It lives here rather
 than in either caller because the CLI's `variance covering --since` and the MCP
 tool `variance_changed_tests` both print it, and a reading with two renderers
 has two answers.
