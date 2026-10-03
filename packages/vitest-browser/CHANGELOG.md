@@ -1,5 +1,9 @@
 # @variance-authority/vitest-browser
 
+## 0.15.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.14.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

@@ -1,5 +1,18 @@
 # @variance-authority/store
 
+## 0.15.0
+
+### Patch Changes
+
+- 1707076: A publish to a git share whose line moved while the push was in flight reads
+  the line again and decides again, as it already did when the line had moved
+  before the push started. A hosted remote refuses that push at its own ref
+  update, `[remote rejected]`, and the publish used to report that refusal as
+  `nothing published … failed to push some refs`. A refused push is now a lost
+  race when the remote holds the line at a commit other than the one the publish
+  started from. The publish reports any other refusal as before.
+- 12dc597: A push the share remote refuses now says why: the reason git reports for the refused ref and every `remote:` line the remote's hooks printed, in place of git's "failed to push some refs".
+
 ## 0.14.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
