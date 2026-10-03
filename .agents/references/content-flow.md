@@ -22,11 +22,15 @@ Pick the job before anything else. It decides the shape:
   leaves with the answer.
 
 A page may carry some of the other two, but one job controls the order. A page
-that needs all three in full is two or three pages.
+that needs all three in full is two or three pages. The three are Diátaxis's
+explanation, how-to and reference; its tutorial is the first example in
+section 3, not a page of its own here.
 
 ## 2. The brief comes before the outline
 
-Write these down, in the PR body, before the first heading:
+Write these down before the first heading, in your worktree, and carry them
+into the PR body's Behaviour section when the PR opens, where the Flow reviewer
+and the person who asked can hold the page to them:
 
 - **Reader**: what they already run and already believe.
 - **Question**: what they arrive asking, in their words, not ours.
@@ -35,8 +39,9 @@ Write these down, in the PR body, before the first heading:
 - **First example**: the smallest case that works, run once, with its real
   output.
 - **After the first screen**: what the reader knows if they stop there.
-- **Spine**: at most six steps, from the question to the reader doing it on
-  their own code.
+- **Spine**: at most five steps, from the question to the reader doing it on
+  their own code. The cold reader writes the argument back in five bullets; a
+  spine longer than that will not survive the read.
 - **Off the spine**: every other fact you know, each one with its destination:
   the reference section, another page, the skill reference, a docstring, or
   nowhere.
@@ -89,8 +94,11 @@ that reader:
 
 - states, from the first fifth of the page, what the feature gives them and the
   first thing they would do;
+- sees the feature's first output with nothing they class as look up or
+  elsewhere before it;
 - writes the page's argument in five bullets or fewer;
-- finds no section that should be somewhere else.
+- finds no section that should be somewhere else, and no look-up material
+  outside the reference.
 
 Run it on the current page before you change anything; it should fail the way
 you think it fails. Run it again before the PR opens, and again after any

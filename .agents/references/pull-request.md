@@ -64,7 +64,8 @@ The body follows
 [`.github/pull_request_template.md`](../../.github/pull_request_template.md).
 `gh pr create --body-file` skips the template, so apply it yourself.
 
-Before anything is pushed, three subagents review the change. Each starts with
+Before anything is pushed, three subagents review the change, and a fourth when
+the change writes a published page. Each starts with
 no other context, and each gets only what its question needs, read from your
 worktree and `origin/main`, never from local `main`:
 
@@ -93,7 +94,7 @@ When the change writes or rewrites a published page, a fourth runs first:
 
 Each answers its own question; one reviewer finding nothing does not clear the
 others. Each marks a finding blocking or not. Fix the blocking ones, in the code
-or the body, and run the three again until none of them reports a blocking
+or the body, and run them all again, Flow included, until none of them reports a blocking
 finding. A finding still marked blocking after the second round is yours to
 decide: fix it, or set it aside. Every finding not fixed is named in the body
 with the reason it was set aside.
