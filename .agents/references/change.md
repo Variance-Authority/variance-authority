@@ -21,9 +21,25 @@ answers from the last recording, so for a file it has never seen, put the edit
 in the tree and read `yarn test:since --dry-run`: it selects from the diff, and
 says nothing about a file that has not changed.
 
-**Is it this task?** A finding outside the task — dead code, a stale doc, a
-defect in a neighbour — becomes its own change with its own PR. Folded into
-this one, it hides in a diff nobody reviews for it.
+**Is it this task?** A task is the sentence of done from [refine](refine.md),
+and its code is its branch's diff, `git diff origin/main`. A defect in that diff
+is the task's, whoever finds it — the agent, a reviewer, CodeRabbit, CI, the
+person who asked — and needed or not: a missing pin, a wrong word, an unbroken
+tie in a function the task added. It is fixed on the branch before the PR
+merges, never in a PR after it. Split off, each correction reaches `main` as a
+PR nobody reviewed against the whole, and each can leave `main` red.
+
+Work the task needs for its sentence of done to hold is the task's too,
+wherever the code is: a refactor it stands on, a neighbour's defect it cannot
+pass, and, when the task fixes a defect, every other place that defect lives. A finding the
+task neither needs nor wrote — dead code, a stale doc, a defect in a neighbour
+the task works without — is outside the task: it goes on its own branch cut from
+`origin/main`, with its own PR. Folded into this one, it hides in a diff nobody
+reviews for it.
+
+A merged task is closed. A defect found in its code afterwards is fixed like any
+other, in a new change cut from `origin/main`, its body quoting the PR that
+merged it.
 
 **Where does the writing go?** Each kind of writing has one home and one job. A
 file that does two jobs is split, not extended.

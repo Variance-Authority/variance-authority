@@ -64,8 +64,10 @@ selection that already could, and the new walk was a second copy of it.
 
 A rule that reads like accidental cruft against the goal — widening on absence,
 refusing on a guess, duplicating an owner's answer — is fixed and reported, not
-asked about. Outside the task, it is fixed in its own change. Ask only when two readings are both defensible and the choice
-changes what the product promises.
+asked about. A finding the task neither needs nor wrote is fixed in its own
+change, on its own branch, as [change](change.md) draws the line. Ask only when
+two readings are both defensible and the choice changes what the product
+promises.
 
 A limitation is a bug or a position, never an apology. Classify it before
 writing "we cannot".

@@ -18,9 +18,13 @@ each open PR with the files it changes. Two PRs
 editing the same lines are a conflict one of you resolves now, or a reviewer
 resolves later without the context.
 
-**Is the diff only the task?** `git diff origin/main --stat`. A file you did not
-mean to change, or a finding outside the task, comes out and goes to its own
-change.
+**Is the diff only the task, and all of it?** `git diff origin/main --stat`. A
+file you did not mean to change, or a finding the task neither needs nor wrote,
+comes out and goes to its own branch cut from `origin/main`. What the task needs
+stays, and so does a defect in its own diff, as [change](change.md) says. None
+of it is left to a later PR: that PR is reviewed and merged against a `main`
+that holds half a change, and the first PR's review approved something that was
+not finished.
 
 **Does it carry its changeset?** `yarn changeset status --since=origin/main`
 fails the same way CI does when a published package changed and no changeset
