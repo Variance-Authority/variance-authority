@@ -131,9 +131,15 @@ Look around:
 - The PR's kind, its title's prefix, and whether it carries everything that
   kind needs, as [pull request](.agents/references/pull-request.md) lists them.
 
-Then push the branch, write the body to
-[`.github/pull_request_template.md`](.github/pull_request_template.md), and have
-a subagent with no other context read it cold. Never push to `main`.
+Write the body to
+[`.github/pull_request_template.md`](.github/pull_request_template.md). Before
+anything is pushed, three subagents with no other context review the change,
+each for one question: does the body make sense on its own, should the change
+happen at all, and does the diff do what the body says. Fix what they mark
+blocking and run them again until none does; a finding still blocking after the
+second round is yours to fix or set aside, and every finding not fixed is named
+in the body. Then push the branch and open the PR, so CodeRabbit reviews
+finished work. Never push to `main`.
 
 ## Outer loop — [validate and correct](.agents/references/outer-loop.md)
 
