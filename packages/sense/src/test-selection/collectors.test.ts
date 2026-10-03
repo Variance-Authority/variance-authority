@@ -342,11 +342,11 @@ describe('what a case said it arranged', () => {
     const scope = holder[CASE_SCOPE] as Scope & {
       phase(where: { kind: 'each'; depth: number } | undefined): void;
     };
-    const say = holder[PRECONDITION] as (name: string, value: unknown, called: Error) => void;
+    const say = holder[PRECONDITION] as (named: unknown, value: unknown, called: Error) => void;
     scope.phase({ kind: 'each', depth: 1 });
-    say('network', 'mocked', new Error());
+    say({ network: 'mocked' }, undefined, new Error());
     scope.phase(undefined);
-    scope.enter(journals.packCase(FILE, 'checkout > pays', '0'), () => say('flag', 'ff-on', new Error()));
+    scope.enter(journals.packCase(FILE, 'checkout > pays', '0'), () => say({ flag: 'ff-on' }, undefined, new Error()));
     expect(() => scope.enter(journals.packCase(FILE, 'refunds > pays', '1'), () => {
       throw new Error('stopped, so it writes a frame, and said nothing');
     })).toThrow('stopped');
@@ -363,10 +363,10 @@ describe('what a case said it arranged', () => {
     const holder: Record<PropertyKey, unknown> = {};
     collectors.scoped(holder, true);
     const scope = holder[CASE_SCOPE] as Scope;
-    const say = holder[PRECONDITION] as (name: string, value: unknown, called: Error) => void;
+    const say = holder[PRECONDITION] as (named: unknown, value: unknown, called: Error) => void;
     let late: Promise<void> | undefined;
     await scope.enter(journals.packCase(FILE, 'pays', '0'), async () => {
-      late = new Promise((settle) => setTimeout(settle, 5)).then(() => say('network', 'mocked', new Error()));
+      late = new Promise((settle) => setTimeout(settle, 5)).then(() => say({ network: 'mocked' }, undefined, new Error()));
     });
     await expect(late).rejects.toThrow(/ran outside a running case/);
   });

@@ -147,8 +147,8 @@ function recorder(
     const entries = entriesOf(named, value);
     if (entries === undefined) {
       console.warn(
-        `variance-authority: variancePrecondition at ${site} takes a name and a string, number or boolean, ` +
-          'or a record of them; nothing was recorded',
+        `variance-authority: variancePrecondition at ${site} takes a record of names to a string, number or boolean; ` +
+          'nothing was recorded',
       );
       return;
     }
@@ -202,13 +202,8 @@ function recorder(
   };
 }
 
-/** A call's arguments as name-value pairs, or nothing when they are not a precondition. */
+/** A call's record as name-value pairs, or nothing when the call is not one record of them. */
 function entriesOf(named: unknown, value: unknown): readonly (readonly [string, Value])[] | undefined {
-  if (typeof named === 'string') {
-    if (named === '') return undefined;
-    if (value === undefined) return [[named, true]];
-    return isValue(value) ? [[named, value]] : undefined;
-  }
   if (named === null || typeof named !== 'object' || Array.isArray(named) || value !== undefined) return undefined;
   const entries: (readonly [string, Value])[] = [];
   for (const [name, held] of Object.entries(named as Record<string, unknown>)) {
