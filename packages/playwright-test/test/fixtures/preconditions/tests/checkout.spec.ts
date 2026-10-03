@@ -37,12 +37,12 @@ test.describe('mocked', () => {
   });
 
   test('photographs the receipt', async ({ page, variance }) => {
-    variancePrecondition('flag', 'ff-on'); // receipt flag
+    variancePrecondition({ flag: 'ff-on' }); // receipt flag
     // Navigated rather than set, so the page runs the fixture's init script.
     await page.route('http://receipt.test/', (route) => route.fulfill({ contentType: 'text/html', body: `<script>${COLLECTOR}</script><p>Paid</p>` }));
     await page.goto('http://receipt.test/');
     await variance(page.locator('p'), { subjectId: 'receipt--ff-on' });
-    variancePrecondition('seeded'); // receipt seeded
+    variancePrecondition({ seeded: true }); // receipt seeded
   });
 });
 

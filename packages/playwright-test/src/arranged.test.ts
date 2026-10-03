@@ -93,9 +93,9 @@ describe('snapshotCaseOf', () => {
       let standing: PreconditionStanding = { at: 'beforeEach', key: caseKey(owner, 'one'), depth: 1 };
       const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile }, undefined, () => standing);
 
-      variancePrecondition('network', 'live');
+      variancePrecondition({ network: 'live' });
       standing = { at: 'case', key: caseKey(owner, 'one') };
-      variancePrecondition('network', 'mocked');
+      variancePrecondition({ network: 'mocked' });
 
       const taken = snapshotCaseOf(pays, recorder);
       expect({ ...taken, preconditions: lines(taken) }).toEqual({
@@ -110,7 +110,7 @@ describe('snapshotCaseOf', () => {
       expect(snapshotCaseOf(refunds, recorder).preconditions).toEqual([]);
 
       // Said after the snapshot: on the next view and on the row, not on the one taken.
-      variancePrecondition('seeded');
+      variancePrecondition({ seeded: true });
       expect(lines(taken)).toHaveLength(1);
       expect(lines(snapshotCaseOf(pays, recorder))).toEqual([['network', 'mocked', 0xffff], ['seeded', true, 0xffff]]);
 

@@ -41,9 +41,9 @@ describe('a realm whose runner places each call itself', () => {
 
     variancePrecondition({ network: 'live', seeded: true });
     standing = { at: 'case', key: 'pays' };
-    variancePrecondition('network', 'mocked');
+    variancePrecondition({ network: 'mocked' });
     const held = listener.held('pays');
-    variancePrecondition('flag', 'on');
+    variancePrecondition({ flag: 'on' });
     listener.close();
 
     expect(held).toEqual([

@@ -71,14 +71,14 @@ async function namedWhenSaid(when: 'comparing' | 'reading the accessibility tree
 
     await page.setContent('<p id="receipt">Paid</p>');
     await page.evaluate(await bundlePageAgent());
-    variancePrecondition('network', 'mocked');
+    variancePrecondition({ network: 'mocked' });
 
     // The engine is asked where components are declared after the document is
     // captured, so a call there lands between the capture and the verdict, as a
     // case's concurrent code can.
     const declared: DeclarationReader = {
       read: async () => {
-        if (when === 'comparing') variancePrecondition('seeded');
+        if (when === 'comparing') variancePrecondition({ seeded: true });
         return {};
       },
       stats: { asked: 0, located: 0 },
@@ -94,7 +94,7 @@ async function namedWhenSaid(when: 'comparing' | 'reading the accessibility tree
         if (property === 'ariaSnapshot' && when === 'reading the accessibility tree' && !said) {
           return async (...args: Parameters<Locator['ariaSnapshot']>) => {
             said = true;
-            const [tree] = await Promise.all([target.ariaSnapshot(...args), Promise.resolve().then(() => variancePrecondition('seeded'))]);
+            const [tree] = await Promise.all([target.ariaSnapshot(...args), Promise.resolve().then(() => variancePrecondition({ seeded: true }))]);
             return tree;
           };
         }
