@@ -284,6 +284,7 @@ function scoped(holder: Holder, continuations: boolean, story?: StoryWriter, roo
       return bucket.key;
     },
     continuations ? new async_hooks.AsyncLocalStorage() : undefined,
+    root,
   );
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);

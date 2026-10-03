@@ -1,8 +1,5 @@
-import { isAbsolute } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import preconditions from './case-preconditions.cjs';
 import { column, type Stored } from './format-layout.js';
-import { projectPath } from './instrumented-modules.js';
 import type { ExecutionTest } from './reverse.js';
 
 /**
@@ -52,22 +49,7 @@ export function preconditionsHeard(root: string, said: Said | undefined): { read
 
 /** The calls with each site named from the checkout, for a reader that resolves them later. */
 export function checkoutSaid(root: string, said: Said): Said {
-  return said.map(([name, value, site, level]) => [name, value, checkoutSite(root, site), level]);
-}
-
-function checkoutSite(root: string, site: string): string {
-  const colon = site.lastIndexOf(':');
-  if (colon <= 0) return site;
-  let file = site.slice(0, colon);
-  if (file.startsWith('file:')) file = fileURLToPath(file);
-  else if (/^https?:/u.test(file)) {
-    const served = /\/@fs(\/.*)$/u.exec(new URL(file).pathname);
-    // FIXME: a browser realm's site served from the dev server's root, not
-    // `/@fs/`, keeps its URL — needs the server's root to name the file.
-    if (served === null) return site;
-    file = decodeURIComponent(served[1]!);
-  }
-  return isAbsolute(file) ? `${projectPath(root, file)}${site.slice(colon)}` : site;
+  return said.map(([name, value, site, level]) => [name, value, preconditions.checkoutSite(root, site), level]);
 }
 
 /**

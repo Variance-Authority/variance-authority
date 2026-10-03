@@ -553,7 +553,7 @@ variance covering --file src/checkout/total.ts --line 48 --where network=mocked
 ```
 
 ```text
-Kept the 2 of 6 cases that said network=mocked.
+Kept the 2 of 4 cases that covered line 48 of src/checkout/total.ts and said network=mocked.
 2 named tests covered line 48 of src/checkout/total.ts:
   src/checkout/total.test.ts — 2/6
     pays — network=mocked (src/checkout/total.test.ts:12)
@@ -561,8 +561,9 @@ Kept the 2 of 6 cases that said network=mocked.
       twin at flag=ff-off: refunds
 ```
 
-`--where network` keeps every value of `network`, and every repeated `--where`
-must hold. Two values said at one level print as a contradiction, and match a
+The count is out of the cases that covered what you asked about, before
+`--where` narrowed them. `--where network` keeps every value of `network`, and
+every repeated `--where` must hold. Two values said at one level print as a contradiction, and match a
 `--where` naming either. A record made before cases said anything answers
 `unmeasured` rather than an empty list, and a case nobody listened to is counted
 apart from the cases that said nothing.
@@ -570,11 +571,12 @@ apart from the cases that said nothing.
 When `names.axes` in `variance.config.json` declares the name, the value is
 read on that axis. `values[0]` is the base, and a case that never said the name
 stands at it, so `--where flag=ff-off` keeps it. A value outside the axis is
-printed by name with its site, and kept. Beside each case is its twin: the case
-one step toward the base on its last declared axis, holding every other
-precondition the same, looked up among every case the question reached before
-`--where` narrowed it. Several twins are printed with their count, and none as
-`no twin recorded`.
+printed by name with its site, and kept. Beside each case, with or without
+`--where`, is its twin: the case of the same test file one step toward the base
+on its last declared axis, holding every other precondition the same, looked up
+among the cases the question reached before `--where` narrowed them. Several
+twins print as their count and the first three names. When no recorded case
+holds that coordinate, the case prints `no twin recorded`.
 
 #### Asking about the text you hold
 

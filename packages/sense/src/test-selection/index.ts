@@ -56,7 +56,7 @@ export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from
 export { unmeasuredOf, type Unmeasured } from './route.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
-export { formatCoveringChange, type CoveringChangeHeading } from './covering-change-text.js';
+export { formatCoveringChange, type CoveringCaseNote, type CoveringChangeHeading } from './covering-change-text.js';
 export {
   EXECUTION_FORMAT,
   decodeExecutionIndex,

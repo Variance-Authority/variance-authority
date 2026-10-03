@@ -26,16 +26,18 @@ import { OperatorError } from '../exit.js';
 import type { ExecutionIndex, ExecutionTest } from '@variance-authority/sense/test-selection';
 import type { WhereCondition } from '../covering-args.js';
 import type { AxisConfig, NamesConfig } from '../config.js';
+import type { Covering } from './covering.js';
 
 type CasePrecondition = NonNullable<ExecutionTest['preconditions']>[number];
 
-/** What `--where` kept, out of how many, and what it could not read. */
+/** What `--where` kept, out of the cases that covered what was asked, and what it could not read. */
 export interface CoveringWhere {
   /** The conditions, as given. */
   readonly asked: readonly string[];
   readonly kept: number;
+  /** The cases that covered the line, function, file or change before `--where` narrowed them. */
   readonly of: number;
-  /** Cases on a row nobody listened to: whether they said any of it is unmeasured. */
+  /** Of those, cases on a row nobody listened to: whether they said any of it is unmeasured. */
   readonly unmeasured: number;
   /** Values a kept case said on a declared axis that the axis does not name. */
   readonly outside: readonly string[];
@@ -124,7 +126,53 @@ function outside(kept: readonly ExecutionTest[], names: NamesConfig | undefined)
 }
 
 /**
- * Each listed case's twin, looked up among every case the question reached.
+ * Every case an answer lists, once: on the line or function, in a range of the
+ * file, in a changed region, or declared by a changed test file.
+ */
+export function listedIn(answer: {
+  readonly tests?: readonly ExecutionTest[];
+  readonly ranges?: readonly { readonly tests: readonly ExecutionTest[] }[];
+  readonly changed?: readonly {
+    readonly regions: readonly { readonly tests: readonly ExecutionTest[] }[];
+    readonly cases: readonly ExecutionTest[];
+  }[];
+}): readonly ExecutionTest[] {
+  const every = [
+    ...answer.tests ?? [],
+    ...(answer.ranges ?? []).flatMap((range) => range.tests),
+    ...(answer.changed ?? []).flatMap((file) => [...file.regions.flatMap((region) => region.tests), ...file.cases]),
+  ];
+  return [...new Map(every.map((test) => [test.id, test])).values()];
+}
+
+/**
+ * What `--where` kept, counted against what the question reached: the cases
+ * that covered the line, function, file or change, before `--where` narrowed
+ * them. A count against the whole record would say how many cases a suite
+ * has, which is not what was asked.
+ */
+export function whereOver(
+  where: CoveringWhere,
+  kept: readonly ExecutionTest[],
+  reached: readonly ExecutionTest[],
+  names: NamesConfig | undefined,
+): CoveringWhere {
+  return {
+    asked: where.asked,
+    kept: kept.length,
+    of: reached.length,
+    unmeasured: reached.filter((test) => test.preconditions === undefined).length,
+    outside: outside(kept, names),
+  };
+}
+
+/**
+ * Each listed case's twin, looked up among the cases of its own test file the
+ * question reached.
+ *
+ * Only its own file: a case that said nothing stands at the base of every
+ * axis, so across files every such case would be the twin of every case that
+ * said a value — a list of strangers, not the case beside it.
  *
  * The walk is `structuralParent`'s, {@link stepTowardBase}: from the value
  * below the case's on its last declared axis toward the base, the first
@@ -146,13 +194,13 @@ export function twinsOf(
   for (const test of reached) {
     const here = place(test);
     if (here === undefined) continue;
-    const key = coordinateKey(here.stem, here.coordinate);
+    const key = `${test.file}\0${coordinateKey(here.stem, here.coordinate)}`;
     at.set(key, [...at.get(key) ?? [], test.id]);
   }
   return listed.flatMap((test) => {
     const here = place(test);
     const walked = here === undefined ? undefined : stepTowardBase(here.coordinate, names, (coordinate) =>
-      (at.get(coordinateKey(here.stem, coordinate)) ?? []).filter((other) => other !== test.id));
+      (at.get(`${test.file}\0${coordinateKey(here.stem, coordinate)}`) ?? []).filter((other) => other !== test.id));
     if (walked === undefined) return [];
     const twins = [...walked.found].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
     return [{ case: test.id, axis: walked.axis, from: walked.from, to: walked.to, twins }];
@@ -213,19 +261,32 @@ function valued(held: CasePrecondition): string {
   return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
 }
 
-/** The lines a twin prints under its case. */
+/** Names a twin line prints before it says how many more there are. */
+const TWINS_NAMED = 3;
+
+/** The line a twin prints under its case: a few names, and a count when there are more. */
 export function twinText(twin: CoveringTwin, nameOf: (id: string) => string, indent: string): string {
   const at = `${twin.axis}=${twin.to}`;
   if (twin.twins.length === 0) return `${indent}no twin recorded at ${at}`;
-  const names = twin.twins.map(nameOf).join(', ');
+  const named = twin.twins.slice(0, TWINS_NAMED).map(nameOf);
+  const more = twin.twins.length - named.length;
+  const names = `${named.join(', ')}${more === 0 ? '' : `, and ${more} more`}`;
   return twin.twins.length === 1 ? `${indent}twin at ${at}: ${names}` : `${indent}${twin.twins.length} twins at ${at}: ${names}`;
 }
 
 /** What `--where` kept, said before the cases it kept. */
-export function whereText(where: CoveringWhere | undefined): readonly string[] {
+export function whereText(answer: Covering): readonly string[] {
+  const where = answer.where;
   if (where === undefined) return [];
+  const asked = where.asked.join(' and ');
+  const target = coveredText(answer);
+  const cases = `case${where.of === 1 ? '' : 's'}`;
   return [
-    `Kept the ${where.kept} of ${where.of} case${where.of === 1 ? '' : 's'} that said ${where.asked.join(' and ')}.`,
+    where.of === 0
+      ? `No case covered ${target}, so none said ${asked}.`
+      : where.kept === 0
+        ? `Kept none of the ${where.of} ${cases} that covered ${target}: none said ${asked}.`
+        : `Kept the ${where.kept} of ${where.of} ${cases} that covered ${target} and said ${asked}.`,
     ...where.unmeasured === 0 ? [] : [
       `${where.unmeasured} case${where.unmeasured === 1 ? ' was' : 's were'} not listened to, so whether ${
         where.unmeasured === 1 ? 'it' : 'they'
@@ -233,4 +294,12 @@ export function whereText(where: CoveringWhere | undefined): readonly string[] {
     ],
     ...where.outside.map((note) => `  ${note}`),
   ];
+}
+
+/** What the question asked about, as the count names it. */
+function coveredText(answer: Covering): string {
+  if (answer.changed !== undefined) return answer.since === undefined ? 'the change' : `the change since ${answer.since}`;
+  const target = answer.target;
+  if (target === undefined) return answer.file ?? '';
+  return `${'line' in target ? `line ${target.line}` : `function ${target.function}`} of ${answer.file ?? ''}`;
 }

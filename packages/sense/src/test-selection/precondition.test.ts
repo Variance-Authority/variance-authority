@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { parseSync } from 'oxc-parser';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -121,6 +122,24 @@ describe('the recorder a case scope installs', () => {
     }
     expect(recorder.take(keyOf('pays'))).toEqual([]);
     expect(String(warned[0])).toMatch(/precondition\.test\.ts:\d+ ran after its case/);
+  });
+
+  it('names the call site from the checkout in what it warns and throws, as the row names it', () => {
+    const root = resolve(import.meta.dirname, '../../../..');
+    const site = /variancePrecondition at packages\/sense\/src\/test-selection\/precondition\.test\.ts:\d+ /;
+    const recorder = preconditions.recorder(globalThis, () => undefined, undefined, root);
+    const warned: unknown[] = [];
+    const warn = console.warn;
+    console.warn = (...args: unknown[]) => void warned.push(args.join(' '));
+    try {
+      recorder.within({ kind: 'after' }, () => variancePrecondition('network', 'mocked'));
+      variancePrecondition('when', new Date() as unknown as string);
+    } finally {
+      console.warn = warn;
+    }
+    expect(String(warned[0])).toMatch(site);
+    expect(String(warned[1])).toMatch(site);
+    expect(() => variancePrecondition('flag', 'ff-off')).toThrow(site);
   });
 
   it('refuses a value that is not a string, number or boolean, and records nothing', () => {
@@ -257,6 +276,13 @@ describe('resolving what a case said', () => {
       { name: 'flag', value: 'ff-on', site: 'a.test.ts:4', level: 1 },
     ]);
     expect(preconditions.contradictions(resolved)).toEqual(['flag']);
+  });
+
+  it('keeps the site of the call that said a value first, not the one that sorts first', () => {
+    expect(preconditions.resolve([
+      said('flag', 'ff-on', 1, 'b.test.ts:9'),
+      said('flag', 'ff-on', 1, 'a.test.ts:2'),
+    ])).toEqual([{ name: 'flag', value: 'ff-on', site: 'b.test.ts:9', level: 1 }]);
   });
 
   it('carries what a frame said in its owner, and tells a silent frame from one that never listened', () => {

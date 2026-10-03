@@ -26,7 +26,7 @@ export function formatCoveringRefs(answer: Covering): string {
   const motion = motionText(answer.motion, (tests) => table.refs(tests));
   return `${[
     ...scopeText(answer),
-    ...whereText(answer.where),
+    ...whereText(answer),
     ...body,
     ...narrowedText(answer),
     ...table.lines(),

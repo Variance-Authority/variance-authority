@@ -22,7 +22,7 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  return `${[...scopeText(answer), ...whereText(answer.where), text(answer), ...motionText(answer.motion)].join('\n')}\n`;
+  return `${[...scopeText(answer), ...whereText(answer), text(answer), ...motionText(answer.motion)].join('\n')}\n`;
 }
 
 function text(answer: Covering): string {
@@ -101,7 +101,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     } else if (printed.has(key)) {
       lines.push(`  the same ${range.tests.length === 1 ? 'named test' : `${range.tests.length} named tests`} as ${printed.get(key)}`);
     } else {
-      lines.push(...caseLines(range.tests, '  '));
+      lines.push(...caseLines(range.tests, '  ', [], answer.twins));
       printed.set(key, place);
     }
   }
@@ -159,17 +159,23 @@ export function narrowedText(answer: Covering): readonly string[] {
  *
  * The words live in `@variance-authority/sense/test-selection` beside
  * `coveringChange`, because two surfaces ask for them and a reading with two
- * renderers has two answers. All this adds is the provenance the CLI is the
- * only one able to state: the ref the diff was taken against, the file the
- * index was read from, and the commit it stands at.
+ * renderers has two answers. All this adds is what the CLI is the only one
+ * able to state: the ref the diff was taken against, the file the index was
+ * read from, the commit it stands at, and each case's twin, which needs the
+ * checkout's `names.axes`.
  */
 function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
-  // FIXME: the case lines print no preconditions or twins here, where refs and
-  // json carry them — needs `formatCoveringChange` to take what a case said.
+  const twinOf = new Map((answer.twins ?? []).map((twin) => [twin.case, twin]));
   return formatCoveringChange(changed, {
     ...(answer.since === undefined ? {} : { since: answer.since }),
     from: answer.from,
     ...(answer.at === undefined ? {} : { at: answer.at }),
+  }, (test, indent) => {
+    const twin = twinOf.get(test.id);
+    return {
+      tail: heldText(test.preconditions),
+      under: twin === undefined ? [] : [twinText(twin, (id) => id.slice(id.indexOf(' > ') + 3), indent)],
+    };
   });
 }
 

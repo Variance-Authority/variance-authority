@@ -37,6 +37,16 @@ export interface CoveringChangeHeading {
 }
 
 /**
+ * What a caller knows about a case beyond its name: a tail for its line, and
+ * the lines under it. The CLI prints what the case said and its twin; the MCP
+ * tool reads no config to find a twin, and says nothing more.
+ */
+export type CoveringCaseNote = (test: CoveringTest | ExecutionTest, indent: string) => {
+  readonly tail: string;
+  readonly under: readonly string[];
+};
+
+/**
  * The counts first, then the regions that produced them.
  *
  * The header is the part a reviewer acts on, so it leads. Two numbers matter
@@ -53,7 +63,12 @@ export interface CoveringChangeHeading {
 export function formatCoveringChange(
   changed: readonly CoveringChange[],
   heading: CoveringChangeHeading = {},
+  note: CoveringCaseNote = () => ({ tail: '', under: [] }),
 ): string {
+  const witness = (test: CoveringTest | ExecutionTest): readonly string[] => {
+    const { tail, under } = note(test, '      ');
+    return [`    ${describe(test)}${tail}`, ...under];
+  };
   const regions = changed.flatMap((file) => file.regions);
   const blind = regions.filter((region) => region.tests.length === 0);
   const holes = blind.filter((region) => (region.stopped?.length ?? 0) > 0);
@@ -76,7 +91,7 @@ export function formatCoveringChange(
         `  a test file — ${count(file.cases.length, 'named case')} declared here, which is ` +
           'what changed rather than what was covered:',
       );
-      lines.push(...file.cases.map((test) => `    ${describe(test)}`));
+      lines.push(...file.cases.flatMap(witness));
     }
     if (!file.recorded) {
       if (file.cases.length === 0) {
@@ -92,7 +107,7 @@ export function formatCoveringChange(
     }
     for (const region of file.regions) {
       lines.push(`  ${extent(region)} — ${claim(region)}${carried(region.passengers)}`);
-      lines.push(...region.tests.map((test) => `    ${describe(test)}`));
+      lines.push(...region.tests.flatMap(witness));
       lines.push(...(region.stopped ?? []).map((test) => `    stopped first: ${describe(test)}`));
     }
   }
