@@ -65,26 +65,27 @@ pub struct Reconciled {
 // TODO: keep each build's own regions and read a case's ordinals against the build that cut them — needs the case journal to name that build.
 pub fn reconcile(inventories: &[&[Block]]) -> Reconciled {
     let mut blocks: Vec<Block> = Vec::new();
-    let mut at: HashMap<&Block, u32> = HashMap::new();
+    let mut at: HashMap<(&Block, u32), u32> = HashMap::new();
+    let keyed: Vec<Vec<(&Block, u32)>> = inventories.iter().map(|blocks| repeats(blocks)).collect();
     // The order comes from one inventory chosen by content, so the answer is
     // the same whichever store or shard happened to be read first.
     let base = inventories.iter().copied().min_by(|left, right| inventory_order(left, right));
     if let Some(base) = base {
-        let held: Vec<HashSet<&Block>> = inventories.iter().map(|blocks| blocks.iter().collect()).collect();
-        for block in base {
-            if !at.contains_key(block) && held.iter().all(|other| other.contains(block)) {
-                at.insert(block, blocks.len() as u32);
-                blocks.push(block.clone());
+        let held: Vec<HashSet<&(&Block, u32)>> = keyed.iter().map(|keys| keys.iter().collect()).collect();
+        for key in repeats(base) {
+            if held.iter().all(|other| other.contains(&key)) {
+                at.insert(key, blocks.len() as u32);
+                blocks.push(key.0.clone());
             }
         }
     }
     let shared = blocks.len();
     let mut whole = None;
     let mut lands = Vec::with_capacity(inventories.len());
-    for inventory in inventories {
+    for (inventory, keys) in inventories.iter().zip(&keyed) {
         let mut landed = Vec::with_capacity(inventory.len());
-        for block in inventory.iter() {
-            let target = match at.get(block).copied().or_else(|| enclosing(&blocks[..shared], block)) {
+        for (block, key) in inventory.iter().zip(keys) {
+            let target = match at.get(key).copied().or_else(|| enclosing(&blocks[..shared], block)) {
                 Some(target) => target,
                 None => *whole.get_or_insert_with(|| {
                     blocks.push(whole_file(inventories, base.and_then(<[Block]>::first)));
@@ -96,6 +97,15 @@ pub fn reconcile(inventories: &[&[Block]]) -> Reconciled {
         lands.push(landed);
     }
     Reconciled { blocks, lands }
+}
+
+/// Each region with the number of regions of its shape up to it: two callbacks
+/// handed to one call on one line share every field, and only their place in
+/// the order the recipe cut them says which is which. Keyed by shape alone, the
+/// second would land on the first. `addressKey` numbers repeats the same way.
+fn repeats(blocks: &[Block]) -> Vec<(&Block, u32)> {
+    let mut seen: HashMap<&Block, u32> = HashMap::new();
+    blocks.iter().map(|block| (block, *seen.entry(block).and_modify(|nth| *nth += 1).or_insert(1))).collect()
 }
 
 fn enclosing(shared: &[Block], block: &Block) -> Option<u32> {
@@ -463,6 +473,16 @@ mod tests {
         assert!(reconciled.blocks == [module, outer, inner]);
         assert_eq!(reconciled.lands, [vec![0, 1, 2], vec![0, 1, 1, 2]]);
         assert_eq!(by_ordinal(&reconciled.lands), [vec![0], vec![1], vec![1, 2], vec![2]]);
+    }
+
+    #[test]
+    fn two_regions_of_one_shape_stay_two() {
+        let (module, callback) = (block("module", "", 1, 5), block("function", "pick/find.arg0", 2, 2));
+        let one = [module.clone(), callback.clone(), callback.clone()];
+        let two = [module.clone(), callback.clone(), callback.clone(), block("branch", "", 4, 4)];
+        let reconciled = reconcile(&[&one, &two]);
+        assert!(reconciled.blocks == [module, callback.clone(), callback]);
+        assert_eq!(reconciled.lands, [vec![0, 1, 2], vec![0, 1, 2, 0]]);
     }
 
     #[test]
