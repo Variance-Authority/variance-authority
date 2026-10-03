@@ -1,7 +1,6 @@
 ---
 '@variance-authority/playwright-test': minor
 '@variance-authority/sense': minor
-'@variance-authority/vitest-browser': patch
 ---
 
 A snapshot names the case it was taken in, and what that case had arranged
@@ -19,5 +18,7 @@ or not. Without `varianceExecution` nothing listens, and the line reads
 `PreconditionListener.held(key)` returns what a running case has said so far,
 resolved as its row would be, without taking it from the row.
 `@variance-authority/sense/journal` exports `CasePrecondition` and
-`contradictions`. `ExecutionRecorder.arranged(owner, test)` reads a case's view
+`preconditionText`, the one rendering `variance covering` and the snapshot
+share: `flag=ff-on (spec.ts:9)`, a bare `true` as its name, a contradiction
+with both values. `ExecutionRecorder.arranged(owner, test)` reads a case's view
 from a Playwright worker's recorder.

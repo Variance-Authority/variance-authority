@@ -14,7 +14,7 @@
  */
 
 import type { TestInfo } from '@playwright/test';
-import { contradictions, type CasePrecondition } from '@variance-authority/sense/journal';
+import { preconditionText, type CasePrecondition } from '@variance-authority/sense/journal';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import type { ExecutionRecorder } from './execution.js';
 import { ownerOf, testOf } from './test-coordinate.js';
@@ -57,8 +57,5 @@ export function arrangedText(taken: SnapshotCase): string {
     return `${where}, preconditions unmeasured: varianceExecution is off, so nothing listened for variancePrecondition`;
   }
   if (said.length === 0) return `${where}, nothing arranged`;
-
-  const twice = contradictions(said);
-  const entries = said.map(({ name, value, site }) => `${name}=${JSON.stringify(value)} (${site})`).join(', ');
-  return `${where}, arranged ${entries}${twice.length === 0 ? '' : `; contradicted: ${twice.join(', ')}`}`;
+  return `${where}, arranged ${preconditionText(said)}`;
 }

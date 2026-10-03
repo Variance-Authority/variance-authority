@@ -23,6 +23,7 @@ import { said } from '../here.js';
 import { DEFAULT_CONFIG } from '../usage.js';
 import { coordinateKey, stepTowardBase, type NamedAxis } from './names.js';
 import { OperatorError } from '../exit.js';
+import { preconditionText } from '@variance-authority/sense/journal';
 import type { ExecutionIndex, ExecutionTest } from '@variance-authority/sense/test-selection';
 import type { WhereCondition } from '../covering-args.js';
 import type { AxisConfig, NamesConfig } from '../config.js';
@@ -195,22 +196,9 @@ function axisOf(names: NamesConfig | undefined, name: string): AxisConfig | unde
   return names?.axes.find((entry) => entry.axis === name);
 }
 
-/**
- * What a case said, with the call that said it: `flag=ff-on (spec.ts:9)`. A
- * name said twice at one level is printed as the contradiction it is.
- */
+/** What a case said, after its name, or nothing when it said nothing. */
 export function heldText(said: readonly CasePrecondition[] | undefined): string {
-  if (said === undefined || said.length === 0) return '';
-  const byName = new Map<string, CasePrecondition[]>();
-  for (const held of said) byName.set(held.name, [...byName.get(held.name) ?? [], held]);
-  return ` — ${[...byName].map(([name, held]) => held.length === 1
-    ? `${valued(held[0]!)} (${held[0]!.site})`
-    : `${name} contradicted: ${held.map((one) => `${String(one.value)} (${one.site})`).join(', ')}`,
-  ).join(', ')}`;
-}
-
-function valued(held: CasePrecondition): string {
-  return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
+  return said === undefined || said.length === 0 ? '' : ` — ${preconditionText(said)}`;
 }
 
 /** The lines a twin prints under its case. */

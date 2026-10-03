@@ -22,12 +22,12 @@ describe('arrangedText', () => {
     };
 
     expect(arrangedText(taken)).toBe(
-      'taken in tests/checkout.spec.ts > mocked > pays, arranged network="mocked" (tests/checkout.spec.ts:12), ' +
-        'seeded=true (tests/checkout.spec.ts:8)',
+      'taken in tests/checkout.spec.ts > mocked > pays, arranged network=mocked (tests/checkout.spec.ts:12), ' +
+        'seeded (tests/checkout.spec.ts:8)',
     );
   });
 
-  it('keeps both values of a contradiction, and names it', () => {
+  it('keeps both values of a contradiction, as `variance covering` prints it', () => {
     const taken: SnapshotCase = {
       ...CASE,
       preconditions: [
@@ -37,8 +37,8 @@ describe('arrangedText', () => {
     };
 
     expect(arrangedText(taken)).toBe(
-      'taken in tests/checkout.spec.ts > mocked > pays, arranged network="live" (tests/checkout.spec.ts:20), ' +
-        'network="mocked" (tests/checkout.spec.ts:21); contradicted: network',
+      'taken in tests/checkout.spec.ts > mocked > pays, arranged network contradicted: ' +
+        'live (tests/checkout.spec.ts:20), mocked (tests/checkout.spec.ts:21)',
     );
   });
 

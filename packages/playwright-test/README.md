@@ -579,7 +579,7 @@ the `file:line` that said it. A call after the snapshot is on the case's row and
 not on the snapshot.
 
 ```text
-receipt--ff-on: taken in tests/checkout.spec.ts > mocked > photographs the receipt, arranged flag="ff-on" (tests/checkout.spec.ts:40), network="mocked" (tests/checkout.spec.ts:27)
+receipt--ff-on: taken in tests/checkout.spec.ts > mocked > photographs the receipt, arranged flag=ff-on (tests/checkout.spec.ts:40), network=mocked (tests/checkout.spec.ts:27)
 ```
 
 The observation carries the case as `case`. The line after the subject closes a

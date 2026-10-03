@@ -175,7 +175,9 @@ the case said, a case that never named the axis standing at the base. A
 difference is reported by the axis's name with the call site that said the
 case's value, and neither side is taken as the truth: a snapshot named `ff-on`
 from a case that arranged `ff-off` is a mislabelled subject or a mis-arranged
-case, and only the author knows which.
+case, and only the author knows which. The `names` grammar is parsed only by
+the CLI, so a test worker cannot read it; the comparison waits on the grammar
+moving into `@variance-authority/sense`, as the suite declaration did.
 
 Under Playwright the `variance` fixture carries both on the observation as
 `case`, closes a failing assertion's message with them, and adds them as a
