@@ -206,5 +206,13 @@ whenever the last check was, and prints the same lines, or
 that only runs its test suites keeps its cache bounded with it: in a CI cleanup
 step, a scheduled job, or by hand.
 
+An entry a check could not remove gets a line of its own, with the error that
+stopped it, and stays out of the freed total. `variance prune` then
+exits 2:
+
+```
+cache: could not remove <cache>/scans, a directory nothing writes any more: EACCES: permission denied, rmdir '<cache>/scans'
+```
+
 `variance doctor` prints what the next check would remove, by rule, and what it
 keeps because git or the process table could not answer.

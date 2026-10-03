@@ -2751,6 +2751,7 @@
         "TestFileMotion": "interface",
         "UNMARKED_AGE_MS": "const",
         "Unmeasured": "type",
+        "UnremovedEntry": "interface",
         "VariationDeviation": "interface",
         "WrittenLines": "type",
         "anyStopped": "function",

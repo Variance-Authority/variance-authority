@@ -196,23 +196,35 @@ export async function planPrune(
   };
 }
 
-/** What a prune took, once it was applied. */
+/** An entry a prune was asked to remove and could not, with the error that stopped it. */
+export interface UnremovedEntry<Reason extends string = PruneReason> extends PruneEntry<Reason> {
+  readonly error: string;
+}
+
+/** What a prune took, once it was applied, and what it was asked to take and could not. */
 export interface Pruned<Reason extends string = PruneReason> {
   readonly root: string;
   readonly removed: readonly PruneEntry<Reason>[];
+  readonly unremoved: readonly UnremovedEntry<Reason>[];
   readonly freed: number;
 }
 
-/** Remove exactly what the plan names. Never throws: what could not be removed is not counted. */
+/**
+ * Remove exactly what the plan names. Never throws: an entry that could not be
+ * removed is returned in `unremoved` with its error, and not counted as freed.
+ */
 export async function applyPrune<Reason extends string>(plan: PrunePlan<Reason>): Promise<Pruned<Reason>> {
   const removed: PruneEntry<Reason>[] = [];
+  const unremoved: UnremovedEntry<Reason>[] = [];
   for (const entry of plan.remove) {
     try {
       await rm(entry.path, { recursive: true, force: true });
       removed.push(entry);
-    } catch { /* still there; the next prune asks again */ }
+    } catch (error) {
+      unremoved.push({ ...entry, error: error instanceof Error ? error.message : String(error) });
+    }
   }
-  return { root: plan.root, removed, freed: removed.reduce((total, entry) => total + entry.bytes, 0) };
+  return { root: plan.root, removed, unremoved, freed: removed.reduce((total, entry) => total + entry.bytes, 0) };
 }
 
 /**
@@ -243,13 +255,19 @@ export async function pruneWhenDue(
   }
 }
 
-/** One line saying what a prune took, or nothing when it took nothing. */
+/**
+ * One line saying what a prune took, then one line for each entry it could not
+ * remove, naming the path and the error; empty when it took nothing and
+ * nothing failed.
+ */
 export function prunedLine<Reason extends string = PruneReason>(
   pruned: Pruned<Reason> | undefined,
   reasons: Readonly<Record<Reason, readonly [string, string]>> = PRUNE_REASONS as Readonly<Record<string, readonly [string, string]>>,
 ): string {
-  if (pruned === undefined || pruned.removed.length === 0) return '';
-  return `cache: freed ${mib(pruned.freed)} in ${pruned.root}: ${counted(pruned.removed, reasons)}`;
+  if (pruned === undefined) return '';
+  const lines = pruned.unremoved.map((entry) => `cache: could not remove ${entry.path}, a ${reasons[entry.reason][0]}: ${entry.error}`);
+  if (pruned.removed.length > 0) lines.unshift(`cache: freed ${mib(pruned.freed)} in ${pruned.root}: ${counted(pruned.removed, reasons)}`);
+  return lines.join('\n');
 }
 
 /** `3 runs whose processes are gone, 1 story older than 14 days`, in the order the reasons first appear. */
