@@ -151,6 +151,10 @@ When `names.axes` declares the name, the value is read against that axis:
   recorded*.
 - **The count.** `--where` says how many of the cases that covered the line,
   function, file or change it kept, out of how many covered it.
+- **The state.** A line's, function's, range's or changed region's state, and
+  the cases that stopped before it, are read over the cases before `--where`
+  narrowed them. `--where` changes which cases are listed, never what the
+  answer says about the code.
 
 Absent is not empty. A recording that kept no cases, or was made before this
 column existed, answers `--where` with **unmeasured**, never with "no case
