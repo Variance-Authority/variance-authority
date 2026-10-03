@@ -186,7 +186,7 @@ variance covering --file src/checkout/total.ts --line 2 --where network=mocked
 ```
 
 ```text
-Kept the 3 of 4 cases that said network=mocked.
+Kept the 3 of 4 cases that covered line 2 of src/checkout/total.ts and said network=mocked.
 3 named tests covered line 2 of src/checkout/total.ts:
   test/total.test.ts — 3/4
     offline > discounts behind the flag — flag=ff-on (test/total.test.ts:19), network=mocked (test/total.test.ts:11)
@@ -197,15 +197,15 @@ Kept the 3 of 4 cases that said network=mocked.
 
 The `twins` line is read in [axes and twins](#axes-and-twins) below.
 
-The `Kept` line counts every case in the record, wherever it ran, or every case
+The count in the `Kept` line is out of the cases that covered what you asked
+about before `--where` narrowed them, within the cases
 [`--cases`](../packages/cli/README.md#reading-the-test-you-are-writing) scoped
-the question to; the answer below it lists the kept cases that covered what you
-asked about.
+the question to when you give it. The answer below it lists the kept cases.
 
 - `--where network` keeps every value of `network`.
 - Repeat `--where` and a case is kept only when it said all of them:
   `--where network=mocked --where flag=ff-on` prints `Kept the 1 of 4 cases that
-  said network=mocked and flag=ff-on.`
+  covered line 2 of src/checkout/total.ts and said network=mocked and flag=ff-on.`
 
 With a second file, `test/refund.test.ts`, recorded beside the first, the
 record has seven cases, and the remaining examples come from it.
@@ -263,7 +263,7 @@ variance covering --file src/checkout/total.ts --function applyDiscount --where 
 ```
 
 ```text
-Kept the 1 of 4 cases that said flag=ff-on.
+Kept the 1 of 3 cases that covered function applyDiscount of src/checkout/total.ts and said flag=ff-on.
 1 named test covered function applyDiscount of src/checkout/total.ts, and it is the only case that could have:
   test/total.test.ts — 1/4
     offline > discounts behind the flag — flag=ff-on (test/total.test.ts:19), network=mocked (test/total.test.ts:11)
@@ -280,7 +280,7 @@ back through, so it has to be the same order every time — the
 printed by name with its site, and the case is kept:
 
 ```text
-Kept the 1 of 7 cases that said flag=ff-half.
+Kept the 1 of 7 cases that covered line 2 of src/checkout/total.ts and said flag=ff-half.
   flag=ff-half (test/refund.test.ts:11) is not one of ff-off, ff-on
 1 named test covered line 2 of src/checkout/total.ts, and it is the only case that could have:
   test/refund.test.ts — 1/3

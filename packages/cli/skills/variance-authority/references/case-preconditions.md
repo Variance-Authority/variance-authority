@@ -2,8 +2,8 @@
 
 A case that calls `variancePrecondition` from
 `@variance-authority/sense/precondition` carries the state it arranged on its
-row: a name, a value (string, finite number or boolean; `true` when omitted)
-and the `file:line` of the call. `variance covering` prints it beside every
+row: a name, a value (string, finite number or boolean) and the `file:line` of
+the call. `variance covering` prints it beside every
 case a file, line or function answer lists, and `--where` keeps the cases that
 said it. A precondition never selects or excludes a test; it is read, never
 diffed. The public page is
@@ -16,7 +16,7 @@ variance covering --file src/checkout/total.ts --function applyDiscount --where 
 ```
 
 ```text
-Kept the 4 of 7 cases that said network=mocked.
+Kept the 3 of 3 cases that covered function applyDiscount of src/checkout/total.ts and said network=mocked.
   flag=ff-half (test/refund.test.ts:11) is not one of ff-off, ff-on
 3 named tests covered function applyDiscount of src/checkout/total.ts:
   test/total.test.ts — 2/4
@@ -27,9 +27,9 @@ Kept the 4 of 7 cases that said network=mocked.
     half rollout > discounts at half — flag=ff-half (test/refund.test.ts:11), network=mocked (test/refund.test.ts:11)
 ```
 
-`Kept the 4 of 7` counts every case in the record, or in the `--cases` scope
-when one is given; the answer below it is the kept cases that covered the
-function. Repeat `--where` and every one must hold. `--where network` keeps
+`Kept the 3 of 3` is out of the cases that covered the function before `--where`
+narrowed them, within the `--cases` scope when one is given; the answer below
+it is the kept cases. Repeat `--where` and every one must hold. `--where network` keeps
 every value. Values compare as text, so `--where seeded-cart` and
 `--where seeded-cart=true` are the same question.
 
