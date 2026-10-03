@@ -45,9 +45,9 @@ depend on.
 </a>
 <a class="doc-link-card doc-link-card--compact" href="case-preconditions.md">
 <span>Coverage</span>
-<strong>Know what each covering test arranged</strong>
-<p>Have a case say the state it ran under, then keep only the tests that ran a line with sale prices mocked or the flag on.</p>
-<em>Name what a case arranged →</em>
+<strong>Know which state each covering test ran under</strong>
+<p>Record a flag, a mocked response or a fixture on each test, then keep only the tests that ran a line with sale prices mocked or the flag on.</p>
+<em>Record the state each test ran under →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="distill.md">
 <span>Test reduction</span>

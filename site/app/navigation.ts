@@ -86,7 +86,7 @@ export const NAVIGATION = [
       },
       {
         href: "/docs/case-preconditions",
-        label: "Name what a case arranged",
+        label: "Record the state each test ran under",
       },
       {
         href: "/docs/run-relevant-work",
