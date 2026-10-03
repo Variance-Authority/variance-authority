@@ -55,7 +55,7 @@ describe('playwrightStanding', () => {
 });
 
 describe('enterDescribes', () => {
-  // A worker that cannot say a hook's describe refuses once, at setup, and the
+  // A worker that cannot say a hook's describe throws once, at setup, and the
   // same for every test after; each case loads the module fresh for that.
   const fresh = async () => {
     vi.resetModules();
@@ -68,7 +68,7 @@ describe('enterDescribes', () => {
       ...fields,
     }) as unknown as TestInfo;
 
-  it('refuses at setup naming the internal it lacks and the installed Playwright, then every test the same', async () => {
+  it('throws at setup naming the internal it lacks and the installed Playwright, then every test the same', async () => {
     const { enterDescribes, playwrightVersion } = await fresh();
     const refusal = `Playwright ${playwrightVersion()} has no TestInfo._requireFile`;
     await expect(enterDescribes(worker({}))).rejects.toThrow(refusal);
