@@ -60,7 +60,7 @@ A value is a string, a finite number or a boolean. Without a value the name
 is `true`. Anything else is reported on the console and records nothing:
 
 ```text
-variance-authority: variancePrecondition takes a name and a string, number or boolean, or a record of them; nothing was recorded
+variance-authority: variancePrecondition at test/total.test.ts:24 takes a name and a string, number or boolean, or a record of them; nothing was recorded
 ```
 
 The `@variance-authority/sense/precondition` entry point imports nothing.
