@@ -59,7 +59,7 @@ import { hopsToTests, identities, nearbyWitnesses, refold, type Narrowing } from
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
-import { namesAt, whereCases, type CoveringWhere } from './covering-where.js';
+import { listedIn, namesAt, placesNoCase, whereCases, whereOver, type CoveringWhere } from './covering-where.js';
 import { placeRanges, placementFor, regionState, snapshotFor, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
@@ -120,9 +120,9 @@ export interface Covering {
   readonly from: string;
   /** Present under `--cases`: the cases the answer was read from, which are not the suite. */
   readonly scope?: CoveringScope;
-  /** Under `--where`: how many cases said it, of how many, and what could not be read. */
+  /** Under `--where`: how many of the cases that covered it said it, and what could not be read. */
   readonly where?: CoveringWhere;
-  /** Under `--where` with `names.axes`: each listed case's twin one step toward the base. */
+  /** With `names.axes`: each listed case's twin one step toward the base, in its own test file. */
   readonly twins?: readonly CaseTwin[];
   /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
   readonly motion?: CoveringMotion;
@@ -155,8 +155,8 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   let full: ExecutionIndex | undefined;
   let whole: ExecutionIndex | undefined;
   let where: CoveringWhere | undefined;
-  const names = request.where === undefined ? undefined : await namesAt(request.root);
-  let reached: readonly CoveringTest[] | undefined;
+  const names = await namesAt(request.root);
+  let reached: readonly ExecutionTest[] | undefined;
   const reader: IndexReader = async (from, changed) => {
     const read = await readIndex(from, changed);
     whole = read.index;
@@ -172,10 +172,10 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   const answer = await ask(request, reader, (tests) => {
     reached = tests;
   });
-  // The twin is looked up among every case the question reached before `--where` narrowed it.
-  const twins = names === undefined || answer.tests === undefined
-    ? undefined
-    : caseTwins(answer.tests, reached ?? [], names);
+  // Twins and counts are read among every case the question reached before `--where` narrowed it.
+  const listed = listedIn(answer);
+  const twins = names === undefined ? undefined : caseTwins(listed, reached ?? listed, names);
+  if (where !== undefined) where = placesNoCase(answer) ? undefined : whereOver(where, listed, reached ?? listed, names);
   const motion = await motionFor(request, answer.from, scope, full);
   const files = answer.tests === undefined || whole === undefined
     ? undefined
@@ -186,20 +186,20 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     ...answer,
     ...(files === undefined ? {} : { files }),
     ...(scope === undefined ? {} : { scope }),
-    ...(where === undefined ? {} : { where: reached === undefined ? where : { ...where, ran: reached.length } }),
+    ...(where === undefined ? {} : { where }),
     ...(twins === undefined || twins.length === 0 ? {} : { twins }),
     ...(motion === undefined ? {} : { motion }),
   };
 }
 
 /**
- * @param reach Handed the cases a line or function question reached before
- * `--where` narrowed them, read off the same graph, when it narrowed them.
+ * @param reach Handed the cases the question reached before `--where`
+ * narrowed them, read off the same graph, when it narrowed them.
  */
 async function ask(
   request: ParsedCovering,
   readIndex: IndexReader,
-  reach?: (tests: readonly CoveringTest[]) => void,
+  reach?: (tests: readonly ExecutionTest[]) => void,
 ): Promise<Covering> {
   const from = request.execution ?? (await recordedExecutionFile(request.root, request.suite));
   const record = await snapshotFor(request);
@@ -212,10 +212,12 @@ async function ask(
       ? await recordedCommit(record)
       : undefined;
     const changed = await changeSince(request.since, request.root, at);
-    const { index } = await readIndex(from, changed);
+    const { index, before } = await readIndex(from, changed);
     // The graph carries the mocks: a case whose file mocked the changed module
     // is not listed under it, whatever it crossed there.
-    const answer = coveringChange(index, changed, { relations: await fileGraph(request.root) });
+    const relations = await fileGraph(request.root);
+    const answer = coveringChange(index, changed, { relations });
+    if (before !== undefined) reach?.(listedIn({ changed: coveringChange(before, changed, { relations }) }));
     return {
       since: request.since,
       changed: answer.map((file) => ({ ...file, regions: file.regions.map(stated) })),
@@ -314,13 +316,11 @@ async function ask(
     };
   }
 
-  const found = coveringTestsInFile(
-    index,
-    file,
-    module.blocks.some((block) => block.loaded === true) || anyStopped(index)
-      ? { relations: await fileGraph(request.root) }
-      : {},
-  );
+  const graph = module.blocks.some((block) => block.loaded === true) || anyStopped(before ?? index)
+    ? { relations: await fileGraph(request.root) }
+    : {};
+  const found = coveringTestsInFile(index, file, graph);
+  if (before !== undefined) reach?.(listedIn({ tests: coveringTestsInFile(before, file, graph).flatMap((range) => range.tests).filter(near.keep) }));
   if (near.whole) return { file: file, ranges: placeRanges(found, placement), ...frame, from };
   const narrowed = refold(found.map((range) => ({ ...range, tests: range.tests.filter(near.keep) })));
   return {
