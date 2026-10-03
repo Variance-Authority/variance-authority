@@ -82,15 +82,17 @@ worktree and `origin/main`, never from local `main`:
    body true of the diff? Does each claimed behaviour have the test the body
    names, and, where it pins a change, does the body show that test failing on
    `origin/main`? For a top-layer page, does each fact the brief puts off the
-   spine sit in the file it names, and does that file say it?
+   spine sit in the file it names, and does that file say it? Does each fact
+   marked *nowhere* carry the reason it was left out?
 
 When the change writes or rewrites a top-layer page, a fourth runs first:
 
 4. **Flow** — the `content-flow` agent, given each changed page alone with the
    brief's reader and question, never its expected readback. It reports what it
    understood, and you compare that with the brief, as
-   [content flow](content-flow.md) says. A verdict of *stalls at* or *no spine*,
-   or a readback that differs from the brief, is blocking, and the other three
+   [content flow](content-flow.md) says. A verdict of *no spine*, a *stalls at*
+   that is not a named and linked prerequisite, or a readback that differs from
+   the brief, is blocking, and the other three
    wait until it passes: a review of facts on a page whose structure will change
    is spent twice.
 

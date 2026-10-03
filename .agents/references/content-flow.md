@@ -60,7 +60,8 @@ into the PR body's Behaviour section when the PR opens:
 - **Expected readback**: what a cold reader should say the page gives them and
   what they would do first, after reading only the lead and the headings.
 - **Off the spine**: every other fact you know, each with the file in the layer
-  that owns it and whether that file already says it. "Nowhere" is an owner.
+  that owns it and whether that file already says it. "Nowhere" is an owner:
+  the fact is left out on purpose, and the brief gives the reason in a clause.
 
 Run the feature before you write the brief. Read the spec after. The spec lists
 what is decided and what is open, and that list belongs to the skill reference
@@ -118,6 +119,9 @@ brief, never the expected readback.
 2. **Before the PR opens**, give it the finished page once.
 
 The reader reports what it understood; the brief decides whether that is right.
+A stall on a prerequisite is not a failure when the page names it in one clause
+and links the page that sets it up, and the brief's reader either has it or is
+sent there: the reader cannot follow links, so it reports the gap either way.
 Which layer owns a fact is not a reading question: the Fidelity reviewer in
 [pull request](pull-request.md) checks the brief's off-spine list against the
 files it names.
