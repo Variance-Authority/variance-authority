@@ -79,10 +79,11 @@ Look around:
   <path>`. A test is amended or added first, and fails on the code as it is,
   before the code changes. Behaviour nothing covers is pinned green first, in
   addition to that test, not instead of it.
-- Where each piece of writing goes. A published page — a README or `docs/` —
-  gets its structure from [content flow](.agents/references/content-flow.md)
-  before it is outlined: a brief, then a spine, then a cold read by the
-  `content-flow` reviewer. [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
+- Where each piece of writing goes. A top-layer page — the root `README.md` or
+  `docs/` — gets its structure from
+  [content flow](.agents/references/content-flow.md) before it is outlined: a
+  brief, then a spine read cold by the `content-flow` reviewer. Detail goes to
+  the skill reference or the JSDoc that owns it. [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
   published sentence: a README, `docs/`, the site, CLI output or an error
   message.
 - Whether the change reaches a published package. If it does, it carries a
@@ -141,7 +142,7 @@ Write the body to
 anything is pushed, three subagents with no other context review the change,
 each for one question: does the body make sense on its own, should the change
 happen at all, and does the diff do what the body says. A change that writes a
-published page gets a fourth, the `content-flow` reviewer, and it runs first:
+top-layer page gets a fourth, the `content-flow` reviewer, and it runs first:
 the other three wait until the page's structure passes. Fix what they mark
 blocking and run them again until none does; a finding still blocking after the
 second round is yours to fix or set aside, and every finding not fixed is named

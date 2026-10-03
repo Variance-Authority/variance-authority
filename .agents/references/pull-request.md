@@ -65,7 +65,7 @@ The body follows
 `gh pr create --body-file` skips the template, so apply it yourself.
 
 Before anything is pushed, three subagents review the change, and a fourth when
-the change writes a published page. Each starts with
+the change writes a top-layer page. Each starts with
 no other context, and each gets only what its question needs, read from your
 worktree and `origin/main`, never from local `main`:
 
@@ -81,16 +81,18 @@ worktree and `origin/main`, never from local `main`:
 3. **Fidelity** — the body, the diff and `origin/main`. Is every claim in the
    body true of the diff? Does each claimed behaviour have the test the body
    names, and, where it pins a change, does the body show that test failing on
-   `origin/main`?
+   `origin/main`? For a top-layer page, does each fact the brief puts off the
+   spine sit in the file it names, and does that file say it?
 
-When the change writes or rewrites a published page, a fourth runs first:
+When the change writes or rewrites a top-layer page, a fourth runs first:
 
-4. **Flow** — the `content-flow` agent, given each changed page alone. Does
-   the page show what it gives the reader before its internals, and does every
-   section belong where it is? It reports what [content flow](content-flow.md)
-   asks for. A verdict of *reorder* or *re-spine* is blocking, and the other
-   three wait until it passes: a review of facts on a page whose structure will
-   change is spent twice.
+4. **Flow** — the `content-flow` agent, given each changed page alone with the
+   brief's reader and question, never its expected readback. It reports what it
+   understood, and you compare that with the brief, as
+   [content flow](content-flow.md) says. A verdict of *stalls at* or *no spine*,
+   or a readback that differs from the brief, is blocking, and the other three
+   wait until it passes: a review of facts on a page whose structure will change
+   is spent twice.
 
 Each answers its own question; one reviewer finding nothing does not clear the
 others. Each marks a finding blocking or not. Fix the blocking ones, in the code

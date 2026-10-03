@@ -51,7 +51,10 @@ file that does two jobs is split, not extended.
 | `docs/context/adr/` | One decision, its alternatives, and its cost. | Present, dated |
 | `docs/context/journal/` | What one attempt cost and what it taught. | Past, dated |
 | `docs/context/checkpoint.md` | Current state of the whole. | Present, dated |
-| `README.md`, `packages/*/README.md`, `cases/*/README.md` | Entry points. Route the reader; do not restate a doc. | Present |
+| `README.md` | The entry point: what the product is and where to go next. Route the reader; do not restate a doc. | Present |
+| `packages/cli/skills/variance-authority/` | How to run it: one question per file, every flag and edge case. For agents, our main users; it ships with the CLI. | Present |
+| `packages/*/README.md`, `cases/*/README.md` | How to use the package or example, in the `context-docs` skill's *Package README* role. Short: what grows past that moves to `docs/`. | Present |
+| JSDoc on exported symbols | What the symbol accepts, returns and refuses. | Present |
 | Source docstrings | Why this code is shaped this way. | Present |
 | `.changeset/*.md` | What this change does to a published package, for someone upgrading. | Present |
 
@@ -68,10 +71,12 @@ against the base and refuses a pull request with neither. Tests, fixtures and a
 package's README do not count as a change; `changedFilePatterns` in
 [`.changeset/config.json`](../../.changeset/config.json) lists what does not.
 
-**What order does the page take?** A published page is outlined from a brief,
-not from the spec or the code, and is read cold by the `content-flow` reviewer
-before and after it changes. [Content flow](content-flow.md) holds the brief,
-the order and the gate. It comes before any sentence is written.
+**What order does the page take?** A top-layer page — the root `README.md`, a
+`docs/*.md` page, the site — is outlined from a brief, not from the spec or the
+code. The `content-flow` reviewer reads its lead and headings cold before it is
+drafted, and the finished page once. [Content flow](content-flow.md) holds the
+three layers, the brief, the order and the cold read. It comes before any
+sentence is written.
 
 **Who reads the sentence?** [`docs/AGENTS.md`](../../docs/AGENTS.md) holds who
 the reader is, what to read before writing, the editorial direction, and the

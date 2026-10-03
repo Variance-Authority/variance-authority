@@ -157,8 +157,11 @@ defending against. So:
 - **A defence is not a story.** State what the code refuses and why it matters
   *here*. The failure mode it prevents is a clause, not a section — and if it
   needs a section, it is an ADR.
-- **Every paragraph earns its place in one story.** Where each fact goes, and
-  in what order, is [content flow](../.agents/references/content-flow.md)'s.
+- **Every paragraph earns its place in one story.** Anything true but off the
+  spine goes to the layer that owns it — the skill reference shipped with the
+  CLI, the JSDoc, an ADR — or nowhere. Interesting is not a reason to include
+  something. Where each fact goes, and in what order, is
+  [content flow](../.agents/references/content-flow.md)'s.
 
 ### Editorial direction
 
