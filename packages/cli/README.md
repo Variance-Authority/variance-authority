@@ -529,12 +529,17 @@ cases it replaced, so each region those cases entered before and do not enter
 now is listed, and so is each region they entered for the first time:
 
 ```text
-Against the run before it: 1 lost.
+Against the run before it at 8c41d2e90b17: 1 lost.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
 src/checkout/total.test.ts no longer enters applyDiscount in src/checkout/total.ts (1 region).
 ```
 
-The words are the ones `--against` uses below.
+The words are the ones `--against` uses below, and so is the pairing: the
+replaced cases are read through git's diff from the commit they were recorded
+at. A second run at the same commit that runs a test file again mixes that
+commit's cases into the ones it replaced, so the comparison is refused with exit
+2 until you commit; the first run after a commit compares with the last run at
+the commit before.
 
 #### Reading the cases that arranged a state
 
@@ -669,12 +674,13 @@ Against base/coverage.bin at 3f9e21c07a44: 1 lost, 1 hidden, 2 gained.
 src/checkout/total.test.ts now enters formatTotal in src/checkout/format.ts (2 regions), and no longer enters applyDiscount in src/checkout/total.ts (1 region).
 ```
 
-A region is matched across the two by its place in the module's tree, not by
-its lines, so a function your change moved down the file is still the same
+A region is matched across the two through git's diff from the base's commit to
+your working tree: the diff carries each region at the base to the lines it
+stands on now, so a function your change moved down the file is still the same
 function. Siblings of one name, such as three `.filter` callbacks in one
-function, are told apart by their cases first, so deleting one of them does not
-read as the others losing and gaining theirs; the answer counts those it paired
-this way as renumbered. Each region whose cases moved is one of four:
+function, are told apart by their lines too, so deleting one of them does not
+read as the others losing and gaining theirs; the answer counts those as
+renumbered. Each region whose cases moved is one of four:
 
 - **lost**: cases walked it at the base, none do now, and every case that could
   have reached it finished. This is a regression.
@@ -688,8 +694,12 @@ A region that stayed walked is not listed. When nothing moved, the answer says
 are different answers.
 
 The base is the record your base branch made, restored in CI into a directory
-of its own before this run writes. It names the commit it was made at. When
-that commit is behind the merge base, the files the base branch changed in
+of its own before this run writes. It names the commit it was made at, and your
+clone needs that commit: a base that names none, or names one your clone does
+not have, is not compared, and `covering` exits 2 and says which. Fetch the
+commit with `git fetch origin <sha>`, or check out every commit in CI with
+`fetch-depth: 0` on `actions/checkout`. When that commit is behind the merge
+base, the files the base branch changed in
 between are left out and named, because what moved in them is that branch's
 doing, not yours. `--against` answers in `text`, `refs` and `json`; `refs`
 names the moved regions' cases by the numbers of its case table.
@@ -929,6 +939,12 @@ case index instead. The comparison is printed only when every recorded suite has
 a base, because every share is taken over the regions all the suites loaded,
 and a suite missing from the base changes that total for all of them. Each
 suite with no base is named with the reason.
+
+A base's regions are paired with the current ones through git's diff from the
+commit the base was recorded at, as `covering --against` pairs them. A base that
+names no commit, or one your clone does not have, is not compared: `coverage`
+and `review --coverage` exit 2, name the commit, and say how to fetch it. In CI,
+check out every commit with `fetch-depth: 0` on `actions/checkout`.
 
 A record holds only the modules some suite loaded, so a file that no suite
 loaded is in no record. `coverage` reads the rest from the

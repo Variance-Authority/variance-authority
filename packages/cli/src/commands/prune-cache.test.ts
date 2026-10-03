@@ -1,19 +1,22 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { writeFetchedMainline } from '@variance-authority/sense/test-selection';
+import { applyPrune, writeFetchedMainline } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import {
   CACHE_PRUNE_REASONS,
   COMMITS_BEHIND,
   planCachePrune,
   pruneCacheWhenDue,
+  prunedExit,
   prunedLines,
+  pruneNow,
   type CacheOwners,
 } from './prune-cache.js';
 import { cacheFinding, formatCache } from './doctor-cache.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 /** Past the largest pid Linux or macOS hands out, so no process has it. */
@@ -139,6 +142,31 @@ test('pruneCacheWhenDue prunes once a day and says what it took', async () => {
   await put(join(cacheRoot, 'scans', 'scan.bin'), 0);
   expect(await pruneCacheWhenDue({ cacheRoot }, owners({}))).toBeUndefined();
   expect(existsSync(join(cacheRoot, 'scans'))).toBe(true);
+});
+
+test('a prune that could not remove an entry names it and the error, and exits as the operator\'s to fix', async () => {
+  const cacheRoot = join(await mkdtemp(resolve(tmpdir(), 'va-prune-cache-')), 'cache');
+  const scans = join(cacheRoot, 'scans');
+  await put(join(scans, 'scan.bin'), 0);
+  const plan = await planCachePrune({ cacheRoot }, owners({}));
+  // Between the plan and its removal the cache became a file: no path through
+  // it resolves, for any user on any platform.
+  await rm(cacheRoot, { recursive: true });
+  await writeFile(cacheRoot, 'x');
+
+  const pruned = { selection: undefined, commits: await applyPrune(plan) };
+
+  expect(prunedLines(pruned)).toBe(
+    `cache: could not remove ${scans}, a directory nothing writes any more: ${pruned.commits.unremoved[0]?.error}\n`,
+  );
+  expect(pruned.commits.unremoved[0]?.error).toMatch(/^ENOTDIR\b/u);
+  expect(prunedExit(pruned)).toBe(EXIT_OPERATOR);
+
+  await rm(cacheRoot);
+  await put(join(scans, 'scan.bin'), 0);
+  const again = await pruneNow({ cacheRoot });
+  expect(existsSync(scans)).toBe(false);
+  expect(prunedExit(again)).toBe(EXIT_CLEAN);
 });
 
 test('doctor reports what the next prune removes, by rule, and what it keeps and why', () => {

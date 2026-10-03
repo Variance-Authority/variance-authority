@@ -109,6 +109,8 @@ describe('a review of what a change did, after the run that recorded it', () => 
         tests: [DISCOUNTS],
         modules: [{ file: 'src/total.ts', blocks: [block('applyDiscount', 1, 3, [0])] }],
       }),
+      // The commit the base was recorded at, which the regions are paired through the diff from.
+      last: Buffer.from(JSON.stringify({ commit: first, at: '2026-01-01T00:00:00.000Z', files: [], cases: [] })),
     });
     return { root, first, against };
   }

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -198,7 +198,29 @@ describe('applyPrune and pruneWhenDue', () => {
     expect(existsSync(gone)).toBe(false);
     expect(existsSync(kept)).toBe(true);
     expect(prunedLine(pruned)).toMatch(/^cache: freed \d+\.\d MiB in .*test-selection: 1 checkout that no longer exists$/u);
-    expect(prunedLine({ root, removed: [], freed: 0 })).toBe('');
+    expect(prunedLine({ root, removed: [], unremoved: [], freed: 0 })).toBe('');
+  });
+
+  test('an entry that could not be removed is reported with its path and the error, and is not counted as freed', async () => {
+    const root = await cache();
+    const selection = join(root, 'test-selection');
+    const stuck = join(selection, 'aaa');
+    await marker(stuck, '/gone', '/gone', DAY);
+    const plan = await planPrune(root, owners({ exists: () => false }));
+    // Between the plan and its removal the parent became a file: no path
+    // through it resolves, for any user on any platform.
+    await rm(selection, { recursive: true });
+    await writeFile(selection, 'x');
+
+    const pruned = await applyPrune(plan);
+
+    expect(pruned.removed).toEqual([]);
+    expect(pruned.freed).toBe(0);
+    expect(pruned.unremoved.map((entry) => [entry.path, entry.reason])).toEqual([[stuck, 'gone']]);
+    expect(pruned.unremoved[0]?.error).toMatch(/^ENOTDIR\b/u);
+    expect(prunedLine(pruned)).toBe(
+      `cache: could not remove ${stuck}, a checkout that no longer exists: ${pruned.unremoved[0]?.error}`,
+    );
   });
 
   test('prunes at most once a day, stamped before the walk', async () => {

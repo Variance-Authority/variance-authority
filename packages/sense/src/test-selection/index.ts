@@ -164,6 +164,7 @@ export {
   type PrunePlan,
   type PruneReason,
   type Pruned,
+  type UnremovedEntry,
 } from './prune.js';
 // The write path's counterpart to `mergeCoverage`: the same fold, over the
 // columns of the file it is about to write over, not over a decoded model.

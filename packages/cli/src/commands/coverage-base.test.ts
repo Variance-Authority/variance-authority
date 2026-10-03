@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -82,19 +82,19 @@ let base: string;
 const git = (...args: string[]) =>
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: repo, encoding: 'utf8' }).trim();
 
-async function record(at: string, index: Index, last?: { readonly commit: string; readonly files: readonly string[] }): Promise<void> {
+async function record(at: string, index: Index, last?: { readonly commit?: string; readonly files: readonly string[] }): Promise<void> {
   await mkdir(dirname(at), { recursive: true });
   const cases = { index: encodeExecutionIndex(index), ...(last === undefined ? {} : { last: Buffer.from(JSON.stringify(last)) }) };
   await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, cases);
 }
 
 /** Publish the source index, the step CI runs before `coverage`, which under CI never builds one. */
-async function publishIndex(): Promise<void> {
+async function publishIndex(at = repo): Promise<void> {
   const cwd = process.cwd();
-  process.chdir(repo);
+  process.chdir(at);
   try {
     const indexed = await ask(['index']);
-    if (indexed.code !== 0) throw new Error(`variance index failed in ${repo}: ${indexed.err}`);
+    if (indexed.code !== 0) throw new Error(`variance index failed in ${at}: ${indexed.err}`);
   } finally {
     process.chdir(cwd);
   }
@@ -148,4 +148,75 @@ describe('coverage against a base an edit wrote a sibling region into', () => {
       { file: 'src/pay.test.ts', entered: [], left: [expect.objectContaining({ name: 'refund', startLine: 8 })] },
     ]);
   });
+});
+
+describe('coverage against a base whose commit it cannot diff from', () => {
+  it('refuses a base recorded at a commit this clone does not have, and names how to fetch it', async () => {
+    const absent = 'f'.repeat(40);
+    const elsewhere = join(dirname(base), 'elsewhere.bin');
+    await record(elsewhere, BASE, { commit: absent, files: [] });
+
+    const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', elsewhere, '--format', 'json']);
+
+    expect(answer.code).toBe(2);
+    expect(JSON.parse(answer.out)).toEqual({ refused: 'undiffed' });
+    expect(answer.err).toContain(`was recorded at ${absent}, which this clone does not have`);
+    expect(answer.err).toContain(`git fetch origin ${absent}`);
+    expect(answer.err).toContain('fetch-depth: 0');
+  });
+
+  it('refuses a base that names no commit', async () => {
+    const unnamed = join(dirname(base), 'unnamed.bin');
+    await record(unnamed, BASE, { files: [] });
+
+    const answer = await ask(['coverage', '--root', repo, '--suite', 'unit', '--against', unnamed, '--format', 'json']);
+
+    expect(answer.code).toBe(2);
+    expect(JSON.parse(answer.out)).toEqual({ refused: 'undiffed' });
+    expect(answer.err).toContain('names no commit it was recorded at');
+  });
+
+  it('refuses a base when the root is in no git checkout', async () => {
+    const loose = await copyOf('loose');
+    await rm(join(loose, '.git'), { recursive: true, force: true });
+    await publishIndex(loose);
+    await record(testCoverageFile(loose, { suite: 'unit' }), NOW);
+
+    const answer = await ask(['coverage', '--root', loose, '--suite', 'unit', '--against', base, '--format', 'json']);
+
+    expect(answer.code).toBe(2);
+    expect(JSON.parse(answer.out)).toEqual({ refused: 'undiffed' });
+    expect(answer.err).toContain(`\`${loose}\` is not in a git checkout to diff from it`);
+  });
+
+  it('refuses a base whose commit this clone has without its tree, so git cannot diff from it', async () => {
+    const torn = await copyOf('torn');
+    const at = (...args: string[]) =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: torn, encoding: 'utf8' }).trim();
+    at('commit', '--quiet', '-am', 'now');
+    // A partial clone that never fetched the base's tree, and has no remote to fetch it from now.
+    const tree = at('rev-parse', `${at('rev-parse', 'HEAD~1')}^{tree}`);
+    await rm(join(torn, '.git/objects', tree.slice(0, 2), tree.slice(2)));
+    await publishIndex(torn);
+    await record(testCoverageFile(torn, { suite: 'unit' }), NOW);
+
+    const answer = await ask(['coverage', '--root', torn, '--suite', 'unit', '--against', base, '--format', 'json']);
+
+    expect(answer.code).toBe(2);
+    expect(JSON.parse(answer.out)).toEqual({ refused: 'undiffed' });
+    expect(answer.err).toContain('git could not read the diff from it to the working tree');
+  });
+});
+
+/** A copy of the fixture's checkout at a path of its own, its history included. */
+async function copyOf(name: string): Promise<string> {
+  const at = join(await mkdtemp(join(tmpdir(), `variance-coverage-base-${name}-`)), 'repo');
+  await cp(repo, at, { recursive: true });
+  copies.push(dirname(at));
+  return at;
+}
+
+const copies: string[] = [];
+afterAll(async () => {
+  for (const copy of copies) await rm(copy, { recursive: true, force: true });
 });

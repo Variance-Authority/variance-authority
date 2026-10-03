@@ -151,6 +151,7 @@ export async function landJourneys(
       root,
       read,
       selection.textsOf(previous),
+      previous?.commit,
     );
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.

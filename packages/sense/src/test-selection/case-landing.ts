@@ -53,9 +53,11 @@ export interface LastCaseRun {
   readonly commit?: string;
   /**
    * The commit the cases in the before layer were recorded at: the commit of
-   * the run that wrote the index before the first run at this one. Absent
-   * when that run named none, and when a run at this commit ran a file again,
-   * because that file's before is then this commit's own.
+   * the run that wrote the index before the first run at this one, or, when
+   * the record crossed a checkout and names no such run, the commit its
+   * snapshot stands at. Absent when neither names one, and when a run at this
+   * commit ran a file again, because that file's before is then this commit's
+   * own.
    */
   readonly before?: string;
   readonly at: string;
@@ -96,6 +98,10 @@ export interface LastCaseRun {
  * rows do; one whose text is not known on both sides lands them only where the
  * two cuts numbered alike.
  *
+ * `stands` is the commit the record's snapshot stands at. When `previous`
+ * names no last run, as a record that crossed a checkout does, the cases it
+ * holds were recorded with that snapshot, so the before layer is named at it.
+ *
  * Nothing is written here. The caller writes the result into the record with
  * the coverage it lands, in one write under the record's lock, so the two
  * always answer for the same runs.
@@ -107,6 +113,7 @@ export function layCases(
   run: LaidRun,
   eyes?: EyesSection,
   held?: ModuleTexts,
+  stands?: string,
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
@@ -119,7 +126,7 @@ export function layCases(
   const prior = lastCaseRunOf(previous);
   const again = run.commit !== undefined && prior?.commit === run.commit;
   const before = again ? layerBefore(previous.before, retired, ran) : retired;
-  const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior?.commit;
+  const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior === undefined ? stands : prior.commit;
   const files = [...ran].sort(codeUnitOrder);
   // A file laid over no index has no base; running it again at this commit
   // retires this commit's own cases of it, which are then its base. When the
@@ -213,6 +220,9 @@ export type CaseLanding =
  * coverage beside it names. Each shard laid moves the modules it recorded to
  * its own text, and the next shard is laid over that.
  *
+ * `stands` is the commit the record's snapshot stands at, which names the
+ * before layer when `previous` names no last run — see {@link layCases}.
+ *
  * Nothing is written here. The landing writes the sections into the record it
  * writes, under that record's lock.
  */
@@ -222,6 +232,7 @@ export function landCases(
   root: string,
   shards: readonly LandedShard[],
   held?: ModuleTexts,
+  stands?: string,
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
   let sections = previous;
   const texts = new Map(held ?? []);
@@ -234,7 +245,7 @@ export function landCases(
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts);
+      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands);
       for (const [file, text] of textsOf(run)) texts.set(file, text);
       for (const id of lastCaseRunOf(sections)?.cases ?? []) ran.add(id);
       laid += 1;

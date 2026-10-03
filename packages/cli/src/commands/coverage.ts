@@ -35,7 +35,8 @@ import {
 import type { ParsedCoverage } from '../coverage-args.js';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
-import { baseCommit, diffFromBase } from './covering-motion.js';
+import { diffFromBase } from './base-diff.js';
+import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
@@ -49,8 +50,8 @@ export interface CoverageSuite {
   readonly from?: string;
   /** The commit the record was made at, when it says. */
   readonly recorded?: string;
-  /** Where the base came from, when the suite has one. */
-  readonly base?: { readonly from: string; readonly commit?: string; readonly change: SuiteChange };
+  /** Where the base came from, the commit it was recorded at, and what changed the count since. */
+  readonly base?: { readonly from: string; readonly commit: string; readonly change: SuiteChange };
   /** Why the suite has no base. Absent when it has one, and when it has no record to compare. */
   readonly baseMissed?: string;
 }
@@ -145,6 +146,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       continue;
     }
     const base = within(await readExecutionIndex(found.from), scope);
+    const { commit, diff } = await diffFromBase(found.commit, request.root, found);
     bases.push({ ...(one === undefined ? {} : { name: one.name, kind: one.kind }), index: base });
     suites.push({
       ...named,
@@ -152,8 +154,8 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
       ...(recorded === undefined ? {} : { recorded }),
       base: {
         from: found.from,
-        ...(found.commit === undefined ? {} : { commit: found.commit }),
-        change: coverageChange(base, index, await diffFromBase(found.commit, request.root)),
+        commit,
+        change: coverageChange(base, index, { diff }),
       },
     });
   }
@@ -225,10 +227,10 @@ async function recordOf(root: string, suite: string | undefined, record: string)
 async function baseOf(
   request: ParsedCoverage,
   suite: DeclaredSuite | undefined,
-): Promise<{ readonly from: string; readonly commit?: string } | { readonly missed: string }> {
+): Promise<{ readonly from: string; readonly commit?: string; readonly name: string } | { readonly missed: string }> {
   if (request.against !== undefined) {
     const commit = await baseCommit(request.against);
-    return { from: request.against, ...(commit === undefined ? {} : { commit }) };
+    return { from: request.against, ...(commit === undefined ? {} : { commit }), name: `The base \`${request.against}\`` };
   }
   const shared = await mainlineBase(request.root, suite);
   if (shared === undefined) {
@@ -242,16 +244,16 @@ async function baseOf(
   if (shared.cases === undefined) {
     return { missed: `no base: mainline ${shared.mainline} published no per-case index of "${shared.suite}"${shared.casesUnread === undefined ? '' : `: ${shared.casesUnread}`}` };
   }
-  return { from: shared.cases, commit: shared.commit };
+  return { from: shared.cases, commit: shared.commit, name: `The record mainline ${shared.mainline} published of "${shared.suite}"` };
 }
 
 /**
  * The files changed since the one commit every base was recorded at, when no
  * counted suite loads any of them and no suite's count changed. Git says what
  * changed, the working tree included; the records say what the suites load.
- * A declared suite with no record, a base with no commit, bases at two
- * commits, a git that cannot answer, no changed file, or one changed file a
- * suite loads: each leaves the answer to the whole count.
+ * A declared suite with no record, bases at two commits, a git that cannot
+ * answer, no changed file, or one changed file a suite loads: each leaves the
+ * answer to the whole count.
  */
 async function changeNoSuiteLoads(
   root: string,
@@ -262,9 +264,9 @@ async function changeNoSuiteLoads(
   if (bases.length === 0 || bases.some((base) => base === undefined || !unchanged(base.change))) return undefined;
   const commits = new Set(bases.map((base) => base!.commit));
   const [since] = commits;
-  // The commit is read from a file beside the record, so only an object name
-  // reaches git: anything else could be read as an option.
-  if (commits.size !== 1 || since === undefined || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(since)) return undefined;
+  // Every base's commit is an object name `diffFromBase` found in this clone, so
+  // nothing that could be read as an option reaches git.
+  if (commits.size !== 1 || since === undefined) return undefined;
   let names: string;
   try {
     // `-z`: without it git quotes a path with unusual characters, and a quoted
