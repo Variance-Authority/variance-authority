@@ -71,9 +71,11 @@ than holding three hundred **subjects** to compare four.
 - `packages/core/src/compare/derive.ts` — `deriveVariation`, `Variation`; the
   difference and its digest
 - `packages/cli/src/commands/variations.ts` — `PARENT_TAG`, `declaredParent`,
-  `resolveParents`, `variationsWanted`, `variationsOf`
-- `packages/cli/src/commands/names.ts` — `structuralParent`, `namedParent`; the axis
-  grammar and the name rule
+  `resolveParents`, `variationsWanted`, `variationsOf`, `namedParent`; the name rule
+- `packages/sense/src/test-selection/name-grammar.ts` — `parseNameGrammar`,
+  `readName`, `structuralParent`, `stepTowardBase`; the axis grammar
+- `packages/sense/src/test-selection/case-axes.ts` — `heldValues`,
+  `outsideVocabulary`, `caseTwins`; a case read on the same axes
 
 ## Diagram
 

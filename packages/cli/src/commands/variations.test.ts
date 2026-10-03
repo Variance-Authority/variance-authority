@@ -6,7 +6,7 @@ import {
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
 import type { Plan, PlannedSubject } from './collector.js';
-import type { NamesConfig } from '../config-names.js';
+import type { NameGrammar } from '@variance-authority/sense/test-selection';
 import { resolveParents, variationsOf, variationsWanted } from './variations.js';
 
 /**
@@ -178,7 +178,7 @@ describe('the parent a name names', () => {
 });
 
 describe('a name read through the configured grammar', () => {
-  const names: NamesConfig = {
+  const names: NameGrammar = {
     axes: [
       { axis: 'state', values: ['default', 'empty'] },
       { axis: 'colour', values: ['green', 'glass'] },
@@ -247,7 +247,7 @@ describe('what the run has to hold on to', () => {
   });
 
   it('wants the leaves of a named lattice, which are the parent of nothing', () => {
-    const names: NamesConfig = {
+    const names: NameGrammar = {
       axes: [
         { axis: 'offer', values: ['control', 'sale'] },
         { axis: 'scheme', values: ['light', 'dark'] },

@@ -8,9 +8,9 @@
  *
  * Where `names.axes` declares the name, the value is read on that axis the way
  * a subject's name is read: `values[0]` is the base, and a case that never said
- * the name stands at it. The twin is the parent `names.ts` finds for a
- * subject, walked by the same step over what a case said instead of what it is
- * called.
+ * the name stands at it. Reading a case on an axis, and finding its twin, is
+ * `@variance-authority/sense`'s, where a subject's name is read; this file
+ * reads the config and the flags, and prints.
  */
 
 import { existsSync } from 'node:fs';
@@ -21,11 +21,16 @@ import { parseNames } from '../config-names.js';
 import { ConfigError, messageOf } from '../config-values.js';
 import { said } from '../here.js';
 import { DEFAULT_CONFIG } from '../usage.js';
-import { coordinateKey, stepTowardBase, type NamedAxis } from './names.js';
 import { OperatorError } from '../exit.js';
-import type { ExecutionIndex, ExecutionTest } from '@variance-authority/sense/test-selection';
+import {
+  heldValues,
+  outsideVocabulary,
+  type CaseTwin,
+  type ExecutionIndex,
+  type ExecutionTest,
+  type NameGrammar,
+} from '@variance-authority/sense/test-selection';
 import type { WhereCondition } from '../covering-args.js';
-import type { AxisConfig, NamesConfig } from '../config.js';
 
 type CasePrecondition = NonNullable<ExecutionTest['preconditions']>[number];
 
@@ -41,18 +46,6 @@ export interface CoveringWhere {
   readonly outside: readonly string[];
 }
 
-/** A listed case and the cases one step toward the base on its last declared axis. */
-export interface CoveringTwin {
-  readonly case: string;
-  readonly axis: string;
-  /** The value the case holds. */
-  readonly from: string;
-  /** The nearest value toward the base a recorded case holds, or the base when none does. */
-  readonly to: string;
-  /** Every case at that coordinate; empty is *no twin recorded*. */
-  readonly twins: readonly string[];
-}
-
 /**
  * The `names` grammar of the checkout the question is asked in, when it declares one.
  *
@@ -60,7 +53,7 @@ export interface CoveringTwin {
  * required, so a checkout whose config does not yet name a profile still
  * reads its axes.
  */
-export async function namesAt(root: string): Promise<NamesConfig | undefined> {
+export async function namesAt(root: string): Promise<NameGrammar | undefined> {
   const path = join(root, DEFAULT_CONFIG);
   if (!existsSync(path)) return undefined;
   const source = said(path);
@@ -84,7 +77,7 @@ export async function namesAt(root: string): Promise<NamesConfig | undefined> {
 export function whereCases(
   index: ExecutionIndex,
   where: readonly WhereCondition[],
-  names: NamesConfig | undefined,
+  names: NameGrammar | undefined,
 ): { readonly index: ExecutionIndex; readonly where: CoveringWhere } {
   const asked = where.map((condition) => condition.value === undefined ? condition.name : `${condition.name}=${condition.value}`);
   const unmeasured = index.tests.filter((test) => test.preconditions === undefined).length;
@@ -97,102 +90,26 @@ export function whereCases(
     );
   }
   const kept = index.tests.filter((test) => test.preconditions !== undefined
-    && where.every((condition) => holds(test.preconditions!, condition, axisOf(names, condition.name))));
+    && where.every((condition) => holds(test.preconditions!, condition, names)));
   return {
     index: keepCases(index, new Set(kept.map((test) => test.id))),
     where: { asked, kept: kept.length, of: index.tests.length, unmeasured, outside: outside(kept, names) },
   };
 }
 
-function holds(said: readonly CasePrecondition[], condition: WhereCondition, axis: AxisConfig | undefined): boolean {
-  const values = said.filter((held) => held.name === condition.name).map((held) => String(held.value));
-  // A case that never said a declared axis stands at its base.
-  if (values.length === 0 && axis !== undefined) values.push(axis.values[0]!);
+function holds(said: readonly CasePrecondition[], condition: WhereCondition, names: NameGrammar | undefined): boolean {
+  const values = heldValues(said, condition.name, names);
   return condition.value === undefined ? values.length > 0 : values.includes(condition.value);
 }
 
-function outside(kept: readonly ExecutionTest[], names: NamesConfig | undefined): readonly string[] {
+function outside(kept: readonly ExecutionTest[], names: NameGrammar | undefined): readonly string[] {
   const notes = new Set<string>();
   for (const test of kept) {
-    for (const held of test.preconditions ?? []) {
-      const axis = axisOf(names, held.name);
-      if (axis === undefined || axis.values.includes(String(held.value))) continue;
-      notes.add(`${held.name}=${String(held.value)} (${held.site}) is not one of ${axis.values.join(', ')}`);
+    for (const off of outsideVocabulary(test.preconditions ?? [], names)) {
+      notes.add(`${off.axis}=${off.value} (${off.site}) is not one of ${off.values.join(', ')}`);
     }
   }
   return [...notes];
-}
-
-/**
- * Each listed case's twin, looked up among every case the question reached.
- *
- * The walk is `structuralParent`'s, {@link stepTowardBase}: from the value
- * below the case's on its last declared axis toward the base, the first
- * coordinate a recorded case holds. A coordinate several cases hold gives all
- * of them, where a subject's parent must be one, because a twin is read, not
- * diffed against.
- */
-export function twinsOf(
-  listed: readonly ExecutionTest[],
-  reached: readonly ExecutionTest[],
-  names: NamesConfig,
-): readonly CoveringTwin[] {
-  const placed = new Map<string, Placed | undefined>();
-  const place = (test: ExecutionTest): Placed | undefined => {
-    if (!placed.has(test.id)) placed.set(test.id, placeOf(test, names));
-    return placed.get(test.id);
-  };
-  const at = new Map<string, string[]>();
-  for (const test of reached) {
-    const here = place(test);
-    if (here === undefined) continue;
-    const key = coordinateKey(here.stem, here.coordinate);
-    at.set(key, [...at.get(key) ?? [], test.id]);
-  }
-  return listed.flatMap((test) => {
-    const here = place(test);
-    const walked = here === undefined ? undefined : stepTowardBase(here.coordinate, names, (coordinate) =>
-      (at.get(coordinateKey(here.stem, coordinate)) ?? []).filter((other) => other !== test.id));
-    if (walked === undefined) return [];
-    const twins = [...walked.found].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
-    return [{ case: test.id, axis: walked.axis, from: walked.from, to: walked.to, twins }];
-  });
-}
-
-/** A case placed as a name is: what it said off every axis, and where it stands on them. */
-interface Placed {
-  readonly stem: string;
-  readonly coordinate: readonly NamedAxis[];
-}
-
-/**
- * What a case said, read the way `readName` reads a subject id. A declared
- * axis said at a value its vocabulary names is a step of the coordinate, in
- * grammar order, and at its base — said or not — it is no step at all.
- * Everything else, an undeclared name, a value outside the vocabulary or a
- * contradiction held as both values joined, is the stem, as an unread tail of
- * a name is: only a case that said the same matches it. A case nobody listened
- * to is placed nowhere.
- */
-function placeOf(test: ExecutionTest, names: NamesConfig): Placed | undefined {
-  if (test.preconditions === undefined) return undefined;
-  const values = new Map<string, Set<string>>();
-  for (const held of test.preconditions) {
-    values.set(held.name, (values.get(held.name) ?? new Set()).add(String(held.value)));
-  }
-  const said = new Map([...values].map(([name, all]) => [name, [...all].sort().join('|')]));
-  const coordinate: NamedAxis[] = [];
-  for (const axis of names.axes) {
-    const value = said.get(axis.axis);
-    if (value === undefined || !axis.values.includes(value)) continue;
-    said.delete(axis.axis);
-    if (value !== axis.values[0]) coordinate.push({ axis: axis.axis, value });
-  }
-  return { stem: JSON.stringify([...said].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)), coordinate };
-}
-
-function axisOf(names: NamesConfig | undefined, name: string): AxisConfig | undefined {
-  return names?.axes.find((entry) => entry.axis === name);
 }
 
 /**
@@ -214,7 +131,7 @@ function valued(held: CasePrecondition): string {
 }
 
 /** The lines a twin prints under its case. */
-export function twinText(twin: CoveringTwin, nameOf: (id: string) => string, indent: string): string {
+export function twinText(twin: CaseTwin, nameOf: (id: string) => string, indent: string): string {
   const at = `${twin.axis}=${twin.to}`;
   if (twin.twins.length === 0) return `${indent}no twin recorded at ${at}`;
   const names = twin.twins.map(nameOf).join(', ');
