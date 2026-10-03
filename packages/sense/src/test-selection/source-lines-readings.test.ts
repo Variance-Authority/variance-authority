@@ -11,12 +11,12 @@ import { testSelectionProbes, type TransformingContext } from './probes.js';
  * Vitest reads a workspace module twice in one run: a package's own tests load
  * `src/x.ts` through esbuild, and another package's tests load `dist/x.js`,
  * which `tsc` built, through the manifest. Both readings are filed under
- * `src/x.ts`, and the record keeps whichever was transformed last. If the two
- * place a region on different lines, the same unchanged source is recorded one
- * way in one run and the other way in the next. `hunksOf` in
- * `packages/sense/src/test-selection/patch.ts` has this shape, and two CI runs
- * of the same three test files recorded its `else` on lines 57 to 61 and on 56
- * to 61.
+ * `src/x.ts`, and the run records only the regions both cut, each where both
+ * put it (`joinReadings` in `readings.ts`). A region the two place on different
+ * lines is dropped, and its lines select through the region around it.
+ * `hunksOf` in `packages/sense/src/test-selection/patch.ts` has this shape: two
+ * CI runs of the same three test files, from before the readings were joined,
+ * recorded its `else` on lines 57 to 61 and on 56 to 61.
  */
 
 // The texts and maps vite 5's esbuild and tsc 7 (ES2022, NodeNext) produce for
@@ -101,7 +101,7 @@ afterAll(async () => {
   await rm(root, { force: true, recursive: true });
 });
 
-/** The regions the record keeps once `reading` is the last transform of the module. */
+/** The regions the build seam, `testSelectionProbes`, records once `reading` is its last transform of the module. */
 const recordedAfter = async (
   reading: typeof ESBUILD,
   file: string,
