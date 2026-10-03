@@ -60,7 +60,7 @@ A value is a string, a finite number or a boolean. Without a value the name
 is `true`. Anything else is reported on the console and records nothing:
 
 ```text
-variance-authority: variancePrecondition at test/total.test.ts:24 takes a name and a string, number or boolean, or a record of them; nothing was recorded
+variance-authority: variancePrecondition at /home/you/shop/test/total.test.ts:24 takes a name and a string, number or boolean, or a record of them; nothing was recorded
 ```
 
 The `@variance-authority/sense/precondition` entry point imports nothing.
@@ -125,7 +125,7 @@ it('pays against the live service', () => {
   Arrange. It is reported with its site:
 
   ```text
-  variance-authority: variancePrecondition at ~/shop/test/refund.test.ts:6 ran after its case and is recorded on no case — say what a case arranged before it runs
+  variance-authority: variancePrecondition at /home/you/shop/test/refund.test.ts:6 ran after its case and is recorded on no case — say what a case arranged before it runs
   ```
 
 - **Where no case is running** — in a `describe` callback, a `beforeAll` or
@@ -133,13 +133,11 @@ it('pays against the live service', () => {
   call throws, and the test file fails:
 
   ```text
-  Error: variance-authority: variancePrecondition at ~/shop/test/misplaced.test.ts:5 ran outside a running case — a precondition belongs to the case it arranged, so say it in the case body or in a beforeEach
+  Error: variance-authority: variancePrecondition at /home/you/shop/test/misplaced.test.ts:5 ran outside a running case — a precondition belongs to the case it arranged, so say it in the case body or in a beforeEach
   ```
 
   A state set up once for a whole file is still a state each case ran under,
-  so say it in a top-level `beforeEach`. Under Playwright, a call at the top
-  level or in a `describe` callback of the first file a worker loads runs
-  before the worker listens, and records nothing rather than throwing.
+  so say it in a top-level `beforeEach`.
 - **A `beforeEach` that throws** records nothing on its case, including what it
   said before the throw.
 
@@ -179,13 +177,18 @@ Kept the 3 of 4 cases that said network=mocked.
     offline > pays — network=mocked (test/total.test.ts:11)
 ```
 
-The `twins` line is read in [axes and twins](#axes-and-twins) below. The `Kept` line counts every case in the record, wherever it ran; the answer
-below it lists the kept cases that covered what you asked about.
+The `twins` line is read in [axes and twins](#axes-and-twins) below.
+
+The `Kept` line counts every case in the record, wherever it ran, or every case
+[`--cases`](../packages/cli/README.md#reading-the-test-you-are-writing) scoped
+the question to; the answer below it lists the kept cases that covered what you
+asked about.
 
 - `--where network` keeps every value of `network`.
 - Repeat `--where` and a case is kept only when it said all of them:
   `--where network=mocked --where flag=ff-on` prints `Kept the 1 of 4 cases that
   said network=mocked and flag=ff-on.`
+
 With a second file, `test/refund.test.ts`, recorded beside the first, the
 record has seven cases, and the remaining examples come from it.
 

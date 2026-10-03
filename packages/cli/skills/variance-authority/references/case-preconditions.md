@@ -27,10 +27,11 @@ Kept the 4 of 7 cases that said network=mocked.
     half rollout > discounts at half — flag=ff-half (test/refund.test.ts:11), network=mocked (test/refund.test.ts:11)
 ```
 
-`Kept the 4 of 7` counts every case in the record; the answer below it is the
-kept cases that covered the function. Repeat `--where` and every
-one must hold. `--where network` keeps every value. Values compare as text, so
-`--where seeded-cart` and `--where seeded-cart=true` are the same question.
+`Kept the 4 of 7` counts every case in the record, or in the `--cases` scope
+when one is given; the answer below it is the kept cases that covered the
+function. Repeat `--where` and every one must hold. `--where network` keeps
+every value. Values compare as text, so `--where seeded-cart` and
+`--where seeded-cart=true` are the same question.
 
 ## What did the tests covering this line arrange
 
@@ -98,8 +99,7 @@ it('discounts behind the flag', () => {
 - Say it beside the arrangement: in the case body or a `beforeEach`. A
   file-wide state goes in a top-level `beforeEach`.
 - In a `describe` callback, `beforeAll`, `afterAll` or at the file's top level
-  the call throws and the test file fails (`ran outside a running case`). Under
-  Playwright, such a call in the first file a worker loads records nothing.
+  the call throws and the test file fails (`ran outside a running case`).
 - In an `afterEach` it warns and records nothing.
 - It only takes effect in a recorded run; record the suite again before asking.
 

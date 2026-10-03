@@ -134,8 +134,8 @@ Two consequences to plan for:
 
 The same axes read what a test case says it arranged. Under
 `variance covering --where flag=ff-on`, a case that never said `flag` stands at
-`ff-off`, and each case that covered the line or function you asked about is
-printed beside its twin, one step toward the base:
+`ff-off`, and each case off the base that covered the line or function you
+asked about is printed beside its twin, one step toward the base:
 see [case preconditions](case-preconditions.md#axes-and-twins).
 
 ## Declare the link where a name will not say it

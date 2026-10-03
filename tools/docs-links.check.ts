@@ -71,8 +71,9 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'packages/docs/content/api.mdx': 'a file in the Zod fork, read by one of its tests through `fs`',
   'test/total.test.ts': "a reader's own test file, quoted from a sample answer about case preconditions",
   'test/refund.test.ts': "a reader's own test file, quoted from a sample answer about case preconditions",
-  '/shop/test/refund.test.ts': "a reader's own test file, quoted from a sample warning that names it absolutely",
-  '/shop/test/misplaced.test.ts': "a reader's own test file, quoted from a sample error that names it absolutely",
+  '/home/you/shop/test/total.test.ts': "a reader's own test file, quoted from a sample warning that names it absolutely",
+  '/home/you/shop/test/refund.test.ts': "a reader's own test file, quoted from a sample warning that names it absolutely",
+  '/home/you/shop/test/misplaced.test.ts': "a reader's own test file, quoted from a sample error that names it absolutely",
 };
 
 
