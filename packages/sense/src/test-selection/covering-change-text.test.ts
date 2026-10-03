@@ -125,4 +125,15 @@ describe('formatCoveringChange', () => {
     );
     expect(text).toContain('12-14 function priceOf — 1 case, and 1 case that could have reached it stopped first');
   });
+
+  it('carries what the caller knows about each listed case, on its line and under it', () => {
+    const text = formatCoveringChange(
+      [file({ regions: [region({ tests: [witness('guest')] })] }), file({ file: 'test/cart.test.ts', cases: [witness('member')] })],
+      {},
+      (test, indent) => ({ tail: ` — said by ${test.name}`, under: [`${indent}under ${test.name}`] }),
+    );
+
+    expect(text).toContain('    test/cart.test.ts > guest — said by guest\n      under guest');
+    expect(text).toContain('    test/cart.test.ts > member — said by member\n      under member');
+  });
 });

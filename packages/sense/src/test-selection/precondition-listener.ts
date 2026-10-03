@@ -45,7 +45,7 @@ export function listenForPreconditions(root: string, standing: () => Preconditio
   const holder = globalThis as { [key: symbol]: unknown };
   const before = holder[preconditions.PRECONDITION];
   // Every call is placed by one reading of `standing`, so `running` names no case.
-  const heard = preconditions.recorder(holder, () => undefined);
+  const heard = preconditions.recorder(holder, () => undefined, undefined, root);
   heard.where.ask = () => {
     const at = standing();
     switch (at.at) {

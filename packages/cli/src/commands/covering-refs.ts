@@ -14,8 +14,8 @@ import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { narrowedText, scopeText, staleText } from './covering-text.js';
 import type { Covering, StatedRegion } from './covering.js';
-import type { CaseTwin } from '@variance-authority/sense/test-selection';
-import { heldText, twinText, whereText } from './covering-where.js';
+import { heldText, type CaseTwin } from '@variance-authority/sense/test-selection';
+import { caseNameOf, twinText, whereText } from './covering-where.js';
 
 type Case = Pick<ExecutionTest, 'id' | 'file' | 'name' | 'preconditions'>;
 
@@ -27,7 +27,7 @@ export function formatCoveringRefs(answer: Covering): string {
   const motion = motionText(answer.motion, (tests) => table.refs(tests));
   return `${[
     ...scopeText(answer),
-    ...whereText(answer.where),
+    ...whereText(answer),
     ...body,
     ...narrowedText(answer),
     ...table.lines(),
@@ -141,7 +141,7 @@ class Table {
         test.id === `${test.file} > ${test.name}` ? test.name : `${test.name} [${test.id}]`
       }${heldText(test.preconditions)}`);
       const twin = this.twins.get(test.id);
-      if (twin !== undefined) lines.push(twinText(twin, (id) => id.slice(id.indexOf(' > ') + 3), '      '));
+      if (twin !== undefined) lines.push(twinText(twin, caseNameOf, '      '));
     }
     return lines;
   }

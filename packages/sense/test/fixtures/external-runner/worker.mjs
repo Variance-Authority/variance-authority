@@ -2,6 +2,7 @@
 // It times each case the way a runner does and prints what it measured as its
 // last line, for the parent to report.
 import { performance } from 'node:perf_hooks';
+import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { observeTestFile, registerRecording } from '@variance-authority/sense/runner';
 
 const [file, flag] = process.argv.slice(2);
@@ -18,6 +19,11 @@ const observer = observeTestFile(file);
 const cases = [];
 globalThis.test = (name, body) => cases.push({ name, body });
 await import(file);
+// `--says-a-wrong-value` adds a case that says a value no row can hold, for the
+// test that reads the warning the run prints about it.
+if (flag === '--says-a-wrong-value') {
+  cases.push({ name: ['says a wrong value'], body: () => variancePrecondition('when', new Date()) });
+}
 
 let failed = false;
 const timed = [];
