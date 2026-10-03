@@ -44,6 +44,13 @@ afterAll(async () => {
 
 const chromium_ = BROWSER_AVAILABLE ? describe : describe.skip;
 
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\npackages/playwright-test snapshot case: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
+
 chromium_('a snapshot taken inside a case', () => {
   it('names the preconditions said before its document was captured, not those said while it was compared', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-playwright-captured-'));
