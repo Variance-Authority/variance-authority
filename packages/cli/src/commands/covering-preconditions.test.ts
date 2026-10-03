@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
+import { main } from '../bin.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
@@ -157,7 +158,7 @@ describe('the review reading carries what each case said', () => {
     execFileSync('git', args, { cwd: at, stdio: 'pipe' });
   };
 
-  /** A checkout whose `round` was edited since `main`, run from inside it as `--since` is. */
+  /** A checkout whose `round` was edited since `main`, indexed and run from inside it as `--since` is. */
   async function edited(): Promise<{ root: string; execution: string }> {
     const { root, execution } = await checkout();
     await mkdir(join(root, 'src'));
@@ -170,6 +171,10 @@ describe('the review reading carries what each case said', () => {
     git(root, ['commit', '--quiet', '-m', 'first']);
     await writeFile(join(root, 'src/cart.ts'), `${body(true)}\n`);
     process.chdir(root);
+    // Under CI nothing builds the source index implicitly; `variance index` is the step that publishes it.
+    let err = '';
+    const indexed = await main(['index'], { out: () => {}, err: (text) => (err += text) });
+    if (indexed !== 0) throw new Error(`variance index failed in ${root}: ${err}`);
     return { root, execution };
   }
 
