@@ -94,8 +94,8 @@ When the change writes or rewrites a published page, a fourth runs first:
 
 Each answers its own question; one reviewer finding nothing does not clear the
 others. Each marks a finding blocking or not. Fix the blocking ones, in the code
-or the body, and run them all again, Flow included, until none of them reports a blocking
-finding. A finding still marked blocking after the second round is yours to
+or the body, and run them all again, Flow included, until none of them reports
+a blocking finding. A finding still marked blocking after the second round is yours to
 decide: fix it, or set it aside. Every finding not fixed is named in the body
 with the reason it was set aside.
 

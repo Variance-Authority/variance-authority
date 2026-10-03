@@ -140,7 +140,9 @@ Write the body to
 [`.github/pull_request_template.md`](.github/pull_request_template.md). Before
 anything is pushed, three subagents with no other context review the change,
 each for one question: does the body make sense on its own, should the change
-happen at all, and does the diff do what the body says. Fix what they mark
+happen at all, and does the diff do what the body says. A change that writes a
+published page gets a fourth, the `content-flow` reviewer, and it runs first:
+the other three wait until the page's structure passes. Fix what they mark
 blocking and run them again until none does; a finding still blocking after the
 second round is yours to fix or set aside, and every finding not fixed is named
 in the body. Then push the branch and open the PR, so CodeRabbit reviews
