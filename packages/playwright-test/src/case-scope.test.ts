@@ -4,9 +4,17 @@ import { resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
 import { testSelectionProbes } from '@variance-authority/sense/journal';
 import { decodeExecutionIndex, recordedEyesAt } from '@variance-authority/sense/test-selection';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
 import { createExecutionRecorder, type ExecutionRecorder } from './execution.js';
+
+// These drive the fixture with a `TestInfo` cut to what recording reads, which
+// carries none of the worker internals a hook's describe is read from; that
+// read is the real run in `preconditions.chromium.test.ts`, and is cut here.
+vi.mock('./preconditions.js', async (original) => ({
+  ...(await original<typeof import('./preconditions.js')>()),
+  enterDescribes: async () => {},
+}));
 
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 const INSTRUMENTATION = 'sense:instrument/presence-v5';
