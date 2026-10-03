@@ -71,6 +71,15 @@ export interface LastCaseRun {
    */
   readonly unbased?: readonly string[];
   /**
+   * The text each module of the before layer was cut from, by file, as the
+   * coverage beside the index it was cut from named it. A reader compares it
+   * with the text at `before` and reads no region of a module cut from another
+   * text, since those regions stand on lines that commit does not have. A
+   * module it does not name was cut from a text nobody here knew. Absent when
+   * no run named one, which says nothing either way.
+   */
+  readonly beforeTexts?: Readonly<Record<string, string>>;
+  /**
    * True when the first run at this commit was laid over no index, so every
    * case in it began at this commit and a file first run here has no base.
    * Absent when an earlier commit's index was under it.
@@ -102,6 +111,11 @@ export interface LastCaseRun {
  * names no last run, as a record that crossed a checkout does, the cases it
  * holds were recorded with that snapshot, so the before layer is named at it.
  *
+ * `base` is the index the run's before is cut from, and the texts its modules
+ * were cut from, when that is not `previous`: a landing's later shards are laid
+ * over the index its earlier ones laid, whose modules they recorded are already
+ * cut to the shards' text.
+ *
  * Nothing is written here. The caller writes the result into the record with
  * the coverage it lands, in one write under the record's lock, so the two
  * always answer for the same runs.
@@ -114,6 +128,7 @@ export function layCases(
   eyes?: EyesSection,
   held?: ModuleTexts,
   stands?: string,
+  base?: { readonly index: Uint8Array; readonly texts?: ModuleTexts },
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
@@ -122,10 +137,18 @@ export function layCases(
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present: (test) => existsSync(resolve(root, test)),
     sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
+    ...(base === undefined ? {} : { base: base.index }),
   });
   const prior = lastCaseRunOf(previous);
   const again = run.commit !== undefined && prior?.commit === run.commit;
+  // FIXME: a run at the same commit that is not a later shard of one landing
+  // — a second local invocation, or a second landing — has only the index the
+  // earlier run laid, whose modules that run recorded are cut to this commit's
+  // text, so its before of them is not the base's. `beforeTexts` names that
+  // text, and a reader leaves those modules unmeasured rather than compare
+  // them; keeping the base's cut of every module would keep a second index.
   const before = again ? layerBefore(previous.before, retired, ran) : retired;
+  const beforeTexts = textsOfBefore(before, retired, base === undefined ? held : base.texts, again ? prior.beforeTexts : undefined);
   const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior === undefined ? stands : prior.commit;
   const files = [...ran].sort(codeUnitOrder);
   // A file laid over no index has no base; running it again at this commit
@@ -143,6 +166,7 @@ export function layCases(
     at: new Date().toISOString(),
     files: again ? [...new Set([...prior.files, ...files])].sort(codeUnitOrder) : files,
     ...(unbased.length === 0 ? {} : { unbased }),
+    ...(beforeTexts === undefined ? {} : { beforeTexts }),
     ...(retired === undefined || began ? { began: true } : {}),
     cases: last,
   };
@@ -154,6 +178,31 @@ export function layCases(
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
   };
+}
+
+/**
+ * The text each module of `before` was cut from: `cut`'s for the modules this
+ * run retired, since `before` takes their regions from `retired`, and `kept`'s,
+ * what the earlier runs at this commit named, for the rest. `undefined` when
+ * neither names a text, or `before` is not spelled as sets, which only a
+ * layer older than these texts is.
+ */
+function textsOfBefore(
+  before: Uint8Array | undefined,
+  retired: Uint8Array | undefined,
+  cut: ModuleTexts | undefined,
+  kept: Readonly<Record<string, string>> | undefined,
+): Record<string, string> | undefined {
+  if (before === undefined || (cut === undefined && kept === undefined)) return undefined;
+  const modules = openSetExecutionIndex(before)?.modules;
+  if (modules === undefined) return undefined;
+  const ownRegions = new Set(retired === undefined ? [] : openSetExecutionIndex(retired)?.modules.map((module) => module.file));
+  const texts: Record<string, string> = {};
+  for (const { file } of modules) {
+    const text = ownRegions.has(file) ? cut?.get(file) : kept?.[file];
+    if (text !== undefined) texts[file] = text;
+  }
+  return texts;
 }
 
 /** The run that wrote the case index last, or `undefined` when none named itself or its name cannot be read. */
@@ -218,7 +267,9 @@ export type CaseLanding =
  *
  * `held` is the text each module of `previous`'s index was cut from, which the
  * coverage beside it names. Each shard laid moves the modules it recorded to
- * its own text, and the next shard is laid over that.
+ * its own text, and the next shard is laid over that. Its before layer is not:
+ * every shard's is cut from `previous`'s index, at `held`, which is what the
+ * cases stood on before any shard ran.
  *
  * `stands` is the commit the record's snapshot stands at, which names the
  * before layer when `previous` names no last run — see {@link layCases}.
@@ -236,6 +287,8 @@ export function landCases(
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
   let sections = previous;
   const texts = new Map(held ?? []);
+  // Every shard's before is cut from the index the landing began with.
+  const base = previous.index === undefined ? undefined : { index: previous.index, ...(held === undefined ? {} : { texts: held }) };
   let laid = 0;
   const ran = new Set<string>();
   for (const shard of shards) {
@@ -245,7 +298,7 @@ export function landCases(
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands);
+      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base);
       for (const [file, text] of textsOf(run)) texts.set(file, text);
       for (const id of lastCaseRunOf(sections)?.cases ?? []) ran.add(id);
       laid += 1;
