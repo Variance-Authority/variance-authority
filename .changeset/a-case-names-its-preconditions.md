@@ -6,9 +6,9 @@
 
 A case names its preconditions
 
-`variancePrecondition(name, value?)`, from `@variance-authority/sense/precondition`,
-says what state a case arranged: `variancePrecondition('network', 'mocked')`,
-or several at once as `{ flag: 'ff-on' }`. Said in a case body it is the case's;
+`variancePrecondition({ name: value })`, from `@variance-authority/sense/precondition`,
+says what state a case arranged: `variancePrecondition({ network: 'mocked', 'seeded-cart': true })`.
+A value is a string, number or boolean. Said in a case body it is the case's;
 said in a `beforeEach` it is the case the hook runs for, at the level of the
 `describe` that declared it. The body overrides a `beforeEach` and an inner
 `describe`'s overrides an outer one's; two values said at one level are kept as
