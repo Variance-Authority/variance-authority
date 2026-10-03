@@ -103,6 +103,8 @@ export interface VarianceOptions {
 /** Sends one request to the Node half and returns what it answered. */
 export type Deliver = (request: ObserveRequest) => Promise<Observed>;
 
+// FIXME: an observation here names no case and carries no preconditions; the
+// Playwright fixture's does (spec 0093, "A snapshot taken inside a case").
 /**
  * Observe one mounted subject against its stored baseline.
  *

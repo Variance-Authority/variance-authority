@@ -35,6 +35,25 @@ describe('a realm whose runner places each call itself', () => {
     expect(listener.take('pays')).toEqual([]);
   });
 
+  it('shows a running case what it has said so far, resolved, without taking it', () => {
+    let standing: PreconditionStanding = { at: 'beforeEach', key: 'pays', depth: 0 };
+    const listener = listenForPreconditions(ROOT, () => standing);
+
+    variancePrecondition({ network: 'live', seeded: true });
+    standing = { at: 'case', key: 'pays' };
+    variancePrecondition({ network: 'mocked' });
+    const held = listener.held('pays');
+    variancePrecondition({ flag: 'on' });
+    listener.close();
+
+    expect(held).toEqual([
+      { name: 'network', value: 'mocked', site: expect.stringMatching(SITE), level: 0xffff },
+      { name: 'seeded', value: true, site: expect.stringMatching(SITE), level: 0 },
+    ]);
+    expect(listener.held('refunds')).toEqual([]);
+    expect(listener.take('pays').map(([name]) => name)).toEqual(['network', 'seeded', 'network', 'flag']);
+  });
+
   it('reports a call made in an afterEach and records it on no case', () => {
     let standing: PreconditionStanding = { at: 'after' };
     const listener = listenForPreconditions(ROOT, () => standing);

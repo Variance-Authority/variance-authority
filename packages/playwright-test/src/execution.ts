@@ -25,6 +25,7 @@ import {
   recordExecution,
   stageExecution,
   stagingDirectory,
+  type CasePrecondition,
   type EvaluatingPage,
   type InstrumentMode,
   type ObservedCase,
@@ -156,6 +157,8 @@ export interface ExecutionRecorder {
    * the id the index gives the case; see `case-scope.ts`.
    */
   readonly eyes: (owner: string, subject: ObservedTest, attempt: number, journal?: Readonly<Record<string, unknown>>) => void;
+  /** What the case has said so far, or nothing where no listener runs; see `arranged.ts`. */
+  readonly arranged: (owner: string, subject: ObservedTest) => readonly CasePrecondition[] | undefined;
   /** The checkout every path this recorder writes is named against. */
   readonly root: string;
   /** Merge this worker's contribution into the index, or explain the silence. */
@@ -230,6 +233,7 @@ export function createExecutionRecorder(
   return {
     root,
     owner: (testInfo) => ownerOf(root, testInfo),
+    arranged: (owner, subject) => listener?.held(caseKey(owner, subject.id)),
     eyes: (owner, subject, attempt, journal) => {
       caseOf(owner, subject);
       const key = caseKey(owner, subject.id);

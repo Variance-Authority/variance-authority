@@ -125,3 +125,7 @@ describe('asserting on what came back', () => {
     expect(failing.message()).toBe('two regions moved');
   });
 });
+
+describe('a snapshot taken inside a case', () => {
+  it.todo('names the case and the preconditions it had said by then, as the Playwright fixture does — needs the browser command to read the case from the Vitest worker that runs it');
+});

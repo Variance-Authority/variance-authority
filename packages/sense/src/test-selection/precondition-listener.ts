@@ -1,4 +1,4 @@
-import { checkoutSaid } from './case-precondition-column.js';
+import { checkoutSaid, preconditionsHeard, type CasePrecondition } from './case-precondition-column.js';
 import preconditions from './case-preconditions.cjs';
 import type { ObservedCase } from './observed.js';
 
@@ -27,6 +27,12 @@ export interface PreconditionListener {
    * said nothing.
    */
   take(key: string): NonNullable<ObservedCase['said']>;
+  /**
+   * What the case `key` names has said so far, resolved as its row would be
+   * if it ended now, and left for {@link take}: what a snapshot taken inside
+   * the case was taken under. Empty when it has said nothing.
+   */
+  held(key: string): readonly CasePrecondition[];
   /** Stop listening, and give the realm back whatever listened before. */
   close(): void;
 }
@@ -61,6 +67,7 @@ export function listenForPreconditions(root: string, standing: () => Preconditio
   };
   return {
     take: (key) => checkoutSaid(root, heard.take(key)),
+    held: (key) => preconditionsHeard(root, [...heard.held(key)]).preconditions ?? [],
     close: () => {
       if (before === undefined) delete holder[preconditions.PRECONDITION];
       else holder[preconditions.PRECONDITION] = before;

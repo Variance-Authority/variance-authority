@@ -101,6 +101,7 @@ export type { InstrumentMode };
 export { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
+export { preconditionText, type CasePrecondition } from './case-precondition-column.js';
 export {
   STAGE_VARIABLE,
   closeStage,

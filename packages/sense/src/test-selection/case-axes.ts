@@ -14,7 +14,7 @@
  * cannot disagree on which value a case holds.
  */
 
-import type { CasePrecondition } from './case-precondition-column.js';
+import { preconditionText, type CasePrecondition } from './case-precondition-column.js';
 import { axisOf, coordinateKey, stepTowardBase, type NamedAxis, type NameGrammar } from './name-grammar.js';
 import type { ExecutionTest } from './reverse.js';
 
@@ -140,21 +140,7 @@ function byCodeUnit(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/**
- * What a case said, with the call that said it: `flag=ff-on (spec.ts:9)`. A
- * name said twice at one level is printed as the contradiction it is.
- */
+/** What a case said, after its name, or nothing when it said nothing. */
 export function heldText(said: readonly CasePrecondition[] | undefined): string {
-  if (said === undefined || said.length === 0) return '';
-  const byName = new Map<string, CasePrecondition[]>();
-  for (const held of said) byName.set(held.name, [...byName.get(held.name) ?? [], held]);
-  return ` — ${[...byName].map(([name, held]) => held.length === 1
-    ? `${valued(held[0]!)} (${held[0]!.site})`
-    : `${name} contradicted: ${held.map((one) => `${String(one.value)} (${one.site})`).join(', ')}`,
-  ).join(', ')}`;
-}
-
-/** One thing a case said: `flag=ff-on`, or the bare name for `true`. */
-export function valued(held: CasePrecondition): string {
-  return held.value === true ? held.name : `${held.name}=${String(held.value)}`;
+  return said === undefined || said.length === 0 ? '' : ` — ${preconditionText(said)}`;
 }
