@@ -227,7 +227,7 @@ keep it.
 A runner evaluates a module once per test file, so an import costs every case
 in the file, however few of them use it. A dialog that opens on a click loads
 its whole tree before the first case starts, even in the cases that never
-click. Name the file alone to see that cost:
+click. Name the file alone to see that cost; the output opens with:
 
 ```bash
 variance distill --file test/dialog.test.tsx
@@ -244,17 +244,25 @@ Loaded, and entered by some cases only: 1 module(s), 40 line(s).
   src/confirm-dialog.tsx — 40 line(s), entered by 1 of 3 case(s)
 ```
 
-A module no case entered was loaded for nothing the file tests: remove the
-import, mock it with a factory, or defer it to the code that uses it. One that
-only some cases entered is a candidate for a `require` at the place it is used,
-so the other cases never load it. An error boundary's fallback is the usual
-example: imported by every case, rendered by none, because no error happened.
+Each module listed is evidence, and the fix is not at it: it is at the import,
+in the test file or in a module the test used, that brought it in. Delete that
+import, or mock it with a factory, when nothing behind it is used; when part
+of it is, import past the barrel inside its own package, or from an entry its
+package declares; move it to the code that uses it when only some
+cases do, so the others never load it. Mocking a listed module by its own path
+ties the test to a file its code never names. An error boundary's fallback is
+the usual example: imported by every case, rendered by none, because no error
+happened.
 
 The reading counts a module only when it declares a function below its top
 level. A barrel or a file of constants runs all it has when it loads, and a read
 of a constant is not recorded, so the record cannot say the file did without it.
 The reading needs the coverage rows of a recorded run, not a case index from
-`--execution`; a record that keeps no cases for the file reads as unmeasured.
+`--execution`. A record that keeps no cases for the file, a case that stopped
+or did not say whether it finished, and an incomplete coverage row — a
+filtered, cancelled or stopped run, or source changed since the run — each read
+as unmeasured: an entry the run never got to is not an entry the file did
+without. Running the file again records a row the reading can use.
 As with every finding here, rerun the file after the change: a top level can
 register something a case depends on.
 

@@ -8,12 +8,15 @@ the one `covering` reads, the declared suite's `--suite` names, or the file
 and `--file` a part of the test file's path; give either or both. More than one
 fitting case is refused with their ids. `--file` alone reads the file instead:
 the modules it loaded, from the record's coverage rows, that no case entered
-and those only some of its cases entered — imports every case pays for that a
-mock, a deferred import or a `require` at the use could spare. It needs a
-recorded run, not `--execution` JSON. `--root` (default: the working
+and those only some of its cases entered. Each is evidence: the fix is the
+import, in the test file or a module it used, that brought it in, never a mock
+of the listed path. It needs a recorded run, not `--execution` JSON, and is
+withheld when a case stopped or the file's coverage row is incomplete; run the
+file again. `--root` (default: the working
 directory) is the root the record's paths are relative to. `--format json`
-returns the same reading as data, and the `variance_distill` MCP tool returns
-the same deterministic reading.
+returns the same reading as data. The `variance_distill` MCP tool returns the
+same deterministic reading of one case, and needs its test id; the file reading
+is the CLI's.
 
 ```bash
 variance distill --file checkout.test.tsx --test submits

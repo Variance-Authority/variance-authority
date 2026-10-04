@@ -46,10 +46,10 @@ const block = (name: string, crossings: ExecutionIndex['modules'][number]['block
 
 const EXECUTION: ExecutionIndex = {
   tests: [
-    { id: `${FILE} > opens`, file: FILE, name: 'opens' },
-    { id: `${FILE} > cancels`, file: FILE, name: 'cancels' },
-    { id: `${FILE} > renders`, file: FILE, name: 'renders' },
-    { id: 'test/other.test.ts > works', file: 'test/other.test.ts', name: 'works' },
+    { id: `${FILE} > opens`, file: FILE, name: 'opens', stopped: false },
+    { id: `${FILE} > cancels`, file: FILE, name: 'cancels', stopped: false },
+    { id: `${FILE} > renders`, file: FILE, name: 'renders', stopped: false },
+    { id: 'test/other.test.ts > works', file: 'test/other.test.ts', name: 'works', stopped: false },
   ],
   modules: [
     { file: 'src/button.tsx', blocks: [block('Button', [0, 1, 2].map((test) => ({ test, distance: 0 })))] },
@@ -97,6 +97,51 @@ describe('distillFile', () => {
   it('refuses a path part that names more than one recorded test file, and names them', () => {
     expect(() => distillFile({ file: 'test/', execution: EXECUTION, coverage: COVERAGE }))
       .toThrow('2 recorded test files in `test/`: test/dialog.test.tsx, test/other.test.ts; name one');
+  });
+
+  it('withholds the reading when a case stopped, or did not say whether it finished', () => {
+    const tests = EXECUTION.tests.map(({ stopped, ...test }, at) =>
+      at === 1 ? { ...test, stopped: true } : at === 2 ? test : { ...test, stopped });
+
+    const result = distillFile({ file: 'dialog', execution: { ...EXECUTION, tests }, coverage: COVERAGE });
+
+    expect(result.modules).toBeUndefined();
+    expect(result.withheld).toBe(
+      '2 of 3 case(s) stopped or did not say whether they finished, so what they would have entered is unknown.');
+  });
+
+  it('withholds the reading when the file\'s coverage row is incomplete', () => {
+    const coverage: TestCoverage = {
+      ...COVERAGE,
+      tests: COVERAGE.tests.map((test) => (test.file === FILE ? { ...test, complete: false } : test)),
+    };
+
+    const result = distillFile({ file: 'dialog', execution: EXECUTION, coverage });
+
+    expect(result.modules).toBeUndefined();
+    expect(result.withheld).toContain(`the coverage row for ${FILE} is incomplete`);
+    expect(result.withheld).toContain('Run the file again.');
+  });
+
+  it('counts a module another file\'s case entered as entered by none of this file\'s cases', () => {
+    const shared = loaded('src/shared.ts', 50, ['share'], [FILE, 'test/other.test.ts']);
+    const coverage: TestCoverage = { ...COVERAGE, modules: [...COVERAGE.modules, shared] };
+    const execution: ExecutionIndex = {
+      ...EXECUTION,
+      modules: [...EXECUTION.modules, { file: 'src/shared.ts', blocks: [block('share', [{ test: 3, distance: 0 }])] }],
+    };
+
+    expect(distillFile({ file: 'dialog', execution, coverage }).modules)
+      .toContainEqual({ file: 'src/shared.ts', lines: 50, entered: 0 });
+  });
+
+  it('leaves out a module the file first loaded inside a case: it is already deferred', () => {
+    const lazy = loaded('src/lazy.ts', 70, ['later']);
+    const root = { ...lazy.blocks[0]!, loadedBy: [] };
+    const coverage: TestCoverage = { ...COVERAGE, modules: [...COVERAGE.modules, { ...lazy, blocks: [root, ...lazy.blocks.slice(1)] }] };
+
+    expect(distillFile({ file: 'dialog', execution: EXECUTION, coverage }).modules?.map(({ file }) => file))
+      .not.toContain('src/lazy.ts');
   });
 
   it('does not count a crossing of the module root as an entry', () => {

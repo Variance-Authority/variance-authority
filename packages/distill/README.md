@@ -278,7 +278,8 @@ a measured-empty addressed surface.
 | `distillFile(input)` | `FileDistillInput` in, `FileDistillation` out: the modules one test file loaded that no case, or only some cases, entered. Throws when no recorded test file, or more than one, contains `file`. |
 | `formatFileDistillation(result)` | The text of a file reading, as the CLI prints it for `--file` alone. |
 
-`DistillInput` names the case by `test`, `file`, or both, and carries the `execution` index, an optional `root`,
+`DistillInput` names the case by `test`, `file`, or both — `file` alone when
+the file holds one case — and carries the `execution` index, an optional `root`,
 and optional `eyes`: one `EyesAttempt` per recorded attempt, each a `case`, an
 `attempt` numbered from 1, and its `journal`. The case is found in the index
 alone, and the journals are read by its id. `attempts` on the result carries
@@ -293,8 +294,9 @@ range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
 record's case index as `execution`, and its coverage rows as `coverage`.
 `FileDistillation` lists `LoadedModule` entries — `file`, `lines`, and
 `entered`, how many of the file's cases entered the module — fewest entered
-first. `modules` is absent, and `withheld` says why, when the index keeps no
-cases for the file.
+first, then most lines, then by path. `modules` is absent, and `withheld` says
+why, when the index keeps no cases for the file, when a case stopped or did not
+say whether it finished, or when the file's coverage row is incomplete.
 
 Ordering is deterministic. The same record produces the same answer.
 

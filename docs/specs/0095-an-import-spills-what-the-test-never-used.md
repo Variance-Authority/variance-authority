@@ -148,7 +148,10 @@ top of this one, per case rather than per file, and is not part of this spec.
 
 ## What would discharge it
 
-1. Weight per test file from the recording, with the top-level-only rule.
+1. ~~Weight per test file from the recording, with the top-level-only rule.~~
+   **Discharged.** `distillFile` in `@variance-authority/distill`, read by
+   `variance distill --file` alone. A function-less barrel pins the
+   top-level-only rule for the constants file and the polyfill.
    Fixtures: a constants file, a polyfill, and a file whose declarations no case
    in the file executed while one case in a second file did.
 2. Ownership over the runtime graph by request, rooted at the test file, with

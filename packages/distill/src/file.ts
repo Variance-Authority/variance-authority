@@ -34,7 +34,9 @@ export interface FileDistillation {
   /**
    * The loaded modules fewer than all of the cases entered: none first, then
    * fewest, then longest. Absent when the case index keeps no cases for the
-   * file, so nothing says which case entered what.
+   * file, when a case stopped or did not say whether it finished, or when the
+   * file's coverage row is incomplete: each leaves an entry unrecorded that a
+   * finished, complete run would have recorded.
    */
   readonly modules?: readonly LoadedModule[];
   /** Present exactly when `modules` is absent: why. */
@@ -64,6 +66,21 @@ export function distillFile(input: FileDistillInput): FileDistillation {
   const candidates = input.coverage.modules.filter((module) => module.file !== file && module.instrumented && loadedBy(module, file));
   const base = { file, cases: cases.map(({ test }) => test), loaded: candidates.length };
   if (cases.length === 0) return { ...base, withheld: `the record keeps no cases for ${file}.` };
+  if (input.coverage.tests.some((test) => test.file === file && !test.complete)) {
+    return {
+      ...base,
+      withheld: `the coverage row for ${file} is incomplete — a filtered, cancelled or stopped run, or source changed ` +
+        'since it was recorded — so it cannot say what the file did without. Run the file again.',
+    };
+  }
+  const unsettled = cases.filter(({ test }) => test.stopped !== false).length;
+  if (unsettled > 0) {
+    return {
+      ...base,
+      withheld: `${unsettled} of ${cases.length} case(s) stopped or did not say whether they finished, ` +
+        'so what they would have entered is unknown.',
+    };
+  }
 
   const mine = new Set(cases.map(({ at }) => at));
   const entries = new Map(input.execution.modules.map((module) => [module.file, enteredBy(module, mine)]));
@@ -82,10 +99,10 @@ export function distillFile(input: FileDistillInput): FileDistillation {
 
 type CoverageModule = TestCoverage['modules'][number];
 
-/** The file's top level ran for `file`, and the module declares a function below it. */
+/** The file's top level ran for `file` before its first case, and the module declares a function below it. */
 function loadedBy(module: CoverageModule, file: string): boolean {
   const root = module.blocks.find((block) => block.kind === 'module');
-  return root?.testFiles.includes(file) === true &&
+  return root?.loadedBy?.includes(file) === true &&
     module.blocks.some((block) => block.kind === 'function' && block.source);
 }
 
@@ -143,9 +160,11 @@ export function formatFileDistillation(result: FileDistillation): string {
     `Loaded, and entered by some cases only: ${lines(some)}.`,
     ...some.map((module) => `  ${module.file} — ${size(module)}, entered by ${module.entered} of ${result.cases.length} case(s)`),
     '',
-    'A module no case entered was loaded for nothing this file tests: its import can be removed, mocked with a factory, ' +
-      'or deferred to the code that uses it. One that some cases entered can be required where it is used. ' +
-      'Rerun the file after the change: a top level can register something a case depends on.',
+    'Each module is evidence, not the fix: the fix is the import, in this file or a module it used, that brought it in. ' +
+      'Delete it, or mock it with a factory, when nothing behind it is used; when part is, import past the barrel ' +
+      'inside its own package, or from an entry its package declares; ' +
+      'move it to the code that uses it when only some cases do. Mocking a listed module by its own path ties the test ' +
+      'to an internal. Rerun the file after the change: a top level can register something a case depends on.',
     ...(result.cases.length > 1 ? ['', 'Read one case with --test <id>:', ...casesShown(result.cases)] : []),
   ].join('\n');
 }

@@ -216,8 +216,8 @@ describe('the CLI distillation boundary', () => {
     writeFileSync(at, withCaseSections(readFileSync(at), {
       index: encodeExecutionIndex({
         tests: [
-          { id: CASE, file: 'test/cart.spec.ts', name: 'adds one item' },
-          { id: 'test/cart.spec.ts > checks out', file: 'test/cart.spec.ts', name: 'checks out' },
+          { id: CASE, file: 'test/cart.spec.ts', name: 'adds one item', stopped: false },
+          { id: 'test/cart.spec.ts > checks out', file: 'test/cart.spec.ts', name: 'checks out', stopped: false },
         ],
         modules: [
           { file: 'src/cart.tsx', blocks: [{ ...block, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0 }] }] },
