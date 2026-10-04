@@ -693,10 +693,15 @@
         "EnteredFile": "interface",
         "EnteredModule": "interface",
         "EyesAttempt": "interface",
+        "FileDistillInput": "interface",
+        "FileDistillation": "interface",
+        "LoadedModule": "interface",
         "Region": "interface",
         "UpdatePhase": "interface",
         "distill": "function",
+        "distillFile": "function",
         "formatDistillation": "function",
+        "formatFileDistillation": "function",
         "parseExecutionIndex": "function"
       }
     }
@@ -2795,6 +2800,7 @@
         "declaredEntrypoints": "function",
         "declaredSuites": "function",
         "decodeExecutionIndex": "function",
+        "decodeTestCoverage": "function",
         "defaultInclude": "function",
         "deviationOfTests": "function",
         "distanceByExecution": "function",
