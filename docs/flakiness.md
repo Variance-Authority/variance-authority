@@ -285,8 +285,8 @@ a document digest.
 ### Has this happened before?
 
 The question two readings cannot answer, and the one that decides who fixes it.
-*Unstable in 6 of 20* means the fixture is bad; *6 times, and the last 9 sweeps
-were clean* means somebody already fixed it, and rewriting that fix is a day spent
+*Unstable in 6 of 20* reads as a bad fixture; *6 times, and the last 9 sweeps
+were clean* shows somebody already fixed it, and rewriting that fix is a day spent
 re-solving a solved problem.
 
 A run records what it observed when a [history service](history.md) is configured,

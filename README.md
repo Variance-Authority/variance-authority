@@ -150,9 +150,10 @@ subject ids you meant, then rerun; an unchanged run exits `0`.
 
 ## What else the same evidence answers
 
-Once a run records what it rendered, what it executed, and what the source declares,
-the questions below are answerable from the same material. None of them sits
-under another, and none requires the rest; take the one you need.
+Once a run records what it rendered and what it executed, and the source index
+records what the source declares, the questions below are answerable from the
+same material. None of them sits under another, and none requires the rest;
+take the one you need.
 
 | What do you need to know? | Start here |
 | --- | --- |
