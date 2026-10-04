@@ -16,8 +16,8 @@ branch is usually asserted after an arbitrary sleep, or not asserted. An
 assertion reads the screen one line later, once the decision has arrived.
 
 An announcement is three coordinates — `location`, `subject`, `action` — and no
-payload. It marks **when**, never **what**. (In Variance Authority a *subject* is
-one named UI state you asked for and can ask for again; in these three
+payload. It marks **when**, never **what**. (In Variance Authority a *subject*
+is one named UI state you asked for and can ask for again; in these three
 coordinates, `subject` is simply what the announcement is about.)
 
 ## Requirements
@@ -109,8 +109,8 @@ the name a service reports under. An **execution** is one run of one test — th
 fixture mints an opaque id for it, and everything announced while it runs answers
 to that id and to no other test.
 
-When nothing arrived at all, the same failure is printed in different words, because that
-is a setup fact rather than a product defect:
+When nothing arrived at all, the same failure is printed in different words,
+because that is a setup fact rather than a product defect:
 
 ```
 `checkout / upsell-modal / decided` was never announced within 5000ms

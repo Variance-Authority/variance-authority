@@ -77,8 +77,8 @@ it('removes the last item', () => {
 ```
 
 Its journey already records that the test never took the `then` on line 14, the
-empty-cart branch. It does not record what the test did instead. Run the test once
-with `VARIANCE_AUTHORITY_STORY=1`, and `variance story` from [the
+empty-cart branch. It does not record what the test did instead. Run the test
+once with `VARIANCE_AUTHORITY_STORY=1`, and `variance story` from [the
 CLI](../packages/cli/README.md) prints that, step by step:
 
 ```bash
@@ -177,10 +177,10 @@ A story lists each line the code prints under the step that printed it, after
 The journeys of the runs that failed differ from the runs that passed only at
 the `if` on line 13. That shows what happened, not why.
 
-**One story does not show why either.** Code after an `await` runs when its promise
-settles, and two promises started together settle in either order, so an async
-test can run in a different order on each run, including runs that pass. Put
-two stories side by side and most of what differs is not the cause.
+**One story does not show why either.** Code after an `await` runs when its
+promise settles, and two promises started together settle in either order, so an
+async test can run in a different order on each run, including runs that pass.
+Put two stories side by side and most of what differs is not the cause.
 
 ### Compare readings of one test
 
@@ -235,8 +235,8 @@ The comparison can also answer in three other ways:
   one order. The difference is in a value nothing prints, or in code that is not
   recorded, such as a dependency. Print the value you suspect with
   `console.log`, and record again.
-- **With one reading in a group**, the comparison cannot distinguish what the group
-  does from what that one run happened to do, and it prints that under its
+- **With one reading in a group**, the comparison cannot distinguish what the
+  group does from what that one run happened to do, and it prints that under its
   first line. Record the test again. The runs you made earlier still count.
 
 ### Choose the sides

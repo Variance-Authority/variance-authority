@@ -6,9 +6,9 @@ test has heard, and from whom, while it is still in flight rather than after
 teardown has thrown all of it away.
 
 This page covers a different half of the same problem: what a Playwright suite
-reports while it is still running. Read it when a test hangs, when you want to see
-which work a test started and never finished, or when you want to stop a test and
-look at the browser it left open. New here? Start with [your first
+reports while it is still running. Read it when a test hangs, when you want to
+see which work a test started and never finished, or when you want to stop a
+test and look at the browser it left open. New here? Start with [your first
 run](start.md).
 
 ## Start watching
@@ -62,10 +62,10 @@ per worker and reports nothing, so the fixtures stay in place in CI.
 
 ## The question a timeout cannot answer
 
-A test that hangs reports the condition it *waited for*. Thirty seconds later, in a process
-that has already torn down the page, the runner prints the assertion that did not
-settle. That is the last thing the failure records, and you already knew
-it.
+A test that hangs reports the condition it *waited for*. Thirty seconds later,
+in a process that has already torn down the page, the runner prints the
+assertion that did not settle. That is the last thing the failure records, and
+you already knew it.
 
 The watcher answers the other half: what the test actually heard, and from whom.
 An **announcement** is a call your application code made to
@@ -199,9 +199,9 @@ watcher with `observatory.release(id)`. A release is spent exactly once, by the
 stopped test's next poll, so two readers cannot let one test go twice and a
 second release cannot land on whatever that test stops at next.
 
-The test polls and the watcher replies: a stopped test polls for permission to go
-on, so every way of losing the watcher ends the wait instead of extending it. A
-wait ends in one of four words, and none of them fails the test:
+The test polls and the watcher replies: a stopped test polls for permission to
+go on, so every way of losing the watcher ends the wait instead of extending it.
+A wait ends in one of four words, and none of them fails the test:
 
 | | |
 | --- | --- |

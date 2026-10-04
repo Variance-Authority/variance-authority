@@ -91,9 +91,9 @@ nothing to read and falls back to the component's declaration line.
 
 ## Declare the same route in the run config
 
-The collector defines how to open the route; the config defines what to do with it.
-Create `variance.config.json`, which is the file every command below is pointed
-at:
+The collector defines how to open the route; the config defines what to do with
+it. Create `variance.config.json`, which is the file every command below is
+pointed at:
 
 ```json
 // variance.config.json

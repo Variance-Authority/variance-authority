@@ -183,10 +183,10 @@ renders them as the block above, confirmed first, defaulting to `findings()`.
 
 `findings()` is suspicion from read/write overlap, and it is directional: only a
 subject that ran *earlier* can have leaked into a given subject, which is why
-the sample's `findings()` returns no finding until `verify()` has re-run `story:card`
-after the leak. A subject that writes a key it also reads is not reported — that
-is a component managing its own stylesheet. One finding per victim/culprit/key,
-however many rules matched.
+the sample's `findings()` returns no finding until `verify()` has re-run
+`story:card` after the leak. A subject that writes a key it also reads is not
+reported — that is a component managing its own stylesheet. One finding per
+victim/culprit/key, however many rules matched.
 
 Every write a later subject reads is reported. To act on one, `session.rinse([key])`
 removes the leaked stylesheet without rebuilding the document; only sheet
@@ -385,8 +385,8 @@ Both limits at once give you a subject that is stably wrong: its pixels differ
 from the baseline, nothing in its own code changed, and no finding explains it.
 Catching that means varying the world instead — collecting the subject in a
 session nothing else has touched. That is what `npx variance run` — the `run`
-command in `@variance-authority/cli` — requests from its collector when a subject's
-pixels change.
+command in `@variance-authority/cli` — requests from its collector when a
+subject's pixels change.
 
 ---
 

@@ -242,7 +242,7 @@ so it pulls in no Playwright and nothing Node-only.
 ## Your logs will be noisy, on purpose
 
 Every fallback is reported as a fallback. A run that could not do the expensive
-thing and did the cheap thing instead prints that on the line, rather than answering
-a weaker question under the same heading. Do not filter those lines out: they are
-the difference between a green build that checked what you asked for and one that
-checked less.
+thing and did the cheap thing instead prints that on the line, rather than
+answering a weaker question under the same heading. Do not filter those lines
+out: they are the difference between a green build that checked what you asked
+for and one that checked less.

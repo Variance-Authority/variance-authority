@@ -52,9 +52,10 @@ Same pass and fail counts in all three — the 22 that fail in the upstream
 repository fail in each — with the Vite cache and the record cache cleared
 between runs. This suite runs in jsdom, so a worker holds 193 scripts against
 Zod's 52. A probe is paid for by the test that reaches it and does not notice;
-the engine's counters are read rather than fired, and a read answers with the whole isolate. Read as often as
-a selector needs them — after every test, not once per worker — the same counters cost
-2.1× to 2.7× the suite, and that is with the result thrown away.
+the engine's counters are read rather than fired, and a read answers with the
+whole isolate. Read as often as a selector needs them — after every test, not
+once per worker — the same counters cost 2.1× to 2.7× the suite, and that is
+with the result thrown away.
 
 ## One line, asked of the record
 
@@ -133,10 +134,10 @@ The file graph and Nx both widen on a hub. Five commits edit comments in
 selects 143 or 144 on each of them, and Nx 168. The walk reads both texts of each changed file,
 finds that nothing that runs has changed, and selects none.
 
-Where a commit changes code, the record selects fewer than the walk, because it records
-which of the files that import a module ran the lines that changed. Three
-`fix(query-core)` commits select 143 from the walk; the record selects 67, 47
-and 23.
+Where a commit changes code, the record selects fewer than the walk, because it
+records which of the files that import a module ran the lines that changed.
+Three `fix(query-core)` commits select 143 from the walk; the record selects 67,
+47 and 23.
 
 Where a commit changes a package manifest, the record selects more than both
 walks, and that is correct. Nx selects 188 on those commits. Each project's Vite

@@ -270,10 +270,11 @@ reaches past the component that rendered the node.
 
 ## Limits
 
-- **A node React never rendered has no owner chain, and the result reports that.** It is
-  `{ status: 'no-fiber', reason: 'no-client-fiber' }`, or `'unmounted'` for a
-  node whose tree was torn down. An empty chain would be a claim — "owned by
-  nobody" — and indistinguishable from a node rendered directly by a root.
+- **A node React never rendered has no owner chain, and the result reports
+  that.** It is `{ status: 'no-fiber', reason: 'no-client-fiber' }`, or
+  `'unmounted'` for a node whose tree was torn down. An empty chain would be a
+  claim — "owned by nobody" — and indistinguishable from a node rendered
+  directly by a root.
 - **`createdBy` is development-only.** React populates `_debugOwner` from
   `element._owner`, which production builds leave empty; the field is then
   omitted and attribution degrades to the enclosing component.

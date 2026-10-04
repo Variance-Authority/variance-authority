@@ -19,8 +19,8 @@ The usual answers both cost something:
 - **Reading a module's internals from a test file couples the test to them.**
   The test depends on internals that are not part of the module's contract.
 
-This package inverts that: the module that owns the state registers how to reset it,
-and the runner decides when.
+This package inverts that: the module that owns the state registers how to reset
+it, and the runner decides when.
 
 ```bash
 npm install --save-dev @variance-authority/ioc
@@ -52,7 +52,8 @@ Nothing happens yet. The handler is enrolled only when a test setup has
 installed a driver, and a shipped application never installs one — so this call
 costs a boolean comparison and the handler is never run. What the package keeps
 without a driver is a count, and the first handler it had to turn away, so that
-a setup file loaded too late can be told which module already registered a handler.
+a setup file loaded too late can be told which module already registered a
+handler.
 
 Write the handler so that running it twice is the same as running it once. It
 assigns a known value rather than stepping a state machine, which is what lets
@@ -106,12 +107,12 @@ above every application module: in Vitest and Jest, make it the first entry in
 setupFiles; in Playwright, the first import of the fixture file.
 ```
 
-The count is how many registered early; the text after the dash is the first of them,
-so you can find the module. It is the handler's source, with the handler's name
-in front of it when it has one — a `function resetCounter() {}` declaration, or
-an arrow assigned to a `const`. The arrow above was passed straight into the
-call, so it has no name and only its source is printed. Name the handler if you
-want the message to name it.
+The count is how many registered early; the text after the dash is the first of
+them, so you can find the module. It is the handler's source, with the handler's
+name in front of it when it has one — a `function resetCounter() {}`
+declaration, or an arrow assigned to a `const`. The arrow above was passed
+straight into the call, so it has no name and only its source is printed. Name
+the handler if you want the message to name it.
 
 That check is unconditional and has no opt-out. A handler that registered early
 is not installed, and a suite that silently does not reset is the failure this

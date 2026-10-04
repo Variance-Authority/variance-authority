@@ -5,8 +5,8 @@ to ask about a test that may no longer be worth keeping. It reads the per-case
 execution index and names the tests that ran through a file, a line or a
 function. Of the root `variance.config.json` it reads only `suites` and
 `cacheRoot`, and `names`, whose axes give `--where` its base values and each
-listed case its twin. None of it is a verdict: execution records where a test went,
-never why it was worth running.
+listed case its twin. None of it is a verdict: execution records where a test
+went, never why it was worth running.
 
 ```bash
 variance covering --file src/checkout/total.ts --line 48
@@ -53,11 +53,11 @@ that could not answer.
 
 An empty list reads as *no test covers this line*, so a missing index is
 refused: exit `2`, and under `--format json` stdout is
-`{"refused":"unrecorded"}`, which separates *nothing recorded* from a failed question
-without reading the sentence. Asking again changes nothing until a wrapped run
-has happened. With suites declared, the refusal is exit `2` only when no suite
-has a record; otherwise the answer exits `0`, and a suite with none has
-`refused` in its own entry.
+`{"refused":"unrecorded"}`, which separates *nothing recorded* from a failed
+question without reading the sentence. Asking again changes nothing until a
+wrapped run has happened. With suites declared, the refusal is exit `2` only
+when no suite has a record; otherwise the answer exits `0`, and a suite with
+none has `refused` in its own entry.
 
 ## Narrow to the tests nearby
 
@@ -122,10 +122,11 @@ This reports every region the diff changed with the cases that ran it, and
 counts the two findings a percentage cannot state: regions **no case ran**, and
 regions **one case alone** ran. A changed test file is answered with the named
 cases it declares, since it has no module row. A changed path the index has
-nothing for is named as such, since *no row* and *no test* are opposite facts. The diff is
-measured from the commit the record was written at, so record before you read.
-`variance_changed_tests` answers the same question over MCP, on a host that serves it
-([MCP](mcp.md#tools-no-binary-serves)), taking the unified diff as an argument, but answers without the file graph: a case whose file mocked the
+nothing for is named as such, since *no row* and *no test* are opposite facts.
+The diff is measured from the commit the record was written at, so record before
+you read. `variance_changed_tests` answers the same question over MCP, on a host
+that serves it ([MCP](mcp.md#tools-no-binary-serves)), taking the unified diff
+as an argument, but answers without the file graph: a case whose file mocked the
 changed module can be listed under it.
 
 A review agent reads the same answer with `--format refs`, and adds the base

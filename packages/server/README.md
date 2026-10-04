@@ -498,8 +498,8 @@ from the CI environment it is already inside:
 
 Each pair is read whole: a run id from one system with a commit from another
 describes a run that never existed, so it is refused rather than completed from
-two sources. A run on a laptop with neither flag writes nothing and records that in
-its report.
+two sources. A run on a laptop with neither flag writes nothing and records that
+in its report.
 
 That is the usual reason a configured database is empty on day one. The other
 is that nothing has posted yet.

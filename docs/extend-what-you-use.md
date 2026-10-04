@@ -1,10 +1,10 @@
 # Extend what you already use
 
-You already have tools built around how your software works. Your test runner runs
-the suite. Playwright drives a browser. React Testing Library helps tests address
-the interface. Your visual regression service compares screenshots and records
-approvals. Your debugger, editor, search tools and documentation service answer
-other questions. Replacing any one of them is a separate decision.
+You already have tools built around how your software works. Your test runner
+runs the suite. Playwright drives a browser. React Testing Library helps tests
+address the interface. Your visual regression service compares screenshots and
+records approvals. Your debugger, editor, search tools and documentation service
+answer other questions. Replacing any one of them is a separate decision.
 
 [Variance Authority](README.md) can work beside them. It reads source
 relationships, records which code an execution ran, observes an interface, and

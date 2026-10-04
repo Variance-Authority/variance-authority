@@ -133,10 +133,10 @@ The answer prints a key for its marks. What the key leaves out:
 - `before the test` is the code the runner ran outside the test just before
   it, such as code a `beforeEach` or the previous test's `afterEach` called.
   Test files are not recorded by default, so the hook itself is not a step.
-- `» text` under a step is a line the code emitted at that step: a `console` line
-  as `console.log …`, an Eyes entry as `eyes …` with a query's arguments and
-  what it found, a `vae` announcement as `vae …`. Lines emitted before the first
-  step are in the header.
+- `» text` under a step is a line the code emitted at that step: a `console`
+  line as `console.log …`, an Eyes entry as `eyes …` with a query's arguments
+  and what it found, a `vae` announcement as `vae …`. Lines emitted before the
+  first step are in the header.
 - `loaded N files` is modules loaded one inside another. `… steps 1-2 left out`
   is what this part leaves out; ask `--around` a step at its edge to read
   further.
@@ -173,8 +173,8 @@ compare  src/checkout.test.ts > saves the total it charges
 - The last line counts what differs between readings of one side too. It is
   not the cause; do not read it as one, and do not report the order changing
   between runs as a flake.
-- *one reading on a side* means the comparison cannot separate the side from
-  the run. `last` always prints it. Record the test again under each side before you
+- *one reading on a side* means the comparison cannot separate the side from the
+  run. `last` always prints it. Record the test again under each side before you
   conclude.
 - *nothing separates the sides* means the difference is in a value no line
   prints, or in code that is not instrumented. Add a `console.log` of the value

@@ -203,9 +203,9 @@ const store = createRemoteStore({
 const found = await store.find({ subject: 'Button/primary' }, renderer.identity);
 ```
 
-`find` answers `null` only when the server positively responded that there is no baseline
-for that key. Every other outcome throws — see
-[Failure behavior](#failure-behavior).
+`find` answers `null` only when the server positively responded that there is no
+baseline for that key. Every other outcome throws — see [Failure
+behavior](#failure-behavior).
 
 ## The wire
 

@@ -204,11 +204,11 @@ rather than a heuristic: **the first frame that resolves to a file the project
 wrote.** Frame zero is always React, because React constructed the error. Frame
 one is the author in an ordinary build and a custom JSX runtime in a build that
 has one — and nothing needs to know which, because Emotion resolves into
-`node_modules` and the component does not. An application module with *no* map is
-not a vendor frame, but it is not an answer either: a position in the text a
-server sent is a position in the repository only if a map records it, so a served
-frame with no map is refused. A frame that names a file on disk is kept as it
-stands, because a Node runner applies maps to `Error.stack` itself and its
+`node_modules` and the component does not. An application module with *no* map
+is not a vendor frame, but it is not an answer either: a position in the text a
+server sent is a position in the repository only if a map records it, so a
+served frame with no map is refused. A frame that names a file on disk is kept
+as it stands, because a Node runner applies maps to `Error.stack` itself and its
 coordinates arrive already original.
 
 The work is per call site, not per node, which is why a whole page costs a
@@ -236,9 +236,10 @@ A call site says who *wrote* an element. The other question a report needs
 answered is where the component that rendered it is *declared*, and the scan
 below answers it by name: every declaration in the configured directories that
 spells `Button`, ambiguous when two do. The page holds something better than a
-name. The fiber points at the function React called, and the engine records where
-every function it compiled begins — V8 exposes it as `[[FunctionLocation]]`, a
-script and a position, read over the debugger protocol.
+name. The fiber points at the function React called, and the engine records
+where every function it compiled begins — V8 exposes it as
+`[[FunctionLocation]]`, a script and a position, read over the debugger
+protocol.
 
 So the page agent keeps every component function provenance names, keyed by
 identity and never serialized, and the collector queries Chromium for each one
@@ -248,8 +249,8 @@ vendor rule as a call site. What comes back is a source index whose refs carry
 `via: 'engine'`, and it is laid over the scan rather than merged with it: a name
 the engine located replaces the scan's candidates for it, and a name the engine
 never met keeps them. That is what turns an ambiguous name into one file,
-because the engine only has a location for a component that rendered, which is exactly
-the one the report is about.
+because the engine only has a location for a component that rendered, which is
+exactly the one the report is about.
 
 The engine's answer is written into the run's own `source` and the composed
 report's `files` field, and `@variance-authority/playwright-test` lays it over

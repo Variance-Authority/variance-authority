@@ -278,10 +278,10 @@ Two questions meet in this repository — *what did this change look like* and
   it from what the edit changed, so an edit to a comment or a type selects
   nothing, and a file that imports only an unchanged export of a changed file is
   left out. Over sixty commits of TanStack Query, that is 441 test files where
-  the file graph selects 1,470; over sixty of Zod, whose tests import it
-  through one namespace, 4,142 where it selects 4,531.
-  [What a record shows that no graph can](docs/selecting.md#what-a-record-shows-that-no-graph-can)
-  is where a record's answer differs from any graph's.
+  the file graph selects 1,470; over sixty of Zod, whose tests import it through
+  one namespace, 4,142 where it selects 4,531. [What a record shows that no
+  graph can](docs/selecting.md#what-a-record-shows-that-no-graph-can) is where a
+  record's answer differs from any graph's.
 - [**Nx affected**](https://nx.dev/), [**Turborepo**](https://turborepo.com/),
   [**Bazel**](https://bazel.build/) — selection at the project or target grain,
   from dependencies you declare rather than executions anyone observed. Coarse,

@@ -1,9 +1,9 @@
 # How the test-to-code map stays small
 
-Selection needs a record of which tests covered which code. Recorded naively that is
-one entry for every test against every line it touched, which no large
-repository can store. [Variance Authority](README.md) records it differently, and
-you want to know what that costs before you put it on a tree that size.
+Selection needs a record of which tests covered which code. Recorded naively
+that is one entry for every test against every line it touched, which no large
+repository can store. [Variance Authority](README.md) records it differently,
+and you want to know what that costs before you put it on a tree that size.
 
 This page answers that: what the relation between tests and code is, why it does
 not grow as one stored row per test per line, and what every figure here was
@@ -189,8 +189,8 @@ touch, and those are never decompressed. Cold, in a new process that opens the
 77 MB file and answers the diff, the whole command is under a tenth of a second
 and about 120 MB resident.
 
-One question costs more than anything an ordinary run computes: every module against
-every test, which is how you find your **hubs**, the files most of the
+One question costs more than anything an ordinary run computes: every module
+against every test, which is how you find your **hubs**, the files most of the
 repository imports. At 200,000 modules that is four seconds and 322 MB — a
 ceiling you can afford to hit deliberately.
 
@@ -210,8 +210,8 @@ execution record   what did each test actually cover?
 ```
 
 The source side follows dependency possibility. The execution side supplies the
-smaller observed audience. Selection skips only tests whose whole run the record holds,
-and names each changed file the record has no rows for. Missing evidence
+smaller observed audience. Selection skips only tests whose whole run the record
+holds, and names each changed file the record has no rows for. Missing evidence
 costs more work; it does not become permission to skip an unobserved test.
 
 The source index uses a related storage shape — interned strings, columnar

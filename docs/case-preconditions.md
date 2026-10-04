@@ -59,8 +59,8 @@ variance covering --file src/checkout/total.ts --function total
 ```text
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/2
-    charges the regular price — discount=off (test/flags.ts:6)
     applies the discount — discount=on (test/flags.ts:6)
+    charges the regular price — discount=off (test/flags.ts:6)
 ```
 
 `covering` calls each test a case, as the runners do: one `it` or `test`, by
@@ -135,10 +135,10 @@ and the test body over both.
 ```text
 4 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 4/4
-    charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
     applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
     sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 The test does not need a second description of what its helpers already did.
@@ -155,8 +155,8 @@ variance covering --file src/checkout/total.ts --function total --where prices=d
 Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
     sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 - `--where prices` keeps every test that recorded `prices`, whatever its value.
@@ -200,12 +200,12 @@ two-value axis such as this one, that is the base.
 ```text
 4 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 4/4
-    charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
     applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
       twin at discount=off: charges the regular price
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
     sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
       twin at discount=off: sale prices > charges the sale price
+    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 `applies the discount` is twinned with `charges the regular price`, not with
@@ -222,9 +222,9 @@ When no such test exists, `covering` prints that:
 ```
 
 That means no test in the same file covered this code with `discount=off`,
-recorded or read at the base, and the same other preconditions. It does not mean that no such test exists elsewhere, and
-on code that only runs with the discount on, such as an `applyDiscount`
-function, every `discount=on` test prints it.
+recorded or read at the base, and the same other preconditions. It does not mean
+that no such test exists elsewhere, and on code that only runs with the discount
+on, such as an `applyDiscount` function, every `discount=on` test prints it.
 
 Twins are looked for only within one test file, among the tests that covered
 what you asked, before `--where` and within the `--cases` scope. Across files,

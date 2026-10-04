@@ -50,23 +50,24 @@ its exact import sites. `uses --from` only orders those sites by path proximity;
 it does not perform another graph traversal or remove any result.
 
 `variance index` publishes a separate catalogue of installed third-party APIs.
-`ask search` shows those names in their own section. A `--from` or `--to`
-path limits them to packages available to the workspaces in that graph closure;
-the answer labels imports separately from availability. Ask
-`symbol --name <name> --package <package>` for the installed signature and full documentation.
-The declaration provider is named when it differs from the runtime package.
-A package the workspace resolves but that ships no declarations has no names to
-match, so `symbol` reports that, gives the path and line count of the `README.md`
-beside its manifest, and quotes the README passage that names the symbol,
-labelled as that file's. Naming `--package` reports the README even when it does
-not mention the symbol; a package with no README is reported as shipping none.
+`ask search` shows those names in their own section. A `--from` or `--to` path
+limits them to packages available to the workspaces in that graph closure; the
+answer labels imports separately from availability. Ask `symbol --name <name>
+--package <package>` for the installed signature and full documentation. The
+declaration provider is named when it differs from the runtime package. A
+package the workspace resolves but that ships no declarations has no names to
+match, so `symbol` reports that, gives the path and line count of the
+`README.md` beside its manifest, and quotes the README passage that names the
+symbol, labelled as that file's. Naming `--package` reports the README even when
+it does not mention the symbol; a package with no README is reported as shipping
+none.
 
 This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the
-files a module names in `/// <depends path="…" />`. It
-can answer what a file rests on, what rests on that file, and where an exported
-name is imported. It does not record that one function called another at runtime;
-open the named file or use a language server for that question.
+files a module names in `/// <depends path="…" />`. It can answer what a file
+rests on, what rests on that file, and where an exported name is imported. It
+does not record that one function called another at runtime; open the named file
+or use a language server for that question.
 
 No graph database service sits on the answer path. The producer publishes a
 compact graph beside the names and materializes both directions, so walking
@@ -169,8 +170,8 @@ already brought the index up to date and is the one that owns freshness. The
 flag is accepted and changes nothing. With no published generation, `search`
 refuses and names the command to run.
 
-When an editor, watcher, or orchestrator produces a generation and already
-has the changed paths, write their scan-root-relative paths to a newline-delimited
+When an editor, watcher, or orchestrator produces a generation and already has
+the changed paths, write their scan-root-relative paths to a newline-delimited
 file and pass that file through `--changed-file`. An empty file declares that
 nothing changed. This is producer input: it replaces Git's changed-file
 discovery and cannot be combined with `--just-answer`. [Naming what

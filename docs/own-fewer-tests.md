@@ -1,11 +1,11 @@
 # Own fewer tests
 
 Your suite only grows. Every test in it was justified when it was written, and a
-merged coverage report cannot tell you which of them are still worth keeping:
-it shows that a line ran, not which tests ran it, not whether six of them ran it for
-the same reason. [Variance Authority](README.md) records the half coverage drops:
-for each test case, which regions of your source that case covered. Point at a
-line and it hands back the named cases that walked it, which is where the
+merged coverage report cannot tell you which of them are still worth keeping: it
+shows that a line ran, not which tests ran it, not whether six of them ran it
+for the same reason. [Variance Authority](README.md) records the half coverage
+drops: for each test case, which regions of your source that case covered. Point
+at a line and it hands back the named cases that walked it, which is where the
 question *why do all of these tests need this code?* starts having an answer.
 
 The decision that sits on top of that reading is which tests to keep, where to
@@ -53,14 +53,14 @@ npx variance covering --file src/cart/total.ts --line 14
 ```
 
 Every answer is a test you can open: the case's name, the file it is written in,
-and the id the record stores for it. `--function <name>` answers the same question
-for a whole function. `--file` on its own answers the whole recorded file at
-once, as ranges of lines that share the same cases — where a range with an empty
-list is recorded and unreached, and a line outside every recorded region
-produces no range at all, which is a different statement from nobody reaching
-it. `--format json` hands the same reading to whatever reads it next, which is the
-form an agent needs when it is about to change a line and needs the tests to run
-after.
+and the id the record stores for it. `--function <name>` answers the same
+question for a whole function. `--file` on its own answers the whole recorded
+file at once, as ranges of lines that share the same cases — where a range with
+an empty list is recorded and unreached, and a line outside every recorded
+region produces no range at all, which is a different statement from nobody
+reaching it. `--format json` hands the same reading to whatever reads it next,
+which is the form an agent needs when it is about to change a line and needs the
+tests to run after.
 
 The command reads no project configuration and finds the index where the
 recorded run wrote it, so the question is one flag long; `--execution <path>`

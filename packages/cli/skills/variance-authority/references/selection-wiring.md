@@ -86,9 +86,9 @@ When an integration reports that it kept the whole suite, read the path it
 names. That is a wiring fact about the project, and usually a fixable one.
 
 Absence is the other direction, and it widens nothing. A changed path the
-recording has no row for is looked up in the import graph when one is passed, and
-the nearest measured files that import it select their tests. One the graph does
-not list, such as a README or a fixture, appears under `unread` and selects
+recording has no row for is looked up in the import graph when one is passed,
+and the nearest measured files that import it select their tests. One the graph
+does not list, such as a README or a fixture, appears under `unread` and selects
 nothing: if the suite reads that file without importing it, declare it as a
 precondition. One it lists whose importers include nothing measured selects
 nothing and is not reported. A bumped package selects the tests of its measured

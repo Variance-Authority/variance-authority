@@ -276,10 +276,10 @@ from a regression — is answered by the render that already finished.
 
 That event also records how the render ended. A story whose `play` threw after
 the last paint, or whose `afterEach` raised, finishes with status `error`, and
-the outcome includes a warning that names it. The status is not the outcome's status:
-the picture is on screen and a capture of it is a capture of what the component
-did, so the story is still `rendered`. The warning is for the baseline — a
-subject that failed its own checks is not one to record as the way it should
+the outcome includes a warning that names it. The status is not the outcome's
+status: the picture is on screen and a capture of it is a capture of what the
+component did, so the story is still `rendered`. The warning is for the baseline
+— a subject that failed its own checks is not one to record as the way it should
 look.
 
 ## What a pass sends the preview

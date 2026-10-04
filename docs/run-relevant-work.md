@@ -59,9 +59,9 @@ that stamps the name onto the element, which is the same step
 [attribution](composition.md) needs anyway.
 
 That second reading is what lets a change to a file reach a **route** at all. A
-URL names a page, and nothing in the page's address shows which components render
-there. What shows it is the page having been seen rendering them — so the join is
-empirical, and it is exactly as current as the last render you approved.
+URL names a page, and nothing in the page's address shows which components
+render there. What shows it is the page having been seen rendering them — so the
+join is empirical, and it is exactly as current as the last render you approved.
 
 Together the two answer at the grain of a file: this change is inside
 `Button.tsx`, and these subjects were last seen rendering `Button`.

@@ -6,14 +6,14 @@ state. What each of them does to the page is the difference you care about, and 
 is the one difference an ordinary run never reports. This page is for making a run
 measure it instead.
 
-A **subject** is one named UI state you asked for and can ask for again, identified
-by a stable id like `story:checkout--empty`. Each variant is an ordinary subject with
-its own baseline, and every run compares it only to itself. So the difference the
-variant exists **for** is the one difference nothing measures: a story added behind
-`checkout-v2` is `new` on its first run — one baseline written, an empty diff,
-nothing reported — and green from then on until somebody edits it. What the flag *does to
-the page* is visible by opening two pictures and using your eyes, and is recorded
-nowhere.
+A **subject** is one named UI state you asked for and can ask for again,
+identified by a stable id like `story:checkout--empty`. Each variant is an
+ordinary subject with its own baseline, and every run compares it only to
+itself. So the difference the variant exists **for** is the one difference
+nothing measures: a story added behind `checkout-v2` is `new` on its first run —
+one baseline written, an empty diff, nothing reported — and green from then on
+until somebody edits it. What the flag *does to the page* is visible by opening
+two pictures and using your eyes, and is recorded nowhere.
 
 Link the variant to the subject it varies and the run reads both, compares them to
 each other, and reports that difference with an identity of its own.
@@ -40,9 +40,9 @@ That distinguishes two events a reviewer currently has to distinguish by hand:
   approved, nothing new to look at;
 - **the flag now does something else**, which is a review nobody has done.
 
-A variation that renders identically to its parent is reported as identical. It means the flag
-changed nothing this run could read, which is a finding when the flag was
-supposed to change something.
+A variation that renders identically to its parent is reported as identical. It
+means the flag changed nothing this run could read, which is a finding when the
+flag was supposed to change something.
 
 ## Link by name
 
@@ -178,9 +178,9 @@ invalidates nothing.
 
 **A tag always wins, and a name never covers for a tag that failed.** A
 `variance-parent:` that resolved to nothing is reported as the mistake it is,
-rather than quietly answered with a guess. And a link read off a name is marked as such —
-in the record, in the sentence, and in its own group in the answer — because
-*somebody said so* and *a name implied it* are not the same evidence.
+rather than quietly answered with a guess. And a link read off a name is marked
+as such — in the record, in the sentence, and in its own group in the answer —
+because *somebody said so* and *a name implied it* are not the same evidence.
 
 ## What it is not
 

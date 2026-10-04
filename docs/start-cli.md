@@ -12,11 +12,11 @@ This page runs them in order against a project that already collects subjects, e
 nothing moved.
 
 This page assumes you already have a **collector** — the module that mounts each
-UI state and signals when it is ready to be captured. The CLI never navigates, logs
-in, or starts your application; that boundary is the collector's. If you do not
-have one, pick the shipped adapter for the harness you already run — Storybook,
-Playwright, served routes, Jest or Vitest — from
-[the first-observation guide](start.md), and come back here for the review loop.
+UI state and signals when it is ready to be captured. The CLI never navigates,
+logs in, or starts your application; that boundary is the collector's. If you do
+not have one, pick the shipped adapter for the harness you already run —
+Storybook, Playwright, served routes, Jest or Vitest — from [the
+first-observation guide](start.md), and come back here for the review loop.
 
 ## Confirm the collector's shape
 

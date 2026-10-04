@@ -25,9 +25,9 @@ record, keyed by the case and its attempt, numbered from 1. See
 
 A journal is `complete` and a sequence of `eyes-phase`, `react-commit`,
 `react-tap-refused`, `document-event`, `rtl-query` and `playwright-locator`
-entries. `complete` is the producer's own flag that the journal closed
-cleanly, and nothing else. `complete: false` has a `because` field with the reason. It
-is **not** a judgement about whether `attention` has anything in it.
+entries. `complete` is the producer's own flag that the journal closed cleanly,
+and nothing else. `complete: false` has a `because` field with the reason. It is
+**not** a judgement about whether `attention` has anything in it.
 
 `--execution` also takes an `ExecutionIndex` as JSON, from a tool that already
 records per-test crossings. JSON carries no journals. It is a `tests` array the
@@ -123,8 +123,8 @@ denominator.
 ## Read the evidence literally
 
 - `PerformedWork` component names list the render bodies that ran.
-  `memoizedUpdaters` paths list the live component instances that started an update.
-  Neither proves which source statement scheduled it.
+  `memoizedUpdaters` paths list the live component instances that started an
+  update. Neither proves which source statement scheduled it.
 - A missing updater field means the renderer did not expose it. An empty updater
   list means the set was measured and empty.
 - Updater paths keep name, key and props digest. Eyes owner paths keep name and

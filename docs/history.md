@@ -126,8 +126,8 @@ recorded before it writes, and sends only what changed.
 
 ## What you get back
 
-The run queries the history service, and the answers travel **in the report** — the file
-a run writes when it finishes, at the path the `report` key in
+The run queries the history service, and the answers travel **in the report** —
+the file a run writes when it finishes, at the path the `report` key in
 `variance.config.json` names. The summary, the pull-request comment and an agent
 over MCP all read that one file, hours apart, none of them connected to your
 service.
@@ -186,11 +186,11 @@ answers.
 ## Two rules worth knowing before you trust a number
 
 **Only approved changes count.** A rejected change was caught; counting it would
-describe your review process rather than your product. A run cannot observe whether
-anybody approved, so it writes every row unapproved and `npx variance accept` records
-the approval separately — one row per `(subject, run)`, which is exactly the
-decision a reviewer makes. Until a subject is accepted, its change is counted as
-rejected.
+describe your review process rather than your product. A run cannot observe
+whether anybody approved, so it writes every row unapproved and `npx variance
+accept` records the approval separately — one row per `(subject, run)`, which is
+exactly the decision a reviewer makes. Until a subject is accepted, its change
+is counted as rejected.
 
 **An absent answer never reads as a good one.** With no store configured, every
 history question answers with the sentence *nobody is keeping a record* — never

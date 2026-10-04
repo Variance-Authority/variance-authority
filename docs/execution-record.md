@@ -96,9 +96,10 @@ they stop and list the suites.
 
 `variance covering` asks the other question, which suites ran this code, so it
 reads every declared suite's record and answers under each suite's name and
-kind. A suite that never loaded the file is listed as such, and so is a suite with no
-recording yet. A payment module your unit suite walked and your visual suite
-never loaded reads as exactly that. `--suite <name>` asks one record alone.
+kind. A suite that never loaded the file is listed as such, and so is a suite
+with no recording yet. A payment module your unit suite walked and your visual
+suite never loaded reads as exactly that. `--suite <name>` asks one record
+alone.
 
 ## What each host records
 
@@ -356,14 +357,14 @@ deleted still has crossings above it, and a diff at the place that function
 was reaches it through them. Only a test that loses every crossing in a module
 is demoted to incomplete and selected whole next time.
 
-**A digest that changed keeps the crossing and demotes the test.** It shows that the
-region's own text changed, and the tests to run are the ones recorded against
-that region — which is the crossing. Reading a digest as a reason to discard
-the crossing would throw away the evidence the change is about to be answered
-with, and reading the owners' digests too made any edit at a module's top level
-retire every crossing in the file. But the re-recorded rows hold the text the
-run read, and selection reads a later change from that text, so the edit
-between the text a carried test ran over and this one is in no diff it will
+**A digest that changed keeps the crossing and demotes the test.** It shows that
+the region's own text changed, and the tests to run are the ones recorded
+against that region — which is the crossing. Reading a digest as a reason to
+discard the crossing would throw away the evidence the change is about to be
+answered with, and reading the owners' digests too made any edit at a module's
+top level retire every crossing in the file. But the re-recorded rows hold the
+text the run read, and selection reads a later change from that text, so the
+edit between the text a carried test ran over and this one is in no diff it will
 read. Each test on such a region that the run did not observe is demoted to
 incomplete; a test the run observed was recorded again over the new text.
 
@@ -483,10 +484,10 @@ Playwright's figure covers the test body, its `beforeEach` hooks and the
 fixtures set up for it, and not its `afterEach` hooks or fixture teardown, which
 run after Playwright has set it. A retried case is timed as the sum of its
 attempts, the same way a file recorded by two projects is. A case is joined to
-the runner's report by the id the runner gave it, or by its declaration path under the file where the
-runner gives none. A path the file declares twice cannot be matched to one of the two
-cases, so neither is timed. A case index written before cases carried durations
-opens with every case untimed.
+the runner's report by the id the runner gave it, or by its declaration path
+under the file where the runner gives none. A path the file declares twice
+cannot be matched to one of the two cases, so neither is timed. A case index
+written before cases carried durations opens with every case untimed.
 
 A Storybook run is its own runner, so its figure is the time the run spent on
 each story, from its first collection to its decision: the same time
@@ -694,36 +695,36 @@ below is one stage of that call.
    its lines, but only when no region of another kind has its span: every line
    of an awaited expression is evaluated before the await settles. A line no source region contains
    charges every block of the module.
-5. **Blocks to tests.** Each charged block's crossings, O(C of those blocks),
-   of every row recorded under the path — two builds that read one module are
-   two rows, and the answer is all of them. Every changed path is also looked up in
+5. **Blocks to tests.** Each charged block's crossings, O(C of those blocks), of
+   every row recorded under the path — two builds that read one module are two
+   rows, and the answer is all of them. Every changed path is also looked up in
    the precondition table, O(P), whatever its rows hold: a row records which
-   tests covered which regions, a precondition marks the observation void if
-   the file's text changes at all, and the two are not the same fact. A row
-   does buy the path out of *unread*, which is why a module nothing declares is
-   still measured.
+   tests covered which regions, a precondition marks the observation void if the
+   file's text changes at all, and the two are not the same fact. A row does buy
+   the path out of *unread*, which is why a module nothing declares is still
+   measured.
 6. **Files with no row.** Hand the relations graph in through
    `options.relations` and a changed module with no instrumented row under any
    of its names is read as step 3 reads one with a row, with every export
    counted as changed. What that reading cannot answer — no `sourceAt`, a text
    that does not parse, a `load` verdict — and every file with no row that is
-   not a module is looked up in the graph, which walks to the files that import it.
-   A file something imports as an asset — a stylesheet, an image, a JSON file,
-   where no probe can sit — is walked along `asset` and `depends` edges only,
-   through the stylesheets that import it to the modules that import or declare
-   those. A
-   module is walked along every runtime edge and never `type`, and each chain
-   stops at the first test file or module with probes; a module without probes
-   measured nothing, so the chain goes on past it. Each file a walk stops at
-   answers for itself: a test selects itself, a module with probes selects the
-   tests that crossed it, and a module without probes selects the tests that
-   declare it. A file with no row selects nobody and takes nothing from the
-   chains beside it. A test that mocked the changed module, or a file between
-   the two, is cut there. A bumped package is walked from its node along every
-   runtime edge to every file that imports it at any distance, and each answers
-   the same way. A file with no row selects nobody even when a test declares
-   it: a declaration selects on a change to the declared file's own text, and a
-   walk selects on no such change. O(n + m) on the graph per changed file.
+   not a module is looked up in the graph, which walks to the files that import
+   it. A file something imports as an asset — a stylesheet, an image, a JSON
+   file, where no probe can sit — is walked along `asset` and `depends` edges
+   only, through the stylesheets that import it to the modules that import or
+   declare those. A module is walked along every runtime edge and never `type`,
+   and each chain stops at the first test file or module with probes; a module
+   without probes measured nothing, so the chain goes on past it. Each file a
+   walk stops at answers for itself: a test selects itself, a module with probes
+   selects the tests that crossed it, and a module without probes selects the
+   tests that declare it. A file with no row selects nobody and takes nothing
+   from the chains beside it. A test that mocked the changed module, or a file
+   between the two, is cut there. A bumped package is walked from its node along
+   every runtime edge to every file that imports it at any distance, and each
+   answers the same way. A file with no row selects nobody even when a test
+   declares it: a declaration selects on a change to the declared file's own
+   text, and a walk selects on no such change. O(n + m) on the graph per changed
+   file.
 7. **Unread.** A changed path is read when *some* name the caller passes for
    it has a module row, a precondition or a node in
    the graph. One file is often two names — a package's own suite loads `src`,
@@ -834,16 +835,15 @@ payload  id 4 | flags 4 | blocks 4 | dictionary 4 | source digest 16 |
 ```
 
 The id is `0xffffffff`, which marks the module as named by its path, and a
-reader skips a frame holding anything else. The path is the first string of
-the dictionary, at a fixed offset from the start of the payload, so a reader places
+reader skips a frame holding anything else. The path is the first string of the
+dictionary, at a fixed offset from the start of the payload, so a reader places
 a frame without decoding it: a scan for one module reads four bytes and, at
-most, one string. The rest of the strings a
-record uses — its block names, its block paths — are interned within the frame
-and referenced by index; everything after them is a run of fixed-width
-little-endian values at a computable offset, so a reader takes a slice where a
-parser would take a pass. A module the parser refused has no blocks and records that
-in its flags, which is what makes a consumer widen instead of trusting an empty
-table.
+most, one string. The rest of the strings a record uses — its block names, its
+block paths — are interned within the frame and referenced by index; everything
+after them is a run of fixed-width little-endian values at a computable offset,
+so a reader takes a slice where a parser would take a pass. A module the parser
+refused has no blocks and records that in its flags, which is what makes a
+consumer widen instead of trusting an empty table.
 
 A frame contains everything it needs, which is what lets a writer append and
 return. A reader stops at the first frame that runs past the end of the file,
@@ -902,15 +902,14 @@ covered under that id. [`journeys.md`](journeys.md) is their page. The type
 }
 ```
 
-`head` is the label the service's build instrumented under, so the driver
-uses it to find which store the ordinals index. `scope` is `journey` for crossings
-made inside a request that carried a journey cookie and `process` for
-everything the process did outside any journey, its own initialization for
-instance, which the driver folds into every subject. `lost` counts the
-earlier accounts this head could not deliver, and a positive count marks the
-run incomplete. The account names neither the journey nor the subject: the id
-travels on
-the wire, and only the driver owns the map from journey to subject.
+`head` is the label the service's build instrumented under, so the driver uses
+it to find which store the ordinals index. `scope` is `journey` for crossings
+made inside a request that carried a journey cookie and `process` for everything
+the process did outside any journey, its own initialization for instance, which
+the driver folds into every subject. `lost` counts the earlier accounts this
+head could not deliver, and a positive count marks the run incomplete. The
+account names neither the journey nor the subject: the id travels on the wire,
+and only the driver owns the map from journey to subject.
 
 **The wire.** One execution is one opaque UUID minted by the driver, carried
 in the cookie `variance-authority-journey`, and the address a head delivers
@@ -1025,13 +1024,13 @@ file costs you one full run and never a narrowed one.
 A file that holds case sections and no coverage section opens as a record
 without coverage, `RecordWithoutCoverage`, and not as a record of tests that
 reach nothing. Selection narrows nothing over it: `variance select` skips
-nothing and prints that the record holds no coverage, and `variance run --since` runs
-every test file. A run writes one when it keeps its cases and instruments no
-module. It travels like any record: `variance share` publishes it under the commit its
-cases were recorded at, and a worktree fetches it from the mainline and lays it
-under its first run, still narrowing nothing. A file that holds some of the
-coverage sections and not the others is refused as broken. `withoutCoverage`
-answers from the header alone.
+nothing and prints that the record holds no coverage, and `variance run --since`
+runs every test file. A run writes one when it keeps its cases and instruments
+no module. It travels like any record: `variance share` publishes it under the
+commit its cases were recorded at, and a worktree fetches it from the mainline
+and lays it under its first run, still narrowing nothing. A file that holds some
+of the coverage sections and not the others is refused as broken.
+`withoutCoverage` answers from the header alone.
 
 One older layout is read rather than refused: the one written before
 `tests.duration` existed, which the JVM agent still writes. It opens with every

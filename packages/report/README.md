@@ -164,20 +164,21 @@ one subject: `unchanged`, `changed`, `new`, `incomparable` or `ignored`. Its
 count that explain it.
 
 `notObserved` lists subjects the run planned and has no answer for, each
-`excluded`, `failed` or `unreached`. **Absent is not empty**: a report written by
-something other than `variance run` may have no record of what it skipped, and that
-is a different fact from "it skipped nothing". Read it before you print "nothing to
-review" — a run that planned 300 subjects, failed on 50 and found 250 unchanged
-has an all-clean observation list.
+`excluded`, `failed` or `unreached`. **Absent is not empty**: a report written
+by something other than `variance run` may have no record of what it skipped,
+and that is a different fact from "it skipped nothing". Read it before you print
+"nothing to review" — a run that planned 300 subjects, failed on 50 and found
+250 unchanged has an all-clean observation list.
 
 Three further fields are present only when the run had something to put in them:
 
-- `narrowing` — the ref the run was configured to observe from (`--since`), and where
-  the recorded execution index stands: the commit it was written at, and how many
-  files the working tree differs from it by. A run that observed everything
-  includes the second half alone, which is what makes the option visible to a
-  reader who never passed one. Absent `index` means there is nothing to diff
-  from; it never means the index is current, which is `changed: 0`.
+- `narrowing` — the ref the run was configured to observe from (`--since`), and
+  where the recorded execution index stands: the commit it was written at, and
+  how many files the working tree differs from it by. A run that observed
+  everything includes the second half alone, which is what makes the option
+  visible to a reader who never passed one. Absent `index` means there is
+  nothing to diff from; it never means the index is current, which is `changed:
+  0`.
 - `drift` — design tokens whose value changed in this run, each with what it
   changed from, what it changed to, and how many approved steps it took to get
   there. This is what a single comparison structurally cannot show: eleven
@@ -292,8 +293,8 @@ viewport` instead of reporting `delivered` about something nothing looked at.
 
 A baseline update lands in a run of its own, and the artifact that lands records
 *what* the new baseline is and nothing about what the change was. A month later,
-at the twelfth 2px approval, the report that could have recorded it left with the
-CI job.
+at the twelfth 2px approval, the report that could have recorded it left with
+the CI job.
 
 `changelogOf` folds a report and the subjects actually accepted into one record,
 and `renderCommitMessage` puts it where the baseline is — in the commit message,
@@ -380,10 +381,10 @@ would read as "nothing changed" — when nothing was accepted, or when the repor
 names no run id to attribute the baseline to. `isRecorded` narrows between the
 two.
 
-The record omits a changed-pixel count (the regions already show where the change
-was), rendered prose, and any derived total. `changelogVersion` changes only when
-an existing field's meaning changes; a reader keeps keys it does not recognise,
-so a new field does not need one.
+The record omits a changed-pixel count (the regions already show where the
+change was), rendered prose, and any derived total. `changelogVersion` changes
+only when an existing field's meaning changes; a reader keeps keys it does not
+recognise, so a new field does not need one.
 
 Reading it back where baselines are commits is `@variance-authority/store`'s
 `readChangelog`; where they are rows it is `@variance-authority/tribunal`'s.

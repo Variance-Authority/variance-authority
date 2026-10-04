@@ -296,9 +296,9 @@ resolves to nothing is the one that starts resolving when a file appears. This i
 the mechanism the first trap disables: with no readable alias patterns there are
 no witnesses, and the whole path set becomes one.
 
-**Lookup.** O(s) map reads through the layers and one digest comparison. The scan
-checks the record cache before it checks the parse cache, so an unchanged file under
-an unchanged shape costs one lookup and no parse.
+**Lookup.** O(s) map reads through the layers and one digest comparison. The
+scan checks the record cache before it checks the parse cache, so an unchanged
+file under an unchanged shape costs one lookup and no parse.
 
 **Insert.** One map write, when a shape was adopted and the record has a
 digest. A record whose file could not be hashed is not stored: it names no bytes,

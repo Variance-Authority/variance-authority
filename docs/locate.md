@@ -66,8 +66,8 @@ answer lists the fields it read and the fields it did not:
   once the run ends. When its collector also reads the markup, the run writes
   the same words as any other run.
 
-On either one the answer prints that it indexed subject ids and nothing else, so a
-miss is not a miss on names, text or components — none of those was searched.
+On either one the answer prints that it indexed subject ids and nothing else, so
+a miss is not a miss on names, text or components — none of those was searched.
 
 **A suite built on something other than React** is searched on everything but
 the component words. Its markup gives accessible names, visible text and roles.
@@ -176,9 +176,9 @@ alike](#three-answers-that-look-alike).
 
 A question costs one call and prints what it searched, so working down the rows
 is how you find which vocabulary this suite is written in, and the row that hits
-shows which vocabulary to use for everything after it. When a term matches nothing, the
-answer names it as unmatched and prints beside it the accessible names the run
-did record. Build the next query out of those.
+shows which vocabulary to use for everything after it. When a term matches
+nothing, the answer names it as unmatched and prints beside it the accessible
+names the run did record. Build the next query out of those.
 
 ## Say where to look
 
@@ -255,9 +255,9 @@ in the scope because a file in the scope was seen producing it, so naming the
 button hands you every subject the run recorded it in.
 
 The walk runs to any depth; nothing is cut off to save time. Where the scan
-could not read some file's own imports, the answer prints a count of those files:
-what lies behind them is not enumerated, so the scope is not a proof about
-what it left out.
+could not read some file's own imports, the answer prints a count of those
+files: what lies behind them is not enumerated, so the scope is not a proof
+about what it left out.
 
 ### Say `--to` for the other way
 
@@ -273,8 +273,8 @@ npx variance ask locate --query "settings page" --to "components/user-select.tsx
 A file is in that scope when it *reaches* what you named, at any depth — the
 page that imports the panel that imports the select. The path is read by the
 same rules and the three widths mean the same things; only the direction
-changes, and the header prints which direction it took: *reachable from* for one,
-*reaching* for the other.
+changes, and the header prints which direction it took: *reachable from* for
+one, *reaching* for the other.
 
 Say both and you have named two places, not one crossing. Each is answered in
 its own direction and the two are taken together, for the reason two `--from`
@@ -383,10 +383,11 @@ all.
 
 Three things in that answer are worth reading before you act on it:
 
-- **`matched on place`.** You said `warning`; the screen says `role=status` and a
-  sentence about a contract. Nothing maps one onto the other, so the answer
-  shows what is actually in the relation and prints that it matched on where it is, not
-  on what it is called. When your word *is* on the screen it prints that instead.
+- **`matched on place`.** You said `warning`; the screen says `role=status` and
+  a sentence about a contract. Nothing maps one onto the other, so the answer
+  shows what is actually in the relation and prints that it matched on where it
+  is, not on what it is called. When your word *is* on the screen it prints that
+  instead.
 - **`also beneath`.** Everything else standing in the same relation, nearest
   first. The one you meant is sometimes the second.
 - **`4px away`.** Measured between the rectangles the run resolved. Absent when
@@ -438,7 +439,8 @@ the id already filled in.
 
 A run that read no markup — a raster-only capture, or an ephemeral run whose
 collector gave only images — writes no words for search, and `locate` still
-answers on it: on subject ids alone, saying no other field was searched. `composition` is absent on those runs and the answer prints that, rather
-than an empty graph. A suite that is not React has markup and no
-boundaries: `locate` searches its names, text and roles, and `composition` prints
-that its subjects name no component.
+answers on it: on subject ids alone, saying no other field was searched.
+`composition` is absent on those runs and the answer prints that, rather than an
+empty graph. A suite that is not React has markup and no boundaries: `locate`
+searches its names, text and roles, and `composition` prints that its subjects
+name no component.

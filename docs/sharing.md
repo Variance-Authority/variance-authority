@@ -349,8 +349,8 @@ wrote suite-index-v1, report-v1, subject-costs-v1 to mainline main in refs/varia
 ```
 
 The store is named as `<namespace> on <remote>` for a `git` share, `the
-directory <root>`, or `the endpoint <url>`. For a publish the store did not take, the CLI
-prints why, with the same reasons a lookup gives:
+directory <root>`, or `the endpoint <url>`. For a publish the store did not
+take, the CLI prints why, with the same reasons a lookup gives:
 
 ```text
 nothing published to branch feat/cart in the endpoint https://variance.example.com/share: https://variance.example.com/share/branch/feat/cart/manifest.json: HTTP 403.
@@ -364,11 +364,11 @@ left out 2 image(s) the report names and this machine could not read, the first 
 ```
 
 The same publish gives the line `subject-costs-v1`: what each subject took to
-collect, under the same commit. `npx variance run --shard k/n` reads it back from
-the mainline to split the suite evenly, and a run with `workers` reads it to take
-the slowest files first. `npx variance ask costs` reads the same line to show you,
-or an agent, which files and subjects the suite spends its time on; see
-[the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
+collect, under the same commit. `npx variance run --shard k/n` reads it back
+from the mainline to split the suite evenly, and a run with `workers` reads it
+to take the slowest files first. `npx variance ask costs` reads the same line to
+show you, or an agent, which files and subjects the suite spends its time on;
+see [the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
 
 ### A sharded build
 
@@ -448,8 +448,8 @@ so the next command reads it from disk.
 A distance *past* the merge base means your mainline has changed since you
 branched: update your branch to measure against it.
 
-**A lookup that finds nothing prints why**, as `mainline <name>: <why>.`, because
-each reason needs a different action:
+**A lookup that finds nothing prints why**, as `mainline <name>: <why>.`,
+because each reason needs a different action:
 
 | The message says | What to do |
 | --- | --- |
@@ -579,8 +579,8 @@ Records are read in this order:
 2. **The mainline's record.** It is kept at
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
    run writes, so it is never read as your checkout's own. One fetch is reused
-   for 10 minutes, and so is the result that the line has none for you, with
-   the time of that result. After that, when the remote does not answer, the record
+   for 10 minutes, and so is the result that the line has none for you, with the
+   time of that result. After that, when the remote does not answer, the record
    fetched earlier is read, and the answer prints when it was fetched and why it
    was not fetched again.
 3. **In a worktree, the primary checkout's record**, only when no mainline
@@ -900,9 +900,10 @@ jobs:
 - **A pull request from a fork and a merge-queue run publish nothing**, and the
   step prints that and exits 0.
 - **`suite-v1/stories` is published only when an earlier step ran the `stories`
-  suite** under its [runner integration](execution-record.md#one-record-for-each-suite),
-  and only to a branch line. This step cannot determine which test files the runner
-  collects, so a push to a mainline leaves the suite out and prints that you need to pass
+  suite** under its [runner
+  integration](execution-record.md#one-record-for-each-suite), and only to a
+  branch line. This step cannot determine which test files the runner collects,
+  so a push to a mainline leaves the suite out and prints that you need to pass
   `--collected`, which [`share --suite`](#a-suite-with-no-run-report) takes.
 - **Jobs that run different suites on one line** each keep their own
   `suite-v1/<name>`, while `report-v1` and `suite-index-v1` are one per line,
@@ -1066,8 +1067,8 @@ credentials stay out of it. For Google Cloud Storage, the two steps are
 - **On a runner that starts empty, every sync downloads everything under the
   prefix**, which grows with every branch: nothing deletes, and a bucket
   lifecycle rule is the collector.
-- **A mainline publish queries git about descent**, so the job needs fetch access
-  to `share.remote`, which git gets as it does [for a `git`
+- **A mainline publish queries git about descent**, so the job needs fetch
+  access to `share.remote`, which git gets as it does [for a `git`
   share](#the-repositorys-own-refs). Without it, the publish prints *replaced …
   git could not answer*.
 

@@ -1,11 +1,11 @@
 # Which input changed, not just which pixels
 
-A diff shows that a `<div>` rendered a `<p>` on one side and a `<span>` on the other.
-That is a symptom, and acting on it means opening the component, guessing which
-branch ran, and guessing why. `partingOf` takes those two readings and names
-the input that sent them apart — a prop, a context value, an external store, or
-a hook cell — along with the component that changed it. Read on when you have a
-difference in hand and want its cause rather than its coordinates.
+A diff shows that a `<div>` rendered a `<p>` on one side and a `<span>` on the
+other. That is a symptom, and acting on it means opening the component, guessing
+which branch ran, and guessing why. `partingOf` takes those two readings and
+names the input that sent them apart — a prop, a context value, an external
+store, or a hook cell — along with the component that changed it. Read on when
+you have a difference in hand and want its cause rather than its coordinates.
 
 It returns a **parting** — the account of where the two readings diverged and
 which input sent them there:
@@ -206,8 +206,8 @@ properties it did not name.
 ## One fork, not its fallout
 
 A state cell at the top of a grid reaches every cell in it. Enumerating the
-result is a page of lines that all report the same thing, so above a small fan-out
-the fork is reported and the spread is counted:
+result is a page of lines that all report the same thing, so above a small
+fan-out the fork is reported and the spread is counted:
 
 ```text
 variation — an input changed and the page followed
@@ -246,17 +246,18 @@ identity — a re-created inline closure is not reported as changed.
 it can never turn a run red on its own. It is present alongside the snapshot and
 is read only to explain a difference the comparison already found.
 
-The cell list is sparse, and records that it is. A hook that retains nothing a later reading
-could disagree about contributes no cell, and each cell names the position a
-person arrives at by counting hook calls down the component — not an index into
-React's cell chain, where `useContext` builds none and `useTransition` builds
-two. Converting between those two numberings needs the cell count of every hook
-by name. Meeting a hook name it has no count for — a hook a later React release
-adds, for instance — the reader stops there and records the name that stopped
-it, so the cells you get are a prefix that records where it ends rather than a full
-list mislabelled from that point on. `holdingOf`, which owns that table, is
-documented in the
-[`@variance-authority/react` reference](https://variance-authority.dev/reference/packages/react).
+The cell list is sparse, and records that it is. A hook that retains nothing a
+later reading could disagree about contributes no cell, and each cell names the
+position a person arrives at by counting hook calls down the component — not an
+index into React's cell chain, where `useContext` builds none and
+`useTransition` builds two. Converting between those two numberings needs the
+cell count of every hook by name. Meeting a hook name it has no count for — a
+hook a later React release adds, for instance — the reader stops there and
+records the name that stopped it, so the cells you get are a prefix that records
+where it ends rather than a full list mislabelled from that point on.
+`holdingOf`, which owns that table, is documented in the
+[`@variance-authority/react`
+reference](https://variance-authority.dev/reference/packages/react).
 
 ---
 
@@ -266,8 +267,8 @@ documented in the
   position, not a `file:line`. Naming the fork is the job. A tool that then reads
   the component to work out which state that is starts from that position.
 - **It gives no verdict.** A **verdict** is the pass-or-fail a run reports:
-  `compare` reports what changed and `judge` decides whether anyone should mind. A
-  parting is an explanation and joins neither. It also accepts two readings of
+  `compare` reports what changed and `judge` decides whether anyone should mind.
+  A parting is an explanation and joins neither. It also accepts two readings of
   two different subjects, because two variants of an experiment are two subjects
   on purpose — mark that by passing `'elsewhere'` as its third argument, and it
   will not call the difference a flake.

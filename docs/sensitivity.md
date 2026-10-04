@@ -9,9 +9,9 @@ test can assert on different things without either one going quiet.
 A **subject** is one named UI state you asked for and can ask for again,
 identified by a stable id like `story:checkout--empty` — a story, a route (a
 page rendered at a URL), a fixture, or a value such as a JSON body. A component
-test treats a colour-token change as the change under review. A route test checks
-whether the page still assembles: the navigation stays in place, the sidebar
-does not collapse, and the regions do not overlap.
+test treats a colour-token change as the change under review. A route test
+checks whether the page still assembles: the navigation stays in place, the
+sidebar does not collapse, and the regions do not overlap.
 
 A **sensitivity** declares which bands a subject asserts on. A band is the kind
 of change a comparison found, not its size. There are five, loudest first:
@@ -127,10 +127,10 @@ per-component hashes the baseline stores, split by band:
 
 The run reads the baseline and candidate **sidecars** — the small JSON record
 written beside each image, containing the per-component hashes and none of the
-pixels — to find which bands disagree. It absorbs the subject only when every differing
-band falls outside the subject's declared sensitivity. Both routes resolve a
-level to the same set of bands, so what a level absorbs does not depend on which
-evidence a run had.
+pixels — to find which bands disagree. It absorbs the subject only when every
+differing band falls outside the subject's declared sensitivity. Both routes
+resolve a level to the same set of bands, so what a level absorbs does not
+depend on which evidence a run had.
 
 A relaxed subject is also cheaper. Isolation is the stage that turns a raw
 pixel diff into something a reviewer can read: it clusters the changed pixels

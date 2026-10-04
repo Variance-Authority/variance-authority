@@ -28,10 +28,10 @@ answers available, and both are wrong:
 - **It selects nothing.** The walk finds no path from the notes service to any
   test, so no test runs, the change merges, and the one case that would have
   failed never ran. That is an escape.
-- **It selects everything.** A selector that cannot see the crossing, and is set up
-  to assume it, treats every backend change as touching every test. That is safe and never
-  narrows. Every change to a handler runs the whole end-to-end suite, for as
-  long as the suite exists.
+- **It selects everything.** A selector that cannot see the crossing, and is set
+  up to assume it, treats every backend change as touching every test. That is
+  safe and never narrows. Every change to a handler runs the whole end-to-end
+  suite, for as long as the suite exists.
 
 This is measured. The JVM agent's tests drive a small Java shop through
 browser specs, seed six backend changes, and score two selectors against the
@@ -41,7 +41,8 @@ changes, because no spec imports the service. The
 [execution record](execution-record.md) selects 9 of 18 spec runs and misses none of the failures. [Java tests](jvm.md) has the setup.
 
 What the graph lacks is not a better parser. It lacks the fact that *this*
-case's request reached *that* branch, and only the running system can observe that.
+case's request reached *that* branch, and only the running system can observe
+that.
 
 ## What crosses the fence
 
@@ -76,11 +77,11 @@ const response = await fetch(`${gateway}/notes/42`, {
 ```
 
 `journeyCookie()` returns `variance-authority-journey=<id>`. The first call in a
-case mints its id, and every later call in the same case returns the same id. `caseJourney()` from the same module returns the bare id if you carry it
-some other way. Outside a case, both return nothing. A browser spec needs no
-call of its own, because the driver sets the same cookie on the browser context
-before the first navigation and the browser sends it on every same-origin
-request.
+case mints its id, and every later call in the same case returns the same id.
+`caseJourney()` from the same module returns the bare id if you carry it some
+other way. Outside a case, both return nothing. A browser spec needs no call of
+its own, because the driver sets the same cookie on the browser context before
+the first navigation and the browser sends it on every same-origin request.
 
 **If your application runs Sentry or OpenTelemetry, the journey is the trace
 id.** Those SDKs already forward a trace across every hop your system makes,
@@ -196,10 +197,11 @@ address. You declare the service as a head in `playwright.config.ts`
 (`varianceExecution: { heads: ['api'] }`), start it with
 `VARIANCE_AUTHORITY_JOURNEYS` and `VARIANCE_AUTHORITY_HEAD` in its environment,
 and wrap your request handling in `collectJourneys().enter(cookie, run)` from
-`@variance-authority/sense/journey`. With neither variable set, `collectJourneys`
-installs nothing and `enter` runs the handler directly, so the call can stay in
-the build you ship. [Declaring a head](observability.md#declaring-a-head) has
-the setup, and [follow one execution into a
+`@variance-authority/sense/journey`. With neither variable set,
+`collectJourneys` installs nothing and `enter` runs the handler directly, so the
+call can stay in the build you ship. [Declaring a
+head](observability.md#declaring-a-head) has the setup, and [follow one
+execution into a
 service](../packages/sense/README.md#follow-one-execution-into-a-service) covers
 a driver that is not Playwright.
 

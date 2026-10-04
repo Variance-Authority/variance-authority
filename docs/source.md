@@ -312,8 +312,8 @@ project as changed input:
 
 That widens by whole package rather than by file, and it is the only one that
 leaves the package and the aliases as they are.
-[`selecting.md`](selecting.md#what-nx-and-turbo-compute-that-a-scan-cannot) owns how
-those seeds affect a run.
+[`selecting.md`](selecting.md#what-nx-and-turbo-compute-that-a-scan-cannot) owns
+how those seeds affect a run.
 
 ## File records
 
@@ -441,11 +441,11 @@ files itself.
 
 ### Parse reuse
 
-A parse is keyed by content digest plus the parse settings the filename selects for those
-bytes: its extensions select a source dialect or stylesheet reader, and names
-such as `.test.ts` change whether declarations count as components. Resolution
-is absent from this key. Two files with the same key contain the
-same requests, bindings, exports and declarations wherever they sit.
+A parse is keyed by content digest plus the parse settings the filename selects
+for those bytes: its extensions select a source dialect or stylesheet reader,
+and names such as `.test.ts` change whether declarations count as components.
+Resolution is absent from this key. Two files with the same key contain the same
+requests, bindings, exports and declarations wherever they sit.
 
 ### Record reuse
 

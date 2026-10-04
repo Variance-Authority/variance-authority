@@ -54,8 +54,8 @@ export function arrangedText(taken: SnapshotCase): string {
   const where = `taken in ${taken.file} > ${taken.name}`;
   const said = taken.preconditions;
   if (said === undefined) {
-    return `${where}, preconditions unmeasured: varianceExecution is off, so nothing listened for variancePrecondition`;
+    return `${where}, preconditions unmeasured: varianceExecution is off, so no variancePrecondition call was recorded`;
   }
-  if (said.length === 0) return `${where}, nothing arranged`;
-  return `${where}, arranged ${preconditionText(said)}`;
+  if (said.length === 0) return `${where}, no preconditions recorded`;
+  return `${where}, ran under ${preconditionText(said)}`;
 }

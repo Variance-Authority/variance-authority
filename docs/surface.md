@@ -133,8 +133,8 @@ Storybook subject ids begin with `story:`, so a story whose Storybook id is
 `checkout--empty` is accepted as `story:checkout--empty`.
 
 `source.dirs` is what resolves a component to the file it is declared in. A
-built Storybook ships bundled code: the browser can report which component drew an
-element, not which file it is written in, so the collector scans your tree
+built Storybook ships bundled code: the browser can report which component drew
+an element, not which file it is written in, so the collector scans your tree
 instead.
 
 #### Keep component names in the Storybook build

@@ -83,8 +83,8 @@ Button
   obvious author. It names what explains a movement, and separates `flake`
   (read twice, differed) from `suspect` (never read twice).
 - **`locate --query <words>` — when you can describe the subject but do not have
-  its id.** See [locate](locate.md). `composition --subject <id>` then lists what
-  that subject is made of.
+  its id.** See [locate](locate.md). `composition --subject <id>` then lists
+  what that subject is made of.
 - **`describe`, `explain-verdict`, `trace-component`, `findings` — once you know
   which subject or component matters.** Ask them one at a time. Ask
   `explain-verdict` when a subject was not compared at all: it separates

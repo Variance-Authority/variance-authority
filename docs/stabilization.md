@@ -80,11 +80,11 @@ first: `a11y` (a role, accessible name or ARIA state changed), `geometry`
 while structure stayed the same), `content` (text changed and nothing else did),
 `texture` (sub-pixel raster noise).
 
-That is a false alarm wearing a name badge. A plain pixel differ would have printed
-*1530 pixels moved* and you would have shrugged and hit re-run; this names
-a component and a file, and you go looking for the edit. **[Attribution](attribution.md) makes
-a false alarm credible**, which is why this project can afford flakiness less
-than a pixel differ can.
+That is still a false alarm, and a more convincing one. A plain pixel differ
+would have printed *1530 pixels moved*, and you would have re-run the job; this
+names a component and a file, and you go looking for the edit.
+**[Attribution](attribution.md) makes a false alarm credible**, which is why
+this project can afford flakiness less than a pixel differ can.
 
 It happens because the computed-style allowlist admits `transform`, `opacity`,
 `filter`, `color` and every geometric longhand — and an animation in flight
@@ -230,8 +230,8 @@ The recipe digest is a **render input** itself, in the semantic key as well as
 the full one. So:
 
 - A baseline collected untouched and a run collected held still are **two
-  baselines**. They are never compared, and the run reports `incomparable` rather
-  than inventing a component to blame.
+  baselines**. They are never compared, and the run reports `incomparable`
+  rather than inventing a component to blame.
 - Turning a trick off, adding one, or retuning one is a re-baseline the run
   prints, on the run it happens, instead of a mass diff you have to work out.
 - `undefined` means *observed untouched*, and is absent from the key, not
@@ -267,9 +267,9 @@ Use it when your suite's own determinism story is already better than this
 one's — it freezes its clock, its data and its animations — and a second
 `!important` stylesheet would be damage buying nothing.
 
-Naming a trick that does not exist **throws, and names the tricks that exist**. A
-typo is refused rather than skipped, so you never end up with a suite one trick
-less stable than you believe it is.
+Naming a trick that does not exist **throws, and names the tricks that exist**.
+A typo is refused rather than skipped, so you never end up with a suite one
+trick less stable than you believe it is.
 
 ---
 
@@ -356,21 +356,22 @@ spinning.
 
 Doing it on the wire removes the problem instead of handling it. The bytes have
 not been decoded yet, so there is nothing to seek back and no second decode to
-pay for; cross-origin stops mattering, because the fulfilment is ours and nothing
-requires the page to read anything; and the result is **the original bytes minus some
-of them** — a GIF truncated to its first image block plus a trailer, which is a
-valid single-frame GIF. The palette, the transparency, the dimensions and the
-compression are exactly what the author shipped, where a canvas round-trip
-re-encodes through RGBA into a different image from the one under test.
+pay for; cross-origin stops mattering, because the fulfilment is ours and
+nothing requires the page to read anything; and the result is **the original
+bytes minus some of them** — a GIF truncated to its first image block plus a
+trailer, which is a valid single-frame GIF. The palette, the transparency, the
+dimensions and the compression are exactly what the author shipped, where a
+canvas round-trip re-encodes through RGBA into a different image from the one
+under test.
 
 No decoder, no encoder, no dependency. What it will not do is guess: bytes that
 are not a GIF, a GIF that already has one frame, and a file whose blocks it
 could not parse are all passed through untouched, because a truncation taken from
 a position the parse cannot vouch for is a corrupt asset served to a browser.
 
-It also **records what it froze** — `network.frozen` is the list of URLs — because a
-stabilizer that rewrites an asset silently can change the picture a reviewer is
-looking at with no record that it did.
+It also **records what it froze** — `network.frozen` is the list of URLs —
+because a stabilizer that rewrites an asset silently can change the picture a
+reviewer is looking at with no record that it did.
 
 ### Some images can be served as nothing
 
@@ -427,16 +428,16 @@ that recorded only the rule id would settle every subject it appears on against 
 page whose columns have shifted — a false `unchanged`, which is the one failure
 this whole layer exists to prevent.
 
-It records what it removed. `network.blanked` lists the URL, the rule, and the size
-for every substitution, so an operator who blanked more than they meant to can
-read it back per subject without re-running with the feature off.
+It records what it removed. `network.blanked` lists the URL, the rule, and the
+size for every substitution, so an operator who blanked more than they meant to
+can read it back per subject without re-running with the feature off.
 
 ### …and the half the wire cannot decide
 
-A request does not identify the element that triggered it. `role="presentation"`,
-`alt=""`, a selector, a rendered box — none of those exists on the wire, and no
-amount of care there will produce them. That is a fact about a document, so the
-trick that uses it is a stylesheet:
+A request does not identify the element that triggered it.
+`role="presentation"`, `alt=""`, a selector, a rendered box — none of those
+exists on the wire, and no amount of care there will produce them. That is a
+fact about a document, so the trick that uses it is a stylesheet:
 
 ```js
 // variance/routes.mjs
@@ -504,22 +505,23 @@ rather than a run that had nothing.
 
 ### Which assets belong to which subject
 
-Wired into both collectors, and narrowed per subject on the way in.
-**The wire covers a whole page; the result a run reports is about one subject.** Nothing
-in a request identifies which story will end up using it, so a Storybook run —
-one navigation, three hundred subjects — would give story 200 the page's whole
-asset set, which depends on which stories ran before it. That is not
+Wired into both collectors, and narrowed per subject on the way in. **The wire
+covers a whole page; the result a run reports is about one subject.** Nothing in
+a request identifies which story will end up using it, so a Storybook run — one
+navigation, three hundred subjects — would give story 200 the page's whole asset
+set, which depends on which stories ran before it. That is not
 over-invalidation, which would merely be noise. It is **order dependence in the
 identity a baseline is stored under**: shard the suite differently and every key
 in it changes.
 
-So the two halves are joined where each one has something the other does not. The
-driver sends its whole observation into the page; the page narrows it to the URLs
-*this subtree* references and puts only those in the key. `referencedAssets` reads
-`src`, every `srcset` candidate, SVG `use`/`image` hrefs, `poster`, `object[data]`
-— and the computed `background-image`, `mask-image`, `content` and `cursor` of
-every element and its `::before`/`::after`, because a background image is named by
-no attribute at all.
+So the two halves are joined where each one has something the other does not.
+The driver sends its whole observation into the page; the page narrows it to the
+URLs *this subtree* references and puts only those in the key.
+`referencedAssets` reads `src`, every `srcset` candidate, SVG `use`/`image`
+hrefs, `poster`, `object[data]` — and the computed `background-image`,
+`mask-image`, `content` and `cursor` of every element and its
+`::before`/`::after`, because a background image is named by no attribute at
+all.
 
 Every candidate rather than the one this device would pick, deliberately: which
 `srcset` entry loads depends on the device pixel ratio, and a key listing only the

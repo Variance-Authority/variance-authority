@@ -207,8 +207,9 @@ so its rules carry over. Two differences follow from what runs where:
   rule computed in JavaScript is not supported; write a glob.
 
 `restrictions` exits 1 when an import breaks a rule, and 0 otherwise. Without a
-`.relations.json` it prints that and exits 0. A fence that cannot fail is a comment,
-so the exit code is the gate; leave the command out of CI if you do not want one.
+`.relations.json` it prints that and exits 0. A fence that cannot fail is a
+comment, so the exit code is the gate; leave the command out of CI if you do not
+want one.
 
 ### A family of packages named alike
 
@@ -329,11 +330,11 @@ from 5 to 6 without an edit, and `variance restrictions` reports it above its
 ceiling. `variance layers` shows the same edit in the pull request that made
 it, with `ledger` as the cause and `payments` as carried.
 
-`variance restrictions` lists each package above its ceiling with its layer,
-the ceiling and the file that states it, and exits 1, like a restricted
-import. The layer is the same repository-wide number `variance layers` prints,
-not one counted inside the folder. A ceiling is checked against the source
-index's package layers; if the index holds none, the command prints that instead of
+`variance restrictions` lists each package above its ceiling with its layer, the
+ceiling and the file that states it, and exits 1, like a restricted import. The
+layer is the same repository-wide number `variance layers` prints, not one
+counted inside the folder. A ceiling is checked against the source index's
+package layers; if the index holds none, the command prints that instead of
 passing. The ceiling is a number you chose, so pick it after reading the layers
 you have: a cap below where the repository already sits fails on the first run.
 
@@ -370,10 +371,10 @@ budget and the file that states it, and exits 1:
 
 A package whose known lines fit, while part of what it pulls in could not be
 sized, is printed as undecided and does not fail the command. The rule cannot
-decide that it broke, and `variance layers` counts the unsized files behind it. Like a
-layer ceiling, a budget follows the package: a dependency that grows can put a
-package over its budget without an edit to it, and `variance layers --against`
-names the dependency that did.
+decide that it broke, and `variance layers` counts the unsized files behind it.
+Like a layer ceiling, a budget follows the package: a dependency that grows can
+put a package over its budget without an edit to it, and `variance layers
+--against` names the dependency that did.
 
 ### A role a doc declares
 
@@ -439,8 +440,8 @@ tags in `tsdoc.json`:
 
 A listed role makes `variance restrictions` exit 1, like a broken rule. The
 check reads which files are shipped from the code map that `variance index`
-writes; when that map is older than the source index, the command prints that and
-exits 2 instead of guessing.
+writes; when that map is older than the source index, the command prints that
+and exits 2 instead of guessing.
 
 ## What the numbers do not show
 
@@ -453,10 +454,10 @@ exits 2 instead of guessing.
 - **Only package imports count.** An import of an installed third-party package
   is not a layer, adds no lines to a tier, and `restrictions` does not check it.
 - **Lines are not bytes.** A tier counts the source lines a package pulls in,
-  not what a bundler ships after tree-shaking and minifying. It measures how much
-  code a package makes you own, not how much a user downloads.
-- **The comment names packages, not files.** It names the package that took a new
-  dependency, not which file wrote the import.
+  not what a bundler ships after tree-shaking and minifying. It measures how
+  much code a package makes you own, not how much a user downloads.
+- **The comment names packages, not files.** It names the package that took a
+  new dependency, not which file wrote the import.
 - **No measured effect is claimed.** The argument is structural:
   dependency depth is a consequence you can see, and dependency direction is
   something you can reason from. Nothing here says fewer layers build faster.

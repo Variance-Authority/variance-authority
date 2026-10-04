@@ -56,25 +56,25 @@ toolByName('variance_locate')?.run(report, { query: 'footer chips' });
 ```
 
 **Absent on a run that read no markup: a raster-only capture, or a run whose
-collector gave only images.** An image with no markup behind it has no
-component boundaries to derive. Retention does not decide this: a run under
-`"retention": "ephemeral"` whose collector reads the markup composes like any
-other run. Absent is not empty: the tool returns a sentence stating that the report has no composition,
-because an empty graph printed there would read as *this suite shares nothing*,
-which is a different claim and a false one.
+collector gave only images.** An image with no markup behind it has no component
+boundaries to derive. Retention does not decide this: a run under `"retention":
+"ephemeral"` whose collector reads the markup composes like any other run.
+Absent is not empty: the tool returns a sentence stating that the report has no
+composition, because an empty graph printed there would read as *this suite
+shares nothing*, which is a different claim and a false one.
 
 **Absent from a merged report** — `variance report shard-1.json shard-2.json …`
-— and the merge prints that in a warning rather than leaving a hole. Two subjects
-sharing a rendering *are* the finding, so a pair that landed in different shards
-is in neither shard's report and a union of the shard graphs would be a graph
-with every cross-shard edge missing and nothing marking where. The structure
-rows go with it. The [lexicon](lexicon.md) does not: a subject's names are a fact about one
-subject, and one subject is in one shard, so the merged report includes every
-entry under the fields all the shards read. A slice run without a journal keeps
-`regions` out of the whole, and the tool prints that. The census is not lost to the
-build: each shard keeps its part beside its report, and
-[publishing every shard's report](sharing.md#a-sharded-build) composes the suite
-index one unsharded run would have written.
+— and the merge prints that in a warning rather than leaving a hole. Two
+subjects sharing a rendering *are* the finding, so a pair that landed in
+different shards is in neither shard's report and a union of the shard graphs
+would be a graph with every cross-shard edge missing and nothing marking where.
+The structure rows go with it. The [lexicon](lexicon.md) does not: a subject's
+names are a fact about one subject, and one subject is in one shard, so the
+merged report includes every entry under the fields all the shards read. A slice
+run without a journal keeps `regions` out of the whole, and the tool prints
+that. The census is not lost to the build: each shard keeps its part beside its
+report, and [publishing every shard's report](sharing.md#a-sharded-build)
+composes the suite index one unsharded run would have written.
 
 ## Where a boundary is placed
 
@@ -126,10 +126,10 @@ is the enclosure answer — coarser, never wrong in a new direction.
 
 ## What a boundary hashes
 
-Inside a boundary, a child boundary is a placeholder, not its content.
-Where the enclosing component placed the child, the placeholder names it; where
-the child arrived as `children` from somewhere else, the placeholder is an
-anonymous hole — the container's code does not name the child it received, so its hash must not
+Inside a boundary, a child boundary is a placeholder, not its content. Where the
+enclosing component placed the child, the placeholder names it; where the child
+arrived as `children` from somewhere else, the placeholder is an anonymous hole
+— the container's code does not name the child it received, so its hash must not
 depend on it.
 
 That containment is the property the whole page depends on, so it is measured
@@ -280,15 +280,16 @@ the whole page.
 
 A **divergence** is one props digest producing more than one rendering *at one
 commit*. It is not a regression. It shows that the component's own inputs do not
-determine its output, which is either a fact about the design — a token, a theme,
-an ancestor's cascade — or a reading that is not repeatable. The bands name which
-kind, in the same vocabulary a [sensitivity](sensitivity.md) absorbs, so a divergence entirely
-inside a relaxed band can be dismissed without opening it.
+determine its output, which is either a fact about the design — a token, a
+theme, an ancestor's cascade — or a reading that is not repeatable. The bands
+name which kind, in the same vocabulary a [sensitivity](sensitivity.md) absorbs,
+so a divergence entirely inside a relaxed band can be dismissed without opening
+it.
 
-The report also gives **why** for every rendering after the first. Each is lifted out of the page
-it was found in, re-rooted at the component, and read against the first for
-[where the two parted](parting.md) — so the report does not stop at *`Price`
-rendered two ways*, it says which input changed:
+The report also gives **why** for every rendering after the first. Each is
+lifted out of the page it was found in, re-rooted at the component, and read
+against the first for [where the two parted](parting.md) — so the report does
+not stop at *`Price` rendered two ways*, it says which input changed:
 
 ```text
 Price (token) — 2 rendering(s) from one props digest
@@ -336,9 +337,9 @@ the same difference left unexplained lands on the suspect shortlist, where a
 second reading settles it.
 
 Zero is a real and common answer, and it means nothing in the suite renders two
-ways from one input. `Card` keeps one props class and two renderings, which is the
-honest residue: the count shows that the pair exists and the refusals mark it as not
-evidence.
+ways from one input. `Card` keeps one props class and two renderings, which is
+the honest residue: the count shows that the pair exists and the refusals mark
+it as not evidence.
 
 ### The subtree that recurs, at every depth
 
@@ -508,13 +509,13 @@ report is committed, diffed and read back on another runner, and a locale-aware
 comparison makes the byte order a promise about `LANG`.
 
 What lands in the artifact is smaller than what produced it. The full graph has
-one entry per boundary per subject — tens of thousands of objects on a real suite
-— and a report is a file people open, so the record keeps the names, the counts
-and the subject lists, and a consumer that wants the graph recomputes it from the
-snapshots. The echo list is capped at 100 and what the cap left out is counted in
-the artifact, because a cap that is not reported reads as coverage. The structure
-rows and the lexicon join the artifact on the same terms — rows and names, never
-the graph — and on todomvc each is about a third of the report.
+one entry per boundary per subject — tens of thousands of objects on a real
+suite — and a report is a file people open, so the record keeps the names, the
+counts and the subject lists, and a consumer that wants the graph recomputes it
+from the snapshots. The echo list is capped at 100 and what the cap left out is
+counted in the artifact, because a cap that is not reported reads as coverage.
+The structure rows and the lexicon join the artifact on the same terms — rows
+and names, never the graph — and on todomvc each is about a third of the report.
 
 ## What this refuses to conclude
 

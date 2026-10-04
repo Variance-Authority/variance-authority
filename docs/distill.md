@@ -180,9 +180,9 @@ stack was when it covered them. The field shows a real number only from a
 producer that tracks call depth, so read `depth 0` as "not recorded here" rather
 than as "called directly".
 
-An opportunity is not permission to mock, replace, or delete the file.
-[Static reachability](source.md) describes what the test could load; execution
-records what it covered; attention records what it addressed. None records what the test
+An opportunity is not permission to mock, replace, or delete the file. [Static
+reachability](source.md) describes what the test could load; execution records
+what it covered; attention records what it addressed. None records what the test
 would still witness after a substitution.
 
 ## Imports nothing ever calls

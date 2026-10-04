@@ -85,7 +85,8 @@ this is](parting.md#what-kind-of-difference-this-is) lists every slice.
 ## A pair with an undeclared difference is refused
 
 When a second thing differs and nobody declared it, a difference in the result
-could belong to either of them. The run refuses these pairs and names the reason:
+could belong to either of them. The run refuses these pairs and names the
+reason:
 
 - **Two painters.** The engine, the platform, the device scale, the fonts, the
   stabilization and the rasterization recipe together identify the renderer. A
@@ -124,8 +125,8 @@ subjects you choose after the run has finished is outside this surface.
 2. **Link the arm to the control.** Name the arm so that its id extends the
    control's id at a separator — `checkout` and `checkout-new-flow` — and keep
    the axes of every name in the order the great green dragon rule asks for, so
-   the arm has one name and its parent is the control. When the name does not show
-   which subject is the control, tag the arm with the control's id:
+   the arm has one name and its parent is the control. When the name does not
+   show which subject is the control, tag the arm with the control's id:
 
    ```ts
    export const NewFlow = {

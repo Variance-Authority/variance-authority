@@ -28,9 +28,9 @@ Here:
   skips a story whose approved image records none of the components your diff
   touched — decided from what the last run actually rendered, not from a module
   graph. See [test selection](selecting.md).
-- **A difference can be distinguished from a flake.** [Parting](parting.md) reads two
-  renderings of one story and names the input that changed, or reports that every input
-  agreed and the output changed anyway.
+- **A difference can be distinguished from a flake.** [Parting](parting.md)
+  reads two renderings of one story and names the input that changed, or reports
+  that every input agreed and the output changed anyway.
 
 [Comparison](compare-visual-review.md) sets the four hosted products side by side.
 
@@ -63,10 +63,10 @@ export default storybookCollector({
 
 ### `source.dirs`
 
-A built Storybook ships bundled code. The browser can give the run the
-component that produced an element, but not which file that component is written in,
-so the collector scans your source tree instead and indexes where each component
-is declared.
+A built Storybook ships bundled code. The browser can give the run the component
+that produced an element, but not which file that component is written in, so
+the collector scans your source tree instead and indexes where each component is
+declared.
 
 The value is a list of directory paths — not globs — resolved against the
 directory you run `variance` from, or absolute. The scan reads `.tsx`, `.jsx`,
@@ -231,11 +231,11 @@ variance accept --config variance.config.json --all
 git add -- .variance/baselines
 ```
 
-Keep `--all` for that first run and for deliberate re-baselines. It cannot distinguish
-a story nobody has looked at from one that changed, so after setup name subject
-ids, or use `--shape <fingerprint>` to promote one category of difference
-wherever it accounts for the whole change and refuse by name any story where
-something else changed too.
+Keep `--all` for that first run and for deliberate re-baselines. It cannot
+distinguish a story nobody has looked at from one that changed, so after setup
+name subject ids, or use `--shape <fingerprint>` to promote one category of
+difference wherever it accounts for the whole change and refuse by name any
+story where something else changed too.
 
 ## Running this in CI
 

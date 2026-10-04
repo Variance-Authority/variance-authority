@@ -255,25 +255,26 @@ So every uncertainty resolves toward observing:
 | `--since` with no `source.dirs` | The run refuses, for the same reason |
 
 The last three produce an explicit warning or stop. A run that stays whole
-without printing that it did looks exactly like a selector that found nothing affected,
-although those facts require different next steps.
+without printing that it did looks exactly like a selector that found nothing
+affected, although those facts require different next steps.
 
 These rows read the baselines and the file graph. When the suite also keeps an
-[execution record](execution-record.md), the record reads the same diff next
-and removes every subject it recorded whole that the diff did not reach, the
+[execution record](execution-record.md), the record reads the same diff next and
+removes every subject it recorded whole that the diff did not reach, the
 subjects the two whole-suite rows kept included. It also keeps every subject it
 recorded entering the changed lines, including one whose baseline names none of
 the components the change reached, so the run prints the subjects it kept that
-way. A changed module it has no row for, such as a new file, is read as a
-module with a row is, with every export counted as changed: the subjects that
-entered a function reading one of them are selected. A path that reading cannot
-answer, such as a stylesheet, a module whose loading does something, or a text
-that does not parse, is answered by the measured files that import it, and one
-nothing measured imports keeps no subject in the run. A suite that declares
-[`"relations": false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
-does not consult the graph: a file its record did not measure keeps no subject in
-that suite's run, and the run names it declined. Two refusals stand over the record, because it
-never saw what they are about — a change to a file named in
+way. A changed module it has no row for, such as a new file, is read as a module
+with a row is, with every export counted as changed: the subjects that entered a
+function reading one of them are selected. A path that reading cannot answer,
+such as a stylesheet, a module whose loading does something, or a text that does
+not parse, is answered by the measured files that import it, and one nothing
+measured imports keeps no subject in the run. A suite that declares
+[`"relations":
+false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared) does
+not consult the graph: a file its record did not measure keeps no subject in
+that suite's run, and the run names it declined. Two refusals stand over the
+record, because it never saw what they are about — a change to a file named in
 [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.
 
@@ -401,13 +402,13 @@ reaches no component and does not force the whole suite, with a graph or
 without one, and the run names it in the sentence under its answer. A file that
 was added, deleted or does not parse is a change whatever the edit was.
 
-The graph takes the text as written, and the text is wrong in one known way: a test that
-calls `vi.mock('./api')` imports `./api` by the letter and runs none of it. The
-scan reads those calls off test, story and setup files as it goes, and the
-mocked module is taken out of the graph as seen from that file at every level —
-the test is not selected by a change to the module it replaced, nor by one to
-anything only that module reaches. A `source.taints` table declares the same for
-what no reader can see, a framework's own import notation, in the other
+The graph takes the text as written, and the text is wrong in one known way: a
+test that calls `vi.mock('./api')` imports `./api` by the letter and runs none
+of it. The scan reads those calls off test, story and setup files as it goes,
+and the mocked module is taken out of the graph as seen from that file at every
+level — the test is not selected by a change to the module it replaced, nor by
+one to anything only that module reaches. A `source.taints` table declares the
+same for what no reader can see, a framework's own import notation, in the other
 direction as well: `+` rows for imports the text does not write.
 
 It is built to over-include in exactly the same direction, and has three
@@ -690,20 +691,20 @@ as well. **`unentered`** is a region with source of its own that nobody in the
 pool covered at all, and that is the row below.
 
 Two things bound it, and both are printed, not assumed. The journal
-**accumulates across runs**, so the pool is the subjects this run's report names;
-`--all` requests the whole record on purpose, and a checkout with no report to
-read gets the whole record *and a printed line that names the fallback*. And an observation the journal
-recorded as truncated is **dropped from the pool** rather than counted as having
-missed anything — a recording that stopped early proves no absence — with a count
-of what was dropped, because a pool of two that should have been three reads as
-agreement.
+**accumulates across runs**, so the pool is the subjects this run's report
+names; `--all` requests the whole record on purpose, and a checkout with no
+report to read gets the whole record *and a printed line that names the
+fallback*. And an observation the journal recorded as truncated is **dropped
+from the pool** rather than counted as having missed anything — a recording that
+stopped early proves no absence — with a count of what was dropped, because a
+pool of two that should have been three reads as agreement.
 
 ## Where the taints and the record disagree
 
-A taint declares what a file's run reaches. The record shows what it did. A checkout
-that has both — taints from the mock reader or a table, a journal from an
-instrumented run — can check one against the other, and every disagreement is a
-fact about one of them.
+A taint declares what a file's run reaches. The record shows what it did. A
+checkout that has both — taints from the mock reader or a table, a journal from
+an instrumented run — can check one against the other, and every disagreement is
+a fact about one of them.
 
 ```ts
 import { auditTaints } from '@variance-authority/sense/taint';
@@ -721,9 +722,9 @@ for (const { test, module, kind, taints } of auditTaints(coverage, relations, ta
 
 None of them is a verdict. Each is the coordinate to look at, and where a taint
 declared the thing the record disagrees with, the row names **which taints**
-declared it — a table somebody wrote by hand and a reader over the source are corrected in
-different places. The middle row has none: that trail is one the scan drew
-and no taint touched.
+declared it — a table somebody wrote by hand and a reader over the source are
+corrected in different places. The middle row has none: that trail is one the
+scan drew and no taint touched.
 
 Two things bound what a row may report, and both are structural. Only an
 **instrumented** module counts as evidence — one with no probes has no coverage
@@ -733,9 +734,10 @@ computed for a test
 whose recording stopped early: a run that ended mid-flight proves nothing about
 where it never got to.
 
-The audit needs both sides to exist, which is what makes it the last thing to set up
-rather than the first: a record comes from a [journey](journeys.md), and taints come from a
-reader or a table. With one side alone there is nothing to disagree with.
+The audit needs both sides to exist, which is what makes it the last thing to
+set up rather than the first: a record comes from a [journey](journeys.md), and
+taints come from a reader or a table. With one side alone there is nothing to
+disagree with.
 
 ## What the record does not show
 
@@ -773,10 +775,11 @@ that decides to render `Button`, that component is in the subject's baseline,
 and so that edit selects the subject. What is left is a branch that no run
 takes at all.
 
-To find those branches, read [`unentered`](#what-a-record-shows-that-no-graph-can).
-It lists the regions, in modules a subject loaded, that no subject in the pool
-ran. It selects nothing. It shows you the branches your subjects have never
-taken, so you can add a subject that takes one.
+To find those branches, read
+[`unentered`](#what-a-record-shows-that-no-graph-can). It lists the regions, in
+modules a subject loaded, that no subject in the pool ran. It selects nothing.
+It shows you the branches your subjects have never taken, so you can add a
+subject that takes one.
 
 ### A result a cache returned
 
@@ -841,16 +844,14 @@ run.
 
 **Further:** [`distance.md`](distance.md) for the API that measures how far the
 change travelled to selected test files, and the inventory and runner work an
-integration still owns ·
-[`flows.md`](flows.md) for where baselines live ·
+integration still owns · [`flows.md`](flows.md) for where baselines live ·
 [`source.md`](source.md) for how the scan reads a file, resolves a specifier and
-records both ·
-[`execution-record.md`](execution-record.md) for the keys, lookups, traces
-and costs of the coverage file ·
-[`distill.md`](distill.md) for using that record to make one test smaller ·
-[`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-declares-it-imports) for the taint
-tables themselves ·
-[`packages/sense`](../packages/sense) for what the scan reads and where it stops ·
-[`packages/cli`](../packages/cli) for the rest of the command line ·
-[`compare-visual-review.md §2`](compare-visual-review.md#chromatic) for what TurboSnap does that this
-does not.
+records both · [`execution-record.md`](execution-record.md) for the keys,
+lookups, traces and costs of the coverage file · [`distill.md`](distill.md) for
+using that record to make one test smaller ·
+[`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-declares-it-imports)
+for the taint tables themselves · [`packages/sense`](../packages/sense) for what
+the scan reads and where it stops · [`packages/cli`](../packages/cli) for the
+rest of the command line · [`compare-visual-review.md
+§2`](compare-visual-review.md#chromatic) for what TurboSnap does that this does
+not.

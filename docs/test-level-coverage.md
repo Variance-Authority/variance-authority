@@ -149,14 +149,14 @@ which region, and re-runs the minimal affected set as you type; per-test
 coverage is not a new idea, and that is the deepest work anyone has done on it.
 
 What has been missing is not the relation. It is a copy of the relation that
-outlives the session that produced it. Wallaby's index belongs to a live
-editor world on one developer's machine, kept valid from keystroke to
-keystroke — it is not something a reviewer opens, a CI job reads, or an agent
-holding a patch can query, and it is not available to the person who never ran
-the suite. Test-level coverage here is the same relation written down: a file an
-ordinary run emits, that anything downstream can read without running
-anything itself. One developer's editor holding an index of which tests walk a line is
-a good day. The build holding the same index is a different class of thing, because every
+outlives the session that produced it. Wallaby's index belongs to a live editor
+world on one developer's machine, kept valid from keystroke to keystroke — it is
+not something a reviewer opens, a CI job reads, or an agent holding a patch can
+query, and it is not available to the person who never ran the suite. Test-level
+coverage here is the same relation written down: a file an ordinary run emits,
+that anything downstream can read without running anything itself. One
+developer's editor holding an index of which tests walk a line is a good day.
+The build holding the same index is a different class of thing, because every
 decision below depends on someone other than the author being able to ask.
 
 ## What it changes

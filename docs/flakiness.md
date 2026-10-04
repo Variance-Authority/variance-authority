@@ -92,9 +92,9 @@ anything. `again` runs first, and when it finds something `alone` does not run �
 its whole inference is *the clean reading differs from the shared one, therefore
 the world changed it*, which is only evidence if two readings of one world would
 have agreed. Run in the other order, a page with a clock in it produces a
-confident sentence about suite pollution and sends somebody to bisect a run order
-that has nothing to do with it. [`instruments.md`](instruments.md) puts the two
-readings beside the other evidence instruments.
+confident sentence about suite pollution and sends somebody to bisect a run
+order that has nothing to do with it. [`instruments.md`](instruments.md) puts
+the two readings beside the other evidence instruments.
 
 **What it names.** Not "this subject is flaky" — that is a page to read. The two
 readings are two documents, and a document includes its component hashes, so the
@@ -148,12 +148,12 @@ twice; it is a shortlist entry and the report says so in those words.
 Both are statements about a subject. Where the two readings include component
 holdings, [`partingOf`](parting.md) makes the same accusation about a
 **boundary**: the component whose props, contexts and hook cells were all read,
-all agreed, and whose output changed anyway. That is the narrower claim, and it is
-available only to a run that recorded what the components were holding — which is
-why an unread boundary is a slice of its own, not a quiet pass.
+all agreed, and whose output changed anyway. That is the narrower claim, and it
+is available only to a run that recorded what the components were holding —
+which is why an unread boundary is a slice of its own, not a quiet pass.
 Narrower again is a *region* of that component's source, which neither reading
-can see and which is answered
-[from what the run executed](#which-part-of-the-module-they-took-differently).
+can see and which is answered [from what the run
+executed](#which-part-of-the-module-they-took-differently).
 
 **The `held` list is what makes any of it evidence.** Those are the subjects
 where the same component, with the same props, did not change — the stable states
@@ -286,13 +286,13 @@ a document digest.
 
 The question two readings cannot answer, and the one that decides who fixes it.
 *Unstable in 6 of 20* reads as a bad fixture; *6 times, and the last 9 sweeps
-were clean* shows somebody already fixed it, and rewriting that fix is a day spent
-re-solving a solved problem.
+were clean* shows somebody already fixed it, and rewriting that fix is a day
+spent re-solving a solved problem.
 
-A run records what it observed when a [history service](history.md) is configured,
-then queries the record for every subject it just called unstable. The answer
-travels in the report, so the summary, the pull-request comment and an agent all
-read one sentence:
+A run records what it observed when a [history service](history.md) is
+configured, then queries the record for every subject it just called unstable.
+The answer travels in the report, so the summary, the pull-request comment and
+an agent all read one sentence:
 
 ```
 UNSTABLE: 1 subject(s) read twice seconds apart, nothing changed between, …
@@ -303,12 +303,12 @@ UNSTABLE: 1 subject(s) read twice seconds apart, nothing changed between, …
 ```
 
 **The denominator is sweeps, not runs**, and that is the whole arithmetic. An
-ordinary run reads a subject twice only after the comparison called it `changed`,
-so a subject that was green in eighteen runs was never *read twice* to check that it agrees
-with itself. Dividing by runs would report a flake that fires every single time
-anybody looks as firing one time in ten. `variance run --flakes` sweeps, a sweep
-is recorded as one, and a window containing no sweep has **no rate at all** —
-absent, never zero.
+ordinary run reads a subject twice only after the comparison called it
+`changed`, so a subject that was green in eighteen runs was never *read twice*
+to check that it agrees with itself. Dividing by runs would report a flake that
+fires every single time anybody looks as firing one time in ten. `variance run
+--flakes` sweeps, a sweep is recorded as one, and a window containing no sweep
+has **no rate at all** — absent, never zero.
 
 **Recency is counted in sweeps too.** "Nine sweeps have not seen it since" is a
 statement about examinations; "three weeks" is a statement about the calendar, and
@@ -320,9 +320,10 @@ entry prints *No history record: recurrence unknown* — because the reader most
 wants it to be a first occurrence, and nothing in a single run supports that.
 
 What it takes to have one: a `history` block in the config pointing at a service
-you run, and a run that can name itself — `--run` and `--commit`, or the pair the
-CI you are already inside exports. Without an identity nothing is recorded and the
-run prints that, because a history that quietly stops growing is worse than none.
+you run, and a run that can name itself — `--run` and `--commit`, or the pair
+the CI you are already inside exports. Without an identity nothing is recorded
+and the run prints that, because a history that quietly stops growing is worse
+than none.
 
 ### The class of defect a second reading finds
 
@@ -624,15 +625,15 @@ it.
 `vi.resetModules()` between tests prevents the symptom and costs you the
 evidence, which is the trade [above](#test-order-and-shared-state) rejects; it
 also re-imports the graph, so a singleton two modules were sharing becomes two
-objects. Touching a module's internals from a test file is cheaper, but it
-makes the test depend on something the module never promised: the name of a variable,
+objects. Touching a module's internals from a test file is cheaper, but it makes
+the test depend on something the module never promised: the name of a variable,
 which is free to change under a refactor that kept every behaviour. Exporting a
-`reset()` from each module keeps that promise honest and hands the problem to the
-setup file, which now has to import every module that has one — and to be updated
-by whoever adds the next.
+`reset()` from each module keeps that promise honest and hands the problem to
+the setup file, which now has to import every module that has one — and to be
+updated by whoever adds the next.
 
-So let the module that owns the state define how to reset it, and the runner decide
-when:
+So let the module that owns the state define how to reset it, and the runner
+decide when:
 
 ```ts
 import { registerResetHandler } from '@variance-authority/ioc/reset';

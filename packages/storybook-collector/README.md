@@ -146,8 +146,9 @@ full form is:
 npx variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 ```
 
-Keep `--all` for the first run and for deliberate re-baselines; it does not separate a
-story nobody looked at from one that changed. After setup, name subject ids:
+Keep `--all` for the first run and for deliberate re-baselines; it does not
+separate a story nobody looked at from one that changed. After setup, name
+subject ids:
 
 ```bash
 npx variance accept --config variance.config.json story:checkout--empty story:checkout--one-item
@@ -376,10 +377,11 @@ preview's `testSelectionProbes()` was given, and `cacheRoot` and `coverageFile`
 override the repository-keyed cache paths for the block records and the coverage
 index. `suite` names the suite this run is, when the root `variance.config.json`
 declares its suites under `suites`; it is required once any suite is declared,
-and cannot be combined with `coverageFile`. `root` is the directory Storybook ran in, the cwd by default: story paths
-and a relative `coverageFile` are read from it, and every
-path the run records is relative to the repository that contains it.
-Without a collector in the page, the run prints that on stderr and records nothing.
+and cannot be combined with `coverageFile`. `root` is the directory Storybook
+ran in, the cwd by default: story paths and a relative `coverageFile` are read
+from it, and every path the run records is relative to the repository that
+contains it. Without a collector in the page, the run prints that on stderr and
+records nothing.
 
 `mode` is the probe recipe, and it has to be the one the preview was built
 under: a snapshot names the recipe its ordinals were cut by, and a merge

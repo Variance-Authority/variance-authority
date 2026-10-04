@@ -1,18 +1,20 @@
 # See what changed
 
-Every change has a beginning and an end. In between is the mess. You edit a
-line, move a component, replace a dependency, change a condition, fix one bug
-and expose another; the program takes branches, schedules work, updates state,
-calls services, renders components, and eventually produces something you can
-see. Usually you keep the beginning and the end, and throw the middle away.
+A diff records what you edited, and a screenshot or an assertion records the
+result. When a change goes wrong, what you need is the path between them: which
+branch ran, which component rendered, which input changed. That path exists
+only while the program runs. [Variance Authority](README.md) records it during
+the run, so you answer *what did this change actually do?* from the record
+instead of running the suite again to find out.
 
-That is enough while everything goes as expected. When it does not, the missing
-middle is exactly what you need.
+Usually you keep the edit and the result and throw the path away. That is
+enough while everything goes as expected. When it does not, the path is what
+you need.
 
-This is the same boundary that makes a high-level test useful. [A test preserves
-the path it names](tests.md#high-level-is-a-strength-and-a-blind-spot) while
-remaining insensitive to how that promise was kept. The pass becomes a blind
-spot only when it is asked to mean that nothing else changed.
+A high-level test has the same boundary. [A test preserves the path it
+names](tests.md#high-level-is-a-strength-and-a-blind-spot) and is insensitive to
+how that promise was kept. The pass becomes a blind spot only when it is asked
+to mean that nothing else changed.
 
 ## A diff records what you changed, not what changed
 

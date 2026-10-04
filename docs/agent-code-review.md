@@ -75,11 +75,11 @@ from one that called into it, because being present while a module-scope
 constant is built is not exercising the function beneath it.
 
 Three answers that read alike are kept apart. A changed **test file** has no
-module row — the run instruments what the tests import, not the tests
-themselves — so it is answered with the named cases it declares. For a changed path
-the index holds nothing for, the answer prints exactly that. And a missing index is
-refused rather than answered empty, because an empty list here reads as *no
-test covers this line*, which is the sentence that gets a test deleted.
+module row — the run instruments what the tests import, not the tests themselves
+— so it is answered with the named cases it declares. For a changed path the
+index holds nothing for, the answer prints exactly that. And a missing index is
+refused rather than answered empty, because an empty list here reads as *no test
+covers this line*, which is the sentence that gets a test deleted.
 
 The diff is measured from the commit the record was written at, not from the
 merge base with the ref, because the index spells its line ranges in that
@@ -160,8 +160,8 @@ Steps 1 and 2 need only a record. Steps 3 to 7 need the run.
 ## What none of it decides
 
 Execution records which code a case ran, never why the case needed it, so three
-cases on one region raise the question *why do all three need this code* and
-do not answer it. Composition shows that two subjects contain the same bytes, not
+cases on one region raise the question *why do all three need this code* and do
+not answer it. Composition shows that two subjects contain the same bytes, not
 that one of them is redundant. Neither reading approves a change, and neither
 produces a number you can put a threshold on: a region with no witness is a
 place to look, and how much it matters is yours.

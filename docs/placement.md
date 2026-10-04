@@ -181,12 +181,13 @@ corpus — this store can outgrow what anyone wants in a work tree. `npx varianc
 accept` writes through, so approval stops being a commit.
 
 The bill is round trips. Most subjects settle from the sidecar alone — 32 hex
-characters, no image fetched — and across a network that saving is spent straight
-back on one request per subject. So the run declares its working set: after selection,
-`npx variance run` names the subjects it is going to look up, and the store fetches
-their sidecars for this machine's identity in **one** request. Subjects a filter
-ruled out are not named, and a subject with no baseline comes back as an answer
-rather than as a miss, so a first run costs one request too.
+characters, no image fetched — and across a network that saving is spent
+straight back on one request per subject. So the run declares its working set:
+after selection, `npx variance run` names the subjects it is going to look up,
+and the store fetches their sidecars for this machine's identity in **one**
+request. Subjects a filter ruled out are not named, and a subject with no
+baseline comes back as an answer rather than as a miss, so a first run costs one
+request too.
 
 The declaration is a hint, not a requirement. A store that does not serve
 `/baseline/working-set` answers it with a 404 and the client falls back to one

@@ -1,10 +1,10 @@
 # Changes before and beyond
 
 Two changes widen a run that no import graph can narrow: a config file nothing
-imports, and a package you never wrote. Selection answers from the names files import
-from each other, so a change with no name in those imports is either the whole
-suite or nothing at all — and which of the two is a choice you make rather than
-one the walk makes for you. This page is about those two changes, and
+imports, and a package you never wrote. Selection answers from the names files
+import from each other, so a change with no name in those imports is either the
+whole suite or nothing at all — and which of the two is a choice you make rather
+than one the walk makes for you. This page is about those two changes, and
 [selection](selecting.md) is about everything between them.
 
 Read a run from left to right. The harness starts it, the tests it started run

@@ -8,11 +8,11 @@ starts it to the moment it ends, across every process it touched.
 New here? Start with [your first run](start.md).
 
 An assertion records one answer to one question you chose before the run. The
-run records more about an execution than that answer: which elements the test operated, which
-regions of your source it covered, which components rendered, what your
-application code announced while it ran, and what work it opened and never
-closed. Keeping those readings is what lets you ask, after the run, a question
-you did not think to ask before it.
+run records more about an execution than that answer: which elements the test
+operated, which regions of your source it covered, which components rendered,
+what your application code announced while it ran, and what work it opened and
+never closed. Keeping those readings is what lets you ask, after the run, a
+question you did not think to ask before it.
 
 This is not application observability. Nothing here wires into an APM or reads
 metrics, logs and traces off a production system: the traced thing is one test

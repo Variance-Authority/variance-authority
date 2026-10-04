@@ -79,13 +79,13 @@ sixty commits, 798 fewer in all, and on TanStack Query it selects as few as 23
 where the walk selects 143. Those are commits that change the inside of a
 function: the record shows which of the files that load the module ran it.
 
-The record also selects tests that neither walk can, because it records the setup
-each test ran under as well as what it imported. Zod runs its main package's
-tests a second time under a compile-mode project whose setup file imports the
-core, so code that runs as the core loads, such as a regular expression
-constant or the locale index, runs in every test in that project, including the
-ones that import none of it. On ten commits that change such code the record
-selects 200 or more where the walks select about 130.
+The record also selects tests that neither walk can, because it records the
+setup each test ran under as well as what it imported. Zod runs its main
+package's tests a second time under a compile-mode project whose setup file
+imports the core, so code that runs as the core loads, such as a regular
+expression constant or the locale index, runs in every test in that project,
+including the ones that import none of it. On ten commits that change such code
+the record selects 200 or more where the walks select about 130.
 
 Configuration is read per project. Each TanStack Query project's Vite
 configuration imports its own `package.json`, and a change to a file that a
@@ -204,11 +204,12 @@ the source root is derived from what the files themselves declare rather than
 from a convention list — a file at `a/b/c/Thing.java` declaring `package b.c`
 sits under root `a`, and Maven and Gradle layouts fall out of that instead of
 being assumed. Types in the same package are visible with no import at all, so
-every file depends on its own package as well; on a JVM codebase those are most of
-the real edges, and leaving them out would report a class and the class beside
-it as unrelated. Kotlin adds one difference: a top-level function may live in
-any file of its package, because Kotlin has no filename rule. To select Java tests from what they ran rather
-than from this graph, see [Java tests](jvm.md).
+every file depends on its own package as well; on a JVM codebase those are most
+of the real edges, and leaving them out would report a class and the class
+beside it as unrelated. Kotlin adds one difference: a top-level function may
+live in any file of its package, because Kotlin has no filename rule. To select
+Java tests from what they ran rather than from this graph, see [Java
+tests](jvm.md).
 
 **Swift.** The language does not have the edge the rest of this rests on.
 `import Core` names a module, which is a whole target, and files inside a target

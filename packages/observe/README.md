@@ -281,8 +281,8 @@ ordering measures displacement rather than blame:
 Each line is a cause and, where one exists, a file and line — because `Toggle`
 is an identifier and `src/app/cart.tsx:42` is an edit. A coordinate appears only
 where nothing could be named. The ordering caveat is printed rather than
-assumed: an `Observation` has only one snapshot, so nothing here can determine which
-component was edited and which was merely pushed by a neighbour, and area
+assumed: an `Observation` has only one snapshot, so nothing here can determine
+which component was edited and which was merely pushed by a neighbour, and area
 measures displacement.
 
 ## When integration fails

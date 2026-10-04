@@ -59,8 +59,9 @@ variance serve --config variance.config.json   # MCP over stdio
 
 When that report is not on disk, `variance serve` answers from the report CI
 published to the share for your branch or mainline, and every report answer
-opens with the line and commit it was read from. The CLI's page says
-[which record it reads and what it prints](../cli/README.md#a-checkout-with-no-run-of-its-own).
+opens with the line and commit it was read from. The CLI's page says [which
+record it reads and what it
+prints](../cli/README.md#a-checkout-with-no-run-of-its-own).
 `variance-authority-mcp` reads only the path it is given.
 
 Install this package when you want the server without the CLI, or when the
@@ -190,8 +191,8 @@ the command will refuse, so the agent proposes something that works rather than
 something that gets rejected.
 
 `variance_adjudicate` is the only tool that takes evidence *in*, and the only
-one that can report an **absence**. Everything else answers about the run;
-this answers about the agent. `variance_changes` can report that `Button` changed in
+one that can report an **absence**. Everything else answers about the run; this
+answers about the agent. `variance_changes` can report that `Button` changed in
 twelve subjects. It cannot report that `Card` — which the agent believes it just
 edited — did not change at all, because a diff has no opinion about what was
 supposed to happen. That third case is where a wrong file, a dead branch, an
@@ -303,8 +304,9 @@ source-test tool, a `VantageState` for a suite that is still running, or an
 `ObservabilitySubject` combining several of those at once.
 
 `variance_diff` compares the currently served value with the value from the
-previous successful tool call. The first call records the current state and answers
-that there is nothing to compare. Each successful call then replaces that one value.
+previous successful tool call. The first call records the current state and
+answers that there is nothing to compare. Each successful call then replaces
+that one value.
 
 The value lives only in the MCP process. It is not written to disk, does not
 touch or replace a baseline, and disappears when the process exits. Initialization,
@@ -315,12 +317,13 @@ without MCP framing.
 
 ## Answer from the source tree
 
-A question can name where to start — `variance_locate {query, from}` takes a path
-and answers only from the files reachable from it, along the imports. `to` is
-the same walk against them, answering from the files that reach the path
+A question can name where to start — `variance_locate {query, from}` takes a
+path and answers only from the files reachable from it, along the imports. `to`
+is the same walk against them, answering from the files that reach the path
 instead: `from` the screen to find what it shows, `to` the component to find
-what shows it. A path is a fact about a repository, and a report is a file that travels, so the repository has to be
-named when the server is started. `serveReportFile(path, options)` takes it:
+what shows it. A path is a fact about a repository, and a report is a file that
+travels, so the repository has to be named when the server is started.
+`serveReportFile(path, options)` takes it:
 
 | option | what it decides |
 |---|---|
@@ -541,13 +544,13 @@ members. Native tools remain available on the same connection:
 | `variance_scenarios` | scenario manifests | the witnessed Arrange state and observed or unobserved Act outcomes |
 | `variance_distill` | a Sense execution index, and the Eyes journals the same record keeps | one test's addressed AAA surface, React update initiators, and source reduction opportunities |
 
-`variance_distill` is the deliberate cross-domain answer. It maps the
-DOM owners and source locations a test addressed in each authored phase, then
-places React update initiators inside or outside those exact structural component
-paths and contrasts both with files that the same exact test id covered.
-`PerformedWork` records that a render body ran; it is not substituted for an updater.
-A covered file with no addressed target is a distillation opportunity, not proof that
-the branch is unrelated or safe to mock. The tool does not join by title or file
+`variance_distill` is the deliberate cross-domain answer. It maps the DOM owners
+and source locations a test addressed in each authored phase, then places React
+update initiators inside or outside those exact structural component paths and
+contrasts both with files that the same exact test id covered. `PerformedWork`
+records that a render body ran; it is not substituted for an updater. A covered
+file with no addressed target is a distillation opportunity, not proof that the
+branch is unrelated or safe to mock. The tool does not join by title or file
 when stable producer identities disagree. `ExecutionIndex` retains whole-test
 crossings, not AAA intervals, so runtime files remain test-scoped rather than
 phase-scoped.

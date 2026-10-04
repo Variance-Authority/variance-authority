@@ -91,10 +91,10 @@ And the `TokenDrift` behind it, with the eleven `steps` abridged to two:
 ```
 
 `steps` names the commit behind every change, which is what turns `12px → 34px`
-into an investigation somebody can finish. `quantity` and `ratio` are absent when
-the values cannot be subtracted — a colour, a font stack, a shadow — and
-`unquantifiable` then holds the reason, so a colour that changed five times stays a
-finding rather than becoming an empty number.
+into an investigation somebody can finish. `quantity` and `ratio` are absent
+when the values cannot be subtracted — a colour, a font stack, a shadow — and
+`unquantifiable` then holds the reason, so a colour that changed five times
+stays a finding rather than becoming an empty number.
 
 ### The two thresholds
 
@@ -230,9 +230,10 @@ npx variance run --run "$GITHUB_RUN_ID" --commit "$GITHUB_SHA"
 ```
 
 Inside GitHub Actions, GitLab CI or Bitbucket Pipelines you can leave both flags
-off — the id and commit are read from the variables those systems already export,
-as a pair or not at all. Anywhere else, supply them. A run with a store and no
-identity records nothing and prints that in its warnings; no id is invented for you.
+off — the id and commit are read from the variables those systems already
+export, as a pair or not at all. Anywhere else, supply them. A run with a store
+and no identity records nothing and prints that in its warnings; no id is
+invented for you.
 
 With that in place, `npx variance run` records the run, its observations and its
 resolved token values, and `npx variance accept <subject>` records the approval —
@@ -275,9 +276,9 @@ no writer, every query answers from an empty store.
 
 ## When no store is configured
 
-`createAbsentStore` returns a `HistoryStore` that keeps nothing and reports that, so a
-pipeline sees one type either way and the difference surfaces once, in the
-answer:
+`createAbsentStore` returns a `HistoryStore` that keeps nothing and reports
+that, so a pipeline sees one type either way and the difference surfaces once,
+in the answer:
 
 ```ts
 import { createAbsentStore, isKept } from '@variance-authority/history';

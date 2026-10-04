@@ -223,7 +223,8 @@ other — `read span` appears in no text anywhere, and the declaration you wante
 has both.
 
 Those get a third section, and only those. Ask for `numbers order` in this
-repository's own fixture and the substring finds nothing, which is printed first:
+repository's own fixture and the substring finds nothing, which is printed
+first:
 
 ```
 Nothing in this repository is named or documented with `numbers order`.
@@ -500,10 +501,11 @@ through that package's own `rootDir` and `outDir` to `src/index.ts`, so what it
 reports is what somebody wrote.
 
 It does not infer. A name with no block comment above it is reported as having
-none, and a search that matches nothing prints that before it offers anything near
-it — the near ones arrive under their own heading, counted and labelled, never
-mixed into the answer to the word you typed. A README passage is returned only where the prose writes the name
-as a whole word, and it arrives labelled with the file it came from.
+none, and a search that matches nothing prints that before it offers anything
+near it — the near ones arrive under their own heading, counted and labelled,
+never mixed into the answer to the word you typed. A README passage is returned
+only where the prose writes the name as a whole word, and it arrives labelled
+with the file it came from.
 
 It does not serve source. `uses` names the story, the test and the file, with
 the line to open; reading them is your job, against the file as it is rather

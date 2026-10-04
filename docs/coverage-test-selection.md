@@ -173,12 +173,12 @@ export function CommentField({ value, onChange }) {
 }
 ```
 
-Every form in the product renders a comment field, and one team owns the
-editor. A graph read from source draws an edge from `CommentField` to
-`./editor`, because it cannot observe whether anybody double-clicks. So when that
-team changes one toolbar button, every test that renders a form is selected.
-Almost none of them double-click. The record lists the tests that opened the
-editor, and a change to its toolbar selects those tests only.
+Every form in the product renders a comment field, and one team owns the editor.
+A graph read from source draws an edge from `CommentField` to `./editor`,
+because it cannot observe whether anybody double-clicks. So when that team
+changes one toolbar button, every test that renders a form is selected. Almost
+none of them double-click. The record lists the tests that opened the editor,
+and a change to its toolbar selects those tests only.
 
 In one file the gap between loading and running is one button, one branch or
 one double click. Across a suite it grows, for two reasons.

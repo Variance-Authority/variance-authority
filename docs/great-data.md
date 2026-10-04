@@ -6,15 +6,16 @@ there, and most of what you can now ask it has nothing to do with pixels.
 
 `toHaveScreenshot`, Percy, Chromatic and Argos end at the comparison. They
 answer a red build with a pixel count and two images, and once you have reviewed
-the diff there is nothing more to ask it. A Variance Authority run also writes down what it
-observed while it ran: which [**subject**](information.md#things-a-run-addresses) rendered — one named UI state you
-asked for and can ask for again — and which components drew which regions, at
-which `file:line`. Add a semantic snapshot, a [source index](source-index.md) or
-an execution journal to the run and the same record also gains the accessible
-names, roles and visible text, the declaring files, the custom properties the
-cascade resolved, and the source regions the execution covered. That record
-stays readable after the verdict, and the rest of this page is what you can ask
-it once the diff is closed.
+the diff there is nothing more to ask it. A Variance Authority run also writes
+down what it observed while it ran: which
+[**subject**](information.md#things-a-run-addresses) rendered — one named UI
+state you asked for and can ask for again — and which components drew which
+regions, at which `file:line`. Add a semantic snapshot, a [source
+index](source-index.md) or an execution journal to the run and the same record
+also gains the accessible names, roles and visible text, the declaring files,
+the custom properties the cascade resolved, and the source regions the execution
+covered. That record stays readable after the verdict, and the rest of this page
+is what you can ask it once the diff is closed.
 
 ## Ask a closed report a question that is not about pixels
 
@@ -124,9 +125,9 @@ one you are reading before you act on it. Presentation measurements report
 relationships, not a design decision. A journey records where an execution went,
 not why. A lexicon match orients you toward a subject; it does not confirm you
 found the right one. Source reach shows what could be affected, while execution
-records what was observed. A reading that was never taken stays unavailable rather
-than arriving as a clean empty result, which is why the `locate` answer above
-can tell you it never read regions.
+records what was observed. A reading that was never taken stays unavailable
+rather than arriving as a clean empty result, which is why the `locate` answer
+above can tell you it never read regions.
 
 ## What keeping the record costs
 

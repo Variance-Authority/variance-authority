@@ -213,12 +213,13 @@ back exactly what disappeared.
 ## Where a component is declared, read from the engine
 
 A source scan answers a name: every declaration in the configured directories
-that spells `Button`, and when two do, the name is ambiguous and the report prints
-that. The page has something better than a name. The fiber points at the function
-React called, and V8 records where every function it compiled begins. So the page
-agent keeps the functions it met, and `createDeclarationReader(page)` queries
-Chromium over CDP for each one's `[[FunctionLocation]]`, then maps the position
-through the served module's source map to a repository file and line.
+that spells `Button`, and when two do, the name is ambiguous and the report
+prints that. The page has something better than a name. The fiber points at the
+function React called, and V8 records where every function it compiled begins.
+So the page agent keeps the functions it met, and
+`createDeclarationReader(page)` queries Chromium over CDP for each one's
+`[[FunctionLocation]]`, then maps the position through the served module's
+source map to a repository file and line.
 
 Excerpt — `page` is `harness.page`, `scanned` is the `SourceIndex` your scan
 produced, and `overlaySourceIndex` comes from
@@ -243,8 +244,8 @@ declared in `node_modules` is not an answer.
 
 Chromium only. On WebKit and Firefox `newCDPSession` throws, the reader notes it
 once, and `read()` answers the empty index for the rest of the page's life.
-Nothing downstream separates that from a page with no components, and the scan still
-stands underneath.
+Nothing downstream separates that from a page with no components, and the scan
+still stands underneath.
 
 Options: `global` names the global the agent is installed at, `AGENT_GLOBAL`
 unless the bundle chose another. `fetchModule` supplies the fetch for served
@@ -276,9 +277,9 @@ const engines = requireEngines(declaredEngines()); // ['chromium', 'webkit']
 
 `requireEngines` throws and names the engine when a declared one is not
 installed, because the alternative is a result that changes with the machine: a
-laptop missing WebKit measures one engine, reports green, and prints nothing about
-the engine it did not check. On a machine with Chromium and no WebKit, that throw
-reads:
+laptop missing WebKit measures one engine, reports green, and prints nothing
+about the engine it did not check. On a machine with Chromium and no WebKit,
+that throw reads:
 
 ```
 declared engine not installed: webkit (this machine has chromium)
@@ -320,12 +321,12 @@ the flags are load-bearing for Chromium and absent for the other two. Measured i
 are unaffected because the flags were never passed to them.
 
 **So a WebKit or Firefox raster is comparable only to one from the same host.**
-`RenderIdentity` includes `platform`, so a laptop's baseline and a container's are
-separate baselines and a run reports `incomparable` rather than comparing them. That
-is the safe failure, not a solution: neither answers for the other. If rasters are
-produced in a container, produce them only there — a local WebKit renderer records
-baselines nothing will ever compare against, and pays the raster tier for them.
-The semantic tier is unaffected and stays local.
+`RenderIdentity` includes `platform`, so a laptop's baseline and a container's
+are separate baselines and a run reports `incomparable` rather than comparing
+them. That is the safe failure, not a solution: neither answers for the other.
+If rasters are produced in a container, produce them only there — a local WebKit
+renderer records baselines nothing will ever compare against, and pays the
+raster tier for them. The semantic tier is unaffected and stays local.
 
 The container is cheap, which is not what people assume. Measured on an Apple M4
 Max (16 cores, 64 GB) under Docker Desktop 29.0.1 with Playwright 1.62.1,

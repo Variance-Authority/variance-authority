@@ -96,11 +96,11 @@ On a relation answer, read three things before acting:
 
 ## Every hit is already a place
 
-`where:` names the thing on that surface that shows your words, the file and line
-it is declared at, and what encloses it. A production build strips the line, so
-the place reads `in CarrierPicker · src/dispatch/CarrierPicker.tsx`: a source to
-open rather than a coordinate. Do not spend a second question asking where
-something lives.
+`where:` names the thing on that surface that shows your words, the file and
+line it is declared at, and what encloses it. A production build strips the
+line, so the place reads `in CarrierPicker · src/dispatch/CarrierPicker.tsx`: a
+source to open rather than a coordinate. Do not spend a second question asking
+where something lives.
 
 ## Read the header before reading an empty answer
 

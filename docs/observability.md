@@ -269,11 +269,11 @@ export function handled(cookie, run) {
 
 `collectJourneys` takes its name from `VARIANCE_AUTHORITY_HEAD` and turns itself
 on from `VARIANCE_AUTHORITY_JOURNEYS`, so that `env` block is the whole of the
-configuration on the service side. With neither set, it installs nothing and `enter`
-is the identity function — which is why the call above ships to production
-rather than sitting behind a build flag. The name must match the `label` that
-service's build gave `testSelectionProbes()`; an ordinal means something only
-against the record that minted it.
+configuration on the service side. With neither set, it installs nothing and
+`enter` is the identity function — which is why the call above ships to
+production rather than sitting behind a build flag. The name must match the
+`label` that service's build gave `testSelectionProbes()`; an ordinal means
+something only against the record that minted it.
 
 `heads` is empty by default, and empty is the ordinary case. A Storybook preview
 or a Vitest file is one process, the realm that executes is the realm that is

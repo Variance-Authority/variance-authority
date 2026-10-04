@@ -279,8 +279,8 @@ opens with the subject, the verdict and the sentence explaining it, then lists
 each changed region with the component that drew it and the `file:line` it was
 written at, made relative to `sourceRoot` when you passed one. Regions with no
 component behind them are printed as coordinates and marked unattributed. The
-list is ordered by area, and the message states that: area measures displacement rather than
-blame, so a container pushed by an edit can outrank the edit itself.
+list is ordered by area, and the message states that: area measures displacement
+rather than blame, so a container pushed by an edit can outrank the edit itself.
 
 The images themselves are files. The approved baseline is the `.png` under the
 baseline directory, beside the `.json` recording what painted it. The candidate
@@ -300,10 +300,10 @@ behind it that records which machine, which scale and which font stack produced
 it, so nothing can decide whether a later run is entitled to compare against it.
 
 The consequence is that a baseline approved on your laptop is usually not
-comparable on a CI runner: different platform, different fonts. The run reports that
-— every such subject reports `incomparable`, naming both identities — rather
-than reporting a day of changed pixels nobody caused. Two ways to get a verdict
-instead of a refusal:
+comparable on a CI runner: different platform, different fonts. The run reports
+that — every such subject reports `incomparable`, naming both identities —
+rather than reporting a day of changed pixels nobody caused. Two ways to get a
+verdict instead of a refusal:
 
 - **Approve on the machine that judges.** Run the suite with `-u` in the CI
   image, commit what it wrote, and every later CI run compares against a

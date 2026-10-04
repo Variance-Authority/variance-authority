@@ -80,12 +80,12 @@ exit code.
 
 ## What the edge was, not only that there was one
 
-The first two readings give you a **parting** — the account of where two readings
-diverged and which input sent them there. A digest shows that the Act had an effect;
-the parting names the input that made it, and its one-word **slice** is the triage.
-[Parting](parting.md) defines the full set of slices. Three of them read
-differently when the two readings are separated by a moment rather than by a
-page:
+The first two readings give you a **parting** — the account of where two
+readings diverged and which input sent them there. A digest shows that the Act
+had an effect; the parting names the input that made it, and its one-word
+**slice** is the triage. [Parting](parting.md) defines the full set of slices.
+Three of them read differently when the two readings are separated by a moment
+rather than by a page:
 
 | slice | the edge was |
 | --- | --- |

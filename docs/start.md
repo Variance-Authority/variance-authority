@@ -119,8 +119,8 @@ variance run --config variance.config.json
 ```
 
 The rerun exits `0` once the subject is `unchanged`. Keep `accept --all` out of
-unattended workflows: it cannot distinguish a candidate somebody reviewed from one
-nobody opened.
+unattended workflows: it cannot distinguish a candidate somebody reviewed from
+one nobody opened.
 
 ## Read what came back
 

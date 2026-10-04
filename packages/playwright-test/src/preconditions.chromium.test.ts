@@ -170,7 +170,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that names its precondition
     ]);
     // The call after the snapshot is on the row and not on the snapshot.
     expect(annotated('listening', 'photographs the receipt')).toEqual([
-      `receipt--ff-on: taken in ${specs}/checkout.spec.ts > mocked > photographs the receipt, arranged ` +
+      `receipt--ff-on: taken in ${specs}/checkout.spec.ts > mocked > photographs the receipt, ran under ` +
         `flag=ff-on (${specs}/checkout.spec.ts:${line('receipt flag')}), network=mocked (${specs}/checkout.spec.ts:${line('mocked each')})`,
     ]);
   });

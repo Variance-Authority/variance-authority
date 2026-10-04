@@ -171,15 +171,15 @@ unpublished line has a `path:line` instead: there is nothing to pass to
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a
-third-party section, and prints a line when nothing in it matched. `symbol` matches
-installed third-party declarations from the same lexicon. The full signatures
-and JSDoc are in `dependency-lexicon.json` beside the source index.
+third-party section, and prints a line when nothing in it matched. `symbol`
+matches installed third-party declarations from the same lexicon. The full
+signatures and JSDoc are in `dependency-lexicon.json` beside the source index.
 
-Nothing back means nothing matched, not that a ranking left it out. In a checkout
-that publishes nothing, that is the final answer. The loosely matching section
-is a suggestion: it never changes the sections above it, and it does not find a
-word the repository never writes. For that, expand the query as `SKILL.md`
-describes under *Matching is lexical*.
+Nothing back means nothing matched, not that a ranking left it out. In a
+checkout that publishes nothing, that is the final answer. The loosely matching
+section is a suggestion: it never changes the sections above it, and it does not
+find a word the repository never writes. For that, expand the query as
+`SKILL.md` describes under *Matching is lexical*.
 
 **A start point removes names; it does not rank them down.** A path the
 checkout does not have is refused by name, so you are never answered about the

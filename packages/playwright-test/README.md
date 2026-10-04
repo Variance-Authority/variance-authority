@@ -36,8 +36,8 @@ two can assert on the same page in the same test. Three things are different
 here:
 
 - **The failure message names components.** Where the engine or a source index
-  supplies them, it also names the file and line behind them — the sample above is
-  the whole message, with no image opened.
+  supplies them, it also names the file and line behind them — the sample above
+  is the whole message, with no image opened.
 - **A baseline records the browser, platform and scale it was painted under.**
   A baseline recorded elsewhere returns `incomparable` rather than a wall of
   differences you would have to read through.
@@ -139,10 +139,10 @@ Attribution names a component. Turning `Toggle` into `src/ds/components.tsx:107`
 is a separate hop, and there are three ways it happens.
 
 **Nothing to do, on Chromium.** The page agent keeps the component functions
-React actually called, and the session queries Chromium over CDP for where each one
-was compiled from, mapping the answer back through the served source maps to a
-repository file. This is why the sample at the top of this page has a file on it
-with no configuration. It covers only components that rendered. On WebKit and
+React actually called, and the session queries Chromium over CDP for where each
+one was compiled from, mapping the answer back through the served source maps to
+a repository file. This is why the sample at the top of this page has a file on
+it with no configuration. It covers only components that rendered. On WebKit and
 Firefox there is no equivalent, the reader notes it once, and nothing is added.
 
 **A `SourceIndex`, for everything else.** A `SourceIndex` is plain data — a map
@@ -200,10 +200,10 @@ ordering measures displacement rather than blame:
       src/ds/components.tsx:107
 ```
 
-The ordering is by changed area and the message prints that: an `Observation` names
-no causes, so area measures displacement — the container that merely reflowed
-sorts above the component that was edited. Do not read it as cause-first
-attribution.
+The ordering is by changed area and the message prints that: an `Observation`
+names no causes, so area measures displacement — the container that merely
+reflowed sorts above the component that was edited. Do not read it as
+cause-first attribution.
 
 ## Choose where pixels are made
 
@@ -319,7 +319,8 @@ opens and closes the rest itself.
 A verdict names the components and counts the pixels; a reviewer still asks to
 see it. Point `evidence` at a directory and every subject a person stops on --
 `changed`, `incomparable`, and `ignored` -- leaves a `.before.png`, an
-`.after.png` and a `.diff.png` behind, and the observation records where they were written.
+`.after.png` and a `.diff.png` behind, and the observation records where they
+were written.
 
 The file name is the subject id percent-encoded, so the evidence for one subject
 sits in one flat directory even when its id reads like a path: `cart/empty`
@@ -574,19 +575,19 @@ its attempt, `testInfo.retry + 1`, so a retried test keeps both.
 A snapshot taken with `variance(locator)` names the case it was taken in: the
 spec file, the declaration path and `testInfo.testId`, the case id the record
 keeps. It also carries the preconditions the case had recorded with
-[`variancePrecondition`](../sense#record-the-state-each-test-ran-under) by then, each with
-the `file:line` of the call that recorded it. A call after the snapshot is on the case's row and
-not on the snapshot.
+[`variancePrecondition`](../sense#record-the-state-each-test-ran-under) by then,
+each with the `file:line` of the call that recorded it. A call after the
+snapshot is on the case's row and not on the snapshot.
 
 ```text
-receipt--ff-on: taken in tests/checkout.spec.ts > mocked > photographs the receipt, arranged flag=ff-on (tests/checkout.spec.ts:40), network=mocked (tests/checkout.spec.ts:27)
+receipt--ff-on: taken in tests/checkout.spec.ts > mocked > photographs the receipt, ran under flag=ff-on (tests/checkout.spec.ts:40), network=mocked (tests/checkout.spec.ts:27)
 ```
 
 The observation carries the case as `case`. The line after the subject closes a
 failing `toBeUnchanged` message, and the whole line is a `variance` annotation
 in Playwright's report under the test, passing or not. Without
 `varianceExecution` nothing records them: no annotation is added, and a failing
-message reads *preconditions unmeasured* rather than *nothing arranged*.
+message reads *preconditions unmeasured* rather than *no preconditions recorded*.
 
 ### Optional fixture composition
 
@@ -648,9 +649,9 @@ artifact is the coverage index this worker merges into at teardown.
 
 A handler's work can outlast its response: a streamed body, a write behind, a
 log flushed after `end()`. The head reports that a request opened before the
-handler runs, so at teardown the worker waits up to five seconds for every opened
-request to report. One still open at that point retires the run the same way a
-silent head does, and the reason names the head.
+handler runs, so at teardown the worker waits up to five seconds for every
+opened request to report. One still open at that point retires the run the same
+way a silent head does, and the reason names the head.
 
 Nothing above happens when `heads` is empty, which is the default and the
 ordinary case. A suite driving one application has one instrumented process, and
@@ -661,11 +662,11 @@ extra: it can be left out of one CI job, the service can fail to start, and a
 service built without probes looks exactly like a service that executed nothing.
 So a declared head that reports nothing all run — or one reporting a different
 probe recipe than the driver records — retires **every** observation the run
-made, page included. The crossings are still written; what they lose is the right
-to justify a skip, and the next `--since` runs the whole suite and prints the
-reason. A run half of whose evidence never arrived narrows nothing, because a
-spec skipped on the report of a service that was not recording is the one failure
-this category cannot detect afterwards.
+made, page included. The crossings are still written; what they lose is the
+right to justify a skip, and the next `--since` runs the whole suite and prints
+the reason. A run half of whose evidence never arrived narrows nothing, because
+a spec skipped on the report of a service that was not recording is the one
+failure this category cannot detect afterwards.
 
 ## Wait for a decision, not for a repaint
 
@@ -713,10 +714,10 @@ resolves rather than hanging.
 
 `events` is an `EventLog`: `happened` waits for coordinates in any phase,
 `finished` waits for the end of a process `vaStart` opened, `saw` checks without
-waiting, `seen` is everything in arrival order, and `pending` is what started and
-never ended. A wait that does not settle prints what the run did announce, in
-order, or prints that nothing was announced at all — which is a setup fact, not a
-product defect, and is worded as one.
+waiting, `seen` is everything in arrival order, and `pending` is what started
+and never ended. A wait that does not settle prints what the run did announce,
+in order, or prints that nothing was announced at all — which is a setup fact,
+not a product defect, and is worded as one.
 
 ### Hearing a service announce
 
@@ -816,10 +817,11 @@ VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
 
 With it unset, nothing happens and the run pays one environment read per worker
 — the same bargain the heads make above. With it set, the watcher receives each
-test as it opens, each announcement as it is recorded rather than at teardown, the
-listener's remarks, and how each test ended. The process on the other end is
-[`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage), on the same
-connection the announcements already use, and none of it is written down.
+test as it opens, each announcement as it is recorded rather than at teardown,
+the listener's remarks, and how each test ended. The process on the other end is
+[`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage),
+on the same connection the announcements already use, and none of it is written
+down.
 
 The lifecycle half is automatic, so a listing has no holes: a test that
 destructures nothing still opens and closes, and a suite that takes no
@@ -925,8 +927,8 @@ the time it is read throws as well.
   uses a null viewport. Configure a fixed viewport so two runs have a declared
   size.
 - **The message lists a large container first:** it is ordered by changed area,
-  and the message names that ordering. Area measures displacement, not blame: a container that merely
-  reflowed outranks the component that was edited.
+  and the message names that ordering. Area measures displacement, not blame: a
+  container that merely reflowed outranks the component that was edited.
 - **“was still waiting when it was read”:** the named Suspense boundary never
   resolved. Fix what it awaits, or pass `loading: true` if the fallback is what
   you intend to review.

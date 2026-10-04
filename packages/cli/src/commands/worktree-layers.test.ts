@@ -83,7 +83,7 @@ describe('a worktree that has not run', () => {
 
     const own = testCoverageFile(worktree, { suite: 'unit' });
     await expect(review(parseReview(['--root', worktree]))).rejects.toThrow(
-      `no run has listed itself beside \`${own}\`, so nothing says where this change starts.`,
+      `no run has listed itself beside \`${own}\`, so nothing records where this change starts.`,
     );
     // Named, the base is read against the primary checkout's record, and the
     // primary checkout's runs are not reported as this worktree's.
@@ -109,7 +109,7 @@ describe('a worktree that has not run', () => {
     // The seed says where the base's tests last ran; no run of this worktree is in it.
     expect(await readCommitRuns(own)).toMatchObject({ commit: first, over: first, runs: 0 });
     await expect(review(parseReview(['--root', worktree]))).rejects.toThrow(
-      `no run has listed itself beside \`${own}\`, so nothing says where this change starts.`,
+      `no run has listed itself beside \`${own}\`, so nothing records where this change starts.`,
     );
   });
 

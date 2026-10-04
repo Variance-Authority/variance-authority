@@ -1,10 +1,10 @@
 # Where you are, and what runs here
 
-Four questions answer where code sits and what runs it. They read the source index
-`variance index` publishes and the latest test-selection recording, and they
-need no run and no config. `variance ask` with no question prints each one's
-arguments and what it answers; this page says which to ask and how to read the
-answer. Run them from the checkout you are asking about.
+Four questions answer where code sits and what runs it. They read the source
+index `variance index` publishes and the latest test-selection recording, and
+they need no run and no config. `variance ask` with no question prints each
+one's arguments and what it answers; this page says which to ask and how to read
+the answer. Run them from the checkout you are asking about.
 
 | You have | Ask |
 |---|---|
@@ -38,8 +38,8 @@ Each file is answered in the order you gave. A `:<line>` after a path narrows
 the call journeys to the function that contains that line. The answer prints its
 own definitions. What you decide from it:
 
-- **`not recorded`** means the recording has no row for the file. It is
-  no evidence about whether a test runs it. **`recorded, and no case ran it`** is a
+- **`not recorded`** means the recording has no row for the file. It is no
+  evidence about whether a test runs it. **`recorded, and no case ran it`** is a
   measurement.
 - **`N cases ran it, M of them by importing it`.** The M cases are counted
   because their test file imports the module, which ran while it was
@@ -47,10 +47,10 @@ own definitions. What you decide from it:
   ran one line, ask `variance covering --file <path> --line <n>`
   ([covering](covering.md)).
 - **`Journeys`** lists, for each file, the functions that call into it and the
-  ones it calls, from the recorded cases walked over the static call graph.
-  Each call is labelled with how it is known, and only `observed` means the call site ran.
-  `not prepared` means `variance index` must prepare them again from the latest
-  recording.
+  ones it calls, from the recorded cases walked over the static call graph. Each
+  call is labelled with how it is known, and only `observed` means the call site
+  ran. `not prepared` means `variance index` must prepare them again from the
+  latest recording.
 - **`Narrower questions`** are commands. Run them as printed.
 
 ## `journey-map`
@@ -74,8 +74,8 @@ imports it. Ask it before you add a dependency. It reads the dependency lexicon
 The test files, then the test cases, that the latest recorded run spent longest
 in, with the duration the runner reported. Nothing is timed here. A file or case
 with no reported duration is counted apart and never ranked as fast. `--from`
-keeps the tests declared under the paths you give. `--to` keeps the tests that, in the
-recording, ran code in those paths, the same reading `variance covering`
+keeps the tests declared under the paths you give. `--to` keeps the tests that,
+in the recording, ran code in those paths, the same reading `variance covering`
 makes, not an import walk. A `--to` path the recording has no row for is named
 as unrecorded. A path that is in neither the recording nor the checkout is
 refused.

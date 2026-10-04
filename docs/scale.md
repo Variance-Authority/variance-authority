@@ -478,13 +478,13 @@ different one. The scan caches are content-addressed and behave the same way.
 ## What the index and the record cost, at five sizes
 
 Both files grow with modules and stay linear. The index column you can price
-before recording anything, from a count git already gives you; the record
-column is priced per module your suite covers, which only a recording
-measures. Material UI's row and Kibana's are measured on real repositories. No suite
-was recorded on Kibana, so its row has an index and a dash in the two columns
-only a recording answers. The 200,000 row is measured, at that size, on
-fixtures rather than on a real tree. The outer two rows are **extrapolation** —
-those figures extended linearly to a size no one has measured.
+before recording anything, from a count git already gives you; the record column
+is priced per module your suite covers, which only a recording measures.
+Material UI's row and Kibana's are measured on real repositories. No suite was
+recorded on Kibana, so its row has an index and a dash in the two columns only a
+recording answers. The 200,000 row is measured, at that size, on fixtures rather
+than on a real tree. The outer two rows are **extrapolation** — those figures
+extended linearly to a size no one has measured.
 
 | your repository | modules | modules its suite covers | source index | execution record |
 |---|---|---|---|---|
@@ -569,11 +569,12 @@ measure it; these probes record entry rather than depth, so every row they write
 holds a zero distance, and the whole
 column is one run.
 
-Spell the same index as JSON — the spelling a tool that records its own
-per-case crossings supplies — and the first row above is **27.2 MB** instead of
-0.46. That is what the three columns cost once each crossing is an object again:
-`{"test":0,"distance":0}` is thirty-odd bytes to store what two run-coded columns
-store as one run each, and it is ninety times the file-level record it travels with.
+Spell the same index as JSON — the spelling a tool that records its own per-case
+crossings supplies — and the first row above is **27.2 MB** instead of 0.46.
+That is what the three columns cost once each crossing is an object again:
+`{"test":0,"distance":0}` is thirty-odd bytes to store what two run-coded
+columns store as one run each, and it is ninety times the file-level record it
+travels with.
 
 ## Every CI caps what a job may upload
 
@@ -769,12 +770,12 @@ question:
 
 The memory column is seven to eight times the disk column, and the gap is
 structural rather than wasteful. On disk a value is its bytes, once, inside a
-run of other bytes. In memory it is a JavaScript string with a header on it,
-and it is pointed at twice more: once from the token list that gets
-binary-searched for a prefix, and once from the postings list that records which
-subjects contain it. Three references and an object header for something that was
-twelve bytes of text is where the multiple comes from, and it is why the two
-columns scale together rather than one of them bending.
+run of other bytes. In memory it is a JavaScript string with a header on it, and
+it is pointed at twice more: once from the token list that gets binary-searched
+for a prefix, and once from the postings list that records which subjects
+contain it. Three references and an object header for something that was twelve
+bytes of text is where the multiple comes from, and it is why the two columns
+scale together rather than one of them bending.
 
 Those two rows are the measured constants applied to a size no one has
 measured, the way the rows above are. Both are an upper bound rather than a

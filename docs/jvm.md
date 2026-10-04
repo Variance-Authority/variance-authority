@@ -244,9 +244,9 @@ yarn exec variance journeys finalize .variance-authority/journeys.bin
 git diff origin/main | yarn exec variance select --execution .variance-authority/journeys.bin --diff -
 ```
 
-The fold charges each journey's frame to the case that minted it. It charges
-the between frame, which holds the service's startup and anything not attributed to a journey,
-to every case that sent this process at least one request.
+The fold charges each journey's frame to the case that minted it. It charges the
+between frame, which holds the service's startup and anything not attributed to
+a journey, to every case that sent this process at least one request.
 
 A class that is `unknown` goes into its journey's frame by class name, with no
 regions. No record holds that name, so `journeys finalize` lists it among the

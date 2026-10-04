@@ -125,7 +125,8 @@ events bbb3b0c4-4298-4f1b-9ca9-7a0d0f0a0001 {
 ```
 
 Both reports arrived at the same handler under the same execution, and the
-handler receives nothing that identifies which realm either came from. That is the whole product.
+handler receives nothing that identifies which realm either came from. That is
+the whole product.
 
 ## What goes in a body
 
@@ -269,15 +270,15 @@ const wire = await listen();
 
 `listen` binds an ephemeral port, so nothing is agreed in advance and several
 workers listen at once without a word between them. Each worker has its own
-listener and its own port, and a process under test never has to look up which one
-it sends to: the address arrived on the cookie the driver set for that
+listener and its own port, and a process under test never has to look up which
+one it sends to: the address arrived on the cookie the driver set for that
 execution. `ListenOptions` takes `host`, defaulting to `127.0.0.1` — anything
 outside loopback makes `addressFor` hand out an address that `channelFrom`
 refuses, and reports stop arriving.
 
 The listener never reads an execution id out of a body. It reads back the key it
-minted itself, out of the path, so a report cannot attach itself to an execution by
-writing an id in its body.
+minted itself, out of the path, so a report cannot attach itself to an execution
+by writing an id in its body.
 
 ### When a report does not arrive
 
@@ -362,9 +363,9 @@ In Playwright that is `page.addInitScript(wireCarrierSource())`, paired with
 
 It reads the execution off the document's own cookie, so a page reports under
 the same execution as a service behind it. The two halves install in either
-order: anything announced before the driver's function exists goes into `held` — no
-cap, nothing dropped — and is released in order the first time the function is
-there. `held` lives with the document, so a navigation before the function
+order: anything announced before the driver's function exists goes into `held` —
+no cap, nothing dropped — and is released in order the first time the function
+is there. `held` lives with the document, so a navigation before the function
 arrives takes the backlog with it.
 
 ## What this does and does not guard

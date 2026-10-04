@@ -261,11 +261,11 @@ reports nothing when you miss:
 | `tsc` | `"jsx": "react-jsxdev"` | included in that value |
 
 A Vite config accepts whichever keys it is given and reads only the ones its own
-major supports, so an `esbuild` block on Vite 8 — or an `oxc` block on Vite 7 — is
-not a build error, not a warning, and not a log line. The plugin still installs,
-the bundle still runs, every subject still renders, and every report names the
-line a component is declared on rather than the line that wrote the element. It
-fails in the direction that looks like it worked.
+major supports, so an `esbuild` block on Vite 8 — or an `oxc` block on Vite 7 —
+is not a build error, not a warning, and not a log line. The plugin still
+installs, the bundle still runs, every subject still renders, and every report
+names the line a component is declared on rather than the line that wrote the
+element. It fails in the direction that looks like it worked.
 
 So read the result rather than the config.
 

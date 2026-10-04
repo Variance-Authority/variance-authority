@@ -187,11 +187,11 @@ that join once — `declaredIn`, one row per component rather than a path on eac
 of ten thousand landmarks — and an answer prints a file either way.
 
 `box` is absent rather than zeroed when the run resolved no layout. Ask *what is
-under this* against such a run and you are told the run has no layout to answer from: document
-order agrees with the screen often enough to be dangerous and not often enough
-to be relied on. Containment is answered all the same, because `within` needs no
-rectangles. [Asking where something sits](locate.md#ask-where-something-sits) is
-the reading side.
+under this* against such a run and you are told the run has no layout to answer
+from: document order agrees with the screen often enough to be dangerous and not
+often enough to be relied on. Containment is answered all the same, because
+`within` needs no rectangles. [Asking where something
+sits](locate.md#ask-where-something-sits) is the reading side.
 
 ## How a query meets a value
 
@@ -284,9 +284,9 @@ It decides two things:
 **Which component a subject is the example of.** The shallowest boundary is
 whatever the harness mounted first, and answering with it gives every subject in
 a suite the same answer — one value for the whole field, which is a field that
-distinguishes nothing. So the example is the shallowest boundary that is *not* structure.
-Where the descent finds nothing — a suite too small for anything to be
-distinguishing — it answers as the shallowest rule would, so it can name more
+distinguishes nothing. So the example is the shallowest boundary that is *not*
+structure. Where the descent finds nothing — a suite too small for anything to
+be distinguishing — it answers as the shallowest rule would, so it can name more
 subjects than that rule and never fewer.
 
 **What a cap keeps.** Two hundred values is generous until a tree is six hundred
@@ -399,11 +399,11 @@ similar things similarly.
 
 ### What a starting point is worth
 
-Every count above measures whether the top hit is the author's *subject*. That is
-the wrong target for the question this answers. You are not looking for a story;
-you are looking for the place the thing is written, and one file is usually
-shown by several stories. Picking a different story that opens the same file is
-not a miss.
+Every count above measures whether the top hit is the author's *subject*. That
+is the wrong target for the question this answers. You are not looking for a
+story; you are looking for the place the thing is written, and one file is
+usually shown by several stories. Picking a different story that opens the same
+file is not a miss.
 
 So the questions were asked again mechanically — three hundred of them, seeded
 and re-runnable, each one a landmark's own words with the folder of the file

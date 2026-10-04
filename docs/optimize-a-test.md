@@ -63,8 +63,8 @@ suite starts. The [expensive row](selecting.md#the-expensive-row-and-what-retire
 is retired by the same reader.
 
 A mock that stops taking then becomes a selection hole rather than a slow test,
-which is what `auditTaints` watches: a module a test shadows and the record shows
-it covered is a mock that did not take, or a taint that is wrong about it.
+which is what `auditTaints` watches: a module a test shadows and the record
+shows it covered is a mock that did not take, or a taint that is wrong about it.
 
 ## Verify the substitution, do not assume it
 
@@ -98,5 +98,6 @@ a suite is worth opening first.
 **Further:** [`distill.md`](distill.md) for the three readings and the CLI, MCP
 and skill entrances · [`selecting.md`](selecting.md) for the scan, the taints
 and what a record shows · [`packages/distill`](../packages/distill) for the
-callable analyzer · [`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-declares-it-imports)
+callable analyzer ·
+[`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-declares-it-imports)
 for the taint tables themselves.

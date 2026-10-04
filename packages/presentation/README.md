@@ -369,8 +369,8 @@ evidence, not a preferred gap and not an automatic finding.
 
 This is the answer to the problem at the top of the page. Rather than asserting
 that a gap equals a token, declare which measured separations stand for which
-product-defined role, and let the measurement show whether two roles are actually
-distinguishable in the rendered page.
+product-defined role, and let the measurement show whether two roles are
+actually distinguishable in the rendered page.
 
 An excerpt, with the same `page` and `report` as above:
 

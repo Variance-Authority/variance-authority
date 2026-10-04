@@ -20,8 +20,8 @@ variance covering --file src/checkout/total.ts --function total --where prices=d
 Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
     sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 `Kept the 2 of 4` is out of the cases that covered the function before
@@ -40,7 +40,7 @@ variance covering --file src/checkout/total.ts --function total
 
 ```text
     charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 Each value is the one the case ran under: the case body overrides a
@@ -72,8 +72,8 @@ variance covering --file src/checkout/total.ts --function total --where discount
 
 - A twin is the test in the same file that covered the same code with the axis
   nearer its base (on a two-value axis, at the base) and every other
-  precondition the same (`prices=full` must match too), among the cases that covered it before `--where`, within the `--cases`
-  scope.
+  precondition the same (`prices=full` must match too), among the cases that
+  covered it before `--where`, within the `--cases` scope.
 - With several axes, the twin differs on one only: the last declared axis the
   case is away from its base on. The twin takes the nearest lower value a case
   in the file covered the code at: on `["off", "half", "on"]`, a case at `on` is
@@ -110,7 +110,10 @@ import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { vi } from 'vitest';
 import { fetchPrices } from '../src/checkout/prices.js';
 
-const TABLES = { full: { apple: 2, pear: 3 }, discounted: { apple: 1, pear: 2 } };
+const TABLES = {
+  full: { apple: 2, pear: 3 },
+  discounted: { apple: 1, pear: 2 },
+};
 
 export function pricesReturn(table: keyof typeof TABLES): void {
   vi.mocked(fetchPrices).mockResolvedValue(TABLES[table]);
@@ -157,6 +160,7 @@ record has a `preconditions` field: it was recorded by a runner without the
 precondition recording. Do not read it as *no test ran with discounted prices*.
 Record the suite again; asking again changes nothing.
 
-`N cases were recorded without preconditions, so whether they ran under any of that is unmeasured.`
-under `Kept` is the partial form: the kept list is right for the cases that
-were recorded with preconditions, and is no evidence about those N.
+`N cases were recorded without preconditions, so whether they ran under any of
+that is unmeasured.` under `Kept` is the partial form: the kept list is right
+for the cases that were recorded with preconditions, and is no evidence about
+those N.

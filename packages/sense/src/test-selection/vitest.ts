@@ -404,7 +404,7 @@ async function foldUnfolded(
   console.warn(
     'variance-authority: this run recorded nothing. A command-line `--reporter` replaced the ' +
       'reporter that writes the record, and the configured `runner` is the project\'s own, so no ' +
-      'worker said which files passed. Run without `--reporter` to record.',
+      'worker reported which files passed. Run without `--reporter` to record.',
   );
   rmSync(run.runDirectory, { recursive: true, force: true });
   rmSync(run.caseDirectory, { recursive: true, force: true });

@@ -41,8 +41,8 @@ declared changed, within the reach you declared.
 - **`overreached`** — the change is yours and it reached more subjects than you
   declared.
 - **`unobservable`** — the run never rendered that component, or kept no
-  component census that records whether it did. Nothing here is evidence about it;
-  say so rather than calling it delivered.
+  component census that records whether it did. Nothing here is evidence about
+  it; say so rather than calling it delivered.
 
 `[ungrouped]` names changed subjects no claim could be checked against, and
 `[not observed]` the subjects the run did not look at.
@@ -100,16 +100,16 @@ components:
   component has several instances with different values, only the values that
   changed are listed.
 
-A `token` cause with no indented lines moved, and this record does not hold which
-value did: the baseline was accepted before declared values were recorded, or
-instances traded values with each other so that every property still holds the
-same set. Read the source at the `file:line` under the component's region.
+A `token` cause with no indented lines moved, and this record does not hold
+which value did: the baseline was accepted before declared values were recorded,
+or instances traded values with each other so that every property still holds
+the same set. Read the source at the `file:line` under the component's region.
 
 `report.json` lists the same record per subject in `moved[]`: `component`,
 `bands`, `cause`, `presence` (`added` or `removed`, for a component on one side
-only), `grew` and `changed`. `moved` is absent when
-neither run supplied component hashes, and `presence`, `grew` and `changed` are
-each absent when the record does not hold them. Absent means unknown, not unchanged.
+only), `grew` and `changed`. `moved` is absent when neither run supplied
+component hashes, and `presence`, `grew` and `changed` are each absent when the
+record does not hold them. Absent means unknown, not unchanged.
 
 ## 4. Correct, and run again
 

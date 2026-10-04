@@ -89,7 +89,7 @@ describe('describeObservation', () => {
     });
 
     expect(message.split('\n').at(-1)).toBe(
-      'taken in tests/checkout.spec.ts > mocked > pays, arranged network=mocked (tests/checkout.spec.ts:12)',
+      'taken in tests/checkout.spec.ts > mocked > pays, ran under network=mocked (tests/checkout.spec.ts:12)',
     );
   });
 
