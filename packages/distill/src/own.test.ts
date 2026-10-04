@@ -1,0 +1,198 @@
+import type { ExecutionIndex, TestCoverage } from '@variance-authority/sense/test-selection';
+import { describe, expect, it } from 'vitest';
+import { distillFile, formatFileDistillation, type LoadCause } from './index.js';
+
+const FILE = 'test/dialog.test.ts';
+const OTHER = 'test/other.test.ts';
+
+type Block = TestCoverage['modules'][number]['blocks'][number];
+
+/**
+ * One module of a fixture: which test files evaluated it, whether it declares
+ * a function, and which of the file's two cases entered it.
+ */
+interface Module {
+  readonly by?: readonly string[];
+  readonly barrel?: boolean;
+  readonly entered?: readonly number[];
+}
+
+/** A record of one test file with two finished cases, from its modules and the static imports between them. */
+function read(modules: Readonly<Record<string, Module>>, edges?: Readonly<Record<string, readonly string[]>>) {
+  const coverage: TestCoverage = {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: FILE, complete: true, preconditions: [] }, { file: OTHER, complete: true, preconditions: [] }],
+    modules: Object.entries(modules).map(([file, module]) => {
+      const by = module.by ?? [FILE];
+      const root: Block = {
+        ordinal: 0, kind: 'module', digest: `${file}#root`, name: '', path: '', source: true,
+        testFiles: by, loadedBy: by, startLine: 1, endLine: 10,
+      };
+      const run: Block = {
+        ordinal: 1, kind: 'function', owner: 0, digest: `${file}#run`, name: 'run', path: 'run',
+        source: true, testFiles: by, startLine: 2, endLine: 2,
+      };
+      return { file, sourceDigest: file, instrumented: true, blocks: module.barrel === true ? [root] : [root, run] };
+    }),
+  };
+  const execution: ExecutionIndex = {
+    tests: [
+      { id: `${FILE} > one`, file: FILE, name: 'one', stopped: false },
+      { id: `${FILE} > two`, file: FILE, name: 'two', stopped: false },
+    ],
+    modules: Object.entries(modules).map(([file, module]) => ({
+      file,
+      blocks: [{
+        kind: 'function', name: 'run', path: 'run', startLine: 2, endLine: 2, source: true,
+        crossings: (module.entered ?? []).map((test) => ({ test, distance: 0 })),
+      }],
+    })),
+  };
+  return distillFile({
+    file: FILE,
+    coverage,
+    execution,
+    ...(edges === undefined ? {} : { imports: (file: string) => edges[file] ?? [] }),
+  });
+}
+
+function causes(result: ReturnType<typeof distillFile>): Record<string, LoadCause | undefined> {
+  return Object.fromEntries((result.modules ?? []).filter(({ entered }) => entered === 0).map(({ file, cause }) => [file, cause]));
+}
+
+const USED = { entered: [0, 1] };
+const NEVER = {};
+
+describe('distillFile with the imports given', () => {
+  it('names the import a module the test file does not write brought everything behind it in by', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/editor.ts': NEVER, 'src/markdown.ts': NEVER },
+      { [FILE]: ['src/dialog.ts'], 'src/dialog.ts': ['src/editor.ts'], 'src/editor.ts': ['src/markdown.ts'] },
+    );
+
+    const editor = { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' };
+    expect(causes(result)).toEqual({ 'src/editor.ts': editor, 'src/markdown.ts': editor });
+  });
+
+  it('puts what spills out of a barrel at the barrel\'s own re-export, not at the import of the barrel', () => {
+    const result = read(
+      { 'src/index.ts': { barrel: true }, 'src/button.ts': USED, 'src/chart.ts': NEVER },
+      { [FILE]: ['src/index.ts'], 'src/index.ts': ['src/button.ts', 'src/chart.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/chart.ts': { kind: 'import', importer: 'src/index.ts', imported: 'src/chart.ts' } });
+  });
+
+  it('counts a module two used imports reach to neither, and names where their paths part', () => {
+    const result = read(
+      { 'src/a.ts': USED, 'src/b.ts': USED, 'src/shared.ts': NEVER },
+      { [FILE]: ['src/a.ts', 'src/b.ts'], 'src/a.ts': ['src/shared.ts'], 'src/b.ts': ['src/shared.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/shared.ts': { kind: 'shared', parts: FILE } });
+  });
+
+  it('gives a diamond below an unused import to that import', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/heavy.ts': NEVER, 'src/x.ts': NEVER, 'src/y.ts': NEVER, 'src/z.ts': NEVER },
+      {
+        [FILE]: ['src/dialog.ts'],
+        'src/dialog.ts': ['src/heavy.ts'],
+        'src/heavy.ts': ['src/x.ts', 'src/y.ts'],
+        'src/x.ts': ['src/z.ts'],
+        'src/y.ts': ['src/z.ts'],
+      },
+    );
+
+    expect(new Set(Object.values(causes(result)).map((cause) => JSON.stringify(cause)))).toEqual(
+      new Set([JSON.stringify({ kind: 'import', importer: 'src/dialog.ts', imported: 'src/heavy.ts' })]),
+    );
+  });
+
+  it('follows a cycle without counting its way back as a second way in', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/editor.ts': NEVER, 'src/helpers.ts': NEVER },
+      { [FILE]: ['src/dialog.ts'], 'src/dialog.ts': ['src/editor.ts'], 'src/editor.ts': ['src/helpers.ts'], 'src/helpers.ts': ['src/editor.ts'] },
+    );
+
+    const editor = { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' };
+    expect(causes(result)).toEqual({ 'src/editor.ts': editor, 'src/helpers.ts': editor });
+  });
+
+  it('calls a module no static import reaches unseen: a dynamic import is not followed', () => {
+    const result = read({ 'src/dialog.ts': USED, 'src/lazy.ts': NEVER }, { [FILE]: ['src/dialog.ts'] });
+
+    expect(causes(result)).toEqual({ 'src/lazy.ts': { kind: 'unseen' } });
+  });
+
+  it('cuts the edge into a module the file mocked with a factory, which it never evaluated', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/mocked.ts': { by: [OTHER] }, 'src/editor.ts': NEVER },
+      { [FILE]: ['src/dialog.ts', 'src/mocked.ts'], 'src/dialog.ts': ['src/editor.ts'], 'src/mocked.ts': ['src/editor.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/editor.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' } });
+  });
+
+  it('keeps the edge into an automocked module, which the file still evaluated', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/mocked.ts': USED, 'src/editor.ts': NEVER },
+      { [FILE]: ['src/dialog.ts', 'src/mocked.ts'], 'src/dialog.ts': ['src/editor.ts'], 'src/mocked.ts': ['src/editor.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/editor.ts': { kind: 'shared', parts: FILE } });
+  });
+
+  it('keeps the edge into a file the record does not hold, since it cannot say the file was not loaded', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/editor.ts': NEVER },
+      { [FILE]: ['src/dialog.ts', 'src/data.json'], 'src/dialog.ts': ['src/editor.ts'], 'src/data.json': ['src/editor.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/editor.ts': { kind: 'shared', parts: FILE } });
+  });
+
+  it('gives no import to an unused module whose import also brings in code a case entered', () => {
+    const result = read(
+      { 'src/plugin.ts': NEVER, 'src/registry.ts': USED },
+      { [FILE]: ['src/plugin.ts'], 'src/plugin.ts': ['src/registry.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/plugin.ts': { kind: 'shared', parts: FILE } });
+  });
+
+  it('names no cause without the imports, nor for a module some case entered', () => {
+    const modules = { 'src/dialog.ts': { entered: [0] }, 'src/editor.ts': NEVER };
+    const edges = { [FILE]: ['src/dialog.ts'], 'src/dialog.ts': ['src/editor.ts'] };
+
+    expect(read(modules).modules?.every(({ cause }) => cause === undefined)).toBe(true);
+    expect(read(modules, edges).modules?.find(({ file }) => file === 'src/dialog.ts')?.cause).toBeUndefined();
+  });
+});
+
+describe('formatFileDistillation with causes', () => {
+  it('groups what no case entered under the import that brought it in, heaviest first', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/editor.ts': NEVER, 'src/markdown.ts': NEVER, 'src/a.ts': USED, 'src/b.ts': USED, 'src/shared.ts': NEVER, 'src/lazy.ts': NEVER },
+      {
+        [FILE]: ['src/dialog.ts', 'src/a.ts', 'src/b.ts'],
+        'src/dialog.ts': ['src/editor.ts'],
+        'src/editor.ts': ['src/markdown.ts'],
+        'src/a.ts': ['src/shared.ts'],
+        'src/b.ts': ['src/shared.ts'],
+      },
+    );
+
+    expect(formatFileDistillation(result)).toContain([
+      'Loaded, and entered by no case: 4 module(s), 40 line(s).',
+      '  src/dialog.ts imports src/editor.ts: 2 module(s), 20 line(s)',
+      '    src/editor.ts — 10 line(s)',
+      '    src/markdown.ts — 10 line(s)',
+      '  No one import brings these in alone: 1 module(s), 10 line(s)',
+      `    src/shared.ts — 10 line(s), every path to it runs through ${FILE}`,
+      '  No static import reaches these from the test file: 1 module(s), 10 line(s)',
+      '    src/lazy.ts — 10 line(s)',
+    ].join('\n'));
+  });
+});

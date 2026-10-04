@@ -154,11 +154,21 @@ top of this one, per case rather than per file, and is not part of this spec.
    top-level-only rule for the constants file and the polyfill.
    Fixtures: a constants file, a polyfill, and a file whose declarations no case
    in the file executed while one case in a second file did.
-2. Ownership over the runtime graph by request, rooted at the test file, with
+2. ~~Ownership over the runtime graph by request, rooted at the test file, with
    factory mocks cutting. Fixtures for a dead import, a barrel spill, an import
    the test file does not write, a diamond whose shared weight is counted to
    neither import, a dynamic import read as unseen, and an automock that still
-   loads.
+   loads.~~
+   **Discharged.** `dominatorsOf` in `@variance-authority/core/relate`, read by
+   `distillFile` when it is handed the file graph's static imports, and by
+   `variance distill --file` alone. The walk keeps only files the recording
+   says F evaluated, so a factory mock cuts its edge with no mock reader. An
+   import names its importer and imported file, not the specifier as written:
+   the specifier and its line come with item 5. Shared weight names the nearest
+   file every path runs through rather than the imports that reach it. An
+   unused file that dominates an entered one reads as shared, because removing
+   its import would lose code a case ran. Fixtures in `own.test.ts`, plus a
+   cycle and a file the recording does not hold.
 3. The least-knowledge rule, with a fixture whose only narrower import is a path
    into another package that its `exports` do not declare, so no proposal names
    the internal.

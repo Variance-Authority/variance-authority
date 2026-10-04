@@ -147,7 +147,8 @@ variance distill --file test/checkout.spec.ts --test submits
 `--file` takes any part of the test file's path. When more than one case fits,
 the command prints their ids and stops, and you pass one of them to `--test`.
 `--file` alone reads the whole file instead: the modules it loaded that no
-case, or only some of its cases, entered.
+case, or only some of its cases, entered, each module no case entered under the
+import that made the file load it.
 
 `distill` reads the record `covering` reads; `--suite <name>` picks one declared
 suite's, and `--execution <path>` names another record, or a case index another
@@ -276,6 +277,7 @@ a measured-empty addressed surface.
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
 | `distillFile(input)` | `FileDistillInput` in, `FileDistillation` out: the modules one test file loaded that no case, or only some cases, entered. Throws when no recorded test file, or more than one, contains `file`. |
+| `LoadCause` | Why a file loaded a module no case entered: the one `import` every path to it runs through, `shared` with the file where its paths part, or `unseen` by any static import. Set when `FileDistillInput.imports` gives the static imports of each file. |
 | `formatFileDistillation(result)` | The text of a file reading, as the CLI prints it for `--file` alone. |
 
 `DistillInput` names the case by `test`, `file`, or both — `file` alone when

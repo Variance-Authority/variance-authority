@@ -1,6 +1,7 @@
 // compass: variance-authority/runtime/attention
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { EDGE_KINDS, NODE_KINDS, idOf, type EdgeKind, type Relations } from '@variance-authority/core/relate';
 import { parseEyesJournal } from '@variance-authority/eyes/archive';
 import {
   distill,
@@ -20,6 +21,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { executionIndexOf, recordedExecutionFile } from './execution-input.js';
+import { relationsFor } from './source-graph.js';
 
 export interface DistillOptions {
   /** The case's id, its exact title, or a part of the title. */
@@ -53,7 +55,11 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     const bytes = await readFile(record);
     const execution = executionIndexOf(bytes);
     if (options.test === undefined && options.file !== undefined) {
-      return distillFile({ file: options.file, execution, coverage: coverageOf(bytes, record) });
+      const input = { file: options.file, execution, coverage: coverageOf(bytes, record) };
+      const flat = distillFile(input);
+      // The graph is read only when there is a load to give a cause: the scan costs more than the record.
+      if (!flat.modules?.some(({ entered }) => entered === 0)) return flat;
+      return distillFile({ ...input, imports: importsOf(await fileGraph(options.root)) });
     }
     const section = recordedEyesOf(bytes);
     return distill({
@@ -67,6 +73,31 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     if (error instanceof OperatorError) throw error;
     throw new OperatorError(error instanceof Error ? error.message : String(error));
   }
+}
+
+function fileGraph(root: string): Promise<Relations> {
+  return relationsFor(root, ['.'], [], [], {
+    why: 'a file reading names the import that brought in each module no case entered, from the file graph',
+    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
+  });
+}
+
+/** The edges a runtime evaluates a module through on load: a dynamic import evaluates later, if at all. */
+const LOADING = new Set((['imports', 'reexports', 'asset'] as const satisfies readonly EdgeKind[]).map((kind) => EDGE_KINDS.indexOf(kind)));
+const FILE = NODE_KINDS.indexOf('file');
+
+/** The files each file imports statically, read from the file graph by the names the record uses. */
+export function importsOf(relations: Relations): (file: string) => readonly string[] {
+  const { offset, target, kind } = relations.depends;
+  return (file) => {
+    const id = idOf(relations, 'file', file);
+    if (id === undefined) return [];
+    const found: string[] = [];
+    for (let at = offset[id]!; at < offset[id + 1]!; at += 1) {
+      if (LOADING.has(kind[at]!) && relations.kinds[target[at]!] === FILE) found.push(relations.names[target[at]!]!);
+    }
+    return found;
+  };
 }
 
 /**

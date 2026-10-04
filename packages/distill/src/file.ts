@@ -4,6 +4,7 @@ import type {
   ExecutionTest,
   TestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { causesOf, type LoadCause } from './own.js';
 
 /** What names one test file, and the two readings of the record it is read from. */
 export interface FileDistillInput {
@@ -13,6 +14,12 @@ export interface FileDistillInput {
   readonly execution: ExecutionIndex;
   /** The record's coverage rows: which test files loaded which modules. */
   readonly coverage: TestCoverage;
+  /**
+   * The files a file imports statically — imports, re-exports and assets, not
+   * dynamic imports — by the names the record uses. Given, each module no case
+   * entered carries the import that made the file load it.
+   */
+  readonly imports?: (file: string) => readonly string[];
 }
 
 /** One module a test file loaded that not every one of its cases entered. */
@@ -22,6 +29,8 @@ export interface LoadedModule {
   readonly lines?: number;
   /** How many of the file's cases entered a function the module declares. */
   readonly entered: number;
+  /** Why the file loaded it. Present for a module no case entered, when the imports were given. */
+  readonly cause?: LoadCause;
 }
 
 /** What one test file loaded and how many of its cases used each module. */
@@ -85,10 +94,19 @@ export function distillFile(input: FileDistillInput): FileDistillation {
 
   const mine = new Set(cases.map(({ at }) => at));
   const entries = new Map(input.execution.modules.map((module) => [module.file, enteredBy(module, mine)]));
+  const entered = new Map(candidates.map((module) => [module.file, entries.get(module.file)?.size ?? 0]));
+  const imports = input.imports;
+  const cause = imports === undefined ? undefined : causesOf({ file, imports, coverage: input.coverage, entered });
   const modules = candidates
     .map((module): LoadedModule => {
       const lines = module.blocks.find((block) => block.kind === 'module')?.endLine;
-      return { file: module.file, ...(lines === undefined ? {} : { lines }), entered: entries.get(module.file)?.size ?? 0 };
+      const count = entered.get(module.file)!;
+      return {
+        file: module.file,
+        ...(lines === undefined ? {} : { lines }),
+        entered: count,
+        ...(cause === undefined || count > 0 ? {} : { cause: cause(module.file) }),
+      };
     })
     .filter(({ entered }) => entered < cases.length)
     .sort((left, right) =>
@@ -156,12 +174,19 @@ export function formatFileDistillation(result: FileDistillation): string {
     head,
     '',
     `Loaded, and entered by no case: ${lines(never)}.`,
-    ...never.map((module) => `  ${module.file} — ${size(module)}`),
+    ...(never.some(({ cause }) => cause !== undefined)
+      ? byCause(never).flatMap(([head, modules]) => [
+        `  ${head}: ${lines(modules)}`,
+        ...modules.map((module) => `    ${module.file} — ${size(module)}${partsOf(module.cause)}`),
+      ])
+      : never.map((module) => `  ${module.file} — ${size(module)}`)),
     '',
     `Loaded, and entered by some cases only: ${lines(some)}.`,
     ...some.map((module) => `  ${module.file} — ${size(module)}, entered by ${module.entered} of ${result.cases.length} case(s)`),
     '',
-    'Each module is evidence, not the fix: the fix is the import, in this file or a module it used, that brought it in. ' +
+    (never.some(({ cause }) => cause !== undefined)
+      ? 'Each module is evidence, not the fix: the fix is the import named above it. '
+      : 'Each module is evidence, not the fix: the fix is the import, in this file or a module it used, that brought it in. ') +
       'Delete it, or mock it with a factory, when nothing behind it is used; when part is, import past the barrel ' +
       'inside its own package, or from an entry its package declares; ' +
       'make it lazy in the code that uses it, or move those cases to a file of their own, when only some cases ' +
@@ -169,6 +194,31 @@ export function formatFileDistillation(result: FileDistillation): string {
       'to an internal. Rerun the file after the change: a top level can register something a case depends on.',
     ...(result.cases.length > 1 ? ['', 'Read one case with --test <id>:', ...casesShown(result.cases)] : []),
   ].join('\n');
+}
+
+/** The modules grouped by what brought them in: imports heaviest first, then the shared, then the unseen. */
+function byCause(modules: readonly LoadedModule[]): readonly (readonly [string, readonly LoadedModule[]])[] {
+  const groups = new Map<string, LoadedModule[]>();
+  for (const module of modules) {
+    const cause = module.cause;
+    const head = cause?.kind === 'import'
+      ? `${cause.importer} imports ${cause.imported}`
+      : cause?.kind === 'shared' ? SHARED : UNSEEN;
+    const group = groups.get(head);
+    if (group === undefined) groups.set(head, [module]);
+    else group.push(module);
+  }
+  const weight = (group: readonly LoadedModule[]): number => group.reduce((sum, module) => sum + (module.lines ?? 0), 0);
+  const rank = (head: string): number => (head === SHARED ? 1 : head === UNSEEN ? 2 : 0);
+  return [...groups].sort(([left, a], [right, b]) =>
+    rank(left) - rank(right) || weight(b) - weight(a) || compare(left, right));
+}
+
+const SHARED = 'No one import brings these in alone';
+const UNSEEN = 'No static import reaches these from the test file';
+
+function partsOf(cause: LoadCause | undefined): string {
+  return cause?.kind === 'shared' ? `, every path to it runs through ${cause.parts}` : '';
 }
 
 function casesShown(cases: readonly ExecutionTest[]): readonly string[] {
