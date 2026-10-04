@@ -40,7 +40,7 @@ code.
 | `perf` | A cost, measured | The same measurement before and after (CI's `measure` job on the base and on the PR, or a named benchmark), its command and machine quoted in the body | A changed assertion |
 | `refactor` | A shape that makes a named next change hard | Every existing test unchanged and green on both sides | A changed assertion |
 | `test` | Behaviour on the base that no test pins | Tests that pass on the base | A test for code an open PR adds: it goes in that PR |
-| `docs` | A sentence that is wrong, missing or unclear, quoted | The writing, held to [`docs/AGENTS.md`](../../docs/AGENTS.md) when it is published | Product code |
+| `docs` | A sentence that is wrong, missing or unclear, quoted | The writing, with its structure held to [content flow](content-flow.md) and its sentences to [`docs/AGENTS.md`](../../docs/AGENTS.md) when it is published | Product code |
 | `ci`, `chore` | A workflow, tool or dependency that fails or costs | The run on the PR that exercises the changed workflow or tool, checked in the [outer loop](outer-loop.md) | Product code |
 | `revert` | The merged PR it undoes, and what that PR broke | The revert of that PR's merge commit | Any change beyond the revert and its changeset |
 
@@ -64,7 +64,8 @@ The body follows
 [`.github/pull_request_template.md`](../../.github/pull_request_template.md).
 `gh pr create --body-file` skips the template, so apply it yourself.
 
-Before anything is pushed, three subagents review the change. Each starts with
+Before anything is pushed, three subagents review the change, and a fourth when
+the change writes a top-layer page. Each starts with
 no other context, and each gets only what its question needs, read from your
 worktree and `origin/main`, never from local `main`:
 
@@ -80,12 +81,25 @@ worktree and `origin/main`, never from local `main`:
 3. **Fidelity** — the body, the diff and `origin/main`. Is every claim in the
    body true of the diff? Does each claimed behaviour have the test the body
    names, and, where it pins a change, does the body show that test failing on
-   `origin/main`?
+   `origin/main`? For a top-layer page, does each fact the brief puts off the
+   spine sit in the file it names, and does that file say it? Does each fact
+   marked *nowhere* carry the reason it was left out?
+
+When the change writes or rewrites a top-layer page, a fourth runs first:
+
+4. **Flow** — the `content-flow` agent, given each changed page alone with the
+   brief's reader and question, never its expected readback. It reports what it
+   understood, and you compare that with the brief, as
+   [content flow](content-flow.md) says. A verdict of *no spine*, a *stalls at*
+   that is not a named and linked prerequisite, or a readback that differs from
+   the brief, is blocking, and the other three
+   wait until it passes: a review of facts on a page whose structure will change
+   is spent twice.
 
 Each answers its own question; one reviewer finding nothing does not clear the
 others. Each marks a finding blocking or not. Fix the blocking ones, in the code
-or the body, and run the three again until none of them reports a blocking
-finding. A finding still marked blocking after the second round is yours to
+or the body, and run them all again, Flow included, until none of them reports
+a blocking finding. A finding still marked blocking after the second round is yours to
 decide: fix it, or set it aside. Every finding not fixed is named in the body
 with the reason it was set aside.
 

@@ -79,9 +79,13 @@ Look around:
   <path>`. A test is amended or added first, and fails on the code as it is,
   before the code changes. Behaviour nothing covers is pinned green first, in
   addition to that test, not instead of it.
-- Where each piece of writing goes, and [`docs/AGENTS.md`](docs/AGENTS.md)
-  before any published sentence: a README, `docs/`, the site, CLI output or an
-  error message.
+- Where each piece of writing goes. A top-layer page — the root `README.md` or
+  `docs/` — gets its structure from
+  [content flow](.agents/references/content-flow.md) before it is outlined: a
+  brief, then a spine read cold by the `content-flow` reviewer. Detail goes to
+  the skill reference or the JSDoc that owns it. [`docs/AGENTS.md`](docs/AGENTS.md) comes before any
+  published sentence: a README, `docs/`, the site, CLI output or an error
+  message.
 - Whether the change reaches a published package. If it does, it carries a
   changeset — `yarn changeset` — written as it is made, not at release time; a
   change that ships nothing worth naming carries `yarn changeset --empty`. CI
@@ -137,7 +141,9 @@ Write the body to
 [`.github/pull_request_template.md`](.github/pull_request_template.md). Before
 anything is pushed, three subagents with no other context review the change,
 each for one question: does the body make sense on its own, should the change
-happen at all, and does the diff do what the body says. Fix what they mark
+happen at all, and does the diff do what the body says. A change that writes a
+top-layer page gets a fourth, the `content-flow` reviewer, and it runs first:
+the other three wait until the page's structure passes. Fix what they mark
 blocking and run them again until none does; a finding still blocking after the
 second round is yours to fix or set aside, and every finding not fixed is named
 in the body. Then push the branch and open the PR, so CodeRabbit reviews

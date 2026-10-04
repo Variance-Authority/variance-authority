@@ -105,6 +105,14 @@ this branch; otherwise on its own branch. A finding that contradicts a rule
 here, or misreads the code, is left as it is. Never reply to a thread, never
 resolve one, and never tick its autofix checkboxes.
 
+**A comment on a top-layer page may be about its structure.** A reviewer asking
+why something is said, asking for an example, or adding a caveat to the first
+half of a page is saying the spine failed. Do not patch the line the comment is
+attached to. Go back to the brief, fix the outline, and run the `content-flow`
+reviewer again, as [content flow](content-flow.md) says. A correctness finding
+on a page may be fixed by moving the fact into the layer that owns it or cutting
+it.
+
 ## Handing over
 
 Swap `agent:debugging` for `agent:done` when you hand over, and not before.

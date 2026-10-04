@@ -1,5 +1,11 @@
 # Working on documentation
 
+Structure comes first, and it is not held here. Before you outline a page, read
+[content flow](../.agents/references/content-flow.md): the page's job, the
+brief, the order, and the cold read by the `content-flow` reviewer. This file
+governs what comes after the structure holds: links, publication and every
+sentence.
+
 ## What this file governs, and how to check it
 
 Public pages are the top-level `docs/*.md`, excluding this file and
@@ -151,21 +157,19 @@ defending against. So:
 - **A defence is not a story.** State what the code refuses and why it matters
   *here*. The failure mode it prevents is a clause, not a section — and if it
   needs a section, it is an ADR.
-- **Every paragraph earns its place in one story.** A page has a spine. Anything
-  true but off-spine goes in an ADR, a docstring, or nowhere. Interesting is not
-  a reason to include something.
-
-The failure this rules out is a correct page nobody finishes: three levels of
-detail on a defence that runs once, in front of the mechanism the reader opened
-the page for.
+- **Every paragraph earns its place in one story.** Anything true but off the
+  spine goes to the layer that owns it — the skill reference shipped with the
+  CLI, the JSDoc, an ADR — or nowhere. Interesting is not a reason to include
+  something. Where each fact goes, and in what order, is
+  [content flow](../.agents/references/content-flow.md)'s.
 
 ### Editorial direction
 
 Write with substance and character, in language that does not require belonging
 to the project.
 
-- Respect what the page is doing. An argument persuades, an explanation develops
-  understanding, and a reference answers precisely. Each needs its own shape.
+- Respect what the page is doing. Its job, and the shape that job takes, are
+  decided in [content flow](../.agents/references/content-flow.md).
 - Assume engineering experience, not shared vocabulary. Readers know software;
   they do not know the project's private shorthand or the conversations behind it.
 - Make the thought easy to follow. Clear relationships between ideas matter more
@@ -217,9 +221,10 @@ language. That last part is not a small adjustment. It decides the words.
    or the arguments behind either.
 3. **What makes it true — the thing itself.** Code, output, a measurement, a
    recorded run. **No sentence is true because of another sentence in the
-   document.** A page is not an argument. Every paragraph stands on the product
-   directly. This is why *it does not follow that*, *hence*, *therefore*, *it
-   holds that* and *it suffices to* are out: each one says this sentence comes
+   document.** A page may argue, but no claim in it rests on the claim before
+   it. Every paragraph stands on the product directly. This is why *it does not
+   follow that*, *hence*, *therefore*, *it holds that* and *it suffices to* are
+   out: each one says this sentence comes
    out of the last one, and none of them do.
 4. **Words mean what they say.** A term of art passes — `import`, `closure`,
    `graph`, `hydration` mean exactly what they mean, and there is no limit on
