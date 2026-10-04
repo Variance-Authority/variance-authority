@@ -27,6 +27,7 @@ import {
 import { OperatorError } from '../exit.js';
 import { executionIndexOf, recordedExecutionFile } from './execution-input.js';
 import { relationsFor } from './source-graph.js';
+import { asOperator, nothingRecorded } from './suite-record.js';
 
 export interface DistillOptions {
   /** The case's id, its exact title, or a part of the title. */
@@ -113,13 +114,7 @@ async function distillRecords(options: DistillOptions): Promise<ScopeDistillatio
       coverage: asOperator(() => coverageOf(bytes, record)),
     });
   }
-  if (records.length === 0) {
-    throw new OperatorError(
-      `nothing is recorded in \`${options.root}\`: none of the suites ${unrecorded.join(', ')} left a per-case index. ` +
-        'Run a suite with `withTestSelection` and ask again.',
-      { kind: 'unrecorded' },
-    );
-  }
+  if (records.length === 0) throw nothingRecorded(options.root, unrecorded);
   const input = {
     ...(options.from === undefined ? {} : { within: options.from }),
     records,
@@ -134,15 +129,6 @@ async function distillRecords(options: DistillOptions): Promise<ScopeDistillatio
 /** The declared suites' names, or none when the repository records once. */
 function suitesOf(root: string): readonly string[] | undefined {
   return asOperator(() => declaredSuites(root))?.map((suite) => suite.name);
-}
-
-function asOperator<T>(read: () => T): T {
-  try {
-    return read();
-  } catch (error) {
-    if (error instanceof OperatorError) throw error;
-    throw new OperatorError(error instanceof Error ? error.message : String(error), { cause: error });
-  }
 }
 
 function fileGraph(root: string): Promise<Relations> {

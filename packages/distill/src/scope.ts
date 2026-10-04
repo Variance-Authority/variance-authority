@@ -46,7 +46,7 @@ export interface Spill {
 /** What a scope of test files loaded and no case of the loading file entered. */
 export interface ScopeDistillation {
   readonly within?: string;
-  /** The suites read, when the records name them. */
+  /** The suites holding a test file in the scope, when the records name them. */
   readonly suites: readonly string[];
   /** Declared suites that kept no record, and so were not read. */
   readonly unrecorded?: readonly string[];
@@ -129,7 +129,7 @@ export function distillScope(input: ScopeDistillInput): ScopeDistillation {
     reading.withheld === undefined ? [] : [{ file: reading.file, ...(suite === undefined ? {} : { suite }), reason: reading.withheld }]);
   return {
     ...(within === undefined ? {} : { within }),
-    suites: [...new Set(input.records.flatMap((record) => (record.suite === undefined ? [] : [record.suite])))],
+    suites: [...new Set(readings.flatMap(({ suite }) => (suite === undefined ? [] : [suite])))],
     ...(input.unrecorded === undefined || input.unrecorded.length === 0 ? {} : { unrecorded: input.unrecorded }),
     files: readings.length,
     read: readings.length - withheld.length,

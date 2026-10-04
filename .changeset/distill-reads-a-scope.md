@@ -11,5 +11,5 @@ that has not recorded. The file graph is read once, and only when some test file
 loaded a module no case of it entered.
 
 `@variance-authority/distill` exports `distillScope` and
-`formatScopeDistillation`, with `ScopeRecord`, `ScopeDistillation`, `Spill`
-and `SpillCause`.
+`formatScopeDistillation`, with `ScopeRecord`, `ScopeDistillInput`, `ScopeDistillation`,
+`Spill` and `SpillCause`.

@@ -69,22 +69,25 @@ async function recorded(at: string, files: readonly string[]): Promise<void> {
   }));
 }
 
-/** A checkout declaring a `unit` and an `e2e` suite, each recorded, with its sources indexed. */
-async function checkout(suites: { readonly e2e: boolean } = { e2e: true }): Promise<string> {
+/** A checkout declaring a `unit` and an `e2e` suite, each recorded, with its sources indexed; or, declaring none, one record. */
+async function checkout(suites: { readonly unit?: boolean; readonly e2e: boolean } | 'undeclared' = { e2e: true }): Promise<string> {
   // The cache is keyed by the path the checkout is at, which a temporary directory's name is not on macOS.
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-distill-scope-')));
   made.push(root);
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
   process.chdir(root);
-  writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, e2e: { kind: 'e2e' } } }));
+  if (suites !== 'undeclared') writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, e2e: { kind: 'e2e' } } }));
   for (const [file, text] of Object.entries(SOURCES)) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), text);
   }
   execFileSync('git', ['add', '.'], { cwd: root, stdio: 'pipe' });
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'source'], { cwd: root, stdio: 'pipe' });
-  await recorded(testCoverageFile(root, { suite: 'unit' }), UNIT);
-  if (suites.e2e) await recorded(testCoverageFile(root, { suite: 'e2e' }), E2E);
+  if (suites === 'undeclared') await recorded(testCoverageFile(root), [...UNIT, ...E2E]);
+  else {
+    if (suites.unit !== false) await recorded(testCoverageFile(root, { suite: 'unit' }), UNIT);
+    if (suites.e2e) await recorded(testCoverageFile(root, { suite: 'e2e' }), E2E);
+  }
   // Published as a pipeline publishes it: under CI a reader refuses to build the index itself.
   expect((await run(['index'])).code).toBe(EXIT_CLEAN);
   return root;
@@ -122,7 +125,7 @@ describe('distill over a scope of test files', () => {
     const answer = await run(['distill', '--from', 'app/']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
-    expect(answer.out).toContain('app in suites e2e, unit: 1 test file(s), each read.');
+    expect(answer.out).toContain('app in suite unit: 1 test file(s), each read.');
     expect(answer.out).toContain('  src/cart.ts imports src/chart.ts: 1 module(s) in 1 test file(s), 30 line(s)');
   });
 
@@ -134,6 +137,24 @@ describe('distill over a scope of test files', () => {
     expect(answer.code).toBe(EXIT_CLEAN);
     expect(answer.out).toContain('every test file in suite unit: 2 test file(s), each read.');
     expect(answer.out).toContain('Not recorded: suite e2e.');
+  });
+
+  it('reads the one record of a repository that declares no suites', async () => {
+    await checkout('undeclared');
+
+    const answer = await run(['distill']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(answer.out).toContain('every test file: 3 test file(s), each read.');
+  });
+
+  it('refuses, naming every declared suite, when none has recorded', async () => {
+    await checkout({ unit: false, e2e: false });
+
+    const answer = await run(['distill']);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain('none of the suites it declares, "e2e", "unit", has a per-case index');
   });
 
   it('refuses `--from` beside `--test` or `--file`, which name one case or one file', async () => {

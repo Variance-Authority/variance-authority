@@ -308,7 +308,7 @@ variance distill --from packages/distill
 ```
 
 ```text
-packages/distill in suites chromium, integration, unit: 4 test file(s), each read.
+packages/distill in suite unit: 4 test file(s), each read.
 
 Loaded, and entered by no case of the test file that loaded it: 63 module load(s), 12748 line(s).
   packages/distill/src/own.ts imports packages/core/src/relate/index.ts: 11 module(s) in 2 test file(s), 4540 line(s)

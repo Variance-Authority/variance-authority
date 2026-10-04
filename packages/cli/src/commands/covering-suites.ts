@@ -23,10 +23,10 @@ import {
   type SuiteKind,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCovering } from '../covering-args.js';
-import { messageOf } from '../config-values.js';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
 import { covering, formatCovering, type Covering, type CoveringFormat } from './covering.js';
+import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's answer, or why its record could not give one. */
 export type SuiteAnswer =
@@ -71,12 +71,7 @@ export async function coveringAnswer(request: ParsedCovering): Promise<Covering 
   const suites: SuiteAnswer[] = [];
   for (const one of declared) suites.push(await askSuite(asked, one));
   if (suites.every((answer) => 'refused' in answer && answer.refused === 'unrecorded')) {
-    throw new OperatorError(
-      `nothing is recorded in \`${request.root}\`: none of the suites it declares, ${
-        declared.map((one) => `"${one.name}"`).join(', ')
-      }, has a per-case index. Run a suite with \`withTestSelection\` and ask again.`,
-      { kind: 'unrecorded' },
-    );
+    throw nothingRecorded(request.root, declared.map((one) => one.name));
   }
 
   return {
@@ -109,12 +104,4 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
       return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
     })
     .join('\n');
-}
-
-function asOperator<T>(read: () => T): T {
-  try {
-    return read();
-  } catch (error) {
-    throw new OperatorError(messageOf(error), { cause: error });
-  }
 }
