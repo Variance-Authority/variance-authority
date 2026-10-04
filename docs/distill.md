@@ -224,10 +224,11 @@ keep it.
 
 ## Imports a file loads for few of its cases
 
-A runner evaluates a module once per test file, so an import costs every case
-in the file, however few of them use it. A dialog that opens on a click loads
-its whole tree before the first case starts, even in the cases that never
-click. Name the file alone to see that cost; the output opens with:
+A runner evaluates a test file's imports once, when it loads the file, before
+its first case. That cost belongs to the file, not to any one case, and it is
+paid whether or not a case uses what was loaded. A dialog that opens on a click
+loads its whole tree with the file, even when no case clicks. Name the file
+alone to see that cost; the output opens with:
 
 ```bash
 variance distill --file test/dialog.test.tsx
@@ -249,7 +250,8 @@ in the test file or in a module the test used, that brought it in. Delete that
 import, or mock it with a factory, when nothing behind it is used; when part
 of it is, import past the barrel inside its own package, or from an entry its
 package declares; move it to the code that uses it when only some
-cases do, so the others never load it. Mocking a listed module by its own path
+cases do. Which case calls a module does not change what the file loads: only
+the import graph does, through a lazy import or a file of its own. Mocking a listed module by its own path
 ties the test to a file its code never names. An error boundary's fallback is
 the usual example: imported by every case, rendered by none, because no error
 happened.

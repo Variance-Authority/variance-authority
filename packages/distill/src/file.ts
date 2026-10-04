@@ -50,7 +50,8 @@ export interface FileDistillation {
  * file, and the coverage rows say which file it was. A case is credited only
  * with what it called into, so the case index says which cases used the module
  * after it loaded. A module no case entered was loaded for nothing this file
- * tests; one only some cases entered is loaded for every case and used by a few.
+ * tests; one only some cases entered is loaded once for the whole file and serves
+ * a few of its cases.
  *
  * A module that declares nothing below its top level is left out: a barrel or
  * a file of constants runs all it has when it loads, and a read of a constant
@@ -163,7 +164,8 @@ export function formatFileDistillation(result: FileDistillation): string {
     'Each module is evidence, not the fix: the fix is the import, in this file or a module it used, that brought it in. ' +
       'Delete it, or mock it with a factory, when nothing behind it is used; when part is, import past the barrel ' +
       'inside its own package, or from an entry its package declares; ' +
-      'move it to the code that uses it when only some cases do. Mocking a listed module by its own path ties the test ' +
+      'make it lazy in the code that uses it, or move those cases to a file of their own, when only some cases ' +
+      'use it: which case calls it does not change what the file loads. Mocking a listed module by its own path ties the test ' +
       'to an internal. Rerun the file after the change: a top level can register something a case depends on.',
     ...(result.cases.length > 1 ? ['', 'Read one case with --test <id>:', ...casesShown(result.cases)] : []),
   ].join('\n');

@@ -7,7 +7,8 @@
 `variance distill --file <path>` without `--test` reads the whole test file: the
 modules it loaded before its first case that no case entered, and those only
 some of its cases entered, each with its length in lines. A runner evaluates a
-module once per test file, so every case pays for each of these at load time.
+test file's imports once, when it loads the file, so the file pays for each of
+these whichever cases use it.
 The fix is at the import that brought a module in, in the test file or a module
 it used, not a mock of the listed path.
 `--file` alone used to read the file's only case; name it with `--test` for

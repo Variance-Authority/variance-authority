@@ -327,7 +327,7 @@ retried prints every attempt's journal, numbered from 1.
 
 `--file` alone reads the whole file: the modules it loaded that no case
 entered, and those only some of its cases entered, with their length in lines.
-Each is an import every case pays for at load time.
+The file pays for each once, when it loads, whichever cases use it.
 
 `distill` reads the record `covering` reads; `--suite <name>` picks one declared
 suite's, and `--execution <path>` reads any other record, or JSON from a tool
