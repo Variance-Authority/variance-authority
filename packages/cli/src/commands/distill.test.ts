@@ -193,6 +193,64 @@ describe('the CLI distillation boundary', () => {
     expect(formatDistill(result, 'json')).toContain('"entered"');
   });
 
+  it('reads a test file alone: what it loaded, and how many of its cases entered each module', async () => {
+    const root = checkout();
+    const at = testCoverageFile(root);
+    const root0 = (file: string, endLine: number) => ({
+      ordinal: 0, kind: 'module' as const, digest: `${file}#0`, name: '', path: '', source: true,
+      testFiles: ['test/cart.spec.ts'], loadedBy: ['test/cart.spec.ts'], startLine: 1, endLine,
+    });
+    const fn = (file: string, name: string) => ({
+      ordinal: 1, kind: 'function' as const, owner: 0, digest: `${file}#1`, name, path: name, source: true,
+      testFiles: ['test/cart.spec.ts'], startLine: 2, endLine: 9,
+    });
+    await writeTestCoverage(at, {
+      version: 3,
+      instrumentation: 'fixture-instrumentation',
+      tests: [{ file: 'test/cart.spec.ts', complete: true, preconditions: [] }],
+      modules: ['src/cart.tsx', 'src/checkout-dialog.tsx', 'src/heavy-chart.tsx'].map((file, at) => ({
+        file, sourceDigest: file, instrumented: true, blocks: [root0(file, 10 * (at + 1)), fn(file, 'main')],
+      })),
+    });
+    const block = { kind: 'function', name: 'main', path: 'main', startLine: 2, endLine: 9, source: true };
+    writeFileSync(at, withCaseSections(readFileSync(at), {
+      index: encodeExecutionIndex({
+        tests: [
+          { id: CASE, file: 'test/cart.spec.ts', name: 'adds one item' },
+          { id: 'test/cart.spec.ts > checks out', file: 'test/cart.spec.ts', name: 'checks out' },
+        ],
+        modules: [
+          { file: 'src/cart.tsx', blocks: [{ ...block, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0 }] }] },
+          { file: 'src/checkout-dialog.tsx', blocks: [{ ...block, crossings: [{ test: 1, distance: 0 }] }] },
+        ],
+      }),
+    }));
+
+    const answer = await run(['distill', '--file', 'cart.spec']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(answer.out).toContain('test/cart.spec.ts: 2 case(s); 3 loaded module(s) declare functions.');
+    expect(answer.out).toContain('Loaded, and entered by no case: 1 module(s), 30 line(s).\n  src/heavy-chart.tsx — 30 line(s)');
+    expect(answer.out).toContain('  src/checkout-dialog.tsx — 20 line(s), entered by 1 of 2 case(s)');
+    expect(answer.out).not.toContain('src/cart.tsx —');
+    const json = JSON.parse((await run(['distill', '--file', 'cart.spec', '--format', 'json'])).out);
+    expect(json.modules).toEqual([
+      { file: 'src/heavy-chart.tsx', lines: 30, entered: 0 },
+      { file: 'src/checkout-dialog.tsx', lines: 20, entered: 1 },
+    ]);
+  });
+
+  it('refuses a file reading of a case index named with --execution, which keeps no loads', async () => {
+    const root = checkout();
+    const execution = join(root, 'execution.json');
+    writeFileSync(execution, JSON.stringify(plain));
+
+    const answer = await run(['distill', '--file', 'plain', '--execution', execution]);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain('holds no coverage rows, which say what a test file loaded; name a case with --test');
+  });
+
   it('takes the recorded index or a named one, never both', async () => {
     checkout();
 

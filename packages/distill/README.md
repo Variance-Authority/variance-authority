@@ -146,6 +146,8 @@ variance distill --file test/checkout.spec.ts --test submits
 `--test` takes the case's id, its exact title, or a part of the title.
 `--file` takes any part of the test file's path. When more than one case fits,
 the command prints their ids and stops, and you pass one of them to `--test`.
+`--file` alone reads the whole file instead: the modules it loaded that no
+case, or only some of its cases, entered.
 
 `distill` reads the record `covering` reads; `--suite <name>` picks one declared
 suite's, and `--execution <path>` names another record, or a case index another
@@ -273,9 +275,10 @@ a measured-empty addressed surface.
 | `distill(input)` | `DistillInput` in, `Distillation` out. Throws when the execution index holds no case that fits `test` and `file`, or more than one. |
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
+| `distillFile(input)` | `FileDistillInput` in, `FileDistillation` out: the modules one test file loaded that no case, or only some cases, entered. Throws when no recorded test file, or more than one, contains `file`. |
+| `formatFileDistillation(result)` | The text of a file reading, as the CLI prints it for `--file` alone. |
 
-`DistillInput` names the case by `test`, `file`, or both — `file` alone when
-the file holds one case — and carries the `execution` index, an optional `root`,
+`DistillInput` names the case by `test`, `file`, or both, and carries the `execution` index, an optional `root`,
 and optional `eyes`: one `EyesAttempt` per recorded attempt, each a `case`, an
 `attempt` numbered from 1, and its `journal`. The case is found in the index
 alone, and the journals are read by its id. `attempts` on the result carries
@@ -285,6 +288,13 @@ by file and `EnteredModule` region by region. A `Region` is one instrumented
 declaration — a module's top level, or a function — with its name and line
 range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
 `loadedOnly` is the flag behind the loaded-but-not-covered finding.
+
+`FileDistillInput` carries a part of the test file's path as `file`, the
+record's case index as `execution`, and its coverage rows as `coverage`.
+`FileDistillation` lists `LoadedModule` entries — `file`, `lines`, and
+`entered`, how many of the file's cases entered the module — fewest entered
+first. `modules` is absent, and `withheld` says why, when the index keeps no
+cases for the file.
 
 Ordering is deterministic. The same record produces the same answer.
 

@@ -325,6 +325,10 @@ flag may be given alone. When more than one case fits, the command prints up to
 five of their ids and stops; pass one of them to `--test`. A case Playwright
 retried prints every attempt's journal, numbered from 1.
 
+`--file` alone reads the whole file: the modules it loaded that no case
+entered, and those only some of its cases entered, with their length in lines.
+Each is an import every case pays for at load time.
+
 `distill` reads the record `covering` reads; `--suite <name>` picks one declared
 suite's, and `--execution <path>` reads any other record, or JSON from a tool
 that already records per-test crossings. From the root `variance.config.json` it

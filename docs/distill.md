@@ -54,7 +54,8 @@ variance distill --file test/checkout.spec.ts --test submits
 
 When more than one case fits, Distill prints the ids of up to five of them and
 stops. Pass one of those ids to `--test`. `--file` without `--test` reads the
-file's only case, or prints the ids of its cases when it has more than one.
+whole file: what it loaded, and how many of its cases entered each module
+([below](#imports-a-file-loads-for-few-of-its-cases)).
 
 Distill reads the record your last recorded run wrote, `coverage.bin`, and finds
 it the way [test selection](selecting.md) does. With more than one declared
@@ -220,6 +221,42 @@ takes the module's top level with the rest, and a top level that registers a
 handler, installs a polyfill, or builds a singleton is one the test may depend
 on. Write the mock, rerun the exact test, and compare the witness before you
 keep it.
+
+## Imports a file loads for few of its cases
+
+A runner evaluates a module once per test file, so an import costs every case
+in the file, however few of them use it. A dialog that opens on a click loads
+its whole tree before the first case starts, even in the cases that never
+click. Name the file alone to see that cost:
+
+```bash
+variance distill --file test/dialog.test.tsx
+```
+
+```text
+test/dialog.test.tsx: 3 case(s); 4 loaded module(s) declare functions.
+
+Loaded, and entered by no case: 2 module(s), 960 line(s).
+  src/heavy-editor.ts — 900 line(s)
+  src/fancy-error.tsx — 60 line(s)
+
+Loaded, and entered by some cases only: 1 module(s), 40 line(s).
+  src/confirm-dialog.tsx — 40 line(s), entered by 1 of 3 case(s)
+```
+
+A module no case entered was loaded for nothing the file tests: remove the
+import, mock it with a factory, or defer it to the code that uses it. One that
+only some cases entered is a candidate for a `require` at the place it is used,
+so the other cases never load it. An error boundary's fallback is the usual
+example: imported by every case, rendered by none, because no error happened.
+
+The reading counts a module only when it declares a function below its top
+level. A barrel or a file of constants runs all it has when it loads, and a read
+of a constant is not recorded, so the record cannot say the file did without it.
+The reading needs the coverage rows of a recorded run, not a case index from
+`--execution`; a record that keeps no cases for the file reads as unmeasured.
+As with every finding here, rerun the file after the change: a top level can
+register something a case depends on.
 
 ## One capability, three entrances
 

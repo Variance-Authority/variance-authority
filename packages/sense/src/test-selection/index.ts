@@ -374,6 +374,9 @@ export async function readTestCoverage(file: string): Promise<TestCoverage> {
   return decodeTestCoverage(await readFile(file));
 }
 
+/** {@link readTestCoverage} for bytes already in hand, so a caller reading one record reads it once. */
+export { decodeTestCoverage };
+
 /**
  * Write one snapshot where readers will find it, whole or not at all.
  *

@@ -169,6 +169,13 @@ interface MutableUpdates {
 
 export { formatDistillation } from './format.js';
 export { parseExecutionIndex } from './execution-json.js';
+export {
+  distillFile,
+  formatFileDistillation,
+  type FileDistillInput,
+  type FileDistillation,
+  type LoadedModule,
+} from './file.js';
 
 const PHASES = ['unphased', 'arrange', 'act', 'assert'] as const;
 
