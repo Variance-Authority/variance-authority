@@ -5,6 +5,12 @@ know. Describe the change as merged, not against earlier drafts: no "now",
 able to say what the PR is.
 -->
 
+## Summary
+
+<!-- What this PR changes, in two or three sentences a reviewer can stop after:
+the problem, the change, and what it lets someone do that they could not
+before. -->
+
 ## Situation
 
 <!-- The task this belongs to, and the problem this PR addresses, with evidence a
