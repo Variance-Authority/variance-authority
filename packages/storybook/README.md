@@ -78,7 +78,7 @@ every skip:
 ]
 ```
 
-`plan.warnings` lists anything the parser read but wants to flag — an index
+`plan.warnings` lists anything the parser read and flags — an index
 version it was not written against, a file declaring no `v`, a file with
 both `entries` and `stories`.
 
@@ -163,7 +163,7 @@ outcome, not an exception — the remaining stories are still shown:
 ```
 
 `status` is one of `rendered`, `errored`, `missing`, `timeout`, `no-root`,
-`unreachable`. `error.from` says which layer failed: `story` is the preview's
+`unreachable`. `error.from` names which layer failed: `story` is the preview's
 side of the bridge, `page` is the browser refusing to be driven, `observer` is
 your own `observe` callback throwing on a story that rendered fine. `navigated`
 is `true` exactly once in a healthy run; a second `true` means the channel was
@@ -189,8 +189,8 @@ not found and that story cost a reload, which also lands in `warnings`.
 
 Story discovery needs nothing authored: the subject list is the stories you
 already have. The one thing a project may have to add to its own components is a
-readiness marker, and only for stories that keep working after Storybook says
-they rendered — see below.
+readiness marker, and only for stories that keep working after Storybook signals
+that they rendered — see below.
 
 ## `toSubjects(index, options)`
 
@@ -223,12 +223,12 @@ Storybook's own viewport entries are written. Any other unit is refused: `em` an
 Without `readySelector`, a story is ready when Storybook's `storyRendered`
 fires, and failing that when the mounted root's markup is unchanged across two
 samples `pollMs` apart. Which of those decided it is in the outcome's
-`readiness` field, so a report can tell a declared-ready capture from a guessed
-one:
+`readiness` field, so a report separates a declared-ready capture from an
+inferred one:
 
 `declared` (your marker appeared) · `storyRendered` (Storybook's signal) ·
 `already-rendered` (the story the URL selected was already on screen) ·
-`markup-quiescent` (the fallback) · `none` (the status says what happened
+`markup-quiescent` (the fallback) · `none` (the status records what happened
 instead).
 
 Set `readySelector` for any component that fetches, animates, or defers work to
@@ -274,15 +274,15 @@ re-renders only a story it is not already displaying, so asking for the same
 subject twice in one page — which is how an order-dependent reading is told apart
 from a regression — is answered by the render that already finished.
 
-That event also says how the render ended. A story whose `play` threw after
+That event also records how the render ended. A story whose `play` threw after
 the last paint, or whose `afterEach` raised, finishes with status `error`, and
-the outcome includes a warning saying so. The status is not the outcome's status:
-the picture is on screen and a capture of it is a capture of what the component
-did, so the story is still `rendered`. The warning is for the baseline — a
-subject that failed its own checks is not one to record as the way it should
+the outcome includes a warning that names it. The status is not the outcome's
+status: the picture is on screen and a capture of it is a capture of what the
+component did, so the story is still `rendered`. The warning is for the baseline
+— a subject that failed its own checks is not one to record as the way it should
 look.
 
-## What a pass tells the preview
+## What a pass sends the preview
 
 Before the first story is shown, the session emits `updateGlobals` on the
 preview's channel with `{ a11y: { manual: true } }`. That is the addon's own

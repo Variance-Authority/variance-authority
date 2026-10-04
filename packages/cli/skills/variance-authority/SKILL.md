@@ -61,7 +61,7 @@ when its condition holds, not before.
 | What is a suite that has not finished doing? | [live run](references/live-run.md) | nothing arrives: [producers](references/producers.md) |
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |
 | Which tests ran this line? What did my change do to the cases? | [covering](references/covering.md) | |
-| Which of them ran it with sale prices mocked or a flag on? What did a test arrange, and where is its flag-off twin? | [case preconditions](references/case-preconditions.md) | |
+| Which of them ran it with discounted prices mocked or a flag on? What state did a test run under, and where is its flag-off twin? | [case preconditions](references/case-preconditions.md) | |
 | Where does this one test, or the few I am looking into, go, and in what order? | [story](references/story.md) | |
 | Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md); you need distances, the `because` trail or a diff that is not a ref: [selection API](references/selection-api.md) |
 | What can this test be reduced to? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
@@ -74,7 +74,7 @@ when its condition holds, not before.
 **Absent is not empty.** An unavailable domain is unknown, never an empty
 reading. A missing field means the producer did not expose it; an empty list
 means it measured and found nothing; a distance that could not be measured is
-absent, never `0`. Every answer's header says what it read. Do not reconstruct
+absent, never `0`. Every answer's header names what it read. Do not reconstruct
 runtime evidence from repository files.
 
 **Matching is lexical, and you expand the query.** `locate` and `search` match
@@ -84,7 +84,7 @@ a sign-in screen whose component is `CredentialGate`. Ask each likely spelling â
 vocabulary of the first hit for every question after it.
 
 **Say where you are standing.** On a large repository a common word matches
-everywhere the product says its own name. `--from <path>` narrows to what that
+everywhere the product uses its own name. `--from <path>` narrows to what that
 path imports, at any depth; `--to <path>` to what imports it. Give both and the
 two areas are combined, not intersected. A path has three widths and no others:
 `src/a/File.ts` is that file, `src/a/*` is that folder's own files, `src/a/` is

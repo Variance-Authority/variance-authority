@@ -211,7 +211,7 @@ export default captureCollector({ directory: CAPTURES });
 | key | what it decides |
 | --- | --- |
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured, because rows written under a project nobody chose cannot be re-attributed later. |
-| `profile` | What the run is *capable* of observing. `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process contains; `chromium` adds computed style, layout and geometry, and belongs to a collector that observed inside a browser. It does not decide what paints — the configured browser paints either way — it decides what the report may claim about a change. Set it to match where the capture was taken. |
+| `profile` | What the run is *capable* of observing. `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process contains; `chromium` adds computed style, layout and geometry, and belongs to a collector that observed inside a browser. It does not decide what paints — the configured browser paints either way — it decides what the report may state about a change. Set it to match where the capture was taken. |
 | `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). Every capture records its own viewport and that is the one used for its subject; this value is the fallback for a subject that arrives without one. Keep it equal to the viewport your tests capture at. |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. That is why the first run reports `new`: nothing is stored yet, so there is nothing to compare against and the candidate is waiting for you to accept it. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
 | `subjects.kind` | Where the run gets its subject list. `collector` is a module like the one above. The alternatives are `storybook`, which reads a built story index, and `list`, where you write the ids down yourself. |
@@ -266,7 +266,7 @@ npx variance report --config variance.config.json --format html > .variance/repo
 
 Open `.variance/report.html` in a browser. It is one self-contained file that
 fetches nothing, so it works the same from your machine or from a CI artifact.
-The top says which run it is and what painted it; the subjects that need review
+The top shows which run it is and what painted it; the subjects that need review
 are listed first, grouped by what they have in common when several changed the
 same way.
 

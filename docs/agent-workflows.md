@@ -53,7 +53,7 @@ different path.
 | Where in my codebase is this symbol already imported, and which story or test shows how to call it? | The imports in my current TypeScript source | [Inspect the workspace public API](agent-workspace-api.md) |
 
 These are alternate entrances, not stages of one workflow. A live signal never
-becomes a stored report, and a reading of what your workspace publishes says
+becomes a stored report, and a reading of what your workspace publishes holds
 nothing about what a test executed. The whole list, in the order the shipped
 skill works through it, is [everything an agent can ask](agent-questions.md).
 

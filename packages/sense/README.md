@@ -137,7 +137,7 @@ missing snapshot, a snapshot from another machine, and a first run all leave
   does not apply to the recorded text, `parse` when a text does not parse, and
   `addon` when this machine has no native scanner.
 
-Pass `root` so a file's `package.json` is asked for its `sideEffects`; without
+Pass `root` so a file's `package.json` is read for its `sideEffects`; without
 it no file is read as `load` on that account.
 
 `selectTestFiles` returns `entered` alone, for a caller that has established the
@@ -162,7 +162,7 @@ inherits what the repository already recorded. Its source index is its own too,
 and the first update in it starts from a copy of the primary checkout's and reads
 only the files that differ between the two. Pass `coverageFile` in the options to put
 it somewhere you name instead — a CI job that uploads the file as an artifact
-wants that.
+needs that.
 
 A repository that runs more than one test suite declares each of them, with its
 kind, under `suites` in the root `variance.config.json`:
@@ -320,10 +320,10 @@ to the browser project's setup file does not rerun the unit tests. The root
 configuration decides which projects exist, and is a precondition of every
 test.
 
-A root-only wrap is the shape that looks right and records
-nothing: the reporter runs, the file is written, and it says every test reaches
-no source. That run says so on the way out —
-`instrumented 0 modules across N test file(s)`.
+A root-only wrap is the shape that looks right and records nothing: the reporter
+runs, the file is written, and it lists no source under any test. That run
+prints a warning on the way out — `instrumented 0 modules across N test
+file(s)`.
 
 ## Record Jest journeys without selecting tests
 
@@ -411,9 +411,9 @@ const response = await fetch(`${service}/quote?currency=eur`, {
 ```
 
 `journeyCookie()` returns `variance-authority-journey=<id>`. The id is minted
-the first time the running case asks, and later asks in the same case get the
-same one. `caseJourney()` returns the bare id if you carry it some other way,
-such as trace baggage. Outside a case, both return nothing.
+the first time the running case calls it, and later calls in the same case get
+the same one. `caseJourney()` returns the bare id if you carry it some other
+way, such as trace baggage. Outside a case, both return nothing.
 
 If your application already runs Sentry or OpenTelemetry, the id is the trace
 id and your tracing carries it through every hop. Hand the SDK over from a
@@ -436,10 +436,10 @@ still runs. A setup file runs again in each test file. An SDK hooks `fetch` for
 the whole process, so a second initialization leaves the first file's hooks
 sending its trace from the next file's cases.
 
-Each case then
-runs inside a trace whose id is its journey, and the service is told the same
-SDK: `collectJourneys({ head: 'pricing', parts, trace: sentry(Sentry) })`. It
-asks the trace wherever a request did not name a journey.
+Each case then runs inside a trace whose id is its journey, and the service is
+configured with the same SDK: `collectJourneys({ head: 'pricing', parts, trace:
+sentry(Sentry) })`. It reads the journey from the trace wherever a request did
+not name one.
 
 The service wraps its requests with `collectJourneys`, as in
 [the next section](#follow-one-execution-into-a-service), and adds `parts`:
@@ -530,17 +530,17 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
-`mode`, and `continuations`, with the meanings above. Jest
-does not say which config file it loaded, so name it in `preconditions`. There
-is no `include`: product source is every
-JavaScript and TypeScript module the configuration's `testMatch` or `testRegex`
-does not name, less dependencies and built output. A setup entry that names a
-package — `dotenv/config` — is left alone. A configuration with `projects` is
-instrumented project by project, each keeping its own transform and setup files,
-with one reporter for the run. Each test's setup and environment files are read
-from the project Jest ran it under, so a change to one project's setup file
-does not rerun another project's tests; a project named by path rather than spelled
-inline is refused, because its transform cannot be wrapped from here.
+`mode`, and `continuations`, with the meanings above. Jest does not report which
+config file it loaded, so name it in `preconditions`. There is no `include`:
+product source is every JavaScript and TypeScript module the configuration's
+`testMatch` or `testRegex` does not name, less dependencies and built output. A
+setup entry that names a package — `dotenv/config` — is left alone. A
+configuration with `projects` is instrumented project by project, each keeping
+its own transform and setup files, with one reporter for the run. Each test's
+setup and environment files are read from the project Jest ran it under, so a
+change to one project's setup file does not rerun another project's tests; a
+project named by path rather than spelled inline is refused, because its
+transform cannot be wrapped from here.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
 anything, so three things are yours to spell out:
@@ -590,10 +590,10 @@ the flag releases it. Then lower `maxWorkers` or set `workerIdleMemoryLimit` so
 Jest restarts a worker once it passes that size.
 
 Selection is the same call as for Vitest. `narrowByExecution` returns paths
-relative to the checkout, whatever `rootDir` says, and each remaining path is a pattern Jest accepts on
-its command line — `jest test/alpha.case.ts test/beta.case.ts`. The snapshot is
-one file, so a repository whose unit tests run under Jest and whose pages are
-driven by Playwright selects from one index.
+relative to the checkout, whatever `rootDir` is set to, and each remaining path
+is a pattern Jest accepts on its command line — `jest test/alpha.case.ts
+test/beta.case.ts`. The snapshot is one file, so a repository whose unit tests
+run under Jest and whose pages are driven by Playwright selects from one index.
 
 To assemble a Jest configuration by hand instead, `withTestSelection` names four
 modules by path, and you can name them yourself:
@@ -624,12 +624,11 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
-`preconditions`, `mode`, and `continuations`, with the meanings
-above. Rstest does not say which config file it loaded, so name it in `preconditions`.
-The loader runs
-at `enforce: 'post'`, after SWC, and reads the block extents back through the
-map the bundler already made, so the lines a record carries are the ones you
-edited rather than the ones the transpiler emitted.
+`preconditions`, `mode`, and `continuations`, with the meanings above. Rstest
+does not report which config file it loaded, so name it in `preconditions`. The
+loader runs at `enforce: 'post'`, after SWC, and reads the block extents back
+through the map the bundler already made, so the lines a record carries are the
+ones you edited rather than the ones the transpiler emitted.
 
 Recording per case needs nothing from the configuration. Rstest has no runner option, so
 the per-case bracket goes around `it` and `test` themselves — on the realm when
@@ -712,11 +711,11 @@ Each function has one place in your runner:
   `root`, `suite`, `coverageFile`, `preconditions`, `mode` and
   `continuations`, with the meanings they have on the Vitest seam. Name your
   runner's own files and configuration in `preconditions`: nothing loads them
-  through a transform, so nothing else can tell a test's outcome depends on
-  them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
+  through a transform, so nothing else records that a test's outcome depends
+  on them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
   process and worker thread inherits. If your runner builds a child's
   environment from nothing, spread `recording.env` into it.
-- **`recording.finish` goes where your runner knows which files passed.** A
+- **`recording.finish` goes where your runner has each file's result.** A
   file is `complete` when every case in it ran to the end and passed, or was
   skipped. A file that failed, errored or stopped early recorded only part of
   what it would have, so the snapshot keeps it as evidence that selects it and
@@ -753,8 +752,8 @@ it was given. So the runner above runs your suite unchanged when no recording is
 open.
 
 If a file ran a module that no transform wrote a record for, the snapshot keeps
-that file as incomplete. If no transform wrote anything at all, `finish` says so
-and tells you where to look.
+that file as incomplete. If no transform wrote anything at all, `finish` prints
+that and names where to look.
 
 ## Record what a driven page executed
 
@@ -815,7 +814,7 @@ same run drove, whose stores join this call. `commit` overrides where the
 recording stands, which otherwise reads the checkout's `HEAD`.
 
 Recording refuses in one direction only. Each of these records **nothing** and
-says why, costing the next run its full suite:
+prints why, costing the next run its full suite:
 
 - a run whose reported modules no store can identify
 - a record from another probe recipe
@@ -834,7 +833,7 @@ and a Vitest file are each one process, and the realm that executes is the realm
 that is watched; a product that does not span processes has nothing to trace.
 
 When it does, product source executes in a second process and nothing in the
-page knows it happened, so a change to a route handler runs every spec forever.
+page records it, so a change to a route handler runs every spec forever.
 A server cannot simply be counted: it outlives every subject and answers several
 at once, and draining at request boundaries does not rescue it — a streamed
 response flushes after its handler returned, and a floating promise settles two
@@ -872,14 +871,15 @@ process's rather than the nearest subject's.
 A journey's scope ends when what the body returned *settles*, not when the body
 returns, which is the only arrangement under which the code after an `await` is
 attributed at all. That can be well after the response went out, so the head
-says a scope opened before the body runs and says it settled when it does. A
+reports a scope opened before the body runs and reports it settled when it
+does. A
 promise the body started and did not return still runs as its request, and what
 it enters after the scope closed goes home as a scope of its own.
 `flush` reports what has accumulated without ending anything; `close` restores
 the global and reports the rest.
 
 The driver mints the id and the driver joins the reports, because it is the only
-participant that knows `journey -> subject`:
+participant that holds `journey -> subject`:
 
 ```ts
 import { joinObservations, recordExecution } from '@variance-authority/sense/journal';
@@ -927,9 +927,10 @@ recorded as not instrumented, so unknown widens where a guess would skip.
 
 `stitchJourneys` takes `reports`, the `heads` this run declares, the `owners`
 map, and two fields for the driver's own knowledge: `preconditions` and
-`incomplete`, the subjects the runner already knows did not finish. Reports for
-journeys no subject claimed are counted in `unclaimed` rather than attributed —
-a health check is not a subject. `mintJourney` produces a UUID and nothing else.
+`incomplete`, the subjects the runner already recorded as unfinished. Reports
+for journeys no subject claimed are counted in `unclaimed` rather than
+attributed — a health check is not a subject. `mintJourney` produces a UUID and
+nothing else.
 
 **A declared head must actually report.** A head is extra setup, and extra setup
 can be forgotten, skipped in one CI job, or fail to start. *The head executed
@@ -968,7 +969,7 @@ const { narrowing, distances } = await distanceByExecution(
 An excerpt: `relations` and `diff` are the two values the samples above and
 below produce. Without `relations` nothing can be placed. `knownAs` gives every
 name one module goes by, so a built copy in the graph and a source file in the
-record count as the same module. `faces` says where a unit's public entry point
+record count as the same module. `faces` names where a unit's public entry point
 is; without it, every file reads as its own entry point.
 
 Restricting the walk to covered modules is what makes the number worth reading:
@@ -999,8 +1000,8 @@ do not:
 needs a red test to be worth reading. `unmeasured` is the opposite of a finding:
 a walk that was never possible must not print as a walk that failed, or every
 unscanned directory becomes an accusation. Pass `enumerated` — whether the graph
-read what a file imports, which only whoever built the graph knows — and a dead
-end there is reported as the hole it is.
+read what a file imports, which only the code that built the graph can record —
+and a dead end there is reported as the hole it is.
 
 A *unit* is a directory whose contents are meant to be reached through one file.
 That is a convention rather than a fact about the filesystem, so you supply it.
@@ -1025,7 +1026,7 @@ const later = remaining(distances, from, to);
 The range is hop counts. `0-2` is every measured test no more than two imports
 from the change: if the nearest test is five hops away it returns nothing, and
 `3-` returns the rest. `distanceRange` reads `2`, `0-2`, and `3-` (*three and
-beyond*, which is what a last leg asks for and cannot spell in advance), and
+beyond*, which is what a last leg needs and cannot spell in advance), and
 returns nothing for anything else, so you report the typo rather than quietly
 running one distance.
 
@@ -1038,10 +1039,10 @@ expensive by everything nobody could place. A current test file that is not
 represented in `distances` remains outside both arrays; keep it selected and
 run it in your final leg.
 
-`remaining` names which paths a range left behind. Every range is a smaller
-claim than the snapshot selection, which is already a smaller claim than the
-suite: a green `0-2` says the nearest tests pass and says nothing about four
-hops. `groupByDistance` reports the whole reading as one group per hop count.
+`remaining` names which paths a range left behind. Every range covers less than
+the snapshot selection, which already covers less than the suite: a green `0-2`
+shows the nearest tests pass and is no evidence about four hops.
+`groupByDistance` reports the whole reading as one group per hop count.
 
 **Distance places a selection; it does not build a workload.** A runnable
 workload has one more input: the current inventory from every test host. Compute
@@ -1162,14 +1163,15 @@ again only the files whose blob changed. Its result names the state it found
 (`was`), the files it holds, and how many it read again (`reread`). Pass
 `packs: false` to read bytes from the working tree, as `scanRelations` does.
 
-`readPublishedSources(path)` opens a published index and asks nothing of Git or
-the disk beyond it. `publishedSources(root, options)` is the reader with a
+`readPublishedSources(path)` opens a published index and reads nothing from Git
+or the disk beyond it. `publishedSources(root, options)` is the reader with a
 policy for a missing or damaged index: with `ci: true` it throws
 `SourceIndexUnpublished`, whose message names `step`; otherwise it updates once,
-calls `announce` with a line saying so, and reads. Pass your runner's own answer
-for `ci` — the `ci-info` package is what Jest asks. `sourcesWithin` returns the
-records a scan seeded from `dirs` and `before` would have produced, so a reader
-with a narrower question gets the narrower graph without scanning.
+calls `announce` with a line that names the update, and reads. Pass your
+runner's own answer for `ci` — the `ci-info` package is what Jest reads.
+`sourcesWithin` returns the records a scan seeded from `dirs` and `before` would
+have produced, so a reader with a narrower question gets the narrower graph
+without scanning.
 
 Everything in the index is derived from the checkout: a missing, incomplete or
 corrupt one costs a scan and cannot change what a scan finds. For a scan of your
@@ -1193,19 +1195,19 @@ same. `gitDigests` supplies content digests from Git when available, and
 `scanRelations` calls it unless `digests: false` or a caller-provided map is
 used.
 
-When an editor, watcher or orchestrator already knows the changed files, pass
-them as `changed`. Sense still reads the committed path set, hashes those paths
-from disk and treats a missing path as deleted, but it does not run `git status`
-to rediscover the same answer. The list is authoritative: include additions and
-deletions, and include both the old and new path of a rename. An empty list means
-the caller knows the working tree is unchanged.
+When an editor, watcher or orchestrator already has the changed files, pass them
+as `changed`. Sense still reads the committed path set, hashes those paths from
+disk and treats a missing path as deleted, but it does not run `git status` to
+rediscover the same answer. The list is authoritative: include additions and
+deletions, and include both the old and new path of a rename. An empty list
+declares the working tree unchanged.
 
 `parsed` hands you each file's parse as the scan settles it — the
-repository-relative path and what the bytes said, once per file, reused records
-included. A caller that wants a different reading of the same bytes otherwise
-has to walk and parse the tree a second time; handed this, that second reading
-of an unchanged tree costs a map lookup per file. The value is the cached parse
-itself rather than a copy, so treat it as read-only.
+repository-relative path and what the bytes parse to, once per file, reused
+records included. A caller that needs a different reading of the same bytes
+otherwise has to walk and parse the tree a second time; handed this, that second
+reading of an unchanged tree costs a map lookup per file. The value is the
+cached parse itself rather than a copy, so treat it as read-only.
 
 `indexed` is the path-dependent companion: it receives the same parse and one
 resolved target per request, in request order. Use it when a consumer needs to
@@ -1261,11 +1263,11 @@ formats agree on, exported because a caller reading its own manifests needs the
 same one.
 
 **The lockfile is a source read at two revisions, never a changed path.** Those
-are different claims and only one of them is useful. In a diff, a lockfile is
+are different readings and only one of them is useful. In a diff, a lockfile is
 one of the most expensive paths there is: a workspace version bump rewrites
 hundreds of its lines and moves no installed byte, so a selector that treats it
 as a changed file repaints the whole suite for nothing. The difference between
-two reads of it says exactly what arrived. Drop the lockfile and every
+two reads of it shows exactly what arrived. Drop the lockfile and every
 `package.json` from your changed-file list once you have compared the two —
 `package.json` is the request and the lockfile is the answer, and counting
 either again reports the very thing it just explained a second time.
@@ -1286,9 +1288,9 @@ it nothing.
 Workspace entries are excluded by every reader. A workspace package is your own
 source, and your own source arrives as changed files.
 
-## Correct what a file's text claims to import
+## Correct what a file's text declares it imports
 
-The scan writes down what a file's text says. A test that calls
+The scan writes down what a file's text declares. A test that calls
 `vi.mock('./api')` imports `./api` by the letter and runs none of it; a Relay
 component that calls `jsresource('./panel')` names a module in a notation no
 parser reads and runs all of it.
@@ -1328,7 +1330,7 @@ comes back as a record of its own, marked `unknown` rather than given an empty
 edge list: nobody read it, so the graph has none of its edges and the recorded
 run answers for what it loads. Point the scan at its directory to have it read.
 
-Every shadow and every addition keeps the name of whoever said it.
+Every shadow and every addition keeps the name of whoever added it.
 `tainted.shadowedBy` is the file, the file it never reaches, and the taints that
 named it; `tainted.addedBy` is the same for additions. Two taints that shadow
 one module are both credited, so a test left out of a selection can be traced to
@@ -1391,7 +1393,7 @@ Hand `taintRecords` the `cache` the scan used, so an unchanged file is not
 opened or parsed a second time. The scan records what each file mocks in its
 parse without applying it, so the records keep every edge and `mockTaint()`
 answers from that parse without opening the file. A `mockTaint` given its own
-`callers` asks a question the scan did not, and reads the file once; that
+`callers` answers a question the scan did not, and reads the file once; that
 answer, like any other reader's, is kept under a digest over the file's bytes
 and the reader's name:
 
@@ -1404,7 +1406,8 @@ await source.save();
 
 ### Check a taint against the record
 
-A taint says what a file's run reaches; a coverage record says what it did.
+A taint is the static reading of what a file's run reaches; a coverage record
+is the observation of what it did.
 Where both exist, `auditTaints` compares one with the other and names every
 disagreement as a coordinate to look at:
 
@@ -1419,14 +1422,14 @@ for (const { test, module, kind } of auditTaints(coverage, relations, tainted)) 
 }
 ```
 
-`shadowed-but-entered` is a module the test shadows and the record says it
+`shadowed-but-entered` is a module the test shadows and the record shows it
 covered: the taint is wrong about that mock, or the mock did not take.
 `reachable-but-not-entered` is a module the test reaches on the graph past its
 shadows and nobody covered for it: an import the run never loaded, or a mock no
-taint knows about yet. `added-but-not-entered` is an addition the record never
-saw the test in. Only an instrumented module testifies, and only a complete
-observation testifies to absence. Where a taint said the thing the record
-disagrees with, the deviation names its `taints` — the table or reader to go
+taint lists yet. `added-but-not-entered` is an addition the record never placed
+the test in. Only an instrumented module counts as evidence, and only a complete
+observation counts as evidence of absence. Where a taint's reading disagrees
+with the record, the deviation names its `taints` — the table or reader to go
 and correct. Pass `knownAs` when the record lists a module under a built name.
 
 ## Read the record yourself
@@ -1469,7 +1472,7 @@ The snapshot also notes the commit it was recorded at.
 `readTestCoverage(file)` hands it back under `commit`, so a caller can
 `git diff <commit> HEAD` for the distance from the recording to the working
 tree. A recording made outside a checkout has no commit, and an index that
-cannot say where it is has nothing to diff against, so a caller with one runs
+records no commit has nothing to diff against, so a caller with one runs
 the suite it would have run anyway.
 
 ## Fold shards into one snapshot
@@ -1530,8 +1533,8 @@ that job's artifact, and fold the artifacts in a job of their own. Each
 shard's record carries its cases, so the artifact is the one file. `landCases`
 lays each shard's cases over the ones `file` holds, in the order the shards
 are named, and returns them for the record you write. If a shard ran a test
-file to the end and kept no cases, it returns none, because nothing can then
-say which of that file's cases ran a line.
+file to the end and kept no cases, it returns none, because nothing then
+records which of that file's cases ran a line.
 
 In a worktree, `seedTestCoverage` first copies the primary checkout's snapshot
 and case index into the worktree's own record, so the fold lands over the
@@ -1541,8 +1544,8 @@ your worktree has not run is read from where it last ran there. A test that
 record does not place is read from where its runs started, and a reading in
 either checkout reports it as assumed. When the primary checkout has no runs
 record, or one naming another commit than its snapshot, nothing is written. The
-copy lists no run of the worktree's, so `variance review` still asks for a run or
-`--since`. In the primary checkout, or for a file you named yourself, it does
+copy lists no run of the worktree's, so `variance review` still requires a run
+or `--since`. In the primary checkout, or for a file you named yourself, it does
 nothing.
 
 The order is what keeps the snapshot and its cases describing the same runs.
@@ -1562,8 +1565,8 @@ so no run writes the record while you land. The cases are written in the same
 write as the coverage, under that lock, so the two always answer for the same
 runs.
 
-Folding refuses by name, on one rule: the result must not be able to say
-anything one run could not. Shards recorded under different probe recipes or at
+Folding refuses by name, on one rule: the result must not hold anything
+one run could not. Shards recorded under different probe recipes or at
 different commits were not one run — and *absent* is a value there, so a shard
 recorded outside a checkout does not fold under a commit it never named. A test
 file two shards both recorded is a split that overlapped, and a module two
@@ -1756,7 +1759,7 @@ const decorations = coveringTestsInFile(index, 'src/cart/total.ts');
 The index above is written out by hand so the sample runs on its own. In
 practice it comes from a recording — see below, or from an editor's test runner,
 a debugger, or a language server. `@variance-authority/mcp` puts the same query
-in front of an agent over MCP and asks exactly this of its caller.
+in front of an agent over MCP and answers exactly this for its caller.
 
 A line resolves to the innermost real source region containing it, so tests that
 only covered an enclosing function do not leak into a branch-line answer. A
@@ -1765,7 +1768,7 @@ test collapse to the minimum distance. `id` distinguishes tests with the same
 file and name. The bulk result groups adjacent lines with identical tests and
 distances into inclusive ranges; an indexed but unreached range has an empty
 `tests` list, while lines absent from the instrumented source regions have no
-range. Missing source returns no claim; an invalid test reference or distance
+range. Missing source returns no answer; an invalid test reference or distance
 throws.
 
 Every seam here writes an `ExecutionIndex` into its snapshot. In the snapshot
@@ -1812,9 +1815,9 @@ const walked = coveringTests(index, { file: 'src/cart/total.ts', line: 14 });
 
 A test file that runs in a page — Vitest or Rstest browser mode — is recorded
 per file only. That run writes the snapshot and no index, and prints a warning
-that says so.
+about it.
 
-The index is the same relation the snapshot holds, asked at case granularity
+The index is the same relation the snapshot holds, read at case granularity
 rather than file granularity, so it grows with cases times regions. Written as
 columns it is under a megabyte for a suite whose JSON spelling of the same
 relation is twenty-seven. JSON is the spelling a tool that records per-case
@@ -1886,7 +1889,7 @@ file may do regardless — is bracketed like any other. The realm's `test` and
 `test.concurrent` case is named by its declared name rather than the resolved
 one, because its body starts outside the runner's own bracket.
 
-Every crossing has `distance: 0`: the recording says which case covered a
+Every crossing has `distance: 0`: the recording holds which case covered a
 region, not how it got there, so every answer is ordered by identity rather
 than by depth. Anything a file covered before its first case — imports, `beforeAll`,
 top-level evaluation — is credited to every case in that file.
@@ -1900,99 +1903,35 @@ produced 28.8 MB of the JSON above against a 681 KB snapshot. The index answers
 a coding agent asking which five of two hundred cases walked the branch you just
 changed; selecting test files over every region there is reads the snapshot.
 
-### Name what a case arranged
+### Record the state each test ran under
 
-A case that sets a flag, mocks what a call returns or seeds a cart leaves no
-trace of it in the code it ran. Say it in the test helper that arranges it, and
-the state is recorded on the row of every case that calls the helper, in the
-`cases` section, with the `file:line` of the call that said it:
+Coverage records which test ran a piece of code. A case precondition records
+the state that test ran it under: a feature flag, what a mock returns, which
+fixture signs in. Call `variancePrecondition` from
+`@variance-authority/sense/precondition` in the test helper that changes the
+state:
 
 ```ts
-// test/flags.ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
-import { type Flag, flags } from '../src/flags.js';
+import { flags } from '../src/flags.js';
 
-export function setFlag(flag: Flag): void {
-  flags.discount = flag;
-  variancePrecondition({ flag });
+export function setDiscountFlag(enabled: boolean): void {
+  flags.discount = enabled;
+  variancePrecondition({ discount: enabled ? 'on' : 'off' });
 }
 ```
 
-```ts
-// test/prices.ts
-import { variancePrecondition } from '@variance-authority/sense/precondition';
-import { vi } from 'vitest';
-import { fetchPrices } from '../src/checkout/prices.js';
+The entry point has no dependencies, and without a recording the call does
+nothing, in Node and in a page. Vitest, Jest, Rstest and Playwright record it; a
+seam that drives its own recorder calls `listenForPreconditions` from
+`@variance-authority/sense/journal`. A case row without a `preconditions` field
+was recorded by a runner that does not record preconditions: its preconditions
+are unmeasured, never none.
 
-const TABLES = { full: { apple: 2, pear: 3 }, discounted: { apple: 1, pear: 2 } };
-
-export function pricesReturn(table: keyof typeof TABLES): void {
-  vi.mocked(fetchPrices).mockResolvedValue(TABLES[table]);
-  variancePrecondition({ prices: table });
-}
-```
-
-```ts
-// test/refund.test.ts
-import { beforeEach, expect, it, vi } from 'vitest';
-import { refund } from '../src/checkout/refund.js';
-import { setFlag } from './flags.js';
-import { pricesReturn } from './prices.js';
-
-vi.mock('../src/checkout/prices.js');
-
-beforeEach(() => {
-  pricesReturn('discounted');
-});
-
-it('refunds the discounted total behind the flag', async () => {
-  setFlag('ff-on');
-  expect(await refund(['apple', 'pear'])).toBe(-2.7);
-});
-```
-
-Said in a case body, or in a helper the body calls, it is that case's. Said in
-a `beforeEach`, or in a helper the hook calls, it is the case the hook runs
-for, at the level of the `describe` that declared the hook. The body overrides
-a `beforeEach`, an inner `describe`'s `beforeEach` overrides an outer one's,
-and two values said at one level are kept as a contradiction, not resolved. A
-call in `afterEach` is reported with its site and recorded on no case. One
-record can name several: `variancePrecondition({ flag: 'ff-on', prices:
-'discounted' })`, and one value that is not a string, finite number or boolean
-drops the whole record, with a warning.
-
-A precondition belongs to a test, so a call made where no case is running
-throws: in a `describe` callback, a `beforeAll` or `afterAll`, at the file's top
-level, or from work that outlives its case. The error names the call site.
-What a `beforeEach` said before it threw reaches no case.
-
-The entry imports nothing. Without a recording the call is one property read
-and does nothing, in Node and in a page. A row says `preconditions: []` for a
-case recorded with the listener that said nothing, and has no `preconditions`
-for a case recorded by a runner without the listener. A named precondition
-never selects or excludes a test, because nothing in a checkout changes it.
-
-Vitest, Jest, Rstest and Playwright all listen. Under Playwright, a call at the
-top level or in a `describe` callback of the first file a worker loads is made
-before the worker listens, and records nothing rather than throwing. A seam that drives its own recorder calls `listenForPreconditions(root,
-standing)` from `@variance-authority/sense/journal`, where `standing` says
-which case a call stands in at the moment it is made.
-
-`variance covering --where prices=discounted` keeps the cases that said it — see
-[`variance covering`](../cli#reading-the-cases-that-arranged-a-state), and
-[case preconditions](https://variance-authority.dev/docs/case-preconditions)
-for why a case says it and how to read it back.
-
-A snapshot you take with the `variance` fixture of
-[`@variance-authority/playwright-test`](../playwright-test) inside a case names
-that case — its file, its declaration path and Playwright's test id, as the row
-names it — and what the case had said by the time the snapshot was taken. The
-fixture puts both on the observation as `case`, at the foot of a failing
-assertion's message, and in a `variance` annotation Playwright's report shows
-under the test, passing or not. A run that does not record execution reads
-*preconditions unmeasured*, never *nothing arranged*. The recorder's own view
-is `PreconditionListener.held(key)`: what the case has said so far, resolved as
-its row would be, left in place for the row.
+[Case preconditions](https://variance-authority.dev/docs/case-preconditions)
+is the full page, and
+[`variance covering`](../cli#reading-the-state-each-covering-test-ran-under)
+reads them back.
 
 ### Ask the index about a diff
 
@@ -2015,15 +1954,15 @@ const changed = coveringChange(index, changedLines(patch));
 console.log(formatCoveringChange(changed, { from: testCoverageFile(process.cwd()) }));
 ```
 
-Every changed file comes back, silent ones included — a reader that dropped them
-would print a confident report about the half of the change it happened to have
-measured. `recorded` separates the index being silent about a file from the
-index saying nobody covered it, and `cases` answers a changed **test** file with
-the cases it declares, since the run instruments what the tests import rather
-than the tests themselves. Within a region, `tests` called in and `passengers`
-were only present while the module evaluated.
+Every changed file comes back, files with no row included — a reader that
+dropped them would print a confident report about the half of the change it
+happened to have measured. `recorded` separates the index having no row for a
+file from the index recording that nobody covered it, and `cases` answers a
+changed **test** file with the cases it declares, since the run instruments what
+the tests import rather than the tests themselves. Within a region, `tests`
+called in and `passengers` were only present while the module evaluated.
 
-The formatter takes what the caller can honestly say about provenance — the ref
+The formatter takes what the caller has evidence for about provenance — the ref
 the diff was taken against, the file the index was read from, the commit it
 stands at — and prints nothing for a field it is not given. A region may also
 carry the `state` its caller read over more cases than it lists, as the CLI does
@@ -2049,8 +1988,8 @@ which is whatever the host schedules, and where the per-case bracket goes.
 | Storybook | the story | the story, which is already the subject the preview shows |
 | Your runner, through `/runner` | the test file you observe | none: you call `observer.case` around each case |
 
-None of the five seams asks the project to change a runner option for the case
-axis, and every host writes the index beside its snapshot.
+None of the five seams requires the project to change a runner option for the
+case axis, and every host writes the index beside its snapshot.
 
 Two answers are properties of the record rather than of a host, so they read the
 same under every host:
@@ -2070,7 +2009,7 @@ same under every host:
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^2.1.9` and product tests |
 | `@variance-authority/sense/jest` | the same around the transformer your project already uses | Jest 30 and product tests |
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
-| `@variance-authority/sense/precondition` | `variancePrecondition`, to say what state the running case arranged | nothing; a call outside a recording does nothing |
+| `@variance-authority/sense/precondition` | `variancePrecondition`, to record the state the running case ran under | nothing; a call outside a recording does nothing |
 | `@variance-authority/sense/case-journey` | the running case's journey id, to put on a request to a service | a case recorded by `withJourneyCoverage` |
 | `@variance-authority/sense/rstest` | the same as an Rspack loader and a reporter, for a suite Rstest bundles | Rstest `^0.12.0` and product tests |
 | `@variance-authority/sense/rstest-loader` | the loader `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |

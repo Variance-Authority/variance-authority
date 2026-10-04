@@ -263,7 +263,7 @@ to be closed:
 - **The engine-located half of source attribution is Chromium's only.** It reads
   `[[FunctionLocation]]` over the Chrome DevTools Protocol, which Chromium alone
   provides; under the other two engines the source scan answers on its own, with
-  its candidates unnarrowed, and the run claims nothing it could not see.
+  its candidates unnarrowed, and the run records nothing it could not observe.
 
 The stabilization recipe is likewise written against Chromium's behaviour.
 

@@ -58,7 +58,7 @@ assert
 ```
 
 The outside initiator is an entanglement to investigate, not a verdict. Eyes
-identifies the structural component instance; it does not claim which setter,
+identifies the structural component instance; it does not identify which setter,
 callback, or source statement scheduled the work.
 
 Every target is copied while its DOM node and Fiber [attribution](attribution.md) are still live.

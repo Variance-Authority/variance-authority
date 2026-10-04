@@ -83,7 +83,7 @@ name the run wrote down — component, role, accessible name, visible text, file
 region, token — and each hit prints the field it matched on, so the order is
 checkable and a wrong first hit costs one more call. `variance_composition`
 with a `subject` then prints what that subject is made of. When the run recorded
-no composition, both say so rather than matching nothing.
+no composition, both print that rather than matching nothing.
 
 ## Evidence other integrations supply
 

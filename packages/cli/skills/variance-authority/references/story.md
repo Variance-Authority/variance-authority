@@ -12,7 +12,7 @@ test take through this function, why does it pass or fail, does it reach the
 real code or a mock. Read the source first, and record only when it leaves the
 question open:
 
-- **You are about to change code you do not know, and reading does not say what
+- **You are about to change code you do not know, and reading does not show what
   runs**: a call through an interface, a plugin, a handler registered
   elsewhere. Ask `covering --file <path> --function <name> --hops` for the
   tests that run it. `--hops` lists the nearest test files first; record the
@@ -43,11 +43,11 @@ Never record:
 - **A performance test or a benchmark**, or a test for a question about time. A
   loop that runs thousands of times runs many times slower while recorded, and
   a story has no times. If a story shows a loop count in the thousands, or
-  says the recording filled up, choose another test.
+  prints that the recording filled up, choose another test.
 - **To find which tests run a line.** That is `covering`, from the record every
   run already keeps.
 - **For a value the code does not print.** A story shows only what the code
-  said: `console` lines, Eyes queries and events, `vae` announcements. Add a
+  emitted: `console` lines, Eyes queries and events, `vae` announcements. Add a
   `console.log` of the value and record again, or use a debugger at the line it
   names.
 - **When a stack trace already names the line.** Open that line.
@@ -58,7 +58,7 @@ VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
 ```
 
 Every test the run runs writes its story, and a test keeps its last 16, one
-per run: its readings. `story` reads the newest and says how many are kept.
+per run: its readings. `story` reads the newest and prints how many are kept.
 Set the variable to a label in place of `1` to name a run's readings, such as
 `VARIANCE_AUTHORITY_STORY=flag-on`; `--label <label>` reads the newest under
 one label, and a reading with no label is `1`. Recording needs the suite set
@@ -106,7 +106,7 @@ nests them:
   7  Cart/notify  cart.ts:25-27
 ```
 
-A long one opens coarser, and the header says how to go finer:
+A long one opens coarser, and the header prints how to go finer:
 
 ```text
   drawn by declarations: by every step it would be 11712 characters, and a story is kept under 5000;
@@ -122,7 +122,7 @@ variance story --name "removes the last item" --around 6      # three steps eith
 variance story --name "removes the last item" --whole         # every step, however long
 ```
 
-The answer prints a key for its marks. What the key does not say:
+The answer prints a key for its marks. What the key leaves out:
 
 - `✗` is a branch the test ran nowhere, before the test or during it: this test
   does not check that code, and `then ×6  else ✗` is a condition that was true
@@ -133,10 +133,10 @@ The answer prints a key for its marks. What the key does not say:
 - `before the test` is the code the runner ran outside the test just before
   it, such as code a `beforeEach` or the previous test's `afterEach` called.
   Test files are not recorded by default, so the hook itself is not a step.
-- `» text` under a step is a line the code said at that step: a `console` line
-  as `console.log …`, an Eyes entry as `eyes …` with a query's arguments and
-  what it found, a `vae` announcement as `vae …`. Lines said before the first
-  step are in the header.
+- `» text` under a step is a line the code emitted at that step: a `console`
+  line as `console.log …`, an Eyes entry as `eyes …` with a query's arguments
+  and what it found, a `vae` announcement as `vae …`. Lines emitted before the
+  first step are in the header.
 - `loaded N files` is modules loaded one inside another. `… steps 1-2 left out`
   is what this part leaves out; ask `--around` a step at its edge to read
   further.
@@ -173,8 +173,8 @@ compare  src/checkout.test.ts > saves the total it charges
 - The last line counts what differs between readings of one side too. It is
   not the cause; do not read it as one, and do not report the order changing
   between runs as a flake.
-- *one reading on a side* means the comparison cannot tell the side from the
-  run. `last` always says it. Record the test again under each side before you
+- *one reading on a side* means the comparison cannot separate the side from the
+  run. `last` always prints it. Record the test again under each side before you
   conclude.
 - *nothing separates the sides* means the difference is in a value no line
   prints, or in code that is not instrumented. Add a `console.log` of the value
@@ -186,7 +186,7 @@ parent; the step numbers are what join two parts you read.
 
 The route is a map. It does not give the order of every visit inside a step or
 how each pass of a loop differed; use a debugger for that. What the route could
-not show, it says in the header:
+not show, it names in the header:
 
 - *drawn as the file alone* — the recording does not have that file's
   functions as the test ran them: the file changed since, or was never

@@ -89,7 +89,7 @@ platform's entries in it. Both leave the JavaScript wrappers in place and the
 
 - **Decoding degrades.** The default `decoder: "auto"` catches the failed load
   and uses `pngjs` — the same verdicts, a slower run. `decoder: "sharp"` fails
-  the run by name and says the addon would not load.
+  the run by name and prints that the addon would not load.
 - **Parsing does not degrade.** oxc has no fallback, so a command that builds
   the source index fails rather than building a smaller one.
 - **Scanning does not degrade.** The addon lists the files a scan opens and

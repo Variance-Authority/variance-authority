@@ -121,7 +121,7 @@ for a region to name a component and a line.
 | `accept` | Vitest's own `--update` | whether this run may promote a candidate to a baseline |
 
 Use `varianceCommands(options)` instead of the plugin when your config already
-builds its own command map and wants to decide when the browser closes.
+builds its own command map and decides when the browser closes.
 
 ## Add the comparison
 
@@ -373,11 +373,11 @@ pointing an `<img>` at a path nobody serves is testing the fallback.
 your Vitest config imports. It owns the baseline store and one browser for the
 whole run — opened on the first observation, not at config time — and it paints
 that reading rather than screenshotting the tab. A live screenshot has nothing
-behind it that can say which machine, which scale and which font stack produced
+behind it that records which machine, which scale and which font stack produced
 it, so nothing can decide whether a later run is entitled to compare against it.
 
 The consequence is that a baseline approved on your laptop is usually not
-comparable on a CI runner. That run says `incomparable` and names both
+comparable on a CI runner. That run reports `incomparable` and names both
 identities rather than reporting a day of changed pixels nobody caused. Two ways
 to get a verdict instead: approve with `-u` inside the CI image and commit what
 it wrote, or pass one shared `renderer` to the plugin so laptop and CI paint on

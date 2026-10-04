@@ -32,7 +32,7 @@ renders those subjects.
 `vitest`, a `jest`, a CI shell script. It emits a skip list of test files and
 never a run list: a test the journal has never recorded is absent from it and
 stays in the suite. It reads no project configuration, and with no recording it
-skips nothing and says so on stderr.
+skips nothing and prints that on stderr.
 
 `run --flakes` reads every subject twice instead of only the ones a comparison
 already called `changed`, and exits `1` even when every verdict is green.

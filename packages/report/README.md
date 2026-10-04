@@ -164,20 +164,21 @@ one subject: `unchanged`, `changed`, `new`, `incomparable` or `ignored`. Its
 count that explain it.
 
 `notObserved` lists subjects the run planned and has no answer for, each
-`excluded`, `failed` or `unreached`. **Absent is not empty**: a report written by
-something other than `variance run` may never say what it skipped, and that is a
-different claim from "it skipped nothing". Read it before you print "nothing to
-review" — a run that planned 300 subjects, failed on 50 and found 250 unchanged
-has an all-clean observation list.
+`excluded`, `failed` or `unreached`. **Absent is not empty**: a report written
+by something other than `variance run` may have no record of what it skipped,
+and that is a different fact from "it skipped nothing". Read it before you print
+"nothing to review" — a run that planned 300 subjects, failed on 50 and found
+250 unchanged has an all-clean observation list.
 
 Three further fields are present only when the run had something to put in them:
 
-- `narrowing` — the ref the run was told to observe from (`--since`), and where
-  the recorded execution index stands: the commit it was written at, and how many
-  files the working tree differs from it by. A run that observed everything
-  includes the second half alone, which is what makes the option visible to a
-  reader who never passed one. Absent `index` means there is nothing to diff
-  from; it never means the index is current, which is `changed: 0`.
+- `narrowing` — the ref the run was configured to observe from (`--since`), and
+  where the recorded execution index stands: the commit it was written at, and
+  how many files the working tree differs from it by. A run that observed
+  everything includes the second half alone, which is what makes the option
+  visible to a reader who never passed one. Absent `index` means there is
+  nothing to diff from; it never means the index is current, which is `changed:
+  0`.
 - `drift` — design tokens whose value changed in this run, each with what it
   changed from, what it changed to, and how many approved steps it took to get
   there. This is what a single comparison structurally cannot show: eleven
@@ -223,7 +224,7 @@ value without it.
 
 `./suite-index` is the part of a report that is not about the run: what the suite
 is made of — its subjects, its components, every name each one goes by. That is a
-fact about the commit, it changes only when the suite does, and it is asked for
+fact about the commit, it changes only when the suite does, and it is read
 far more often than a run happens. `suiteIndexOf` takes it out of a report as
 bytes, addressed by that commit, small enough for a cache to keep and stable
 enough that two machines composing the same suite write the same file.
@@ -280,8 +281,8 @@ and held still, which means your edit did not take. Telling that apart from
 *never rendered here, so nothing in this run is evidence either way* needs the
 report's `composition.components` — which components the run's subjects rendered
 at all. With it, the two cases separate into `undelivered` and `unobservable`;
-without it, `adjudicateRun` cannot make the distinction and says so rather than
-guessing.
+without it, `adjudicateRun` cannot make the distinction, answers `unobservable`
+and gives the missing census as its `because` rather than guessing.
 
 `unchecked` is how a caller keeps a claim it could not verify. A boundary that
 parses claims from an agent — the MCP tool, the CLI — passes through the field
@@ -290,10 +291,10 @@ viewport` instead of reporting `delivered` about something nothing looked at.
 
 ## Record why a baseline is what it is
 
-A baseline update lands in a run of its own, and the artifact that lands says
+A baseline update lands in a run of its own, and the artifact that lands records
 *what* the new baseline is and nothing about what the change was. A month later,
-at the twelfth 2px approval, the report that could have said so left with the CI
-job.
+at the twelfth 2px approval, the report that could have recorded it left with
+the CI job.
 
 `changelogOf` folds a report and the subjects actually accepted into one record,
 and `renderCommitMessage` puts it where the baseline is — in the commit message,
@@ -360,7 +361,7 @@ squash merge moves them out of it.
 
 `renderCommitMessage` takes exactly two things: `message`, the subject line in
 your words, and `record`, what `changelogOf` returned. It writes no subject line
-of its own, so a commit says what you meant it to say and the trailers say what
+of its own, so a commit says what you meant it to say and the trailers list what
 was promoted.
 
 `changelogOf` takes:
@@ -380,10 +381,10 @@ would read as "nothing changed" — when nothing was accepted, or when the repor
 names no run id to attribute the baseline to. `isRecorded` narrows between the
 two.
 
-The record omits a changed-pixel count (the regions already say where the change
-was), rendered prose, and any derived total. `changelogVersion` changes only when
-an existing field's meaning changes; a reader keeps keys it does not recognise,
-so a new field does not need one.
+The record omits a changed-pixel count (the regions already show where the
+change was), rendered prose, and any derived total. `changelogVersion` changes
+only when an existing field's meaning changes; a reader keeps keys it does not
+recognise, so a new field does not need one.
 
 Reading it back where baselines are commits is `@variance-authority/store`'s
 `readChangelog`; where they are rows it is `@variance-authority/tribunal`'s.

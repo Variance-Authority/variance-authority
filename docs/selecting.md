@@ -2,9 +2,9 @@
 
 A change to a few lines should not run every test that imports the file. With
 [**execution recording**](execution-record.md), [Variance Authority](README.md)
-knows **which parts each test actually covered**. It selects the tests that
+records **which parts each test actually covered**. It selects the tests that
 reached those lines and shows when no test did —
-[what a record knows that no graph can](#what-a-record-knows-that-no-graph-can).
+[what a record shows that no graph can](#what-a-record-shows-that-no-graph-can).
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Any
@@ -32,7 +32,7 @@ A change still has to travel from a file to a component, and for that there is
 [an optional file graph](#the-expensive-row-and-what-retires-it) read from the
 source itself — a scan, not a build. It answers only that half: a subject is
 skipped when its own baseline records none of the components the change reached,
-and never because the graph said so.
+and never on the graph alone.
 
 The graph is a parse of the repository. The component list is written beside the
 approved image by the capture that was already reading it, and what that capture
@@ -40,7 +40,7 @@ needs is a name on each element: React puts it on the fiber and costs you
 nothing, and every other framework needs a build step that stamps it, which is
 the same step [attribution](composition.md) needs anyway.
 
-For a route that list is the only link there is. A URL says nothing about what
+For a route that list is the only link there is. A URL does not identify what
 renders at it, so a change travels from a file to a page by way of the page
 having been seen rendering that component — and the answer is exactly as current
 as the last render you approved.
@@ -93,14 +93,14 @@ sequenceDiagram
   Note over R,X: every other test the record observed whole is skipped
 ```
 
-Each party answers the question it owns. Git says what changed, the parser says
-what the change does, the graph says who uses it, and the record says which tests
-ran there. When one of them cannot answer, the run falls back to a coarser
+Each party answers the question it owns. Git answers what changed, the parser
+what the change does, the graph who uses it, and the record which tests ran
+there. When one of them cannot answer, the run falls back to a coarser
 answer, such as the changed lines instead of the edit, and names the file.
 
 ## What a CI checkout needs
 
-Selection asks git for three things, and a checkout of one commit can answer
+Selection reads three things from git, and a checkout of one commit can answer
 none of them:
 
 - **The merge base** of `HEAD` and your mainline. `variance run --since <ref>`
@@ -129,7 +129,7 @@ empty one skips every test.
 With plain git, that is `git clone --filter=tree:0 <url>`. The clone has the
 full commit graph, so the merge base and the count are exact, and it has the
 trees and files of the commit it checked out. Git fetches the other trees and
-files on the first command that reads them: a diff asks for everything it reads
+files on the first command that reads them: a diff requests everything it reads
 in one request. A checkout of a material-ui pull request, measured from one
 laptop:
 
@@ -249,31 +249,32 @@ So every uncertainty resolves toward observing:
 | Its baseline records no component list | Observed. Absent is *unknown*, never *renders nothing* |
 | A changed file under `source.dirs` declares no component | **The whole suite runs.** A stylesheet, a token file or a shared helper repaints subjects without naming itself in any of them. This is the row [a file graph retires](#the-expensive-row-and-what-retires-it) |
 | The diff reaches components and **no baseline records any of them** | Narrowed, and **named**: the run prints what it reached and could not match. The one row that does not resolve toward observing, and the one [`source.unrendered` controls](#a-change-nothing-has-been-seen-rendering) |
-| The diff touched nothing under `source.dirs` | The whole suite runs, and says so |
+| The diff touched nothing under `source.dirs` | The whole suite runs, and prints that it did |
 | The index was recorded over a dirty tree | Each module whose recorded text is not the text at the index's own commit is charged whole, and named. Its line numbers are coordinates in a text that is not this one |
 | `git` could not list the diff | The run refuses. An empty diff read as "nothing changed" would narrow to nothing and report success |
 | `--since` with no `source.dirs` | The run refuses, for the same reason |
 
 The last three produce an explicit warning or stop. A run that stays whole
-without saying so looks exactly like a selector that found nothing affected,
-although those facts require different next steps.
+without printing that it did looks exactly like a selector that found nothing
+affected, although those facts require different next steps.
 
 These rows read the baselines and the file graph. When the suite also keeps an
-[execution record](execution-record.md), the record reads the same diff next
-and removes every subject it recorded whole that the diff did not reach, the
+[execution record](execution-record.md), the record reads the same diff next and
+removes every subject it recorded whole that the diff did not reach, the
 subjects the two whole-suite rows kept included. It also keeps every subject it
 recorded entering the changed lines, including one whose baseline names none of
 the components the change reached, so the run prints the subjects it kept that
-way. A changed module it has no row for, such as a new file, is read as a
-module with a row is, with every export counted as changed: the subjects that
-entered a function reading one of them are selected. A path that reading cannot
-answer, such as a stylesheet, a module whose loading does something, or a text
-that does not parse, is answered by the measured files that import it, and one
-nothing measured imports keeps no subject in the run. A suite that declares
-[`"relations": false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
-asks the graph nothing: a file its record did not measure keeps no subject in
-that suite's run, and the run names it declined. Two refusals stand over the record, because it
-never saw what they are about — a change to a file named in
+way. A changed module it has no row for, such as a new file, is read as a module
+with a row is, with every export counted as changed: the subjects that entered a
+function reading one of them are selected. A path that reading cannot answer,
+such as a stylesheet, a module whose loading does something, or a text that does
+not parse, is answered by the measured files that import it, and one nothing
+measured imports keeps no subject in the run. A suite that declares
+[`"relations":
+false`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared) does
+not consult the graph: a file its record did not measure keeps no subject in
+that suite's run, and the run names it declined. Two refusals stand over the
+record, because it never saw what they are about — a change to a file named in
 [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.
 
@@ -303,8 +304,8 @@ The directories remain a **declaration about scope** where no graph edge brings
 a file in. A changed file inside them that the scan did not read is a gap and
 forces a whole run. A changed file outside them is ignored when another in-scope
 change gives selection an answer; when the whole diff is outside the graph or
-the declared directories, the run is whole because the diff says nothing about
-which component changed. That is why `README.md` beside a component edit does
+the declared directories, the run is whole because the diff names no changed
+component. That is why `README.md` beside a component edit does
 not widen the run, while a diff containing only `README.md` does unless an
 execution record is kept.
 
@@ -343,7 +344,7 @@ facts wearing one shape:
 Nothing in the selector separates them: both are components declared in files no
 subject imports. An observation surface narrower than the source tree is the
 ordinary state of a repository, not a defect to infer around — so the run narrows,
-and **says which components it could not match**:
+and **prints which components it could not match**:
 
 ```
 `--since HEAD~1` ruled out every subject: it reaches 1 component no baseline
@@ -401,16 +402,16 @@ reaches no component and does not force the whole suite, with a graph or
 without one, and the run names it in the sentence under its answer. A file that
 was added, deleted or does not parse is a change whatever the edit was.
 
-The graph trusts the text, and the text is wrong in one known way: a test that
-calls `vi.mock('./api')` imports `./api` by the letter and runs none of it. The
-scan reads those calls off test, story and setup files as it goes, and the
-mocked module is taken out of the graph as seen from that file at every level —
-the test is not selected by a change to the module it replaced, nor by one to
-anything only that module reaches. A `source.taints` table says the same for
-what no reader can see, a framework's own import notation, in the other
+The graph takes the text as written, and the text is wrong in one known way: a
+test that calls `vi.mock('./api')` imports `./api` by the letter and runs none
+of it. The scan reads those calls off test, story and setup files as it goes,
+and the mocked module is taken out of the graph as seen from that file at every
+level — the test is not selected by a change to the module it replaced, nor by
+one to anything only that module reaches. A `source.taints` table declares the
+same for what no reader can see, a framework's own import notation, in the other
 direction as well: `+` rows for imports the text does not write.
 
-It is arranged to over-include in exactly the same direction, and has three
+It is built to over-include in exactly the same direction, and has three
 refusals of its own:
 
 | Situation | What happens |
@@ -420,22 +421,22 @@ refusals of its own:
 | The files it did reach declare no component | The whole suite runs. That is also exactly what a changed file declaring a component the scan failed to recognise looks like |
 | A file's own imports could not all be read — `import('./' + name)`, a `require` this could not read as a literal, a parse that did not finish | The edges it could read are walked. The one it could not is left to the [execution record](execution-record.md), which sees the module load whatever expression named it |
 | A relative specifier resolves nowhere | The same: the specifier is recorded with the file's reason, and the edge is the record's to answer |
-| A bare specifier resolves nowhere | It becomes an edge to a [package node](changes-before-and-beyond.md#what-a-bumped-package-reaches) under the name it asked for and does not widen the graph. Whether the package is installed here decides nothing about which files import it. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
+| A bare specifier resolves nowhere | It becomes an edge to a [package node](changes-before-and-beyond.md#what-a-bumped-package-reaches) under its bare name and does not widen the graph. Whether the package is installed here decides nothing about which files import it. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
 
 The graph walks what is written. A specifier built at runtime has no written
 target, and seeding every such file on every diff would make the run as wide as
 the codebase's least legible corner. Recorded coverage has no such blind spot:
 a module that loads under a test is in that test's record however it was
-named. The file's reason stays on its record, so the scan can say which files
+named. The file's reason stays on its record, so the scan can list which files
 hide an edge.
 
 What the scan reads, and where it stops, is
 [`packages/sense`](../packages/sense). The graph itself is data: fold the records
-into it, walk it, ask it things. The traversals live in
+into it, walk it, query it. The traversals live in
 [`core/relate`](../packages/core/README.md#entrypoints) and open nothing, so a repository
 that already computes its own dependency graph can feed this from that instead.
 
-## What `nx` and `turbo` know that a scan cannot
+## What `nx` and `turbo` compute that a scan cannot
 
 A specifier scan stops at a package boundary when the package's `tsconfig` does
 not name both `outDir` and `rootDir`, or emits no code. `@scope/design-system`
@@ -468,11 +469,11 @@ that line, the record answers 10. Across sixty commits, `nx affected` selects
 
 Nx is not wrong about any of it: every one of those 168 files sits in a package
 that depends on the edited one. Only 149 of them load the edited module at all,
-and a manifest cannot say which of those ever ran the line.
+and a manifest does not record which of those ever ran the line.
 
 `turbo` needs the `task` because its filter answers *what would run*, not
 *what changed*; naming it is how you say which pipeline's inputs match what a
-render depends on. `nx` answers about projects without being told.
+render depends on. `nx` answers about projects without that setting.
 
 **A tool that fails stops the run.** An empty project list is a legitimate answer
 meaning *this diff crosses no package boundary*, so a missing binary and a quiet
@@ -484,7 +485,7 @@ all.
 
 A run reads from left to right: the harness starts it, the tests it started
 run your code, and your code goes out into what the install provides. Selection
-lives in the middle stretch, where a file has a name the record knows. A
+lives in the middle stretch, where a file has a name the record contains. A
 config file nothing imports and a bumped package you never wrote sit outside it,
 and they widen a run for opposite reasons —
 [changes before and beyond](changes-before-and-beyond.md) is the page about
@@ -498,8 +499,8 @@ known, and each removes a layer:
 
 - **`git` names every file's content without opening one.** A blob's name *is*
   the hash of its bytes, so `git ls-tree` plus `git status` is the entire walk.
-- **A digest names the parse.** The parse cache is keyed by content and by what
-  the file's name said about reading it, so it can never go stale: two files
+- **A digest names the parse.** The parse cache is keyed by content and by the
+  parse settings the file's name selects, so it can never go stale: two files
   with one key had one content read one way, on any machine, in any branch, in
   any year.
 - **A digest plus resolution configuration and witness directories names the
@@ -515,13 +516,13 @@ known, and each removes a layer:
 |---|---|
 | Naming every file's content | 95 ms, and nothing opened |
 | A cold scan | 3002 ms |
-| Parses remembered | 657 ms |
-| Records remembered too | 236 ms |
+| Parses cached | 657 ms |
+| Records cached too | 236 ms |
 | The run after a one-file edit | 236 ms — the edit is inside the noise |
 
 ```mermaid
 xychart-beta horizontal
-  accTitle: Milliseconds to scan 30,500 files, by what the caches remember
+  accTitle: Milliseconds to scan 30,500 files, by what the caches store
   x-axis ["nothing, a cold scan", "the parses", "the records too", "the records, after a one-file edit"]
   y-axis "ms" 0 --> 3100
   bar [0, 657, 236, 236]
@@ -597,7 +598,7 @@ xychart-beta horizontal
 That is the setting `--coverage` gives you, not a pessimistic one.
 `Profiler.startPreciseCoverage` takes two independent flags — a counter per
 region rather than a bit, and block ranges rather than function entries — and
-Vitest's provider asks for both. Node's inspector exposes no cheaper mode;
+Vitest's provider requests both. Node's inspector exposes no cheaper mode;
 the best-effort one is d8's.
 
 A probe fires only when its code runs, so what you pay tracks what your tests
@@ -653,21 +654,21 @@ like gigabytes before it is written. What the record does instead, what it
 measures at two hundred thousand modules, and how much of it one answer opens
 is in [addressing scale](scale.md).
 
-## What a record knows that no graph can
+## What a record shows that no graph can
 
 Everything above reasons about **reach**: which components a change touches, and
 which subjects have been seen rendering them. Reach is a property of the source,
 and a scan is the right instrument for it. Which *lines* a subject went through
 while it painted is not a property of the source at all — three stories mounting
 one component, with one import graph and one set of files, take three different
-paths through it — so nothing above can be asked the question, however good the
+paths through it — so nothing above can answer the question, however good the
 graph gets.
 
 A build instrumented with `testSelectionProbes()` from
 `@variance-authority/sense/journal` records those paths: for every observed
 subject, the regions of each module it crossed while it was painted. That is
 what [`packages/playwright-test`](../packages/playwright-test) narrows specs
-with, and it answers one question about a suite that a diff never asks:
+with, and it answers one question about a suite that a diff cannot answer:
 
 ```bash
 variance journeys
@@ -690,20 +691,20 @@ as well. **`unentered`** is a region with source of its own that nobody in the
 pool covered at all, and that is the row below.
 
 Two things bound it, and both are printed, not assumed. The journal
-**accumulates across runs**, so the pool is the subjects this run's report names;
-`--all` asks for the record on purpose, and a checkout with no report to read
-gets the record *with the sentence saying so*. And an observation the journal
-recorded as truncated is **dropped from the pool** rather than counted as having
-missed anything — a recording that stopped early proves no absence — with a count
-of what was dropped, because a pool of two that should have been three reads as
-agreement.
+**accumulates across runs**, so the pool is the subjects this run's report
+names; `--all` requests the whole record on purpose, and a checkout with no
+report to read gets the whole record *and a printed line that names the
+fallback*. And an observation the journal recorded as truncated is **dropped
+from the pool** rather than counted as having missed anything — a recording that
+stopped early proves no absence — with a count of what was dropped, because a
+pool of two that should have been three reads as agreement.
 
 ## Where the taints and the record disagree
 
-A taint says what a file's run reaches. The record says what it did. A checkout
-that has both — taints from the mock reader or a table, a journal from an
-instrumented run — can check one against the other, and every disagreement is a
-fact about one of them.
+A taint declares what a file's run reaches. The record shows what it did. A
+checkout that has both — taints from the mock reader or a table, a journal from
+an instrumented run — can check one against the other, and every disagreement is
+a fact about one of them.
 
 ```ts
 import { auditTaints } from '@variance-authority/sense/taint';
@@ -715,26 +716,28 @@ for (const { test, module, kind, taints } of auditTaints(coverage, relations, ta
 
 | kind | what it found |
 |---|---|
-| `shadowed-but-entered` | a module the test shadows, which the record says the test covered: the mock did not take, or the taint is wrong about it |
+| `shadowed-but-entered` | a module the test shadows, which the record shows the test covered: the mock did not take, or the taint is wrong about it |
 | `reachable-but-not-entered` | a module the test reaches on the graph with none of its shadows in the way, which nobody covered for that test: an import the run never loads, or a mock no taint names yet |
-| `added-but-not-entered` | a module a `+` row said the test imports beyond its text, which the record never saw the test in: the addition names the wrong file |
+| `added-but-not-entered` | a module a `+` row declared the test imports beyond its text, which the record never shows the test entering: the addition names the wrong file |
 
 None of them is a verdict. Each is the coordinate to look at, and where a taint
-said the thing the record disagrees with, the row names **which taints** said
-it — a table somebody wrote by hand and a reader over the source are corrected in
-different places. The middle row has none: that trail is one the scan drew
-and no taint touched.
+declared the thing the record disagrees with, the row names **which taints**
+declared it — a table somebody wrote by hand and a reader over the source are
+corrected in different places. The middle row has none: that trail is one the
+scan drew and no taint touched.
 
-Two things bound what a row may claim, and both are structural. Only an
-**instrumented** module testifies — one with no probes was covered by nobody the
-record can see, which is silence rather than absence. And only a **complete**
-observation testifies to absence, so the middle question is not asked of a test
+Two things bound what a row may report, and both are structural. Only an
+**instrumented** module counts as evidence — one with no probes has no coverage
+the record can measure, which is unmeasured rather than absent. And only a
+**complete** observation counts as evidence of absence, so the middle row is not
+computed for a test
 whose recording stopped early: a run that ended mid-flight proves nothing about
 where it never got to.
 
-It wants both sides to exist, which is what makes it the last thing to set up
-rather than the first: a record comes from a [journey](journeys.md), and taints come from a
-reader or a table. With one side alone there is nothing to disagree with.
+The audit needs both sides to exist, which is what makes it the last thing to
+set up rather than the first: a record comes from a [journey](journeys.md), and
+taints come from a reader or a table. With one side alone there is nothing to
+disagree with.
 
 ## What the record does not show
 
@@ -772,10 +775,11 @@ that decides to render `Button`, that component is in the subject's baseline,
 and so that edit selects the subject. What is left is a branch that no run
 takes at all.
 
-To find those branches, read [`unentered`](#what-a-record-knows-that-no-graph-can).
-It lists the regions, in modules a subject loaded, that no subject in the pool
-ran. It selects nothing. It shows you the branches your subjects have never
-taken, so you can add a subject that takes one.
+To find those branches, read
+[`unentered`](#what-a-record-shows-that-no-graph-can). It lists the regions, in
+modules a subject loaded, that no subject in the pool ran. It selects nothing.
+It shows you the branches your subjects have never taken, so you can add a
+subject that takes one.
 
 ### A result a cache returned
 
@@ -840,16 +844,14 @@ run.
 
 **Further:** [`distance.md`](distance.md) for the API that measures how far the
 change travelled to selected test files, and the inventory and runner work an
-integration still owns ·
-[`flows.md`](flows.md) for where baselines live ·
+integration still owns · [`flows.md`](flows.md) for where baselines live ·
 [`source.md`](source.md) for how the scan reads a file, resolves a specifier and
-remembers both ·
-[`execution-record.md`](execution-record.md) for the keys, lookups, traces
-and costs of the coverage file ·
-[`distill.md`](distill.md) for using that record to make one test smaller ·
-[`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-claims-to-import) for the taint
-tables themselves ·
-[`packages/sense`](../packages/sense) for what the scan reads and where it stops ·
-[`packages/cli`](../packages/cli) for the rest of the command line ·
-[`compare-visual-review.md §2`](compare-visual-review.md#chromatic) for what TurboSnap does that this
-does not.
+records both · [`execution-record.md`](execution-record.md) for the keys,
+lookups, traces and costs of the coverage file · [`distill.md`](distill.md) for
+using that record to make one test smaller ·
+[`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-declares-it-imports)
+for the taint tables themselves · [`packages/sense`](../packages/sense) for what
+the scan reads and where it stops · [`packages/cli`](../packages/cli) for the
+rest of the command line · [`compare-visual-review.md
+§2`](compare-visual-review.md#chromatic) for what TurboSnap does that this does
+not.

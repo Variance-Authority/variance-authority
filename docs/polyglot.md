@@ -36,7 +36,7 @@ variance reach --since origin/main | grep '/test_.*\.py$' | xargs -r pytest
 The list names every file the change can reach, one per line, with the changed
 files among them except those whose edit changes nothing that runs.
 `--format json` returns the same answer with what was left out of it beside it. No project configuration is read, and `--since` has no default:
-the command is asked by a repository whose tests something else runs, and
+the command is called from a repository whose tests something else runs, and
 guessing a ref there would be guessing what a build is about to skip.
 
 ## Walked from what the edit changed
@@ -77,15 +77,15 @@ The record answers from which lines each test ran, so a namespace import does
 not widen it. On Zod it selects fewer test files than the walk on 12 of the
 sixty commits, 798 fewer in all, and on TanStack Query it selects as few as 23
 where the walk selects 143. Those are commits that change the inside of a
-function: the record knows which of the files that load the module ran it.
+function: the record shows which of the files that load the module ran it.
 
-The record also selects tests that neither walk can, because it knows what
-each test ran under as well as what it imported. Zod runs its main package's
-tests a second time under a compile-mode project whose setup file imports the
-core, so code that runs as the core loads, such as a regular expression
-constant or the locale index, runs in every test in that project, including the
-ones that import none of it. On ten commits that change such code the record
-selects 200 or more where the walks select about 130.
+The record also selects tests that neither walk can, because it records the
+setup each test ran under as well as what it imported. Zod runs its main
+package's tests a second time under a compile-mode project whose setup file
+imports the core, so code that runs as the core loads, such as a regular
+expression constant or the locale index, runs in every test in that project,
+including the ones that import none of it. On ten commits that change such code
+the record selects 200 or more where the walks select about 130.
 
 Configuration is read per project. Each TanStack Query project's Vite
 configuration imports its own `package.json`, and a change to a file that a
@@ -135,7 +135,7 @@ a test run, and the cost of a file you missed is a green build over code nobody
 looked at.
 
 Everything that narrows below the graph narrows from evidence. An
-[execution record](execution-record.md) says which regions a test actually
+[execution record](execution-record.md) lists which regions a test actually
 covered, and [running less of the suite](selecting.md) uses it to skip work the
 graph would have included. Nothing narrows from absence — "I saw no import" is
 never a reason on its own. An import the reader cannot see, such as a `require`
@@ -145,7 +145,7 @@ and the test is in its record.
 Type-level references are the one thing the walk does not follow, because they
 are erased before anything runs. A TypeScript `import type`, a Python
 `if TYPE_CHECKING:` block and a Kotlin import that only names a signature are
-recorded as edges and skipped by a walk that asks what a change can reach at
+recorded as edges and skipped by a walk that computes what a change can reach at
 runtime. The `else:` branch of that Python block is the runtime half and is
 followed.
 
@@ -204,11 +204,12 @@ the source root is derived from what the files themselves declare rather than
 from a convention list — a file at `a/b/c/Thing.java` declaring `package b.c`
 sits under root `a`, and Maven and Gradle layouts fall out of that instead of
 being assumed. Types in the same package are visible with no import at all, so
-every file asks for its own package as well; on a JVM codebase those are most of
-the real edges, and leaving them out would report a class and the class beside
-it as unrelated. Kotlin adds one difference: a top-level function may live in
-any file of its package, because Kotlin has no filename rule. To select Java tests from what they ran rather
-than from this graph, see [Java tests](jvm.md).
+every file depends on its own package as well; on a JVM codebase those are most
+of the real edges, and leaving them out would report a class and the class
+beside it as unrelated. Kotlin adds one difference: a top-level function may
+live in any file of its package, because Kotlin has no filename rule. To select
+Java tests from what they ran rather than from this graph, see [Java
+tests](jvm.md).
 
 **Swift.** The language does not have the edge the rest of this rests on.
 `import Core` names a module, which is a whole target, and files inside a target
@@ -228,11 +229,11 @@ every changed file that runs differently is among the files it reaches. The walk
 cannot stand behind a list in four cases:
 
 - nothing changed since the ref
-- nothing changed that any reader claims
+- nothing changed that any reader handles
 - every changed file runs what it ran before
 - a changed source file the scan never reached
 
-In each of them the command writes nothing to stdout, says why on stderr, and
+In each of them the command writes nothing to stdout, prints why on stderr, and
 exits `2`. A run list is the
 dangerous shape to get wrong: an empty one piped into a runner runs nothing and
 looks like a fast green build.

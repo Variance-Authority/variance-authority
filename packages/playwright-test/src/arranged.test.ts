@@ -31,7 +31,7 @@ describe('arrangedText', () => {
     };
 
     expect(arrangedText(taken)).toBe(
-      'taken in tests/checkout.spec.ts > mocked > pays, arranged network=mocked (tests/checkout.spec.ts:12), ' +
+      'taken in tests/checkout.spec.ts > mocked > pays, ran under network=mocked (tests/checkout.spec.ts:12), ' +
         'seeded (tests/checkout.spec.ts:8)',
     );
   });
@@ -46,21 +46,21 @@ describe('arrangedText', () => {
     };
 
     expect(arrangedText(taken)).toBe(
-      'taken in tests/checkout.spec.ts > mocked > pays, arranged network contradicted: ' +
+      'taken in tests/checkout.spec.ts > mocked > pays, ran under network contradicted: ' +
         'live (tests/checkout.spec.ts:20), mocked (tests/checkout.spec.ts:21)',
     );
   });
 
-  it('says a case that listened and heard nothing arranged nothing', () => {
+  it('prints a case recorded with no preconditions as recording none', () => {
     expect(arrangedText({ ...CASE, preconditions: [] })).toBe(
-      'taken in tests/checkout.spec.ts > mocked > pays, nothing arranged',
+      'taken in tests/checkout.spec.ts > mocked > pays, no preconditions recorded',
     );
   });
 
-  it('says a run that did not listen left its preconditions unmeasured, not empty', () => {
+  it('prints a run that did not record preconditions as unmeasured, not empty', () => {
     expect(arrangedText(CASE)).toBe(
       'taken in tests/checkout.spec.ts > mocked > pays, preconditions unmeasured: varianceExecution is off, ' +
-        'so nothing listened for variancePrecondition',
+        'so no variancePrecondition call was recorded',
     );
   });
 

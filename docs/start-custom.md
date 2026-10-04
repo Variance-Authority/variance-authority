@@ -81,7 +81,7 @@ drop `jsdom`.
 ## The harness
 
 This stands in for whatever you already have. It renders receipt templates to
-HTML strings and knows nothing about visual review:
+HTML strings and has no visual-review code:
 
 ```js
 // src/receipt.mjs
@@ -184,7 +184,7 @@ font identities, which the config section below explains.
 ### The argument
 
 `collect` is handed a **planned subject** — the state to render, plus what the
-run knows about it:
+plan declares about it:
 
 | field | type | required | what it is |
 | --- | --- | --- | --- |
@@ -220,9 +220,9 @@ with a refused subject exits `1` — an absent observation is not an unchanged o
 | --- | --- | --- | --- |
 | `ok` | `true` | yes | |
 | `document` | `RenderDocument` | yes | The serialized render. Build it with `acquireDocument`. |
-| `snapshot` | `SemanticSnapshot` | no | The normalized structure and style of the same render. Without it a changed region has coordinates and no name: the report can show you the pixels but cannot say which element they are. |
+| `snapshot` | `SemanticSnapshot` | no | The normalized structure and style of the same render. Without it a changed region has coordinates and no name: the report can show you the pixels but cannot name the element they belong to. |
 | `source` | `SourceIndex` | no | Component name → `file:line`, as `Readonly<Record<string, {file, line, via}[]>>`. What turns a named region into somewhere to open in an editor. |
-| `stabilization` | `readonly string[]` | no | Names of tricks you applied to the page before reading it — pinned animations, hidden carets. Reported so a run can state what it did to your application. An empty list and an absent one both say you stabilized nothing. |
+| `stabilization` | `readonly string[]` | no | Names of tricks you applied to the page before reading it — pinned animations, hidden carets. Reported so a run can state what it did to your application. An empty list and an absent one both mean you stabilized nothing. |
 | `diagnostics` | `readonly Diagnostic[]` | no | `{ severity: 'warn' \| 'error', code, message, nodePath? }`. What you noticed about the *reading* rather than the picture: a template that logged an error and rendered anyway, a fixture that had to be retried. An `error` here fails the run. |
 | `causes` | `readonly string[]` | no | Components your own comparison already identified as the roots of the change. Used to order the report by the edit rather than by area. |
 | `before` | `RenderDocument` | no | The previous revision's document, for `retention: "ephemeral"`, where both sides are rendered inside one run and neither is stored. |
@@ -326,7 +326,7 @@ against this file's directory rather than the working directory.
 | `report` | Where `run` writes and where `report` and `accept` read. Defaults to `.variance/report.json`. Candidate images land beside it. |
 | `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the key baselines are stored under, so switching it moves every subject into a partition where nothing is approved yet. |
 
-`profile: "jsdom"` costs you one thing, and the run says so on every line of
+`profile: "jsdom"` costs you one thing, and the run prints that on every line of
 output: jsdom has no layout engine, so a changed region can be located in the
 image but not joined to the element that occupies it. If attribution matters
 more than the simplicity of this page, acquire inside a browser — the
@@ -355,7 +355,7 @@ against its own partition. So baselines approved on your laptop are not the ones
 CI compares against: a Linux runner finds none under its identity and reports
 every subject `new`. Paint in one place that both use, which in practice means
 running `variance run` inside the same container image locally and in CI.
-`variance doctor` is the readback: it lists each identity in the root and says
+`variance doctor` is the readback: it lists each identity in the root and prints
 whether this machine's is one of them.
 
 ## Run the first loop

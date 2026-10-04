@@ -58,7 +58,7 @@ answer lists the fields it read and the fields it did not:
 | declaring files | a [source index](source-index.md) — the map from a component to the files that declare it |
 | custom properties | the CSS cascade those boundaries resolved through |
 
-**Search has only your ids, and says so, on a run that read no markup:**
+**Search has only your ids, and prints that, on a run that read no markup:**
 
 - **A raster-only capture.** It is an image with no markup behind it.
 - **A run under ephemeral retention whose collector gives only images.**
@@ -66,8 +66,8 @@ answer lists the fields it read and the fields it did not:
   once the run ends. When its collector also reads the markup, the run writes
   the same words as any other run.
 
-On either one the answer says it indexed subject ids and nothing else, so a
-miss is not a miss on names, text or components — none of those was searched.
+On either one the answer prints that it indexed subject ids and nothing else, so
+a miss is not a miss on names, text or components — none of those was searched.
 
 **A suite built on something other than React** is searched on everything but
 the component words. Its markup gives accessible names, visible text and roles.
@@ -118,7 +118,7 @@ this live* and the answer is a file — no second call to find that out.
 **You get a file from a production build too.** The line an element sits on
 comes from the JSX-source plugin and a build strips it, so on a built Storybook
 no recorded element has one. What survives is the component that owns the
-thing, and the run knows which files declare it — so the place reads
+thing, and the run records which files declare it — so the place reads
 `in \`CarrierPicker\` · src/dispatch/CarrierPicker.tsx` instead of a file and a
 line. That is a source
 to open rather than a coordinate, and the answer prints it as one. With no
@@ -136,8 +136,8 @@ whether or not the run resolved layout.
 vocabularies to compare it and kept all of them: `checkbox` finds the toggle
 because the run recorded its role, `--va-space-2` finds every subject that
 resolved through the token, and a filename finds whatever that file declares.
-So the word you happen to use is often one the suite already knows; when it is
-not, the answer says which fields it looked in rather than guessing at a
+So the word you happen to use is often one the run already recorded; when it is
+not, the answer prints which fields it searched rather than guessing at a
 synonym. That record is the [lexicon](lexicon.md) — the names the run wrote
 down, field by field — and that page has the how and the why.
 
@@ -176,9 +176,9 @@ alike](#three-answers-that-look-alike).
 
 A question costs one call and prints what it searched, so working down the rows
 is how you find which vocabulary this suite is written in, and the row that hits
-tells you what to ask for everything after it. When a term matches nothing, the
-answer names it as unmatched and prints beside it the accessible names the run
-did record. Build the next query out of those.
+shows which vocabulary to use for everything after it. When a term matches
+nothing, the answer names it as unmatched and prints beside it the accessible
+names the run did record. Build the next query out of those.
 
 ## Say where to look
 
@@ -229,7 +229,7 @@ both directions: every file the run never rendered would read as missing, and a
 path a build wrote down would read as present long after the file was deleted.
 
 The directory you ask in is the repository. Ask somewhere with no source beside
-you and a start point is refused rather than approximated, and the answer says
+you and a start point is refused rather than approximated, and the answer prints
 which of the two happened.
 
 The absolute path your editor hands you is the same question asked from the
@@ -255,9 +255,9 @@ in the scope because a file in the scope was seen producing it, so naming the
 button hands you every subject the run recorded it in.
 
 The walk runs to any depth; nothing is cut off to save time. Where the scan
-could not read some file's own imports, the answer counts those files and says
-so: what lies behind them is not enumerated, so the scope is not a proof about
-what it left out.
+could not read some file's own imports, the answer prints a count of those
+files: what lies behind them is not enumerated, so the scope is not a proof
+about what it left out.
 
 ### Say `--to` for the other way
 
@@ -273,8 +273,8 @@ npx variance ask locate --query "settings page" --to "components/user-select.tsx
 A file is in that scope when it *reaches* what you named, at any depth — the
 page that imports the panel that imports the select. The path is read by the
 same rules and the three widths mean the same things; only the direction
-changes, and the header says which one it went: *reachable from* for one,
-*reaching* for the other.
+changes, and the header prints which direction it took: *reachable from* for
+one, *reaching* for the other.
 
 Say both and you have named two places, not one crossing. Each is answered in
 its own direction and the two are taken together, for the reason two `--from`
@@ -383,10 +383,11 @@ all.
 
 Three things in that answer are worth reading before you act on it:
 
-- **`matched on place`.** You said `warning`; the screen says `role=status` and a
-  sentence about a contract. Nothing maps one onto the other, so the answer
-  shows what is actually in the relation and says it matched on where it is, not
-  on what it is called. When your word *is* on the screen it says so instead.
+- **`matched on place`.** You said `warning`; the screen says `role=status` and
+  a sentence about a contract. Nothing maps one onto the other, so the answer
+  shows what is actually in the relation and prints that it matched on where it
+  is, not on what it is called. When your word *is* on the screen it prints that
+  instead.
 - **`also beneath`.** Everything else standing in the same relation, nearest
   first. The one you meant is sometimes the second.
 - **`4px away`.** Measured between the rectangles the run resolved. Absent when
@@ -403,7 +404,7 @@ last matched `chips` on a component alone. That is the difference between a
 subject named for the thing and a subject that merely contains one, and you can
 see which one you have before you open it.
 
-The order is orientation, not evidence: nothing in the answer says whether a
+The order is orientation, not evidence: nothing in the answer shows whether a
 subject passed or failed, and none of it includes a pixel count or a diff to
 open — only ids and the tools that take them. Read the field you matched on,
 then narrow.
@@ -414,7 +415,7 @@ The header separates them before the hits, per field:
 
 - **Read, and nothing matched.** The names exist; your word is not among them.
   Ask again in the suite's vocabulary — a term no subject uses is named as
-  such, beside the accessible names the run did record, so the answer tells you
+  such, beside the accessible names the run did record, so the answer shows you
   what to try.
 - **Not read.** No execution journal means no `regions`; no reading of the
   accessibility tree means no `names`, `text` or `roles`; no [source
@@ -425,20 +426,21 @@ The header separates them before the hits, per field:
   other than React has empty `components`, `createdBy`, `example` and `tokens`.
   They were read. There is nothing there.
 
-A subject whose values were capped says how many it lost.
+For a subject whose values were capped, the answer prints how many it lost.
 
 ## Then narrow
 
 An id is the way into everything else. Over MCP,
 [`variance_composition {subject}`](composition.md) prints what the subject is
 made of, [`variance_describe {subject}`](agent-questions.md) prints what was
-observed, and [`variance_explain_verdict {subject}`](agent-questions.md) says
+observed, and [`variance_explain_verdict {subject}`](agent-questions.md) prints
 why a subject was not compared. The answer names two of them under `next:` with
 the id already filled in.
 
 A run that read no markup — a raster-only capture, or an ephemeral run whose
 collector gave only images — writes no words for search, and `locate` still
-answers on it: on subject ids alone, saying no other field was searched. `composition` is absent on those runs and says so, rather
-than printing an empty graph. A suite that is not React has markup and no
-boundaries: `locate` searches its names, text and roles, and `composition` says
-its subjects name no component.
+answers on it: on subject ids alone, saying no other field was searched.
+`composition` is absent on those runs and the answer prints that, rather than an
+empty graph. A suite that is not React has markup and no boundaries: `locate`
+searches its names, text and roles, and `composition` prints that its subjects
+name no component.

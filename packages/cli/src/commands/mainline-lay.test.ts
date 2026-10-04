@@ -91,7 +91,7 @@ describe('a worktree at the commit its mainline published', () => {
     // The mainline's runs are laid as a seed: where its tests last ran, and no run of this worktree's.
     expect(await readCommitRuns(own)).toMatchObject({ commit: head, runs: 0, standing: [] });
     await expect(review(parseReview(['--root', worktree]))).rejects.toThrow(
-      `no run has listed itself beside \`${own}\`, so nothing says where this change starts.`,
+      `no run has listed itself beside \`${own}\`, so nothing records where this change starts.`,
     );
 
     const ran: TestCoverage = {

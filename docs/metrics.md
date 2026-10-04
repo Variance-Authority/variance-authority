@@ -305,7 +305,7 @@ conditions; another corpus or host requires another reading.
 
 An attribution result needs M1 and M7 beside the false-verdict accounting in M4.
 A claim of workflow improvement combines that correctness and reviewer signal
-with M2, M3 and M6; otherwise the result says only that one part works.
+with M2, M3 and M6; otherwise the result shows only that one part works.
 Cross-machine operation needs M5. Longitudinal value needs M8. M9 bounds every
 one of those conclusions.
 

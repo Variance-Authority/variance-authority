@@ -46,7 +46,7 @@ You review images. Two separate things are involved in producing one:
 
 Reading the mount rather than screenshotting the tab is what lets the same
 subject be painted again later and compared byte for byte, and what lets the
-comparison say which machine painted each side.
+comparison name the machine that painted each side.
 
 ## Before you add the comparison
 
@@ -69,8 +69,8 @@ process paints baselines with. The install above covers the second.
 A test body in browser mode runs inside an iframe in a tab, and a tab has
 neither the baseline directory nor a browser it can launch to paint with.
 Vitest's command protocol carries the reading out to the Vitest process, and the
-plugin is what registers that command. Without it, `variance()` throws and tells
-you to add it.
+plugin is what registers that command. Without it, `variance()` throws with an
+error that names the missing plugin.
 
 ```ts
 // vitest.config.ts
@@ -279,8 +279,8 @@ opens with the subject, the verdict and the sentence explaining it, then lists
 each changed region with the component that drew it and the `file:line` it was
 written at, made relative to `sourceRoot` when you passed one. Regions with no
 component behind them are printed as coordinates and marked unattributed. The
-list is ordered by area, and says so: area measures displacement rather than
-blame, so a container pushed by an edit can outrank the edit itself.
+list is ordered by area, and the message states that: area measures displacement
+rather than blame, so a container pushed by an edit can outrank the edit itself.
 
 The images themselves are files. The approved baseline is the `.png` under the
 baseline directory, beside the `.json` recording what painted it. The candidate
@@ -296,14 +296,14 @@ stabilization and raster settings it used. Baselines are partitioned by it —
 that is the `v1-6c1f…` directory the `.png` lives under.
 
 This is why the tab's own screenshot is not used. A live screenshot has nothing
-behind it that can say which machine, which scale and which font stack produced
+behind it that records which machine, which scale and which font stack produced
 it, so nothing can decide whether a later run is entitled to compare against it.
 
 The consequence is that a baseline approved on your laptop is usually not
-comparable on a CI runner: different platform, different fonts. The run says so
-— every such subject reports `incomparable`, naming both identities — rather
-than reporting a day of changed pixels nobody caused. Two ways to get a verdict
-instead of a refusal:
+comparable on a CI runner: different platform, different fonts. The run reports
+that — every such subject reports `incomparable`, naming both identities —
+rather than reporting a day of changed pixels nobody caused. Two ways to get a
+verdict instead of a refusal:
 
 - **Approve on the machine that judges.** Run the suite with `-u` in the CI
   image, commit what it wrote, and every later CI run compares against a

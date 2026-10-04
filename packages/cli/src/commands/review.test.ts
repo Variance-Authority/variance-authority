@@ -247,7 +247,7 @@ describe('a review of what a change did, after the run that recorded it', () => 
     const side = git(root, ['commit-tree', `${first}^{tree}`, '-p', first, '-m', 'side']);
     await runsOver(root, first, side);
 
-    await expect(review(parse(['--root', root]))).rejects.toThrow(/name no start they descend from, so nothing says where this change starts/);
+    await expect(review(parse(['--root', root]))).rejects.toThrow(/name no start they descend from, so nothing records where this change starts/);
   });
 
   it('is refused, naming the commit to fetch, when git cannot say whether the runs descend from it', async () => {

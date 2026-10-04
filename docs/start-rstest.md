@@ -178,7 +178,7 @@ npx playwright install chromium
 
 `@rstest/playwright` is Rstest's own fixture package: it launches a browser and
 hands the test body a `page`. `@variance-authority/playwright-test` is the
-observation, and `/rstest` is the small adapter that reads what Rstest knows
+observation, and `/rstest` is the small adapter that reads what Rstest records
 about the test from the values the body destructures.
 
 ### Configure the browser once
@@ -249,7 +249,7 @@ somewhere else.
 `runOf` takes three of the values the body destructures rather than one context,
 because Rstest requires a test body's first parameter to be an object pattern —
 a non-destructured parameter is refused before the test runs. From those three
-it reads everything the run needs to know about itself:
+it reads everything the run needs about itself:
 
 | What it reads | Where it comes from |
 | --- | --- |

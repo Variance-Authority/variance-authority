@@ -2,7 +2,7 @@
 
 You already have a suite that gets the app into the UI states you care about. To
 put those states under review by [Variance Authority](README.md), you install
-one package that knows your host, and keep everything else.
+one package built for your host, and keep everything else.
 
 That package is called a **surface**. It finds the states worth observing,
 drives your host to each one, and gives each a **subject id**: one named UI
@@ -94,7 +94,7 @@ through Storybook's channel, waits for the rendered state, and acquires each
 subject. It runs beside Storybook: it installs no addon, reads no `.storybook`
 directory, and does not own your build command.
 
-Build the Storybook first, then write a collector module that says where your
+Build the Storybook first, then write a collector module that names where your
 components live:
 
 ```js
@@ -133,8 +133,8 @@ Storybook subject ids begin with `story:`, so a story whose Storybook id is
 `checkout--empty` is accepted as `story:checkout--empty`.
 
 `source.dirs` is what resolves a component to the file it is declared in. A
-built Storybook ships bundled code: the browser can say which component drew an
-element, not which file it is written in, so the collector scans your tree
+built Storybook ships bundled code: the browser can report which component drew
+an element, not which file it is written in, so the collector scans your tree
 instead.
 
 #### Keep component names in the Storybook build
@@ -494,7 +494,7 @@ Four flags:
 
 | Flag | What it does |
 | --- | --- |
-| `--all` | Promotes every changed candidate in the report. Keep it for a first run and for deliberate re-baselines: it cannot tell a candidate somebody reviewed from one nobody opened. |
+| `--all` | Promotes every changed candidate in the report. Keep it for a first run and for deliberate re-baselines: it cannot distinguish a candidate somebody reviewed from one nobody opened. |
 | `--shape <fingerprint>[,…]` | Promotes one category of difference wherever it accounts for the *whole* change, and refuses by name any subject where something else also changed. Copy a fingerprint out of a report; every region has its own. |
 | `--message-file <path>` | Writes a commit message for the baseline update to that path, for `git commit -F`. It commits nothing itself. |
 | `--message <text>` | The subject line of that message. Only meaningful with `--message-file`. |

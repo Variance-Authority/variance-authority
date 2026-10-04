@@ -1,6 +1,6 @@
 # Make a suite faster, more stable, smarter and cheaper
 
-While a test runs, the machinery under it knows which code executed, which
+While a test runs, the machinery under it can observe which code executed, which
 elements the test queried or clicked, and what setup ran before it began.
 Teardown is normally where all of that disappears, and the run ends with a pass,
 a fail and a pixel count. [Variance Authority](README.md) keeps the record
@@ -140,7 +140,7 @@ separate recorded test paths from the edit; an integration can use that reading
 to order its workload.
 
 The same record answers questions nobody wrote an assertion for. The process
-that produced a pass or a fail also knew which elements the test queried or
+that produced a pass or a fail also observed which elements the test queried or
 clicked, which components rendered, which component instances initiated updates,
 and which branches executed. Your test does not change to keep any of it.
 [Ask a question the test did not](observability.md) explains what you can learn

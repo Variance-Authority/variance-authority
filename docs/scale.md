@@ -5,14 +5,14 @@ to know whether it fits before you commit to it. Deciding which tests a change
 can skip obliges you to keep files on disk; below are what they weigh, what a
 question against them costs, and where the answer stops being worth having.
 
-The file that decides whether any of this is feasible is the one that remembers
+The file that decides whether any of this is feasible is the one that records
 which tests went through which code. Selection may only skip a test when that
-file says the test never covered what you changed, so it has to keep the
+file shows the test never covered what you changed, so it has to keep the
 relation whole rather than folded, and a whole relation is large. One test file
 covering one piece of one module is a **crossing**. A repository of 200,000
 modules holds about 1.6 million such pieces, and in a suite of 2,000 test files
 the average piece turns out to be reached by about four hundred of them. That
-is what importing **barrels** does: a test that wants one name from a package's
+is what importing **barrels** does: a test that needs one name from a package's
 `index.ts` loads the file, and the file loads everything it re-exports, so one
 import puts the test inside hundreds of modules it never mentions. The relation
 has **671 million** entries in it. Coverage tools never meet that number,
@@ -104,7 +104,7 @@ in the three files relates them:
 | to price | the count you need |
 |---|---|
 | the [source index](source-index.md) | the modules in your checkout — the source files `git ls-files` lists |
-| the [execution record](execution-record.md) | the modules your suite **covers**, which is a fraction of the first that only a recording knows |
+| the [execution record](execution-record.md) | the modules your suite **covers**, which is a fraction of the first that only a recording measures |
 | the [lexicon](lexicon.md) | the **subjects** your suite captures — a subject is one named UI state you asked for and can ask for again |
 
 A component library's unit suite covers 3% of the repository's modules and
@@ -267,14 +267,14 @@ something it imports. Everything else is found and skipped.
 
 You already have something like it: code coverage. Istanbul, c8 and V8's own
 coverage record which lines ran while the suite ran. What they hand you is a
-count per line, folded across every test, so the report can say *this line was
+count per line, folded across every test, so the report can show *this line was
 covered* and never *by which test*. The folding is what keeps a coverage report
 small. The unfolded relation is tests multiplied by lines, and a coverage tool
 never stores it, because for a large suite it is gigabytes.
 
 Selection needs the unfolded relation. Skipping a test on a changed line is
-only safe if the record says that test never covered it, and a count per line
-cannot say that about any test. So the execution record saves what coverage
+only safe if the record shows that test never covered it, and a count per line
+cannot show that about any test. So the execution record saves what coverage
 throws away, and its size is the fair question.
 
 You can price the folded version yourself in one command, with nothing to
@@ -386,7 +386,7 @@ under a tenth of a second and about 120 MB resident. The second question inside
 the same process costs a tenth of the first, because the column runs it
 decompressed stay decompressed.
 
-The most expensive question in the format is one no ordinary run asks: every
+The most expensive question in the format is one no ordinary run computes: every
 module against every test, which is how you find out which of your files are
 **hubs**, the files most of the repository imports. At 200,000 modules that is
 four seconds and 322 MB. It is the ceiling, and one you can afford to hit
@@ -478,13 +478,13 @@ different one. The scan caches are content-addressed and behave the same way.
 ## What the index and the record cost, at five sizes
 
 Both files grow with modules and stay linear. The index column you can price
-before recording anything, from a count git already gives you; the record
-column is priced per module your suite covers, which only a recording tells
-you. Material UI's row and Kibana's are measured on real repositories. No suite
-was recorded on Kibana, so its row has an index and a dash in the two columns
-only a recording answers. The 200,000 row is measured, at that size, on
-fixtures rather than on a real tree. The outer two rows are **extrapolation** —
-those figures extended linearly to a size no one has measured.
+before recording anything, from a count git already gives you; the record column
+is priced per module your suite covers, which only a recording measures.
+Material UI's row and Kibana's are measured on real repositories. No suite was
+recorded on Kibana, so its row has an index and a dash in the two columns only a
+recording answers. The 200,000 row is measured, at that size, on fixtures rather
+than on a real tree. The outer two rows are **extrapolation** — those figures
+extended linearly to a size no one has measured.
 
 | your repository | modules | modules its suite covers | source index | execution record |
 |---|---|---|---|---|
@@ -507,7 +507,7 @@ repository tracks is documentation, examples and packages that suite never
 imports. An application's own suite covers most of the application, which is why
 the medium-app row assumes roughly 1,400 of 2,000. The 200,000 fixture covers
 every module it contains, because it was built that way. What sets the rate is
-how much of the tree your test files import, and only a recording tells you.
+how much of the tree your test files import, and only a recording measures it.
 
 **The record needs a different constant from the one a per-module figure
 gives.** The fixture's 77 MB over 200,000 modules is 0.385 KB per module, and
@@ -566,13 +566,15 @@ repeated. Sorting the rows by the case that produced them leaves the case column
 as long ascending runs. The distance column is how many import hops separated
 the test file from the module it entered, which is there for a producer that can
 measure it; these probes record entry rather than depth, so every row they write
-says zero and the whole column is one run.
+holds a zero distance, and the whole
+column is one run.
 
-Spell the same index as JSON — the spelling a tool that records its own
-per-case crossings supplies — and the first row above is **27.2 MB** instead of
-0.46. That is what the three columns cost once each crossing is an object again:
-`{"test":0,"distance":0}` is thirty-odd bytes to say what two run-coded columns
-say in nothing at all, and it is ninety times the file-level record it travels with.
+Spell the same index as JSON — the spelling a tool that records its own per-case
+crossings supplies — and the first row above is **27.2 MB** instead of 0.46.
+That is what the three columns cost once each crossing is an object again:
+`{"test":0,"distance":0}` is thirty-odd bytes to store what two run-coded
+columns store as one run each, and it is ninety times the file-level record it
+travels with.
 
 ## Every CI caps what a job may upload
 
@@ -641,7 +643,7 @@ the first. A dependency bump, a codemod or a formatting sweep is the other row,
 and there is no honest way to make it cheap: the tests really did cover all of
 that.
 
-Adjacency is not a guarantee, and the same recording says so: widen the
+Adjacency is not a guarantee, and the same recording shows it: widen the
 clustered diff to ten files and the run jumps to 150 of 184, because the subtree
 has grown to include a file most of the library imports. Walk every file in the
 suite and ask what it would cost if only that file changed:
@@ -768,12 +770,12 @@ question:
 
 The memory column is seven to eight times the disk column, and the gap is
 structural rather than wasteful. On disk a value is its bytes, once, inside a
-run of other bytes. In memory it is a JavaScript string with a header on it,
-and it is pointed at twice more: once from the token list that gets
-binary-searched for a prefix, and once from the postings list that says which
-subjects hold it. Three references and an object header for something that was
-twelve bytes of text is where the multiple comes from, and it is why the two
-columns scale together rather than one of them bending.
+run of other bytes. In memory it is a JavaScript string with a header on it, and
+it is pointed at twice more: once from the token list that gets binary-searched
+for a prefix, and once from the postings list that records which subjects
+contain it. Three references and an object header for something that was twelve
+bytes of text is where the multiple comes from, and it is why the two columns
+scale together rather than one of them bending.
 
 Those two rows are the measured constants applied to a size no one has
 measured, the way the rows above are. Both are an upper bound rather than a

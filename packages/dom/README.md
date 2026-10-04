@@ -167,9 +167,9 @@ and call this underneath.
 | `collect` / `acquireDocument` | `subject`, `viewport` and `engine` name what was read; `features` supplies media conditions such as `prefers-reduced-motion`; `index` reuses a stylesheet index across subjects sharing one document, and is refused if it was built for a different viewport or colour scheme |
 | `acquireDocument` | `inherited` overrides the values and custom properties resolved from ancestors outside the subject; design tokens live on `:root`, which pruning correctly drops, so this is what keeps `var(--brand)` resolving |
 | `collect` | `ignore` excludes subtrees by selector, `provenanceOf` adds component ownership, `wiringOf` adds framework wiring, `holdingOf` adds what each component was handed and retained, `portalsOf` pulls in portalled subtrees, and `stabilization` records the digest of whatever held the page still; none of these is inferred from markup |
-| `stabilizeForObservation` | `recipe` selects the interventions to apply — animations, carets, and the rest — and the result reports which ones actually applied. `tier` raises how much the run is claiming about: declarations, geometry, or pixels. Pass the raster tier when you are screenshotting the document you just read, so holds such as the caret are installed |
+| `stabilizeForObservation` | `recipe` selects the interventions to apply — animations, carets, and the rest — and the result reports which ones actually applied. `tier` raises the tier the reading is taken at — declarations, geometry, or pixels — when it is higher than the profile's. Pass the raster tier when you are screenshotting the document you just read, so holds such as the caret are installed |
 | `resolveIgnores` | `selectors` names the excluded places, `markers` controls handling of the `data-variance-ignore` attribute |
-| `attributeProvenance` | `component`, `createdBy` and `props` name the attributes to read provenance from, defaulting to `data-component`, `data-created-by` and `data-props`. What they say is declared by whatever rendered the element, never guessed from a tag name |
+| `attributeProvenance` | `component`, `createdBy` and `props` name the attributes to read provenance from, defaulting to `data-component`, `data-created-by` and `data-props`. Their values are declared by whatever rendered the element, never guessed from a tag name |
 
 ## What is in here
 
@@ -189,7 +189,7 @@ and call this underneath.
 ## Component names are optional
 
 `provenanceOf`, `wiringOf` and `holdingOf` are parameters, not imports. This
-package knows nothing about React. For React, pass the providers from
+package has no code for React. For React, pass the providers from
 `@variance-authority/react`:
 
 ```bash

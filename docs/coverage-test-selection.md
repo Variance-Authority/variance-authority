@@ -157,7 +157,7 @@ introduced with RAM bundles and
 make this rewrite for you, so a module loads only when the branch that needs it
 runs. The graph draws the same edge from `exportReport` to `./pdf` in both
 versions. The JSON test runs no code in `./pdf` in either version, and a record
-of what it ran says so in both.
+of what it ran shows that in both.
 
 A dynamic `import()` loads on demand, and the graph still counts it as loaded.
 Take a comment field that turns into a rich text editor when you double-click
@@ -173,12 +173,12 @@ export function CommentField({ value, onChange }) {
 }
 ```
 
-Every form in the product renders a comment field, and one team owns the
-editor. A graph read from source draws an edge from `CommentField` to
-`./editor`, because it cannot know whether anybody double-clicks. So when that
-team changes one toolbar button, every test that renders a form is selected.
-Almost none of them double-click. The record lists the tests that opened the
-editor, and a change to its toolbar selects those tests only.
+Every form in the product renders a comment field, and one team owns the editor.
+A graph read from source draws an edge from `CommentField` to `./editor`,
+because it cannot observe whether anybody double-clicks. So when that team
+changes one toolbar button, every test that renders a form is selected. Almost
+none of them double-click. The record lists the tests that opened the editor,
+and a change to its toolbar selects those tests only.
 
 In one file the gap between loading and running is one button, one branch or
 one double click. Across a suite it grows, for two reasons.
@@ -324,8 +324,8 @@ recorded text.
 **2. Git gives both texts.** The recorded text is read from git at the record's
 commit. The new text is that text with your hunks applied, so the diff is the
 whole description of the change, and a patch file works as well as `git diff`.
-When a hunk does not apply, the file is charged by its lines, and the run says
-so.
+When a hunk does not apply, the file is charged by its lines, and the run prints
+that.
 
 **3. Parsing both texts gives one verdict.** The native addon in
 [Sense](../packages/sense/README.md) parses each text with
@@ -350,7 +350,7 @@ read packages/zod/src/v4/locales/ru.ts: bodies — the changed regions are charg
 14–16), inside `getRussianPlural` (lines 5–23). The arm is charged. The function
 is charged too, because the condition on line 14 runs in the function before
 the arm starts. The module's own region, lines 1–188, is not charged, because
-the verdict says that loading the module does the same thing as before. That
+the verdict records that loading the module does the same thing as before. That
 region is the one all 131 files ran, just by loading `ru.ts`.
 
 **5. Regions become test files.** The record lists, for each region, the test
@@ -478,7 +478,7 @@ run records which test case covered which region, and [test-level coverage](test
 explain a line.
 
 It does not rank, predict or learn from history. A test runs because the
-record saw it execute changed code, or because the record cannot rule it out.
+record has it executing changed code, or because the record cannot rule it out.
 A selector that learns from past failures can skip more, and it can also skip
 a test that would have failed; this one does not make that trade.
 
@@ -492,10 +492,10 @@ commit it last ran at: a file that changed after that commit is read whole for
 it, and the install is compared from that commit too. A patch you hand in with
 `--diff` is read as the whole change for every test. A test that last ran
 before the record's commit is then not charged with what changed between its
-commit and the record's, so it can be skipped; the output says when some test
+commit and the record's, so it can be skipped; the output reports when some test
 last ran before the record's commit.
 
-Where the record does not say which commit a test last ran at, the selection
+Where the record does not hold the commit a test last ran at, the selection
 assumes one and names it in the output. That assumption can skip a test that
 should run: a test read as though it ran later than it did is not charged with
 what changed in between.

@@ -70,10 +70,10 @@ that printed:
 
 Read it by these rules:
 
-- `whole` is what the recording can speak for; `entered` is what the diff
+- `whole` is the set of paths the recording covers; `entered` is what the diff
   reached. **The skip list is `whole` minus `entered`, never a run list**: a
   skip list only has to be right about the paths it names.
-- `unread` names a changed path the recording says nothing about and the graph
+- `unread` names a changed path the recording has no row for and the graph
   does not list. It selects nothing, and the skip list is still `whole` minus
   `entered`. Print it: [selection wiring](selection-wiring.md#what-selection-refuses-to-narrow)
   says when such a path is a precondition to declare.
@@ -140,7 +140,7 @@ occurs, and the unplaced last, with no `hops`.
   difference selected, and run it in the final leg.
 
 Show the whole reading beside the leg you took, and name the files left behind.
-A green `0-2` says the nearest tests passed and says nothing about four hops;
+A green `0-2` shows the nearest tests passed and is no evidence about four hops;
 reporting it as a passing suite reports a pass over work nothing ran.
 
 Distance does not predict runtime. A nearby test can be slow, and splitting one

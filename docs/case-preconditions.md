@@ -59,8 +59,8 @@ variance covering --file src/checkout/total.ts --function total
 ```text
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/2
-    charges the regular price — discount=off (test/flags.ts:6)
     applies the discount — discount=on (test/flags.ts:6)
+    charges the regular price — discount=off (test/flags.ts:6)
 ```
 
 `covering` calls each test a case, as the runners do: one `it` or `test`, by
@@ -135,10 +135,10 @@ and the test body over both.
 ```text
 4 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 4/4
-    charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
     applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
     sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 The test does not need a second description of what its helpers already did.
@@ -152,11 +152,11 @@ variance covering --file src/checkout/total.ts --function total --where prices=d
 ```
 
 ```text
-Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and said prices=discounted.
+Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
     sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 - `--where prices` keeps every test that recorded `prices`, whatever its value.
@@ -171,11 +171,11 @@ read at the axis's base, and `--where` matches it there.
 every format. The count in `Kept` is out of the tests that covered what you
 asked, before `--where`, and within the
 [`--cases`](../packages/cli/README.md#reading-the-test-you-are-writing) scope
-when you give one. When `--where` keeps none, the answer says so and counts
+when you give one. When `--where` keeps none, `covering` prints that and counts
 them:
 
 ```text
-Kept none of the 4 cases that covered function total of src/checkout/total.ts: none said prices=sale.
+Kept none of the 4 cases that covered function total of src/checkout/total.ts: none recorded prices=sale.
 ```
 
 ## Twins
@@ -194,17 +194,18 @@ values as an axis in the root `variance.config.json`:
 
 The first value is the base. Every covering test recorded away from the base
 now prints its **twin**: the test in the same file that covered the same code
-with `discount` at the base and every other precondition the same.
+with `discount` nearer the base and every other precondition the same. On a
+two-value axis such as this one, that is the base.
 
 ```text
 4 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 4/4
-    charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
     applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
       twin at discount=off: charges the regular price
-    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    charges the regular price — discount=off (test/flags.ts:6), prices=full (test/prices.ts:12)
     sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
       twin at discount=off: sale prices > charges the sale price
+    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 `applies the discount` is twinned with `charges the regular price`, not with
@@ -213,7 +214,7 @@ question in front of you while you read coverage: *this code ran with the
 discount on; did a test also run it with the discount off, everything else
 equal?*
 
-When no such test exists, the answer says so:
+When no such test exists, `covering` prints that:
 
 ```text
     applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
@@ -221,9 +222,9 @@ When no such test exists, the answer says so:
 ```
 
 That means no test in the same file covered this code with `discount=off`,
-recorded or read at the base, and the same other preconditions. It does not claim no such test exists elsewhere, and
-on code that only runs with the discount on, such as an `applyDiscount`
-function, every `discount=on` test prints it.
+recorded or read at the base, and the same other preconditions. It does not mean
+that no such test exists elsewhere, and on code that only runs with the discount
+on, such as an `applyDiscount` function, every `discount=on` test prints it.
 
 Twins are looked for only within one test file, among the tests that covered
 what you asked, before `--where` and within the `--cases` scope. Across files,
@@ -255,8 +256,9 @@ keep it. Vitest, Jest, Rstest and Playwright record it when the suite is
 recorded with [test-level coverage](test-level-coverage.md).
 
 A value `true` prints as the bare name, so `{ 'seeded-cart': true }` prints
-`seeded-cart`. Values are compared as text, so `--where seeded-cart` and
-`--where seeded-cart=true` keep the same tests.
+`seeded-cart`. Values are compared as text, so `--where seeded-cart=true`
+keeps the tests that recorded `true`. A bare `--where seeded-cart` keeps every
+value, `false` included.
 
 ### Which test a call is recorded on
 
@@ -318,8 +320,12 @@ while the test ran.
 
 With several axes declared, a test's twin differs from it on one axis only:
 the last axis, in the order you declare them, on which the test is away from
-the base, at the nearest value toward the base. Every other precondition, on an
-axis or not, has to match exactly, as
+the base. On that axis the twin is at the nearest value below its own at
+which a test in the file covered the code: on an axis `["off", "half", "on"]`,
+a test at `on` is twinned with one at `half` when one exists, and with one at
+`off` otherwise. When no test qualifies, the answer prints
+`no twin recorded at` the base. Every other precondition, on an axis or not,
+has to match exactly, as
 [variations](variations.md#tell-it-what-the-words-mean) reads a subject's name.
 
 A value the axis does not list, such as `discount=half`, gives the test no twin
@@ -355,7 +361,7 @@ When only some rows lack it, the answer counts them apart, in a line under
 `Kept`:
 
 ```text
-3 cases were not listened to, so whether they said any of that is unmeasured.
+3 cases were recorded without preconditions, so whether they ran under any of that is unmeasured.
 ```
 
 ### Not the file-level `preconditions` option

@@ -2,7 +2,7 @@
 
 Before you read a comparison of A with B, you need to know what is different
 between them. When one thing differs, every difference in the result
-belongs to it. When two things differ, nothing in the result says which one you
+belongs to it. When two things differ, nothing in the result shows which one you
 are looking at. Every pair that [Variance Authority](README.md) compares states
 the one thing that differs between its sides — the revision, the time, the page
 it was read on, an authored Act, or the subject itself — and a pair where a
@@ -36,8 +36,8 @@ twice**, and something about the reading changed. In the second, A and B are
 
 Only the first row compares against something a person approved. `again` and
 `alone` compare two readings from one run, and each of them changes exactly one
-thing. `again` runs first. A page that differs from itself over time says
-nothing about what ran before it, so `alone` is asked only when `again` found
+thing. `again` runs first. A page that differs from itself over time shows
+nothing about what ran before it, so `alone` runs only when `again` found
 the two readings in agreement.
 
 ### Two subjects, compared on purpose
@@ -84,8 +84,9 @@ this is](parting.md#what-kind-of-difference-this-is) lists every slice.
 
 ## A pair with an undeclared difference is refused
 
-When a second thing differs and nobody declared it, the result cannot say which
-of the two it shows. The run refuses these pairs and names the reason:
+When a second thing differs and nobody declared it, a difference in the result
+could belong to either of them. The run refuses these pairs and names the
+reason:
 
 - **Two painters.** The engine, the platform, the device scale, the fonts, the
   stabilization and the rasterization recipe together identify the renderer. A
@@ -103,7 +104,7 @@ of the two it shows. The run refuses these pairs and names the reason:
   `checkout-dark-narrow` and `checkout-narrow-dark` break the rule: they are
   one subject written in two orders. When your configured name grammar reads
   two subject ids as the same point on every axis, both are refused by name.
-  Without a grammar, the run does not know that `dark` and `narrow` are axes,
+  Without a grammar, nothing marks `dark` and `narrow` as axes,
   so nothing is refused: the two names become two subjects with one rendering
   and two baselines, and [suite composition](composition.md) reports them as
   two subjects that render the same way.
@@ -124,8 +125,8 @@ subjects you choose after the run has finished is outside this surface.
 2. **Link the arm to the control.** Name the arm so that its id extends the
    control's id at a separator — `checkout` and `checkout-new-flow` — and keep
    the axes of every name in the order the great green dragon rule asks for, so
-   the arm has one name and its parent is the control. When the name cannot say
-   which subject is the control, tag the arm with the control's id:
+   the arm has one name and its parent is the control. When the name does not
+   show which subject is the control, tag the arm with the control's id:
 
    ```ts
    export const NewFlow = {

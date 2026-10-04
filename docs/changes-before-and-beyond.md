@@ -1,10 +1,10 @@
 # Changes before and beyond
 
 Two changes widen a run that no import graph can narrow: a config file nothing
-imports, and a package you never wrote. Selection answers from names files say
-to each other, so a change with no name in that conversation is either the whole
-suite or nothing at all — and which of the two is a choice you make rather than
-one the walk makes for you. This page is about those two changes, and
+imports, and a package you never wrote. Selection answers from the names files
+import from each other, so a change with no name in those imports is either the
+whole suite or nothing at all — and which of the two is a choice you make rather
+than one the walk makes for you. This page is about those two changes, and
 [selection](selecting.md) is about everything between them.
 
 Read a run from left to right. The harness starts it, the tests it started run
@@ -42,7 +42,7 @@ flowchart LR
 **Beyond reach** is the far right: a dependency bump. Nothing in the diff names
 a file you wrote, and yet the code that imports the bumped package renders
 differently. That change is reachable, because the thing that changed has a
-name and your files say the name.
+name and your files import that name.
 
 **Before reach** is the far left: the node version, the harness config, the
 bundler setup. Nothing imports them and they change everything downstream of
@@ -56,7 +56,7 @@ to it. So the question a dependency bump asks is the question every change asks
 — *which subjects covered something that depends on this* — and it is answered
 by the same walk, from a seed at the other end of the line.
 
-| The diff says | Selection does |
+| The diff contains | Selection does |
 | --- | --- |
 | `@mui/material` bumped | Every file whose imports reach it is treated as changed, transitively, and selection proceeds from there |
 | `jsdom` bumped, and only `jest-environment-jsdom` depends on it | The bump is traced up through the install to the packages that rest on it, and then into your files. A transitive dependency is not a shorter question, only a longer trail |
@@ -97,7 +97,7 @@ along and no answer smaller than the whole suite. That much is decided for you.
 What is not decided is whether the run notices.
 
 A diff that is *only* a config file already runs everything when no execution
-record is kept, because a diff no part of which is in the graph says nothing
+record is kept, because a diff no part of which is in the graph shows nothing
 about which component changed. That stops being true the moment anything else
 is in the diff, or a record is kept: the record has no row for the config file,
 so it keeps no subject in the run. A CI workflow edited
@@ -144,7 +144,7 @@ everything below it.
 `variance select` reads both: the top-level list and the list of the suite whose
 record it reads, or with `--execution` the suite `--suite` names. A change to anything either one reaches runs that whole suite,
 and `select` names what put it there. A suite with no `before` has nothing
-before its reach, and `select` says so beside its answer. The Vitest
+before its reach, and `select` prints that beside its answer. The Vitest
 integration also declares the config file Vite loaded and the local modules it
 imports, and the Vitest, Jest and Rstest integrations take a `preconditions`
 option: every test they record declares each file it lists, and a change to one
@@ -199,7 +199,7 @@ so `src/tokens.css` stays out too.
 
 An entry the scan does not cover — a `.nvmrc`, a workflow, a `tsconfig` —
 has nothing under it to read. It contributes its own name, which is all it has,
-and the run says so in a note.
+and the run prints that in a note.
 
 The cost is real and it is yours to spend. A config that imports your bundler
 rests on everything that bundler rests on, so a bump inside that set widens the
@@ -214,5 +214,5 @@ install comparison names `jsdom`; the harness depends on it through
 `global-jsdom`, which the declared setup imports; and no file you wrote ever
 spells the word. An environment the config names only by string is not
 imported by anything, so its packages are not reached. Undeclared, that diff narrows to whatever else it
-touched. Declared, the run is whole, and it says `jsdom`.
+touched. Declared, the run is whole, and it names `jsdom`.
 

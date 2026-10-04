@@ -135,7 +135,7 @@ describe('a case read by what it said', () => {
     const answer = await ask(['network=mocked'], await recorded([...MEASURED, row('unheard')]));
 
     expect(answer.where).toMatchObject({ kept: 3, of: 7, unmeasured: 1 });
-    expect(formatCovering(answer, 'text')).toMatch(/1 case was not listened to/);
+    expect(formatCovering(answer, 'text')).toMatch(/1 case was recorded without preconditions/);
   });
 
   it('prints every case with what it said and where, in text and refs, and keeps a contradiction', async () => {
@@ -239,7 +239,7 @@ describe('a case read along a declared axis', () => {
 
     expect(answer.where).toMatchObject({ kept: 0, of: 6 });
     const text = formatCovering(answer, 'text');
-    expect(text).toContain('Kept none of the 6 cases that covered function total of src/cart.ts: none said network=live.');
+    expect(text).toContain('Kept none of the 6 cases that covered function total of src/cart.ts: none recorded network=live.');
     expect(text).not.toContain('No named test covered');
   });
 

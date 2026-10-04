@@ -5,8 +5,8 @@ to ask about a test that may no longer be worth keeping. It reads the per-case
 execution index and names the tests that ran through a file, a line or a
 function. Of the root `variance.config.json` it reads only `suites` and
 `cacheRoot`, and `names`, whose axes give `--where` its base values and each
-listed case its twin. None of it is a verdict: execution says where a test went,
-never why the trip was worth taking.
+listed case its twin. None of it is a verdict: execution records where a test
+went, never why it was worth running.
 
 ```bash
 variance covering --file src/checkout/total.ts --line 48
@@ -16,16 +16,16 @@ variance covering --file src/checkout/total.ts --format refs    # each case once
 ```
 
 A line or a function is answered per test file first: `total.test.ts — 2/3`
-says two of that file's three cases ran through it, and the cases follow.
+means two of that file's three cases ran through it, and the cases follow.
 
 - `--hops` puts each test file's import hops beside it and sorts nearest first.
   It needs `--line` or `--function`, is refused with `--since`, and costs a scan
   of the tree, so ask for it when the list is long, not on every edit.
 - `--cases last` answers from the cases the last run recorded; `--cases <test
   file>` from the ones that test file declares.
-- `--where <name>[=<value>]` keeps the cases that said that precondition with
-  `variancePrecondition`. Reading what cases arranged, their twins and an
-  `unmeasured` refusal is in [case preconditions](case-preconditions.md).
+- `--where <name>[=<value>]` keeps the cases that recorded that precondition
+  with `variancePrecondition`. Reading the state each case ran under, its twin
+  and an `unmeasured` refusal is in [case preconditions](case-preconditions.md).
 - `--format refs` numbers each case once in a table at the end and names every
   range's cases by those numbers, so a module whose eleven cases all run it
   costs one table, not eleven names per range. It is the shortest answer to hand
@@ -53,11 +53,11 @@ that could not answer.
 
 An empty list reads as *no test covers this line*, so a missing index is
 refused: exit `2`, and under `--format json` stdout is
-`{"refused":"unrecorded"}`, which tells *nothing recorded* from a failed question
-without reading the sentence. Asking again changes nothing until a wrapped run
-has happened. With suites declared, the refusal is exit `2` only when no suite
-has a record; otherwise the answer exits `0`, and a suite with none says
-`refused` in its own entry.
+`{"refused":"unrecorded"}`, which separates *nothing recorded* from a failed
+question without reading the sentence. Asking again changes nothing until a
+wrapped run has happened. With suites declared, the refusal is exit `2` only
+when no suite has a record; otherwise the answer exits `0`, and a suite with
+none has `refused` in its own entry.
 
 ## Narrow to the tests nearby
 
@@ -85,7 +85,7 @@ Every range, and the answer about one line, has a `state`:
 | `walked` | two or more cases called into it |
 | `alone` | one case did, and every case that could have called it finished, so that case is the only one that fails for it |
 | `loaded` | it ran only while its module evaluated |
-| `hole` | no case ran it, and a case that could have stopped first, so the record cannot say whether it would have |
+| `hole` | no case ran it, and a case that could have stopped first, so the record does not show whether it would have |
 | `unwalked` | no case ran it, and every case that could have finished |
 
 Read `hole` as unknown, never as untested. A range with no state is one the
@@ -101,7 +101,7 @@ variance covering --file src/checkout/total.ts --text - --format json < edited.t
 variance covering --file src/checkout/total.ts --text edited.ts --line 52
 ```
 
-The answer's `frame` says which coordinates its numbers are in:
+The answer's `frame` names the coordinates its numbers are in:
 
 - `recorded` — the recording's, and the text matches it.
 - `mapped` — every range was carried into your text; ranges an edit touched are
@@ -122,10 +122,11 @@ This reports every region the diff changed with the cases that ran it, and
 counts the two findings a percentage cannot state: regions **no case ran**, and
 regions **one case alone** ran. A changed test file is answered with the named
 cases it declares, since it has no module row. A changed path the index has
-nothing for says so, since *no row* and *no test* are opposite facts. The diff is
-measured from the commit the record was written at, so record before you read.
-`variance_changed_tests` asks the same over MCP, on a host that serves it
-([MCP](mcp.md#tools-no-binary-serves)), taking the unified diff as an argument, but answers without the file graph: a case whose file mocked the
+nothing for is named as such, since *no row* and *no test* are opposite facts.
+The diff is measured from the commit the record was written at, so record before
+you read. `variance_changed_tests` answers the same question over MCP, on a host
+that serves it ([MCP](mcp.md#tools-no-binary-serves)), taking the unified diff
+as an argument, but answers without the file graph: a case whose file mocked the
 changed module can be listed under it.
 
 A review agent reads the same answer with `--format refs`, and adds the base

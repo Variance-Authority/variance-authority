@@ -101,7 +101,7 @@ fixture:button chromium@151.0.7922.34 784
 
 Your own bundle replaces the stub: it reads the real subject, serializes a
 `RawCapture`, and tears the previous subject down before each capture. The
-harness cannot do that teardown — it does not know what the previous subject
+harness cannot do that teardown — it has no record of what the previous subject
 installed. If you do not own page-side code of that kind, use
 `@variance-authority/playwright-test`.
 
@@ -116,7 +116,7 @@ three transports later.
 | `.` | the harness and the network observation | needs `playwright` |
 | `@variance-authority/playwright/renderer` | `createPlaywrightRenderer` | the renderer alone, without the harness |
 | `@variance-authority/playwright/agent` | `PageAgent`, `CaptureRequest`, `AGENT_GLOBAL` | **must not** need `playwright` — it is bundled into the page |
-| `@variance-authority/playwright/engines` | `declaredEngines`, `requireEngines`, `engineStatus` | which engines a run is asked to use, and whether this machine has them |
+| `@variance-authority/playwright/engines` | `declaredEngines`, `requireEngines`, `engineStatus` | which engines a run is configured to use, and whether this machine has them |
 
 `playwright/agent` is published separately because it runs inside the browser:
 it is injected as a classic script, and importing Playwright behind it would put
@@ -133,7 +133,7 @@ cost **7.5 ms a capture against 205 ms** when each capture launched a browser
 first: 27x, reproduced across three runs. Absolute numbers vary with the
 machine; the ratio is the reason for the shape.
 
-The harness knows nothing about subjects, stories or frameworks, so the same
+The harness has no code for subjects, stories or frameworks, so the same
 harness serves a fixture page, a Storybook, or a route.
 
 `capture` is sequential by contract. Two concurrent calls would render two
@@ -190,14 +190,14 @@ This closes a false `unchanged` a page cannot see about itself: a logo
 re-exported at the same URL is the same markup, the same CSS and the same
 document, so every comparison tier — DOM, CSS, layout — settles and the run
 reports that nothing changed, even though the served image is different bytes.
-Only the party that watched the network response knows otherwise.
+Only a reading of the network response shows the difference.
 
 | option | default | what it decides |
 |---|---|---|
 | `hashAssets` | `true` | fold asset bodies into the environment key. Off is a real position for a build whose URLs are content-addressed already: the URL is then the identity, and hashing the bytes again buys a read and nothing else |
-| `hashCeilingBytes` | 8 MiB | above this an asset is recorded as `size:<n>` rather than by content. A ceiling, not a cliff — the weaker claim still changes the key when the file changes, and says in the value that it is weaker. Skipping it silently would leave a hole in the key, and a hole in this key is a false `unchanged` |
+| `hashCeilingBytes` | 8 MiB | above this an asset is recorded as `size:<n>` rather than by content. A ceiling, not a cliff — the weaker record still changes the key when the file changes, and marks in the value that it is weaker. Skipping it silently would leave a hole in the key, and a hole in this key is a false `unchanged` |
 | `freezeAnimatedImages` | `true` | serve animated GIFs as their first frame, on the wire rather than in the page |
-| `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and folded its bytes into the key. It knows the URL and the intrinsic size, and does not know the DOM |
+| `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and folded its bytes into the key. It reads the URL and the intrinsic size, and does not read the DOM |
 | `retainResources` | `false` | keep the bytes, not just the digest, so the document can be painted somewhere with no route to this origin. Retention rather than acquisition: every hashed body is already fetched and buffered long enough to digest, so a portable document costs a map and not a second crawl |
 
 `retainResources` keeps **what was served** — the blank an image became, the
@@ -210,15 +210,16 @@ ledgers rather than counts — blanking is the one intervention here that can hi
 a real regression, so an operator who blanked more than they meant to can read
 back exactly what disappeared.
 
-## Where a component is declared, asked of the engine
+## Where a component is declared, read from the engine
 
 A source scan answers a name: every declaration in the configured directories
-that spells `Button`, and when two do, the name is ambiguous and the report says
-so. The page has something better than a name. The fiber points at the function
-React called, and V8 knows where every function it compiled begins. So the page
-agent keeps the functions it met, and `createDeclarationReader(page)` asks
-Chromium over CDP for each one's `[[FunctionLocation]]`, then maps the position
-through the served module's source map to a repository file and line.
+that spells `Button`, and when two do, the name is ambiguous and the report
+prints that. The page has something better than a name. The fiber points at the
+function React called, and V8 records where every function it compiled begins.
+So the page agent keeps the functions it met, and
+`createDeclarationReader(page)` queries Chromium over CDP for each one's
+`[[FunctionLocation]]`, then maps the position through the served module's
+source map to a repository file and line.
 
 Excerpt — `page` is `harness.page`, `scanned` is the `SourceIndex` your scan
 produced, and `overlaySourceIndex` comes from
@@ -235,16 +236,16 @@ const source = overlaySourceIndex(scanned, engine);
 await declared.close();
 ```
 
-`read()` is incremental: the registry in the page only grows, each read asks
-about what is new and returns the union, and a registry rebuilt by a navigation
-starts the count over. `stats` counts what was asked and what mapped to a file
+`read()` is incremental: the registry in the page only grows, each read queries
+what is new and returns the union, and a registry rebuilt by a navigation
+starts the count over. `stats` counts what was queried and what mapped to a file
 the project wrote; the vendor rule is the call-site resolver's, so a component
 declared in `node_modules` is not an answer.
 
 Chromium only. On WebKit and Firefox `newCDPSession` throws, the reader notes it
 once, and `read()` answers the empty index for the rest of the page's life.
-Nothing downstream tells that from a page with no components, and the scan still
-stands underneath.
+Nothing downstream separates that from a page with no components, and the scan
+still stands underneath.
 
 Options: `global` names the global the agent is installed at, `AGENT_GLOBAL`
 unless the bundle chose another. `fetchModule` supplies the fetch for served
@@ -276,9 +277,9 @@ const engines = requireEngines(declaredEngines()); // ['chromium', 'webkit']
 
 `requireEngines` throws and names the engine when a declared one is not
 installed, because the alternative is a result that changes with the machine: a
-laptop missing WebKit measures one engine, reports green, and says nothing about
-the claim it did not check. On a machine with Chromium and no WebKit, that throw
-reads:
+laptop missing WebKit measures one engine, reports green, and prints nothing
+about the engine it did not check. On a machine with Chromium and no WebKit,
+that throw reads:
 
 ```
 declared engine not installed: webkit (this machine has chromium)
@@ -290,7 +291,7 @@ A machine with no browsers at all returns empty, which is the one case a caller
 may skip on.
 
 `VARIANCE_ENGINES=chromium,webkit` overrides the list for a single run. It
-changes what is asked for, not the rule — whatever it names still has to exist.
+changes the list, not the rule — whatever it names still has to exist.
 
 A `RenderDocument` is engine-independent, so **a second engine costs a second
 paint and no second collection**. What that paint costs differs sharply by
@@ -320,12 +321,12 @@ the flags are load-bearing for Chromium and absent for the other two. Measured i
 are unaffected because the flags were never passed to them.
 
 **So a WebKit or Firefox raster is comparable only to one from the same host.**
-`RenderIdentity` includes `platform`, so a laptop's baseline and a container's are
-separate baselines and a run says `incomparable` rather than comparing them. That
-is the safe failure, not a solution: neither answers for the other. If rasters are
-produced in a container, produce them only there — a local WebKit renderer records
-baselines nothing will ever compare against, and pays the raster tier for them.
-The semantic tier is unaffected and stays local.
+`RenderIdentity` includes `platform`, so a laptop's baseline and a container's
+are separate baselines and a run reports `incomparable` rather than comparing
+them. That is the safe failure, not a solution: neither answers for the other.
+If rasters are produced in a container, produce them only there — a local WebKit
+renderer records baselines nothing will ever compare against, and pays the
+raster tier for them. The semantic tier is unaffected and stays local.
 
 The container is cheap, which is not what people assume. Measured on an Apple M4
 Max (16 cores, 64 GB) under Docker Desktop 29.0.1 with Playwright 1.62.1,

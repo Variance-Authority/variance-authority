@@ -93,8 +93,8 @@ lets a re-run be compared against what was actually read.
 ## Ask a suite that has not finished
 
 A completed run leaves a file any process can open whenever it likes. A suite in
-flight leaves nothing, and the only copy of what it says is in the memory of
-whatever was listening at the time — so start the listener first:
+flight leaves nothing, and the only copy of what its tests announce is in the
+memory of whatever was listening at the time — so start the listener first:
 
 ```bash
 variance watch
@@ -116,7 +116,7 @@ variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
 ```
 
 `--at` defaults to `VARIANCE_AUTHORITY_VANTAGE`, so a shell that already exports
-it for the suite asks with nothing extra. Ask `self` first: it reports where the
+it for the suite needs nothing extra. Ask `self` first: it reports where the
 watcher is listening and what it has received, which is what separates a suite
 that reported to a different address from one that has not started.
 `ask diff --at` compares against the reading the watcher handed out last — that
@@ -125,7 +125,8 @@ nothing down and the run lives in memory that ends with the watcher.
 
 The suite reports to the watcher only if it extends `varianceFixtures`. That
 instrumentation, the ordering rule, and what the answers may be read to mean are
-one boundary whichever transport asks: [inspect a live run](agent-live-run.md).
+one boundary, whichever transport carries the question: [inspect a live
+run](agent-live-run.md).
 
 ## Find where the suite's time goes
 
@@ -146,8 +147,8 @@ With no report named, it reads the times the mainline's last build published
 with `variance share --publish`. Those cover the whole suite, whereas the run on
 your machine is usually the slice a change selected. The first line names the
 commit the times belong to and how far your checkout is from it. When the
-mainline has published none, the answer says so and does not fall back to your
-last local run. Name a report to read that run's own times instead.
+mainline has published none, the command prints that and does not fall back to
+your last local run. Name a report to read that run's own times instead.
 
 `--from` narrows the answer to the subjects declared in the files you name, or
 in files under the directories you name. The first line then gives both totals,
@@ -213,9 +214,10 @@ from what it reaches or what reaches it. Carry the path into `search` when the
 ticket, editor or stack trace already supplied one: the words find candidate
 names and the import graph removes candidates outside that relation. Then ask
 `symbol` and `uses` only for the name that remains. The graph is at file and
-module level; it does not claim function calls. The reading, its caches and what
-an answer may be taken to claim are one boundary whichever transport asks:
-[inspect the workspace public API](agent-workspace-api.md).
+module level; it does not record function calls. The reading, its caches and
+what an answer does and does not show are one boundary, whichever transport
+carries the question: [inspect the workspace public
+API](agent-workspace-api.md).
 
 ## Distill one completed test
 
@@ -254,9 +256,9 @@ An agent opens a skill only when its description matches the task, and it reads
 `AGENTS.md` every session. The lines that send it to `variance ask` before it
 searches the code are in [finding code through the workspace index](agent-workspace-api.md#point-an-agent-at-it).
 
-`variance doctor` lists which skills your agent can find, says whether each is a
-link or a copy that has fallen behind, and prints the link for any it cannot
-find. It never writes the link for you.
+`variance doctor` lists which skills your agent can find, reports whether each
+is a link or a copy that has fallen behind, and prints the link for any it
+cannot find. It never writes the link for you.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection

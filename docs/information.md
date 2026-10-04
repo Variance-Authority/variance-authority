@@ -66,7 +66,7 @@ each one is absent — not empty — when that input was not there.
 | --- | --- |
 | `notObserved` | Subjects the run planned and has no observation for, each under one of three kinds: `excluded` by configuration, `failed` where the run meant to look and could not, or `unreached` by this change. |
 | `composition` | The suite compared to *itself* at one commit: many subjects, one revision, joined on the components they share. The one section with no baseline anywhere in it. See [composition](composition.md). |
-| `lexicon` | Every name the run knew for each subject — component names, roles, accessible names, visible text, tokens, files — written down per field so you can ask for a subject you can only describe. See [the lexicon](lexicon.md). |
+| `lexicon` | Every name the run recorded for each subject — component names, roles, accessible names, visible text, tokens, files — written down per field so you can ask for a subject you can only describe. See [the lexicon](lexicon.md). |
 | `variations` | Subjects that declared themselves a variant of another subject. Each is compared against that parent *in the same run*, so what the variant exists for becomes a value with an identity. See [variations](variations.md). |
 | `reach` | What the commit reaches: which components the changed files can possibly have altered, and by which chain. Crossed against the verdicts, it is what lets a report say an edit reached a subject and changed nothing, or that a subject changed with nothing in the commit leading to it. |
 | `journeys` | Where this run's subjects parted in the source, read off the execution journal the build's probes wrote. See [journeys](journeys.md). |
@@ -178,7 +178,7 @@ the file.
 
 Configuration and the subject plan define the work. Caches may reduce its cost;
 they cannot change which answer is correct. Baselines and history are evidence,
-not caches: losing them changes what later runs can know.
+not caches: losing them changes what later runs can compare against.
 
 ## From execution to what lands on disk
 
@@ -327,7 +327,7 @@ server: you give it a renderer or a store and it exposes that one over HTTP.
 See [baseline placement](placement.md) for which layout to choose.
 
 What crosses that hop is not an operator API. A store — local directory, LFS,
-or remote — answers three questions the run asks: look up a baseline for this
+or remote — serves three requests from the run: look up a baseline for this
 key, describe the same lookup without moving the image, and store an accepted
 one. The describe path is why a remote store is affordable: most subjects
 settle on thirty-two hex characters read out of a few hundred bytes of
@@ -400,8 +400,8 @@ of the visual run report.
    content-addressed semantic snapshots.
 
 They stay separate because their edges mean different things: a source
-dependency trail says *could reach*, a crossing record says *did cover*, and a
-scenario path says *a person can walk this*. Merged into one graph, none of the
+dependency trail means *could reach*, a crossing record means *did cover*, and a
+scenario path means *a person can walk this*. Merged into one graph, none of the
 three questions has an answer any more.
 
 ## Joining two producers' records
@@ -422,14 +422,14 @@ nobody else has, that is the whole diagnosis — pin one painter for laptop and
 CI, either the same container image or one `"renderer": { "endpoint": … }` both
 use, and re-approve under it. See [placement](placement.md).
 
-**Test evidence joins on the case.** Sense writes the execution record, and
-Eyes writes each case's journal into the same record, under the case the
-recording runs and its attempt. Titles and file paths are presentation and are
-never used as a fallback identity: two readings join only on the case id the
-record holds. `variance distill` is where you read the two together: `--test`
-and `--file` find one case in the record's case index, by its id, its title or
-a part of either, and everything else is read by that case's id. It says when
-the record keeps no Eyes journal rather than reading that as an empty one.
+**Test evidence joins on the case.** Sense writes the execution record, and Eyes
+writes each case's journal into the same record, under the case the recording
+runs and its attempt. Titles and file paths are presentation and are never used
+as a fallback identity: two readings join only on the case id the record holds.
+`variance distill` is where you read the two together: `--test` and `--file`
+find one case in the record's case index, by its id, its title or a part of
+either, and everything else is read by that case's id. It prints a line when the
+record has no Eyes journal, rather than reading that as an empty one.
 
 Within a joined test, three things stay distinct and are not read as each
 other: which DOM the test attended to, which React components re-rendered
@@ -438,7 +438,7 @@ of the element the test addressed only when its position in the React tree
 sits under that element's — sharing a component name is not enough, because
 one component name can appear in a dozen unrelated places. Source files the
 test covered that Eyes attributed to no addressed element are exactly that and
-nothing more: covered, unattributed. Neither record says they are safe to
+nothing more: covered, unattributed. Neither record shows that they are safe to
 change.
 
 ### MCP view
@@ -527,7 +527,7 @@ build with no probes in it loses both at once. Getting that journal needs the
 application under test built with `testSelectionProbes()` from
 `@variance-authority/sense/journal` and the collector asked to record — `tests:
 true` on the Storybook or Playwright integration. Without a collector in the
-page the run says so on stderr and records nothing. See the
+page the run prints that on stderr and records nothing. See the
 [Storybook](../packages/storybook-collector) and
 [Playwright](../packages/playwright-test) collector references.
 

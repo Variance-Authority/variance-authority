@@ -8,7 +8,7 @@ Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 
-Your test suite tells you that assertions passed. It does not tell you which of
+Your test suite reports that assertions passed. It does not show which of
 the rendered UI each test actually used. A checkout test renders a nav bar, a
 clock and an order form; only some of that is the behaviour the test protects.
 
@@ -175,8 +175,8 @@ covered module.
 `complete` is derived rather than asserted. `createEyesLog` numbers entries from
 construction and `drain` does not reset that counter, so a journal starting above
 zero or skipping a number is missing entries an earlier drain took; the journal
-is then marked partial and says how many. A caller that already knows why
-collection stopped passes its own reason to `close`, and that reason wins.
+is then marked partial and records how many. A caller that has its own reason
+for stopping collection passes it to `close`, and that reason wins.
 
 ### Mark the phases
 

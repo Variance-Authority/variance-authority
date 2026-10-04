@@ -19,7 +19,7 @@ nothing torn down in between. What that buys back is real and so is what it
 risks: one subject can leave state another one reads — a stylesheet, a class on
 `<html>`, a stray body child. This package calls that **cross-pollution**, and
 instead of preventing it, it **brackets** each subject's mount with a cheap
-snapshot of shared state and tells you which subject polluted which, through
+snapshot of shared state and reports which subject polluted which, through
 what key, and what to change.
 
 You get a **finding** for each: a fixed record naming the victim, the culprit,
@@ -30,7 +30,7 @@ without re-deriving the diagnosis.
 
 Node 22 or newer. The package is ESM only, and it needs a live DOM: a `Document`
 you supply, from jsdom, happy-dom, a browser tab, or a Playwright page's realm.
-It knows about React only through the mount function you pass, so a session runs
+It uses React only through the mount function you pass, so a session runs
 whatever you can put on a page.
 
 ```bash
@@ -177,16 +177,16 @@ renders them as the block above, confirmed first, defaulting to `findings()`.
 | `victim` | `string` | the affected subject's id |
 | `culprit` | `string \| undefined` | the subject that wrote the shared state; absent when a hash changed and no earlier writer explains it |
 | `key` | `string` | the shared-state key both subjects touched |
-| `evidence` | `string` | how the tool knows |
+| `evidence` | `string` | what the finding is based on |
 | `remedy` | `string` | what to change |
 | `culpritComponents` | `readonly string[]` | components the culprit rendered, empty unless `provenanceOf` is configured |
 
 `findings()` is suspicion from read/write overlap, and it is directional: only a
 subject that ran *earlier* can have leaked into a given subject, which is why
-the sample's `findings()` says nothing until `verify()` has re-run `story:card`
-after the leak. A subject that writes a key it also reads is not reported — that
-is a component managing its own stylesheet. One finding per victim/culprit/key,
-however many rules matched.
+the sample's `findings()` returns no finding until `verify()` has re-run
+`story:card` after the leak. A subject that writes a key it also reads is not
+reported — that is a component managing its own stylesheet. One finding per
+victim/culprit/key, however many rules matched.
 
 Every write a later subject reads is reported. To act on one, `session.rinse([key])`
 removes the leaked stylesheet without rebuilding the document; only sheet
@@ -385,8 +385,8 @@ Both limits at once give you a subject that is stably wrong: its pixels differ
 from the baseline, nothing in its own code changed, and no finding explains it.
 Catching that means varying the world instead — collecting the subject in a
 session nothing else has touched. That is what `npx variance run` — the `run`
-command in `@variance-authority/cli` — asks its collector for when a subject's
-pixels change.
+command in `@variance-authority/cli` — requests from its collector when a
+subject's pixels change.
 
 ---
 

@@ -330,6 +330,16 @@ language. That last part is not a small adjustment. It decides the words.
 - **The reader is the subject of the sentence.** Second person, task first.
 - **A name this project made up is introduced on the page that owns it**, before
   any other page uses it.
+- **A test does not speak.** A test, a case, a record or a run does not *say*,
+  *tell*, *ask*, *know*, *want* or *claim*. A test **calls**, **runs**,
+  **covers**, **records**; a record **has** a field; a command **prints**. Write
+  the verb for what the program did. One figure on a page is tolerable; a page
+  that repeats it has written a house dialect the reader has to learn.
+- **An observation and a reading are different claims.** When the product fills
+  in what the run did not record, from configuration or a default, the page says
+  so: *read as `off` from your configuration*, never *ran with `off`*. This
+  product is about evidence, and a page that presents an inference as
+  observed teaches the reader to trust the wrong thing.
 
 **Boundaries — what this does not govern.**
 

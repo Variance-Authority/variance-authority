@@ -2,7 +2,7 @@
 
 Three stories mount `CartCard`. One of them clicks Remove. The `onClick` body is
 a region the other two have never been inside — same file, same import graph,
-same props — and no reading of the file can tell the three apart, because the
+same props — and no reading of the file can distinguish the three, because the
 difference is not in the file. It is in what each execution did with it.
 
 A build instrumented with `testSelectionProbes()` from
@@ -16,23 +16,23 @@ process the execution touched.
 
 ## What narrowing a run does without this
 
-You do not need a recording to run less of the suite. A source scan says which
-components a change can reach, and a subject's own baseline says which
+You do not need a recording to run less of the suite. A source scan lists which
+components a change can reach, and a subject's own baseline records which
 components it was last seen rendering; together those skip subjects at the grain
 of a file, on the reading a capture already takes.
 [Running less of the suite](selecting.md) is built on that pair.
 
-A journey answers below the file. It is the reading that tells the three
-`CartCard` stories apart — and the one to use when the file-level answer is too
+A journey answers below the file. It is the reading that distinguishes the three
+`CartCard` stories — and the one to use when the file-level answer is too
 coarse to act on: a shared component half the suite mounts, a handler one flow
 calls, a branch whose two sides are different products.
 
 ## A path, not a stack
 
-A journey says which regions an execution covered and nothing else. Not how deep
-the call went, not in what order, not how many times, and never a value. Two
-subjects with one journey ran the same code; two with different journeys parted
-somewhere, and the parting is a place with lines.
+A journey records which regions an execution covered and nothing else. Not how
+deep the call went, not in what order, not how many times, and never a value.
+Two subjects with one journey ran the same code; two with different journeys
+parted somewhere, and the parting is a place with lines.
 
 It is a memory of where the execution has been, not a route through the file.
 One subject can have covered both arms of one decision — a component that
@@ -58,16 +58,17 @@ after an `await` belongs to anybody.
 
 A page under test calls a service, and the service runs product source in a
 second process that outlives every subject in the run and answers several of
-them at once. Nothing inside the page knows it happened, and a suite that cannot
+them at once. Nothing inside the page records it, and a suite that cannot
 see it runs every spec for every change to a route handler, forever.
 
 What crosses is one opaque id per execution, minted by the driver — the process
-running the test — and set on the browser context before the first navigation. The browser sends it on requests it
-was already going to send. A service instrumented by its own build reads the id
-off the request and reports what it covered under that id, to an address it also
-read off the cookie. The subject's *name* never leaves the driver: it is the only
-party that knows `journey → subject`, so it is the only party that can join,
-and a report cannot claim an execution by writing one down.
+running the test — and set on the browser context before the first navigation.
+The browser sends it on requests it was already going to send. A service
+instrumented by its own build reads the id off the request and reports what it
+covered under that id, to an address it also read off the cookie. The subject's
+*name* never leaves the driver: it is the only party with the mapping `journey →
+subject`, so it is the only party that can join, and a report cannot add an
+execution by writing one down.
 
 ```ts
 import { collectJourneys } from '@variance-authority/sense/journey';
@@ -145,21 +146,21 @@ look once something else has said that something changed.
 - The [run report](../packages/report/README.md#the-shape) records the partings
   among the run's own subjects, answered where the journal is. The readers this
   section is for — the pull-request comment, the MCP tools, the review service —
-  are on machines without one, so the run asks once and writes the answer beside
-  its verdicts.
-- The [review service](../packages/tribunal/README.md#what-a-reviewer-sees) draws one
-  timeline per component: a line for the story nothing varies from, or the
-  shortest name where none of them is a [variation](variations.md) of another,
-  marked at every place its stories took different paths, in source order, and
-  a branch lit for the story that covered the region there. `cart-card--removing`
-  covers one region `cart-card--item` does not, the click handler, and branches
-  there; `product-card--sale` covers exactly what `product-card--control`
-  covers, so the [variation](variations.md) executes what it renders. A
-  `switch` whose cases different stories covered is one mark with a branch per
-  case, so a loading story, an error story and the stories that fell through
-  part at one place; a chain of `if`s is a mark per `if`, in the order the code
-  asks them. A region a component's own stories agree on is no mark, whatever
-  other components did there.
+  are on machines without one, so the run computes the partings once and writes
+  them beside its verdicts.
+- The [review service](../packages/tribunal/README.md#what-a-reviewer-sees)
+  draws one timeline per component: a line for the story nothing varies from, or
+  the shortest name where none of them is a [variation](variations.md) of
+  another, marked at every place its stories took different paths, in source
+  order, and a branch lit for the story that covered the region there.
+  `cart-card--removing` covers one region `cart-card--item` does not, the click
+  handler, and branches there; `product-card--sale` covers exactly what
+  `product-card--control` covers, so the [variation](variations.md) executes
+  what it renders. A `switch` whose cases different stories covered is one mark
+  with a branch per case, so a loading story, an error story and the stories
+  that fell through part at one place; a chain of `if`s is a mark per `if`, in
+  the order the code evaluates them. A region a component's own stories agree on
+  is no mark, whatever other components did there.
 - The run's [lexicon](lexicon.md) indexes
   each subject under the lexical names of the regions it covered, read off the
   journal once the run is over, so `variance_locate {query: "onClick"}` finds
@@ -167,20 +168,21 @@ look once something else has said that something changed.
   has no `regions` field, and the tool names the field as unread rather than
   reporting that nothing matched.
 - [Selection](selecting.md) narrows a run to the subjects and spec files whose
-  journeys crossed the changed code, and where the record cannot say, it selects
-  more rather than less.
+  journeys crossed the changed code, and where the record has no measurement, it
+  selects more rather than less.
 - [Flakiness](flakiness.md#which-part-of-the-module-they-took-differently) ends
   its ladder here. A second reading narrows a flake to a component and a band,
   [parting](parting.md) narrows it to a boundary, and for the flake that only
   appears once a handler has run, the region is the fix.
-- [Divergence](composition.md#one-input-two-renderings) asks the same question of
-  the document: one props digest, two renderings. A journey asks it of the
-  source: one file, two paths. The two are read together, because a component
-  that rendered two ways from one input usually took two paths to do it.
+- [Divergence](composition.md#one-input-two-renderings) is the same question
+  about the document: one props digest, two renderings. A journey is that
+  question about the source: one file, two paths. The two are read together,
+  because a component that rendered two ways from one input usually took two
+  paths to do it.
 
 ## What it is not
 
-- **Not a scenario.** A [scenario](scenarios.md) names the states a test arranged
+- **Not a scenario.** A [scenario](scenarios.md) names the states a test set up
   and the Acts between them; a journey names regions of source. Two scenarios
   can part at an Act while their journeys agree, and two journeys can part in a
   handler no Act names.
@@ -189,7 +191,7 @@ look once something else has said that something changed.
   region and cross a process on one cookie.
 - **Not history.** A journey is one execution. What the same subject did over
   the last forty runs is [history](history.md), and the two answer different
-  questions: history says *this keeps changing*, a journey says *here is
-  where it went this time*.
+  questions: history answers *does this keep changing*, a journey answers *where
+  did it go this time*.
 - **Not a baseline.** Nothing is approved, nothing is compared against an
   earlier revision, and nothing exits non-zero.

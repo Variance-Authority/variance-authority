@@ -52,12 +52,12 @@ reading. What differs here is the last column.
 | **Dates, clocks, dynamic content** | policy, or **construction** if you can set the clock | Both runs change; both are right. Where the test can set the value, [freeze it](#freeze-what-the-run-does-not-set) and the cause stops existing. Where it cannot — a timestamp the server stamps, a build id baked into the bundle — the difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot appear in the image. Headless Chromium uses overlay scrollbars, so classic scrollbar reflow is outside what this CI environment observes. |
 | **Animations mid-flight** | **construction** | There is a choice, and it decides which frame you review for the next year. `hold-animations` hands it to the browser at screenshot time, which fast-forwards a finite animation to completion — the state a user comes to rest on — and cancels an infinite one to its first frame. `pin-animations` does it in CSS, pinning everything at frame one, so a fade-in is recorded at the moment it is invisible. Collection uses the CSS one because there is no screenshot there to hold. Neither writes `animation: none`, which would drop whatever layout the keyframes contribute. And because a transform caught in flight is a computed style value, the page is held still *before the subject is read*, not only before it is painted, with the recipe's digest in the key so an unstabilized baseline is `incomparable` rather than a diff ([`stabilization.md`](stabilization.md)). **What still gets through:** JS-driven animation, which no CSS applies to, and animated GIFs. |
-| **Lazy loading, network latency** | **construction** | The cheapest answer is to not be waiting. A font that has not loaded cannot change which rules match or what they declare, and neither can an image that has not decoded — so the structure-and-style recipe is **empty**, and the tier that answers most subjects never waits for either. The wait is a cost of the tiers that paint, and it is skipped again there whenever the document is byte-identical to the one the baseline was painted from. Where a page does have to settle, the driver watches the wire rather than polling `document.images` — a poll misses anything appended while it is running and has no entry for a `background-image` at all, while the wire knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
-| **A framework still committing** | **nothing**, and readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. Repeated screenshots can establish agreement but cannot name what is still working. `@variance-authority/react` asks React instead: `awaitQuiet` returns the components still committing *by name*. **Absorbed by nothing** — the tap must be installed before `react-dom` loads, which a collector arriving at somebody else's page cannot guarantee, so it is an export you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished)). |
+| **Lazy loading, network latency** | **construction** | The cheapest answer is to not be waiting. A font that has not loaded cannot change which rules match or what they declare, and neither can an image that has not decoded — so the structure-and-style recipe is **empty**, and the tier that answers most subjects never waits for either. The wait is a cost of the tiers that paint, and it is skipped again there whenever the document is byte-identical to the one the baseline was painted from. Where a page does have to settle, the driver watches the wire rather than polling `document.images` — a poll misses anything appended while it is running and has no entry for a `background-image` at all, while on the wire the driver tracks what has been requested and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
+| **A framework still committing** | **nothing**, and readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. Repeated screenshots can establish agreement but cannot name what is still working. `@variance-authority/react` queries React instead: `awaitQuiet` returns the components still committing *by name*. **Absorbed by nothing** — the tap must be installed before `react-dom` loads, which a collector arriving at somebody else's page cannot guarantee, so it is an export you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-reports-when-it-has-finished)). |
 | **A Suspense boundary that has not resolved** | **construction**, and **refused** | A subject read mid-arrival records a skeleton on a slow machine and its content on a fast one, with every band agreeing and both passes consistent — invisible to every other mechanism here, and to `storyRendered` and `readySelector` besides, because a component that suspends renders no markup to hang a marker on. Every collector waits on the boundary's own `memoizedState` before it reads, two clean readings deep so a waterfall cannot slip through the gap. A boundary still open at the timeout is **refused by name** rather than captured — the one escape hatch is declaring the subject a loading-state capture, which is then checked in the other direction too. |
 | **An asset whose bytes changed behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Where your bundler content-addresses, it already fixed this and there is nothing to pay: `logo.4f2a91.svg` **is** the identity, that string is in the markup the capture already hashes, and reading the bytes would record the same fact a second time — `hashAssets: false` is the right setting and costs you nothing. It is on by default because not every URL is built that way: a file served from `public/`, a CDN path, a font behind a stable name. For those the driver hashes the response, being the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and writes the digest into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-includes-them-too-which-is-what-the-render-skip-reads)). |
 | **Animated GIFs** | **construction** | No CSS applies to a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. |
-| **Random seeds, unsorted data** | **nothing**, and reported | Absorbed by nothing — this is a real change and the fixture is the bug. What it does not arrive as is a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. The run also says whether *anything in it* explains the difference, and lists the subjects where the same component with the same props held ([`composition.md`](composition.md)). See [below](#what-still-gets-through-and-how-it-is-found). |
+| **Random seeds, unsorted data** | **nothing**, and reported | Absorbed by nothing — this is a real change and the fixture is the bug. What it does not arrive as is a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. The run also reports whether *anything in it* explains the difference, and lists the subjects where the same component with the same props held ([`composition.md`](composition.md)). See [below](#what-still-gets-through-and-how-it-is-found). |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. This remains a known blind spot. |
 | **Reindented JSX inside a block** | **nothing** | Renders identically and changes our hash. Ours to fix; a pixel differ gets this one right. |
 
@@ -88,13 +88,13 @@ each varying exactly one thing:
 | **`alone`** | rebuilt | same | did some *other* subject change this one? | `order-dependent` |
 
 Neither is a retry: both outcomes of both are reported, and neither clears
-anything. `again` runs first, and when it finds something `alone` is not asked —
+anything. `again` runs first, and when it finds something `alone` does not run —
 its whole inference is *the clean reading differs from the shared one, therefore
 the world changed it*, which is only evidence if two readings of one world would
-have agreed. Asked in the other order, a page with a clock in it produces a
-confident sentence about suite pollution and sends somebody to bisect a run order
-that has nothing to do with it. [`instruments.md`](instruments.md) puts the two
-readings beside the other evidence instruments.
+have agreed. Run in the other order, a page with a clock in it produces a
+confident sentence about suite pollution and sends somebody to bisect a run
+order that has nothing to do with it. [`instruments.md`](instruments.md) puts
+the two readings beside the other evidence instruments.
 
 **What it names.** Not "this subject is flaky" — that is a page to read. The two
 readings are two documents, and a document includes its component hashes, so the
@@ -148,12 +148,12 @@ twice; it is a shortlist entry and the report says so in those words.
 Both are statements about a subject. Where the two readings include component
 holdings, [`partingOf`](parting.md) makes the same accusation about a
 **boundary**: the component whose props, contexts and hook cells were all read,
-all agreed, and whose output changed anyway. That is the narrower claim, and it is
-available only to a run that asked what the components were holding — which is
-why an unread boundary is a slice of its own, not a quiet pass.
+all agreed, and whose output changed anyway. That is the narrower claim, and it
+is available only to a run that recorded what the components were holding —
+which is why an unread boundary is a slice of its own, not a quiet pass.
 Narrower again is a *region* of that component's source, which neither reading
-can see and which is answered
-[from what the run executed](#which-part-of-the-module-they-took-differently).
+can see and which is answered [from what the run
+executed](#which-part-of-the-module-they-took-differently).
 
 **The `held` list is what makes any of it evidence.** Those are the subjects
 where the same component, with the same props, did not change — the stable states
@@ -164,14 +164,14 @@ than strengthening it, which is why it is a list and not a flag.
 The whole ladder costs no collection, no browser and no image: it is a fold over
 digests the run already produced. What it needs is [`--since`](selecting.md),
 because the top two answers — an edited file and a changed token — need a
-change set, and a run given none says so beside every unexplained difference
+change set, and a run given none prints that beside every unexplained difference
 instead of accusing anybody.
 
 ### Which part of the module they took differently
 
 The ladder narrows a difference to a component, and where the two readings
 include holdings [`partingOf`](parting.md) narrows it to a boundary. Neither
-says *where inside it*, and for the flake that only appears once a handler has
+shows *where inside it*, and for the flake that only appears once a handler has
 run, the region is the fix.
 
 Neither reading can, because neither was inside the module while it ran. The
@@ -203,12 +203,12 @@ report one pool of everybody for every module in the app.
 
 **Nothing here is a verdict.** It exits `0` whatever it finds, because every
 suite with two stories per component has partings; a parting is where to look
-once something else has already said something changed.
+once something else has already reported a change.
 
 **The pool is most of the finding.** The journal accumulates across runs, so
 read whole it answers about the record, not about this run: a story
 deleted two commits ago is still a party to every parting it was recorded in. So
-the pool is the subjects the report names, `--all` asks for the record on
+the pool is the subjects the report names, `--all` reads the whole record on
 purpose, and a checkout with no report to read gets the record *with the
 sentence saying that is what it got* — a pool nobody chose must never print as
 one somebody did. Three other ways a pool is not what it looks like are each
@@ -285,14 +285,14 @@ a document digest.
 ### Has this happened before?
 
 The question two readings cannot answer, and the one that decides who fixes it.
-*Unstable in 6 of 20* says the fixture is bad; *6 times, and the last 9 sweeps
-were clean* says somebody already fixed it, and rewriting that fix is a day spent
-re-solving a solved problem.
+*Unstable in 6 of 20* reads as a bad fixture; *6 times, and the last 9 sweeps
+were clean* shows somebody already fixed it, and rewriting that fix is a day
+spent re-solving a solved problem.
 
-A run records what it saw when a [history service](history.md) is configured,
-then asks the record about every subject it just called unstable. The answer
-travels in the report, so the summary, the pull-request comment and an agent all
-read one sentence:
+A run records what it observed when a [history service](history.md) is
+configured, then queries the record for every subject it just called unstable.
+The answer travels in the report, so the summary, the pull-request comment and
+an agent all read one sentence:
 
 ```
 UNSTABLE: 1 subject(s) read twice seconds apart, nothing changed between, …
@@ -303,12 +303,12 @@ UNSTABLE: 1 subject(s) read twice seconds apart, nothing changed between, …
 ```
 
 **The denominator is sweeps, not runs**, and that is the whole arithmetic. An
-ordinary run reads a subject twice only after the comparison called it `changed`,
-so a subject that was green in eighteen runs was never *asked* whether it agrees
-with itself. Dividing by runs would report a flake that fires every single time
-anybody looks as firing one time in ten. `variance run --flakes` sweeps, a sweep
-is recorded as one, and a window containing no sweep has **no rate at all** —
-absent, never zero.
+ordinary run reads a subject twice only after the comparison called it
+`changed`, so a subject that was green in eighteen runs was never *read twice*
+to check that it agrees with itself. Dividing by runs would report a flake that
+fires every single time anybody looks as firing one time in ten. `variance run
+--flakes` sweeps, a sweep is recorded as one, and a window containing no sweep
+has **no rate at all** — absent, never zero.
 
 **Recency is counted in sweeps too.** "Nine sweeps have not seen it since" is a
 statement about examinations; "three weeks" is a statement about the calendar, and
@@ -320,9 +320,10 @@ entry prints *No history record: recurrence unknown* — because the reader most
 wants it to be a first occurrence, and nothing in a single run supports that.
 
 What it takes to have one: a `history` block in the config pointing at a service
-you run, and a run that can name itself — `--run` and `--commit`, or the pair the
-CI you are already inside exports. Without an identity nothing is recorded and the
-run says so, because a history that quietly stops growing is worse than none.
+you run, and a run that can name itself — `--run` and `--commit`, or the pair
+the CI you are already inside exports. Without an identity nothing is recorded
+and the run prints that, because a history that quietly stops growing is worse
+than none.
 
 ### The class of defect a second reading finds
 
@@ -357,7 +358,7 @@ smaller place than the one above it:
 | Narrowed to | Named by | What it asks of you |
 |---|---|---|
 | **a component and a band** — `Clock (content)` | the second reading, above | nothing: it runs on subjects the run already called `changed` |
-| **a boundary** — the component whose props, contexts and hook cells were all read, all agreed, and whose output changed anyway | [`partingOf`](parting.md) | a run that asked what the components were holding |
+| **a boundary** — the component whose props, contexts and hook cells were all read, all agreed, and whose output changed anyway | [`partingOf`](parting.md) | a run that recorded what the components were holding |
 | **an input** — an ancestor's `color`, a context, a hook cell, or nothing readable at all | the [divergence](composition.md)'s parting lines ([`composition.md`](composition.md)) | two renderings of one input inside one run, which the suite is usually already producing |
 | **an Act** — the step at which two executions of one [journey](journeys.md) stopped agreeing | scenario execution divergence ([`scenarios.md`](scenarios.md)) | a recorded scenario. It writes no verdict and no baseline; it is evidence to read |
 | **an element** — the query the test issued, what it resolved to, and the component that rendered it | [Eyes](eyes.md) | installing it beside the React Testing Library or Playwright the suite already has |
@@ -369,7 +370,7 @@ instrument the row above it does not have. *`Price` renders two ways from one
 props digest* states a contradiction and leaves you to go find it. *Three
 subjects mount `CartCard`, one of them clicked Remove, and this `onClick` body is
 a region the other two have never been inside* names the region — and nothing
-static says it, because it is the same file, the same import graph and the same
+static shows it, because it is the same file, the same import graph and the same
 props.
 
 After that the fix is ordinary: inject the clock, scope the sheet, seed the
@@ -438,7 +439,7 @@ and Jest seams take a snapshot of every counter before each file's first test,
 and a region already covered by then is recorded as **loaded** by that file:
 `loadedBy` on the block in the coverage snapshot names the files, and
 [`mode: 'entries'`](../packages/sense/README.md#instrument-one-module) records
-that and nothing finer, for a suite that wants the signal at the price of one
+that and nothing finer, for a suite that needs the signal at the price of one
 probe per function.
 
 **For one unit test that fails on some runs, compare its runs.** Record the
@@ -624,15 +625,15 @@ it.
 `vi.resetModules()` between tests prevents the symptom and costs you the
 evidence, which is the trade [above](#test-order-and-shared-state) rejects; it
 also re-imports the graph, so a singleton two modules were sharing becomes two
-objects. Touching a module's internals from a test file is cheaper, but it
-makes the test know something the module never promised: the name of a variable,
+objects. Touching a module's internals from a test file is cheaper, but it makes
+the test depend on something the module never promised: the name of a variable,
 which is free to change under a refactor that kept every behaviour. Exporting a
-`reset()` from each module keeps that promise honest and hands the problem to the
-setup file, which now has to import every module that has one — and to be updated
-by whoever adds the next.
+`reset()` from each module keeps that promise honest and hands the problem to
+the setup file, which now has to import every module that has one — and to be
+updated by whoever adds the next.
 
-So let the module that owns the state say how to reset it, and the runner say
-when:
+So let the module that owns the state define how to reset it, and the runner
+decide when:
 
 ```ts
 import { registerResetHandler } from '@variance-authority/ioc/reset';
@@ -682,7 +683,7 @@ tell you.
 
 **Read the subject twice.** For a visual subject this already happens — `again`
 and `alone` are [above](#what-still-gets-through-and-how-it-is-found), and they
-run without being asked. For an ordinary test, Playwright's `--repeat-each=2`
+run by default. For an ordinary test, Playwright's `--repeat-each=2`
 runs it twice whatever the first result was. Vitest counts the other way and
 offers no flag: `repeats` is a test option, and it means *additional* runs, so
 `it('x', { repeats: 1 }, ...)` also executes twice. Jest has no equivalent, and
@@ -736,7 +737,7 @@ band, so it survives all three and names a `file:line`. Neither is recoverable
 from the other, and the direction matters: **you cannot get from the shape of the
 pixels that moved back to the component that moved them.**
 
-The two instruments differ in what they need and in what they can say. Counting
+The two instruments differ in what they need and in what they can show. Counting
 fingerprints needs a *window* — several runs, and a store to keep them in — and
 answers with a probability. Reading the subject twice needs one run and answers
 with a component and a band, because the evidence is two documents and not

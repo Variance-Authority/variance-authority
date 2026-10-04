@@ -21,7 +21,7 @@ to the depth of the graph visible. A package that imports nothing else in the re
 other package is one layer above the highest layer among the packages it
 imports. Packages that import each other in a cycle count as one step.
 
-The number says two things, and a third that it does not.
+The number shows two things, and does not show a third.
 
 **How deep a package's longest chain goes.** A layer 1 package can be used,
 built and tested alone. A layer 7 package has a chain of six packages under it,
@@ -44,7 +44,7 @@ nobody chose, where four reasonable imports add up to `core` importing
 four layers, which is a change you can see in a review. Layers do not forbid an
 import. They give the graph a down.
 
-**Affected work, which the number does not say.** Depth is separate from how
+**Affected work, which the number does not show.** Depth is separate from how
 much a change affects. Build tools such as Nx use the same package graph to
 decide what a change may invalidate, but that depends on what imports the
 changed package: a layer 1 package nobody imports affects nothing, and a layer 1
@@ -207,8 +207,9 @@ so its rules carry over. Two differences follow from what runs where:
   rule computed in JavaScript is not supported; write a glob.
 
 `restrictions` exits 1 when an import breaks a rule, and 0 otherwise. Without a
-`.relations.json` it says so and exits 0. A fence that cannot fail is a comment,
-so the exit code is the gate; leave the command out of CI if you do not want one.
+`.relations.json` it prints that and exits 0. A fence that cannot fail is a
+comment, so the exit code is the gate; leave the command out of CI if you do not
+want one.
 
 ### A family of packages named alike
 
@@ -289,9 +290,9 @@ packages/checkout/src/index.ts → examples/shared.ts → tools/helper.ts: what 
 1 restricted chain.
 ```
 
-A chain is read against the code map, which says which files each package
-ships. When the map was built from an older source index, the command says so
-and asks for `variance index` instead of judging stale files.
+A chain is read against the code map, which records which files each package
+ships. When the map was built from an older source index, the command prints
+that and names `variance index` to run instead of judging stale files.
 
 ### A ceiling on the layer
 
@@ -329,11 +330,11 @@ from 5 to 6 without an edit, and `variance restrictions` reports it above its
 ceiling. `variance layers` shows the same edit in the pull request that made
 it, with `ledger` as the cause and `payments` as carried.
 
-`variance restrictions` lists each package above its ceiling with its layer,
-the ceiling and the file that states it, and exits 1, like a restricted
-import. The layer is the same repository-wide number `variance layers` prints,
-not one counted inside the folder. A ceiling is checked against the source
-index's package layers; if the index holds none, the command says so instead of
+`variance restrictions` lists each package above its ceiling with its layer, the
+ceiling and the file that states it, and exits 1, like a restricted import. The
+layer is the same repository-wide number `variance layers` prints, not one
+counted inside the folder. A ceiling is checked against the source index's
+package layers; if the index holds none, the command prints that instead of
 passing. The ceiling is a number you chose, so pick it after reading the layers
 you have: a cap below where the repository already sits fails on the first run.
 
@@ -370,15 +371,15 @@ budget and the file that states it, and exits 1:
 
 A package whose known lines fit, while part of what it pulls in could not be
 sized, is printed as undecided and does not fail the command. The rule cannot
-say it broke, and `variance layers` counts the unsized files behind it. Like a
-layer ceiling, a budget follows the package: a dependency that grows can put a
-package over its budget without an edit to it, and `variance layers --against`
-names the dependency that did.
+decide that it broke, and `variance layers` counts the unsized files behind it.
+Like a layer ceiling, a budget follows the package: a dependency that grows can
+put a package over its budget without an edit to it, and `variance layers
+--against` names the dependency that did.
 
 ### A role a doc declares
 
 Some exports are written for tests: a fixture builder, a fake clock, a reset
-for a module's state. Nothing in an import says so, so a shipped component can
+for a module's state. Nothing in an import marks it, so a shipped component can
 start to use one and no rule notices. Write the role in the export's doc
 comment, and `variance restrictions` checks it with no `.relations.json`:
 
@@ -439,13 +440,13 @@ tags in `tsdoc.json`:
 
 A listed role makes `variance restrictions` exit 1, like a broken rule. The
 check reads which files are shipped from the code map that `variance index`
-writes; when that map is older than the source index, the command says so and
-exits 2 instead of guessing.
+writes; when that map is older than the source index, the command prints that
+and exits 2 instead of guessing.
 
-## What the numbers do not say
+## What the numbers do not show
 
 - **A high layer is not a defect.** An application package that imports the
-  repository sits at the top by design. The layers say what the imports build,
+  repository sits at the top by design. The layers show what the imports build,
   not whether it was worth building.
 - **Depth is not stability.** A package that many others import is costly to
   change however few layers it has beneath it. Layers count what a package
@@ -453,10 +454,10 @@ exits 2 instead of guessing.
 - **Only package imports count.** An import of an installed third-party package
   is not a layer, adds no lines to a tier, and `restrictions` does not check it.
 - **Lines are not bytes.** A tier counts the source lines a package pulls in,
-  not what a bundler ships after tree-shaking and minifying. It says how much
-  code a package asks you to own, not how much a user downloads.
-- **The comment names packages, not files.** It says which package took a new
-  dependency, not which file wrote the import.
+  not what a bundler ships after tree-shaking and minifying. It measures how
+  much code a package makes you own, not how much a user downloads.
+- **The comment names packages, not files.** It names the package that took a
+  new dependency, not which file wrote the import.
 - **No measured effect is claimed.** The argument is structural:
   dependency depth is a consequence you can see, and dependency direction is
   something you can reason from. Nothing here says fewer layers build faster.

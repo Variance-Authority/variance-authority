@@ -35,13 +35,13 @@ responsibility". Single responsibility is a property of a module. Applied to a
 whole product, it becomes a limit.
 
 The software you already use does not accept that limit, and it looks natural
-when it does not. React began as a library for building user interfaces.
-[React 19](https://react.dev/blog/2024/12/05/react-19) also submits forms,
-renders the document's `<title>` and `<meta>`, orders stylesheets, preloads
-resources, and runs Server Components on the server. [Next.js](https://nextjs.org/docs)
-began as server rendering for React, and now also optimizes images and fonts,
-runs middleware, caches data and ships its own bundler, Turbopack. Each addition
-uses what was already built: a renderer that knows every component on the page
+when it does not. React began as a library for building user interfaces. [React
+19](https://react.dev/blog/2024/12/05/react-19) also submits forms, renders the
+document's `<title>` and `<meta>`, orders stylesheets, preloads resources, and
+runs Server Components on the server. [Next.js](https://nextjs.org/docs) began
+as server rendering for React, and now also optimizes images and fonts, runs
+middleware, caches data and ships its own bundler, Turbopack. Each addition uses
+what was already built: a renderer that has every component on the page in hand
 is the right place to decide which stylesheet and which font the page loads.
 
 That limit is why this project exists. The visual regression tools before it did

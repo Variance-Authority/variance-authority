@@ -177,7 +177,7 @@ export async function review(request: ParsedReview): Promise<Review> {
   // primary's, describes another change, and a record seeded from it (`runs: 0`) lists none.
   const own = await landingRecord(root, request.suite);
   const runs = await readCommitRuns(own).catch((error: unknown) => {
-    const remedy = 'It says where this change starts: run the suite, which rewrites it; delete it first only if it is a directory';
+    const remedy = 'It records where this change starts: run the suite, which rewrites it; delete it first only if it is a directory';
     throw new OperatorError(`${error instanceof Error ? error.message : String(error)}. ${remedy}.`, { cause: error });
   }).then((listed) => (listed?.runs === 0 ? undefined : listed));
   const given = request.since ?? (await runsBase(root, runs, own));
@@ -190,10 +190,10 @@ export async function review(request: ParsedReview): Promise<Review> {
   if (ref === undefined) {
     throw new OperatorError(
       (runs === undefined
-        ? `no run has listed itself beside \`${own}\`, so nothing says where this change starts. ` +
+        ? `no run has listed itself beside \`${own}\`, so nothing records where this change starts. ` +
             'Run the suite with `withTestSelection` first, or name the base with `--since <ref>`.'
         : `the runs at ${runs.commit?.slice(0, 12) ?? 'this checkout'} name no start ` +
-            'they descend from, so nothing says where this change starts. Name the base with `--since <ref>`.') +
+            'they descend from, so nothing records where this change starts. Name the base with `--since <ref>`.') +
         (shared !== undefined && 'miss' in shared ? `\n${mainlineMissed(shared)}.` : ''),
       { kind: 'unrecorded' },
     );

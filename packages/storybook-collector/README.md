@@ -34,7 +34,7 @@ This is the Storybook adapter, not the `variance` binary. The binary lives in
 | Module format | ESM only. Every `@variance-authority/*` package sets `"type": "module"`; `require()` will not load them. |
 | Browser | Chromium, installed through Playwright. The binaries do not arrive with an `npm install`. |
 | Storybook | Exercised against Storybook 10 with `@storybook/react-vite`. Index versions `3`, `4` and `5` are read, and the story root is looked for at `#storybook-root` (Storybook 7 and later) and then `#root` (before it). Storybook 8.3 and later emit `storyFinished`, which this package waits for; it falls back to `storyRendered` when the event is absent. |
-| Builder | Collection reads `index.json` and drives the preview channel, so it does not know or care whether Vite or Webpack 5 built the Storybook. Two optional precision features are Vite plugins with no Webpack equivalent, and are named as such where they appear below: `@variance-authority/jsx-source` and the `tests` option. |
+| Builder | Collection reads `index.json` and drives the preview channel, so it works the same whether Vite or Webpack 5 built the Storybook. Two optional precision features are Vite plugins with no Webpack equivalent, and are named as such where they appear below: `@variance-authority/jsx-source` and the `tests` option. |
 | React | Required for component attribution, the `wiring` band and the Suspense wait. The reading is of the expando `react-dom` writes on host nodes — `__reactFiber$` on React 17 and later, `__reactInternalInstance$` on React 16 — so there is no React version to match and none is imported. The suite runs against React 19. |
 
 A Storybook whose renderer is not React still collects: documents, pixels,
@@ -64,7 +64,7 @@ the build.
 
 ### 2. Write the collector module
 
-The collector is the module that tells the run how to find and read your
+The collector is the module that defines how the run finds and reads your
 stories. Create it anywhere in your project and default-export the factory.
 
 ```js
@@ -146,8 +146,9 @@ full form is:
 npx variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 ```
 
-Keep `--all` for the first run and for deliberate re-baselines; it cannot tell a
-story nobody looked at from one that changed. After setup, name subject ids:
+Keep `--all` for the first run and for deliberate re-baselines; it does not
+separate a story nobody looked at from one that changed. After setup, name
+subject ids:
 
 ```bash
 npx variance accept --config variance.config.json story:checkout--empty story:checkout--one-item
@@ -376,10 +377,11 @@ preview's `testSelectionProbes()` was given, and `cacheRoot` and `coverageFile`
 override the repository-keyed cache paths for the block records and the coverage
 index. `suite` names the suite this run is, when the root `variance.config.json`
 declares its suites under `suites`; it is required once any suite is declared,
-and cannot be combined with `coverageFile`. `root` is the directory Storybook ran in, the cwd by default: story paths
-and a relative `coverageFile` are read from it, and every
-path the run records is relative to the repository that contains it.
-Without a collector in the page, the run says so on stderr and records nothing.
+and cannot be combined with `coverageFile`. `root` is the directory Storybook
+ran in, the cwd by default: story paths and a relative `coverageFile` are read
+from it, and every path the run records is relative to the repository that
+contains it. Without a collector in the page, the run prints that on stderr and
+records nothing.
 
 `mode` is the probe recipe, and it has to be the one the preview was built
 under: a snapshot names the recipe its ordinals were cut by, and a merge
@@ -387,10 +389,10 @@ discards a layer cut by another one, so a preview probing under `entries` and a
 run folding under `presence` would each wipe the other. `preconditions` names
 files whose contents are a precondition of every story's observation — a
 `preview.js` that decides what renders belongs there, because a change to it
-invalidates every reading and no crossing will ever say so. `heads` and
+invalidates every reading and no crossing will ever record it. `heads` and
 `commit` stamp the snapshot with the branch tips this recording stands on and
-the commit it was taken at, which is what lets a later run tell a stale layer
-from a current one.
+the commit it was taken at, which is what lets a later run separate a stale
+layer from a current one.
 
 A story is its own owner in the recorded index — Storybook is an execution
 surface this tool drives one subject at a time — and a story that did not render

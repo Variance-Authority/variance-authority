@@ -27,7 +27,7 @@ record without repeating that work.
 
 ## Three questions share the word search
 
-`rg Button` asks where the bytes `Button` occur. It answers from declarations,
+`rg Button` finds where the bytes `Button` occur. It answers from declarations,
 imports, JSX, tests, stories, comments, Markdown, fixtures and snapshots alike.
 It hides almost nothing, and it leaves every decision about which hit matters
 to you.
@@ -48,7 +48,7 @@ program on each keystroke. Find in Files over the same repository returns what
 
 **Semantic search** makes a different promise: you do not need to know what the
 repository calls the thing. Ask where repeated requests stop after a failure,
-and the code may say `retry`, `backoff`, `cooldown` or `failureWindow`.
+and the code may name it `retry`, `backoff`, `cooldown` or `failureWindow`.
 Similarity can cross that vocabulary gap. It also makes two things a matter of
 policy at once — which pieces of the repository were embedded, and how
 similarity ranks them — so a test that describes retries, or a comment that
@@ -172,8 +172,8 @@ areas until an area is a short list of packages. Each row gives:
 `variance index` builds the map when it publishes the
 [source index](source-index.md) and keeps
 it beside the index, so asking for a page reads one file. When the index
-changes and the map was built from an earlier one, the page says so. With no
-map, the answer names `variance index`, or says why `variance index` built
+changes and the map was built from an earlier one, the page prints that. With no
+map, the answer names `variance index`, or prints why `variance index` built
 none, instead of printing an empty map.
 
 With a file in hand, `orient --files` also walks its indexed local imports and

@@ -8,8 +8,8 @@ Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 
-A snapshot test tells you that one UI state looks the way it did. It cannot tell
-you that clicking Delete does the same thing on a page with one article as on a
+A snapshot test checks that one UI state looks the way it did. It does not check
+that clicking Delete does the same thing on a page with one article as on a
 page with two.
 
 This package records that: a named starting state, a fixed sequence of acts, and
@@ -199,7 +199,7 @@ Reading it:
 - `bands` names the dimension that changed, from `a11y`, `geometry`, `token`,
   `content`, `texture`. `blindSides` lists bands the profile on a side could not
   decide at all, so a blind side is never reported as agreement.
-- `parting` says which input separated the two readings — a component's own
+- `parting` names which input separated the two readings — a component's own
   retained state, something it received, or neither — and `slice: "unread"` means
   no framework boundary was read, so it declines to name one rather than
   guessing. `lines` is that reading as sentences.
@@ -223,7 +223,7 @@ are not shifted into a plausible pair. A failed observation is recorded with
 | option | required | what it decides |
 | --- | --- | --- |
 | `id` | yes, non-empty | the recording's identity within its run |
-| `precondition` | yes | a `SubjectRef` — the subject id and kind your harness arranged — in the role of Arrange |
+| `precondition` | yes | a `SubjectRef` — the subject id and kind your harness set up — in the role of Arrange |
 | `profile` | yes | the observation profile every frame must match |
 | `preconditionLink` | no | the already-resolved parent subject and whether it was `declared` or `named`; omitted means no link was supplied |
 

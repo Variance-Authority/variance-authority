@@ -3,7 +3,7 @@
 `variance ask` answers from the report the last run wrote, at the config's
 `report` path (default `.variance/report.json`, resolved against the config
 file's directory). When that file is absent, it reads the shared report instead
-— your branch's line, then the mainline's — and the answer says where it read.
+— your branch's line, then the mainline's — and the answer names where it read.
 It needs no server, no MCP client and no connection. Each answer is the text an
 MCP client gets from the same function, and it is text only: `--format json` is
 refused on every question but `search`.
@@ -78,13 +78,13 @@ Button
   `variance ask adjudicate` it exits `0` like every question. As
   `variance adjudicate` it exits `1` unless every claim is delivered and no
   changed subject is left unclaimed or ungrouped; `--exit-zero-on-changes`
-  turns that `1` into `0` and says so on stderr.
+  turns that `1` into `0` and prints that on stderr.
 - **`composition` — before calling anything flaky**, and when a change has no
   obvious author. It names what explains a movement, and separates `flake`
   (read twice, differed) from `suspect` (never read twice).
 - **`locate --query <words>` — when you can describe the subject but do not have
-  its id.** See [locate](locate.md). `composition --subject <id>` then says what
-  that subject is made of.
+  its id.** See [locate](locate.md). `composition --subject <id>` then lists
+  what that subject is made of.
 - **`describe`, `explain-verdict`, `trace-component`, `findings` — once you know
   which subject or component matters.** Ask them one at a time. Ask
   `explain-verdict` when a subject was not compared at all: it separates
@@ -92,7 +92,7 @@ Button
   baseline) from never observed. `findings --rule <id>` keeps one rule.
 - **`variations` — when a subject has arms**: a flag's other arm, a second
   viewport, a dark scheme, measured against its parent subject rather than a
-  baseline. It says which bands and components the variation changes, and is
+  baseline. It names the bands and components the variation changes, and is
   never a verdict.
 - **`costs` — before narrowing a run or splitting a file of stories.** The
   slowest files and subjects, from the mainline's shared times unless you name a
@@ -104,8 +104,8 @@ Button
 ## `ask diff` has two subjects
 
 A watcher address decides which: `--at <address>`, or an exported
-`VARIANCE_AUTHORITY_VANTAGE` when `--at` is not given. With one, it asks that
-watcher what changed since the last reading it handed out: the progress
+`VARIANCE_AUTHORITY_VANTAGE` when `--at` is not given. With one, it queries that
+watcher for what changed since the last reading it handed out: the progress
 question, in [live run](live-run.md). Without one, it compares the report with
 the state the previous successful `ask` recorded beside it, in `asked.json` in
 the report's directory: the re-run question. The first call of either records

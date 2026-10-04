@@ -1,20 +1,22 @@
 # See what changed
 
-Every change has a beginning and an end. In between is the mess. You edit a
-line, move a component, replace a dependency, change a condition, fix one bug
-and expose another; the program takes branches, schedules work, updates state,
-calls services, renders components, and eventually produces something you can
-see. Usually you keep the beginning and the end, and throw the middle away.
+A diff records what you edited, and a screenshot or an assertion records the
+result. When a change goes wrong, what you need is the path between them: which
+branch ran, which component rendered, which input changed. That path exists
+only while the program runs. [Variance Authority](README.md) records it during
+the run, so you answer *what did this change actually do?* from the record
+instead of running the suite again to find out.
 
-That is enough while everything goes as expected. When it does not, the missing
-middle is exactly what you need.
+Usually you keep the edit and the result and throw the path away. That is
+enough while everything goes as expected. When it does not, the path is what
+you need.
 
-This is the same boundary that makes a high-level test useful. [A test preserves
-the path it names](tests.md#high-level-is-a-strength-and-a-blind-spot) while
-remaining insensitive to how that promise was kept. The pass becomes a blind
-spot only when it is asked to mean that nothing else changed.
+A high-level test has the same boundary. [A test preserves the path it
+names](tests.md#high-level-is-a-strength-and-a-blind-spot) and is insensitive to
+how that promise was kept. The pass becomes a blind spot only when it is asked
+to mean that nothing else changed.
 
-## A diff says what you changed, not what changed
+## A diff records what you changed, not what changed
 
 Source control gives a precise account of the edit. It does not give a precise
 account of its effect.
@@ -27,7 +29,7 @@ or a piece of data can change the result without your source changing at all.
 A diff records where you acted. It does not record what the edit affected,
 and that is only decided while the system runs.
 
-## The result says what happened, not how
+## The result shows what happened, not how
 
 The other end has the opposite problem. A screenshot shows that a button moved.
 An accessibility tree shows that its name changed. A request returns a
@@ -121,16 +123,16 @@ through the same evidence.
 
 ## Keep what disappears
 
-A running system knows far more than its final output reveals. It knows which
+A running system holds far more than its final output reveals: which
 branch ran, which component rendered, which input changed, which work happened
 before other work, and which source took part in producing the state you
-eventually saw. Then execution ends, and most of that knowledge goes with it.
+eventually saw. Then execution ends, and most of that is lost.
 
 That makes retention part of observation. Evidence that already exists in
 source can be read later. Evidence that exists only while the program runs has
 to be captured while it exists — not because every execution deserves a
 permanent archive, but because useful evidence is cheapest at the moment the
-system already knows it. The expensive version is reconstructing it afterwards.
+system already holds it. The expensive version is reconstructing it afterwards.
 
 Kept at depth — fine-grained evidence of what code did, across hundreds of
 thousands of files and tests, over time — that middle answers a question from

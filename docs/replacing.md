@@ -12,8 +12,8 @@ New here? Start with [your first run](start.md).
 
 Two words repeat below. A **subject** is one named UI state you asked for and
 can ask for again, under an id you choose — `cart/empty`, or
-`story:checkout--empty`. A **collector** is a module you write that tells a run
-which subjects exist and how to set each one up; the first two sections below
+`story:checkout--empty`. A **collector** is a module you write that gives a run
+the subjects that exist and how to set each one up; the first two sections below
 need no collector, because the test you already have creates the state itself.
 
 ## Alongside `expect(page).toHaveScreenshot()`
@@ -52,7 +52,7 @@ test('the cart survives an empty basket', async ({ page }, testInfo) => {
 ```
 
 `assertUnchanged` is a plain assertion helper, not a replacement for
-Playwright's `expect`. A test that wants to decide for itself can read
+Playwright's `expect`. A test that decides for itself can read
 `observation.verdict` and `observation.regions` instead.
 
 By default the call keeps the document it acquired and repaints it through the

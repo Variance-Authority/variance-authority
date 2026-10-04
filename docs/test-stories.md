@@ -19,8 +19,8 @@ tests that ran a function:
 variance covering --file src/cart.ts --function removeItem
 ```
 
-A journey is a set. It says that a test ran `removeItem`, `applyTier` and
-`formatPrice`, and which of their branches it took. It does not say in what
+A journey is a set. It records that a test ran `removeItem`, `applyTier` and
+`formatPrice`, and which of their branches it took. It does not record in what
 order the test ran them, how many times, or what the code printed on the way.
 Two questions need that:
 
@@ -76,9 +76,9 @@ it('removes the last item', () => {
 });
 ```
 
-Its journey already says that the test never took the `then` on line 14, the
-empty-cart branch. It does not say what the test did instead. Run the test once
-with `VARIANCE_AUTHORITY_STORY=1`, and `variance story` from [the
+Its journey already records that the test never took the `then` on line 14, the
+empty-cart branch. It does not record what the test did instead. Run the test
+once with `VARIANCE_AUTHORITY_STORY=1`, and `variance story` from [the
 CLI](../packages/cli/README.md) prints that, step by step:
 
 ```bash
@@ -175,12 +175,12 @@ A story lists each line the code prints under the step that printed it, after
 ```
 
 The journeys of the runs that failed differ from the runs that passed only at
-the `if` on line 13. That says what happened, not why.
+the `if` on line 13. That shows what happened, not why.
 
-**One story does not tell you why either.** Code after an `await` runs when its promise
-settles, and two promises started together settle in either order, so an async
-test can run in a different order on each run, including runs that pass. Put
-two stories side by side and most of what differs is not the cause.
+**One story does not show why either.** Code after an `await` runs when its
+promise settles, and two promises started together settle in either order, so an
+async test can run in a different order on each run, including runs that pass.
+Put two stories side by side and most of what differs is not the cause.
 
 ### Compare readings of one test
 
@@ -213,7 +213,7 @@ compare  src/checkout.test.ts > saves the total it charges
       before » console.log saving when it passed, after it when it threw
 ```
 
-This says three things, and each one names a place to open:
+This output shows three things, and each one names a place to open:
 
 - **Which branch the test took.** Every run that failed took the `then` of the `if`
   on line 13, which throws, and no run that passed did.
@@ -235,9 +235,9 @@ The comparison can also answer in three other ways:
   one order. The difference is in a value nothing prints, or in code that is not
   recorded, such as a dependency. Print the value you suspect with
   `console.log`, and record again.
-- **With one reading in a group**, the comparison cannot tell what the group
-  does from what that one run happened to do, and it says so under its first
-  line. Record the test again. The runs you made earlier still count.
+- **With one reading in a group**, the comparison cannot distinguish what the
+  group does from what that one run happened to do, and it prints that under its
+  first line. Record the test again. The runs you made earlier still count.
 
 ### Choose the sides
 
@@ -340,7 +340,7 @@ VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
   `coverage.stories/`. A story is removed 14 days after it was written, with
   [the rest of the cache](cache.md#what-is-removed-and-when).
 - **Which one you read.** `variance story` shows the newest reading, and its
-  header says how many are kept. `--label <name>` shows the newest under one
+  header prints how many are kept. `--label <name>` shows the newest under one
   label.
 - **When to record again.** A story is the code as it was when the test ran.
   After you edit that code, run the test again before you read its story.
@@ -351,7 +351,7 @@ VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
 A test that goes through hundreds of functions does not fit on a page, and you
 do not need all of it. So a long story opens as a summary, at the finest level
 that fits one page: each function once, with the numbers of the steps it was
-at, or each file, or each package. The header says so, and how to open the
+at, or each file, or each package. The header prints that, and how to open the
 part you want:
 
 ```text
@@ -404,7 +404,7 @@ its first 5 lines and counts the rest.
   the code that ran just before it, not always its caller, and code after an `await`
   appears where it ran, not under the call that started it.
 
-The header says when a story is incomplete, and why:
+The header prints when a story is incomplete, and why:
 
 - The recording filled up before the test ended.
 - The test printed more than the 4,096 lines a story keeps.

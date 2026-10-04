@@ -26,8 +26,8 @@ point](start.md) lists the other harnesses this loop can start from.
 
 The rest of the page rests on two words. A **subject** is one named UI state a
 run captures and compares, under an id you choose; here, one route at one
-viewport. A **collector** is a module you write that tells the CLI which
-subjects exist and how to open them.
+viewport. A **collector** is a module you write that gives the CLI the
+subjects that exist and how to open them.
 
 ## Before you collect
 
@@ -91,9 +91,9 @@ nothing to read and falls back to the component's declaration line.
 
 ## Declare the same route in the run config
 
-The collector says how to open the route; the config says what to do with it.
-Create `variance.config.json`, which is the file every command below is pointed
-at:
+The collector defines how to open the route; the config defines what to do with
+it. Create `variance.config.json`, which is the file every command below is
+pointed at:
 
 ```json
 // variance.config.json
@@ -126,7 +126,7 @@ change what the run sees.
 | `retention` | `durable` stores the approved image and compares a later run against it. `ephemeral` renders both sides inside one run and keeps neither, so there is nothing to store and nothing to approve. Durable is what makes a first run report `new` and a second report `unchanged`. |
 | `subjects.kind` | Where the subject list comes from. `list` means the ids are written here; `collector` means the collector plans them (used by the sitemap and directory forms below); `storybook` reads a built Storybook index. |
 | `baselines.kind` | Where approved images live: `directory` (files you commit), `lfs` (the same files through the Git LFS filter), or `remote` (a store behind an endpoint and a token). Required under `durable`, and no default — the three fail in different directions. [Baseline placement](placement.md) chooses between them. |
-| `fonts` | Fonts you assert the rendering machine has, each written `family/weight/style/hash`; a bare family name is refused, because two cuts of one family paint differently. The list is part of the key a baseline is stored under, so editing it re-partitions baselines, and the renderer reports any family you asserted that it could not resolve. `[]` asserts nothing and is a complete config — you then have no font check, and `variance doctor` is what tells you what the machine actually resolves. |
+| `fonts` | Fonts you assert the rendering machine has, each written `family/weight/style/hash`; a bare family name is refused, because two cuts of one family paint differently. The list is part of the key a baseline is stored under, so editing it re-partitions baselines, and the renderer reports any family you asserted that it could not resolve. `[]` asserts nothing and is a complete config — you then have no font check, and `variance doctor` is what shows you what the machine actually resolves. |
 | `report` | Where `run` writes its report, and where `report` and `accept` read it. |
 
 ### Commit the baselines
@@ -302,7 +302,7 @@ collector serves itself.
 
 Then have the job branch on the exit code: `0` merges, `1` means a subject needs
 a decision, `2` means the run did not happen and the reviewer is not the person
-to call. Keep `accept --all` out of an unattended job: it cannot tell a
+to call. Keep `accept --all` out of an unattended job: it cannot distinguish a
 candidate somebody reviewed from one nobody opened. Publish
 `.variance/report.html` and `.variance/report.json` as build artifacts so the
 reviewer has something to open.

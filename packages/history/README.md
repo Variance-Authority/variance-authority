@@ -13,7 +13,7 @@ A button gains 2px across eleven approved runs, and no single review sees the
 caught it is a sum, and a tool that looks at one run at a time keeps none.
 
 This package keeps the rows a sum needs, and does the arithmetic over them. Give
-it a **design token**'s recorded values across a window of runs and it tells you
+it a **design token**'s recorded values across a window of runs and it reports
 whether they add up to a finding, and how thinly the change was spread.
 
 ```bash
@@ -91,10 +91,10 @@ And the `TokenDrift` behind it, with the eleven `steps` abridged to two:
 ```
 
 `steps` names the commit behind every change, which is what turns `12px → 34px`
-into an investigation somebody can finish. `quantity` and `ratio` are absent when
-the values cannot be subtracted — a colour, a font stack, a shadow — and
-`unquantifiable` then says why, so a colour that changed five times stays a
-finding rather than becoming an empty number.
+into an investigation somebody can finish. `quantity` and `ratio` are absent
+when the values cannot be subtracted — a colour, a font stack, a shadow — and
+`unquantifiable` then holds the reason, so a colour that changed five times
+stays a finding rather than becoming an empty number.
 
 ### The two thresholds
 
@@ -105,12 +105,12 @@ distances in the token's own unit.
 | option | default | what it decides |
 |---|---|---|
 | `minSteps` | `2` | fewest value changes that can constitute a journey. Below it, this is one edit somebody made on purpose and already reviewed |
-| `minRatio` | `2` | least ratio of total travel to the largest single step. The ratio *is* the finding — it says how thinly the change was spread, which is exactly how it got past eleven correct reviews. A token that changed by 8px in one 8px step has a ratio of 1 and nothing to report |
+| `minRatio` | `2` | least ratio of total travel to the largest single step. The ratio *is* the finding — it measures how thinly the change was spread, which is exactly how it got past eleven correct reviews. A token that changed by 8px in one 8px step has a ratio of 1 and nothing to report |
 
 `null` means the values were recorded, they were read, and they did not add up to
 a journey. One case never answers `null`: a journey whose `limit` excluded values
 comes back with `incomplete: true` and a non-zero `omitted`, because a `null`
-there would claim a stability the slice cannot support.
+there would report a stability the slice cannot support.
 
 ## What is recorded
 
@@ -230,9 +230,10 @@ npx variance run --run "$GITHUB_RUN_ID" --commit "$GITHUB_SHA"
 ```
 
 Inside GitHub Actions, GitLab CI or Bitbucket Pipelines you can leave both flags
-off — the id and commit are read from the variables those systems already export,
-as a pair or not at all. Anywhere else, supply them. A run with a store and no
-identity records nothing and says so in its warnings; no id is invented for you.
+off — the id and commit are read from the variables those systems already
+export, as a pair or not at all. Anywhere else, supply them. A run with a store
+and no identity records nothing and prints that in its warnings; no id is
+invented for you.
 
 With that in place, `npx variance run` records the run, its observations and its
 resolved token values, and `npx variance accept <subject>` records the approval —
@@ -275,9 +276,9 @@ no writer, every query answers from an empty store.
 
 ## When no store is configured
 
-`createAbsentStore` returns a `HistoryStore` that keeps nothing and says so, so a
-pipeline sees one type either way and the difference surfaces once, in the
-answer:
+`createAbsentStore` returns a `HistoryStore` that keeps nothing and reports
+that, so a pipeline sees one type either way and the difference surfaces once,
+in the answer:
 
 ```ts
 import { createAbsentStore, isKept } from '@variance-authority/history';

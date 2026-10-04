@@ -1,11 +1,11 @@
 # Which input changed, not just which pixels
 
-A diff says a `<div>` rendered a `<p>` on one side and a `<span>` on the other.
-That is a symptom, and acting on it means opening the component, guessing which
-branch ran, and guessing why. `partingOf` takes those two readings and names
-the input that sent them apart — a prop, a context value, an external store, or
-a hook cell — along with the component that changed it. Read on when you have a
-difference in hand and want its cause rather than its coordinates.
+A diff shows that a `<div>` rendered a `<p>` on one side and a `<span>` on the
+other. That is a symptom, and acting on it means opening the component, guessing
+which branch ran, and guessing why. `partingOf` takes those two readings and
+names the input that sent them apart — a prop, a context value, an external
+store, or a hook cell — along with the component that changed it. Read on when
+you have a difference in hand and want its cause rather than its coordinates.
 
 It returns a **parting** — the account of where the two readings diverged and
 which input sent them there:
@@ -198,7 +198,7 @@ which is the half a picture would have shown, now with the hook cell at the top
 of it.
 
 Four properties, then a count. `padding` expands to four longhands, so the list
-is cut at four and the remainder is counted — the line always tells you how many
+is cut at four and the remainder is counted — the line always prints how many
 properties it did not name.
 
 ---
@@ -206,8 +206,8 @@ properties it did not name.
 ## One fork, not its fallout
 
 A state cell at the top of a grid reaches every cell in it. Enumerating the
-result is a page of lines that all say the same thing, so above a small fan-out
-the fork is reported and the spread is counted:
+result is a page of lines that all report the same thing, so above a small
+fan-out the fork is reported and the spread is counted:
 
 ```text
 variation — an input changed and the page followed
@@ -216,7 +216,7 @@ Grid chose differently — useState #0 changed
 ```
 
 The boundaries are still on `Parting.boundaries`, in document order, for a
-caller that wants them. What collapses is the sentence, not the evidence.
+caller that needs them. What collapses is the sentence, not the evidence.
 
 ---
 
@@ -227,7 +227,7 @@ component was handed and what it retained. A holding is attached to each
 component's root host node by `holdingOf`: props as one digest per key, context
 values by display name, and hook cells in authored call order.
 
-Holdings exist only if the capture asked for them. That is the
+Holdings exist only if the capture call requested them. That is the
 `provenanceOf`, `wiringOf` and `holdingOf` triple in the
 [Run it](#run-it) example — an excerpt of that call:
 
@@ -246,17 +246,18 @@ identity — a re-created inline closure is not reported as changed.
 it can never turn a run red on its own. It is present alongside the snapshot and
 is read only to explain a difference the comparison already found.
 
-The cell list is sparse and says so. A hook that retains nothing a later reading
-could disagree about contributes no cell, and each cell names the position a
-person arrives at by counting hook calls down the component — not an index into
-React's cell chain, where `useContext` builds none and `useTransition` builds
-two. Converting between those two numberings needs the cell count of every hook
-by name. Meeting a hook name it has no count for — a hook a later React release
-adds, for instance — the reader stops there and records the name that stopped
-it, so the cells you get are a prefix that says where it ends rather than a full
-list mislabelled from that point on. `holdingOf`, which owns that table, is
-documented in the
-[`@variance-authority/react` reference](https://variance-authority.dev/reference/packages/react).
+The cell list is sparse, and records that it is. A hook that retains nothing a
+later reading could disagree about contributes no cell, and each cell names the
+position a person arrives at by counting hook calls down the component — not an
+index into React's cell chain, where `useContext` builds none and
+`useTransition` builds two. Converting between those two numberings needs the
+cell count of every hook by name. Meeting a hook name it has no count for — a
+hook a later React release adds, for instance — the reader stops there and
+records the name that stopped it, so the cells you get are a prefix that records
+where it ends rather than a full list mislabelled from that point on.
+`holdingOf`, which owns that table, is documented in the
+[`@variance-authority/react`
+reference](https://variance-authority.dev/reference/packages/react).
 
 ---
 
@@ -264,12 +265,12 @@ documented in the
 
 - **It does not locate the hook in your source.** `useState #0` is a call
   position, not a `file:line`. Naming the fork is the job. A tool that then reads
-  the component to work out which state that is has been told where to start.
+  the component to work out which state that is starts from that position.
 - **It gives no verdict.** A **verdict** is the pass-or-fail a run reports:
-  `compare` says what changed and `judge` decides whether anyone should mind. A
-  parting is an explanation and joins neither. It also accepts two readings of
+  `compare` reports what changed and `judge` decides whether anyone should mind.
+  A parting is an explanation and joins neither. It also accepts two readings of
   two different subjects, because two variants of an experiment are two subjects
-  on purpose — tell it so by passing `'elsewhere'` as its third argument, and it
+  on purpose — mark that by passing `'elsewhere'` as its third argument, and it
   will not call the difference a flake.
 - **Its reach is what was read.** Boundaries come back absent — never `[]` —
   when no node on either side started a component, which puts the parting in the

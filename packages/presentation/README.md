@@ -8,14 +8,14 @@ Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 
-Your spacing tokens say the hierarchy is intact. The rendered page disagrees.
+Your spacing tokens describe an intact hierarchy. The rendered page disagrees.
 
 A heading and the paragraph under it both resolve to `--space-2` and both look
 correct in the design file, but at the rendered size the gap between two cards
 is the same as the gap inside a card, so six records read as one block of text.
 Nothing in the stylesheet is wrong. Nothing in a screenshot diff is different
 either, because this is how the page has always shipped. The only thing that
-would tell you is a measurement of the rendered boxes, and you do not have one.
+would show it is a measurement of the rendered boxes, and you do not have one.
 
 This package takes that measurement. Point it at a live Playwright locator and
 it returns a graph of the rendered elements, the relationships between them —
@@ -369,8 +369,8 @@ evidence, not a preferred gap and not an automatic finding.
 
 This is the answer to the problem at the top of the page. Rather than asserting
 that a gap equals a token, declare which measured separations stand for which
-product-defined role, and let the measurement say whether two roles are actually
-distinguishable in the rendered page.
+product-defined role, and let the measurement show whether two roles are
+actually distinguishable in the rendered page.
 
 An excerpt, with the same `page` and `report` as above:
 
