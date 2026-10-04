@@ -3,7 +3,7 @@ import { isMissing } from './instrumented-modules.js';
 import { descriptor } from './coverage-file.js';
 import { decodeRecordedEyes, readableEyes, type EyesSection } from './eyes-record.js';
 import { invalid } from './format-validation.js';
-import { DURATION, FORMAT, NAMES, sections, UNCASED_FORMAT, validSections, type Header, type Section, type Stored } from './format-layout.js';
+import { DURATION, FORMAT, framedHeader, NAMES, sections, UNCASED_FORMAT, validSections, type Header, type Section, type Stored } from './format-layout.js';
 import type { Bytes } from './columns.js';
 
 /**
@@ -114,7 +114,7 @@ export function recordedEyesAt(coverageFile: string): EyesSection | undefined {
  * replaces the file between two reads of it.
  */
 export function recordedEyesOf(bytes: Uint8Array): EyesSection | undefined {
-  if (peeked(bytes)?.sections.some((section) => section.name === PARTS.eyes) !== true) return undefined;
+  if (framedHeader(bytes)?.sections.some((section) => section.name === PARTS.eyes) !== true) return undefined;
   const { eyes } = partsOf(opened({ length: bytes.length, read: (from, to) => bytes.subarray(from, to) }), ['eyes']);
   return decodeRecordedEyes(eyes!);
 }
@@ -126,7 +126,7 @@ export function recordedEyesOf(bytes: Uint8Array): EyesSection | undefined {
  * the same question for the addon.
  */
 export function recordedCases(bytes: Uint8Array): Uint8Array {
-  const cases = peeked(bytes)?.sections.find((section) => section.name === PARTS.index && section.rows === undefined);
+  const cases = framedHeader(bytes)?.sections.find((section) => section.name === PARTS.index && section.rows === undefined);
   if (cases === undefined) return bytes;
   const base = 4 + Buffer.from(bytes.buffer, bytes.byteOffset, 4).readUInt32LE(0);
   return bytes.subarray(base + cases.offset, base + cases.offset + cases.length);
@@ -177,22 +177,9 @@ function sectionsAt(coverageFile: string): readonly Section[] | undefined {
     if (head.length < 4) return undefined;
     const length = Buffer.from(head.buffer, head.byteOffset, 4).readUInt32LE(0);
     if (length > file.length - 4) return undefined;
-    return peeked(Buffer.concat([head, file.read(4, 4 + length)]))?.sections;
+    return framedHeader(Buffer.concat([head, file.read(4, 4 + length)]))?.sections;
   } finally {
     closeSync(fd);
-  }
-}
-
-function peeked(bytes: Uint8Array): { readonly sections: readonly Section[] } | undefined {
-  if (bytes.length < 4 || bytes[0] === 0x7b) return undefined;
-  const length = Buffer.from(bytes.buffer, bytes.byteOffset, 4).readUInt32LE(0);
-  if (length === 0 || length > bytes.length - 4) return undefined;
-  try {
-    const text = Buffer.from(bytes.buffer, bytes.byteOffset + 4, length).toString('utf8').replace(/\0+$/u, '');
-    const header = JSON.parse(text) as { sections?: unknown };
-    return Array.isArray(header.sections) ? { sections: header.sections as Section[] } : undefined;
-  } catch {
-    return undefined;
   }
 }
 

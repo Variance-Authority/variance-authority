@@ -228,6 +228,25 @@ export function sections(input: Readonly<Record<string, Stored>>, version = FORM
   return Buffer.concat([prefix, encoded, Buffer.alloc(headerLength - encoded.length), ...chunks]);
 }
 
+/**
+ * The header {@link sections} framed `bytes` with, or `undefined` when they are
+ * not framed that way: a length that fits, then a JSON header naming a version
+ * and its sections. Decided on the frame rather than on the first byte, which
+ * is the low byte of that length and can be any value at all — `{` included.
+ */
+export function framedHeader(bytes: Uint8Array): Header | undefined {
+  if (bytes.length < 4) return undefined;
+  const length = Buffer.from(bytes.buffer, bytes.byteOffset, 4).readUInt32LE(0);
+  if (length === 0 || length > bytes.length - 4) return undefined;
+  try {
+    const text = Buffer.from(bytes.buffer, bytes.byteOffset + 4, length).toString('utf8').replace(/\0+$/u, '');
+    const header = JSON.parse(text) as { version?: unknown; sections?: unknown } | null;
+    return typeof header?.version === 'number' && Array.isArray(header.sections) ? (header as Header) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function bytes(array: Uint8Array | Uint32Array): Buffer {
   return Buffer.from(array.buffer, array.byteOffset, array.byteLength);
 }

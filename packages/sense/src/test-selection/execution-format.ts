@@ -1,5 +1,5 @@
 import { intern } from '@variance-authority/core/segment';
-import { blob, column, sections, validSections, type Header, type Section } from './format-layout.js';
+import { blob, column, framedHeader, sections, validSections, type Header, type Section } from './format-layout.js';
 import { recordedCases } from './case-record.js';
 import { PRECONDITIONS_COLUMN, preconditionColumn, preconditionStrings, preconditionsFrom } from './case-precondition-column.js';
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
@@ -179,11 +179,31 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
   );
 }
 
-/** The bytes an execution index starts with, which a JSON one never does. */
+/**
+ * Whether `bytes` are the column spelling of an execution index rather than
+ * the JSON one.
+ *
+ * Bytes framed as {@link sections} frames them are columns, whatever their
+ * first byte: that byte is the low byte of the header's length and can spell
+ * `{` or whitespace. Bytes that are not framed are JSON when they open, after
+ * an optional byte order mark and JSON whitespace, on `{`; anything else is
+ * handed to {@link decodeExecutionIndex}, which says the file is not an index
+ * rather than a JSON parser saying where it stopped.
+ */
 export function isEncodedExecutionIndex(bytes: Uint8Array): boolean {
-  // A JSON index opens with whitespace or `{`. A column one opens with the
-  // little-endian length of its header, and a header is never that short.
-  return bytes.length > 4 && bytes[0] !== 0x7b && bytes[0] !== 0x20 && bytes[0] !== 0x0a;
+  if (framedHeader(bytes) !== undefined) return true;
+  return bytes.length > 4 && bytes[jsonStart(bytes)] !== OPEN_BRACE;
+}
+
+const OPEN_BRACE = 0x7b;
+const BYTE_ORDER_MARK = [0xef, 0xbb, 0xbf] as const;
+const JSON_WHITESPACE = new Set([0x20, 0x09, 0x0a, 0x0d]);
+
+/** Where the JSON in `bytes` would begin: past a byte order mark and whitespace. */
+function jsonStart(bytes: Uint8Array): number {
+  let at = BYTE_ORDER_MARK.every((byte, offset) => bytes[offset] === byte) ? BYTE_ORDER_MARK.length : 0;
+  while (at < bytes.length && JSON_WHITESPACE.has(bytes[at]!)) at += 1;
+  return at;
 }
 
 /**
