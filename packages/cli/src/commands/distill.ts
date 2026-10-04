@@ -24,6 +24,7 @@ import {
   recordedEyesOf,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { executionIndexOf, recordedExecutionFile } from './execution-input.js';
 import { relationsFor } from './source-graph.js';
@@ -57,12 +58,9 @@ export interface DistillOptions {
 export async function distillFiles(options: DistillOptions): Promise<Distillation | FileDistillation | ScopeDistillation> {
   if (options.test === undefined && options.file === undefined) return distillRecords(options);
   const record = options.execution ?? (await recordedExecutionFile(options.root, options.suite));
-  if (!existsSync(record)) {
-    throw new OperatorError(`distill reads a record, and nothing is recorded at ${record}`);
-  }
+  // One read: the index and the journals are then one run's, whatever lands between.
+  const bytes = await recordAt(record);
   try {
-    // One read: the index and the journals are then one run's, whatever lands between.
-    const bytes = await readFile(record);
     const execution = executionIndexOf(bytes);
     if (options.test === undefined && options.file !== undefined) {
       const input = { file: options.file, execution, coverage: coverageOf(bytes, record) };
@@ -106,8 +104,7 @@ async function distillRecords(options: DistillOptions): Promise<ScopeDistillatio
       unrecorded.push(suite!);
       continue;
     }
-    if (!existsSync(record)) throw new OperatorError(`distill reads a record, and nothing is recorded at ${record}`);
-    const bytes = await readFile(record);
+    const bytes = await recordAt(record);
     records.push({
       ...(suite === undefined ? {} : { suite }),
       execution: asOperator(() => executionIndexOf(bytes)),
@@ -124,6 +121,16 @@ async function distillRecords(options: DistillOptions): Promise<ScopeDistillatio
   if (flat.spills.length === 0) return flat;
   const graph = await fileGraph(options.root);
   return distillScope({ ...input, imports: importsOf(graph), republishes: republishesOf(graph) });
+}
+
+/** A record's bytes, or the operator's refusal when nothing is recorded there. */
+async function recordAt(record: string): Promise<Buffer> {
+  if (!existsSync(record)) throw new OperatorError(`distill reads a record, and nothing is recorded at ${record}`);
+  try {
+    return await readFile(record);
+  } catch (error) {
+    throw new OperatorError(messageOf(error), { cause: error });
+  }
 }
 
 /** The declared suites' names, or none when the repository records once. */
