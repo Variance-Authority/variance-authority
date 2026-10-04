@@ -355,8 +355,8 @@ deleted still has crossings above it, and a diff at the place that function
 was reaches it through them. Only a test that loses every crossing in a module
 is demoted to incomplete and selected whole next time.
 
-**A digest that changed keeps the crossing and demotes the test.** It says the
-region's own text changed, and the tests to run are the ones recorded against
+**A digest that changed keeps the crossing and demotes a test the run did not
+observe.** It says the region's own text changed, and the tests to run are the ones recorded against
 that region — which is the crossing. Reading a digest as a reason to discard
 the crossing would throw away the evidence the change is about to be answered
 with, and reading the owners' digests too made any edit at a module's top level
