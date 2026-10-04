@@ -238,6 +238,8 @@ describe('the CLI distillation boundary', () => {
     for (const [file, text] of Object.entries(sources)) writeFileSync(join(root, file), text);
     execFileSync('git', ['add', 'test', 'src'], { cwd: root, stdio: 'pipe' });
     execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'source'], { cwd: root, stdio: 'pipe' });
+    // Published as a pipeline publishes it: under CI a reader refuses to build the index itself.
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const answer = await run(['distill', '--file', 'cart.spec']);
 
