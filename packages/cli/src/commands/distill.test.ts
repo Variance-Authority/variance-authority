@@ -251,6 +251,23 @@ describe('the CLI distillation boundary', () => {
     expect(answer.err).toContain('holds no coverage rows, which say what a test file loaded; name a case with --test');
   });
 
+  it('reports a record whose coverage rows are damaged as damaged, not as keeping none', async () => {
+    const root = checkout();
+    const at = join(root, 'damaged.bin');
+    await indexed(at, plain);
+    // The header names each section; one coverage section renamed in place is
+    // one the decoder must find and cannot, while the case index still reads.
+    const bytes = readFileSync(at);
+    const header = bytes.readUInt32LE(0);
+    const head = bytes.toString('utf8', 4, 4 + header).replace('"tests.complete"', '"tests.completE"');
+    writeFileSync(at, Buffer.concat([bytes.subarray(0, 4), Buffer.from(head, 'utf8'), bytes.subarray(4 + header)]));
+
+    const answer = await run(['distill', '--file', 'plain', '--execution', at]);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).not.toContain('holds no coverage rows');
+  });
+
   it('takes the recorded index or a named one, never both', async () => {
     checkout();
 

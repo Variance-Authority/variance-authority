@@ -13,6 +13,8 @@ import {
 } from '@variance-authority/distill';
 import {
   decodeTestCoverage,
+  isEncodedExecutionIndex,
+  RecordWithoutCoverage,
   recordedEyesOf,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
@@ -69,15 +71,19 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
 
 /**
  * The coverage rows of a record, which say which test file loaded which module.
- * A case index on its own carries none, and a file reading has nothing to read.
+ * A case index on its own carries none, and a file reading has nothing to read;
+ * a record whose rows do not decode is damaged, and says so.
  */
 function coverageOf(bytes: Uint8Array, record: string): TestCoverage {
+  const none = new OperatorError(
+    `${record} holds no coverage rows, which say what a test file loaded; name a case with --test, or read a record`,
+  );
+  if (!isEncodedExecutionIndex(bytes)) throw none;
   try {
     return decodeTestCoverage(bytes);
-  } catch {
-    throw new OperatorError(
-      `${record} holds no coverage rows, which say what a test file loaded; name a case with --test, or read a record`,
-    );
+  } catch (error) {
+    if (error instanceof RecordWithoutCoverage) throw none;
+    throw error;
   }
 }
 
