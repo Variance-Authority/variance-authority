@@ -357,16 +357,17 @@ deleted still has crossings above it, and a diff at the place that function
 was reaches it through them. Only a test that loses every crossing in a module
 is demoted to incomplete and selected whole next time.
 
-**A digest that changed keeps the crossing and demotes the test.** It shows that
-the region's own text changed, and the tests to run are the ones recorded
-against that region — which is the crossing. Reading a digest as a reason to
-discard the crossing would throw away the evidence the change is about to be
-answered with, and reading the owners' digests too made any edit at a module's
-top level retire every crossing in the file. But the re-recorded rows hold the
-text the run read, and selection reads a later change from that text, so the
-edit between the text a carried test ran over and this one is in no diff it will
-read. Each test on such a region that the run did not observe is demoted to
-incomplete; a test the run observed was recorded again over the new text.
+**A digest that changed keeps the crossing and demotes a test the run did not
+observe.** It shows that the region's own text changed, and the tests to run are
+the ones recorded against that region — which is the crossing. Reading a digest
+as a reason to discard the crossing would throw away the evidence the change is
+about to be answered with, and reading the owners' digests too made any edit at
+a module's top level retire every crossing in the file. But the re-recorded rows
+hold the text the run read, and selection reads a later change from that text,
+so the edit between the text a carried test ran over and this one is in no diff
+it will read. Each test on such a region that the run did not observe is
+demoted to incomplete; a test the run observed was recorded again over the new
+text.
 
 | edit, under a run that did not observe the test | crossings kept | the kept test's row |
 |---|---|---|
