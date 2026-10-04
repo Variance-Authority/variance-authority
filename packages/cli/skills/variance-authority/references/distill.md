@@ -16,7 +16,8 @@ mock of the listed path. It needs a recorded run, not `--execution` JSON, and is
 withheld when a case stopped or the file's coverage row is incomplete; run the
 file again. `--root` (default: the working
 directory) is the root the record's paths are relative to. `--format json`
-returns the same reading as data. The `variance_distill` MCP tool returns the
+returns the same reading as data; for a file, the text names ten imports and
+three modules a group, and the JSON every module with its `cause`. The `variance_distill` MCP tool returns the
 same deterministic reading of one case, and needs its test id; the file reading
 is the CLI's.
 

@@ -175,14 +175,17 @@ export function formatFileDistillation(result: FileDistillation): string {
     '',
     `Loaded, and entered by no case: ${lines(never)}.`,
     ...(never.some(({ cause }) => cause !== undefined)
-      ? byCause(never).flatMap(([head, modules]) => [
+      ? groupsShown(byCause(never)).flatMap(([head, modules, shown]) => [
         `  ${head}: ${lines(modules)}`,
-        ...modules.map((module) => `    ${module.file} — ${size(module)}${partsOf(module.cause)}`),
+        ...(shown
+          ? listed(modules, MODULES_SHOWN, '    ', lines, (module) => `${module.file} — ${size(module)}${partsOf(module.cause)}`)
+          : []),
       ])
-      : never.map((module) => `  ${module.file} — ${size(module)}`)),
+      : listed(never, LISTED_SHOWN, '  ', lines, (module) => `${module.file} — ${size(module)}`)),
     '',
     `Loaded, and entered by some cases only: ${lines(some)}.`,
-    ...some.map((module) => `  ${module.file} — ${size(module)}, entered by ${module.entered} of ${result.cases.length} case(s)`),
+    ...listed(some, LISTED_SHOWN, '  ', lines, (module) =>
+      `${module.file} — ${size(module)}, entered by ${module.entered} of ${result.cases.length} case(s)`),
     '',
     (never.some(({ cause }) => cause !== undefined)
       ? 'Each module is evidence, not the fix: the fix is the import named above it. '
@@ -212,6 +215,42 @@ function byCause(modules: readonly LoadedModule[]): readonly (readonly [string, 
   const rank = (head: string): number => (head === SHARED ? 1 : head === UNSEEN ? 2 : 0);
   return [...groups].sort(([left, a], [right, b]) =>
     rank(left) - rank(right) || weight(b) - weight(a) || compare(left, right));
+}
+
+/** How many imports, modules under one group, and modules in a flat list the text names; the JSON names every one. */
+const IMPORTS_SHOWN = 10;
+const MODULES_SHOWN = 3;
+const LISTED_SHOWN = 10;
+
+type Group = readonly [string, readonly LoadedModule[]];
+
+/**
+ * The heaviest imports, then the shared and the unseen. The imports past the
+ * first ones fold into one group whose modules are not listed.
+ */
+function groupsShown(groups: readonly Group[]): readonly (readonly [string, readonly LoadedModule[], boolean])[] {
+  const imports = groups.filter(([head]) => head !== SHARED && head !== UNSEEN);
+  const listed = (group: Group) => [...group, true] as const;
+  if (imports.length <= IMPORTS_SHOWN) return groups.map(listed);
+  const rest = imports.slice(IMPORTS_SHOWN);
+  return [
+    ...imports.slice(0, IMPORTS_SHOWN).map(listed),
+    [`and ${rest.length} more import(s)`, rest.flatMap(([, modules]) => modules), false] as const,
+    ...groups.slice(imports.length).map(listed),
+  ];
+}
+
+/** The first `count` modules, then one line that sums the rest. */
+function listed(
+  modules: readonly LoadedModule[],
+  count: number,
+  indent: string,
+  lines: (modules: readonly LoadedModule[]) => string,
+  line: (module: LoadedModule) => string,
+): readonly string[] {
+  const head = modules.slice(0, count).map((module) => indent + line(module));
+  if (modules.length <= count) return head;
+  return [...head, `${indent}and ${modules.length - count} more: ${lines(modules.slice(count))}`];
 }
 
 const SHARED = 'No one import brings these in alone';

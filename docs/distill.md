@@ -265,6 +265,10 @@ groups take what no one import accounts for:
 An import the record says the file never evaluated — a module mocked with a
 factory — is not walked; an automocked module was evaluated, and is.
 
+The text names the ten heaviest imports and the three largest modules under
+each group, ten of those only some cases entered, and sums the rest on one line; `--format json` lists every module
+with its cause.
+
 A module listed is evidence; the fix is at its import. Delete that
 import, or mock it with a factory, when nothing behind it is used; when part
 of it is, import past the barrel inside its own package, or from an entry its

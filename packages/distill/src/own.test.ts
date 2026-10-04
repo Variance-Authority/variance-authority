@@ -195,4 +195,31 @@ describe('formatFileDistillation with causes', () => {
       '    src/lazy.ts — 10 line(s)',
     ].join('\n'));
   });
+
+  it('names the ten heaviest imports and three modules under each, and sums the rest; the result keeps every one', () => {
+    const modules: Record<string, Module> = { 'src/dialog.ts': USED };
+    const edges: Record<string, string[]> = { [FILE]: ['src/dialog.ts'], 'src/dialog.ts': [] };
+    for (let at = 0; at < 12; at += 1) {
+      const name = `src/m${String(at).padStart(2, '0')}.ts`;
+      modules[name] = NEVER;
+      edges['src/dialog.ts']!.push(name);
+    }
+    edges['src/m00.ts'] = ['src/deep1.ts', 'src/deep2.ts', 'src/deep3.ts', 'src/deep4.ts'];
+    for (const deep of edges['src/m00.ts']) modules[deep] = NEVER;
+
+    const result = read(modules, edges);
+    const text = formatFileDistillation(result);
+
+    expect(text).toContain([
+      '  src/dialog.ts imports src/m00.ts: 5 module(s), 50 line(s)',
+      '    src/deep1.ts — 10 line(s)',
+      '    src/deep2.ts — 10 line(s)',
+      '    src/deep3.ts — 10 line(s)',
+      '    and 2 more: 2 module(s), 20 line(s)',
+      '  src/dialog.ts imports src/m01.ts: 1 module(s), 10 line(s)',
+    ].join('\n'));
+    expect(text).toContain('  src/dialog.ts imports src/m09.ts: 1 module(s), 10 line(s)\n    src/m09.ts — 10 line(s)\n  and 2 more import(s): 2 module(s), 20 line(s)\n\n');
+    expect(text).not.toContain('src/m10.ts');
+    expect(Object.keys(causes(result))).toHaveLength(16);
+  });
 });
