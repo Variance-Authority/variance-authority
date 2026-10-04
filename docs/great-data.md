@@ -7,7 +7,7 @@ there, and most of what you can now ask it has nothing to do with pixels.
 `toHaveScreenshot`, Percy, Chromatic and Argos end at the comparison. They
 answer a red build with a pixel count and two images, and once you have reviewed
 the diff there is nothing more to ask it. A Variance Authority run also writes down what it
-saw while it was there: which [**subject**](information.md#things-a-run-addresses) rendered — one named UI state you
+observed while it ran: which [**subject**](information.md#things-a-run-addresses) rendered — one named UI state you
 asked for and can ask for again — and which components drew which regions, at
 which `file:line`. Add a semantic snapshot, a [source index](source-index.md) or
 an execution journal to the run and the same record also gains the accessible
@@ -123,8 +123,8 @@ Each reading covers a narrower claim than its output may suggest, so check which
 one you are reading before you act on it. Presentation measurements report
 relationships, not a design decision. A journey records where an execution went,
 not why. A lexicon match orients you toward a subject; it does not confirm you
-found the right one. Source reach says what could be affected, while execution
-says what was witnessed. A reading that was never taken stays unavailable rather
+found the right one. Source reach shows what could be affected, while execution
+records what was observed. A reading that was never taken stays unavailable rather
 than arriving as a clean empty result, which is why the `locate` answer above
 can tell you it never read regions.
 

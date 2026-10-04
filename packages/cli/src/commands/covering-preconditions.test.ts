@@ -117,23 +117,23 @@ describe('`--where` counts the cases that covered what was asked', () => {
   it('counts out of the cases that covered the function, not the whole record', async () => {
     const answer = await text(['--file', 'src/cart.ts', '--function', 'round', '--where', 'flag=ff-on']);
 
-    expect(answer).toContain('Kept the 2 of 4 cases that covered function round of src/cart.ts and said flag=ff-on.\n');
+    expect(answer).toContain('Kept the 2 of 4 cases that covered function round of src/cart.ts and recorded flag=ff-on.\n');
   });
 
-  it('says so when none of them said it', async () => {
+  it('says so when none of them recorded it', async () => {
     expect(await text(['--file', 'src/cart.ts', '--line', '6', '--where', 'flag=ff-half']))
-      .toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none said flag=ff-half.\n');
+      .toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none recorded flag=ff-half.\n');
   });
 
-  it('claims none said it only of the cases that were listened to', () => {
+  it('claims none recorded it only of the cases recorded with preconditions', () => {
     const answer = (unmeasured: number) => formatCovering({
       file: 'src/cart.ts', from: 'coverage.bin', target: { line: 6 }, tests: [],
       where: { asked: ['flag=ff-half'], kept: 0, of: 4, unmeasured, outside: [] },
     }, 'text');
 
-    expect(answer(1)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of the 3 listened to said flag=ff-half.\n');
-    expect(answer(1)).toContain('1 case was not listened to');
-    expect(answer(4)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of them was listened to.\n');
+    expect(answer(1)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of the 3 with recorded preconditions has flag=ff-half.\n');
+    expect(answer(1)).toContain('1 case was recorded without preconditions');
+    expect(answer(4)).toContain('Kept none of the 4 cases that covered line 6 of src/cart.ts: none of them was recorded with preconditions.\n');
   });
 
   it('says no count over a file whose recorded text is gone, where no case can be placed', () => {
@@ -152,12 +152,12 @@ describe('`--where` counts the cases that covered what was asked', () => {
       where: { asked: ['flag=ff-on'], kept: 0, of: 0, unmeasured: 0, outside: [] },
     }, 'text');
 
-    expect(answer).toContain('No case covered function round of src/cart.ts, so none said flag=ff-on.');
+    expect(answer).toContain('No case covered function round of src/cart.ts, so none recorded flag=ff-on.');
   });
 
   it('counts the whole-file answer out of the cases that covered the file', async () => {
     expect(await text(['--file', 'src/cart.ts', '--where', 'flag=ff-on']))
-      .toContain('Kept the 2 of 5 cases that covered src/cart.ts and said flag=ff-on.\n');
+      .toContain('Kept the 2 of 5 cases that covered src/cart.ts and recorded flag=ff-on.\n');
   });
 });
 
@@ -206,6 +206,6 @@ describe('the review reading carries what each case said', () => {
       'text',
     );
 
-    expect(answer).toContain('Kept the 2 of 4 cases that covered the change since main and said flag=ff-on.\n');
+    expect(answer).toContain('Kept the 2 of 4 cases that covered the change since main and recorded flag=ff-on.\n');
   });
 });

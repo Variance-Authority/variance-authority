@@ -294,7 +294,7 @@ and leaves `.variance/baselines/.gitattributes` reading:
 ```
 
 `filter` is what git resolves the `filter` attribute to for a matching path, and
-`null` when git could not be asked at all. `diagnostics` is empty when
+`null` when git could not be run at all. `diagnostics` is empty when
 everything was checked, and lists one line per thing that could not be — so an
 un-smudged clone does not read as a passing run.
 
@@ -312,7 +312,7 @@ subject in the suite. The store refuses a pointer file read as an image.
 | `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
 | `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
 | `recordRoot` | `root` | where the `.json` sidecars go, passed straight to the durable store. The reason to set it is sharpest here: `pattern` routes the images out of the object database, and the sidecars are the text left behind gaining a revision per document change |
-| `verify` | `true` | `false` skips consulting git entirely, and says so in `tracking.diagnostics` rather than silently |
+| `verify` | `true` | `false` skips consulting git entirely, and records that in `tracking.diagnostics` rather than silently |
 | `git` | `runCommand` | the `CommandRunner` git is invoked through — a `(command, args, { cwd }) => Promise<{ code, stdout, stderr }>` function, defaulting to a wrapper around `execFile`, swappable in tests |
 
 Because `git` is injected, all of this is testable without a git repository.
@@ -390,7 +390,7 @@ a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4 2026-08-21T10:14:02+10:00 shape
 git reports it.
 
 `11/14` is the finding: the change was promoted in eleven of the fourteen
-subjects it reached, so three are still sitting in the suite. `selection` says
+subjects it reached, so three are still sitting in the suite. `selection` names
 which flag chose the subjects — `named`, `shape` or `all` — because `--all`
 promotes changed subjects as well as new ones, and that is regeneration rather
 than review.
@@ -467,7 +467,7 @@ unless you set it. `extraHeader` is the `http.extraheader` your clone sends to
 configuration, so pass it on. The cell gives it to git through the environment
 and never writes it to disk.
 
-`gitDescends(options, branch)` answers the question a mainline publish asks:
+`gitDescends(options, branch)` answers the question a mainline publish needs answered:
 whether one commit of `branch` strictly descends from another. It fetches the
 branch's commits alone into the same `gitDir`, once, and answers `undefined`
 when the fetch fails or a commit is not in it.

@@ -6,7 +6,7 @@ decides at the grain of a package therefore has nothing to say about it, and a
 selector that decides at the grain of a file has little more: change one line
 in the core and either one selects most of the suite. Run the suite once
 through [Variance Authority](README.md) and a one-line edit selects 8 runs,
-because the record knows which of the files that *reach* a module covered the
+because the record shows which of the files that *reach* a module covered the
 *lines* you changed.
 
 > **TLDR**
@@ -96,7 +96,7 @@ The hub modules behave the same way at a larger size: `core/schemas.ts` is
 `core/compile.ts` is 686 regions, median 13.
 
 Two orders of magnitude separate a module's top level from its interior, and
-only something present while the tests ran can tell them apart.
+only something present while the tests ran can distinguish them.
 
 ## What the record will not speak for
 
@@ -122,7 +122,7 @@ costs 3 files out of 202 and is correct.
 
 The fork keeps a replay script for the sixty commits before the instrumentation
 landed. For each one it checks out the commit's parent, builds the library,
-records the suite there, then checks out the commit and asks which test files
+records the suite there, then checks out the commit and queries which test files
 its change needs. Every count is in one unit: the test files in the parent's
 record. A file selected on five commits counts five times.
 
@@ -158,7 +158,7 @@ through one namespace, `import * as z`, and the walk is whole wherever an import
 names no export.
 
 Where a commit changes the inside of a function, the record selects fewer
-than the walk, because it knows which of the files that load `core/schemas.ts`
+than the walk, because it records which of the files that load `core/schemas.ts`
 ran the lines that changed. It selects fewer on twelve commits, 798 fewer in all. A fix
 to discriminated unions selects 130 from the walk and 19 from the record; a fix
 to format checks, 130 and 28.
@@ -198,7 +198,7 @@ One commit, and three things in it:
   folds one run into one record. Here that meant splitting the shared base into
   an unwrapped `vitest.root.mjs`, so the projects that merge it do not wrap
   twice.
-- A dispatcher that decides nothing. It asks `variance select` for a skip list,
+- A dispatcher that decides nothing. It calls `variance select` for a skip list,
   subtracts, and hands the rest to Vitest. Everything that makes the answer
   safe lives in the answer, not in the script.
 

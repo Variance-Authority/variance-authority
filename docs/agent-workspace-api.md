@@ -1,14 +1,14 @@
 # Find code through the workspace index
 
-This is the source how-to and contract for
-[orientation](orientation.md). Start there when you need to choose between text
-search, indexed source search and observed-subject search.
-
 `rg` tells you where text is written. This server tells you which exported name
 matches your words in the part of the import graph you are working in, then gives
 you its import line, declaration, signature, documentation, and existing import
 sites. It answers from a dated workspace generation — no build, run, generated
 API site, or `variance.config.json` in between.
+
+This is the source how-to and contract for
+[orientation](orientation.md). Start there when you need to choose between text
+search, indexed source search and observed-subject search.
 
 The difference matters when a checkout is too large to open again for every
 question. A [source index](source-index.md) parses and resolves a file once,
@@ -56,7 +56,7 @@ the answer labels imports separately from availability. Ask
 `symbol --name <name> --package <package>` for the installed signature and full documentation.
 The declaration provider is named when it differs from the runtime package.
 A package the workspace resolves but that ships no declarations has no names to
-match, so `symbol` says so, gives the path and line count of the `README.md`
+match, so `symbol` reports that, gives the path and line count of the `README.md`
 beside its manifest, and quotes the README passage that names the symbol,
 labelled as that file's. Naming `--package` reports the README even when it does
 not mention the symbol; a package with no README is reported as shipping none.
@@ -65,7 +65,7 @@ This is a resolved module graph, not a function-call graph. It records file
 imports, re-exports, literal dynamic imports, type imports, asset edges, and the
 files a module names in `/// <depends path="…" />`. It
 can answer what a file rests on, what rests on that file, and where an exported
-name is imported. It does not claim that one function called another at runtime;
+name is imported. It does not record that one function called another at runtime;
 open the named file or use a language server for that question.
 
 No graph database service sits on the answer path. The producer publishes a
@@ -170,9 +170,9 @@ flag is accepted and changes nothing. With no published generation, `search`
 refuses and names the command to run.
 
 When an editor, watcher, or orchestrator produces a generation and already
-knows the changed paths, write their scan-root-relative paths to a newline-delimited
-file and pass that file through `--changed-file`. An empty file means the caller
-knows nothing changed. This is producer input: it replaces Git's changed-file
+has the changed paths, write their scan-root-relative paths to a newline-delimited
+file and pass that file through `--changed-file`. An empty file declares that
+nothing changed. This is producer input: it replaces Git's changed-file
 discovery and cannot be combined with `--just-answer`. [Naming what
 changed](source-index.md#naming-what-changed) gives the file contract.
 
@@ -246,7 +246,7 @@ the import line, declaration, signature, source documentation, and importing
 packages of the name you are investigating.
 
 Call `docs_uses` when the question is how the name is written here rather than
-what it claims to be. It returns the file and line of every import, with the
+what it is. It returns the file and line of every import, with the
 stories and the tests — the files written to show the name in use — listed apart
 from the source that depends on it. Pass `from` with the file you are editing and
 the sites arrive ordered by how many leading path segments they share with it.
@@ -300,7 +300,7 @@ variance ask search --query order --from src/fulfilment/
 variance-authority-help search order --from src/fulfilment/
 ```
 
-## What the answer claims, and what it does not
+## What the answer shows, and what it does not
 
 The server reads manifests and TypeScript source, not `dist`. It parses with
 `oxc-parser` and resolves with `oxc-resolver`; no TypeScript language service
@@ -312,7 +312,7 @@ a call to it — where a named import is used inside that file is a question for
 your editor's language server.
 
 Missing documentation remains missing, and a search with no exact substring
-match says so before it offers anything near it. Those absences are source
+match reports that before it offers anything near it. Those absences are source
 facts, not prompts for the server to infer an answer: a looser reading of your
 own words can add names below the answer, and nothing can promote one into it.
 
@@ -345,7 +345,7 @@ when its description matches the task. Put these lines in `AGENTS.md`, with
 ## Finding your way in the code
 
 Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
-name, `ask symbol --name <name>` says what it is and where it is declared, and
+name, `ask symbol --name <name>` prints what it is and where it is declared, and
 `ask search --query <words>` finds a name by what it does. The
 `variance-authority` skill has the rest.
 ```

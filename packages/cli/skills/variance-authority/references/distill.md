@@ -25,8 +25,8 @@ record, keyed by the case and its attempt, numbered from 1. See
 
 A journal is `complete` and a sequence of `eyes-phase`, `react-commit`,
 `react-tap-refused`, `document-event`, `rtl-query` and `playwright-locator`
-entries. `complete` is the producer's own statement that the journal closed
-cleanly, and nothing else. `complete: false` carries a `because` saying why. It
+entries. `complete` is the producer's own flag that the journal closed
+cleanly, and nothing else. `complete: false` has a `because` field with the reason. It
 is **not** a judgement about whether `attention` has anything in it.
 
 `--execution` also takes an `ExecutionIndex` as JSON, from a tool that already
@@ -108,7 +108,7 @@ named lines, and compare each with the witness line for line:
 the third condition cannot be decided. Discard the edit rather than keep it on
 an unavailable reading.
 
-Never batch opportunities into one experiment: a passing test would not say
+Never batch opportunities into one experiment: a passing test would not show
 which substitution was justified. A file the test ran with no addressed
 attribution is a queue for counterfactual checks, not permission to mock it.
 
@@ -122,8 +122,8 @@ denominator.
 
 ## Read the evidence literally
 
-- `PerformedWork` component names say which render bodies ran.
-  `memoizedUpdaters` paths say which live component instances started an update.
+- `PerformedWork` component names list the render bodies that ran.
+  `memoizedUpdaters` paths list the live component instances that started an update.
   Neither proves which source statement scheduled it.
 - A missing updater field means the renderer did not expose it. An empty updater
   list means the set was measured and empty.

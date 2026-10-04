@@ -93,7 +93,7 @@ A case Playwright retried keeps a journal for every attempt, numbered from 1,
 and Distill prints each one. An opportunity is a file no attempt addressed.
 
 A record whose run did not use Eyes still answers what the case entered, and
-says the attention half is missing:
+reports that the attention half is missing:
 
 ```text
 Distillation opportunities: unavailable; the record keeps no Eyes journals; the run did not opt into Eyes.
@@ -182,7 +182,7 @@ than as "called directly".
 
 An opportunity is not permission to mock, replace, or delete the file.
 [Static reachability](source.md) describes what the test could load; execution
-says what it covered; attention says what it addressed. None says what the test
+records what it covered; attention records what it addressed. None records what the test
 would still witness after a substitution.
 
 ## Imports nothing ever calls
@@ -256,7 +256,7 @@ With a complete empty Eyes journal, the addressed surface is measured empty and
 the comparison can proceed. Neither case is printed as zero Fiber usage.
 
 The current reading counts addressed target paths and covered files. It does
-not claim a percentage of the Fiber tree: unmounted, hidden, lazy and
+not report a percentage of the Fiber tree: unmounted, hidden, lazy and
 never-observed branches have different denominators, and a DOM target does not
 establish that every ancestor or descendant participates in the assertion.
 

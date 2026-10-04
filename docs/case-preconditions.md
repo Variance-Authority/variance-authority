@@ -152,7 +152,7 @@ variance covering --file src/checkout/total.ts --function total --where prices=d
 ```
 
 ```text
-Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and said prices=discounted.
+Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
     sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
@@ -171,11 +171,11 @@ read at the axis's base, and `--where` matches it there.
 every format. The count in `Kept` is out of the tests that covered what you
 asked, before `--where`, and within the
 [`--cases`](../packages/cli/README.md#reading-the-test-you-are-writing) scope
-when you give one. When `--where` keeps none, the answer says so and counts
+when you give one. When `--where` keeps none, `covering` prints that and counts
 them:
 
 ```text
-Kept none of the 4 cases that covered function total of src/checkout/total.ts: none said prices=sale.
+Kept none of the 4 cases that covered function total of src/checkout/total.ts: none recorded prices=sale.
 ```
 
 ## Twins
@@ -214,7 +214,7 @@ question in front of you while you read coverage: *this code ran with the
 discount on; did a test also run it with the discount off, everything else
 equal?*
 
-When no such test exists, the answer says so:
+When no such test exists, `covering` prints that:
 
 ```text
     applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
@@ -222,7 +222,7 @@ When no such test exists, the answer says so:
 ```
 
 That means no test in the same file covered this code with `discount=off`,
-recorded or read at the base, and the same other preconditions. It does not claim no such test exists elsewhere, and
+recorded or read at the base, and the same other preconditions. It does not mean that no such test exists elsewhere, and
 on code that only runs with the discount on, such as an `applyDiscount`
 function, every `discount=on` test prints it.
 
@@ -361,7 +361,7 @@ When only some rows lack it, the answer counts them apart, in a line under
 `Kept`:
 
 ```text
-3 cases were not listened to, so whether they said any of that is unmeasured.
+3 cases were recorded without preconditions, so whether they ran under any of that is unmeasured.
 ```
 
 ### Not the file-level `preconditions` option

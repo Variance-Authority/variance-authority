@@ -40,4 +40,4 @@ first, then a docs page, then a README. A task tracker's notes describe work
 in flight rather than the design; read them last.
 
 Say which places you searched. A place you could not open is unknown, not
-silent, and a name nothing explains is still a gap after you have looked.
+empty, and a name nothing explains is still a gap after you have looked.

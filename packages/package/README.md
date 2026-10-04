@@ -113,7 +113,7 @@ what kind of thing it is.
 
 ## Rank names and find undocumented exports
 
-`readHelp` is the same walk with two more questions asked of it: what was
+`readHelp` is the same walk with two more readings taken: what was
 written above each name — its **doc**, the block comment attached to the
 declaration — and which packages import it. Names come back ordered by how
 many packages import them, so the ones most consumers depend on sort first.

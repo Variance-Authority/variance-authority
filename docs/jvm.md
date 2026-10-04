@@ -164,7 +164,7 @@ checkout, whichever module ran, so they match a diff taken at its root.
 ## Record a service a Jest case calls
 
 A Jest case that calls a service over HTTP runs code in another process, and
-nothing in the case's own record says so. To join the two, every request
+nothing in the case's own record shows it. To join the two, every request
 carries the case's [journey](journeys.md), an opaque id the Jest seam mints per
 case. The service writes what it ran under each journey to files in a parts
 directory. After the run, `variance journeys finalize` joins those parts to the
@@ -245,13 +245,13 @@ git diff origin/main | yarn exec variance select --execution .variance-authority
 ```
 
 The fold charges each journey's frame to the case that minted it. It charges
-the between frame, which holds the service's startup and anything no journey
-claimed, to every case that sent this process at least one request.
+the between frame, which holds the service's startup and anything not attributed to a journey,
+to every case that sent this process at least one request.
 
 A class that is `unknown` goes into its journey's frame by class name, with no
 regions. No record holds that name, so `journeys finalize` lists it among the
 modules cases ran that no record holds: a change to it selects nothing, and the
-finalize tells you which classes those are.
+finalize prints which classes those are.
 
 ### Concurrent requests
 

@@ -11,7 +11,7 @@ at.
 This page takes one UI state through that loop end to end, so you can see the
 whole review cycle before deciding how much of the suite belongs in it.
 
-## Start from a state something already knows how to set up
+## Start from a state something already sets up
 
 A **subject** is one named UI state you asked for and can ask for again — one
 Storybook story, one route at one viewport, one component mounted in a test —
@@ -119,7 +119,7 @@ variance run --config variance.config.json
 ```
 
 The rerun exits `0` once the subject is `unchanged`. Keep `accept --all` out of
-unattended workflows: it cannot tell a candidate somebody reviewed from one
+unattended workflows: it cannot distinguish a candidate somebody reviewed from one
 nobody opened.
 
 ## Read what came back

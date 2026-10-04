@@ -1,6 +1,6 @@
 # Keep a history of what a run changed
 
-Every run writes a report and then forgets the one before it. A history service
+Every run writes a report and does not keep the one before it. A history service
 keeps them, so drift that no single comparison was wrong about can still be asked
 about as a sum.
 
@@ -93,7 +93,7 @@ whose config is right and whose CI secret is missing is sent to the secret. A
 literal string is still accepted, for a token that is not a secret.
 
 A run also has to be able to **name itself**, because a row that cannot be
-joined to a build is a row nothing can ask about:
+joined to a build is a row no query can find:
 
 ```bash
 npx variance run --config variance.config.json --run "$GITHUB_RUN_ID" --commit "$GITHUB_SHA"
@@ -103,7 +103,7 @@ Inside GitHub Actions, GitLab CI or Bitbucket Pipelines you can leave both off:
 the pair is read whole from `GITHUB_RUN_ID` and `GITHUB_SHA`, `CI_PIPELINE_ID`
 and `CI_COMMIT_SHA`, or `BITBUCKET_BUILD_NUMBER` and `BITBUCKET_COMMIT`. A run
 id and a commit are never taken from two different sources. Anywhere else, a run
-with no identity records **nothing** and says so in its warnings — an id
+with no identity records **nothing** and prints that in its warnings — an id
 invented on your behalf would attach every later answer to a build that never
 happened.
 
@@ -126,7 +126,7 @@ recorded before it writes, and sends only what changed.
 
 ## What you get back
 
-The run asks the questions, and the answers travel **in the report** — the file
+The run queries the history service, and the answers travel **in the report** — the file
 a run writes when it finishes, at the path the `report` key in
 `variance.config.json` names. The summary, the pull-request comment and an agent
 over MCP all read that one file, hours apart, none of them connected to your
@@ -186,8 +186,8 @@ answers.
 ## Two rules worth knowing before you trust a number
 
 **Only approved changes count.** A rejected change was caught; counting it would
-describe your review process rather than your product. A run cannot know whether
-anybody agreed, so it writes every row unapproved and `npx variance accept` records
+describe your review process rather than your product. A run cannot observe whether
+anybody approved, so it writes every row unapproved and `npx variance accept` records
 the approval separately — one row per `(subject, run)`, which is exactly the
 decision a reviewer makes. Until a subject is accepted, its change is counted as
 rejected.

@@ -137,7 +137,7 @@ on its own.
 | instrument                                                | the question                                                  | what it needs                                                         |
 | --------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- |
 | **[Eyes](eyes.md)**                                       | which elements did this test address, and who rendered them?  | the React Testing Library or Playwright already in the suite          |
-| **[Vantage](vantage.md)**                                 | what is this run saying, while it is still saying it?         | one environment variable, and a process to watch from                 |
+| **[Vantage](vantage.md)**                                 | what is this run reporting, while it is still running?        | one environment variable, and a process to watch from                 |
 | **[scenarios](scenarios.md)**                             | at which Act did two executions stop agreeing?                | a scenario named in the test that already walks it                    |
 | **[journeys](journeys.md)**                               | which path through the source did this execution take?        | a build with the probes compiled in, and nothing else for one process |
 | **[divergence](composition.md#one-input-two-renderings)** | one props digest, more than one rendering — from which input? | two renderings in one run, which a suite is usually already producing |

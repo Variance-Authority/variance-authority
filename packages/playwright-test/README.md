@@ -2,12 +2,12 @@
 
 # @variance-authority/playwright-test
 
-> Add a source-aware visual observation to a Playwright test that already knows how to get the app into the state.
+> Add a source-aware visual observation to a Playwright test that already gets the app into the state.
 
 Part of [Variance Authority](https://variance-authority.dev).
 
-Your Playwright test already knows how to navigate, authenticate, mount data and
-wait for the application. This package adds one call to that test. The call
+Your Playwright test already navigates, authenticates, mounts data and
+waits for the application. This package adds one call to that test. The call
 screenshots a locator, compares the image against the baseline you approved, and
 fails with the components behind the changed pixels:
 
@@ -36,7 +36,7 @@ two can assert on the same page in the same test. Three things are different
 here:
 
 - **The failure message names components.** Where the engine or a source index
-  can say so, it also names the file and line behind them — the sample above is
+  supplies them, it also names the file and line behind them — the sample above is
   the whole message, with no image opened.
 - **A baseline records the browser, platform and scale it was painted under.**
   A baseline recorded elsewhere returns `incomparable` rather than a wall of
@@ -139,10 +139,10 @@ Attribution names a component. Turning `Toggle` into `src/ds/components.tsx:107`
 is a separate hop, and there are three ways it happens.
 
 **Nothing to do, on Chromium.** The page agent keeps the component functions
-React actually called, and the session asks Chromium over CDP where each one was
-compiled from, mapping the answer back through the served source maps to a
+React actually called, and the session queries Chromium over CDP for where each one
+was compiled from, mapping the answer back through the served source maps to a
 repository file. This is why the sample at the top of this page has a file on it
-with no configuration. It speaks only for components that rendered. On WebKit and
+with no configuration. It covers only components that rendered. On WebKit and
 Firefox there is no equivalent, the reader notes it once, and nothing is added.
 
 **A `SourceIndex`, for everything else.** A `SourceIndex` is plain data — a map
@@ -200,7 +200,7 @@ ordering measures displacement rather than blame:
       src/ds/components.tsx:107
 ```
 
-The ordering is by changed area and the message says so: an `Observation` names
+The ordering is by changed area and the message prints that: an `Observation` names
 no causes, so area measures displacement — the container that merely reflowed
 sorts above the component that was edited. Do not read it as cause-first
 attribution.
@@ -291,10 +291,10 @@ by.
 | `subjectId` | The baseline should survive test-title changes. | The test title path. A renamed implicit id becomes `new`. |
 | `subjectKind` | The subject is not a navigated route. | `route`. |
 | `fonts` | Renderer identity must include an asserted font stack. | Omitted and reported as missing identity evidence. Values are `family/weight/style/hash`. |
-| `source` | Failure output should resolve components to `file:line` on an engine that cannot be asked — WebKit, Firefox, or a component that did not render. | Omitted; regions can still name components. A `SourceIndex`, built as above. |
+| `source` | Failure output should resolve components to `file:line` on an engine that cannot be queried — WebKit, Firefox, or a component that did not render. | Omitted; regions can still name components. A `SourceIndex`, built as above. |
 | `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled (stopped showing its fallback). |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
-| `wiring` | Off for a page that is not React, where walking the fiber tree visits every node and finds nothing. | `true`. Reads props, context, hook cells and keys, so *a prop changed* can be said about a subtree whose markup did not. Its own band; turning it off changes no stored digest. |
+| `wiring` | Off for a page that is not React, where walking the fiber tree visits every node and finds nothing. | `true`. Reads props, context, hook cells and keys, so *a prop changed* can be reported about a subtree whose markup did not. Its own band; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want kept. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `sensitivity` | This subject is not asserted on in full — a themed embed, a route under an active rebrand. | Undeclared: everything is asserted on. Takes the rule that applies here, already matched: `{ rule, reason, level }`. `level` is `strict`, `layout` (asserts on `a11y` and `geometry`) or `content` (asserts on `a11y` and `content`); the rest are absorbed however large they are, and the verdict is `ignored` with the rule's id in it — which is why it is not a threshold. |
 
@@ -319,7 +319,7 @@ opens and closes the rest itself.
 A verdict names the components and counts the pixels; a reviewer still asks to
 see it. Point `evidence` at a directory and every subject a person stops on --
 `changed`, `incomparable`, and `ignored` -- leaves a `.before.png`, an
-`.after.png` and a `.diff.png` behind, and the observation says where they went.
+`.after.png` and a `.diff.png` behind, and the observation records where they were written.
 
 The file name is the subject id percent-encoded, so the evidence for one subject
 sits in one flat directory even when its id reads like a path: `cart/empty`
@@ -385,12 +385,12 @@ const variance = await createVariance(page, {
 | --- | --- | --- |
 | `id` | Observations do not each name a `subjectId`. | None. An observation with neither is refused rather than given an invented address. |
 | `colorScheme`, `deviceScaleFactor` | Ever. Both partition the baseline. | `light` and `1`. |
-| `baseURL` | Recording should know where the page is served. | Omitted; a service under test then sees the execution from the first observation rather than the first request. |
+| `baseURL` | Recording should use the URL the page is served from. | Omitted; a service under test then sees the execution from the first observation rather than the first request. |
 | `owner` | The run records which spec covered which source. | Omitted; the run records no execution against a file. |
 | `accepting` | This run is the one promoting candidates to baselines. | `false`. Under `TestInfo` it is `--update-snapshots=all\|changed` and nothing else — `missing` is the flag's absence. |
 
-`runOf(testInfo)` is the same reading, exported for a suite that wants to take
-Playwright's answer and override one field.
+`runOf(testInfo)` is the same reading, exported for a suite that takes
+Playwright's answer and overrides one field.
 
 #### An Rstest suite
 
@@ -446,9 +446,9 @@ running, so a menu that has just opened or a snackbar sliding in will disagree
 with itself between two reads. `settleAttempts` is how many times it is given to
 come to rest, `3` by default; the confirming read of a failed attempt is the next
 attempt's acquisition, so a retry costs a screenshot pair and no extra
-round-trip. Set it to `1` for a suite that wants a subject which moves at all to
-be a failure. A subject that never holds still is still refused, and the refusal
-says how many attempts bought nothing.
+round-trip. Set it to `1` to make a subject which moves at all a
+failure. A subject that never holds still is still refused, and the refusal
+prints how many attempts bought nothing.
 
 ## Record what each spec executed
 
@@ -504,13 +504,13 @@ export default defineConfig({
 ```
 
 It is worth installing for a single-worker run too: a worker that finds no
-staging directory merges for itself and says so on stderr, and one that does
+staging directory merges for itself and prints that on stderr, and one that does
 contribute costs a file write it would have spent on the merge anyway.
 
 The reporter takes the same values the fixture was given, and they have to
 match — the workers stage crossings recorded against one root and one build's
 records, and a mismatch is not an error anybody sees but a record written under
-paths no later run will ask about. `withTestSelection` is the way to say them
+paths no later run will look up. `withTestSelection` is the way to set them
 once: it sets `varianceExecution` on the configuration and on each of its
 projects, and adds the reporter with the same values.
 
@@ -552,7 +552,7 @@ folding under `presence` would each wipe the other every run.
 Every run writes the execution index into the coverage index, as a section of
 the same file, so both travel together. The index
 answers *which tests walk this branch* — the question `variance covering` and
-`@variance-authority/distill` are asked — and it is a row per test per region.
+`@variance-authority/distill` answer — and it is a row per test per region.
 Selection does not read it: a spec file is the smallest thing
 Playwright can be asked to run, and the file-level record already names that.
 What a declared head executed is joined to the test that sent the request, so a
@@ -573,9 +573,9 @@ its attempt, `testInfo.retry + 1`, so a retried test keeps both.
 
 A snapshot taken with `variance(locator)` names the case it was taken in: the
 spec file, the declaration path and `testInfo.testId`, the case id the record
-keeps. It also carries what the case had said with
+keeps. It also carries the preconditions the case had recorded with
 [`variancePrecondition`](../sense#record-the-state-each-test-ran-under) by then, each with
-the `file:line` that said it. A call after the snapshot is on the case's row and
+the `file:line` of the call that recorded it. A call after the snapshot is on the case's row and
 not on the snapshot.
 
 ```text
@@ -585,7 +585,7 @@ receipt--ff-on: taken in tests/checkout.spec.ts > mocked > photographs the recei
 The observation carries the case as `case`. The line after the subject closes a
 failing `toBeUnchanged` message, and the whole line is a `variance` annotation
 in Playwright's report under the test, passing or not. Without
-`varianceExecution` nothing listens: no annotation is added, and a failing
+`varianceExecution` nothing records them: no annotation is added, and a failing
 message reads *preconditions unmeasured* rather than *nothing arranged*.
 
 ### Optional fixture composition
@@ -605,7 +605,7 @@ message reads *preconditions unmeasured* rather than *nothing arranged*.
 
 The fixture above records the page. A suite that drives its application through
 that application's own API executes product source in a second process, and
-nothing in the page knows it happened — so a change to a route handler runs every
+nothing in the page records it — so a change to a route handler runs every
 spec forever, no matter how well the browser half is watched.
 
 A **head** is a service that reports its own crossings. `heads` names them. Each
@@ -637,7 +637,7 @@ to be able to tell apart. The fixture puts it on the browser context before the
 spec navigates, beside the address this worker is listening on. The browser
 attaches both to every same-origin request, so nothing in the application is
 touched to send them, and the spec file's *name* never leaves the runner.
-`VARIANCE_AUTHORITY_JOURNEYS` says only that the service is under a run — any
+`VARIANCE_AUTHORITY_JOURNEYS` only marks the service as under a run — any
 value will do, because where to report is a fact about the request rather than
 about the environment. `origin` overrides the origin the cookies are scoped to
 and defaults to the project's `baseURL`.
@@ -647,8 +647,8 @@ listener the announcements below use, under the same journey, and the run's only
 artifact is the coverage index this worker merges into at teardown.
 
 A handler's work can outlast its response: a streamed body, a write behind, a
-log flushed after `end()`. The head says a request opened before the handler
-runs, so at teardown the worker waits up to five seconds for every opened
+log flushed after `end()`. The head reports that a request opened before the
+handler runs, so at teardown the worker waits up to five seconds for every opened
 request to report. One still open at that point retires the run the same way a
 silent head does, and the reason names the head.
 
@@ -664,13 +664,13 @@ probe recipe than the driver records — retires **every** observation the run
 made, page included. The crossings are still written; what they lose is the right
 to justify a skip, and the next `--since` runs the whole suite and prints the
 reason. A run half of whose evidence never arrived narrows nothing, because a
-spec skipped on the say-so of a service that was not watching is the one failure
+spec skipped on the report of a service that was not recording is the one failure
 this category cannot detect afterwards.
 
 ## Wait for a decision, not for a repaint
 
 `events` is the driver half of `@variance-authority/event`. Where `variance`
-asks what the screen looks like, this answers *when the code decided*, which is
+reads what the screen looks like, this answers *when the code decided*, which is
 the question a screen cannot answer at all for the branch that draws nothing:
 **the modal is not shown** and **the modal is not shown yet** look identical, and
 waiting longer never separates them.
@@ -712,10 +712,10 @@ against announcements already heard, so one written a line too late still
 resolves rather than hanging.
 
 `events` is an `EventLog`: `happened` waits for coordinates in any phase,
-`finished` waits for the end of a process `vaStart` opened, `saw` asks without
+`finished` waits for the end of a process `vaStart` opened, `saw` checks without
 waiting, `seen` is everything in arrival order, and `pending` is what started and
 never ended. A wait that does not settle prints what the run did announce, in
-order, or says that nothing was announced at all — which is a setup fact, not a
+order, or prints that nothing was announced at all — which is a setup fact, not a
 product defect, and is worded as one.
 
 ### Hearing a service announce
@@ -727,7 +727,7 @@ above puts on the browser context, and the fixture mints one for events when
 nothing else has.
 
 The service runs `collectEvents()` from `@variance-authority/event/collect`, and
-one environment block tells both ends that heads are in play:
+one environment block, which both ends read, puts heads in play:
 
 ```ts
 // playwright.config.ts
@@ -750,15 +750,15 @@ whatever the page talks to, so a head answers the execution it is serving as it
 serves it.
 
 It is one listener for both instruments. Announcements and coverage accounts are
-two things said about the same execution, so they arrive over one connection
+two records of the same execution, so they arrive over one connection
 ([`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire)) under one journey, and this end
-reads only which of the two was speaking. A page reports through a function the
+reads only which of the two sent it. A page reports through a function the
 worker exposed and a service reports through a socket; nothing below routes on
 which, which is why a server the suite starts in-process needs no configuration
 at all.
 
 `heads` overrides whether services are expected — it defaults to whether
-`VARIANCE_AUTHORITY_EVENTS` is set, which is how the service was told — and
+`VARIANCE_AUTHORITY_EVENTS` is set, which is how the service is configured — and
 `origin` overrides the origin both cookies are scoped to, defaulting to the
 project's `baseURL`.
 
@@ -815,7 +815,7 @@ VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
 ```
 
 With it unset, nothing happens and the run pays one environment read per worker
-— the same bargain the heads make above. With it set, the watcher is told each
+— the same bargain the heads make above. With it set, the watcher receives each
 test as it opens, each announcement as it is recorded rather than at teardown, the
 listener's remarks, and how each test ended. The process on the other end is
 [`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage), on the same
@@ -918,14 +918,14 @@ the time it is read throws as well.
   browser, platform, scale, and asserted fonts instead of accepting the wall of
   changes.
 - **Changed regions name components but no files:** the engine could not be
-  asked — this is WebKit, Firefox, or a component that did not render. Pass a
+  queried — this is WebKit, Firefox, or a component that did not render. Pass a
   `SourceIndex` as `source` to `observe`, `session.observe`, or
   `assertUnchanged`.
 - **“variance needs a viewport and this page has none”:** the Playwright page
   uses a null viewport. Configure a fixed viewport so two runs have a declared
   size.
 - **The message lists a large container first:** it is ordered by changed area,
-  and says so. Area measures displacement, not blame: a container that merely
+  and the message names that ordering. Area measures displacement, not blame: a container that merely
   reflowed outranks the component that was edited.
 - **“was still waiting when it was read”:** the named Suspense boundary never
   resolved. Fix what it awaits, or pass `loading: true` if the fallback is what

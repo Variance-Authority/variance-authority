@@ -1,6 +1,6 @@
 # Extend what you already use
 
-You already have tools that know how your software works. Your test runner runs
+You already have tools built around how your software works. Your test runner runs
 the suite. Playwright drives a browser. React Testing Library helps tests address
 the interface. Your visual regression service compares screenshots and records
 approvals. Your debugger, editor, search tools and documentation service answer
@@ -32,7 +32,7 @@ choices, not a setup sequence.
 ## Rendering stays with the host
 
 A Storybook story, a Playwright test, a unit test and an application route create
-states in different ways. Each host already knows the fixtures, navigation,
+states in different ways. Each host already holds the fixtures, navigation,
 decorators, mocks and readiness conditions that make its state meaningful.
 Variance does not need a preferred way to produce it.
 
@@ -46,19 +46,19 @@ from the state you already have](cases.md) describes each route and its cost.
 
 This separation lets you add an observation to one state without asking
 Variance to own the application's lifecycle. It also means there is no
-observation unless a collector or test asks for one. The fact that a page
+observation unless a collector or test calls for one. The fact that a page
 rendered somewhere is not, by itself, a Variance record.
 
 ## An assertion keeps its promise
 
 A test that calls `getByRole('button', { name: 'Save' })` and checks what happens
 after a click protects the behaviour its author chose. A passing assertion
-does not say which other components rendered, which source ran without being
+does not show which other components rendered, which source ran without being
 asserted on, or what the rest of the interface looked like. Making the assertion
 broader would give it a different job.
 
 [Eyes](eyes.md) can record which elements the test addressed and which React
-components rendered them. The execution record can say which source the test
+components rendered them. The execution record can show which source the test
 ran. Those are observations beside the assertion, not replacements for it.
 React Testing Library still supplies the query, and Vitest or Jest still reports
 whether the assertion passed. If the observations expose an unrelated branch,

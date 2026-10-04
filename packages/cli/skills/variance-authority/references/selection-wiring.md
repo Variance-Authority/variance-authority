@@ -24,14 +24,14 @@ Take it in this order, and read rather than assume:
 3. **The build the tests run through**: `vite.config.*`, `next.config.*`,
    `webpack.config.*`, `babel.config.*`, `postcss.config.*`,
    `tailwind.config.*`, whichever the suite goes through. A formatter or linter
-   config does not belong here; nothing it says changes a render.
+   config does not belong here; nothing it sets changes a render.
 4. **The environment**: `.nvmrc`, the file behind the `engines` block if there
    is one, the CI workflow directory, a `Dockerfile` the suite runs inside.
 5. **Nothing else.** A README, a changelog, an editor setting and a fixture JSON
    are not entry points. Adding them buys whole runs and no information.
 
 Write them into `variance.config.json` as repository-root-relative paths. A
-directory claims everything under it, and every file under it is walked as an
+directory covers everything under it, and every file under it is walked as an
 entry point:
 
 ```json
@@ -86,7 +86,7 @@ When an integration reports that it kept the whole suite, read the path it
 names. That is a wiring fact about the project, and usually a fixable one.
 
 Absence is the other direction, and it widens nothing. A changed path the
-recording has no row for is asked of the import graph when one is passed, and
+recording has no row for is looked up in the import graph when one is passed, and
 the nearest measured files that import it select their tests. One the graph does
 not list, such as a README or a fixture, appears under `unread` and selects
 nothing: if the suite reads that file without importing it, declare it as a

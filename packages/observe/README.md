@@ -195,7 +195,7 @@ const candidate = await store.renderCache.get(
 );
 ```
 
-The baseline lookup asks under `renderer.identityFor(document)`. A baseline
+The baseline lookup looks under `renderer.identityFor(document)`. A baseline
 found under any other identity comes back `incomparable`; it is never diffed and
 blamed on the subject.
 
@@ -251,8 +251,8 @@ sensitivity is declared against: a rule that absorbs `texture` and `token`
 still reports a `geometry` change, and `relaxed` names the rule, the level and
 the bands it actually absorbed here.
 
-A `moved` entry also says how the component changed when both sides can say
-it. `grew` is the change in width and height that every instance of the
+A `moved` entry also records how the component changed when both sides
+measured it. `grew` is the change in width and height that every instance of the
 component agrees on. `changed` lists each declared property whose values
 differ, with the values before and after: `padding-left` from `18px` to
 `24px`, or a custom property such as `--accent` under its own name.
@@ -281,7 +281,7 @@ ordering measures displacement rather than blame:
 Each line is a cause and, where one exists, a file and line — because `Toggle`
 is an identifier and `src/app/cart.tsx:42` is an edit. A coordinate appears only
 where nothing could be named. The ordering caveat is printed rather than
-assumed: an `Observation` has only one snapshot, so nothing here knows which
+assumed: an `Observation` has only one snapshot, so nothing here can determine which
 component was edited and which was merely pushed by a neighbour, and area
 measures displacement.
 

@@ -26,7 +26,7 @@ To turn distance into a run, you supply four things:
 4. dispatch from each selected path to the runner and project that owns it.
 
 The inventory matters because a snapshot is historical. It can justify skipping
-a test it observed completely; it cannot enumerate a new test, know that a
+a test it observed completely; it cannot enumerate a new test, detect that a
 recorded test no longer belongs to your suite, or decide which runner should
 execute a file. You can take that inventory from a retained host index,
 incremental discovery, or the runner itself. [Sense](../packages/sense) does not
@@ -55,8 +55,8 @@ const { narrowing, distances } = await distanceByExecution(
 This is a partial integration: it reads recorded evidence but neither inventories
 the current suite nor invokes a runner. `narrowing.whole` names test files whose
 recording completed, `narrowing.entered` names the recorded files the diff
-reached, and `narrowing.unread` names changed paths the snapshot says nothing
-about and the graph does not list.
+reached, and `narrowing.unread` names changed paths the snapshot has no rows
+for and the graph does not list.
 
 A safe execution integration starts from its **current host inventory** and
 subtracts only exclusions the snapshot proved:
@@ -140,7 +140,7 @@ Tests selected only by the current host inventory are outside the distance
 reading altogether and stay your integration's responsibility.
 
 Every range is a smaller claim than the selection, which is already a smaller
-claim than the suite. Passing a near range says nothing about selected tests in
+claim than the suite. Passing a near range shows nothing about selected tests in
 later ranges or about tests the snapshot could not place.
 
 ### What a near range buys you
@@ -204,7 +204,7 @@ The distance options describe how to interpret the caller's graph:
   in the execution record and its built output in the import graph.
 - `faces` identifies public entry points, so the report can flag imports that
   bypass them.
-- `enumerated` says whether a file's imports were scanned. Without it, the
+- `enumerated` records whether a file's imports were scanned. Without it, the
   traversal assumes every file in the graph was fully scanned.
 
 ## What the labels mean
@@ -232,10 +232,10 @@ dispatches paths to a runner. A repository integration owns both operations.
 branch that no recorded test took. When a change cannot be read from both of
 its texts, selection charges a changed line no recorded region contains to every
 test that ran its module; distance counts only the imports those tests actually
-took, and says nothing about a path none of them did.
+took, and counts nothing for a path none of them took.
 
 **Distance is not detection distance.** It counts import hops to a selected
-test. It does not say that test can reveal this fault, that no nearer test can,
+test. It does not show that test can reveal this fault, that no nearer test can,
 or that a farther test may be skipped. Those are outcome and risk questions the
 snapshot does not record.
 

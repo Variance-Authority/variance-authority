@@ -66,7 +66,7 @@ once you need it.
 A card fades in over 300ms. Your first run reads it 120ms in, your second reads
 it 180ms in, and nothing between the two commits changed a line of code.
 
-Here is what the second run says:
+Here is what the second run prints:
 
 ```
 CHANGED  story:card
@@ -80,9 +80,9 @@ first: `a11y` (a role, accessible name or ARIA state changed), `geometry`
 while structure stayed the same), `content` (text changed and nothing else did),
 `texture` (sub-pixel raster noise).
 
-That is a false alarm wearing a name badge. A plain pixel differ would have told
-you *1530 pixels moved* and you would have shrugged and hit re-run; this tells
-you a component and a file, and you go looking for the edit. **[Attribution](attribution.md) makes
+That is a false alarm wearing a name badge. A plain pixel differ would have printed
+*1530 pixels moved* and you would have shrugged and hit re-run; this names
+a component and a file, and you go looking for the edit. **[Attribution](attribution.md) makes
 a false alarm credible**, which is why this project can afford flakiness less
 than a pixel differ can.
 
@@ -127,7 +127,7 @@ what already happened to your subject.
 | `hide-scrollbars` | a platform and preference difference, and the reflow at the overflow threshold | headless Chromium uses overlay scrollbars, so the classic scrollbar flake does not reproduce in CI at all |
 | `hide-caret` | a cursor blinking on its own schedule | a screenshot option, so it applies at render and not at collection — a tier that never rasterizes cannot see a caret and must not pay to hide it |
 | `freezeAnimatedImages` | an animated GIF, served as its first frame | on the wire, so a cross-origin image is no harder than any other |
-| `hashAssets` | *nothing* — it reports rather than absorbs | see [the wire](#the-wire-which-knows-what-the-page-cannot) |
+| `hashAssets` | *nothing* — it reports rather than absorbs | see [the wire](#the-wire-which-reads-what-the-page-cannot) |
 
 <details>
 <summary>How <code>pin-animations</code> works, and why it is not <code>animation: none</code></summary>
@@ -187,7 +187,7 @@ attribution of a component that did not write it. What survives into your captur
 is the recipe's *effect* — `transform` reads its first frame instead of a frame
 off the clock — and never the recipe.
 
-## The run says what it did
+## The run reports what it did
 
 ```
 stabilization: the subject was altered to be observable: animations pinned at
@@ -230,10 +230,10 @@ The recipe digest is a **render input** itself, in the semantic key as well as
 the full one. So:
 
 - A baseline collected untouched and a run collected held still are **two
-  baselines**. They are never compared, and the run says `incomparable` rather
+  baselines**. They are never compared, and the run reports `incomparable` rather
   than inventing a component to blame.
-- Turning a trick off, adding one, or retuning one is a re-baseline you are told
-  about, on the run it happens, instead of a mass diff you have to work out.
+- Turning a trick off, adding one, or retuning one is a re-baseline the run
+  prints, on the run it happens, instead of a mass diff you have to work out.
 - `undefined` means *observed untouched*, and is absent from the key, not
   present-and-empty — because "no recipe ran" and "an empty recipe ran" are the
   same state and neither should look like a confident value.
@@ -267,7 +267,7 @@ Use it when your suite's own determinism story is already better than this
 one's — it freezes its clock, its data and its animations — and a second
 `!important` stylesheet would be damage buying nothing.
 
-Naming a trick that does not exist **throws, and names the tricks it knows**. A
+Naming a trick that does not exist **throws, and names the tricks that exist**. A
 typo is refused rather than skipped, so you never end up with a suite one trick
 less stable than you believe it is.
 
@@ -302,18 +302,18 @@ frames.
 
 ---
 
-## The wire, which knows what the page cannot
+## The wire, which reads what the page cannot
 
-The wire sees **response bytes the page cannot**: it can freeze cross-origin
+The wire reads **response bytes the page cannot**: it can freeze cross-origin
 animated GIFs and fingerprint assets whose URL stays the same.
 
 Everything above happens *inside* the page, and inside the page is the wrong
 place for a whole class of question. `document.images` is a list of nodes that
 existed at one moment: it misses an image appended while you were waiting, it
 has no entry for a CSS `background-image` (which has no load event at all), and
-it cannot tell you what the bytes were.
+it cannot show you what the bytes were.
 
-The driver sees every response. So it watches.
+The driver receives every response, so it records each one.
 
 ### A URL your build did not name is hashed on the wire
 
@@ -325,7 +325,7 @@ snapshot.environment.inputs.assets
 `EnvironmentInputs.assets` keys external assets by request URL and values them
 by content hash. Without it, a logo re-exported at a different compression, a
 hero image swapped behind a CDN path, or a font replaced under the same URL
-produces a different picture under an identical key — and the run says
+produces a different picture under an identical key — and the run reports
 `unchanged`. The page cannot close that gap: it can read a URL and not the bytes
 behind it. The wire can.
 
@@ -357,7 +357,7 @@ spinning.
 Doing it on the wire removes the problem instead of handling it. The bytes have
 not been decoded yet, so there is nothing to seek back and no second decode to
 pay for; cross-origin stops mattering, because the fulfilment is ours and nothing
-asks the page to read anything; and the result is **the original bytes minus some
+requires the page to read anything; and the result is **the original bytes minus some
 of them** — a GIF truncated to its first image block plus a trailer, which is a
 valid single-frame GIF. The palette, the transparency, the dimensions and the
 compression are exactly what the author shipped, where a canvas round-trip
@@ -368,7 +368,7 @@ are not a GIF, a GIF that already has one frame, and a file whose blocks it
 could not parse are all passed through untouched, because a truncation taken from
 a position the parse cannot vouch for is a corrupt asset served to a browser.
 
-It also **says what it froze** — `network.frozen` is the list of URLs — because a
+It also **records what it froze** — `network.frozen` is the list of URLs — because a
 stabilizer that rewrites an asset silently can change the picture a reviewer is
 looking at with no record that it did.
 
@@ -427,13 +427,13 @@ that recorded only the rule id would settle every subject it appears on against 
 page whose columns have shifted — a false `unchanged`, which is the one failure
 this whole layer exists to prevent.
 
-It says what it removed. `network.blanked` lists the URL, the rule, and the size
+It records what it removed. `network.blanked` lists the URL, the rule, and the size
 for every substitution, so an operator who blanked more than they meant to can
 read it back per subject without re-running with the feature off.
 
 ### …and the half the wire cannot decide
 
-A request says nothing about which element wanted it. `role="presentation"`,
+A request does not identify the element that triggered it. `role="presentation"`,
 `alt=""`, a selector, a rendered box — none of those exists on the wire, and no
 amount of care there will produce them. That is a fact about a document, so the
 trick that uses it is a stylesheet:
@@ -477,7 +477,7 @@ do from inside a document that already made the request. An operator who wants
 the churn gone from the key as well has to name the URL or a pixel-size range,
 and blank it.
 
-So the two mechanisms split by what each layer can know, and neither is a
+So the two mechanisms split by what each layer can read, and neither is a
 degraded version of the other. The wire decides by URL and intrinsic size, and
 gets there before the fetch. The page decides by role, and pays for the fetch it
 cannot prevent.
@@ -505,7 +505,7 @@ rather than a run that had nothing.
 ### Which assets belong to which subject
 
 Wired into both collectors, and narrowed per subject on the way in.
-**The wire sees a page; the result a run reports is about one subject.** Nothing
+**The wire covers a whole page; the result a run reports is about one subject.** Nothing
 in a request identifies which story will end up using it, so a Storybook run —
 one navigation, three hundred subjects — would give story 200 the page's whole
 asset set, which depends on which stories ran before it. That is not
@@ -513,7 +513,7 @@ over-invalidation, which would merely be noise. It is **order dependence in the
 identity a baseline is stored under**: shard the suite differently and every key
 in it changes.
 
-So the two halves are joined where each one knows something the other cannot. The
+So the two halves are joined where each one has something the other does not. The
 driver sends its whole observation into the page; the page narrows it to the URLs
 *this subtree* references and puts only those in the key. `referencedAssets` reads
 `src`, every `srcset` candidate, SVG `use`/`image` hrefs, `poster`, `object[data]`
@@ -527,8 +527,8 @@ chosen one lets the 2× asset change without changing a 1× runner's key.
 
 A URL nothing requested is **absent, never a placeholder** — an asset served from
 the browser's cache before the observation started has bytes nobody here saw, and
-an invented entry would be a claim about content that no later run could
-contradict.
+an invented entry would record content nobody measured, and no later run could
+contradict it.
 
 ### The document includes them too, which is what the render skip reads
 
@@ -543,7 +543,7 @@ key are computed over the same per-subject asset set.
 
 ---
 
-## The framework, which knows when it has finished
+## The framework, which reports when it has finished
 
 The wire answers *have the bytes arrived*. It cannot answer *has the application
 finished rendering them*, and those are different questions: a page whose every
@@ -551,8 +551,8 @@ request has settled can still be three commits from its final state.
 
 The usual answer is to poll in pixel space — Playwright's `toHaveScreenshot`
 takes screenshots until two consecutive ones match. It costs a raster per poll,
-and when it gives up it can only report that the page kept changing. React knows
-exactly when it commits and will say so, so `@variance-authority/react` asks.
+and when it gives up it can only report that the page kept changing. React calls
+back exactly when it commits, so `@variance-authority/react` subscribes.
 
 ### `tapCommits` — which components rendered, and when they stopped
 
@@ -604,7 +604,7 @@ a reader to the wrong `<Suspense>`. And the walk is scoped to the subject: a
 spinner in an `<aside>` is not this `<section>`'s problem.
 
 `dehydrated` is a third state, distinct from `pending`: server-rendered markup
-waiting for hydration, which is a different thing to be told than a fetch in
+waiting for hydration, which is a different state to report than a fetch in
 flight.
 
 ### The wait, and the decision it forces
@@ -697,7 +697,7 @@ it agrees is not a wasted check, it is the fact somebody wanted:
 - **The fiber changed and the document did not.** The components re-rendered
   and the page did not follow — `refactor` in [parting](parting.md), read
   across a moment instead of across a commit. This is the receipt a refactor
-  never gets, and no pixel differ can see it.
+  never gets, and no pixel differ can detect it.
 - **The document changed and the image did not.** The renderer read the change
   and absorbed it: sub-pixel geometry, a repeated colour, a rule that lost the
   cascade.
@@ -749,7 +749,7 @@ a red build rather than a slow CI job nobody attributes to anything.
 ## What stabilization does not cover
 
 The standard observation path holds CSS animation, fonts, images, scrollbars and
-carets still, watches the wire for the bytes behind each asset, and checks that
+carets still, reads the wire for the bytes behind each asset, and checks that
 Suspense has resolved. It does not redefine application state, and it does not
 install framework hooks before the application loads.
 

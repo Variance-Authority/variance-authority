@@ -3,12 +3,12 @@
 A test turns one path through your product into a repeatable proof: the same
 starting conditions, the same action, the outcome you expected. What you earn is
 confidence that this one promise has been preserved under the conditions the
-test observed. That is worth stating precisely, because it is also the boundary
-of what a green run can tell you.
+test ran under. That is worth stating precisely, because it is also the boundary
+of what a green run can show you.
 
 ## Confidence is specific
 
-Each test protects one codified path under the conditions it observed.
+Each test protects one codified path under the conditions it ran under.
 Confidence grows as the paths that matter stay preserved, not as the count of
 tests or the width of the green bar grows. That proof is what lets you refactor
 beneath stable behaviour, state to your team what has to remain true, and hand a
@@ -43,7 +43,7 @@ Spend that effort where it buys confidence:
   break, what its failure would cost, and how late you would otherwise notice.
 - **Add cases that address another risk.** A boundary, permission or recovery
   path exposes a failure the happy path misses. Another example earns its place
-  when it tells you something the existing cases do not.
+  when it checks something the existing cases do not.
 - **Choose the level that can answer the question.** Exercise calculation close
   to the logic, use integration tests for the contracts between parts, and
   end-to-end tests for whether those parts deliver the promise.
@@ -60,7 +60,7 @@ every line and leave its important promises untested.
 Adding an assertion for every nuance increases the work, couples the test to
 details, and turns unrelated changes into failures. Add tests while each one
 improves confidence in the changes ahead; when the next one mostly
-repeats what the suite already tells you, look for a risk it leaves open before
+repeats what the suite already checks, look for a risk it leaves open before
 adding to the count.
 
 ## After a change, you need both answers

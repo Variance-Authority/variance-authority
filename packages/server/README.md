@@ -147,15 +147,15 @@ returns a change caused by the CI configuration rather than by an edit.
 
 **Sweep** — a run that read *every* subject twice rather than only the ones that
 changed, which `npx variance run --flakes` does. It is the only honest denominator
-for flakiness: an ordinary run asks a subject whether it agrees with itself only
-after calling it changed, so a green subject's silence in that run is not
+for flakiness: an ordinary run reads a subject a second time only after finding
+it changed, so a green subject's silence in that run is not
 evidence.
 
 **Occurrence** — one run in which a subject read differently from itself. Runs
 post these as the optional `instabilities` array; `/v1/flakiness` counts them.
 An **absorbed** occurrence fell entirely in bands the subject does not assert
 on — working as declared, so never a finding, counted separately so a rule that
-has been absorbing something for six months can still be asked about. A
+has been absorbing something for six months can still be queried. A
 **collateral** run, on the churn side, is one in which only a component's
 `geometry` moved: it was displaced by an edit somewhere else, reported and never
 summed.
@@ -186,7 +186,7 @@ so a CI agent with a skewed clock writes rows that land in the wrong window.
 
 There is no cursor. `limit` caps the rows a query reads, and whatever it
 excludes comes back as an `omitted` count rather than silently shrinking a
-total: `omittedRuns: 37` tells you how wrong a lower bound might be. Narrow with
+total: `omittedRuns: 37` shows how wrong a lower bound might be. Narrow with
 `since` and `until` rather than paging.
 
 `POST /v1/current` is a read and stays a POST because its argument is a subject
@@ -414,8 +414,8 @@ A `window` is `{ project?, since?, until?, limit? }`. Two rules bind every
 implementation. Compare `since` and `until` as **instants**, never as text —
 ISO-8601 sorts lexically only while every timestamp shares one offset, and a
 store fed by CI jobs in two regions does not. And return a `Slice`, whose
-`omitted` count is what the `limit` excluded: a capped answer that does not say
-it was capped reads as a complete one.
+`omitted` count is what the `limit` excluded: a capped answer that does not mark
+itself as capped reads as a complete one.
 
 Wire yours into the service, or skip the socket entirely:
 
@@ -498,7 +498,7 @@ from the CI environment it is already inside:
 
 Each pair is read whole: a run id from one system with a commit from another
 describes a run that never existed, so it is refused rather than completed from
-two sources. A run on a laptop with neither flag writes nothing and says so in
+two sources. A run on a laptop with neither flag writes nothing and records that in
 its report.
 
 That is the usual reason a configured database is empty on day one. The other

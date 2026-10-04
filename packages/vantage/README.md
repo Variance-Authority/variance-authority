@@ -2,7 +2,7 @@
 
 # @variance-authority/vantage
 
-> What a run is saying, while it is still saying it.
+> What a run has reported, while it is still running.
 >
 > Kept in a process that outlives the test, so a suite in flight is something to look at rather than something to wait for.
 
@@ -10,13 +10,13 @@ Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 
-A test that hangs reports what it *wanted*. Thirty seconds later, in a process
+A test that hangs reports only the condition it was waiting for. Thirty seconds later, in a process
 that has already torn down the page, the runner prints the assertion that did not
-settle. That is the last thing the failure knows and the first thing you already
-knew.
+settle. That message is all the failure prints, and you already knew
+it.
 
 This package gives you the other side, while the test is still stuck there. You
-start a small watching process; your suite is told its address through one
+start a small watching process; your suite reads its address from one
 environment variable and reports to it as it goes; you `GET` that same address
 from any other shell and read a JSON snapshot of what every test has done so
 far. Nothing is written to disk, and stopping the watcher loses the run.
@@ -416,8 +416,8 @@ nothing in your test awaits it or sees it fail. A watcher that went away cannot
 break the run it was watching.
 
 `waits(test, at, options?)` is the only call that returns a promise you wait on.
-It says where the test stopped, then polls the watcher every `pollMs` (50 by
-default, a loopback round trip) until it is told to go on or `timeoutMs` (ten
+It reports where the test stopped, then polls the watcher every `pollMs` (50 by
+default, a loopback round trip) until the watcher releases it or `timeoutMs` (ten
 minutes by default) runs out. It answers in one of four words rather than
 throwing, because none of them is a test failure:
 
@@ -444,7 +444,7 @@ keeps:
 | `address` | the one it is listening on | included in every answer, so a tool with nothing to show can name what to set. Set it only when something in front of the watcher rewrites the origin a run must use |
 
 Past those, entries drop from the front and are counted: `forgotten` on the run,
-`forgotten` and `forgottenNotes` on each test. Every printed answer says how many
+`forgotten` and `forgottenNotes` on each test. Every printed answer counts how many
 were dropped, so an empty list is never mistaken for a beginning that was
 forgotten. `pending` is exact regardless — what is bounded is the list of
 announcements, not the tally of work that opened and never closed.

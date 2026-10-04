@@ -119,8 +119,8 @@ size, coverage had only low-to-moderate correlation with mutation-based
 effectiveness. Their conclusion keeps coverage useful for finding under-tested
 code and rejects it as a quality target.
 
-Execution evidence can tell you which tests covered the same region. It cannot
-tell you whether they protect the same promise, notice the same fault, or lead
+Execution evidence shows which tests covered the same region. It cannot
+show whether they protect the same promise, notice the same fault, or lead
 to the same action. [Test-level coverage](test-level-coverage.md) keeps the
 named test-to-region relation so you can open the cases and ask those questions.
 It refuses to answer them from overlap alone.

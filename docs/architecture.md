@@ -164,7 +164,7 @@ reported as a difference in your product is a confident wrong answer.
 
 **3. Not measured, measured as zero, and unobservable are three states.** The run
 prints which of the three it is rather than collapsing any two into a pass. When
-a reading was never taken, the answer says so on its own line:
+a reading was never taken, the answer prints that on its own line:
 
 ```
 Read: id, example, names, text, components, createdBy, files, roles, tokens. Not read: regions (no execution journal was read).
@@ -242,7 +242,7 @@ so it pulls in no Playwright and nothing Node-only.
 ## Your logs will be noisy, on purpose
 
 Every fallback is reported as a fallback. A run that could not do the expensive
-thing and did the cheap thing instead says so on the line, rather than answering
+thing and did the cheap thing instead prints that on the line, rather than answering
 a weaker question under the same heading. Do not filter those lines out: they are
 the difference between a green build that checked what you asked for and one that
 checked less.

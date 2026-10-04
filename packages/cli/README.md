@@ -6,8 +6,8 @@
 
 Part of [Variance Authority](https://variance-authority.dev).
 
-`variance` is the executable. It captures every **subject** your project asked
-for — one named UI state you asked for and can ask for again: one story, one
+`variance` is the executable. It captures every **subject** your project declares
+— one named UI state you asked for and can ask for again: one story, one
 route at one viewport, one component mounted in a test, under an id you choose
 such as `cart/empty` — compares each against the baseline you approved, writes
 one report, and returns the exit code CI gates on. When pixels moved, the report
@@ -23,7 +23,7 @@ separate command.
 ## Install
 
 The CLI never mounts your application. A **collector** — the module that mounts
-a subject and says when it is ready to be captured — owns that boundary, so you
+a subject and reports when it is ready to be captured — owns that boundary, so you
 install one beside the executable. For a Storybook:
 
 ```bash
@@ -67,7 +67,7 @@ spells out the full shape, and `Collector`, `CollectorContext`, `Plan`,
 package. A module whose default export is not a function is refused by path
 before anything is collected.
 
-The CLI knows no URL. Nothing in the config names an origin, a port or a server,
+The CLI has no URL for your application. Nothing in the config names an origin, a port or a server,
 so start whatever the collector talks to before you run, and let the collector
 own the address.
 
@@ -84,7 +84,7 @@ inside the file resolve against the file's own directory rather than the
 working directory.
 
 `profile` and `browser` are two different choices and the synopsis below shows
-only one of them. `profile` says how much of the page is observed: `chromium`
+only one of them. `profile` sets how much of the page is observed: `chromium`
 for a full render, `jsdom` for structure with no layout engine and no animation
 clock. `browser` names the engine that paints — `chromium` (the default),
 `firefox` or `webkit`. `run --profile jsdom|chromium` overrides the config's
@@ -177,16 +177,16 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
 | `covering` | names the tests that covered one source file, line or function, nearest first |
-| `review` | says what a change did, after the suite ran it: the edits, the changed code no case covered, the cases added, and what changed outside any import |
+| `review` | prints what a change did, after the suite ran it: the edits, the changed code no case covered, the cases added, and what changed outside any import |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |
 | `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
 | `changelog` | reads back why the baselines are what they are |
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
-| `doctor` | says what this machine can observe, before a run, not after one |
+| `doctor` | prints what this machine can observe, before a run, not after one |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
-| `share` | says what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |
+| `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
@@ -219,7 +219,7 @@ Its `tree` field is true only when the selected source tool names a `from` or
 question and return it through `Sourced.tree` only then.
 
 `--changed-file` takes a newline-delimited file of scan-root-relative paths an
-editor, watcher, or CI step already knows changed. It is producer input: an
+editor, watcher, or CI step already detected as changed. It is producer input: an
 empty file states that nothing changed, it replaces Git status discovery, and
 it cannot be combined with `--just-answer`.
 
@@ -247,7 +247,7 @@ agent, a container with no editor in it, somebody else's harness: all of them
 have a shell, and many of them cannot add a server. The skill this package ships
 at `skills/variance-authority/SKILL.md` routes an agent through these questions in order.
 Link it into your agent's skills directory rather than copying it; `variance
-doctor` says whether an agent can find it and prints the link when it cannot.
+doctor` prints whether an agent can find it and prints the link when it cannot.
 
 Every answer exits `0`, including one that describes changes. `ask` reads; it
 does not decide. The verdict stays with `run`, `report` and `adjudicate`, which
@@ -275,7 +275,7 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
 ```
 
 - **A branch record your `HEAD` does not contain is not yours.** After a
-  rebase, or before you pull, the answer says it is *another run of* the
+  rebase, or before you pull, the answer labels it *another run of* the
   branch, and it still answers.
 - **The configured `report` path is never written.** The record is kept in
   [the cache](https://variance-authority.dev/docs/cache) under its digest, at the same path relative
@@ -290,11 +290,11 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
   describe --subject story:card` fetches that subject's images to the paths the
   report names them by, relative to the kept report, so the paths the answer
   prints open. A path that would land outside the record's digest directory is
-  not fetched, and the answer says so.
-- **A share with no record for you is a refusal that lists what it asked.**
+  not fetched, and the answer prints that.
+- **A share with no record for you is a refusal that lists what it queried.**
   Each line gets its own line in the message, with what it answered: nothing
   published, a credential refused, a store that did not answer, a format this
-  version does not read. A mainline answer names the branch line asked before
+  version does not read. A mainline answer names the branch line queried before
   it the same way, with what that line answered.
 
 ### Distill: find a smaller test boundary
@@ -357,7 +357,7 @@ The verification workflow is in [distill a test](https://variance-authority.dev/
 
 ### Covering: which tests covered this line
 
-`covering` reads the same execution index `distill` does, and asks it the
+`covering` reads the same execution index `distill` does, to answer the
 question a reader has while looking at code rather than at a test: which named
 tests went through here.
 
@@ -378,11 +378,11 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 ```
 
 Each test file is named once, with its cases under it. Over a whole file, a
-range walked by the same cases as the one before says so in one line.
+range walked by the same cases as the one before is folded into one line.
 
 When the root `variance.config.json` declares
 [suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
-`covering` asks every suite's record and answers under each suite's name and
+`covering` reads every suite's record and answers under each suite's name and
 kind, because each suite proves something different:
 
 ```text
@@ -395,7 +395,7 @@ unit (unit):
 
 In JSON the answer is a `suites` list. Each entry is that suite's own answer
 with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
-or to `unloaded`, for a file the suite never loaded. `--suite <name>` asks one
+or to `unloaded`, for a file the suite never loaded. `--suite <name>` reads one
 record alone, and answers in the shape a repository with one record does.
 
 `--format refs` is the same answer for an agent, which pays for every repeated
@@ -423,8 +423,8 @@ src/checkout/total.test.ts
 
 `3*` marks a case that was inside the range only while the module evaluated.
 
-This is not a verdict. Execution says where a test went, never why the trip was
-worth taking, so three tests on one line is the beginning of the question *why
+This is not a verdict. Execution records where a test went, never why it was
+worth running, so three tests on one line is the beginning of the question *why
 do all three need this code* and not the answer to it.
 
 #### Narrowing the answer to what is nearby
@@ -460,7 +460,7 @@ A line or function answer names each test file once, with how many of its cases
 went through the line out of how many it declares: `total.test.ts — 2/3`.
 `--hops` adds each file's import hops and orders the files nearest first, a file
 the walk could not place last. It narrows nothing, and it costs the same scan
-`--at-distance` does, which is why an editor asks for it on a click and not on
+`--at-distance` does, which is why an editor requests it on a click and not on
 every keystroke.
 
 The counts are printed whichever way the answer went, because a filtered list
@@ -491,7 +491,7 @@ paints it with:
 - `loaded`: it ran only while its module evaluated.
 - `hole`: nobody entered it, and a case that could have reached it stopped
   first. A failed case, or a flake your CI suppressed, never finished its trip,
-  so the record cannot tell whether it would have come here.
+  so the record does not show whether it would have come here.
 - `unwalked`: nobody entered it, and every case that could have reached it
   finished.
 
@@ -524,7 +524,7 @@ from, and `--format json` names each one under `scope`.
 A run of one file does not change the suite's answer: the index keeps every
 case the run did not replace.
 
-With `last`, the answer also says what your edit changed. The run keeps the
+With `last`, the answer also prints what your edit changed. The run keeps the
 cases it replaced, so each region those cases entered before and do not enter
 now is listed, and so is each region they entered for the first time:
 
@@ -543,7 +543,7 @@ the commit before.
 
 #### Reading the state each covering test ran under
 
-Coverage tells you which cases ran the code you asked about. A case that
+Coverage records which cases ran the code you asked about. A case that
 records the state it ran under with
 [`variancePrecondition`](../sense#record-the-state-each-test-ran-under) has it
 on its row, and every case `covering` lists prints each value with the call
@@ -555,7 +555,7 @@ variance covering --file src/checkout/total.ts --function total --where prices=d
 ```
 
 ```text
-Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and said prices=discounted.
+Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
     sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
@@ -567,9 +567,9 @@ The count is out of the cases that covered what you asked about, before
 every repeated `--where` must hold. Two values recorded at one level print as a
 contradiction, and match a `--where` naming either. A record made before cases
 recorded preconditions answers `unmeasured` rather than an empty list, and a
-case nobody listened to is counted apart from the cases that recorded nothing.
+case from a runner that does not record preconditions is counted apart from the cases that recorded nothing.
 When `--where` keeps none of the cases that covered a line or function, the
-answer says the filter left none of them and how many there were, rather than
+answer prints that the filter left none of them and how many there were, rather than
 that no test covered it. The state of a line, function, range or changed
 region, and the cases that stopped before it, are read over the same cases
 before `--where`: a line three cases ran stays `walked` when `--where` keeps
@@ -599,14 +599,14 @@ the nearest lower value a case in the file covered the code at: on
 `["off", "half", "on"]`, a case at `on` is twinned with `half` when one exists,
 and with `off` otherwise. Twins are looked for among the cases that covered what you
 asked, before `--where` narrowed them. Several twins print as their count and
-the first three names. When no case in the file matches, the case prints
-`no twin recorded at discount=off`.
+the first three names. When no case in the file matches, the line under the
+case is `no twin recorded at discount=off`.
 
 #### Asking about the text you hold
 
 The recorded line numbers are the ones the suite ran over. Edit the file and
 they point at whatever code sits there now. So the answer about a file checks
-the text against the recording first, and says which `frame` its numbers
+the text against the recording first, and names the `frame` its numbers
 stand in:
 
 - `recorded`: the file is the text the suite ran over.
@@ -621,7 +621,7 @@ variance covering --file src/checkout/total.ts --text - --format json < buffer.t
 ```
 
 `--text <path>` reads the held text from a file, and `--text -` reads it from
-standard input, which is how an editor asks about a buffer you have not saved.
+standard input, which is how an editor queries a buffer you have not saved.
 `--line` then names a line in that text. A line the edit wrote is refused
 rather than answered, because no case has run it yet.
 
@@ -673,7 +673,7 @@ rather than exercising anything.
 A changed **test file** has no module row — the run instruments what the tests
 import, not the tests themselves — so it is answered with the named cases it
 declares rather than reported as unmeasured. A changed path the index holds
-nothing for says so, in those words, because *no row* and *no test* are
+nothing for is printed as `no row`, because *no row* and *no test* are
 opposite facts.
 
 The diff is measured from the commit the record was written at rather than from
@@ -718,14 +718,14 @@ landed. Each region whose cases moved is one of four:
 - **thinned**: several cases walked it at the base, one does now.
 - **gained**: no case walked it at the base, one or more do now.
 
-A region that stayed walked is not listed. When nothing moved, the answer says
+A region that stayed walked is not listed. When nothing moved, the answer prints
 *no region moved*, because an empty list and a comparison that was not made
 are different answers.
 
 The base is the record your base branch made, restored in CI into a directory
 of its own before this run writes. It names the commit it was made at, and your
 clone needs that commit: a base that names none, or names one your clone does
-not have, is not compared, and `covering` exits 2 and says which. Fetch the
+not have, is not compared, and `covering` exits 2 and prints which. Fetch the
 commit with `git fetch origin <sha>`, or check out every commit in CI with
 `fetch-depth: 0` on `actions/checkout`. When that commit is behind the merge
 base, the files the base branch changed in
@@ -808,7 +808,7 @@ starting commit and adds its test files to the list. Shards landed with
 `variance journeys <shard>...` count as one run at the shards' commit.
 
 That commit is a start only when the one you ran at descends from it, and the
-review asks git. A run after checking out an older commit, or mainline shards
+review reads that from git. A run after checking out an older commit, or mainline shards
 landed over your branch's runs, has no previous commit to start from, and is
 read like the run below. When git cannot tell, because your clone does not
 hold that commit or is shallow and cut between the two, the review is refused
@@ -818,7 +818,7 @@ A run in a checkout that had no recording before it, such as a fresh clone,
 has no previous commit to start from. When the root config gives that suite to
 the [share](https://variance-authority.dev/docs/sharing) with `"carry": "share"`, the review starts at
 the commit your mainline published its record at, compares cases with that
-record's, and says so in its first line:
+record's, and prints that in its first line:
 
 ```text
 Changes since 51ab09e7c2d4, where mainline main published its record of "unit", 3 commit(s) behind the merge base with this checkout. 1 run at 9c4e1d2a07b8 recorded 4 test files.
@@ -836,7 +836,7 @@ Changes since 2f07c1a9be3d, the merge base with 51ab09e7c2d4, where mainline mai
 The record a branch published to the share, on its `branch/<name>` line, is
 never the start: the review would measure the change against itself. `--since`
 still names the start. When the mainline's record cannot be read either, the
-review stops, and the message says what the share answered.
+review stops, and the message names what the share answered.
 
 The review also lists the regions whose cases changed. It compares them with
 the cases the runs at this commit replaced, which the suite keeps beside its
@@ -877,17 +877,17 @@ and each edge counts the functions it now enters or no longer enters. The same
 lines as the text follow it, folded. The markdown lists the first 40 moved
 regions, test files whose reach moved, and files not compared, and counts the rest.
 GitHub rejects a comment longer than 65,536 characters, so a longer markdown
-review is cut at a line break before that length, and its last line says how
-many characters are not shown.
+review is cut at a line break before that length, and its last line gives the
+number of characters not shown.
 
 Under each changed function a case ran, the markdown lists those cases by test
 file and title, each with the preconditions it recorded, the way `covering`
 prints them: `applies the discount — discount=on (test/flags.ts:6)`. When the
 cases recorded more than one value of a name, the function's line names every
 value — `ran under discount=off, discount=on` — so you see which states ran the
-change without asking `covering --where`. A record made before cases recorded
-preconditions says the state they ran under is unmeasured, and cases nobody
-listened to are counted apart from the cases that recorded nothing.
+change without asking `covering --where`. For a record made before cases recorded
+preconditions, the state they ran under is printed as unmeasured, and cases from a
+runner that does not record preconditions are counted apart from the cases that recorded nothing.
 
 A comment shows part of the answer, and `review.json` holds all of it. Upload
 the `--out` directory as an artifact, and anyone with the GitHub CLI can print
@@ -902,14 +902,14 @@ variance review --from-run https://github.com/acme/shop/actions/runs/36531792356
 names, and prints the `review.json` inside in the format asked for. The review
 is the one the run made, so `--since`, `--against`, `--suite` and `--out` are
 refused beside it. When `gh` is not installed, or the artifact has expired, the
-message says which.
+message names which.
 
 A suite split over several invocations at one commit keeps the base's cases for
 every file any of them ran. Once an invocation runs a file a second time, that
 file's replaced cases are this commit's own, and the review no longer names a
 commit for them.
 
-`variance index` comes first because the review asks the file graph which tests
+`variance index` comes first because the review reads from the file graph which tests
 import each changed file, and under CI the graph is read from what `index`
 published, never built on demand. A region covered only by a test the published
 graph does not list, such as one added after `index` ran, is counted on its own
@@ -919,7 +919,7 @@ than one import away.
 ### Coverage: how much each kind of suite runs, and what changed it
 
 `coverage` counts the regions each suite ran, over every region any suite
-loaded, and says how many regions more than one kind of suite runs and how many
+loaded, and prints how many regions more than one kind of suite runs and how many
 only one kind runs. It reads the case index each suite already wrote, so there is
 no second instrument and no second run:
 
@@ -981,7 +981,7 @@ suite with no base is named with the reason.
 A base's regions are paired with the current ones through git's diff from the
 commit the base was recorded at, as `covering --against` pairs them. A base that
 names no commit, or one your clone does not have, is not compared: `coverage`
-and `review --coverage` exit 2, name the commit, and say how to fetch it. In CI,
+and `review --coverage` exit 2, name the commit, and print how to fetch it. In CI,
 check out every commit with `fetch-depth: 0` on `actions/checkout`.
 
 A record holds only the modules some suite loaded, so a file that no suite
@@ -1010,7 +1010,7 @@ reaches through its imports, as the recording names it
 ([changes before and beyond reach](https://variance-authority.dev/docs/changes-before-and-beyond)).
 Only the part of it the scope's entry points reach is counted, so the config
 itself is in no scope. Those files ran under every test and no record holds a
-region of them, so the second share counts them as run and says how much of
+region of them, so the second share counts them as run and prints how much of
 the run they are: code every test runs and no test is aimed at.
 `--format json` names every file.
 
@@ -1035,7 +1035,7 @@ paths relative to each directory, where `*` matches within one path segment and
 ```
 
 A directory with no entry points declared starts from every file under it, and
-the first line says so. A pattern that matches no file is named.
+the first line prints that. A pattern that matches no file is named.
 
 To leave a part of the repository out of the count — a marketing site nothing
 measures, say — declare the repository root as the directory (`"."`), with a
@@ -1062,7 +1062,7 @@ the numbers are: a threshold is a line in your own workflow.
 ### Watch: ask about a suite that has not finished
 
 A finished run leaves a file, so any number of processes can open it whenever
-they like. A run in flight leaves nothing, and the only copy of what it said is
+they like. A run in flight leaves nothing, and the only copy of what it reported is
 in the memory of whatever was listening at the time. So somebody has to be
 listening *before* the suite starts:
 
@@ -1087,13 +1087,13 @@ variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
 ```
 
 `--at` defaults to `VARIANCE_AUTHORITY_VANTAGE`, so a shell that already exports
-it for the suite asks with nothing extra typed. Ask `self` first: it says where
+it for the suite asks with nothing extra typed. Ask `self` first: it prints where
 the watcher is listening and what it has heard, which is what separates a run
 that reported somewhere else from one that has not started. `run-signals` marks
 the test still going with `▸`; `test-signals` gives everything one test
-announced, in order, with the realm that said each and the work that started
+announced, in order, with the realm that announced each and the work that started
 without finishing — the answer a timeout cannot give, because a runner reports
-what a test *wanted*.
+only the condition a test was waiting for.
 
 `ask diff --at` works here too, against the reading the watcher handed out last.
 The watcher keeps that state, not a file, because this process exits
@@ -1111,7 +1111,7 @@ entry per root cause, grouping every subject that cause reached — and recorded
 decisions. `push` is what gets a run there — the report the run already
 wrote, with the images beside it.
 
-The `review` section is what tells `push` where to send it — an `endpoint` and
+The `review` section sets where `push` sends it — an `endpoint` and
 the token to present:
 
 ```jsonc
@@ -1156,12 +1156,12 @@ invented key would be an approval that could never settle a later run. The
 subject still goes up with its verdict, its regions and its `before`; what it
 loses is the button.
 
-Both ends say what they are. `push` asks the deployment for its API version
+Both ends report their version. `push` requests the deployment's API version
 before it reads a byte off disk and prints the pair on the line it reports. When
 the deployment is older, it names each thing the deployment lacks that the push
 uses: before API 2, a push uploads every image it has rather than naming the
-ones already there, and that looks like a slow network until something says
-otherwise. When the deployment is newer, it says this CLI is the older half.
+ones already there, and that looks like a slow network until the version check shows
+otherwise. When the deployment is newer, it prints that this CLI is the older half.
 When the project's `share` is an `http` share under the deployment's endpoint,
 `push` also names a deployment older than API 3, because such a deployment
 answers 404 under `/share/`.
@@ -1175,7 +1175,7 @@ than silent. Calling `push` from your own code, the same events arrive through
 
 ### Changelog: explain a baseline update
 
-A baseline update's report says what the new baseline is, not what the change
+A baseline update's report records what the new baseline is, not what the change
 was. `accept` can write that explanation into the thing that survives — a
 commit:
 
@@ -1230,7 +1230,7 @@ Three failure modes are handled explicitly:
 
 Every other reading here answers *which subject*. A recurrence count names a
 subject that keeps changing, a second reading names a subject that disagrees with
-itself, and none of them can say **where in the source** the two readings parted,
+itself, and none of them can show **where in the source** the two readings parted,
 because none of them was inside the module while it ran.
 
 A build instrumented with `testSelectionProbes()` from
@@ -1261,7 +1261,7 @@ what a cap left out is counted, not dropped.
 
 It exits `0` whatever it finds. Every suite with two stories per component has
 partings, so gating on one would fail every suite; this is where to look once
-something else has said something changed.
+something else has reported a change.
 
 **The pool is printed whether or not anything was found**, for `changelog`'s
 reason: an empty answer from a pool of one and an empty answer from a pool of
@@ -1278,7 +1278,7 @@ left to be inferred:
   than counted as a subject that agreed.
 - A named subject the journal never recorded is listed by name, because this
   run observed nothing that would settle it either way.
-- A pool of fewer than two observations is said out loud. A parting is a
+- A pool of fewer than two observations is printed as such. A parting is a
   disagreement between two observers, and a single observer has not found
   nothing — it has not been able to look.
 
@@ -1365,13 +1365,13 @@ cannot mean *do not re-collect anything* on Tuesday and something else on
 Wednesday.
 
 Unstable subjects exit **1** even when every verdict is green — a sweep that
-found six and exited 0 would have told CI nothing it could act on.
+found six and exited 0 would have given CI nothing it could act on.
 
 Stability is demanded only inside the boundary a subject declares. A **sensitivity
 level** names the set of bands a subject is actually asserted on — `strict`
 (every band, the default), `layout` (`a11y` and `geometry` only), or `content`
-(`a11y` and `content` only). A route with `sensitivity.level: layout` has said
-it does not assert on what the page is painted with, so a clock ticking inside
+(`a11y` and `content` only). A route with `sensitivity.level: layout` declares
+that it does not assert on what the page is painted with, so a clock ticking inside
 it is listed under *not asserted on*, does not gate, and is not refused by
 `accept`. `strict` absorbs nothing.
 
@@ -1390,7 +1390,7 @@ in a log from a run that found nothing.
 
 ### Exit 2 from your own collector
 
-Exit `2` says the run did not happen as configured; anything else that escapes is
+Exit `2` means the run did not happen as configured; anything else that escapes is
 reported as a defect in this tool, with a stack trace, because telling somebody to
 go and edit a config that was never wrong costs them an afternoon.
 
@@ -1459,8 +1459,8 @@ under different probe recipes, or at different commits — and a shard recorded
 outside a checkout names no commit, which is a disagreement rather than a
 blank. A test file two shards both recorded means the split overlapped, which
 only the operator can resolve. A module one shard could not instrument is
-answered by the shards that did: that row says one build could not read the
-module, and nothing about the tests another build watched run it.
+answered by the shards that did: that row records that one build could not read the
+module, and is no evidence about the tests another build watched run it.
 
 Where it lands is this checkout's own cache, the file every run on this
 machine layers over — the record of the suite `--suite` names, when the root
@@ -1476,8 +1476,8 @@ them. `journeys` lays each shard's cases over the landed record's, replacing
 the cases of every test file that shard ran to the end, in the same write as
 the coverage, and `covering`, `coverage` and `review` answer from the result.
 If you land a shard that ran a test file to the end and kept no cases, the
-landing drops the index, because no index can say which of that file's cases
-run a line. Those commands then say nothing is recorded until a run writes
+landing drops the index, because no index can hold which of that file's cases
+run a line. Those commands then print that nothing is recorded until a run writes
 one. A shard keeps no cases when its seam recorded none. If another run is writing the record when you land, nothing is written
 and `journeys` exits non-zero; land again once that run ends.
 
@@ -1529,14 +1529,14 @@ reads for the calls into and out of a file and the
 [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have)
 its tests take. A checkout with no declared suites prints one `journeys:` line.
 A suite with no recording prints `not prepared: nothing is recorded at …`. The
-last two lines are what `variance ask` answers from, and each says why when it
+last two lines are what `variance ask` answers from, and each prints why when it
 could not be written. An index the file system refuses
 to write prints `source index not written: <reason>, at <path>` and exits `2`.
 
 On your machine the command returns once the index is written. The code map,
 the journeys and the last two lines are made by a process it starts for them,
 and a `follow-ups:` line names that process and the file its lines go to. The
-next `variance` command waits for it before reading anything, and says so on
+next `variance` command waits for it before reading anything, and prints that on
 stderr, so no answer comes from a map older than the index. A process that ended
 before it finished is not waited on: the next command makes them itself and
 prints their lines. `--wait` makes them before `index` returns, which is what it
@@ -1545,7 +1545,7 @@ always does in CI. `--follow-ups` is what the started process runs.
 In CI, run it as its own step after you restore the cache. A reader that finds
 nothing published there exits `2` and names the missing step, because an index
 built quietly by the reader would hide a cache that never arrived. On your own
-machine a reader that finds nothing builds the index once and says so on stderr.
+machine a reader that finds nothing builds the index once and prints that on stderr.
 
 `--no-git` reads every file's contents from the working tree rather than from
 Git's object store. Git still lists the files and names each blob, so the index
@@ -1583,7 +1583,7 @@ When your checkout has not recorded the suite, as in a fresh clone, `select`
 reads the record your mainline published, if the root config gives that suite
 to the [share](https://variance-authority.dev/docs/sharing) with `"carry": "share"`. The record is
 kept in [the cache](https://variance-authority.dev/docs/cache), never where the suite records, and
-stderr says which of the two `select` read:
+stderr names which of the two `select` read:
 
 ```text
 record of "unit": read from mainline main, published at 51ab09e…, 3 commit(s) behind the merge base with this checkout; kept at <cache>/share/read/unit/51ab09e…/coverage.bin.
@@ -1592,7 +1592,7 @@ record of "unit": read from mainline main, published at 51ab09e…, 3 commit(s) 
 Once the suite runs in your checkout, its own recording is read instead. The
 record a branch published to the share, on its `branch/<name>` line, is never
 read: only a mainline's is. When the mainline's record cannot be read either,
-stderr says what the share answered, and `select` skips nothing.
+stderr names what the share answered, and `select` skips nothing.
 
 It prints a **skip** list, never a run list, and that is the whole of its safety.
 A run list has to be complete to be correct, and this journal is never
@@ -1608,11 +1608,11 @@ a workspace is many projects and a project matches an exclude pattern against
 its own directory rather than the root the journal counts from; `jest` writes
 `--testPathIgnorePatterns=` arguments and re-states jest's `/node_modules/`
 default, which that flag would otherwise replace. `--format json` reports the
-counts and the widening reason together for something that wants to decide for
+counts and the widening reason together for a program that decides for
 itself.
 
 It declines to narrow, out loud on stderr and with an empty stdout, whenever the
-journal cannot speak: nothing recorded on this machine, a diff git would not
+journal holds no answer: nothing recorded on this machine, a diff git would not
 produce, a lockfile that cannot be compared at the diff's base, or a journal
 with no whole observation in it.
 
@@ -1690,7 +1690,7 @@ by the import graph, and that is [`reach`](#reach-what-a-diff-reaches-for-a-pipe
 A changed test file runs itself. A mock is installed before the file's first
 case, so what a case crossed ran for real and selects it even in a module its
 file mocks; only what the module did while it was evaluated is cut by the mock.
-A path neither the journey nor the import graph knows keeps no
+A path neither the journey nor the import graph has keeps no
 test in the run and is named on stderr. The whole reading happens in the native
 addon, so a stitched file with hundreds of millions of crossings is answered in
 milliseconds without expanding it in JavaScript.
@@ -1742,7 +1742,7 @@ stderr names `total`.
 [How different languages are handled](https://variance-authority.dev/docs/polyglot#walked-from-what-the-edit-changed)
 says where the walk stays whole. Everything else a person needs goes there too,
 including how many files were reached from how many. `--format json` gives
-the same facts for something that wants to decide for itself.
+the same facts for a program that decides for itself.
 
 `--whole-files` walks from every changed file whole without reading the edit,
 which is the list a file-by-file import graph gives. It is never shorter than
@@ -1829,7 +1829,7 @@ records every subject outside its slice as `excluded`, so three shards report
 each subject as excluded twice and observed once; the merge resolves those
 against what was actually observed. **A subject that every shard left to another
 is promoted to `failed` and turns the merged run red** — each shard exits `0`
-because each did exactly what it was told, and the merge is what notices the
+because each ran exactly its slice, and the merge is what finds that the
 suite is missing a component. With `--shard`, an exclusion names the shard that
 owns the subject and what placed it there, so two jobs that read different costs
 show it in their reports.
@@ -1843,10 +1843,10 @@ an empty body, because a bot that comments on every clean pull request teaches
 the team to filter it out, and the filter does not distinguish the clean ones.
 It writes to `--body-file` when given one and to stdout otherwise, and it posts
 nothing itself. `--marker` prints the HTML comment the poster searches for to
-find and rewrite its own previous docket; it is asked separately because it is
+find and rewrite its own previous docket; it is printed by a separate flag because it is
 needed in exactly the case where there is no body to read it out of. Exit `0`
 means *this rendered*, never *the run was clean* — the verdict belongs to `run`,
-which already said it.
+which already decided it.
 
 `--intent <text>` declares what the change was *meant* to do, overriding the
 config's `intent`. **It is a label, and it changes no verdict.** The string is
@@ -1963,8 +1963,8 @@ browser, store, or wall clock.
 The executable assembles these objects for you. Import them when an integration
 owns its own collector, renderer, storage, or review surface:
 
-- `run` receives a `config` plus injected dependencies. Its `flakes` flag asks
-  for the whole-suite stability sweep; `identity` records a run in the optional
+- `run` receives a `config` plus injected dependencies. Its `flakes` flag turns
+  on the whole-suite stability sweep; `identity` records a run in the optional
   history store; and library `since` is the already-computed `{ changed, ref }`
   selection that the executable's `--since` flag derives from Git. A missing
   `identity` or `since` means that concern is not requested, not that the run
@@ -1973,7 +1973,7 @@ owns its own collector, renderer, storage, or review surface:
   `since` narrows *which subjects render*, and `against` leaves the plan alone
   and reads *what the commit reaches* — the diff against that ref, walked
   through the import graph to the components each subject renders. A changed
-  subject the commit does not reach is the strongest thing a report can say,
+  subject the commit does not reach is the strongest finding a report can hold,
   and it is unavailable to anything that only compares images.
 - `run` also takes `index`, which narrows nothing. It is where the recorded
   execution index stands — the commit it was written at and how many files the
@@ -2003,14 +2003,14 @@ owns its own collector, renderer, storage, or review surface:
   `suite-v1/<suite>` your mainline published to the share, or the one fetched
   on this machine earlier when the remote does not answer, else, in a worktree
   that has recorded nothing, the primary checkout's. The last is an offline
-  fallback, and the answer carries `missed` to say why the mainline's was not
-  read. `mainlineRead` and `mainlineMissed` print the same `record of
+  fallback, and the answer has a `missed` field with the reason the mainline's was
+  not read. `mainlineRead` and `mainlineMissed` print the same `record of
   "<suite>":` line `select` does. The mainline's record is read with the runs
   record the publishing run carried beside it, at `mainline.runs`. In a fresh
   CI checkout, `layMainline` copies the record and its per-case index into the
   checkout's own layer, with that runs record as a seed that lists no run, so
   the run the job makes lands on them, as a cache restore would. `env` stands in for `process.env` when the
-  line is asked, and `cacheRoot` for the cache.
+  line is read, and `cacheRoot` for the cache.
 - The executable's `config` path selects the source; `parseConfig` takes that
   value and `baseDir` through `ParseOptions`. Relative paths resolve against
   `baseDir`, not the process working directory, so a library caller can load
@@ -2027,7 +2027,7 @@ owns its own collector, renderer, storage, or review surface:
    not observe.
 
 That last one is the failure this whole system exists to make impossible. A
-summary that says "nothing to review" because eleven subjects failed to render is
+summary that prints "nothing to review" because eleven subjects failed to render is
 worse than no summary at all.
 
 ## Acceptance does not produce an image
@@ -2092,7 +2092,7 @@ line and ignores its value, so a wrong path costs completion and never a run.
 `{ kind: "storybook", index, collector }` name the subjects up front — **both
 need a collector**, and for Storybook that collector is the module in
 [step 1](#1-write-the-collector-module). For anything else, neither a list of
-ids nor a story index says how to mount, and the mounting half is code you
+ids nor a story index defines how to mount, and the mounting half is code you
 write. `{ kind: "collector", collector }`
 is the third: the collector discovers the subject list itself, which is what a
 `sitemap` or a `directory` route collector needs, and the trade is the operator's
@@ -2109,7 +2109,7 @@ rest on it instead of running the suite — it costs one scan of the tree,
 which is cached by content and by tree shape and so is paid once. The graph
 reads the mocks as it goes: a test that calls `vi.mock('./api')` is not reached
 by a change to `api.ts`, at any depth, because its run never covers that module.
-`taints` names JSON tables that say what else a file imports beyond, or short
+`taints` names JSON tables that list what else a file imports beyond, or short
 of, its text — a framework's own import notation, a module loaded under a name
 the code never writes — keyed by file with `-` and `+` rows. The same
 graph answers the execution journal for a changed file it has no row of: the
@@ -2119,10 +2119,10 @@ only on components no baseline records narrows like any other, and the run names
 what it could not match — either nothing here watches that surface, or something
 here paints it without recording it, which a server component always does. Set it
 to `"whole"` for the second, and the run observes everything instead. `changes`
-asks `nx` or `turbo` what a diff affects and folds their answer in as **more changed
+runs `nx` or `turbo` to find what a diff affects and folds their answer in as **more changed
 input**, never as a second opinion: it is the edge a specifier scan cannot see
 when a workspace package imports its neighbour's built output and no `tsconfig`
-says which source that output is emitted from. `turbo`
+names the source that output is emitted from. `turbo`
 needs a `task`, because it filters a task graph rather than describing a
 workspace. If the tool cannot be run, the run refuses — an empty project list is
 a legitimate answer meaning *this diff crossed no package boundary*, and a
@@ -2222,7 +2222,7 @@ each with its own `carry`:
 `"suites": { "unit": { "kind": "unit", "carry": "actions-cache" } }`.
 
 `variance carry restore` and `variance carry save` print what `actions/cache`
-asks for: each file's paths, its key and, on a restore, the keys to fall back
+takes: each file's paths, its key and, on a restore, the keys to fall back
 to. With `--format github` the lines are step outputs, so the workflow names
 no path the config already names:
 
@@ -2257,7 +2257,7 @@ never overwrites a key, and a restore falls back to the newest key on the
 branch.
 
 Only a push to a mainline saves a recording. On any other run `carry save`
-prints no key for it and says why on stderr. The mainlines are the first of
+prints no key for it, and stderr names the reason. The mainlines are the first of
 these that answers: the config's `share.mainlines`, the branch the remote's
 `HEAD` names, the repository's default branch in the event. When none answers,
 nothing is saved, and the message names the answers that were missing.
@@ -2317,8 +2317,8 @@ anything.
 Two flags make the body something a reviewer can act on from a phone.
 `--run-url` links the report you published, and
 `variance report --format html --embed-images` makes that report one file a
-browser opens. `--to-accept` says how accepting works in your repository,
-because the comment cannot know whether that is a workflow to dispatch, a
+browser opens. `--to-accept` sets how accepting works in your repository,
+because the comment has no way to find out whether that is a workflow to dispatch, a
 label, or `variance accept` on a checkout:
 
 ```bash

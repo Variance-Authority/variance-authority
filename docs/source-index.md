@@ -48,7 +48,7 @@ questions: published at <cache>/test-selection/<digest>/source-index.bin.help.js
   is.
 - **The code map.** The map `variance ask orient` prints, built from the index
   and written beside it as `source-index.bin.map`. With the index and the
-  manifests unchanged, the kept map stands. With nothing to fold, the line says
+  manifests unchanged, the kept map stands. With nothing to fold, the line prints
   why, as `code map: none, because no manifest names a package`, and the index
   is still published.
 - **The journeys, one line per test suite, or one `journeys:` line with none
@@ -65,7 +65,7 @@ questions: published at <cache>/test-selection/<digest>/source-index.bin.help.js
   load.
 - **The last two lines.** What `variance ask` answers from: the third-party dependencies the checkout declares, and the
   value `ask search` and the other source questions read without scanning.
-  Either one says `not prepared` or `not published`, with the reason, when it
+  Either one prints `not prepared` or `not published`, with the reason, when it
   could not be written.
 
 On your machine the command returns once the index is written. The code map,
@@ -78,7 +78,7 @@ follow-ups: the code map, the journeys, the dependency lexicon and the questions
 ```
 
 The next `variance` command you run waits for that process before it reads
-anything, and says on stderr that it is waiting, so no answer is made from a map
+anything, and prints on stderr that it is waiting, so no answer is made from a map
 older than the index. A process that ended before it finished is not waited on:
 the next command makes what it left and prints the lines. `variance index --wait`
 makes them before it returns, which is what it always does in CI: a step's log
@@ -87,7 +87,7 @@ cache.
 
 One index works at a time on a machine. The update and the follow-ups each use
 every core, so two checkouts indexing at once would each take longer than they
-do one after the other. The second waits for the first and says so on stderr:
+do one after the other. The second waits for the first and prints that on stderr:
 
 ```text
 waiting for process 48213, which is indexing /home/you/other-checkout: one index at a time uses this machine's cores
@@ -120,7 +120,7 @@ When a reader finds no index, or one it can read only up to a bad segment, the
 answer depends on where it runs. In CI it exits with an error that names
 `variance index` as the step the pipeline lacks, because building the index
 there would hide a cache that never arrived. Add the step, or fix the restore.
-Anywhere else it updates the index once, says so in one line on stderr, and
+Anywhere else it updates the index once, prints that in one line on stderr, and
 reads it. CI is decided from the runner's own environment variables, the same
 way Jest decides it.
 
@@ -150,7 +150,7 @@ published.
 
 ### Naming what changed
 
-When an editor, watcher or orchestrator already knows the exact changed paths,
+When an editor, watcher or orchestrator already has the exact changed paths,
 write them one per line and hand the file to a source question:
 
 ```bash
@@ -306,7 +306,7 @@ scan and an unchanged run.
 | the checkout's absolute path | the parses, for the same reason |
 | which directories you scan | everything. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work |
 
-One case removes the per-directory bound and makes every run cold. To know that
+One case removes the per-directory bound and makes every run cold. To establish that
 an added file cannot change where a bare specifier lands, the scan reads `paths`
 and `baseUrl` out of every tracked `tsconfig*.json` and `jsconfig.json`, and out
 of every base each one `extends`, following a package name through its
@@ -329,7 +329,7 @@ it, call `updateSourceIndex`, which runs [`scanRelations`](source.md) over the
 index. To fix an index, delete it.
 
 `openSourceIndex` returns the parse cache, the record cache and a `save`
-operation together. Point reads ask segments newest to oldest and stop at the
+operation together. Point reads query segments newest to oldest and stop at the
 first value or tombstone; iteration materializes them oldest to newest. `save`
 keeps only the rows the scan used or wrote, compares them with what is
 committed, and writes the smallest segment that connects the two. A save

@@ -16,7 +16,7 @@ When something changed, the report names the component that drew it and the
 
 A **subject** is one named UI state you asked for and can ask for again — here,
 one route at one viewport, under an id you choose. A **collector** is a module
-you write that tells the CLI which subjects exist and how to open them; this
+you write that gives the CLI the subjects that exist and how to open them; this
 package builds one from a list of routes, a sitemap, or a directory of built
 HTML.
 
@@ -177,7 +177,7 @@ npx variance accept [--config <path>] <subject>... | --all | --shape <fingerprin
 
 `--shape` takes a **fingerprint** — the shape digest the report attaches to each
 changed region — so one decision covers every subject where the same kind of
-difference landed. Keep `--all` out of an unattended job: it cannot tell a
+difference landed. Keep `--all` out of an unattended job: it does not separate a
 candidate somebody reviewed from one nobody opened.
 
 With `baselines.kind: "directory"`, approval arrives as a commit: the `.png` and

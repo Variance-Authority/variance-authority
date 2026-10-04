@@ -90,7 +90,7 @@ uses downward-only dependencies in a layered system as its example.
 
 The product has four parts, and they are different kinds of statement:
 
-- **`variance layers` is an observation.** It says what structure the imports
+- **`variance layers` is an observation.** It prints what structure the imports
   produced, and which packages changed layer in this pull request.
 - **`variance restrictions` states a relationship** that must not exist.
 - **`maxLayer` states a limit over a derived fact:** how deep a package may become.

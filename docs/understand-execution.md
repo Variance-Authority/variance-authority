@@ -1,14 +1,14 @@
 # Understand an execution
 
-A comparison or an assertion has told you *that* something changed, and now you
+A comparison or an assertion has shown you *that* something changed, and now you
 need to find out *where*. This page indexes what the same run kept about the
 **execution** behind that answer: one test's work, from the moment your runner
 starts it to the moment it ends, across every process it touched.
 
 New here? Start with [your first run](start.md).
 
-An assertion records one answer to one question you chose before the run. An
-execution knows more than that answer: which elements the test operated, which
+An assertion records one answer to one question you chose before the run. The
+run records more about an execution than that answer: which elements the test operated, which
 regions of your source it covered, which components rendered, what your
 application code announced while it ran, and what work it opened and never
 closed. Keeping those readings is what lets you ask, after the run, a question
@@ -29,7 +29,7 @@ regions it covered while that state was painted, where a region is a function
 body, a branch, a `case`, a loop body or the code after an `await`.
 
 Three stories can mount the same component from the same file and still have run
-different code. `variance journeys` is the reading that tells them apart:
+different code. `variance journeys` is the reading that distinguishes them:
 
 ```bash
 npx variance journeys --file CartCard
@@ -60,7 +60,7 @@ Ask the question the evidence can still answer.
 | Question | What answers it | Page |
 | --- | --- | --- |
 | What is a running suite doing right now? | The tests each worker has opened, what your application code announced while they ran, and work that opened and never closed — readable from another shell, and gone when the suite ends | [Watch a run that has not finished](vantage.md) |
-| What did the page know before teardown? | The observations your installed instruments recorded while the page was alive, written out with the report | [Ask beyond the assertion](observability.md) |
+| What was in the page before teardown? | The observations your installed instruments recorded while the page was alive, written out with the report | [Ask beyond the assertion](observability.md) |
 | Which elements did the test address? | The element each query or locator resolved to, joined to the React component that rendered it and the source that wrote it, where React mounted the element | [What a test witnesses](eyes.md) |
 | Which regions of source did one execution cover? | A journey across every instrumented process the execution touched | [Read the journey](journeys.md) |
 | Where did two runs of the same flow stop agreeing? | Each observed Arrange–Act–Assert step, the state it began from, and a digest of what it changed | [Compare scenarios](scenarios.md) |
@@ -87,7 +87,7 @@ rather than present and zero.
 So the answer you can get depends on what was running at the time:
 
 - A live view of a suite ends with the suite.
-- A retained record says only what the instruments you installed could see.
+- A retained record contains only what the instruments you installed measured.
 
 When the evidence a question needs was never recorded, ask a narrower question
 of what you do have, or turn the instrument on and run again;

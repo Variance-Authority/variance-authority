@@ -140,7 +140,7 @@ both have an address, and neither proves a defect's cause.
 - **`unexplained`** — the test ran the changed module along no chain of imports
   it executed, while the graph explains the rest of that run. Shared state, a
   registry, a singleton, a patched prototype, a module-level assignment two
-  files agree about and nothing declares. The label does not say which.
+  files both depend on and nothing declares. The label does not name which.
 
 **`unmeasured` is not a finding.** The graph could not answer: a built file the
 scan does not read, a directory it was not pointed at, a file whose imports

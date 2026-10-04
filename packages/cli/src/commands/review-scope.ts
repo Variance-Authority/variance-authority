@@ -118,10 +118,10 @@ function unheardMarkdown(called: readonly ReviewCase[]): readonly string[] {
   const heard = new Map(called.map((one) => [one.id, one.preconditions !== undefined]));
   const unheard = [...heard.values()].filter((said) => !said).length;
   if (unheard === 0) return [];
-  if (unheard === heard.size) return ["The record holds no case's preconditions, so what these cases arranged is unmeasured.", ''];
-  return [`${unheard} of ${heard.size} case${heard.size === 1 ? '' : 's'} ${unheard === 1 ? 'was' : 'were'} not listened to, so what ${
+  if (unheard === heard.size) return ["The record holds no case's preconditions, so the state these cases ran under is unmeasured.", ''];
+  return [`${unheard} of ${heard.size} case${heard.size === 1 ? '' : 's'} ${unheard === 1 ? 'was' : 'were'} recorded without preconditions, so the state ${
     unheard === 1 ? 'it' : 'they'
-  } arranged is unmeasured.`, ''];
+  } ran under is unmeasured.`, ''];
 }
 
 /** Functions the same cases ran, in line order; a set of cases is said once. */

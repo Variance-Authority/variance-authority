@@ -2,8 +2,8 @@
 
 One token edit turns forty stories red, and every comparison you have is one
 **subject** — a story, route, fixture or data value your config names — against
-its own baseline: two revisions of one thing, forty times, with nothing saying
-the forty are one change. Composition is the other axis — **many subjects, one
+its own baseline: two revisions of one thing, forty times, with nothing marking
+the forty as one change. Composition is the other axis — **many subjects, one
 revision, joined on the components they share** — and there is no baseline
 anywhere in it.
 
@@ -59,19 +59,19 @@ toolByName('variance_locate')?.run(report, { query: 'footer chips' });
 collector gave only images.** An image with no markup behind it has no
 component boundaries to derive. Retention does not decide this: a run under
 `"retention": "ephemeral"` whose collector reads the markup composes like any
-other run. Absent is not empty: the tool answers with a sentence saying the run cannot tell,
+other run. Absent is not empty: the tool returns a sentence stating that the report has no composition,
 because an empty graph printed there would read as *this suite shares nothing*,
 which is a different claim and a false one.
 
 **Absent from a merged report** — `variance report shard-1.json shard-2.json …`
-— and the merge says so in a warning rather than leaving a hole. Two subjects
+— and the merge prints that in a warning rather than leaving a hole. Two subjects
 sharing a rendering *are* the finding, so a pair that landed in different shards
 is in neither shard's report and a union of the shard graphs would be a graph
 with every cross-shard edge missing and nothing marking where. The structure
 rows go with it. The [lexicon](lexicon.md) does not: a subject's names are a fact about one
 subject, and one subject is in one shard, so the merged report includes every
 entry under the fields all the shards read. A slice run without a journal keeps
-`regions` out of the whole, and the tool says so. The census is not lost to the
+`regions` out of the whole, and the tool prints that. The census is not lost to the
 build: each shard keeps its part beside its report, and
 [publishing every shard's report](sharing.md#a-sharded-build) composes the suite
 index one unsharded run would have written.
@@ -110,7 +110,7 @@ Each boundary then has both relations, because they answer different questions:
 | `created by` | the component that wrote this element | `TodoFooter` |
 
 `within` is where a boundary sits, which is frequently a layout primitive that
-knows nothing about its contents. `created by` is who wrote the element, which
+renders whatever it is given. `created by` is who wrote the element, which
 is where the props are written and so what an edit to it changes. Measured on
 [`examples/todomvc`](../examples/todomvc): every `Chip` is `within: Stack` and
 `created by: TodoFooter`; `Toggle` is `within: Stack`, `created by: TodoItem`;
@@ -129,7 +129,7 @@ is the enclosure answer — coarser, never wrong in a new direction.
 Inside a boundary, a child boundary is a placeholder, not its content.
 Where the enclosing component placed the child, the placeholder names it; where
 the child arrived as `children` from somewhere else, the placeholder is an
-anonymous hole — a container is not told what it was handed, so its hash must not
+anonymous hole — the container's code does not name the child it received, so its hash must not
 depend on it.
 
 That containment is the property the whole page depends on, so it is measured
@@ -211,8 +211,8 @@ from the same suite on a slower machine.
 ### Two examples watching the same bytes
 
 An **echo** is one rendering digest with sites in more than one subject. Three
-identical chips in one list say nothing; the same chip in a chip story and in a
-page footer says that a reviewer looking at two diffs is looking at one. The
+identical chips in one list show nothing; the same chip in a chip story and in a
+page footer shows that a reviewer looking at two diffs is looking at one. The
 two-subject rule is the whole test — a rendering that survives being mounted
 somewhere else is the one a second subject is watching.
 
@@ -244,7 +244,7 @@ picking a winner out of document order.
 mounts. A harness wrapper, a theme or store provider, a portal root, a
 higher-order component every screen is wrapped in — each is mounted by nearly
 every subject, and none of them is what any subject is about. Counting rather
-than recognising is what survives a real application: nothing here knows that
+than recognising is what survives a real application: nothing here detects that
 `withStyles(Account)` is a higher-order component, that a class component is a
 context consumer, or that a minified `aL` is a decorator a build renamed, and
 nothing here needs to.
@@ -252,7 +252,7 @@ nothing here needs to.
 Without that descent, a suite mounted under one wrapper answers `Wrapper` for
 every subject it has, which is a field with one value in it. A depth all of
 whose names are structure is passed through however many names it has, because a
-harness that mounts a provider beside a portal root has still not said what the
+harness that mounts a provider beside a portal root still does not show what the
 subject is about. Where the descent finds nothing — a suite too small for
 anything to be distinguishing — the shallowest boundary answers as before, so
 this names more subjects than the plain rule and never fewer.
@@ -279,13 +279,13 @@ the whole page.
 ### One input, two renderings
 
 A **divergence** is one props digest producing more than one rendering *at one
-commit*. It is not a regression. It says the component's own inputs do not
+commit*. It is not a regression. It shows that the component's own inputs do not
 determine its output, which is either a fact about the design — a token, a theme,
-an ancestor's cascade — or a reading that is not repeatable. The bands say which
+an ancestor's cascade — or a reading that is not repeatable. The bands name which
 kind, in the same vocabulary a [sensitivity](sensitivity.md) absorbs, so a divergence entirely
 inside a relaxed band can be dismissed without opening it.
 
-Every rendering after the first also says **why**. Each is lifted out of the page
+The report also gives **why** for every rendering after the first. Each is lifted out of the page
 it was found in, re-rooted at the component, and read against the first for
 [where the two parted](parting.md) — so the report does not stop at *`Price`
 rendered two ways*, it says which input changed:
@@ -337,7 +337,7 @@ second reading settles it.
 
 Zero is a real and common answer, and it means nothing in the suite renders two
 ways from one input. `Card` keeps one props class and two renderings, which is the
-honest residue: the count says the pair exists and the refusals say it is not
+honest residue: the count shows that the pair exists and the refusals mark it as not
 evidence.
 
 ### The subtree that recurs, at every depth
@@ -450,7 +450,7 @@ snapshot.
 document order, with identical rows folded: same component, same depth, same
 enclosing boundary, same creator. What differed among the folded boundaries
 survives as a variant count, so three chips under one stack are one row that
-says there were three and that their props differed.
+records that there were three and that their props differed.
 
 ```
 page/footer--counts — 5 component(s), 7 boundaries; the example of TodoFooter
@@ -474,10 +474,10 @@ filtered to this subject and folded by rendering: the census keys an echo under
 the props class it was found in, so one rendering reached from three props
 digests is three records there and one row here.
 
-Three absences, three sentences. A report with no structure section says the
-tier did not compose; a subject the plan listed and the run did not observe says
-so and points at `variance_explain_verdict`; an id the run never planned lists
-what it did plan and points at `variance_locate`.
+Three absences, three sentences. A report with no structure section means the
+tier did not compose; for a subject the plan listed and the run did not observe,
+the tool prints that and points at `variance_explain_verdict`; for an id the run
+never planned, it lists what the run did plan and points at `variance_locate`.
 
 ### The subject you can only describe
 
@@ -512,7 +512,7 @@ one entry per boundary per subject — tens of thousands of objects on a real su
 — and a report is a file people open, so the record keeps the names, the counts
 and the subject lists, and a consumer that wants the graph recomputes it from the
 snapshots. The echo list is capped at 100 and what the cap left out is counted in
-the artifact, because a cap that says nothing reads as coverage. The structure
+the artifact, because a cap that is not reported reads as coverage. The structure
 rows and the lexicon join the artifact on the same terms — rows and names, never
 the graph — and on todomvc each is about a third of the report.
 
@@ -537,7 +537,7 @@ pretends it is.
 
 **An empty `created by` is not "nothing mounted it".** It is a production build,
 where the owner links are gone. Every consumer of that field keeps the two apart,
-and the report's own types say so.
+and the report's own types keep them apart.
 
 **Provenance is React's.** The boundaries come from the fiber tree, so a suite
 built on anything else composes nothing at all — the raster tier's answer, with

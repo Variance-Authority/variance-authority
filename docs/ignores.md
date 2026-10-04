@@ -28,7 +28,7 @@ An ignore is the opposite in every respect that matters.
 | Scope | the whole image | one named place, or one difference shape |
 | Author | whoever chose the default | you, in your config, by name |
 | Reason | none is recorded | required — a rule without one is refused |
-| What it hides | anything that fits under the number | exactly what it says, counted every run |
+| What it hides | anything that fits under the number | exactly what it names, counted every run |
 | When it stops | never | the first run it absorbs nothing, it is reported |
 | Verdict it produces | `unchanged` | `ignored`, which is a different word |
 
@@ -88,8 +88,8 @@ same artifact anywhere in a subject digests the same.
 
 There are two, and `variance run` publishes and matches the *pixel* one — the
 change mask cropped to its own bounding box, resampled onto a fixed grid, with
-its aspect and its magnitude bucketed alongside. It knows shape and size and
-knows nothing about which component produced it, so two unrelated components
+its aspect and its magnitude bucketed alongside. It records shape and size and
+nothing about which component produced it, so two unrelated components
 whose residue looks alike collide. The *semantic* fingerprint, which does include
 the component, is `fingerprintOfRoot` and applies where two documents are
 compared — the library path, not the binary's.
@@ -282,7 +282,7 @@ that renders it. What it does not get is a `reason`, an expiry, or a line in the
 per-rule ledger, because none of those live in markup. Prefer the config for
 anything you intend to keep.
 
-## What the run tells you back
+## What the run prints
 
 Every run prints an ignore ledger, including when everything is green.
 
@@ -294,7 +294,7 @@ IGNORED — 1284 pixel(s) absorbed by 3 rule(s); 12 subject(s) differed only the
   [dead] support-widget — matched nothing in any subject (vendor iframe)
 ```
 
-Each line asks for a different action:
+Each line needs a different action:
 
 | Line | What happened | What to do |
 |---|---|---|
@@ -303,7 +303,7 @@ Each line asks for a different action:
 | `[dead]` … `matched nothing in any subject` | the selector resolved nowhere | fix or delete it — you believe something is silenced and it is not |
 | `[expired]` | past its `until` | the differences are being reported again; decide again |
 | `[unworn]` | the rule is scoped to tags no subject in this run has | check the spelling against the run's vocabulary, which the line offers |
-| … `none of which was compared this run` | it found its element, and no subject with that tag was compared | nothing yet — this run says nothing either way |
+| … `none of which was compared this run` | it found its element, and no subject with that tag was compared | nothing yet — this run gives no evidence either way |
 
 Coordinate masks cannot distinguish a rule whose target did not change from one
 whose target disappeared, which is why a masked suite rots silently.

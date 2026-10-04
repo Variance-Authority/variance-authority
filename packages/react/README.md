@@ -8,7 +8,7 @@ Part of [Variance Authority](https://variance-authority.dev).
 
 ## What you get
 
-Hand this package a DOM node that `react-dom` mounted, and it tells you which
+Hand this package a DOM node that `react-dom` mounted, and it returns which
 React components put it there:
 
 - the **owner chain** — the composite components enclosing the node, innermost
@@ -82,7 +82,7 @@ For a node rendered by `Composer → Slot → Badge`, `result.provenance` is:
 Digests are truncated here for width; the real value is `v1:` plus 32 hex
 characters.
 
-Two functions return this, and they differ only in what they say about failure:
+Two functions return this, and they differ only in what they return on failure:
 
 | | returns | use it when |
 |---|---|---|
@@ -119,7 +119,7 @@ arrays, and `declared.id` distinguishes this registry from the one a re-injected
 bundle would build. The consumer on the Node side is
 `createDeclarationReader` in
 [`@variance-authority/playwright`](https://variance-authority.dev/reference/packages/playwright),
-which asks the engine about `functions[i]` by handle.
+which queries the engine for `functions[i]` by handle.
 
 The chain itself is identical with or without a registry.
 
@@ -192,7 +192,7 @@ needs a DevTools extension.
 ### Waiting for a subject to arrive
 
 `awaitSuspense` returns `settled`, `pending` or `unobserved` — three states, so a
-page with no React under it can never claim to have arrived — alongside how long
+page with no React under it is never reported as arrived — alongside how long
 it waited, how many boundaries it found, and which were still pending. It
 defaults to a 5000 ms timeout, a 16 ms poll, and two consecutive clean reads
 before it calls a subtree settled; the second read is what stops a capture
@@ -214,9 +214,9 @@ instead of reporting the page as quiet.
 
 Each retained commit keeps two independent readings:
 
-- **`components` says which render bodies ran.** It comes from React's
+- **`components` lists which render bodies ran.** It comes from React's
   `PerformedWork` flags.
-- **`updaters` says which live instances initiated the update.** It comes from
+- **`updaters` lists which live instances initiated the update.** It comes from
   the root's `memoizedUpdaters`, and each entry is an innermost-first component
   path whose frames include a name, a reconciliation key and a props digest. A
   missing `updaters` means the renderer did not expose the set; an empty array
@@ -270,7 +270,7 @@ reaches past the component that rendered the node.
 
 ## Limits
 
-- **A node React never rendered has no owner chain, and says so.** The result is
+- **A node React never rendered has no owner chain, and the result reports that.** It is
   `{ status: 'no-fiber', reason: 'no-client-fiber' }`, or `'unmounted'` for a
   node whose tree was torn down. An empty chain would be a claim — "owned by
   nobody" — and indistinguishable from a node rendered directly by a root.

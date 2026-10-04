@@ -52,8 +52,8 @@ An explanation does not approve anything. Nothing accepts a baseline on your
 behalf, so a cause you understand still goes to review as a change to accept or
 reject.
 
-Two verdicts are not code problems at all, and `explain-verdict` is there to say
-so before you go looking for an edit:
+Two verdicts are not code problems at all, and `explain-verdict` prints
+that before you go looking for an edit:
 
 - `new` means no baseline has been approved for that subject yet.
 - `incomparable` means a baseline exists but another browser, platform, scale

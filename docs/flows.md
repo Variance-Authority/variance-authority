@@ -52,7 +52,7 @@ This page keeps four choices apart:
 ## Level 0 — ephemeral: compare two revisions now
 
 Ephemeral retention is a complete comparison with no durable baseline. Its
-**collector** — the module that drives the app to each UI state and says when
+**collector** — the module that drives the app to each UI state and reports when
 it is ready to be captured — supplies the current document and a `before`
 document for every subject; the renderer paints both under one identity during
 the run.

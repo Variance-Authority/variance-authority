@@ -67,7 +67,7 @@ baseline costs you the comparison.
 
 Every publish includes `suite-index-v1`, which is what `variance share` reads,
 and the other entries are published only beside it. A run report has no
-composition section, the part that says which subjects mounted which
+composition section, the part that records which subjects mounted which
 components, when it comes from a run that read no markup (a raster-only
 capture, or a run whose collector gave only images), or from one shard of a
 sharded build. It gives no suite index, and a publish of it writes nothing and exits 0.
@@ -99,7 +99,7 @@ where `suites` declares your test suites and `subjects` what a run captures:
   The [runner integration](execution-record.md#one-record-for-each-suite) you
   run the suite under writes it; `variance run` does not. When it was
   recorded at another commit, names no commit, or does not read, the publish
-  leaves that suite out, publishes the rest of the run, and says why:
+  leaves that suite out, publishes the rest of the run, and prints why:
 
   ```text
   left out suite-v1/stories: its record at <path> was recorded at 5d0c…, not at 3f1c….
@@ -147,7 +147,7 @@ images/<digest>     every image a record names, stored once
 
 There is no history. Your branches are brought up to date with a mainline
 before they merge, by a merge queue, a required up-to-date branch or a rebase,
-so the question your checkout asks is *what is mainline now, and how far am I
+so the question for your checkout is *what is mainline now, and how far am I
 from it*, and every lookup prints that distance.
 
 **A publish replaces only the entries it offers.** Two jobs that publish
@@ -268,7 +268,7 @@ When nothing answers — no `share.mainlines`, no remote `HEAD` and no event:
 
 `share.remote` names the remote the mainlines are on, `origin` unless you set
 it. The remote's `HEAD`, the distance a lookup prints and the descent a publish
-asks about are all read from it.
+checks are all read from it.
 
 ## Publishing
 
@@ -349,8 +349,8 @@ wrote suite-index-v1, report-v1, subject-costs-v1 to mainline main in refs/varia
 ```
 
 The store is named as `<namespace> on <remote>` for a `git` share, `the
-directory <root>`, or `the endpoint <url>`. A publish the store did not take
-says why, with the same reasons a lookup gives:
+directory <root>`, or `the endpoint <url>`. For a publish the store did not take, the CLI
+prints why, with the same reasons a lookup gives:
 
 ```text
 nothing published to branch feat/cart in the endpoint https://variance.example.com/share: https://variance.example.com/share/branch/feat/cart/manifest.json: HTTP 403.
@@ -366,7 +366,7 @@ left out 2 image(s) the report names and this machine could not read, the first 
 The same publish gives the line `subject-costs-v1`: what each subject took to
 collect, under the same commit. `npx variance run --shard k/n` reads it back from
 the mainline to split the suite evenly, and a run with `workers` reads it to take
-the slowest files first. `npx variance ask costs` reads the same line to tell you,
+the slowest files first. `npx variance ask costs` reads the same line to show you,
 or an agent, which files and subjects the suite spends its time on; see
 [the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
 
@@ -448,7 +448,7 @@ so the next command reads it from disk.
 A distance *past* the merge base means your mainline has changed since you
 branched: update your branch to measure against it.
 
-**A lookup that finds nothing says why**, as `mainline <name>: <why>.`, because
+**A lookup that finds nothing prints why**, as `mainline <name>: <why>.`, because
 each reason needs a different action:
 
 | The message says | What to do |
@@ -473,14 +473,14 @@ is:
    run report this process cannot open is still yours, and the error says why.
 2. **Your branch's line.** The branch is `GITHUB_HEAD_REF` on a pull request,
    `GITHUB_REF_NAME` on a GitHub Actions branch run, or your checkout's branch.
-   It is not asked on a mainline, on a detached checkout, or on a pull request
+   It is not read on a mainline, on a detached checkout, or on a pull request
    from a fork, where a line of that name belongs to a branch of the base
    repository.
 3. **The mainline your checkout is measured against**, chosen as in [Looking
    up](#looking-up-mainlines-record).
 
 A run report you name on the command line is read, or refused, and the share
-is not asked.
+is not read.
 
 Every answer read from the share opens with a sentence starting `report:` that
 says which line it came from. From a branch line:
@@ -540,7 +540,7 @@ report: this checkout's own run, compared with the report the previous answer re
 ```
 
 **When no line answers, `ask` exits 2 and `serve` does not start.** Both list
-each line asked, with what it answered:
+each line read, with its result:
 
 ```text
 there is no run report at /work/web/.variance/report.json, which is where `report` in your configuration points, and the share holds none for this checkout:
@@ -570,7 +570,7 @@ because a record of your own branch would measure the change against itself.
   at your `HEAD` started with no execution record here, as in a fresh clone.
   The lines your tests ran still come from your own record; the mainline's gives
   the commit to diff from. With no run of the suite here, it reads nothing and
-  asks you to run the suite or pass `--since`.
+  prints that you need to run the suite or pass `--since`.
 
 Records are read in this order:
 
@@ -579,29 +579,29 @@ Records are read in this order:
 2. **The mainline's record.** It is kept at
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
    run writes, so it is never read as your checkout's own. One fetch is reused
-   for 10 minutes, and so is the line's answer that it has none for you, with
-   the time it gave it. After that, when the remote does not answer, the record
-   fetched earlier is read, and the answer says when it was fetched and why it
+   for 10 minutes, and so is the result that the line has none for you, with
+   the time of that result. After that, when the remote does not answer, the record
+   fetched earlier is read, and the answer prints when it was fetched and why it
    was not fetched again.
 3. **In a worktree, the primary checkout's record**, only when no mainline
    record was ever fetched on this machine. It is what that checkout last ran,
-   so the answer names it as the offline fallback and says why the mainline's
+   so the answer names it as the offline fallback and prints why the mainline's
    was not read.
 
-The answer says which one it read:
+The answer prints which one it read:
 
 ```text
 record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout; kept at <cache>/share/read/stories/3f1c9a2…/coverage.bin
 ```
 
-`variance share --suite <name>` asks the remote now, whenever the last fetch
-was. Your test runner's integration never asks the remote. When its first run
+`variance share --suite <name>` queries the remote now, whenever the last fetch
+was. Your test runner's integration never queries the remote. When its first run
 in a checkout has no record to land on, it copies the mainline record last
 fetched on this machine into the checkout's own place, with the runs record
 that came with it, and prints that it did. None of those runs are the
 checkout's own, so `variance review` finds no run listed until your first one,
 which starts your change at that commit. With none fetched, a worktree's
-first run copies the primary checkout's, and says so.
+first run copies the primary checkout's, and prints that it did.
 
 That copy stays the mainline's. Your runs are laid over it, and beside the
 checkout's record a ledger, `coverage.layer.json`, lists the test files your
@@ -621,7 +621,7 @@ record of "unit": read from this checkout's own, over mainline main at 3f1c9a2�
 A [miss](#when-a-share-fails), or an execution record that names no commit or
 was recorded at a commit other than the one it was published at, is not used,
 and the `record of "<suite>":` line says why. With no execution record, `select`
-runs every test file, and `review` asks for `--since`.
+runs every test file, and `review` requires `--since`.
 
 `select` diffs from the commit the mainline's execution record names, so one
 behind or past your merge base adds mainline's changes in between to yours: a
@@ -719,7 +719,7 @@ Tribunal deployment is an `http` share.
   fetches commits and trees, and an image only when something opens it, so a
   publish over a record that names a thousand images downloads none of them and
   sends only the images the remote does not have. A publish pushes with
-  `--force-with-lease`. When the remote refuses the push, the publish asks it
+  `--force-with-lease`. When the remote refuses the push, the publish reads
   where the line is now. A line at another commit than the one the publish read
   is another writer's, and the publish reads it again. A line that has not
   moved means the remote refused the push for another reason, and the publish
@@ -838,7 +838,7 @@ curl -s -H "Authorization: Bearer $VARIANCE_SHARE_TOKEN" https://variance.exampl
 
 An older deployment answers 404 under `/share/`. A lookup then prints *nothing
 is published there*, and a publish writes nothing. `variance push` to that
-deployment prints the API it serves and asks you to redeploy it, when your
+deployment prints the API it serves and that you need to redeploy it, when your
 `share.endpoint` is under the deployment's address.
 
 **Set the environment variable your `token` setting names to one of the
@@ -895,14 +895,14 @@ jobs:
 - **`variance run` needs no `--run` or `--commit` here.** It reads
   `GITHUB_RUN_ID` and `GITHUB_SHA`.
 - **`if: always()` publishes a run that exits 1** because it found changes, and
-  that is the run your checkout most wants to read. A run that exits 2 without
+  that is the run your checkout most needs to read. A run that exits 2 without
   writing a run report makes the publish step exit 2 too.
 - **A pull request from a fork and a merge-queue run publish nothing**, and the
-  step says so and exits 0.
+  step prints that and exits 0.
 - **`suite-v1/stories` is published only when an earlier step ran the `stories`
   suite** under its [runner integration](execution-record.md#one-record-for-each-suite),
-  and only to a branch line. This step cannot say which test files the runner
-  collects, so a push to a mainline leaves the suite out and says to pass
+  and only to a branch line. This step cannot determine which test files the runner
+  collects, so a push to a mainline leaves the suite out and prints that you need to pass
   `--collected`, which [`share --suite`](#a-suite-with-no-run-report) takes.
 - **Jobs that run different suites on one line** each keep their own
   `suite-v1/<name>`, while `report-v1` and `suite-index-v1` are one per line,
@@ -1024,7 +1024,7 @@ record it had, and the command exits 2:
 nothing published: suite-v1/unit is left out: its record at <path> is not a whole run: 3 test file(s) the suite collects last ran before 3f1c…, test/cart.test.ts among them.
 ```
 
-Without `--collected` nothing says which files are the suite's tests, so a
+Without `--collected` nothing records which files are the suite's tests, so a
 mainline publish is refused:
 
 ```text
@@ -1066,7 +1066,7 @@ credentials stay out of it. For Google Cloud Storage, the two steps are
 - **On a runner that starts empty, every sync downloads everything under the
   prefix**, which grows with every branch: nothing deletes, and a bucket
   lifecycle rule is the collector.
-- **A mainline publish asks git about descent**, so the job needs fetch access
+- **A mainline publish queries git about descent**, so the job needs fetch access
   to `share.remote`, which git gets as it does [for a `git`
   share](#the-repositorys-own-refs). Without it, the publish prints *replaced …
   git could not answer*.

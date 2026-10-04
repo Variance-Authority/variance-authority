@@ -30,7 +30,7 @@ npm install --save-dev @variance-authority/cli
 `npx variance run` exits `0` when nothing needs review, `1` when it found
 something a person must look at, and `2` when the run did not happen as
 configured — a missing browser, a store it cannot open. A finding and a crash
-never share a code, so a red build says which of the two it is before anybody
+never share a code, so a red build shows which of the two it is before anybody
 opens it. Gate on the integer; nothing parses the output.
 
 Each state the run compares gets a **verdict** — the per-subject outcome
@@ -70,7 +70,7 @@ Percy, Argos and Chromatic each sell one subscription that bundles browser
 capture, comparison and a hosted review page, with a managed browser fleet and
 a support contract behind it. Here there is no subscription and no fleet: the
 same three jobs run as a library and a CLI inside your own build. A
-**collector** — the adapter that knows one host, such as a built Storybook or a
+**collector** — the adapter written for one host, such as a built Storybook or a
 served application — finds the **subjects** that host has. A subject is one
 named UI state you asked for and can ask for again, identified by a stable id
 like `story:checkout--empty`.

@@ -155,7 +155,7 @@ stays available without taking space from the first answer.
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have entered (`to`), and how many rows to list | the test files, then the test cases, the latest recorded run spent longest in, with the duration their runner reported, and how many recorded files and cases have none |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
 | `stack` / `docs_stack` | a file or folder | every third-party package that location can already use: its role, how the owning manifest declares it, its version and how many times the code imports it |
-| `gaps` / `docs_gaps` | nothing | names other packages import that say nothing about themselves |
+| `gaps` / `docs_gaps` | nothing | names other packages import that carry no documentation |
 
 `packages` takes no argument and returns the import specifiers every other
 question takes as input, so it is the natural first call.
@@ -176,7 +176,7 @@ that nothing changed.
 
 On a few thousand names a substring is enough. On a large repository it is not,
 and no ranking rescues it: `order` really is written into four hundred names,
-you wanted the nine in one service, and the text cannot tell those apart because
+you wanted the nine in one service, and the text does not separate those because
 the text is the same.
 
 What separates them is something you know and the query never named — which
@@ -211,7 +211,7 @@ in full under [say where to
 look](https://variance-authority.dev/docs/locate#say-where-to-look).
 
 This removes names rather than ranking them down, which is the point: an empty
-answer is then a fact about the area, and the answer says how many files it
+answer is then a fact about the area, and the answer prints how many files it
 looked in so you can place the count it gives you.
 
 ### When the word you typed is not the word that was written
@@ -220,10 +220,10 @@ A substring answers the string you gave it and nothing else. Two questions it
 cannot answer at all: a word one character off the name that was written, and
 two words that are both written about a name but not written beside each
 other — `read span` appears in no text anywhere, and the declaration you wanted
-says both.
+has both.
 
 Those get a third section, and only those. Ask for `numbers order` in this
-repository's own fixture and the substring finds nothing, which is said first:
+repository's own fixture and the substring finds nothing, which is printed first:
 
 ```
 Nothing in this repository is named or documented with `numbers order`.
@@ -245,7 +245,7 @@ Inside it the order is the order above — by how many packages import the name,
 then by name. Membership is the only decision the looser reading makes, because
 you can check why a name is on a list and can only trust where it sits on one.
 
-### Where the declaration says nothing
+### Where the declaration is undocumented
 
 A name with no block comment above it is reported as undocumented. Before
 reporting it, the nearest `README.md` above the declaring file is searched, and
@@ -420,8 +420,8 @@ for (const file of writePages('.', 'docs/api', {
 }
 ```
 
-`readWorkspace` is the reading the answers are asked of, for a program that
-wants to ask more than one of them or to ask them through its own interface. It
+`readWorkspace` is the reading the answers are computed from, for a program that
+runs more than one of them or runs them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
 and who imports it. Eight options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
@@ -500,7 +500,7 @@ through that package's own `rootDir` and `outDir` to `src/index.ts`, so what it
 reports is what somebody wrote.
 
 It does not infer. A name with no block comment above it is reported as having
-none, and a search that matches nothing says so before it offers anything near
+none, and a search that matches nothing prints that before it offers anything near
 it — the near ones arrive under their own heading, counted and labelled, never
 mixed into the answer to the word you typed. A README passage is returned only where the prose writes the name
 as a whole word, and it arrives labelled with the file it came from.
@@ -516,7 +516,7 @@ the query.
 It does not stop at what a manifest publishes. Most code in any checkout was
 never meant to be published — 1,826 names are published in this repository and
 5,540 more are exported without being published — so `search` answers in two
-sections and says which is which.
+sections and labels which is which.
 
 ---
 

@@ -28,8 +28,8 @@ answers available, and both are wrong:
 - **It selects nothing.** The walk finds no path from the notes service to any
   test, so no test runs, the change merges, and the one case that would have
   failed never ran. That is an escape.
-- **It selects everything.** A suite that knows it cannot see the crossing
-  treats every backend change as touching every test. That is safe and never
+- **It selects everything.** A selector that cannot see the crossing, and is set up
+  to assume it, treats every backend change as touching every test. That is safe and never
   narrows. Every change to a handler runs the whole end-to-end suite, for as
   long as the suite exists.
 
@@ -41,7 +41,7 @@ changes, because no spec imports the service. The
 [execution record](execution-record.md) selects 9 of 18 spec runs and misses none of the failures. [Java tests](jvm.md) has the setup.
 
 What the graph lacks is not a better parser. It lacks the fact that *this*
-case's request reached *that* branch, and only the running system knows that.
+case's request reached *that* branch, and only the running system can observe that.
 
 ## What crosses the fence
 
@@ -65,7 +65,7 @@ general rule.
 **You put the id on the request, or your tracing does.** Nothing patches
 `fetch`, `http` or your client library. A patch would have to guess which clients your tests use and
 would change the system under test in a way your production code never sees. A
-Jest case asks for its own id:
+Jest case gets its own id with one call:
 
 ```ts
 import { journeyCookie } from '@variance-authority/sense/case-journey';
@@ -75,9 +75,8 @@ const response = await fetch(`${gateway}/notes/42`, {
 });
 ```
 
-`journeyCookie()` returns `variance-authority-journey=<id>`. The case mints its
-id the first time it asks, and every later ask in the same case returns the same
-id. `caseJourney()` from the same module returns the bare id if you carry it
+`journeyCookie()` returns `variance-authority-journey=<id>`. The first call in a
+case mints its id, and every later call in the same case returns the same id. `caseJourney()` from the same module returns the bare id if you carry it
 some other way. Outside a case, both return nothing. A browser spec needs no
 call of its own, because the driver sets the same cookie on the browser context
 before the first navigation and the browser sends it on every same-origin
@@ -87,7 +86,7 @@ request.
 id.** Those SDKs already forward a trace across every hop your system makes,
 because that is their whole job. Instead of putting a cookie on each request,
 you run each case inside a trace whose id is its journey, and every service
-asks its own SDK which trace is running. You hand Variance Authority the SDK
+reads the running trace from its own SDK. You hand Variance Authority the SDK
 instance your application initialized, so it reads the trace your tracing
 already carries and never parses a header for it. Write one module that
 initializes your tracing and exports it:
@@ -197,7 +196,7 @@ address. You declare the service as a head in `playwright.config.ts`
 (`varianceExecution: { heads: ['api'] }`), start it with
 `VARIANCE_AUTHORITY_JOURNEYS` and `VARIANCE_AUTHORITY_HEAD` in its environment,
 and wrap your request handling in `collectJourneys().enter(cookie, run)` from
-`@variance-authority/sense/journey`. Told neither variable, `collectJourneys`
+`@variance-authority/sense/journey`. With neither variable set, `collectJourneys`
 installs nothing and `enter` runs the handler directly, so the call can stay in
 the build you ship. [Declaring a head](observability.md#declaring-a-head) has
 the setup, and [follow one execution into a
@@ -207,8 +206,8 @@ a driver that is not Playwright.
 ### A Jest case calling any service
 
 The case puts `journeyCookie()` on its request. Every service it reaches writes
-parts to one directory, and Jest's `withJourneyCoverage` is told where that
-directory is:
+parts to one directory, and Jest's `withJourneyCoverage` takes the path of
+that directory:
 
 ```js
 withJourneyCoverage(config, {
@@ -235,7 +234,7 @@ import { collectJourneys, sentry } from '@variance-authority/sense/journey';
 collectJourneys({ head: 'gateway', parts: '/tmp/va-parts', trace: sentry(Sentry) });
 ```
 
-Every probe that runs outside an `enter` asks the SDK which trace is running,
+Every probe that runs outside an `enter` reads the running trace from the SDK,
 and a request your tracing continued is charged to the case that started the
 trace. It does not matter how many services away that request is. `openTelemetry(api)` does
 the same with the API your OpenTelemetry provider registered with. A head a
@@ -301,7 +300,7 @@ export default {
 };
 ```
 
-Each Worker is told where the receiver listens, in its `wrangler.jsonc`:
+Each Worker reads the receiver's address from its `wrangler.jsonc`:
 
 ```jsonc
 "compatibility_flags": ["nodejs_compat"],
@@ -387,7 +386,7 @@ charged for what that request ran, because nothing names the case.
 - **A change no probe sees.** A module the service loaded with no probe in it,
   a class the agent could not name, or a service built without probes gives the
   record nothing to charge. Tests recorded partially cannot be excluded by it.
-  A changed file the record says nothing about is named in the output and keeps
+  A changed file the record has no rows for is named in the output and keeps
   no test in the run on its own. On the parts path, `variance journeys
   finalize` names every module a case ran that no record holds, such as a JVM
   class compiled from outside your source roots. On a JVM, constructors and static
@@ -395,13 +394,13 @@ charged for what that request ran, because nothing names the case.
   method, so each selects every test that entered the file.
 - **Coarser than the page.** A JVM head records methods, not branches, and a
   recorded method carries every line in it. At line grain it only widens.
-- **A tracer is asked at every probe.** A head that is handed a trace asks it
-  which trace is running at every probe outside an `enter`. On an M4 Max each
-  ask costs about 34 ns through Sentry and 15 ns through OpenTelemetry, against
+- **A tracer is called at every probe.** A head that is handed a trace calls it
+  for the running trace at every probe outside an `enter`. On an M4 Max each
+  call costs about 34 ns through Sentry and 15 ns through OpenTelemetry, against
   5 ns for the async context `enter` reads. A request that runs a thousand
   probes pays about 34 µs through Sentry.
-- **Every case carries its journey under a tracer.** A case cannot know ahead
-  of time whether its tracing will send the trace anywhere, so under a tracer
+- **Every case carries its journey under a tracer.** Whether a case's tracing
+  sends the trace anywhere is not known when the case starts, so under a tracer
   every case writes a frame naming its journey, including a case that crossed
   nothing. Such a case is listed in the record and reaches nothing beyond its
   own process.

@@ -4,8 +4,8 @@ The cache is one directory where variance-authority keeps what it can rebuild
 from your checkout or fetch again from a [share](sharing.md): the
 test-selection recording, the [source index](source-index.md), the renders a
 run took, the suite indexes a share publishes, what a git share fetched, and
-the suite records `select` and `review` read from your mainline. Your repository says where it is, in `cacheRoot`
-of the `variance.config.json` at its root. When it does not say, it is
+the suite records `select` and `review` read from your mainline. You set where it is with `cacheRoot`
+in the `variance.config.json` at the repository root. When `cacheRoot` is not set, it is
 `node_modules/.cache/variance-authority` inside the checkout. Every command, every test runner integration and
 every function that takes a `cacheRoot` option read that one answer, so a
 recording written by `yarn test` is the recording `variance select` reads.

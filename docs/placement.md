@@ -183,7 +183,7 @@ accept` writes through, so approval stops being a commit.
 The bill is round trips. Most subjects settle from the sidecar alone — 32 hex
 characters, no image fetched — and across a network that saving is spent straight
 back on one request per subject. So the run declares its working set: after selection,
-`npx variance run` names the subjects it is going to ask about, and the store fetches
+`npx variance run` names the subjects it is going to look up, and the store fetches
 their sidecars for this machine's identity in **one** request. Subjects a filter
 ruled out are not named, and a subject with no baseline comes back as an answer
 rather than as a miss, so a first run costs one request too.
@@ -209,7 +209,7 @@ paths on D1 and R2.
 
 ## Who accepts a change
 
-A red run asks a person to look. Accepting what they saw writes a new baseline
+A red run needs a person to look. Accepting what they saw writes a new baseline
 into the baseline root, the directory `baselines.root` names, or into the
 service. So where the baselines live decides who accepts and how. There are three
 arrangements, and each puts the approval somewhere else:
@@ -317,7 +317,7 @@ work tree.
 
 By default that directory is outside the work tree, so `git clean` never
 touches it, and it is under a dot-directory nobody browses. Every edit to a document mints a new
-key and kills the old one — a run against a changed file never asks for the
+key and kills the old one — a run against a changed file never requests the
 previous document's image again — so left alone it is a directory that only
 grows, in a place you have no reason to look.
 
@@ -327,7 +327,7 @@ Every run sweeps it, and prints what is left:
 renders: 214.6 MiB cached in <cache>/renders, freed 91.2 MiB
 ```
 
-An entry survives on two conditions. It must have been asked for in the last
+An entry survives on two conditions. It must have been requested in the last
 fortnight — a hit refreshes its timestamp, so this is time since something
 wanted the image and not time since it was painted — and what is left is cut
 oldest-first to 512 MiB across the whole cache. `npx variance doctor` prints the same

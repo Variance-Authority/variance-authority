@@ -203,7 +203,7 @@ const store = createRemoteStore({
 const found = await store.find({ subject: 'Button/primary' }, renderer.identity);
 ```
 
-`find` answers `null` only when the server positively said there is no baseline
+`find` answers `null` only when the server positively responded that there is no baseline
 for that key. Every other outcome throws — see
 [Failure behavior](#failure-behavior).
 
@@ -269,7 +269,7 @@ become a wrong verdict. The renderer client refuses any raster whose identity is
 not the one it predicted for that document. The store client rebuilds every
 response field by field and throws on anything it cannot read — including a
 `comparable` or a `missingFonts` that is absent, which it will not default,
-because a default there is a claim about a machine it never heard from.
+because a default there would stand in for a value the machine never sent.
 
 ## Batching
 
@@ -310,8 +310,8 @@ a baseline image, recording its document digest, its identity and its missing
 fonts. Reading one is 32 hex characters and no image fetched. Over a socket that
 saving is spent again as one request per subject.
 
-`expect(keys)` is where a caller says which subjects this run is going to ask
-about. The client then fetches all of their descriptions for one identity from
+`expect(keys)` is where a caller names the subjects this run is going to look
+up. The client then fetches all of their descriptions for one identity from
 `/baseline/working-set` in a single request and answers `describe` out of it.
 
 `npx variance run` calls it for you, after it has narrowed the run, so a run
@@ -340,7 +340,7 @@ Every failure mode **throws**; none is translated into a missing baseline:
 | a lookup that hangs | a stalled run |
 | a 200 whose body is not an answer | an answer |
 | a bare `null` body | a miss |
-| a baseline that does not say whether it is comparable | a comparable baseline |
+| a baseline with no `comparable` field | a comparable baseline |
 
 They share one safety boundary. A subject with no baseline gets the verdict
 `new`, and `new` records what is on screen as the baseline. So a network blip

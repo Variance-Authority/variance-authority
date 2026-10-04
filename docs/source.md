@@ -83,7 +83,7 @@ read requests and names without resolving anything or opening the checkout.
 | `tsconfig` | `"auto"` | A specific configuration, or nearest-config discovery per importing file. |
 | `conditionNames` | `source, import, require, default` | Export conditions, in resolution order. |
 | `digests` | Git digests when available | Your own digest map; `false` reads and hashes files directly and disables record reuse. |
-| `cache` | in memory | Parse cache, keyed by content and the way the filename says to read it. |
+| `cache` | in memory | Parse cache, keyed by content and the parse settings the filename selects. |
 | `reuse` | off | Record cache. It is consulted only when content digests are available. |
 | `largestFile` | 1 MiB | Maximum file size the scan opens. Larger files become unknown rather than being parsed. |
 | `parsed` | absent | Receives the repository-relative path and cached parse once per readable file, including reused records when their parse remains available. |
@@ -110,7 +110,7 @@ live in single-file `.vue` or `.svelte` modules, the scan never learns what they
 import, so a change to a file one of them uses does not reach it.
 
 Such a file can still be an edge target. The edge kind follows the target, not
-the syntax that asked for it, so `import './App.vue'`, `import './icon.svg'` and
+the syntax that imports it, so `import './App.vue'`, `import './icon.svg'` and
 `import data from './data.json'` each record an `asset` edge to a repository
 path. Editing that path marks its importers; nothing continues from the far
 side, because there is no record there to continue from.
@@ -209,7 +209,7 @@ scan declines are fixed: `node_modules`, `dist`, `tsDist`, `build`, `coverage`,
 `build` and no other: a file Git lists under a `build/` directory is source, so
 the scan reads it and your imports of it become edges. A `build/` your
 `.gitignore` covers stays declined, and the rest stay declined whatever Git
-tracks. A scan with `digests: false` does not ask Git, so it declines every
+tracks. A scan with `digests: false` does not run Git, so it declines every
 `build/`.
 
 Traversal stops at the repository edge. Builtins, installed dependencies, and
@@ -276,7 +276,7 @@ it rather than through the source.
 Four arrangements give that edge back, and one is enough.
 
 **A `tsconfig` that names both directories**, as above, in a config that emits
-code. It asks nothing of the package manifest.
+code. It needs nothing from the package manifest.
 
 **A `source` export condition.** `source` leads the default `conditionNames`,
 ahead of `import`, `require` and `default`:
@@ -294,7 +294,7 @@ continues through that package's files like any other.
 **A top-level `source` field**, for a package with no `exports`. The main fields
 are read as `source`, `module`, `main`.
 
-**A `tsconfig` path mapping**, which asks nothing of the package manifest:
+**A `tsconfig` path mapping**, which needs nothing from the package manifest:
 
 ```json
 { "compilerOptions": { "baseUrl": ".", "paths": { "@scope/*": ["packages/*/src"] } } }
@@ -302,7 +302,7 @@ are read as `source`, `module`, `main`.
 
 When none of the four is available—a vendored package, or a manifest you do not
 own—the relationship stays outside the scan, and a workspace tool supplies it at
-project granularity. `source.changes` in the CLI configuration asks `nx` or
+project granularity. `source.changes` in the CLI configuration queries `nx` or
 `turbo` which projects a diff affects and treats every file under each named
 project as changed input:
 
@@ -312,7 +312,7 @@ project as changed input:
 
 That widens by whole package rather than by file, and it is the only one that
 leaves the package and the aliases as they are.
-[`selecting.md`](selecting.md#what-nx-and-turbo-know-that-a-scan-cannot) owns how
+[`selecting.md`](selecting.md#what-nx-and-turbo-compute-that-a-scan-cannot) owns how
 those seeds affect a run.
 
 ## File records
@@ -333,7 +333,7 @@ An unreadable file still receives a record, with the edges that could be read
 and an `unknown` sentence naming what could not. The walk uses the edges; the
 edge behind the sentence is the [execution record](execution-record.md)'s to
 answer, since a module that loads under a test is recorded however it was
-named. A file above `largestFile` behaves the same way and says
+named. A file above `largestFile` behaves the same way and prints
 both its size and the configured cap.
 
 ### Component declarations
@@ -367,7 +367,7 @@ Widget.Row = Inner;                         // assigned after the fact
 ```
 
 A missed component leaves a report naming the component without a file, which
-is what the report said before the index existed. The error runs the other way
+is what the report showed before the index existed. The error runs the other way
 too: any capitalised `const` counts, including one whose value is a hook, a
 schema or a constant, and including one declared inside another function. A
 false positive can only surface for an identifier something else already named.
@@ -382,8 +382,8 @@ An unresolved request is not always a hole in the same boundary:
 | Bare, such as `react` or `@scope/ui` | Added to `unresolved` only | It normally names a dependency outside this repository; the file's repository edge list remains usable. |
 | Builtin, `data:` URL, or an external URL | No repository edge | No repository file can answer it. |
 
-A relative request names repository source, so the file's reason says an edge
-is missing and which one. A bare request normally names a dependency, and
+A relative request names repository source, so the file's reason records that an
+edge is missing, and which one. A bare request normally names a dependency, and
 recording it as a missing repository edge would put every uninstalled optional
 dependency in that list.
 
@@ -441,7 +441,7 @@ files itself.
 
 ### Parse reuse
 
-A parse is keyed by content digest plus the way the filename says to read those
+A parse is keyed by content digest plus the parse settings the filename selects for those
 bytes: its extensions select a source dialect or stylesheet reader, and names
 such as `.test.ts` change whether declarations count as components. Resolution
 is absent from this key. Two files with the same key contain the
@@ -469,7 +469,7 @@ only the records that looked in that directory are rebuilt. When the
 configuration cannot be read, every record is rebuilt on any path change.
 
 The configured seed directories are not part of either reuse key. They decide
-which records a scan asks for, not what any one record means, so a narrow scan
+which records a scan requests, not what any one record means, so a narrow scan
 can reuse records from a wider one.
 
 Parse and record layers may persist together through `openSourceIndex`. The

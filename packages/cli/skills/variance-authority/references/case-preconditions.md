@@ -1,6 +1,6 @@
 # The state each covering test ran under
 
-Coverage tells you which test ran the code; a case precondition records the
+Coverage records which test ran the code; a case precondition records the
 state it ran under: a flag, what a mock returns, which user a fixture signs in.
 A test that calls `variancePrecondition` from
 `@variance-authority/sense/precondition` has that state recorded on its row: a
@@ -17,7 +17,7 @@ variance covering --file src/checkout/total.ts --function total --where prices=d
 ```
 
 ```text
-Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and said prices=discounted.
+Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and recorded prices=discounted.
 2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
     sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
@@ -146,7 +146,7 @@ it('applies the discount', async () => {
   record, with a warning.
 - It only takes effect in a recorded run; record the suite again before asking.
 
-## The answer says unmeasured — what now
+## The answer prints unmeasured — what now
 
 ```text
 `--where prices=discounted` is unmeasured here: the record holds no case's preconditions. …
@@ -157,6 +157,6 @@ record has a `preconditions` field: it was recorded by a runner without the
 precondition recording. Do not read it as *no test ran with discounted prices*.
 Record the suite again; asking again changes nothing.
 
-`N cases were not listened to, so whether they said any of that is unmeasured.`
+`N cases were recorded without preconditions, so whether they ran under any of that is unmeasured.`
 under `Kept` is the partial form: the kept list is right for the cases that
-were recorded with preconditions, and tells you nothing about those N.
+were recorded with preconditions, and is no evidence about those N.

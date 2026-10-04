@@ -59,8 +59,8 @@ that stamps the name onto the element, which is the same step
 [attribution](composition.md) needs anyway.
 
 That second reading is what lets a change to a file reach a **route** at all. A
-URL names a page, and nothing in the page's address says which components render
-there. What says it is the page having been seen rendering them — so the join is
+URL names a page, and nothing in the page's address shows which components render
+there. What shows it is the page having been seen rendering them — so the join is
 empirical, and it is exactly as current as the last render you approved.
 
 Together the two answer at the grain of a file: this change is inside
@@ -81,7 +81,7 @@ evidence they are read from.
 The execution index answers below that grain, at the region. Three stories mount
 the same component and one of them clicks Remove; the body of that handler is a
 place the other two have never been inside, though all three import the same
-file. Nothing read from the source tells them apart, because the difference is
+file. Nothing read from the source distinguishes them, because the difference is
 not in the tree — it is in what each execution did with it. Use that reading when
 file-level reach is too coarse to be worth acting on, and read
 [the path an execution took](journeys.md) for what it costs to record.

@@ -165,7 +165,7 @@ describe('the cases a review lists under a changed function, with what each arra
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
 
     expect(markdown).toContain('1 changed function — 2 cases in 1 test file</summary>');
-    expect(markdown).toContain('1 of 2 cases was not listened to, so what it arranged is unmeasured.');
+    expect(markdown).toContain('1 of 2 cases was recorded without preconditions, so the state it ran under is unmeasured.');
   });
 
   it('says what the cases arranged is unmeasured, never none, from a record made before cases said anything', async () => {
@@ -176,7 +176,7 @@ describe('the cases a review lists under a changed function, with what each arra
     const region = answer.files.find((file) => file.file === 'src/total.ts')?.regions?.find((one) => one.name === 'applyDiscount');
     expect(region?.called.every((called) => !('preconditions' in called))).toBe(true);
     const markdown = formatReview(answer, 'markdown');
-    expect(markdown).toContain("The record holds no case's preconditions, so what these cases arranged is unmeasured.");
+    expect(markdown).toContain("The record holds no case's preconditions, so the state these cases ran under is unmeasured.");
     expect(markdown).toContain('<details><summary>🟢 <code>applyDiscount</code> — 3 cases in 1 test file</summary>');
   });
 
@@ -185,6 +185,6 @@ describe('the cases a review lists under a changed function, with what each arra
 
     const markdown = formatReview(await review(parse(['--since', first, '--root', root])), 'markdown');
 
-    expect(markdown).toContain('1 of 4 cases was not listened to, so what it arranged is unmeasured.');
+    expect(markdown).toContain('1 of 4 cases was recorded without preconditions, so the state it ran under is unmeasured.');
   });
 });

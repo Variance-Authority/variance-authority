@@ -4,7 +4,7 @@ A form renders correctly and its screenshot passes. A child component declared
 inside the form is nevertheless rebuilt on every parent render, so the next
 validation update discards what the user typed. Before that interaction, the
 stable and broken versions produce the same document. The capture describes
-what is on screen; it cannot say whether that component will survive.
+what is on screen; it cannot show whether that component will survive.
 
 This page is the task-oriented path through the React evidence you can read
 beside the rendered document, for the failure above: the document is identical

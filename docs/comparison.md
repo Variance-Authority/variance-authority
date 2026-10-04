@@ -15,5 +15,5 @@ of those pages ends with how to run Variance Authority beside it.
 
 The three rows read one record. A test run that records for test selection
 also gives you the coverage numbers, and a captured UI state that is compared
-for visual review also says which code ran while it was painted. You can adopt
+for visual review also records which code ran while it was painted. You can adopt
 one row and leave the others to the tools you have.

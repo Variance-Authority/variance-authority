@@ -11,7 +11,7 @@ by a stable id like `story:checkout--empty`. Each variant is an ordinary subject
 its own baseline, and every run compares it only to itself. So the difference the
 variant exists **for** is the one difference nothing measures: a story added behind
 `checkout-v2` is `new` on its first run — one baseline written, an empty diff,
-nothing said — and green from then on until somebody edits it. What the flag *does to
+nothing reported — and green from then on until somebody edits it. What the flag *does to
 the page* is visible by opening two pictures and using your eyes, and is recorded
 nowhere.
 
@@ -34,13 +34,13 @@ edit that turns the whole suite red leaves it exactly where it was — and it
 changes when the variation gains or loses something its parent does not
 have.
 
-That distinguishes two events a reviewer currently has to tell apart by hand:
+That distinguishes two events a reviewer currently has to distinguish by hand:
 
 - **everything changed**, and the flag still does what it did — already
   approved, nothing new to look at;
 - **the flag now does something else**, which is a review nobody has done.
 
-A variation that renders identically to its parent says so. It means the flag
+A variation that renders identically to its parent is reported as identical. It means the flag
 changed nothing this run could read, which is a finding when the flag was
 supposed to change something.
 
@@ -50,7 +50,7 @@ Most suites have already written the link down. `checkout`, `checkout-dark`,
 `checkout-dark-narrow` — the name spells the axes, in order, and a declaration
 beside it would only repeat what the name says and then drift from it.
 
-So a subject is asked its own name first. Its parent is the longest other
+So the run reads a subject's own name first. Its parent is the longest other
 subject in the run whose id this one **extends at a separator**:
 `checkout-dark-narrow` varies `checkout-dark`, which varies `checkout`. Longest
 wins, so each link is one axis, which is the only reason the difference across it
@@ -115,7 +115,7 @@ story:checkout--glass        →  story:checkout--green
 story:checkout--green        →  story:checkout--default
 ```
 
-One axis per link, still, and now the link knows which axis it was:
+One axis per link, still, and now the link records which axis it was:
 
 ```text
 Nothing declared this pair. The configured name format reads the two as one
@@ -167,7 +167,7 @@ export const FlaggedCheckout = {
 ```
 
 Write the id in full — `story:components-button--primary` — or as the
-part after the namespace, which is what a story knows about itself. A short form
+part after the namespace, which is the id Storybook itself uses. A short form
 matching more than one subject in the run is refused by name rather than
 resolved by order: a difference attached to the wrong parent, printed with full
 confidence, is worse than one not printed at all.
@@ -178,7 +178,7 @@ invalidates nothing.
 
 **A tag always wins, and a name never covers for a tag that failed.** A
 `variance-parent:` that resolved to nothing is reported as the mistake it is,
-rather than quietly answered with a guess. And a link read off a name says so —
+rather than quietly answered with a guess. And a link read off a name is marked as such —
 in the record, in the sentence, and in its own group in the answer — because
 *somebody said so* and *a name implied it* are not the same evidence.
 

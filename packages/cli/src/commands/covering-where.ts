@@ -86,7 +86,7 @@ export function whereCases(
   if (index.tests.length > 0 && unmeasured === index.tests.length) {
     throw new OperatorError(
       `\`--where ${asked.join(' --where ')}\` is unmeasured here: the record holds no case's preconditions. ` +
-        'It was made before cases said what they arranged, or by a runner that did not listen. ' +
+        'It was made before preconditions were recorded, or by a runner that does not record them. ' +
         'Record the suite again to read them.',
       { kind: 'unmeasured' },
     );
@@ -192,14 +192,14 @@ export function whereText(answer: Covering): readonly string[] {
   const cases = `case${where.of === 1 ? '' : 's'}`;
   return [
     where.of === 0
-      ? `No case covered ${target}, so none said ${asked}.`
+      ? `No case covered ${target}, so none recorded ${asked}.`
       : where.kept === 0
         ? `Kept none of the ${where.of} ${cases} that covered ${target}: ${noneSaid(where, asked)}.`
-        : `Kept the ${where.kept} of ${where.of} ${cases} that covered ${target} and said ${asked}.`,
+        : `Kept the ${where.kept} of ${where.of} ${cases} that covered ${target} and recorded ${asked}.`,
     ...where.unmeasured === 0 ? [] : [
-      `${where.unmeasured} case${where.unmeasured === 1 ? ' was' : 's were'} not listened to, so whether ${
+      `${where.unmeasured} case${where.unmeasured === 1 ? ' was' : 's were'} recorded without preconditions, so whether ${
         where.unmeasured === 1 ? 'it' : 'they'
-      } said any of that is unmeasured.`,
+      } ran under any of that is unmeasured.`,
     ],
     ...where.outside.map((note) => `  ${note}`),
   ];
@@ -207,9 +207,9 @@ export function whereText(answer: Covering): readonly string[] {
 
 /** *None said it* is claimed only of the cases that were listened to; the rest are counted apart. */
 function noneSaid(where: CoveringWhere, asked: string): string {
-  if (where.unmeasured === 0) return `none said ${asked}`;
+  if (where.unmeasured === 0) return `none recorded ${asked}`;
   const heard = where.of - where.unmeasured;
-  return heard === 0 ? 'none of them was listened to' : `none of the ${heard} listened to said ${asked}`;
+  return heard === 0 ? 'none of them was recorded with preconditions' : `none of the ${heard} with recorded preconditions has ${asked}`;
 }
 
 /** What the question asked about, as the count names it. */

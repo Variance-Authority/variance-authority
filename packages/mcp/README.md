@@ -60,7 +60,7 @@ variance serve --config variance.config.json   # MCP over stdio
 When that report is not on disk, `variance serve` answers from the report CI
 published to the share for your branch or mainline, and every report answer
 opens with the line and commit it was read from. The CLI's page says
-[which record it reads and what it says](../cli/README.md#a-checkout-with-no-run-of-its-own).
+[which record it reads and what it prints](../cli/README.md#a-checkout-with-no-run-of-its-own).
 `variance-authority-mcp` reads only the path it is given.
 
 Install this package when you want the server without the CLI, or when the
@@ -184,15 +184,15 @@ placeholders: use ids from your own run, and a digest `variance_changes` printed
 `variance_changes` is the one that decides how many of the others get called. A
 design-token edit reaching forty stories is one decision presented as forty, and
 an agent that walks them one at a time spends forty calls learning what one call
-says. It is also the only tool that hands back a *command* — the shape digest
+returns. It is also the only tool that hands back a *command* — the shape digest
 cannot be derived from anything else in the report, and it names which subjects
 the command will refuse, so the agent proposes something that works rather than
 something that gets rejected.
 
 `variance_adjudicate` is the only tool that takes evidence *in*, and the only
 one that can report an **absence**. Everything else answers about the run;
-this answers about the agent. `variance_changes` can say that `Button` changed in
-twelve subjects. It cannot say that `Card` — which the agent believes it just
+this answers about the agent. `variance_changes` can report that `Button` changed in
+twelve subjects. It cannot report that `Card` — which the agent believes it just
 edited — did not change at all, because a diff has no opinion about what was
 supposed to happen. That third case is where a wrong file, a dead branch, an
 overridden rule or a stale build surfaces, and no screenshot comparison shows
@@ -223,7 +223,7 @@ compares the run's subjects to each other, at one commit, because **a
 visual-regression example is a component built from components**: the example
 *is* a component at a boundary, and the same component appears again, with the
 same or different props, inside larger examples. Once those boundaries are
-addressable the run can say which of its examples are watching literally the
+addressable the run can show which of its examples are watching literally the
 same bytes, which of them disagree at one commit, and — for anything that
 changed — whether an edited file, a changed token or an edited *caller* accounts
 for it.
@@ -240,13 +240,13 @@ three different people:
 
 | label | what happened | what to do |
 |---|---|---|
-| `unstable` | read twice, seconds apart, nothing changed in between, and the two readings disagreed | fix what changes between readings; the named component and band say where. Do not review the pixel regions — which ones appear was decided by a race |
+| `unstable` | read twice, seconds apart, nothing changed in between, and the two readings disagreed | fix what changes between readings; the named component and band show where. Do not review the pixel regions — which ones appear was decided by a race |
 | `order-dependent` | the difference is gone when the subject is collected with nothing else in the world | do not change the component; bisect run order to find the subject that writes the state this one reads |
 | `changed` | it survived both | review it |
 
 A fourth state is deliberately *not* on that table. A **sensitivity level** is a
 per-subject declaration of which bands it asserts on — a route declared `layout`
-has said, in its config, that it does not assert on what the page is painted
+is configured not to assert on what the page is painted
 with, so a clock inside it is a fact about the page rather than a defect. A
 subject whose two readings differed entirely in bands outside its declared level
 is listed under **not asserted on** and comes with no instruction. It is still
@@ -303,8 +303,8 @@ source-test tool, a `VantageState` for a suite that is still running, or an
 `ObservabilitySubject` combining several of those at once.
 
 `variance_diff` compares the currently served value with the value from the
-previous successful tool call. The first call records the current state and says
-there is nothing to compare. Each successful call then replaces that one value.
+previous successful tool call. The first call records the current state and answers
+that there is nothing to compare. Each successful call then replaces that one value.
 
 The value lives only in the MCP process. It is not written to disk, does not
 touch or replace a baseline, and disappears when the process exits. Initialization,
@@ -315,7 +315,7 @@ without MCP framing.
 
 ## Answer from the source tree
 
-A question can say where to start — `variance_locate {query, from}` takes a path
+A question can name where to start — `variance_locate {query, from}` takes a path
 and answers only from the files reachable from it, along the imports. `to` is
 the same walk against them, answering from the files that reach the path
 instead: `from` the screen to find what it shows, `to` the component to find
@@ -336,7 +336,7 @@ read the tree itself and hand it to a call:
 | `dirs` | where to start walking, relative to the root. The whole repository by default, because a start point may name any path in it and a narrower walk answers *not found* about a file that is plainly there |
 | `index` | the persistent scan index, as above |
 
-The walk happens once per session and only when something asks for it: most
+The walk happens once per session and only when a call needs it: most
 questions do not name a path, and a repository is not a thing to read before
 anybody wanted it.
 
@@ -354,7 +354,7 @@ scope's total beside the run's.
 It is a subject of its own rather than a report because the times a reader
 wants are usually the mainline's, which cover the whole suite, and no report
 anybody has open holds them. `variance serve` reads them from the share, and
-`variance ask costs` asks the same tool from a shell; see
+`variance ask costs` calls the same tool from a shell; see
 [the CLI](../cli/README.md).
 
 ```js
@@ -400,7 +400,7 @@ told it one run too late.
 |---|---|---|
 | `variance_self` | where this watcher is listening, what it has collected, and exactly what to start a suite with | first, and again whenever an answer is emptier than expected |
 | `variance_run_signals` | every test that has reported, in the order the run opened them, its state, and how much each has announced | you want to know where the suite has got to, or which test is the one still going |
-| `variance_test_signals` | everything one test has announced, in order, with the realm that said each, plus work that started and never ended | a test is hanging, or failed, and the assertion that did not settle is the part you already know |
+| `variance_test_signals` | everything one test has announced, in order, with the realm that announced each, plus work that started and never ended | a test is hanging, or failed, and the assertion that did not settle is the part you already know |
 | `variance_waiting` | which tests have stopped at an `await variance.observe()` call, where each stopped, and what it sent from there | before looking at anything, and whenever you want to know whether a run is holding something open for you |
 | `variance_continue` | nothing; it lets a stopped test go on | you have finished looking at what one was holding still |
 
@@ -411,15 +411,15 @@ answer is the candidates and their ids. `variance_self` takes nothing.
 
 `variance_self` is the one that separates the two reasons an answer is empty:
 nothing has run yet, or something ran and reported somewhere else. A connection
-is told the address at the handshake and can see itself connected, so it needs
+receives the address at the handshake and can see itself connected, so it needs
 this least — a reader that runs one command and exits has no handshake to look
-at, and asks it most.
+at, and calls it most.
 
 `variance_waiting` and `variance_continue` are the pair that make a run
 something to *interrupt* rather than only something to read. Where a test author
 wrote `await variance.observe()`, the test stops there and holds everything it
 had — the page up, the network as it was — until you say go on; the runner's
-clock is stopped while it stands still. `variance_waiting` says which tests are
+clock is stopped while it stands still. `variance_waiting` lists which tests are
 stopped and where, and prints whatever they sent from those points;
 `variance_continue` takes one id, or nothing at all to release everything.
 
@@ -437,7 +437,7 @@ arrived or never came back. Three announcements and then silence, with one
 Nothing is written down and nothing is added to the run's evidence: a report file
 records what a run **decided**, and this records what it **is doing**, which
 stops being a fact the moment this process exits. What it retains is bounded,
-and it says so when it dropped something, because a reader who cannot tell
+and its answer counts what it dropped, because a reader who cannot tell
 *nothing was announced* from *the beginning was forgotten* draws the first
 conclusion.
 
@@ -489,7 +489,7 @@ from a line absent from the execution index. The index is supplied by the test
 collector or editor integration; MCP does not manufacture coverage or control
 the test runner.
 
-`variance_changed_tests` is the same evidence asked at review time. It takes a
+`variance_changed_tests` is the same evidence read at review time. It takes a
 unified `diff` — the patch the agent is already holding — and reports every
 changed source region with the named cases that covered it, counting the two
 findings a percentage cannot state: regions **no case covered**, and regions
@@ -497,7 +497,7 @@ one case alone covered. A case that was inside a region only while its module
 was evaluating is counted apart from one that called into it. A changed test
 file has no module row, so it is answered with the named cases it declares
 rather than reported as unmeasured, and a changed path the index holds nothing
-for says exactly that — *no row* and *no test* are opposite facts.
+for is reported as exactly that — *no row* and *no test* are opposite facts.
 
 ## Serve several kinds of evidence at once
 
@@ -525,7 +525,7 @@ export function serveObservability(current: () => ObservabilitySubject) {
 An excerpt for the same reason: something has to call `serveObservability` with
 a supplier of your subject, from the entry module the client launches.
 
-The handshake tells the client to call `variance_observability` first. Its
+The handshake instructs the client to call `variance_observability` first. Its
 answer distinguishes a missing domain from a supplied domain that measured zero
 members. Native tools remain available on the same connection:
 
@@ -545,7 +545,7 @@ members. Native tools remain available on the same connection:
 DOM owners and source locations a test addressed in each authored phase, then
 places React update initiators inside or outside those exact structural component
 paths and contrasts both with files that the same exact test id covered.
-`PerformedWork` says a render body ran; it is not substituted for an updater.
+`PerformedWork` records that a render body ran; it is not substituted for an updater.
 A covered file with no addressed target is a distillation opportunity, not proof that
 the branch is unrelated or safe to mock. The tool does not join by title or file
 when stable producer identities disagree. `ExecutionIndex` retains whole-test

@@ -139,7 +139,7 @@ package's `dist`. When the package's `tsconfig` names both `outDir` and
 `rootDir` and emits code, the scan reads that target as the source file it is
 emitted from, whether or not `dist` exists. Otherwise the scan never descends
 into `dist`, so the edge is dropped — and a change in one package then reaches nothing in
-another. The dependent package's tests are not selected, and nothing says so,
+another. The dependent package's tests are not selected, and nothing reports it,
 because from the graph's side there was never an edge to miss.
 
 The edge is ordinary when resolution lands in source instead. Any one of these
@@ -165,7 +165,7 @@ those edges and nothing more. The edge it could not read is answered by the
 in that test's record, whatever expression named it.
 
 This one is not silent either: the record keeps the reason, so the scan can
-say which files hide an edge.
+list which files hide an edge.
 
 ## Notation
 
@@ -185,7 +185,7 @@ of immutable **segments** behind one manifest.
 | Structure | Primary key | Value | Lives |
 |---|---|---|---|
 | digest map | repository-relative path | content digest, `git:<sha>` or `v1:<hash>` | in memory, per scan |
-| parse cache | content digest, and how the name said to read it | requests, exports, declared names, and why the request list may be short | in memory, persisted |
+| parse cache | content digest, and the parse settings the name selects | requests, exports, declared names, and why the request list may be short | in memory, persisted |
 | record cache | repository-relative path | one record | in memory, persisted |
 | config digest | none, one per generation | digest of the inputs that configure resolution | every segment; read from the newest |
 | directory map | repository-relative directory | digest of its entry names | every segment |
@@ -198,13 +198,13 @@ process. The graph is what a run derives from the records and never persists.
 
 ## The digest map
 
-One content digest per path git knows, tracked or untracked but not ignored,
+One content digest per path git lists, tracked or untracked but not ignored,
 with only the dirty ones opened. It runs `git ls-tree -r -z HEAD` for the
 committed blobs and overlays `git status --porcelain=v1 -z`. At the top of a
-checkout the status is asked with `--untracked-files=normal` and no pathspec,
+checkout the status is run with `--untracked-files=normal` and no pathspec,
 the one shape git's untracked cache answers, and any directory it reports whole
 is listed with `git ls-files --others --exclude-standard`. Below the top it is
-asked with `--untracked-files=all -- .`. Every path the status names is
+run with `--untracked-files=all -- .`. Every path the status names is
 re-hashed in one `git hash-object --stdin-paths` call, except a path that is not
 a file on disk: a submodule, or a link to a directory or to nothing, has no bytes
 to hash and would fail the call for every file in it. Deleted and renamed-away
@@ -260,7 +260,7 @@ uses.
 **Lookup.** One map read over the rows this scan has touched, falling back to a
 newest-first walk of the persisted layers, O(s) map reads. A hit is copied
 forward into the working map, so the next read of the same key is O(1) and the
-save at the end of the run knows the row was used.
+save at the end of the run records that the row was used.
 
 **Insert.** One map write, O(1).
 
@@ -297,7 +297,7 @@ the mechanism the first trap disables: with no readable alias patterns there are
 no witnesses, and the whole path set becomes one.
 
 **Lookup.** O(s) map reads through the layers and one digest comparison. The scan
-asks the record cache before it asks the parse cache, so an unchanged file under
+checks the record cache before it checks the parse cache, so an unchanged file under
 an unchanged shape costs one lookup and no parse.
 
 **Insert.** One map write, when a shape was adopted and the record has a

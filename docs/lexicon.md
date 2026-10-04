@@ -52,7 +52,7 @@ the ones a report uses.
 the record search reads: no option, no second pass, no service. A run that read
 no markup — a raster-only capture, or a run under ephemeral retention whose
 collector gave only images — writes no record, so search has the subject ids
-alone, and the answer says that rather than reporting no match. A
+alone, and the answer prints that rather than reporting no match. A
 suite built on something other than React has markup and no component
 boundaries: its record has accessible names, visible text and roles, and its
 component fields are read and empty.
@@ -69,17 +69,17 @@ reasons, finished with the readings long before you asked a question.
 
 The usual way to find a thing you can only describe is to make the machine
 understand the description: stem it, expand it through a thesaurus, embed it and
-compare vectors. Each of those bridges the same gap — the corpus knows one name
+compare vectors. Each of those bridges the same gap — the corpus has one name
 for the thing, and you used a different one.
 
-Here the corpus does not know one name. It knows the component name *and* the
+Here the corpus does not have one name. It has the component name *and* the
 ARIA role *and* the accessible name *and* the visible text *and* the CSS
 variable *and* the declaring file *and* the region the handler runs in.
 
 So `checkbox` finds `ds/toggle--states` because the run wrote down that the
 toggle's role is `checkbox` — not because a model knows a toggle is a kind of
 checkbox. `footer` finds the footer story because its id, its example and its
-creator all say so.
+creator all contain the word.
 
 The limit is the same fact read the other way: a vocabulary the suite does not
 already produce is a vocabulary this cannot answer in. There is no model to
@@ -114,7 +114,7 @@ That fixes the division in three parts:
 
 [Ask in more than one vocabulary](locate.md#ask-in-more-than-one-vocabulary) is
 that division as a habit: which kinds of name are worth trying, and what the
-answer tells you when none of them lands.
+answer shows when none of them matches.
 
 ## What the run writes down
 
@@ -182,12 +182,12 @@ element was written on comes from the JSX-source plugin, and a build strips it �
 so on a built Storybook, which is the run you most want to ask, `file` and
 `line` are absent from every landmark. The owner chain is not stripped. The
 component that owns a thing is the source you would open to find it, and the
-run already knows which files declare which components, so the lexicon stores
+run already records which files declare which components, so the lexicon stores
 that join once — `declaredIn`, one row per component rather than a path on each
 of ten thousand landmarks — and an answer prints a file either way.
 
 `box` is absent rather than zeroed when the run resolved no layout. Ask *what is
-under this* against such a run and you are told the run cannot say: document
+under this* against such a run and you are told the run has no layout to answer from: document
 order agrees with the screen often enough to be dangerous and not often enough
 to be relied on. Containment is answered all the same, because `within` needs no
 rectangles. [Asking where something sits](locate.md#ask-where-something-sits) is
@@ -274,17 +274,17 @@ One rule handles it, and it is a count rather than a list:
 
 > A component almost every subject mounts is structure, not subject matter.
 
-Nothing in that count knows that `withStyles(Account)` is a higher-order
+Nothing in that count shows that `withStyles(Account)` is a higher-order
 component, that `Ctx.Consumer` is a context consumer, that a class component is
 a class component, or that a minified `aL` is a decorator a build renamed. It
-knows that more than half the suite mounts it, which is what the rule needs.
+shows that more than half the suite mounts it, which is what the rule needs.
 
 It decides two things:
 
 **Which component a subject is the example of.** The shallowest boundary is
 whatever the harness mounted first, and answering with it gives every subject in
 a suite the same answer — one value for the whole field, which is a field that
-says nothing. So the example is the shallowest boundary that is *not* structure.
+distinguishes nothing. So the example is the shallowest boundary that is *not* structure.
 Where the descent finds nothing — a suite too small for anything to be
 distinguishing — it answers as the shallowest rule would, so it can name more
 subjects than that rule and never fewer.
@@ -312,12 +312,12 @@ present and empty:
 A production build with the owner links stripped has an empty `createdBy` on
 every subject — read, and genuinely empty.
 
-The answer says which of these it is looking at, per field, before it says what
+The answer prints which of these applies, per field, before it prints what
 matched, because *nothing matched* and *nothing was read* are answers with
 opposite next steps. The cap is reported on the same terms: a subject whose
-`text` was cut says how many values it lost.
+`text` was cut records how many values it lost.
 [Three answers that look alike](locate.md#three-answers-that-look-alike) is how
-to read the header that says it.
+to read the header line that names it.
 
 ## Where it is kept
 
@@ -399,7 +399,7 @@ similar things similarly.
 
 ### What a starting point is worth
 
-Every count above asks whether the top hit is the author's *subject*. That is
+Every count above measures whether the top hit is the author's *subject*. That is
 the wrong target for the question this answers. You are not looking for a story;
 you are looking for the place the thing is written, and one file is usually
 shown by several stories. Picking a different story that opens the same file is

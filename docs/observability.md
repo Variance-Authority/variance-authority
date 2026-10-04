@@ -6,12 +6,12 @@ that is a story, a route, a fixture or a value — and that bit is pass or fail.
 Read this page to decide which of the other things a run can keep are worth
 keeping, and what each one is and is not evidence of.
 
-The execution that produced that bit knew more. It knew which elements the test
+The execution that produced that bit had more: which elements the test
 addressed, which components rendered, which instance scheduled each render, and
 which branch a service took while the page was waiting on it. Teardown is
 normally the end of all of it. `Unable to find element` names a question without
 naming the button, the component that owned it, the code that put it there, or
-the update that removed it — and the process that knew all four has exited by the
+the update that removed it — and the process that had all four has exited by the
 time the line is printed.
 
 ## What this page means by the word
@@ -219,16 +219,16 @@ it was already going to send and nothing in your application is touched to carry
 them. A service built with probes reads both off the request's `Cookie` header,
 runs the handler in an `AsyncLocalStorage` scope keyed by the journey, and when
 that scope settles delivers what it covered as a JSON `POST` to
-`<return>/journeys` over loopback `http`. Only the driver knows
-`journey → subject`, so only the driver can join, and a report cannot claim an
+`<return>/journeys` over loopback `http`. Only the driver has the mapping
+`journey → subject`, so only the driver can join, and a report cannot add an
 execution by writing one down: the execution is in the address the report
 arrived on, never in the body.
 
 Two specs running at once, against one service process, inside one module, come
 back apart — the scope is the execution rather than a time window, so nothing is
 charged to whichever subject happened to be open. You can then read _this spec
-covered that branch of that service and the other spec never did_, with the
-service never told what a spec is.
+covered that branch of that service and the other spec never did_, and
+nothing about specs is ever sent to the service.
 
 ## Declaring a head
 
@@ -269,7 +269,7 @@ export function handled(cookie, run) {
 
 `collectJourneys` takes its name from `VARIANCE_AUTHORITY_HEAD` and turns itself
 on from `VARIANCE_AUTHORITY_JOURNEYS`, so that `env` block is the whole of the
-configuration on the service side. Told neither, it installs nothing and `enter`
+configuration on the service side. With neither set, it installs nothing and `enter`
 is the identity function — which is why the call above ships to production
 rather than sitting behind a build flag. The name must match the `label` that
 service's build gave `testSelectionProbes()`; an ordinal means something only
@@ -313,8 +313,8 @@ would have run except the ones the record positively proves the change did not
 reach: a file recorded as complete, whose journey contains none of the changed
 regions. A test recorded partially, a module it loaded that no probe could sit
 in, a record older than the lines it describes — none of those qualify, and each
-one widens the run rather than narrowing it. A changed file the record says
-nothing about is named in the message and keeps no test in the run by itself.
+one widens the run rather than narrowing it. A changed file the record has no
+measurement for is named in the message and keeps no test in the run by itself.
 [Running less of the suite](selecting.md) is the page
 for that decision; [the path an execution took](journeys.md) is the page for the
 record it reads.

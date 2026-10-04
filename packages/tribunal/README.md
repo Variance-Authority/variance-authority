@@ -234,9 +234,9 @@ below, behind your own sign-in.
 
 ## The HTTP API
 
-Authentication happens before routing. A caller sending no token it knows gets the
+Authentication happens before routing. A caller sending no token the deployment accepts gets the
 same response for a wrong token, a missing token, and a path that does not exist.
-Every path takes `Authorization: Bearer <token>`; none may be asked anonymously.
+Every path takes `Authorization: Bearer <token>`; none may be requested anonymously.
 
 | method and path | token | what it does |
 |---|---|---|
@@ -315,8 +315,8 @@ Share objects sit under `<project>/share/` in the bucket and have no rows, so
 `POST /review/sweep` leaves them in place.
 
 `api` is the wire contract, not the package version — it changes when what a
-client may send or expect changes. `variance push` asks before it uploads and
-prints both numbers. A CLI newer than its deployment is not an error: it works,
+client may send or expect changes. `variance push` queries the API version before it
+uploads and prints both numbers. A CLI newer than its deployment is not an error: it works,
 and what the older deployment lacks shows up somewhere else — before API 2 as
 upload it could have skipped and as an approved subject that stays `new`, and
 before API 3 as a share that is always empty. Until something prints both
@@ -362,7 +362,7 @@ The `Changelog` tab is the same evidence at project scale.
 
 ## The changelog
 
-A build says what changed today; `GET /review/changelog` says what was
+A build reports what changed today; `GET /review/changelog` returns what was
 *approved*, grouped by shape rather than by which screenshot changed — so a token
 edit across forty stories is one entry, not forty.
 
@@ -417,7 +417,7 @@ that no shape could group are returned as `ungrouped`, not dropped.
 | `@variance-authority/tribunal/testing` | Node 22 | D1 over `node:sqlite`, an in-memory bucket |
 
 This is one service, deployed once, so React is an ordinary production dependency
-even though only `/ui` and `/next` touch it. The rows say which entrypoint needs
+even though only `/ui` and `/next` touch it. The rows list which entrypoint needs
 what, which is what you want when you read the code or split the deployment
 across two Workers.
 

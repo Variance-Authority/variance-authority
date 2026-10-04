@@ -41,7 +41,7 @@ declared changed, within the reach you declared.
 - **`overreached`** — the change is yours and it reached more subjects than you
   declared.
 - **`unobservable`** — the run never rendered that component, or kept no
-  component census to say whether it did. Nothing here is evidence about it;
+  component census that records whether it did. Nothing here is evidence about it;
   say so rather than calling it delivered.
 
 `[ungrouped]` names changed subjects no claim could be checked against, and
@@ -54,7 +54,7 @@ variance ask changes
 variance ask describe --subject story:case-surface--card-with-actions
 ```
 
-`changes` says how many distinct changes there are and which subjects each one
+`changes` prints how many distinct changes there are and which subjects each one
 reaches, and ends each change with the `variance accept --shape` line that
 settles it. Ask `describe` for one subject per change. It prints the
 components that moved, then the regions — the rectangles where pixels differ —
@@ -81,7 +81,7 @@ components:
 - **`cause` or `collateral`.** A cause changed on its own; a collateral
   component moved because something inside or beside it did. An unclaimed
   collateral under your cause is your edit's reach, and not a second change.
-- **The bands say what kind of change it was.** `geometry` means boxes appeared,
+- **The bands name the kind of change.** `geometry` means boxes appeared,
   vanished, moved or resized, which is how a DOM change shows. `token` means
   style values changed. `content` means only text changed. `a11y` means a role,
   accessible name or ARIA state changed. `texture` means painted pixels changed
@@ -100,7 +100,7 @@ components:
   component has several instances with different values, only the values that
   changed are listed.
 
-A `token` cause with no indented lines moved, and this record cannot say which
+A `token` cause with no indented lines moved, and this record does not hold which
 value did: the baseline was accepted before declared values were recorded, or
 instances traded values with each other so that every property still holds the
 same set. Read the source at the `file:line` under the component's region.
@@ -109,7 +109,7 @@ same set. Read the source at the `file:line` under the component's region.
 `bands`, `cause`, `presence` (`added` or `removed`, for a component on one side
 only), `grew` and `changed`. `moved` is absent when
 neither run supplied component hashes, and `presence`, `grew` and `changed` are
-each absent when the record cannot say. Absent means unknown, not unchanged.
+each absent when the record does not hold them. Absent means unknown, not unchanged.
 
 ## 4. Correct, and run again
 

@@ -2,7 +2,7 @@
 
 Your suite only grows. Every test in it was justified when it was written, and a
 merged coverage report cannot tell you which of them are still worth keeping:
-it says a line ran, not which tests ran it, not whether six of them ran it for
+it shows that a line ran, not which tests ran it, not whether six of them ran it for
 the same reason. [Variance Authority](README.md) records the half coverage drops:
 for each test case, which regions of your source that case covered. Point at a
 line and it hands back the named cases that walked it, which is where the
@@ -10,7 +10,7 @@ question *why do all of these tests need this code?* starts having an answer.
 
 The decision that sits on top of that reading is which tests to keep, where to
 put them, and when to retire one. The reading never authorizes a
-deletion on its own — execution says where a test went, not which assertion or
+deletion on its own — execution shows where a test went, not which assertion or
 risk made the trip worthwhile — so each section below pairs a reading with the
 rerun that settles it.
 
@@ -18,7 +18,7 @@ Tests are evidence with different costs, scopes, and lifetimes. [On
 testing](on-testing.md) relates those differences; within one suite, they govern
 which tests remain owned.
 
-## Ask which tests claim a line
+## Ask which tests cover a line
 
 Record case identities once. `withTestSelection` wraps a Vitest configuration
 and keeps its plugins, setup files and reporters; every run writes an
@@ -53,13 +53,13 @@ npx variance covering --file src/cart/total.ts --line 14
 ```
 
 Every answer is a test you can open: the case's name, the file it is written in,
-and the id the record knows it by. `--function <name>` asks the same question
-about a whole function. `--file` on its own answers the whole recorded file at
+and the id the record stores for it. `--function <name>` answers the same question
+for a whole function. `--file` on its own answers the whole recorded file at
 once, as ranges of lines that share the same cases — where a range with an empty
 list is recorded and unreached, and a line outside every recorded region
 produces no range at all, which is a different statement from nobody reaching
-it. `--format json` hands the same reading to whatever asks next, which is the
-form an agent wants when it is about to change a line and needs the tests to run
+it. `--format json` hands the same reading to whatever reads it next, which is the
+form an agent needs when it is about to change a line and needs the tests to run
 after.
 
 The command reads no project configuration and finds the index where the
@@ -68,7 +68,7 @@ names an index recorded somewhere else. A missing index is refused rather than
 answered empty, because an empty list here reads as *no test covers this line* —
 the sentence that gets a test deleted. `coveringTests` and `coveringTestsInFile`
 from `@variance-authority/sense/test-selection` answer the same two questions in
-process, for an editor or a script that wants the records rather than the text.
+process, for an editor or a script that needs the records rather than the text.
 
 When the list is long, narrow it to the tests that sit near the code:
 
@@ -244,10 +244,10 @@ Age alone proves none of these. Nor does overlap. Two tests reaching the same
 function may assert different promises, while two tests reaching different
 code may still provide the same answer.
 
-[Ask which tests claim a line](#ask-which-tests-claim-a-line) names the cases
+[Ask which tests cover a line](#ask-which-tests-cover-a-line) names the cases
 that covered a region. The file-level [execution record](execution-record.md)
-answers the same question by test file, and says how much source each test
-pulls in with it. Both readings
+answers the same question by test file, and shows how much source each test
+loads with it. Both readings
 identify a conversation rather than a verdict.
 
 Kent Beck's [Programmer Test
@@ -262,7 +262,7 @@ For one candidate, [Distill](distill.md) can show what it loaded, covered and
 addressed. Change one boundary and rerun the exact test before keeping a smaller
 version. For several candidates protecting the same promise, remove or merge
 one at a time and check that the remaining suite still fails for the risks each
-candidate claimed to own.
+candidate was written to cover.
 
 ## The portfolio test
 

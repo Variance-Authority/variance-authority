@@ -1,7 +1,7 @@
 # Runtime scenarios
 
-A snapshot test tells you that one UI state looks the way it did. It cannot tell
-you that clicking Delete does the same thing on a page with one article as on a
+A snapshot test checks that one UI state looks the way it did. It cannot check
+that clicking Delete does the same thing on a page with one article as on a
 page with two. A **runtime scenario** records that: a named starting state, a
 fixed sequence of authored steps, and what the UI looked like after each one.
 Read this page when you want to compare two such recordings.
@@ -81,8 +81,8 @@ exit code.
 ## What the edge was, not only that there was one
 
 The first two readings give you a **parting** — the account of where two readings
-diverged and which input sent them there. A digest says the Act had an effect;
-the parting says which input made it, and its one-word **slice** is the triage.
+diverged and which input sent them there. A digest shows that the Act had an effect;
+the parting names the input that made it, and its one-word **slice** is the triage.
 [Parting](parting.md) defines the full set of slices. Three of them read
 differently when the two readings are separated by a moment rather than by a
 page:

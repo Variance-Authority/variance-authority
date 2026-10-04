@@ -13,12 +13,12 @@ in `SKILL.md` under *Matching is lexical*.
 
 ## Ask in a different kind of name
 
-Each row is a field. The header of every answer says for which subjects the run
-took that reading.
+Each row is a field. The header of every answer names the subjects for which the
+run took that reading.
 
 | kind | example query |
 |---|---|
-| what the screen says | `Sign in`, `Mark as done` |
+| what the screen shows | `Sign in`, `Mark as done` |
 | what the component is likely called | `Credential`, `Login`, `Session` |
 | where it is likely written | `session`, `entry`, `auth/` |
 | what it is, structurally | `checkbox`, `dialog`, `alert` |
@@ -29,7 +29,7 @@ run did record printed beside it. Build the next query out of those.
 
 ## Hand the description over as words
 
-No word in `--query` is read as syntax, so a product that says *Under review*,
+No word in `--query` is read as syntax, so a product that shows *Under review*,
 *Show more* or *Inside sales* is searched for those words. Ten function words
 are dropped — `the a an in on of with and for to` — so `Sign in` searches
 `sign`. `--limit <n>` sets how many hits are printed; the default is 8:
@@ -81,14 +81,14 @@ refused.
 
 **`--inside` is the only relation a run without layout can answer.** The other
 five are decided from the rectangles the run resolved. A run that resolved no
-layout refuses them rather than falling back to document order, and says so.
+layout refuses them rather than falling back to document order, and prints that.
 Containment needs no rectangle.
 
 On a relation answer, read three things before acting:
 
-- `matched on place` — nothing on the screen says your word; the landmark was
+- `matched on place` — nothing on the screen shows your word; the landmark was
   found by where it is, not by what it is called. When your word is on it, the
-  answer says so instead.
+  answer prints that instead.
 - `also beneath` (and the other relations) — everything else in that relation,
   nearest first. The one you meant is sometimes the second.
 - `4px away` — measured between resolved rectangles. Absent when the run
@@ -96,7 +96,7 @@ On a relation answer, read three things before acting:
 
 ## Every hit is already a place
 
-`where:` names the thing on that surface that says your words, the file and line
+`where:` names the thing on that surface that shows your words, the file and line
 it is declared at, and what encloses it. A production build strips the line, so
 the place reads `in CarrierPicker · src/dispatch/CarrierPicker.tsx`: a source to
 open rather than a coordinate. Do not spend a second question asking where
@@ -116,7 +116,7 @@ Three states look alike, and the header separates them per field:
   creators to record.
 
 A run that read no markup, such as a raster-only capture, writes no names at
-all: only subject ids are searched, and the answer says so.
+all: only subject ids are searched, and the answer prints that.
 
 The order of hits is orientation, not evidence: no hit has a verdict or a pixel
 count. Read the field each term matched on, narrow, then take the id to

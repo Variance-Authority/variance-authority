@@ -1,9 +1,9 @@
 # TanStack Query: 78% fewer test file runs than Nx
 
 [TanStack Query](https://github.com/TanStack/query) is 27 packages, so a
-package-grain selector already has something useful to say: change
+package-grain selector already has a useful answer: change
 `query-core` and it runs the 24 packages that depend on it. That is the correct
-answer to the question a graph asks, and it is 168 of the 188 test files. Run
+answer to the question a graph answers, and it is 168 of the 188 test files. Run
 the suite once through [Variance Authority](README.md) and the record answers
 the question you wanted asked — which tests covered the lines you changed —
 with 10.
@@ -52,8 +52,8 @@ Same pass and fail counts in all three — the 22 that fail in the upstream
 repository fail in each — with the Vite cache and the record cache cleared
 between runs. This suite runs in jsdom, so a worker holds 193 scripts against
 Zod's 52. A probe is paid for by the test that reaches it and does not notice;
-the engine's counters are read rather than fired, and a read answers with the whole isolate. Asked the question
-a selector asks — after every test, not once per worker — the same counters cost
+the engine's counters are read rather than fired, and a read answers with the whole isolate. Read as often as
+a selector needs them — after every test, not once per worker — the same counters cost
 2.1× to 2.7× the suite, and that is with the result thrown away.
 
 ## One line, asked of the record
@@ -91,13 +91,13 @@ level of a hub module is reached by nearly everything. Its interior is reached
 by a handful, and which handful is different for every branch.
 
 Two orders of magnitude separate the two, and only something present while the
-tests ran can tell them apart.
+tests ran can distinguish them.
 
 ## Sixty commits, each against its own parent
 
 The fork keeps a replay script for the sixty commits before the instrumentation
 landed. For each one it checks out the commit's parent, records the suite
-there, then checks out the commit and asks which test files its change needs.
+there, then checks out the commit and queries which test files its change needs.
 Every count is in one unit: the test files in the parent's record, 188 on
 every commit. A file selected on five commits counts five times.
 
@@ -133,7 +133,7 @@ The file graph and Nx both widen on a hub. Five commits edit comments in
 selects 143 or 144 on each of them, and Nx 168. The walk reads both texts of each changed file,
 finds that nothing that runs has changed, and selects none.
 
-Where a commit changes code, the record selects fewer than the walk, because it knows
+Where a commit changes code, the record selects fewer than the walk, because it records
 which of the files that import a module ran the lines that changed. Three
 `fix(query-core)` commits select 143 from the walk; the record selects 67, 47
 and 23.
@@ -165,7 +165,7 @@ One commit, and three things in it:
   neither plugins nor setup files from the configuration around it, so the
   projects carry the instrumentation and the root carries the reporter that
   folds one run into one record.
-- A dispatcher that decides nothing. It asks `variance select` for a skip list,
+- A dispatcher that decides nothing. It calls `variance select` for a skip list,
   subtracts, and hands the rest to Vitest. Everything that makes the answer
   safe lives in the answer, not in the script.
 

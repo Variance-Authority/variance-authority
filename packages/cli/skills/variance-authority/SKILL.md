@@ -74,7 +74,7 @@ when its condition holds, not before.
 **Absent is not empty.** An unavailable domain is unknown, never an empty
 reading. A missing field means the producer did not expose it; an empty list
 means it measured and found nothing; a distance that could not be measured is
-absent, never `0`. Every answer's header says what it read. Do not reconstruct
+absent, never `0`. Every answer's header names what it read. Do not reconstruct
 runtime evidence from repository files.
 
 **Matching is lexical, and you expand the query.** `locate` and `search` match
@@ -84,7 +84,7 @@ a sign-in screen whose component is `CredentialGate`. Ask each likely spelling â
 vocabulary of the first hit for every question after it.
 
 **Say where you are standing.** On a large repository a common word matches
-everywhere the product says its own name. `--from <path>` narrows to what that
+everywhere the product uses its own name. `--from <path>` narrows to what that
 path imports, at any depth; `--to <path>` to what imports it. Give both and the
 two areas are combined, not intersected. A path has three widths and no others:
 `src/a/File.ts` is that file, `src/a/*` is that folder's own files, `src/a/` is

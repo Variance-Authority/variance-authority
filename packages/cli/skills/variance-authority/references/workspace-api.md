@@ -131,7 +131,7 @@ publishes it, and each import of it. A name that is exported without being
 published and that nothing imports is still refused, and the refusal names the
 file and line that export it.
 
-`symbol` says what a name is and how to call it. For why it exists and what it
+`symbol` prints what a name is and how to call it. For why it exists and what it
 connects to, read [what is written about a name](written-about-a-name.md).
 
 ### `uses`
@@ -171,11 +171,11 @@ unpublished line has a `path:line` instead: there is nothing to pass to
 
 `variance index` also publishes a lexicon of the installed direct third-party
 packages, and `search` reads it. Once that lexicon exists, every answer has a
-third-party section, and says when nothing in it matched. `symbol` matches
+third-party section, and prints a line when nothing in it matched. `symbol` matches
 installed third-party declarations from the same lexicon. The full signatures
 and JSDoc are in `dependency-lexicon.json` beside the source index.
 
-Nothing back means nothing matched, not that a ranking disagreed. In a checkout
+Nothing back means nothing matched, not that a ranking left it out. In a checkout
 that publishes nothing, that is the final answer. The loosely matching section
 is a suggestion: it never changes the sections above it, and it does not find a
 word the repository never writes. For that, expand the query as `SKILL.md`
@@ -209,9 +209,9 @@ one name.
   file and line. It is prose about a package, not a description of the
   signature, and the name still counts as a gap. Do not repeat it as if it were
   documentation.
-- A consumer is a workspace package whose source imports the name. It is not a
-  claim that anything ran.
+- A consumer is a workspace package whose source imports the name. It is no
+  evidence that anything ran.
 - Nothing here reads `dist`. A `types` target under an output directory is
   mapped back to the source it was compiled from.
-- `search` and `grep` cap each list and say how many rows they did not show. A
+- `search` and `grep` cap each list and print how many rows they did not show. A
   list with no such line is the whole list.

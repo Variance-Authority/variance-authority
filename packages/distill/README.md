@@ -9,11 +9,11 @@ Part of [Variance Authority](https://variance-authority.dev).
 ## What this is for
 
 A checkout test renders your whole app — `App`, `TopNav`, `Clock`, an analytics
-module, and the `CheckoutForm` it came for. It passes. It does not tell you
+module, and the `CheckoutForm` it came for. It passes. It does not show
 which of that it needed.
 
-`distill` answers that by subtraction. One recording says what the test's
-execution loaded and ran. A second says which elements the test deliberately
+`distill` answers that by subtraction. One recording lists what the test's
+execution loaded and ran. A second lists which elements the test deliberately
 queried, clicked, read or asserted on — the elements it *addressed*. Everything
 in the first that is missing from the second is what is worth trying to remove:
 
@@ -116,7 +116,7 @@ The record holds no case with id checkout submits. No title or file join was gue
 
 ### Arrange, Act and Assert are read, not guessed
 
-`distill` reports the addressed elements phase by phase because your test says
+`distill` reports the addressed elements phase by phase because your test marks
 where the phases are. Eyes records the boundaries you declare and infers none
 of them from a library call or an API name. This is an excerpt — `attention` is
 the value Eyes' `watchTest` returns for the current test, and `render`, `screen`

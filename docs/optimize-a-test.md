@@ -15,7 +15,7 @@ cost in both halves of this chapter at once.
 | --- | --- | --- |
 | What did this test address, and what source did it cover? | One test's [Eyes](eyes.md) journal joined to its [execution index](execution-record.md) | [Distil a test](distill.md) |
 | Which modules did it load without covering? | The same reading, region by region | [Imports nothing ever calls](distill.md#imports-nothing-ever-calls) |
-| Which regions has nothing in the pool ever covered? | The journal accumulated across runs | [What a record knows](selecting.md#what-a-record-knows-that-no-graph-can) |
+| Which regions has nothing in the pool ever covered? | The journal accumulated across runs | [What a record shows](selecting.md#what-a-record-shows-that-no-graph-can) |
 | Does a mock already written still take? | Taints checked against the record | [Where they disagree](selecting.md#where-the-taints-and-the-record-disagree) |
 
 The first two are about one test. The last two are about the suite, and they are
@@ -63,14 +63,14 @@ suite starts. The [expensive row](selecting.md#the-expensive-row-and-what-retire
 is retired by the same reader.
 
 A mock that stops taking then becomes a selection hole rather than a slow test,
-which is what `auditTaints` watches: a module a test shadows and the record says
+which is what `auditTaints` watches: a module a test shadows and the record shows
 it covered is a mock that did not take, or a taint that is wrong about it.
 
 ## Verify the substitution, do not assume it
 
 Mocking removes the top level with the rest, and a top level that registers a
 handler, installs a polyfill or builds a singleton is one the test may depend
-on. Nothing in the reading knows which.
+on. Nothing in the reading shows which.
 
 So change one boundary, rerun the exact test, and compare the witness. If an
 assertion loses its causal path, an addressed target disappears, or an update
@@ -97,6 +97,6 @@ a suite is worth opening first.
 
 **Further:** [`distill.md`](distill.md) for the three readings and the CLI, MCP
 and skill entrances · [`selecting.md`](selecting.md) for the scan, the taints
-and what a record knows · [`packages/distill`](../packages/distill) for the
-callable analyzer · [`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-claims-to-import)
+and what a record shows · [`packages/distill`](../packages/distill) for the
+callable analyzer · [`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-declares-it-imports)
 for the taint tables themselves.

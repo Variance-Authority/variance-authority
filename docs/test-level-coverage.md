@@ -1,7 +1,7 @@
 # Test-level coverage
 
 Ordinary coverage is a union: every region some test covered, with nothing left
-saying which test covered it. **Test-level coverage keeps the relation that
+recording which test covered it. **Test-level coverage keeps the relation that
 union was folded from** — for each named test case, the regions of your source
 that case walked — so a line answers *which tests walk me* rather than *did
 anybody*. It is one axis added to a recording your suite can already make, and
@@ -21,7 +21,7 @@ code. The measured reality on three public suites, unmodified apart from the
 configuration: Zod's 5,656 tests go from 8.87 s to 11.56 s under
 `--coverage`, TanStack Query's 4,523 from 11.78 s to 15.25 s, and Material
 UI's 7,456 from 25.88 s to 32.49 s. That is **+26% to +30%, on every run**,
-and what it buys is the union — a percentage, and a file that cannot tell you
+and what it buys is the union — a percentage, and a file that cannot show
 which test covered anything in it.
 
 **Thirty percent is not one cost, because a percentage is not a unit.** On a
@@ -108,7 +108,7 @@ What it costs *you* is not what it cost us:
   one that spends it starting workers.
 - **What those cycles buy is not a percentage.** It is the part worth putting
   on the other side of the comparison. A run under `--coverage` ends with a
-  number. A run under the recorder ends with a dataset that says which tests
+  number. A run under the recorder ends with a dataset that records which tests
   have been through which lines, and that is the input to running fewer of
   them next time.
 - **Measure both halves on your own suite.** Measure the overhead the way
@@ -125,7 +125,7 @@ list, and the two differ on every question worth asking:
 | is this branch tested? | yes | yes, by one case, and here is its name |
 | is this other branch tested? | yes | yes, by fourteen cases across nine files |
 | what should I run after this edit? | nothing | the cases that have been through these lines |
-| why do all these tests exist? | nothing | the six that claim this function, by name |
+| why do all these tests exist? | nothing | the six that cover this function, by name |
 | what did my change land on? | a number that moved | the changed regions nothing covered |
 
 The first two rows are the point. **A region one case alone covered is evidence
@@ -139,7 +139,7 @@ was inside a region **only while its module was evaluating** was present rather
 than exercising anything, so it is counted apart from one that called in. And a
 region **recorded but covered by nobody** is a different statement from a line
 in no recorded region at all: the first is a hole, the second is a coordinate
-the recording never claimed to cover.
+the recording never measured.
 
 ## You have seen this relation before
 
@@ -152,11 +152,11 @@ What has been missing is not the relation. It is a copy of the relation that
 outlives the session that produced it. Wallaby's index belongs to a live
 editor world on one developer's machine, kept valid from keystroke to
 keystroke — it is not something a reviewer opens, a CI job reads, or an agent
-holding a patch can query, and it says nothing to the person who never ran the
-suite. Test-level coverage here is the same relation written down: a file an
+holding a patch can query, and it is not available to the person who never ran
+the suite. Test-level coverage here is the same relation written down: a file an
 ordinary run emits, that anything downstream can read without running
-anything itself. One developer's editor knowing which tests walk a line is a
-good day. The build knowing it is a different class of thing, because every
+anything itself. One developer's editor holding an index of which tests walk a line is
+a good day. The build holding the same index is a different class of thing, because every
 decision below depends on someone other than the author being able to ask.
 
 ## What it changes
@@ -168,7 +168,7 @@ alone covered. That is [reviewing a change against what the code
 did](agent-code-review.md).
 
 **Deciding which tests to keep.** Point it at a line and it hands back the
-named cases that walked it. Six tests claiming one function is where *why do
+named cases that walked it. Six tests covering one function is where *why do
 all of these need this code* starts having an answer, which is [own fewer
 tests](own-fewer-tests.md). Coverage shows that the tests crossed the same code,
 not that they protect the same promise; [on testing](on-testing.md#coverage-opens-the-question-it-does-not-close-it)
@@ -214,7 +214,7 @@ at. An index behind the tree answers fluently about regions that have since
 moved, which is worse than answering nothing; the `--since` reading measures
 from the recorded commit for exactly this reason. At +2% to +8% there is no
 budget argument against recording on every run, which is the cadence this
-wants.
+needs.
 
 **Fold shards, don't fold axes.** A suite split across machines ends with one
 index per shard, and folding them produces the union the unsharded run would
@@ -250,16 +250,16 @@ record's size, and as a second file it is a second upload that a job which only
 selects files does without. Over the recording you run locally it is a fraction
 of a megabyte.
 
-## What it still does not tell you
+## What it still does not show
 
-Execution says where a case went, never why the trip was worth taking. A test
+Execution records where a case went, never why the trip was worth taking. A test
 with no assertions produces the same crossings as one that checks everything,
 so fourteen cases on a region is the beginning of a question and not a verdict
 on it.
 
 There is no percentage here to put a threshold on, and that is a position
 rather than a gap: a threshold over this relation would be a number that moves
-when tests are added and says nothing about which region is standing on one
+when tests are added and shows nothing about which region is standing on one
 witness. The two findings are counts of named places, and a named place is
 something you can open.
 
@@ -268,7 +268,7 @@ covered by the behaviour under test are both that test's crossings; the
 phase-level reading is authored structure, which is [Eyes](eyes.md), and
 `variance distill` is where the two are joined.
 
-Nor does a crossing say what state the test ran under: a test whose mock
+Nor does a crossing record the state the test ran under: a test whose mock
 returns discounted prices and one whose mock returns full prices cover the same
 line. A test that records the state it ran under has it on its row as a
 [case precondition](case-preconditions.md), and `variance covering --where`

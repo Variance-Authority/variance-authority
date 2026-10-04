@@ -160,7 +160,7 @@ specifier exports only the capture artifact.
 | `core/share` | leaving those bytes where another machine finds them, as the latest of a mainline or a branch |
 
 Five of those are the order an answer travels through: `format`, `rules`,
-`compare`, `attribute`, `judge`. `plan` and `relate` are asked before anything
+`compare`, `attribute`, `judge`. `plan` and `relate` run before anything
 is captured — one decides which baselines a run can use, the other which
 subjects are worth reading. `segment` and `share` are how a derived answer
 is written down and handed to another machine.
@@ -263,8 +263,8 @@ observation profiles differ.
 
 ## Which input changed
 
-`compare` says what changed. `judge` says whether anyone should mind. Between
-them, `partingOf` says which input changed.
+`compare` finds what changed. `judge` decides whether anyone should mind.
+Between them, `partingOf` finds which input changed.
 
 Given two snapshots with holdings — the inputs a collector recorded at each
 component boundary — it walks the boundaries for the shallowest one whose inputs
@@ -293,7 +293,7 @@ run that recorded no component provenance gets `unread` instead.
 What a suite is made of is a fact about a commit rather than about a run.
 `core/segment` writes such a thing as columns — equal facts encode to equal
 bytes, which is what lets a transport skip an upload — and `core/share` keeps
-the latest of those bytes on a line. A checkout asks *what is mainline now*,
+the latest of those bytes on a line. A checkout looks up *what is mainline now*,
 and a line answers that: one mainline or one branch, holding the latest entry
 of each kind — the run report, one record per suite — and the images those
 entries name, by digest.
@@ -329,7 +329,7 @@ appended to. `headers` is sent on every request, which is where a bucket's
 `Authorization` or a deployment's token goes. `method` is the verb a write uses
 — `PUT` for a bucket, `POST` for a deployment that routes on it. `timeoutMs`
 is how long one request may take, reading its body included, before the store
-is `unreachable` with a message that says it timed out; it is 60 000 when you
+is `unreachable` with a message naming the timeout; it is 60 000 when you
 leave it out. A presigned base needs only the endpoint. `memoryLineCell()`
 holds a line in this process, for tests and for a run that shares with itself.
 
@@ -343,7 +343,7 @@ A publish replaces only the entries it carries, so suites from different jobs
 land on one line. On a mainline, a held entry whose commit descends from yours
 stays: that is an older run finishing last. A held entry in a newer format stays
 on any line. A line reports why it missed — `absent`, `newer`, `refused`,
-`unreachable` or `unreadable` — because each asks you for a different action.
+`unreachable` or `unreadable` — because each needs a different action from you.
 Everything a line holds can be derived again, so a miss costs you the
 derivation. [Sharing an evaluation](https://variance-authority.dev/docs/sharing)
 is the operator's side of it.

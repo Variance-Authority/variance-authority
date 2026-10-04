@@ -28,8 +28,8 @@ Here:
   skips a story whose approved image records none of the components your diff
   touched — decided from what the last run actually rendered, not from a module
   graph. See [test selection](selecting.md).
-- **A difference can be told from a flake.** [Parting](parting.md) reads two
-  renderings of one story and names the input that changed, or says every input
+- **A difference can be distinguished from a flake.** [Parting](parting.md) reads two
+  renderings of one story and names the input that changed, or reports that every input
   agreed and the output changed anyway.
 
 [Comparison](compare-visual-review.md) sets the four hosted products side by side.
@@ -63,8 +63,8 @@ export default storybookCollector({
 
 ### `source.dirs`
 
-A built Storybook ships bundled code. The browser can tell the run which
-component produced an element, but not which file that component is written in,
+A built Storybook ships bundled code. The browser can give the run the
+component that produced an element, but not which file that component is written in,
 so the collector scans your source tree instead and indexes where each component
 is declared.
 
@@ -78,7 +78,7 @@ run is refused, naming the directories it walked. Get it wrong in the small — 
 package left out of the list — and the components declared there keep their
 names in the report and resolve to no file.
 
-### A story that is not ready when Storybook says it is
+### A story that is not ready when Storybook signals it is
 
 Most stories are complete when Storybook emits `storyRendered`. A story that
 keeps fetching or mounting after that signal needs a selector your application
@@ -99,7 +99,7 @@ selector, rather than photographing a spinner. React Suspense is handled without
 a marker: the collector waits for every boundary under the story root to settle,
 and reports a story still showing its fallback as not collected.
 
-### What a story says about itself
+### What a story declares about itself
 
 A story states how it is read in `parameters.variance`, the same place it
 already states its layout and its backgrounds. Storybook merges parameters from
@@ -124,7 +124,7 @@ export const Dense = {
 | `widths` | The story is read once at each width, as `<story id>@<width>`, and each width has its own approved image. Put `widths` in `preview.ts` when every story in a design system should be seen at every breakpoint. A component library usually leaves it out, and each story is read once. |
 
 The collector reads these values from the built preview before the first story
-is read. A key it does not know, or a value it cannot use, such as a width
+is read. A key it does not recognise, or a value it cannot use, such as a width
 written as `'1280px'`, leaves that story out of the run, and the report names
 the key. Reading the story at the run's size would hide the breakpoint you
 asked for. If the preview cannot list its stories at all, the run reads every
@@ -157,7 +157,7 @@ directory rather than the working directory.
 | --- | --- |
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured, because rows written under a project nobody chose cannot be re-attributed later. |
 | `profile` | What the run is *capable* of observing: `chromium` resolves computed style, layout and pixels; `jsdom` resolves structure, ARIA and declared style only, and paints nothing. A Storybook loop paints, so it is `chromium`. This is not the engine — that is `browser`, one of `chromium`, `firefox`, `webkit`, defaulting to `chromium`, and the `npx playwright install` above installs its binary. |
-| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). This is the size every story is read at unless the story's own `parameters.variance` says otherwise. |
+| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). This is the size every story is read at unless the story's own `parameters.variance` sets another. |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
 | `subjects.kind` | `storybook` reads a built story index. The alternatives are `list`, where you write the subject ids down yourself, and `collector`, where the collector module discovers them. |
 | `baselines.kind` | Where approved images live: `directory` is files you commit, `lfs` is the same files through the Git LFS filter, `remote` is a deployment and a token with nothing in the repository. No default — see [baseline placement](placement.md). |
@@ -231,7 +231,7 @@ variance accept --config variance.config.json --all
 git add -- .variance/baselines
 ```
 
-Keep `--all` for that first run and for deliberate re-baselines. It cannot tell
+Keep `--all` for that first run and for deliberate re-baselines. It cannot distinguish
 a story nobody has looked at from one that changed, so after setup name subject
 ids, or use `--shape <fingerprint>` to promote one category of difference
 wherever it accounts for the whole change and refuse by name any story where
@@ -258,10 +258,10 @@ painter and use it for both:
 ## Go deeper
 
 Against a built Storybook, component names arrive minified: a run names the
-cause `Ce` because the bundler renamed it and nothing in the browser remembers
-otherwise. Two decisions follow, and both are optional.
+cause `Ce` because the bundler renamed it and nothing in the browser keeps
+the original name. Two decisions follow, and both are optional.
 
-- **Keep component names in the build**, so the report says `Button`. Vite 8
+- **Keep component names in the build**, so the report prints `Button`. Vite 8
   spells it `build.rolldownOptions.output.keepNames`; Vite 7 and below spell it
   `esbuild.keepNames`.
 - **Install `@variance-authority/jsx-source`**, if the report must point at the
@@ -273,7 +273,7 @@ Then:
 - [attribution](attribution.md) — how a changed region becomes a component and a
   `file:line`, and what each hop needs to succeed.
 - [parting](parting.md) — which input changed between two readings, and how a
-  flake is told apart from an edit.
+  flake is distinguished from an edit.
 - [baseline placement](placement.md) — `directory`, `lfs` and `remote`, and what
   each costs.
 - [test selection](selecting.md) — the top-level `source` block and

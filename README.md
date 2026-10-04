@@ -150,7 +150,7 @@ subject ids you meant, then rerun; an unchanged run exits `0`.
 
 ## What else the same evidence answers
 
-Once a run records what it rendered, what it executed, and what the source says,
+Once a run records what it rendered, what it executed, and what the source declares,
 the questions below are answerable from the same material. None of them sits
 under another, and none requires the rest; take the one you need.
 
@@ -158,7 +158,7 @@ under another, and none requires the rest; take the one you need.
 | --- | --- |
 | How is information grouped, aligned, repeated, and emphasized in one live interface? | [`@variance-authority/presentation`](packages/presentation) measures the rendered boxes — spacing, alignment, prominence, repetition — and hands back numbers you assert on. It has no baseline and gives no design score. |
 | At which step of a test did two runs stop agreeing? | [`@variance-authority/scenario`](packages/scenario) records the Arrange–Act–Assert steps a run actually took as a state machine, then compares two of them. |
-| Which components and tests could — or did — a source change reach? | [`@variance-authority/sense`](packages/sense) joins what the source says can be reached with what a recorded run actually executed, and selects tests from it. It reads [more than JavaScript](docs/polyglot.md). |
+| Which components and tests could — or did — a source change reach? | [`@variance-authority/sense`](packages/sense) joins what the source imports with what a recorded run actually executed, and selects tests from it. It reads [more than JavaScript](docs/polyglot.md). |
 | What public API does a workspace expose, and who consumes it? | [`@variance-authority/package`](packages/package) reads every entrypoint a manifest opens and what it exports; [`@variance-authority/help`](packages/help) answers questions about those names, their import sites and the module relations around them over MCP. |
 | What did a running system decide, and where did one execution go? | [`@variance-authority/event`](packages/event) lets code announce a decision so a test waits for it instead of guessing; [`@variance-authority/wire`](packages/wire) keeps one execution identity attached across processes; [`@variance-authority/vantage`](packages/vantage) makes a suite in flight something you can query rather than wait for. |
 | How often has a cause recurred, drifted, or proved unstable? | [`@variance-authority/history`](packages/history) defines those answers over retained observations; [`@variance-authority/server`](packages/server) is the self-hosted HTTP service that retains them. |
@@ -188,9 +188,9 @@ npx variance reach --since origin/main | grep '_test\.py$' | xargs pytest
 There is no framework integration behind this and none is implied: the answer is
 a list of paths on stdout, and what you do with it is yours. Because a run list
 that comes back empty would look like a green build, `reach` never exits `0` with
-nothing to say — an empty answer is an error, not a pass.
+an empty list — an empty answer is an error, not a pass.
 [How different languages are handled](docs/polyglot.md) states what the graph
-does and does not claim.
+covers and what it leaves out.
 
 ## How the packages are cut
 
@@ -279,7 +279,7 @@ Two questions meet in this repository — *what did this change look like* and
   left out. Over sixty commits of TanStack Query, that is 441 test files where
   the file graph selects 1,470; over sixty of Zod, whose tests import it
   through one namespace, 4,142 where it selects 4,531.
-  [What a record knows that no graph can](docs/selecting.md#what-a-record-knows-that-no-graph-can)
+  [What a record shows that no graph can](docs/selecting.md#what-a-record-shows-that-no-graph-can)
   is where a record's answer differs from any graph's.
 - [**Nx affected**](https://nx.dev/), [**Turborepo**](https://turborepo.com/),
   [**Bazel**](https://bazel.build/) — selection at the project or target grain,

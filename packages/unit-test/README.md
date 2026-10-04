@@ -242,7 +242,7 @@ directory rather than the working directory.
 | key | what it decides |
 |---|---|
 | `project` | the label this project's rows are filed under in a shared history store |
-| `profile` | what the run may claim about a change: `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process records; `chromium` adds computed style, layout and geometry. It does not decide what paints — Chromium paints either way. Set it to match where the capture was taken |
+| `profile` | what the run may report about a change: `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process records; `chromium` adds computed style, layout and geometry. It does not decide what paints — Chromium paints either way. Set it to match where the capture was taken |
 | `viewport` | the fallback for a subject that arrives without one. Every capture sets its own, and that is the one used for its subject |
 | `retention` | `durable` compares against a stored image and requires `baselines`; `ephemeral` renders both sides inside one run, keeps neither, and requires `baselines` to be absent |
 | `subjects.kind` | `collector` for a module like the one above, `storybook` for a built story index, or `list` for ids you write down |
@@ -420,7 +420,7 @@ test('the health endpoint', async () => {
 |---|---|---|
 | `subject` | required | `'api/health'`, or a full `SubjectRef`. A bare string becomes `kind: 'value'` |
 | `directory` | required | where the capture is written |
-| `dialect` | `'json'` | how the text is read later. A reader for a dialect it does not know still compares the value |
+| `dialect` | `'json'` | how the text is read later. A reader for a dialect it does not recognise still compares the value |
 | `drop` | none | JSON Pointers whose value is volatile. Recorded as present, never compared |
 | `replace` | none | JSON Pointers whose value becomes a token you choose, so the shape stays readable |
 | `arrayKey` | none | for an array of records, the member that identifies a row: `{ '/rows': 'id' }` |
