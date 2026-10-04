@@ -26,9 +26,9 @@ Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and s
 
 `Kept the 2 of 4` is out of the cases that covered the function before
 `--where`, within the `--cases` scope when one is given. Repeat `--where` and
-a case is kept only when it recorded all of them. `--where prices` keeps every
-value. Values compare as text, so `--where seeded-cart` and
-`--where seeded-cart=true` are the same question. On a declared axis, a case
+a case is kept only when it recorded all of them. A bare `--where prices` keeps
+every value, so `--where seeded-cart` also keeps a case that recorded `false`;
+`--where seeded-cart=true` keeps only `true`. On a declared axis, a case
 that recorded nothing for it is read at the axis's base, and `--where` matches
 it there.
 
@@ -71,11 +71,13 @@ variance covering --file src/checkout/total.ts --function total --where discount
 ```
 
 - A twin is the test in the same file that covered the same code with the axis
-  at its base and every other precondition the same (`prices=full` must match
-  too), among the cases that covered it before `--where`, within the `--cases`
+  nearer its base (on a two-value axis, at the base) and every other
+  precondition the same (`prices=full` must match too), among the cases that covered it before `--where`, within the `--cases`
   scope.
 - With several axes, the twin differs on one only: the last declared axis the
-  case is away from its base on, at the nearest value toward the base.
+  case is away from its base on. The twin takes the nearest lower value a case
+  in the file covered the code at: on `["off", "half", "on"]`, a case at `on` is
+  twinned with `half` when one exists, else with `off`.
 - Twins print whenever `names.axes` is declared, with or without `--where`, in
   every answer: line, function, whole file, `--since`.
 - A case that recorded nothing for `discount` is read as `discount=off`. That

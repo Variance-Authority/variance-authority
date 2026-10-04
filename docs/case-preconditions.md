@@ -194,7 +194,8 @@ values as an axis in the root `variance.config.json`:
 
 The first value is the base. Every covering test recorded away from the base
 now prints its **twin**: the test in the same file that covered the same code
-with `discount` at the base and every other precondition the same.
+with `discount` nearer the base and every other precondition the same. On a
+two-value axis such as this one, that is the base.
 
 ```text
 4 named tests covered function total of src/checkout/total.ts:
@@ -255,8 +256,9 @@ keep it. Vitest, Jest, Rstest and Playwright record it when the suite is
 recorded with [test-level coverage](test-level-coverage.md).
 
 A value `true` prints as the bare name, so `{ 'seeded-cart': true }` prints
-`seeded-cart`. Values are compared as text, so `--where seeded-cart` and
-`--where seeded-cart=true` keep the same tests.
+`seeded-cart`. Values are compared as text, so `--where seeded-cart=true`
+keeps the tests that recorded `true`. A bare `--where seeded-cart` keeps every
+value, `false` included.
 
 ### Which test a call is recorded on
 
@@ -318,8 +320,12 @@ while the test ran.
 
 With several axes declared, a test's twin differs from it on one axis only:
 the last axis, in the order you declare them, on which the test is away from
-the base, at the nearest value toward the base. Every other precondition, on an
-axis or not, has to match exactly, as
+the base. On that axis the twin is at the nearest value below its own at
+which a test in the file covered the code: on an axis `["off", "half", "on"]`,
+a test at `on` is twinned with one at `half` when one exists, and with one at
+`off` otherwise. When no test qualifies, the answer prints
+`no twin recorded at` the base. Every other precondition, on an axis or not,
+has to match exactly, as
 [variations](variations.md#tell-it-what-the-words-mean) reads a subject's name.
 
 A value the axis does not list, such as `discount=half`, gives the test no twin

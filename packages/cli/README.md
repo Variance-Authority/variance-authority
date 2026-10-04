@@ -583,7 +583,8 @@ the axis does not list is printed by name with its site, and kept.
 
 Beside each case recorded away from the base, with or without `--where`, is its
 twin: the case in the same test file that covered the same code with the axis
-at its base and every other precondition the same. A case recorded with
+nearer its base and every other precondition the same; on a two-value axis,
+that is the base. A case recorded with
 `discount=on` prints the case in its file that ran the same code with
 `discount=off` and the same `prices`:
 
@@ -593,8 +594,10 @@ at its base and every other precondition the same. A case recorded with
 ```
 
 With several axes declared, the twin differs on one axis only: the last
-declared axis on which the case is away from the base, at the nearest value
-toward the base. Twins are looked for among the cases that covered what you
+declared axis on which the case is away from the base. On it, the twin is at
+the nearest lower value a case in the file covered the code at: on
+`["off", "half", "on"]`, a case at `on` is twinned with `half` when one exists,
+and with `off` otherwise. Twins are looked for among the cases that covered what you
 asked, before `--where` narrowed them. Several twins print as their count and
 the first three names. When no case in the file matches, the case prints
 `no twin recorded at discount=off`.
