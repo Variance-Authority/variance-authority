@@ -156,4 +156,33 @@ describe('distillScope', () => {
       '  packages/app/src/a.ts imports packages/app/src/heavy.ts: 1 module(s) in 1 test file(s), 40 line(s)',
     ]);
   });
+
+  it('puts what no static import reaches after the imports, and names the withheld files', () => {
+    const lazy = { 'packages/app/src/lazy.ts': { by: [A], lines: 7 } };
+    const text = formatScopeDistillation(distillScope({
+      records: [record({ ...MODULES, ...lazy }, { incomplete: [B] })],
+      unrecorded: ['e2e'],
+      imports,
+      republishes,
+    }));
+
+    expect(text.split('\n').slice(0, 10)).toEqual([
+      'every test file: 3 test file(s); 2 read, 1 withheld.',
+      '',
+      'Loaded, and entered by no case of the test file that loaded it: 4 module load(s), 247 line(s).',
+      '  packages/ui/src/index.ts imports packages/ui/src/chart.ts: 1 module(s) in 2 test file(s), 200 line(s)',
+      '  packages/app/src/a.ts imports packages/app/src/heavy.ts: 1 module(s) in 1 test file(s), 40 line(s)',
+      '  No static import reaches these from the test file: 1 module(s) in 1 test file(s), 7 line(s)',
+      '',
+      'Not recorded: suite e2e.',
+      '',
+      `Withheld: ${B}; a test file read alone says why.`,
+    ]);
+  });
+
+  it('heads each spill with its module when no imports are given', () => {
+    const text = formatScopeDistillation(distillScope({ records: [record(MODULES)] }));
+
+    expect(text.split('\n')[3]).toBe('  packages/ui/src/chart.ts: 1 module(s) in 3 test file(s), 300 line(s)');
+  });
 });
