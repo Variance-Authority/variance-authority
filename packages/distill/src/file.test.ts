@@ -99,6 +99,32 @@ describe('distillFile', () => {
       .toThrow('2 recorded test files in `test/`: test/dialog.test.tsx, test/other.test.ts; name one');
   });
 
+  it('does not count a crossing of the module root as an entry', () => {
+    const rootCrossed: ExecutionIndex = {
+      ...EXECUTION,
+      modules: [
+        ...EXECUTION.modules,
+        {
+          file: 'src/heavy-editor.ts',
+          blocks: [{ ...block('', [0, 1, 2].map((test) => ({ test, distance: 0 }))), kind: 'module', path: '' }],
+        },
+      ],
+    };
+
+    const result = distillFile({ file: 'dialog', execution: rootCrossed, coverage: COVERAGE });
+
+    expect(result.modules).toContainEqual({ file: 'src/heavy-editor.ts', lines: 900, entered: 0 });
+  });
+
+  it('takes a path that names one recorded test file exactly, though another contains it', () => {
+    const coverage: TestCoverage = {
+      ...COVERAGE,
+      tests: [...COVERAGE.tests, { file: `${FILE}.snap.test.ts`, complete: true, preconditions: [] }],
+    };
+
+    expect(distillFile({ file: FILE, execution: EXECUTION, coverage }).file).toBe(FILE);
+  });
+
   it('refuses a path part no recorded test file has', () => {
     expect(() => distillFile({ file: 'missing', execution: EXECUTION, coverage: COVERAGE }))
       .toThrow('The record holds no test file in `missing`.');
