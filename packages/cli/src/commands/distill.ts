@@ -87,7 +87,7 @@ const LOADING = new Set((['imports', 'reexports', 'asset'] as const satisfies re
 const FILE = NODE_KINDS.indexOf('file');
 
 /** The files each file imports statically, read from the file graph by the names the record uses. */
-export function importsOf(relations: Relations): (file: string) => readonly string[] {
+function importsOf(relations: Relations): (file: string) => readonly string[] {
   const { offset, target, kind } = relations.depends;
   return (file) => {
     const id = idOf(relations, 'file', file);

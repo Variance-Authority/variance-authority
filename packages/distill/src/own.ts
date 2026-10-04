@@ -51,7 +51,8 @@ export function causesOf(input: CauseInput): (module: string) => LoadCause {
   const successors = (node: string): readonly string[] => {
     let found = edges.get(node);
     if (found === undefined) {
-      found = input.imports(node).filter(followed);
+      // An import and a re-export of one module are one way in.
+      found = [...new Set(input.imports(node))].filter(followed);
       edges.set(node, found);
     }
     return found;
@@ -77,12 +78,19 @@ export function causesOf(input: CauseInput): (module: string) => LoadCause {
     if (count > 0 && idom.has(module)) for (const at of ancestry(module)) carriesUse.add(at);
   }
   const dominates = (by: string, node: string): boolean => ancestry(node).includes(by);
+  // A barrel declares nothing a case could enter: measured, and holding only its top level, it is unused too.
+  const unused = (node: string): boolean => {
+    const count = input.entered.get(node);
+    if (count !== undefined) return count === 0;
+    const row = rows.get(node);
+    return row?.instrumented === true && row.blocks.every((block) => block.kind === 'module');
+  };
 
   return (module) => {
     if (!idom.has(module)) return { kind: 'unseen' };
     let owner: LoadCause | undefined;
     for (const at of ancestry(module)) {
-      if (input.entered.get(at) !== 0 || carriesUse.has(at)) continue;
+      if (!unused(at) || carriesUse.has(at)) continue;
       // A predecessor `at` dominates closes a cycle back into it; every other one is a way in.
       const ways = (predecessors.get(at) ?? []).filter((from) => !dominates(at, from));
       if (ways.length === 1) owner = { kind: 'import', importer: ways[0]!, imported: at };

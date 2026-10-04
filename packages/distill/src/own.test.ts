@@ -84,6 +84,16 @@ describe('distillFile with the imports given', () => {
     expect(causes(result)).toEqual({ 'src/chart.ts': { kind: 'import', importer: 'src/index.ts', imported: 'src/chart.ts' } });
   });
 
+  it('gives what a barrel no case uses brings in to the import of the barrel', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/index.ts': { barrel: true }, 'src/chart.ts': NEVER, 'src/table.ts': NEVER },
+      { [FILE]: ['src/dialog.ts', 'src/index.ts'], 'src/index.ts': ['src/chart.ts', 'src/table.ts'] },
+    );
+
+    const barrel = { kind: 'import', importer: FILE, imported: 'src/index.ts' };
+    expect(causes(result)).toEqual({ 'src/chart.ts': barrel, 'src/table.ts': barrel });
+  });
+
   it('counts a module two used imports reach to neither, and names where their paths part', () => {
     const result = read(
       { 'src/a.ts': USED, 'src/b.ts': USED, 'src/shared.ts': NEVER },
@@ -118,6 +128,15 @@ describe('distillFile with the imports given', () => {
 
     const editor = { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' };
     expect(causes(result)).toEqual({ 'src/editor.ts': editor, 'src/helpers.ts': editor });
+  });
+
+  it('counts a file that imports and re-exports the same module as one way in', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/editor.ts': NEVER },
+      { [FILE]: ['src/dialog.ts'], 'src/dialog.ts': ['src/editor.ts', 'src/editor.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/editor.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' } });
   });
 
   it('calls a module no static import reaches unseen: a dynamic import is not followed', () => {
