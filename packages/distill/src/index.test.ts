@@ -204,6 +204,28 @@ describe('distill', () => {
     expect(() => parseExecutionIndex({ tests: [], modules: [{ file: 'x', blocks: [{}] }] }))
       .toThrow('crossings must be an array');
   });
+
+  it('carries what each case said it arranged, and leaves an unheard case without any', () => {
+    const said: ExecutionIndex = { ...EXECUTION, tests: [
+      { id: 'mocked', file: 'test/pay.test.ts', name: 'pays mocked', preconditions: [
+        { name: 'network', value: 'mocked', site: 'test/pay.test.ts:4', level: 1 },
+        { name: 'retries', value: 3, site: 'test/pay.test.ts:5', level: 0 },
+        { name: 'flaky', value: true, site: 'test/pay.test.ts:9', level: 65535 },
+      ] },
+      { id: 'silent', file: 'test/pay.test.ts', name: 'says nothing', preconditions: [] },
+      { id: 'unheard', file: 'test/pay.test.ts', name: 'nobody listened' },
+    ] };
+
+    const parsed = parseExecutionIndex(said);
+
+    expect(parsed).toEqual(said);
+    expect(parsed.tests[2]).not.toHaveProperty('preconditions');
+    expect(() => parseExecutionIndex({ ...said, tests: [{ ...said.tests[0], preconditions: {} }] }))
+      .toThrow('execution test 0 preconditions must be an array');
+    expect(() => parseExecutionIndex({ ...said, tests: [{ ...said.tests[0], preconditions: [
+      { name: 'network', value: null, site: 'test/pay.test.ts:4', level: 1 },
+    ] }] })).toThrow('execution test 0 precondition 0 value must be a string, number or boolean');
+  });
 });
 
 /**

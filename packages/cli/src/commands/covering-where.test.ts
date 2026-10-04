@@ -107,6 +107,17 @@ describe('a case read by what it said', () => {
     expect(names(scoped)).toEqual(['replays a recording']);
   });
 
+  it('reads the preconditions a JSON execution index carries, as the recorded spelling does', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-covering-where-json-'));
+    const execution = join(root, 'execution.json');
+    await writeFile(execution, JSON.stringify(indexOf(MEASURED)));
+
+    const answer = await ask(['network=mocked'], { root, execution });
+
+    expect(names(answer)).toEqual(['half on', 'pays mocked', 'refunds mocked behind a flag']);
+    expect(answer.where).toMatchObject({ kept: 3, of: 6, unmeasured: 0 });
+  });
+
   it('refuses a condition with no name', () => {
     expect(() => parse(['--file', 'src/cart.ts', '--where', '=mocked'])).toThrow(/`--where` takes a precondition's name/);
   });
