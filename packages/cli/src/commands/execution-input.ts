@@ -22,9 +22,9 @@ import {
  * that arm goes through `parseExecutionIndex`, which validates it field by
  * field, because nothing here recorded it.
  *
- * The first byte separates them: JSON opens on `{` or the whitespace before
- * it, and columns open on the little-endian length of a header. A coverage
- * record is read as the case index it carries.
+ * The frame separates them: columns open on the little-endian length of a
+ * header that follows it, and JSON opens on `{` after an optional byte order
+ * mark and whitespace. A coverage record is read as the case index it carries.
  */
 export async function readExecutionIndex(file: string): Promise<ExecutionIndex> {
   return executionIndexOf(await readFile(file));
@@ -33,7 +33,8 @@ export async function readExecutionIndex(file: string): Promise<ExecutionIndex> 
 /** {@link readExecutionIndex} for bytes already in hand, such as a record a share gave. */
 export function executionIndexOf(bytes: Uint8Array): ExecutionIndex {
   if (isEncodedExecutionIndex(bytes)) return decodeExecutionIndex(bytes);
-  return parseExecutionIndex(JSON.parse(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('utf8')));
+  // TextDecoder drops a leading byte order mark, which JSON.parse refuses.
+  return parseExecutionIndex(JSON.parse(new TextDecoder().decode(bytes)));
 }
 
 /**

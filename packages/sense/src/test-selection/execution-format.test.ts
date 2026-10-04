@@ -121,6 +121,36 @@ describe('the execution index as columns', () => {
     expect(isEncodedExecutionIndex(Buffer.from('\n  {"tests":[]}', 'utf8'))).toBe(false);
   });
 
+  it('reads a JSON index that opens on any JSON whitespace or a byte order mark', () => {
+    const json = JSON.stringify(representative());
+    for (const lead of ['\t', '\r\n', '﻿', '﻿ \t\r\n']) {
+      expect(isEncodedExecutionIndex(Buffer.from(lead + json, 'utf8'))).toBe(false);
+    }
+  });
+
+  it('tells its own bytes by their framing, whatever the low byte of the header length', () => {
+    // A header length's low byte can spell `{`, a space or a newline; the frame still says columns.
+    const encoded = encodeExecutionIndex(representative());
+    for (const low of [0x7b, 0x20, 0x0a]) {
+      expect(isEncodedExecutionIndex(reframed(encoded, low))).toBe(true);
+    }
+    // Only a header length that is a multiple of four leaves the columns word-aligned to decode.
+    expect(decodeExecutionIndex(reframed(encoded, 0x20))).toEqual(representative());
+  });
+
+  /**
+   * `bytes` with the header padded to the next length whose low byte is `low`,
+   * the sections after it as they were.
+   */
+  function reframed(bytes: Buffer, low: number): Buffer {
+    const held = bytes.readUInt32LE(0);
+    const headerLength = (Math.floor(held / 0x100) + 1) * 0x100 + low;
+    const prefix = Buffer.alloc(4);
+    prefix.writeUInt32LE(headerLength);
+    const padding = Buffer.alloc(headerLength - held);
+    return Buffer.concat([prefix, bytes.subarray(4, 4 + held), padding, bytes.subarray(4 + held)]);
+  }
+
   it('refuses a file it did not write', () => {
     expect(() => decodeExecutionIndex(Buffer.from('not an index'))).toThrow();
     const encoded = encodeExecutionIndex(representative());
