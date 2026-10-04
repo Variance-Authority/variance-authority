@@ -25,6 +25,8 @@ export interface CauseInput {
   readonly file: string;
   /** The files a file imports statically — imports, re-exports and assets — by the names the record uses. */
   readonly imports: (file: string) => readonly string[];
+  /** Whether every file a file imports, it also re-exports: a barrel. Unsaid, no file reads as one. */
+  readonly republishes?: (file: string) => boolean;
   readonly coverage: TestCoverage;
   /** Each measured module the file loaded, mapped to how many of its cases entered it. */
   readonly entered: ReadonlyMap<string, number>;
@@ -78,12 +80,16 @@ export function causesOf(input: CauseInput): (module: string) => LoadCause {
     if (count > 0 && idom.has(module)) for (const at of ancestry(module)) carriesUse.add(at);
   }
   const dominates = (by: string, node: string): boolean => ancestry(node).includes(by);
-  // A barrel declares nothing a case could enter: measured, and holding only its top level, it is unused too.
+  // A barrel declares nothing a case could enter, so measured and holding only its top level it is unused too.
+  // A file of constants looks the same in the record and a case may read it unrecorded: only a file that
+  // re-exports all it imports reads as a barrel.
   const unused = (node: string): boolean => {
     const count = input.entered.get(node);
     if (count !== undefined) return count === 0;
     const row = rows.get(node);
-    return row?.instrumented === true && row.blocks.every((block) => block.kind === 'module');
+    return row?.instrumented === true
+      && row.blocks.every((block) => block.kind === 'module')
+      && input.republishes?.(node) === true;
   };
 
   return (module) => {

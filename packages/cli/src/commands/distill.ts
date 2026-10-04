@@ -59,7 +59,8 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
       const flat = distillFile(input);
       // The graph is read only when there is a load to give a cause: the scan costs more than the record.
       if (!flat.modules?.some(({ entered }) => entered === 0)) return flat;
-      return distillFile({ ...input, imports: importsOf(await fileGraph(options.root)) });
+      const graph = await fileGraph(options.root);
+      return distillFile({ ...input, imports: importsOf(graph), republishes: republishesOf(graph) });
     }
     const section = recordedEyesOf(bytes);
     return distill({
@@ -97,6 +98,24 @@ function importsOf(relations: Relations): (file: string) => readonly string[] {
       if (LOADING.has(kind[at]!) && relations.kinds[target[at]!] === FILE) found.push(relations.names[target[at]!]!);
     }
     return found;
+  };
+}
+
+const REEXPORTS = EDGE_KINDS.indexOf('reexports');
+
+/** Whether every file a file loads statically, it re-exports: a barrel, as far as the file graph says. */
+function republishesOf(relations: Relations): (file: string) => boolean {
+  const { offset, target, kind } = relations.depends;
+  return (file) => {
+    const id = idOf(relations, 'file', file);
+    if (id === undefined) return false;
+    let any = false;
+    for (let at = offset[id]!; at < offset[id + 1]!; at += 1) {
+      if (!LOADING.has(kind[at]!) || relations.kinds[target[at]!] !== FILE) continue;
+      if (kind[at] !== REEXPORTS) return false;
+      any = true;
+    }
+    return any;
   };
 }
 

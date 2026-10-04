@@ -20,6 +20,11 @@ export interface FileDistillInput {
    * entered carries the import that made the file load it.
    */
   readonly imports?: (file: string) => readonly string[];
+  /**
+   * Whether every file a file imports, it also re-exports: a barrel. Unsaid,
+   * no file reads as one.
+   */
+  readonly republishes?: (file: string) => boolean;
 }
 
 /** One module a test file loaded that not every one of its cases entered. */
@@ -96,7 +101,13 @@ export function distillFile(input: FileDistillInput): FileDistillation {
   const entries = new Map(input.execution.modules.map((module) => [module.file, enteredBy(module, mine)]));
   const entered = new Map(candidates.map((module) => [module.file, entries.get(module.file)?.size ?? 0]));
   const imports = input.imports;
-  const cause = imports === undefined ? undefined : causesOf({ file, imports, coverage: input.coverage, entered });
+  const cause = imports === undefined ? undefined : causesOf({
+    file,
+    imports,
+    ...(input.republishes === undefined ? {} : { republishes: input.republishes }),
+    coverage: input.coverage,
+    entered,
+  });
   const modules = candidates
     .map((module): LoadedModule => {
       const lines = module.blocks.find((block) => block.kind === 'module')?.endLine;

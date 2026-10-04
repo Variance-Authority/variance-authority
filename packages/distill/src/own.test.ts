@@ -18,7 +18,11 @@ interface Module {
 }
 
 /** A record of one test file with two finished cases, from its modules and the static imports between them. */
-function read(modules: Readonly<Record<string, Module>>, edges?: Readonly<Record<string, readonly string[]>>) {
+function read(
+  modules: Readonly<Record<string, Module>>,
+  edges?: Readonly<Record<string, readonly string[]>>,
+  republishing: readonly string[] = [],
+) {
   const coverage: TestCoverage = {
     version: 3,
     instrumentation: 'fixture-instrumentation',
@@ -53,7 +57,10 @@ function read(modules: Readonly<Record<string, Module>>, edges?: Readonly<Record
     file: FILE,
     coverage,
     execution,
-    ...(edges === undefined ? {} : { imports: (file: string) => edges[file] ?? [] }),
+    ...(edges === undefined ? {} : {
+      imports: (file: string) => edges[file] ?? [],
+      republishes: (file: string) => republishing.includes(file),
+    }),
   });
 }
 
@@ -88,10 +95,20 @@ describe('distillFile with the imports given', () => {
     const result = read(
       { 'src/dialog.ts': USED, 'src/index.ts': { barrel: true }, 'src/chart.ts': NEVER, 'src/table.ts': NEVER },
       { [FILE]: ['src/dialog.ts', 'src/index.ts'], 'src/index.ts': ['src/chart.ts', 'src/table.ts'] },
+      ['src/index.ts'],
     );
 
     const barrel = { kind: 'import', importer: FILE, imported: 'src/index.ts' };
     expect(causes(result)).toEqual({ 'src/chart.ts': barrel, 'src/table.ts': barrel });
+  });
+
+  it('keeps a file of constants, which a case may read unrecorded, from owning what it imports', () => {
+    const result = read(
+      { 'src/config.ts': { barrel: true }, 'src/heavy.ts': NEVER },
+      { [FILE]: ['src/config.ts'], 'src/config.ts': ['src/heavy.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/heavy.ts': { kind: 'import', importer: 'src/config.ts', imported: 'src/heavy.ts' } });
   });
 
   it('counts a module two used imports reach to neither, and names where their paths part', () => {
