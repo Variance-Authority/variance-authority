@@ -157,6 +157,15 @@ describe('distill over a scope of test files', () => {
     expect(answer.err).toContain('none of the suites it declares, "e2e", "unit", has a per-case index');
   });
 
+  it('refuses a record `--execution` names where nothing is recorded', async () => {
+    const root = await checkout();
+
+    const answer = await run(['distill', '--execution', join(root, 'missing.bin')]);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain(`nothing is recorded at ${join(root, 'missing.bin')}`);
+  });
+
   it('refuses `--from` beside `--test` or `--file`, which name one case or one file', async () => {
     await checkout();
 
