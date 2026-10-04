@@ -55,11 +55,15 @@ variance distill --file test/checkout.spec.ts --test submits
 When more than one case fits, Distill prints the ids of up to five of them and
 stops. Pass one of those ids to `--test`. `--file` without `--test` reads the
 whole file: what it loaded, and how many of its cases entered each module
-([below](#imports-a-file-loads-for-few-of-its-cases)).
+([below](#imports-a-file-loads-for-few-of-its-cases)). Name neither, and Distill
+reads every test file, or with `--from <dir>` every one under a folder or a
+package, and ranks the imports they load for nothing
+([below](#imports-a-folder-a-suite-or-the-repository-loads-for-nothing)).
 
 Distill reads the record your last recorded run wrote, `coverage.bin`, and finds
 it the way [test selection](selecting.md) does. With more than one declared
-suite, name the one to read with `--suite <name>`. Pass `--execution <path>` to
+suite, name the one to read with `--suite <name>`; a reading of many test files
+with no suite named reads every declared suite. Pass `--execution <path>` to
 read another record, or a case index another tool exported as JSON. Whatever
 names the case, Distill finds it in the record's case index and reads the
 journals and the covered source by its id.
@@ -291,11 +295,55 @@ without. Running the file again records a row the reading can use.
 As with every finding here, rerun the file after the change: a top level can
 register something a case depends on.
 
+## Imports a folder, a suite or the repository loads for nothing
+
+One test file shows you what its own imports cost. The import worth removing
+first is usually one many test files share: a barrel that puts a hundred unused
+lines into forty test files costs four thousand, paid once in each. Name no case
+and no file, and Distill reads every test file on its own, as `--file` would,
+then gathers what each loaded for nothing under the import that brought it in:
+
+```bash
+variance distill --from packages/checkout
+```
+
+```text
+packages/checkout in suite unit: 42 test file(s), each read.
+
+Loaded, and entered by no case of the test file that loaded it: 380 module load(s), 61200 line(s).
+  packages/ui/src/index.ts imports packages/ui/src/chart.ts: 3 module(s) in 40 test file(s), 36000 line(s)
+  packages/checkout/src/form.tsx imports packages/checkout/src/editor.ts: 1 module(s) in 12 test file(s), 10800 line(s)
+  ...
+```
+
+An import's lines count once in every test file it reaches, because each file
+evaluates its imports anew. Only what no case of the loading file entered is
+gathered; a module some cases used belongs to the file's own reading. The text
+names the ten heaviest imports and sums the rest, then the modules no one import
+brings in alone and those no static import reaches; `--format json` lists every
+import with its modules and the test files it reaches.
+
+You choose the scope:
+
+- **`--from <dir>`** reads the test files under a directory spelled from the
+  repository root: a folder or a package.
+- **`--suite <name>`** alone reads every test file of one suite.
+- **Nothing** reads every test file of every declared suite, and names a
+  declared suite that has not recorded. On a small project that is one answer
+  for the whole suite; on a large one, start from a package.
+
+A test file the record cannot answer for — no cases kept, a case that stopped,
+an incomplete coverage row — is withheld and named, as it would be read alone.
+A record of a filtered run withholds most of its files; the full run your
+mainline records answers for all of them. Read one of the test files with
+`--file` for the modules under each import, and for those only some of its
+cases used.
+
 ## One capability, three entrances
 
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
-| CLI | the run recorded in this checkout, or a record you name | `variance distill --file <path> --test <title> [--suite <name> \| --execution <path>]` |
+| CLI | the run recorded in this checkout, or a record you name | `variance distill [--file <path> --test <title> \| --from <dir>] [--suite <name> \| --execution <path>]` |
 | [MCP](agent-questions.md#distill-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
 | [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 

@@ -181,5 +181,12 @@ top of this one, per case rather than per file, and is not part of this spec.
 6. The question for one file and for the suite, measured on this repository and
    on the seven-MUI corpus, with its time stated against the time `covering`
    takes on the same record. One test file answers in under a second.
+   **Discharged on this repository.** `distillScope` in
+   `@variance-authority/distill`, read by `variance distill` with no case and no
+   file, over `--from <dir>`, one `--suite`, or every declared suite. Imports
+   rank by their lines summed over the test files they reach. Every test file
+   of this repository's three suites reads in 0.9 s, one package in 0.55 s,
+   against 0.4 s for `covering --file` on the same record. The seven-MUI
+   corpus is not measured.
 7. The public page: [`optimize-a-test.md`](../optimize-a-test.md) states the
    reading and lands its terms before any output prints them.

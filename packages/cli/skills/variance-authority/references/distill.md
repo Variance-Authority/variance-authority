@@ -14,10 +14,17 @@ path to it runs through, in the test file or a module it used — or as shared b
 two imports, or as reached by no static import. The fix is that import, never a
 mock of the listed path. It needs a recorded run, not `--execution` JSON, and is
 withheld when a case stopped or the file's coverage row is incomplete; run the
-file again. `--root` (default: the working
+file again. Name neither `--test` nor `--file`, and distill reads every test
+file of the record the same way, or with `--from <dir>` every one under a
+directory from the repository root, and ranks each import by the lines it loads
+for nothing, counted once in every test file it reaches: the heaviest import
+across a package or a suite. With no `--suite`, that reading takes every
+declared suite and names one that has not recorded. `--root` (default: the working
 directory) is the root the record's paths are relative to. `--format json`
 returns the same reading as data; for a file, the text names ten imports and
-three modules a group, and the JSON every module with its `cause`. The `variance_distill` MCP tool returns the
+three modules a group, and the JSON every module with its `cause`; for many
+files, the text names ten imports, and the JSON every import with its modules
+and test files. The `variance_distill` MCP tool returns the
 same deterministic reading of one case, and needs its test id; the file reading
 is the CLI's.
 
