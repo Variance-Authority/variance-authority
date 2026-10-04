@@ -268,8 +268,8 @@ covered by the behaviour under test are both that test's crossings; the
 phase-level reading is authored structure, which is [Eyes](eyes.md), and
 `variance distill` is where the two are joined.
 
-Nor does a crossing say what state the case ran under: a case whose mock
-returns sale prices and one whose mock returns full prices cover the same line.
-A case that says what it arranged has it on its row as a
+Nor does a crossing say what state the test ran under: a test whose mock
+returns discounted prices and one whose mock returns full prices cover the same
+line. A test that records the state it ran under has it on its row as a
 [case precondition](case-preconditions.md), and `variance covering --where`
-reads it.
+keeps the tests that ran under one.

@@ -1900,21 +1900,22 @@ produced 28.8 MB of the JSON above against a 681 KB snapshot. The index answers
 a coding agent asking which five of two hundred cases walked the branch you just
 changed; selecting test files over every region there is reads the snapshot.
 
-### Name what a case arranged
+### Record the state each test ran under
 
-A case that sets a flag, mocks what a call returns or seeds a cart leaves no
-trace of it in the code it ran. Say it in the test helper that arranges it, and
-the state is recorded on the row of every case that calls the helper, in the
-`cases` section, with the `file:line` of the call that said it:
+Coverage tells you which test ran a piece of code. A case precondition records
+the state that test ran it under: a feature flag, what a mock returns, which
+user a fixture signs in. Record it in the test helper that changes the state,
+and every case that calls the helper gets it on its row in the `cases` section,
+with the `file:line` of the call that recorded it:
 
 ```ts
 // test/flags.ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
-import { type Flag, flags } from '../src/flags.js';
+import { flags } from '../src/flags.js';
 
-export function setFlag(flag: Flag): void {
-  flags.discount = flag;
-  variancePrecondition({ flag });
+export function setDiscountFlag(enabled: boolean): void {
+  flags.discount = enabled;
+  variancePrecondition({ discount: enabled ? 'on' : 'off' });
 }
 ```
 
@@ -1924,7 +1925,10 @@ import { variancePrecondition } from '@variance-authority/sense/precondition';
 import { vi } from 'vitest';
 import { fetchPrices } from '../src/checkout/prices.js';
 
-const TABLES = { full: { apple: 2, pear: 3 }, discounted: { apple: 1, pear: 2 } };
+const TABLES = {
+  full: { apple: 2, pear: 3 },
+  discounted: { apple: 1, pear: 2 },
+};
 
 export function pricesReturn(table: keyof typeof TABLES): void {
   vi.mocked(fetchPrices).mockResolvedValue(TABLES[table]);
@@ -1933,66 +1937,70 @@ export function pricesReturn(table: keyof typeof TABLES): void {
 ```
 
 ```ts
-// test/refund.test.ts
+// test/total.test.ts
 import { beforeEach, expect, it, vi } from 'vitest';
-import { refund } from '../src/checkout/refund.js';
-import { setFlag } from './flags.js';
+import { total } from '../src/checkout/total.js';
+import { setDiscountFlag } from './flags.js';
 import { pricesReturn } from './prices.js';
 
 vi.mock('../src/checkout/prices.js');
 
 beforeEach(() => {
-  pricesReturn('discounted');
+  setDiscountFlag(false);
+  pricesReturn('full');
 });
 
-it('refunds the discounted total behind the flag', async () => {
-  setFlag('ff-on');
-  expect(await refund(['apple', 'pear'])).toBe(-2.7);
+it('applies the discount', async () => {
+  setDiscountFlag(true);
+  expect(await total(['apple', 'pear'])).toBe(4.5);
 });
 ```
 
-Said in a case body, or in a helper the body calls, it is that case's. Said in
-a `beforeEach`, or in a helper the hook calls, it is the case the hook runs
-for, at the level of the `describe` that declared the hook. The body overrides
-a `beforeEach`, an inner `describe`'s `beforeEach` overrides an outer one's,
-and two values said at one level are kept as a contradiction, not resolved. A
-call in `afterEach` is reported with its site and recorded on no case. One
-record can name several: `variancePrecondition({ flag: 'ff-on', prices:
-'discounted' })`, and one value that is not a string, finite number or boolean
-drops the whole record, with a warning.
+A call in a case body, or in a helper the body calls, is recorded on that case.
+A call in a `beforeEach`, or in a helper the hook calls, is recorded on the
+case the hook runs for, at the level of the `describe` that declared the hook.
+The body overrides a `beforeEach`, an inner `describe`'s `beforeEach` overrides
+an outer one's, and two values recorded at one level are kept as a
+contradiction, not resolved. A call in `afterEach` runs after its case, so it
+is recorded on no case and the console names its site. One record can name
+several: `variancePrecondition({ discount: 'on', prices: 'discounted' })`, and
+one value that is not a string, finite number or boolean drops the whole
+record, with a warning.
 
 A precondition belongs to a test, so a call made where no case is running
 throws: in a `describe` callback, a `beforeAll` or `afterAll`, at the file's top
 level, or from work that outlives its case. The error names the call site.
-What a `beforeEach` said before it threw reaches no case.
+What a `beforeEach` recorded before it threw is recorded on no case.
 
 The entry imports nothing. Without a recording the call is one property read
-and does nothing, in Node and in a page. A row says `preconditions: []` for a
-case recorded with the listener that said nothing, and has no `preconditions`
-for a case recorded by a runner without the listener. A named precondition
-never selects or excludes a test, because nothing in a checkout changes it.
+and does nothing, in Node and in a page. A row has `preconditions: []` for a
+case recorded with the listener that recorded nothing, and has no
+`preconditions` for a case recorded by a runner without the listener. A case
+precondition never selects or excludes a test, because nothing in a checkout
+changes it.
 
 Vitest, Jest, Rstest and Playwright all listen. Under Playwright, a call at the
 top level or in a `describe` callback of the first file a worker loads is made
 before the worker listens, and records nothing rather than throwing. A seam that drives its own recorder calls `listenForPreconditions(root,
-standing)` from `@variance-authority/sense/journal`, where `standing` says
-which case a call stands in at the moment it is made.
+standing)` from `@variance-authority/sense/journal`, where `standing` names
+the case a call is recorded on at the moment it is made.
 
-`variance covering --where prices=discounted` keeps the cases that said it — see
-[`variance covering`](../cli#reading-the-cases-that-arranged-a-state), and
-[case preconditions](https://variance-authority.dev/docs/case-preconditions)
-for why a case says it and how to read it back.
+`variance covering --where prices=discounted` keeps the covering cases that ran
+under `prices=discounted` — see
+[`variance covering`](../cli#reading-the-state-each-covering-test-ran-under),
+and [case preconditions](https://variance-authority.dev/docs/case-preconditions)
+for the full page.
 
 A snapshot you take with the `variance` fixture of
 [`@variance-authority/playwright-test`](../playwright-test) inside a case names
 that case — its file, its declaration path and Playwright's test id, as the row
-names it — and what the case had said by the time the snapshot was taken. The
-fixture puts both on the observation as `case`, at the foot of a failing
-assertion's message, and in a `variance` annotation Playwright's report shows
-under the test, passing or not. A run that does not record execution reads
-*preconditions unmeasured*, never *nothing arranged*. The recorder's own view
-is `PreconditionListener.held(key)`: what the case has said so far, resolved as
-its row would be, left in place for the row.
+names it — and the preconditions the case had recorded by the time the snapshot
+was taken. The fixture puts both on the observation as `case`, at the foot of a
+failing assertion's message, and in a `variance` annotation Playwright's report
+shows under the test, passing or not. A run that does not record execution
+reads *preconditions unmeasured*, never *no preconditions*. The recorder's own
+view is `PreconditionListener.held(key)`: what the case has recorded so far,
+resolved as its row would be, left in place for the row.
 
 ### Ask the index about a diff
 
@@ -2070,7 +2078,7 @@ same under every host:
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^2.1.9` and product tests |
 | `@variance-authority/sense/jest` | the same around the transformer your project already uses | Jest 30 and product tests |
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
-| `@variance-authority/sense/precondition` | `variancePrecondition`, to say what state the running case arranged | nothing; a call outside a recording does nothing |
+| `@variance-authority/sense/precondition` | `variancePrecondition`, to record the state the running case ran under | nothing; a call outside a recording does nothing |
 | `@variance-authority/sense/case-journey` | the running case's journey id, to put on a request to a service | a case recorded by `withJourneyCoverage` |
 | `@variance-authority/sense/rstest` | the same as an Rspack loader and a reporter, for a suite Rstest bundles | Rstest `^0.12.0` and product tests |
 | `@variance-authority/sense/rstest-loader` | the loader `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |

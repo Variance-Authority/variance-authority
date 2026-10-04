@@ -23,9 +23,9 @@ says two of that file's three cases ran through it, and the cases follow.
   of the tree, so ask for it when the list is long, not on every edit.
 - `--cases last` answers from the cases the last run recorded; `--cases <test
   file>` from the ones that test file declares.
-- `--where <name>[=<value>]` keeps the cases that said that precondition with
-  `variancePrecondition`. Reading what cases arranged, their twins and an
-  `unmeasured` refusal is in [case preconditions](case-preconditions.md).
+- `--where <name>[=<value>]` keeps the cases that recorded that precondition
+  with `variancePrecondition`. Reading the state each case ran under, its twin
+  and an `unmeasured` refusal is in [case preconditions](case-preconditions.md).
 - `--format refs` numbers each case once in a table at the end and names every
   range's cases by those numbers, so a module whose eleven cases all run it
   costs one table, not eleven names per range. It is the shortest answer to hand

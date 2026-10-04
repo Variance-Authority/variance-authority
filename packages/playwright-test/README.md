@@ -574,7 +574,7 @@ its attempt, `testInfo.retry + 1`, so a retried test keeps both.
 A snapshot taken with `variance(locator)` names the case it was taken in: the
 spec file, the declaration path and `testInfo.testId`, the case id the record
 keeps. It also carries what the case had said with
-[`variancePrecondition`](../sense#name-what-a-case-arranged) by then, each with
+[`variancePrecondition`](../sense#record-the-state-each-test-ran-under) by then, each with
 the `file:line` that said it. A call after the snapshot is on the case's row and
 not on the snapshot.
 

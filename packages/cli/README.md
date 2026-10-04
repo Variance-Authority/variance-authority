@@ -541,52 +541,63 @@ commit's cases into the ones it replaced, so the comparison is refused with exit
 2 until you commit; the first run after a commit compares with the last run at
 the commit before.
 
-#### Reading the cases that arranged a state
+#### Reading the state each covering test ran under
 
-A case that says what it arranged with
-[`variancePrecondition`](../sense#name-what-a-case-arranged) carries it on its
-row, and every case `covering` lists prints it with the call that said it.
-`--where` keeps the cases that said it, in every form of the question:
+Coverage tells you which cases ran the code you asked about. A case that
+records the state it ran under with
+[`variancePrecondition`](../sense#record-the-state-each-test-ran-under) has it
+on its row, and every case `covering` lists prints each value with the call
+that recorded it. `--where` keeps the covering cases that ran under a
+precondition, in every form of the question:
 
 ```bash
-variance covering --file src/checkout/total.ts --function total --where flag=ff-on
+variance covering --file src/checkout/total.ts --function total --where prices=discounted
 ```
 
 ```text
-Kept the 3 of 6 cases that covered function total of src/checkout/total.ts and said flag=ff-on.
-3 named tests covered function total of src/checkout/total.ts:
+Kept the 2 of 4 cases that covered function total of src/checkout/total.ts and said prices=discounted.
+2 named tests covered function total of src/checkout/total.ts:
   test/total.test.ts — 2/4
-    discounts the full price behind the flag — flag=ff-on (test/flags.ts:6), prices=full (test/prices.ts:12)
-      twin at flag=ff-off: charges the full price
-    on sale > discounts the sale price behind the flag — flag=ff-on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
-      twin at flag=ff-off: on sale > charges the sale price
-  test/refund.test.ts — 1/2
-    refunds the discounted total behind the flag — flag=ff-on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
-      no twin recorded at flag=ff-off
+    sale prices > charges the sale price — discount=off (test/flags.ts:6), prices=discounted (test/prices.ts:12)
+    sale prices > applies the discount — discount=on (test/flags.ts:6), prices=discounted (test/prices.ts:12)
 ```
 
 The count is out of the cases that covered what you asked about, before
 `--where` narrowed them. `--where prices` keeps every value of `prices`, and
-every repeated `--where` must hold. Two values said at one level print as a contradiction, and match a
-`--where` naming either. A record made before cases said anything answers
-`unmeasured` rather than an empty list, and a case nobody listened to is counted
-apart from the cases that said nothing. When `--where` keeps none of the cases
-that covered a line or function, the answer says the filter left none of them
-and how many there were, rather than that no test covered it. The state of a
-line, function, range or changed region, and the cases that stopped before it,
-are read over the same cases before `--where`: a line three cases ran stays
-`walked` when `--where` keeps one of them, and a hole stays a hole when it
-leaves out the case that stopped.
+every repeated `--where` must hold. Two values recorded at one level print as a
+contradiction, and match a `--where` naming either. A record made before cases
+recorded preconditions answers `unmeasured` rather than an empty list, and a
+case nobody listened to is counted apart from the cases that recorded nothing.
+When `--where` keeps none of the cases that covered a line or function, the
+answer says the filter left none of them and how many there were, rather than
+that no test covered it. The state of a line, function, range or changed
+region, and the cases that stopped before it, are read over the same cases
+before `--where`: a line three cases ran stays `walked` when `--where` keeps
+one of them, and a hole stays a hole when it leaves out the case that stopped.
 
-When `names.axes` in `variance.config.json` declares the name, the value is
-read on that axis. `values[0]` is the base, and a case that never said the name
-stands at it, so `--where flag=ff-off` keeps it. A value outside the axis is
-printed by name with its site, and kept. Beside each case, with or without
-`--where`, is its twin: the case of the same test file one step toward the base
-on its last declared axis, holding every other precondition the same, looked up
-among the cases the question reached before `--where` narrowed them. Several
-twins print as their count and the first three names. When no recorded case
-holds that coordinate, the case prints `no twin recorded`.
+When `names.axes` in `variance.config.json` declares a name, its first value is
+the base. `covering` reads a case that recorded nothing for that name at the
+base, so with `discount` declared as `["off", "on"]`, `--where discount=off`
+keeps it. That reading comes from your configuration, not from the run. A value
+the axis does not list is printed by name with its site, and kept.
+
+Beside each case recorded away from the base, with or without `--where`, is its
+twin: the case in the same test file that covered the same code with the axis
+at its base and every other precondition the same. A case recorded with
+`discount=on` prints the case in its file that ran the same code with
+`discount=off` and the same `prices`:
+
+```text
+    applies the discount — discount=on (test/flags.ts:6), prices=full (test/prices.ts:12)
+      twin at discount=off: charges the regular price
+```
+
+With several axes declared, the twin differs on one axis only: the last
+declared axis on which the case is away from the base, at the nearest value
+toward the base. Twins are looked for among the cases that covered what you
+asked, before `--where` narrowed them. Several twins print as their count and
+the first three names. When no case in the file matches, the case prints
+`no twin recorded at discount=off`.
 
 #### Asking about the text you hold
 
@@ -867,14 +878,13 @@ review is cut at a line break before that length, and its last line says how
 many characters are not shown.
 
 Under each changed function a case ran, the markdown lists those cases by test
-file and title, and each case carries what it said it arranged, the way
-`covering` prints it: `refunds behind a flag — flag=ff-on
-(src/checkout/total.test.ts:31)`. When the cases said more than one value of a
-name, the function's line names every value — `ran under flag=ff-off,
-flag=ff-on` — so you see which conditions ran the change without asking
-`covering --where`. A record made before cases said anything says what they
-arranged is unmeasured, and cases nobody listened to are counted apart from the
-cases that said nothing.
+file and title, each with the preconditions it recorded, the way `covering`
+prints them: `applies the discount — discount=on (test/flags.ts:6)`. When the
+cases recorded more than one value of a name, the function's line names every
+value — `ran under discount=off, discount=on` — so you see which states ran the
+change without asking `covering --where`. A record made before cases recorded
+preconditions says the state they ran under is unmeasured, and cases nobody
+listened to are counted apart from the cases that recorded nothing.
 
 A comment shows part of the answer, and `review.json` holds all of it. Upload
 the `--out` directory as an artifact, and anyone with the GitHub CLI can print
