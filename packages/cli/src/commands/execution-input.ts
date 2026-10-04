@@ -2,13 +2,13 @@
 import { readFile } from 'node:fs/promises';
 import { parseExecutionIndex } from '@variance-authority/distill';
 import { OperatorError } from '../exit.js';
+import { suiteRecord } from './suite-record.js';
 import {
   caseSectionsAt,
   decodeExecutionIndex,
   isEncodedExecutionIndex,
   keepsCases,
   projectJourneyFile,
-  readableTestCoverage,
   type ExecutionIndex,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
@@ -74,14 +74,16 @@ export async function readExecutionFor(
  * A run writes its case index into the record its coverage is (spec 0094), so
  * the index is the record: with none named, the one a reader reads — the
  * nearest that holds it, which in a checkout that has not run is the mainline's
- * as last fetched here, else, in a worktree, the primary checkout's.
+ * as last fetched here, else, in a worktree, the primary checkout's. The suite
+ * is resolved as `review` resolves it, by {@link suiteRecord}: the only one
+ * declared when none is named, and a refusal naming them when several are.
  */
 export async function defaultExecutionFile(
   root: string,
   suite?: string,
   record?: string,
 ): Promise<string> {
-  return record ?? (await readableTestCoverage(root, { suite }));
+  return record ?? (await suiteRecord(root, suite));
 }
 
 /**
