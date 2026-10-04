@@ -304,24 +304,28 @@ and no file, and Distill reads every test file on its own, as `--file` would,
 then gathers what each loaded for nothing under the import that brought it in:
 
 ```bash
-variance distill --from packages/checkout
+variance distill --from packages/distill
 ```
 
 ```text
-packages/checkout in suite unit: 42 test file(s), each read.
+packages/distill in suites chromium, integration, unit: 4 test file(s), each read.
 
-Loaded, and entered by no case of the test file that loaded it: 380 module load(s), 61200 line(s).
-  packages/ui/src/index.ts imports packages/ui/src/chart.ts: 3 module(s) in 40 test file(s), 36000 line(s)
-  packages/checkout/src/form.tsx imports packages/checkout/src/editor.ts: 1 module(s) in 12 test file(s), 10800 line(s)
+Loaded, and entered by no case of the test file that loaded it: 63 module load(s), 12748 line(s).
+  packages/distill/src/own.ts imports packages/core/src/relate/index.ts: 11 module(s) in 2 test file(s), 4540 line(s)
+  packages/core/src/relate/index.ts imports packages/core/src/relate/merkle.ts: 4 module(s) in 2 test file(s), 1490 line(s)
   ...
+  No one import brings these in alone: 7 module(s) in 4 test file(s), 3797 line(s)
 ```
 
 An import's lines count once in every test file it reaches, because each file
 evaluates its imports anew. Only what no case of the loading file entered is
 gathered; a module some cases used belongs to the file's own reading. The text
 names the ten heaviest imports and sums the rest, then the modules no one import
-brings in alone and those no static import reaches; `--format json` lists every
-import with its modules and the test files it reaches.
+brings in alone and those no static import reaches, as a file's reading names
+them ([above](#imports-a-file-loads-for-few-of-its-cases)); `--format json`
+lists every import with its modules and the test files it reaches. Lines are
+the size of what loaded, not its time. The fix is at the import named, as it
+is for one file, and every test file the import reaches stops paying.
 
 You choose the scope:
 
