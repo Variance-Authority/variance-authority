@@ -9,10 +9,15 @@ export function parseExecutionIndex(value: unknown): ExecutionIndex {
   }
   const tests = root['tests'].map((value, at) => {
     const test = object(value, `execution test ${at}`);
+    const stopped = test['stopped'];
+    if (stopped !== undefined && typeof stopped !== 'boolean') throw new Error(`execution test ${at} stopped must be boolean`);
     return {
       id: string(test['id'], `execution test ${at} id`),
       file: string(test['file'], `execution test ${at} file`),
       name: string(test['name'], `execution test ${at} name`),
+      // Absent is a case whose settling nobody saw, or that no runner timed; neither is `false` or `0`.
+      ...(stopped === undefined ? {} : { stopped }),
+      ...(test['duration'] === undefined ? {} : { duration: integer(test['duration'], `execution test ${at} duration`, true) }),
       // Empty is a case heard to say nothing; absent is one nobody listened to.
       ...(test['preconditions'] === undefined ? {} : { preconditions: parsePreconditions(test['preconditions'], at) }),
     };

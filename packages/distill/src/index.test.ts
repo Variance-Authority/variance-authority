@@ -226,6 +226,24 @@ describe('distill', () => {
       { name: 'network', value: null, site: 'test/pay.test.ts:4', level: 1 },
     ] }] })).toThrow('execution test 0 precondition 0 value must be a string, number or boolean');
   });
+
+  it('carries whether each case stopped and how long it ran, and leaves an untimed, unsettled case without either', () => {
+    const settled: ExecutionIndex = { ...EXECUTION, tests: [
+      { id: 'threw', file: 'test/pay.test.ts', name: 'throws', stopped: true, duration: 12 },
+      { id: 'finished', file: 'test/pay.test.ts', name: 'finishes', stopped: false, duration: 0 },
+      { id: 'unseen', file: 'test/pay.test.ts', name: 'nobody watched' },
+    ] };
+
+    const parsed = parseExecutionIndex(settled);
+
+    expect(parsed).toEqual(settled);
+    expect(parsed.tests[2]).not.toHaveProperty('stopped');
+    expect(parsed.tests[2]).not.toHaveProperty('duration');
+    expect(() => parseExecutionIndex({ ...settled, tests: [{ ...settled.tests[0], stopped: 'yes' }] }))
+      .toThrow('execution test 0 stopped must be boolean');
+    expect(() => parseExecutionIndex({ ...settled, tests: [{ ...settled.tests[0], duration: 1.5 }] }))
+      .toThrow('execution test 0 duration must be a non-negative integer');
+  });
 });
 
 /**

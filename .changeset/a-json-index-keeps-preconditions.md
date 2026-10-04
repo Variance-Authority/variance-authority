@@ -2,12 +2,19 @@
 '@variance-authority/distill': patch
 ---
 
-A JSON execution index keeps what its cases arranged
+A JSON execution index keeps what the binary one keeps
 
-`parseExecutionIndex` dropped every case's `preconditions`, so
-`variance covering --execution index.json --where <name>` refused a JSON index
-as unmeasured even when its rows said what they arranged; the recorded
-`coverage.bin` spelling kept them. A JSON row's `preconditions` is now read and
-validated entry by entry — `name` and `site` non-empty strings, `value` a
-string, number or boolean, `level` a non-negative integer. An empty list stays
-a case heard to say nothing, and a row without the field stays unheard.
+`parseExecutionIndex` rebuilt each case row from `id`, `file` and `name`, so a
+JSON index lost the `preconditions`, `stopped` and `duration` that the recorded
+`coverage.bin` spelling of the same cases keeps. `variance covering --execution
+index.json --where <name>` therefore refused a JSON index as unmeasured even
+when its rows said what they arranged. A JSON row carries all three, each
+validated: `stopped` a boolean, `duration` a non-negative integer of
+milliseconds, and each `preconditions` entry with `name` and `site` non-empty
+strings, `value` a string, number or boolean, and `level` a non-negative
+integer. A field a row leaves out stays absent; an empty `preconditions` list
+stays a case heard to say nothing.
+
+A row whose `preconditions`, `stopped` or `duration` field is malformed is
+refused with the row's position, and the entry's for a precondition, where
+before the field was dropped.
