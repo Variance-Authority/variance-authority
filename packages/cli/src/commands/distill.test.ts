@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -226,16 +226,35 @@ describe('the CLI distillation boundary', () => {
       }),
     }));
 
+    // The source the file graph is read from: the cart brought the chart in, and no case drew it.
+    const sources = {
+      'test/cart.spec.ts': "import { Cart } from '../src/cart';\n",
+      'src/cart.tsx': "import { Dialog } from './checkout-dialog';\nimport { Chart } from './heavy-chart';\nexport const Cart = [Dialog, Chart];\n",
+      'src/checkout-dialog.tsx': 'export const Dialog = 1;\n',
+      'src/heavy-chart.tsx': 'export const Chart = 1;\n',
+    };
+    mkdirSync(join(root, 'test'));
+    mkdirSync(join(root, 'src'));
+    for (const [file, text] of Object.entries(sources)) writeFileSync(join(root, file), text);
+    execFileSync('git', ['add', 'test', 'src'], { cwd: root, stdio: 'pipe' });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'source'], { cwd: root, stdio: 'pipe' });
+    // Published as a pipeline publishes it: under CI a reader refuses to build the index itself.
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
     const answer = await run(['distill', '--file', 'cart.spec']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
     expect(answer.out).toContain('test/cart.spec.ts: 2 case(s); 3 loaded module(s) declare functions.');
-    expect(answer.out).toContain('Loaded, and entered by no case: 1 module(s), 30 line(s).\n  src/heavy-chart.tsx — 30 line(s)');
+    expect(answer.out).toContain([
+      'Loaded, and entered by no case: 1 module(s), 30 line(s).',
+      '  src/cart.tsx imports src/heavy-chart.tsx: 1 module(s), 30 line(s)',
+      '    src/heavy-chart.tsx — 30 line(s)',
+    ].join('\n'));
     expect(answer.out).toContain('  src/checkout-dialog.tsx — 20 line(s), entered by 1 of 2 case(s)');
     expect(answer.out).not.toContain('src/cart.tsx —');
     const json = JSON.parse((await run(['distill', '--file', 'cart.spec', '--format', 'json'])).out);
     expect(json.modules).toEqual([
-      { file: 'src/heavy-chart.tsx', lines: 30, entered: 0 },
+      { file: 'src/heavy-chart.tsx', lines: 30, entered: 0, cause: { kind: 'import', importer: 'src/cart.tsx', imported: 'src/heavy-chart.tsx' } },
       { file: 'src/checkout-dialog.tsx', lines: 20, entered: 1 },
     ]);
   });

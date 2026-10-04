@@ -238,15 +238,38 @@ variance distill --file test/dialog.test.tsx
 test/dialog.test.tsx: 3 case(s); 4 loaded module(s) declare functions.
 
 Loaded, and entered by no case: 2 module(s), 960 line(s).
-  src/heavy-editor.ts — 900 line(s)
-  src/fancy-error.tsx — 60 line(s)
+  src/dialog.tsx imports src/heavy-editor.ts: 1 module(s), 900 line(s)
+    src/heavy-editor.ts — 900 line(s)
+  src/dialog.tsx imports src/fancy-error.tsx: 1 module(s), 60 line(s)
+    src/fancy-error.tsx — 60 line(s)
 
 Loaded, and entered by some cases only: 1 module(s), 40 line(s).
   src/confirm-dialog.tsx — 40 line(s), entered by 1 of 3 case(s)
 ```
 
-Each module listed is evidence, and the fix is not at it: it is at the import,
-in the test file or in a module the test used, that brought it in. Delete that
+Each module no case entered is listed under the import that made the file load
+it: the topmost import every path from the test file to the module runs
+through, with nothing behind it that a case entered. Removing that import frees
+everything listed under it. The import is often not in the test file: above,
+the test imports the dialog, and the dialog imports the editor. The file graph
+is read from the checkout and walks static imports and re-exports only. Two
+groups take what no one import accounts for:
+
+- **No one import brings these in alone.** Two imports reach the module, or the
+  only one that does also brings in code a case entered. The line names the
+  nearest file every path to the module runs through, which is where to look.
+- **No static import reaches these from the test file.** A dynamic import, a
+  `require` the graph does not read, or the runner's own setup brought the
+  module in.
+
+An import the record says the file never evaluated — a module mocked with a
+factory — is not walked; an automocked module was evaluated, and is.
+
+The text names the ten heaviest imports and the three largest modules under
+each group, ten of those only some cases entered, and sums the rest on one line; `--format json` lists every module
+with its cause.
+
+A module listed is evidence; the fix is at its import. Delete that
 import, or mock it with a factory, when nothing behind it is used; when part
 of it is, import past the barrel inside its own package, or from an entry its
 package declares; move it to the code that uses it when only some

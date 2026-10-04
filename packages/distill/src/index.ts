@@ -176,6 +176,7 @@ export {
   type FileDistillation,
   type LoadedModule,
 } from './file.js';
+export { type LoadCause } from './own.js';
 
 const PHASES = ['unphased', 'arrange', 'act', 'assert'] as const;
 

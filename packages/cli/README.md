@@ -327,7 +327,10 @@ retried prints every attempt's journal, numbered from 1.
 
 `--file` alone reads the whole file: the modules it loaded that no case
 entered, and those only some of its cases entered, with their length in lines.
-The file pays for each once, when it loads, whichever cases use it.
+The file pays for each once, when it loads, whichever cases use it. Each module
+no case entered is listed under the import that made the file load it, read
+from the checkout's file graph: the topmost import every path to it runs
+through, in the test file or in a module it used.
 
 `distill` reads the record `covering` reads; `--suite <name>` picks one declared
 suite's, and `--execution <path>` reads any other record, or JSON from a tool

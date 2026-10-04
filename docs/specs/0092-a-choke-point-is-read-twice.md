@@ -97,7 +97,8 @@ Not as a new question. A choke point is a line in answers that already exist:
 1. A dominator pass over `Relations` with tests as entries, runtime edges,
    barrels resolved by name and mocks cut. Fixtures for a diamond, a cycle, a
    barrel that re-exports two unrelated files, a mocked choke point, and a test
-   importing Y directly.
+   importing Y directly. `dominatorsOf` in `core/relate` computes the
+   dominators of one root; several test entries hang from a virtual root.
 2. The reality pass: set inclusion over executed files, restricted to files
    with an import path to Y. One fixture where a setup file every case runs is
    not a choke point, one where a dynamic import makes the readings disagree
