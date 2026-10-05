@@ -93,10 +93,21 @@ and counts the rest:
 packages/foo 3 → 4: takes packages/bar. Carried 42 packages.
 ```
 
+An import between two packages that leaves every layer where it was is still a
+new edge in the package graph, and the answer names it too:
+
+```
+1 package changed its own dependencies and kept its layer.
+packages/app 6: takes packages/format.
+```
+
+Between the two lists, every package another package started or stopped
+importing is named once.
+
 You can still say yes; no layer is wrong by itself. The reviewer sees what the
 edit did to the structure, and the author sees it too. The command always
-exits 0 and prints nothing in `--format markdown` when no package changed layer,
-so a CI job can post the answer as a pull-request comment and clear the comment
+exits 0 and prints nothing in `--format markdown` when no package changed layer
+or what it imports, so a CI job can post the answer as a pull-request comment and clear the comment
 when there is nothing to say. Run without `--against`, it lists every package's
 layer, lowest first.
 

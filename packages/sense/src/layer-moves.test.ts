@@ -21,7 +21,7 @@ function chain(length: number, bottom: string): Takes {
 describe('layerMoves', () => {
   it('says nothing when no layer moved', () => {
     const map = layered({ core: [], ui: ['core'] });
-    expect(layerMoves(map, map)).toEqual({ causes: [], carried: 0, appeared: [], vanished: [] });
+    expect(layerMoves(map, map)).toEqual({ causes: [], carried: 0, held: [], appeared: [], vanished: [] });
   });
 
   it('tells one edit that lifted a hundred packages as one cause and the count it carried', () => {
@@ -52,6 +52,23 @@ describe('layerMoves', () => {
 
   it('lists a package that came or went apart from the movers', () => {
     const moves = layerMoves(layered({ a: [], gone: [] }), layered({ a: [], fresh: ['a'] }));
-    expect(moves).toEqual({ causes: [], carried: 0, appeared: ['fresh'], vanished: ['gone'] });
+    expect(moves).toEqual({ causes: [], carried: 0, held: [], appeared: ['fresh'], vanished: ['gone'] });
+  });
+
+  it('names a package whose own dependencies changed and whose layer held, once and apart from the causes', () => {
+    // `top` starts taking `low` and stops taking `side`; it still sits one above `mid`.
+    const base = layered({ low: [], mid: ['low'], side: [], top: ['mid', 'side'] });
+    const head = layered({ low: [], mid: ['low'], side: [], top: ['low', 'mid'] });
+    const moves = layerMoves(base, head);
+    expect(moves.causes).toEqual([]);
+    expect(moves.held).toEqual([{ package: 'top', layer: 3, added: ['low'], removed: ['side'] }]);
+  });
+
+  it('never names a cause as held: every changed dependency is told once', () => {
+    const base = layered({ low: [], mid: ['low'], top: ['mid'] });
+    const head = layered({ low: [], mid: [], top: ['mid'] });
+    const moves = layerMoves(base, head);
+    expect(moves.causes.map((cause) => cause.package)).toEqual(['mid']);
+    expect(moves.held).toEqual([]);
   });
 });

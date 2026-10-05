@@ -2449,6 +2449,7 @@
         "LanguageId": "type",
         "LayerCap": "interface",
         "LayerCause": "interface",
+        "LayerHeld": "interface",
         "LayerMoves": "interface",
         "MockTaintOptions": "interface",
         "ModuleCallsTaintOptions": "interface",
