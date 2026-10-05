@@ -43,8 +43,8 @@ export type {
   NativeJourneyStitch,
   NativeJourneyStitchResult,
 } from './native-journey.js';
-import type { NativeModuleReaders, NativeModuleVerdict } from './native-module-reads.js';
-export type { NativeModuleReaders, NativeModuleVerdict };
+import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
+export type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict };
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
@@ -203,6 +203,11 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * `imported`, the exports of a module it imports. `null` when it does not parse.
    */
   moduleReaders?(file: string, text: string, names: string[], imported: boolean): NativeModuleReaders | null;
+  /**
+   * Where one file references what it imports, by the specifier each import names, and whether each
+   * reference runs when the file loads. A name in a type position is no reference. `null` when it does not parse.
+   */
+  moduleReferences?(file: string, text: string): NativeModuleReferences | null;
   /**
    * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
    * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)).

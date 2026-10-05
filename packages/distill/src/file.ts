@@ -2,8 +2,10 @@
 import type {
   ExecutionIndex,
   ExecutionTest,
+  FileReferences,
   TestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { chargeLine, chargesOf } from './charge.js';
 import { causesOf, importOf, SHARED, UNSEEN, type LoadCause } from './own.js';
 
 /** What names one test file, and the two readings of the record it is read from. */
@@ -31,6 +33,11 @@ export interface FileDistillInput {
    * no file reads as one.
    */
   readonly republishes?: (file: string) => boolean;
+  /**
+   * Where a file references what it imports. Given with `imports`, each
+   * static import a used file writes carries where that file reads it.
+   */
+  readonly references?: (file: string) => FileReferences | undefined;
 }
 
 /** One module a test file loaded that not every one of its cases entered. */
@@ -120,6 +127,18 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
     coverage: input.coverage,
     entered,
   });
+  const charge = input.references === undefined ? undefined : chargesOf({
+    references: input.references,
+    coverage: input.coverage,
+    execution: input.execution,
+    mine,
+  });
+  const charged = (module: string): LoadCause => {
+    const found = cause!(module);
+    if (charge === undefined || found.kind !== 'import' || found.lazy === true || found.importer === file) return found;
+    const reading = charge(found.importer, found.imported);
+    return reading === undefined ? found : { ...found, charge: reading };
+  };
   const modules = candidates
     .map((module): LoadedModule => {
       const lines = module.blocks.find((block) => block.kind === 'module')?.endLine;
@@ -128,7 +147,7 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
         file: module.file,
         ...(lines === undefined ? {} : { lines }),
         entered: count,
-        ...(cause === undefined || count > 0 ? {} : { cause: cause(module.file) }),
+        ...(cause === undefined || count > 0 ? {} : { cause: charged(module.file) }),
       };
     })
     .filter(({ entered }) => entered < cases.length)
@@ -234,6 +253,7 @@ export function formatFileDistillation(result: FileDistillation): string {
     ...(never.some(({ cause }) => cause !== undefined)
       ? groupsShown(byCause(never)).flatMap(([head, modules, shown]) => [
         `  ${head}: ${lines(modules)}`,
+        ...chargedOf(modules, shown),
         ...(shown
           ? listed(modules, MODULES_SHOWN, '    ', lines, (module) => `${module.file} — ${size(module)}${partsOf(module.cause)}`)
           : []),
@@ -308,6 +328,13 @@ function listed(
   const head = modules.slice(0, count).map((module) => indent + line(module));
   if (modules.length <= count) return head;
   return [...head, `${indent}and ${modules.length - count} more: ${lines(modules.slice(count))}`];
+}
+
+/** Where the importer of a listed group reads its import, under the group's head. */
+function chargedOf(modules: readonly LoadedModule[], shown: boolean): readonly string[] {
+  const cause = modules[0]?.cause;
+  if (!shown || cause?.kind !== 'import' || cause.charge === undefined) return [];
+  return [`    ${chargeLine(cause.importer, cause.imported, cause.charge)}`];
 }
 
 function partsOf(cause: LoadCause | undefined): string {

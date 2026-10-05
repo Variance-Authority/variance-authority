@@ -19,6 +19,7 @@ import {
 import {
   declaredSuites,
   decodeTestCoverage,
+  importReferences,
   isEncodedExecutionIndex,
   RecordWithoutCoverage,
   recordedEyesOf,
@@ -68,7 +69,7 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
       // The graph is read only when there is a load to give a cause: the scan costs more than the record.
       if (!flat.modules?.some(({ entered }) => entered === 0)) return flat;
       const graph = await fileGraph(options.root);
-      return distillFile({ ...input, ...causesFrom(graph) });
+      return distillFile({ ...input, ...causesFrom(graph), references: (file) => importReferences(options.root, graph, file) });
     }
     const section = recordedEyesOf(bytes);
     return distill({

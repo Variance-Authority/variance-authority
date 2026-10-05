@@ -274,6 +274,7 @@ describe('the CLI distillation boundary', () => {
       '  src/checkout-dialog.tsx lazily imports src/rich-editor.tsx: 1 module(s), 40 line(s)',
       '    src/rich-editor.tsx — 40 line(s)',
       '  src/cart.tsx imports src/heavy-chart.tsx: 1 module(s), 30 line(s)',
+      '    src/cart.tsx reads Chart from src/heavy-chart.tsx at line 3 when it loads: move that reference into the function that needs it.',
       '    src/heavy-chart.tsx — 30 line(s)',
       '  No import the graph reads reaches these from the test file: 1 module(s), 50 line(s)',
       '    src/locale-en.tsx — 50 line(s)',
@@ -287,7 +288,11 @@ describe('the CLI distillation boundary', () => {
         file: 'src/rich-editor.tsx', lines: 40, entered: 0,
         cause: { kind: 'import', importer: 'src/checkout-dialog.tsx', imported: 'src/rich-editor.tsx', lazy: true },
       },
-      { file: 'src/heavy-chart.tsx', lines: 30, entered: 0, cause: { kind: 'import', importer: 'src/cart.tsx', imported: 'src/heavy-chart.tsx' } },
+      {
+        file: 'src/heavy-chart.tsx', lines: 30, entered: 0,
+        // The cart writes `[Dialog, Chart]` when it loads, so every test file that loads the cart loads the chart.
+        cause: { kind: 'import', importer: 'src/cart.tsx', imported: 'src/heavy-chart.tsx', charge: { kind: 'load', line: 3, name: 'Chart' } },
+      },
       { file: 'src/checkout-dialog.tsx', lines: 20, entered: 1 },
     ]);
   });

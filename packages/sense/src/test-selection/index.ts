@@ -34,6 +34,7 @@ export {
   coveringChange,
   coveringTests,
   coveringTestsInFile,
+  innermostAt,
   ranWhileLoading,
   stoppedBefore,
   type CoveringChange,
@@ -58,6 +59,7 @@ export { hunksByFile, placeInText, type HeldLines, type Hunk, type Placement } f
 export { stateOf, type RangeState } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
 export { unmeasuredOf, type Unmeasured } from './route.js';
+export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, type CoveringCaseNote, type CoveringChangeHeading } from './covering-change-text.js';
@@ -103,8 +105,7 @@ export {
   layeredFiles,
   repositoryLayers,
   rootConfig,
-  type CacheLayers,
-  type RootConfig,
+  type CacheLayers, type RootConfig,
 } from './cache-layers.js';
 export {
   FETCHED_MAINLINE,

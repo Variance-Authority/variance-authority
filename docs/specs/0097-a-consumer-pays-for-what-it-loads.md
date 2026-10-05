@@ -137,6 +137,13 @@ read is placed in one of two ways, by what its consumer is:
   extension of the walk modelled on how it follows a pure binding's
   readers, and one it cannot follow is a use outside every case.
 
+A use is a reference the code evaluates, which is where an inline
+`require` would load the file. `<Wrapper component={Modal} />` uses
+`Modal` where the element is built, whether or not `Wrapper` renders it,
+and a map of components uses each one where the map is built. Calling
+the value later is not a second use. A reference in a type position is
+erased before anything runs, and is never a use.
+
 An import is needed initially when any of its uses is outside every
 case, and later when all of them are inside cases. A dynamic import or a
 `require` inside a function is placed by its call, as a read is.
@@ -176,6 +183,53 @@ one case at a time and never for a suite
 the Eyes journal joined by
 [spec 0054](0054-eyes-attention-is-read-as-test-steps.md). Without one of
 those, a later load is read per import and is not divided.
+
+### An import a used file writes is charged to the code that reads it
+
+Spec 0095 names an import its test file does not write, a used file's
+import of a module no case ran, as a fact about that file, and proposes
+nothing. Deleting it is wrong, because the file is used. Where the file
+references what it imports decides the fix, and the reader walk gives
+every reference of every import, by source, with whether it runs when
+the file loads. Each reference is placed in the region the recording
+keeps for its line, and the import reads as one of six:
+
+- **Never read.** The file references none of the import's names. The
+  import is dead in that file, or written for what loading the module
+  does. The proposal is to delete it, unless the load is the point.
+- **Loaded for its effect.** The file imports the module with no
+  binding, `import './x'`, so the load is the point. The proposal is to
+  import it where what it sets up is needed, when the test file's cases
+  need none of it.
+- **Read when the file loads.** A reference at top level, in an
+  initializer, an argument or a map of components, runs when the file
+  evaluates, so every test file that loads the file loads the import. So
+  does a reference in a function the file calls while it loads: the
+  recording marks that crossing as made during the load, and it is not
+  read as a case running the function. The reading names the line, and
+  proposes moving the reference into the function that needs it.
+- **Read only in functions no case of the test file ran.** The reading
+  names each function by its region and line, and counts the test files
+  that ran one of them among those that load the file. Moving the
+  functions into a module of their own frees every test file that never
+  runs them. Importing lazily inside them leaves the cost only to the
+  test files that do.
+- **Read in a function a case ran, and never run.** The reference was
+  evaluated, the value passed on, stored or compared, and nothing called
+  into the module. The import was needed. The proposal is to make that
+  reference lazy.
+- **Handed on.** The file re-exports a name it imports, so the use is
+  its importer's, and spec 0095's barrel reading applies.
+
+A file that references an import reads, in order: read when the file
+loads, handed on, read in a function a case ran, unmeasured, read only
+in functions no case ran. One that references none reads: handed on,
+loaded for its effect, unmeasured, never read.
+
+The test file itself is never read this way: it has no regions, and its
+imports are item 2's. A reference in a function the recording keeps no
+region for leaves the import **unmeasured**. A file with a `require` or
+an `import()` no name traces is never read as never reading an import.
 
 ### Absent is not empty
 
@@ -244,13 +298,27 @@ those, a later load is read per import and is not divided.
    whose import is read only in a handler a case fires, read as later; a
    module consumer in a dropped frame read as unmeasured. The emitted
    code and the runtime are unchanged.
-3. **A page splits its first load from what came after.** An ADR narrows
+3. **An import a used file writes is charged to the code that reads
+   it.** The reader walk gives every reference of an imported binding
+   with its source and whether it runs at load, and leaves out a
+   reference in a type position. `variance distill --file` reads it for
+   each import a used file writes that owns a load no case ran, places
+   each reference in its region, and prints the reading and its
+   proposal. Fixtures: a utilities file that imports a heavy module only
+   in a function the test file never ran, with the count of test files
+   that run it; the same import referenced in a map of components at
+   load, and in a function the file calls while it loads; a reference
+   passed as a prop in a function a case ran; an import the file never
+   reads; one it writes only to load the module; a reference in a type position that
+   charges nothing; two sources that export the same name, each charged
+   to its own references.
+4. **A page splits its first load from what came after.** An ADR narrows
    ADR-0056's decision 3. The playwright-test collector drains at the
    document's `load` event and again at teardown, and selection is
    unchanged on the union. Fixture: a page whose modal chunk loads on a
    click.
-4. **A later load per step,** read through the story tap for one case, and
+5. **A later load per step,** read through the story tap for one case, and
    through spec 0054's join where it lands.
-5. **Measured with spec 0095's item 6** on the seven-MUI corpus. The public
+6. **Measured with spec 0095's item 6** on the seven-MUI corpus. The public
    page that spec 0095's item 7 names states initial and later load and
    lands both terms before any output prints them.

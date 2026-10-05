@@ -1,4 +1,5 @@
 // compass: variance-authority/runtime/attention
+import type { ImportCharge } from './charge.js';
 import { dominatorsOf } from '@variance-authority/core/relate';
 import type { TestCoverage } from '@variance-authority/sense/test-selection';
 
@@ -9,6 +10,8 @@ import type { TestCoverage } from '@variance-authority/sense/test-selection';
  * import, `importer` → `imported`, and nothing behind that import is entered
  * by a case; it is the topmost such import. `lazy` when that import is
  * dynamic only: what it owns was paid when the import was called, not on load.
+ * `charge`, for a static import a file other than the test file writes, says
+ * where that file references what it imports.
  * `shared`: no import brings the module in alone — two paths reach it, or the
  * import that does also brings in code a case entered; `parts` is the nearest
  * file every path to it runs through. `unseen`: no import the graph reads
@@ -16,7 +19,13 @@ import type { TestCoverage } from '@variance-authority/sense/test-selection';
  * specifier is not a quoted string, or the runner, brought it in.
  */
 export type LoadCause =
-  | { readonly kind: 'import'; readonly importer: string; readonly imported: string; readonly lazy?: true }
+  | {
+    readonly kind: 'import';
+    readonly importer: string;
+    readonly imported: string;
+    readonly lazy?: true;
+    readonly charge?: ImportCharge;
+  }
   | { readonly kind: 'shared'; readonly parts: string }
   | { readonly kind: 'unseen' };
 

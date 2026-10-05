@@ -10,7 +10,7 @@ use oxc_syntax::scope::ScopeFlags;
 
 use crate::module_shape::{plain_class, pure, Lines};
 
-use super::{declared, Read, Reading, Where};
+use super::{declared, Import, Read, Reading, Reexport, Where};
 
 pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
     let mut walker = Walker {
@@ -20,6 +20,8 @@ pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
             exports: BTreeMap::new(),
             imports: Vec::new(),
             reexports: Vec::new(),
+            sources: BTreeSet::new(),
+            effects: BTreeSet::new(),
             untraced: false,
         },
         namespaces: BTreeSet::new(),
@@ -30,6 +32,12 @@ pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
     };
     for statement in &program.body {
         let Statement::ImportDeclaration(import) = statement else { continue };
+        let source = import.source.value.to_string();
+        walker.reading.sources.insert(source.clone());
+        // `import { type A } from` keeps its braces, emptied; only `import './x'` has none.
+        if import.specifiers.is_none() {
+            walker.reading.effects.insert(source.clone());
+        }
         for specifier in import.specifiers.iter().flatten() {
             let (local, imported) = match specifier {
                 ImportDeclarationSpecifier::ImportSpecifier(it) => (&it.local, it.imported.name().to_string()),
@@ -39,7 +47,7 @@ pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
             if imported == "*" {
                 walker.namespaces.insert(local.name.to_string());
             }
-            walker.reading.imports.push((local.name.to_string(), imported));
+            walker.reading.imports.push(Import { local: local.name.to_string(), imported, source: source.clone() });
         }
     }
     for statement in &program.body {
@@ -65,7 +73,9 @@ impl Walker<'_> {
         let at = if escape { Where::Escape } else if self.in_function { Where::Function } else { Where::Top };
         let into = if self.in_function { None } else { self.into.clone() };
         let converted = self.converting && !self.in_function && !self.in_fields;
-        self.reading.reads.push(Read { name: name.to_string(), line: self.lines.at(offset), at, into, converted });
+        let nested = self.in_function || self.in_fields;
+        let line = self.lines.at(offset);
+        self.reading.reads.push(Read { name: name.to_string(), line, at, into, converted, nested });
     }
 
     fn export_as(&mut self, local: &str, name: &str) {
@@ -115,14 +125,19 @@ impl Walker<'_> {
         match statement {
             Statement::ImportDeclaration(_) => {}
             Statement::ExportFromDeclaration(it) => {
+                let source = it.source.value.to_string();
+                self.reading.sources.insert(source.clone());
                 for specifier in &it.specifiers {
-                    let exported = specifier.exported.name().to_string();
-                    self.reading.reexports.push((specifier.local.name().to_string(), Some(exported)));
+                    let taken = specifier.local.name().to_string();
+                    let given = Some(specifier.exported.name().to_string());
+                    self.reading.reexports.push(Reexport { taken, given, source: source.clone() });
                 }
             }
             Statement::ExportAllDeclaration(it) => {
-                let exported = it.exported.as_ref().map(|name| name.name().to_string());
-                self.reading.reexports.push(("*".to_string(), exported));
+                let source = it.source.value.to_string();
+                self.reading.sources.insert(source.clone());
+                let given = it.exported.as_ref().map(|name| name.name().to_string());
+                self.reading.reexports.push(Reexport { taken: "*".to_string(), given, source });
             }
             // A list's names are exports, not reads.
             Statement::ExportNamedDeclaration(it) => {
