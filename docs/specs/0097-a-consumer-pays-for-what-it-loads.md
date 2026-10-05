@@ -214,20 +214,24 @@ those, a later load is read per import and is not divided.
 
 ## What would discharge it
 
-1. ~~**A dynamic import owns what only it reaches.** This replaces the
+1. **A dynamic import owns what only it reaches.** This replaces the
    fixture under spec 0095's item 2 in which a dynamic import reads as
-   unseen. Fixtures: a lazy modal whose files `distill` reports under the
-   `import()`; a module both a static and a dynamic import reach, reported
-   once as shared; a lazy import under an unused static import, owned by
-   the static one; a non-literal `import()` still read as unseen.~~
-   **Discharged.** `causesOf` in `@variance-authority/distill` walks the
-   `lazy` edges it is handed beside the static ones, and marks an owning
-   import that is dynamic only `lazy: true`. `variance distill` hands it
-   the file graph's `dynamic` edges and prints that import as `lazily
-   imports`. Fixtures in `own.test.ts`, and a literal `import()` read
-   through the file graph in the CLI's file reading. The import's line
-   comes with spec 0095's item 5, as a static import's does. Spec 0092's
-   hole narrows when its own reading walks the same edges.
+   unseen, and amends spec 0092's hole to a non-literal dynamic import.
+   Fixtures: a `React.lazy` modal whose files `distill` reports under the
+   `import()` with its line; a module both a static and a dynamic import
+   reach, reported once as shared; a lazy import under an unused static
+   import, owned by the static one; a non-literal `import()` still read as
+   unseen.
+   **Discharged but for the line and spec 0092.** `causesOf` in
+   `@variance-authority/distill` walks the `lazy` edges it is handed beside
+   the static ones, and marks an owning import that is dynamic only
+   `lazy: true`. `variance distill` hands it the file graph's `dynamic`
+   edges and prints that import as `lazily imports`. Fixtures in
+   `own.test.ts`, and a `React.lazy` modal read through the file graph in
+   the CLI's file reading. Open: the import's line, which `Relations` does
+   not carry and which comes with spec 0095's item 5 for every import; and
+   spec 0092's hole, which narrows when its reading, unbuilt, walks the
+   same edges.
 2. **A use says whether an import was needed outside every case.**
    The reader walk places each read of an import binding, and each
    in-function `require` or `import()` call, in a module's region or a

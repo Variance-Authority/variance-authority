@@ -124,7 +124,8 @@ export function causesOf(input: CauseInput): (module: string) => LoadCause {
       const ways = (predecessors.get(at) ?? []).filter((from) => !dominates(at, from));
       if (ways.length !== 1) continue;
       const importer = ways[0]!;
-      // A static import of the same module evaluates it on load, whatever else imports it lazily.
+      // A static import of the same module evaluates it on load, whatever else imports it lazily;
+      // removing it moves the load to when the lazy import runs, rather than freeing it.
       const lazy = !input.imports(importer).includes(at);
       owner = { kind: 'import', importer, imported: at, ...(lazy ? { lazy: true as const } : {}) };
     }

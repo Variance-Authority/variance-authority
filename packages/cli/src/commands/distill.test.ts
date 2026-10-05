@@ -252,7 +252,7 @@ describe('the CLI distillation boundary', () => {
     const sources = {
       'test/cart.spec.ts': "import { Cart } from '../src/cart';\n",
       'src/cart.tsx': "import { Dialog } from './checkout-dialog';\nimport { Chart } from './heavy-chart';\nexport const Cart = [Dialog, Chart];\n",
-      'src/checkout-dialog.tsx': "export const Dialog = () => import('./rich-editor');\n",
+      'src/checkout-dialog.tsx': "import { lazy } from 'react';\nexport const Dialog = lazy(() => import('./rich-editor'));\n",
       'src/rich-editor.tsx': 'export const Editor = 1;\n',
       'src/heavy-chart.tsx': 'export const Chart = 1;\n',
     };

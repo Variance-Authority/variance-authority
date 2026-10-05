@@ -12,5 +12,4 @@ load the runner made, is still unseen.
 
 `distillFile` and `distillScope` take an optional `lazy` lookup beside
 `imports`, and an import cause carries `lazy: true` when only a dynamic import
-brings its modules in. `@variance-authority/distill` exports `importOf`, which
-renders an import cause as the reading prints it.
+brings its modules in.

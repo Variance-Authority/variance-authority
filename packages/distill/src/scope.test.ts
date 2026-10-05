@@ -180,6 +180,23 @@ describe('distillScope', () => {
     ]);
   });
 
+  it('gathers what only a lazy import loads under that import', () => {
+    const lazy = { 'packages/app/src/lazy.ts': { by: [A], lines: 7 } };
+    const result = distillScope({
+      records: [record({ ...MODULES, ...lazy })],
+      imports,
+      lazy: (file) => (file === 'packages/app/src/a.ts' ? ['packages/app/src/lazy.ts'] : []),
+      republishes,
+    });
+
+    expect(result.spills.find((spill) => spill.modules.includes('packages/app/src/lazy.ts'))).toEqual({
+      cause: { kind: 'import', importer: 'packages/app/src/a.ts', imported: 'packages/app/src/lazy.ts', lazy: true },
+      modules: ['packages/app/src/lazy.ts'],
+      files: [A],
+      lines: 7,
+    });
+  });
+
   it('heads each spill with its module when no imports are given', () => {
     const text = formatScopeDistillation(distillScope({ records: [record(MODULES)] }));
 

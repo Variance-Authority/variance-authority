@@ -105,6 +105,7 @@ export function distillScope(input: ScopeDistillInput): ScopeDistillation {
       const cause: SpillCause | undefined = module.cause === undefined
         ? undefined
         : module.cause.kind === 'shared' ? { kind: 'shared' } : module.cause;
+      // `lazy` is read from the importer's own edges, never from one test file's walk, so the pair decides it.
       const key = cause === undefined ? `module ${module.file}` : cause.kind === 'import' ? `import ${cause.importer} ${cause.imported}` : cause.kind;
       let spill = gathered.get(key);
       if (spill === undefined) {

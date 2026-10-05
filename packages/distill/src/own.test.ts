@@ -187,6 +187,17 @@ describe('distillFile with the imports given', () => {
     expect(causes(result)).toEqual({ 'src/date.ts': { kind: 'shared', parts: FILE } });
   });
 
+  it('reads an importer that imports a module both statically and lazily as importing it, which evaluates it on load', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/modal.ts': NEVER },
+      { [FILE]: ['src/dialog.ts'], 'src/dialog.ts': ['src/modal.ts'] },
+      [],
+      { 'src/dialog.ts': ['src/modal.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/modal.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/modal.ts' } });
+  });
+
   it('gives a dynamic import under an unused static import to the static one, whose removal frees both', () => {
     const result = read(
       { 'src/dialog.ts': NEVER, 'src/modal.ts': NEVER },
