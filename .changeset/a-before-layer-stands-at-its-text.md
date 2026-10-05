@@ -18,3 +18,12 @@ inventing a loss. A landing of several shards keeps the lines an earlier shard
 recorded when a later shard, which did not record the module, retires cases of
 it. Cases of a test file the run did not run land on the module's new regions
 only where the two texts number them alike.
+
+A callback no longer passes its cases to a sibling of the same name when one
+recording holds a region the other lacks. Callbacks of one name and path are
+told apart only by their order, so a cut missing the first `map` callback of a
+function numbered the second one first, and its cases landed on the first.
+`variance review` then reported the region lost, in a file nobody changed. Now,
+where two recordings hold such a name a different number of times, a callback's
+cases land only on the one at its own lines. When a held callback finds none
+there, the module is listed as not compared.

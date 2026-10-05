@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { layerCaseIndex, type CaseRunFiles } from './case-layer.js';
 import { caseMotion } from './case-motion.js';
+import { coverageChange } from './coverage-count.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
@@ -217,6 +218,35 @@ describe('a module the index holds at an older text than the snapshot', () => {
     const tests = decodeExecutionIndex(merged).tests;
     const entered = regions.filter((block) => block.crossings.some((crossing) => tests[crossing.test]!.id === other));
     expect(entered.map((block) => block.name)).not.toContain('anon#1');
+  });
+
+  it('lands a held callback on the one at its lines when its cut lacks a sibling written before it', () => {
+    const other = 'other.test.ts > keeps';
+    const [filter, map] = ['changelogOf/filter.arg0', 'changelogOf/map.arg0'];
+    // The index's cut kept only the second `map` callback, so its address is the first.
+    const lacking = cutAt([one, other], 'src/changelog.ts', [[273, [one, other], filter], [283, [one, other], map]]);
+    const whole = cutAt([one], 'src/changelog.ts', [[273, [one], filter], [276, [], map], [283, [one], map]]);
+
+    const { merged, before, unlined } = layerCaseIndex(lacking, whole, same);
+
+    const change = coverageChange(decodeExecutionIndex(lacking), decodeExecutionIndex(merged), { diff: new Map() });
+    expect(change.lost).toBe(0);
+    expect(change.testFiles).toEqual([]);
+    expect(linesOf(before)).toEqual([273, 283]);
+    expect(unlined).toBeUndefined();
+  });
+
+  it('names a module unlined when a held callback finds no sibling at its lines in a cut that lacks one', () => {
+    const other = 'other.test.ts > keeps';
+    const map = 'changelogOf/map.arg0';
+    // The run's cut lacks the first callback: lacking, or the text moved under a name that says it did not.
+    const whole = cutAt([one, other], 'src/changelog.ts', [[276, [other], map], [283, [one], map]]);
+    const lacking = cutAt([one], 'src/changelog.ts', [[283, [one], map]]);
+
+    const { merged, unlined } = layerCaseIndex(whole, lacking, same);
+
+    expect(unlined).toEqual(['src/changelog.ts']);
+    expect(decodeExecutionIndex(merged).modules[0]!.blocks.map((block) => block.crossings.length)).toEqual([1]);
   });
 
   it('names nothing unlined when the index already stands at the lines the run recorded', () => {

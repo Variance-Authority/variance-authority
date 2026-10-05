@@ -170,7 +170,7 @@ export function layerCaseIndex(
     const same = (files.base === undefined ? files.sameText : files.sameBeforeText)?.(module.file);
     if (recorded === undefined || same !== true) return module;
     const lined = relined(module, recorded);
-    if (lined === undefined) unlined.push(module.file);
+    if (lined === undefined || (lined === module && strayed(module, recorded))) unlined.push(module.file);
     return lined ?? module;
   });
   return {
@@ -199,8 +199,9 @@ export function layerCaseIndex(
  * region stands there now.
  */
 // FIXME: regions told apart only by occurrence carry no seat for
-// `sameNumbering` to compare, so a sibling written in front of them re-lines
-// each one onto its neighbour without a signal — the limit the snapshot's
+// `sameNumbering` to compare, so a sibling taken out in front of them and
+// another written behind keep their count and re-line each one onto its
+// neighbour without a signal — the limit the snapshot's
 // re-cut has. The index carrying the text each module was recorded from would
 // let a reader leave such a module uncompared instead.
 function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
@@ -290,21 +291,53 @@ function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetEx
  * differently over different text, an address names another region, and every
  * region is -1. Over the same text the seats are the text's: a run that read a
  * file through its source and its build keeps only the regions both cut alike,
- * so one cut can lack a region the other holds and still number the rest the
- * same.
+ * so one cut can lack a region the other holds. A seat it lacks among regions
+ * told apart only by occurrence moves every later sibling down one, so where
+ * the two cuts of one text hold an address a different number of times, a
+ * region lands only on the held one at its own lines, and the rest are absent
+ * from the other cut rather than its neighbours.
  */
 function landing(recorded: SetExecutionModule, before: SetExecutionModule, sameText: boolean): Int32Array {
   if (!sameText && !sameNumbering(before.blocks, recorded.blocks)) return new Int32Array(recorded.blocks.length).fill(-1);
+  const [heldCount, recordedCount] = [addressCounts(before.blocks), addressCounts(recorded.blocks)];
   const seen = new Map<string, number>();
+  // Lines are a seat only over one text; two callbacks on one line still part by order.
+  const keyOf = (block: Region): string => {
+    const key = address(block);
+    const byOrder = !sameText || heldCount.get(key) === recordedCount.get(key);
+    return addressKey(byOrder ? key : `${key}\0@${block.startLine}-${block.endLine}`, seen);
+  };
   const heldAt = new Map<string, number>();
-  for (const [at, block] of before.blocks.entries()) {
-    heldAt.set(addressKey(`${block.name}\0${block.path}`, seen), at);
-  }
+  for (const [at, block] of before.blocks.entries()) heldAt.set(keyOf(block), at);
   seen.clear();
   return Int32Array.from(recorded.blocks, (block) => {
-    const at = heldAt.get(addressKey(`${block.name}\0${block.path}`, seen));
+    const at = heldAt.get(keyOf(block));
     return at !== undefined && before.blocks[at]!.kind === block.kind ? at : -1;
   });
+}
+
+type Region = SetExecutionModule['blocks'][number];
+
+function address(block: Region): string {
+  return `${block.name}\0${block.path}`;
+}
+
+function addressCounts(blocks: readonly Region[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const block of blocks) counts.set(address(block), (counts.get(address(block)) ?? 0) + 1);
+  return counts;
+}
+
+/**
+ * Whether a held region went unmatched among siblings the two cuts hold a
+ * different number of times: its cut lacked one the run recorded, or the text
+ * changed under a name that says it did not, and nothing tells which.
+ */
+function strayed(held: SetExecutionModule, recorded: SetExecutionModule): boolean {
+  const matched = new Set(landing(recorded, held, true));
+  const [heldCount, recordedCount] = [addressCounts(held.blocks), addressCounts(recorded.blocks)];
+  return held.blocks.some((block, at) =>
+    !matched.has(at) && recordedCount.has(address(block)) && heldCount.get(address(block)) !== recordedCount.get(address(block)));
 }
 
 function openPrevious(bytes: Uint8Array | undefined): OpenedSetExecutionIndex | undefined {
