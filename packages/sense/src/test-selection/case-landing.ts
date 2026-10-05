@@ -132,12 +132,15 @@ export function layCases(
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
-  const { merged, cases, last, announced, before: retired } = layerCaseIndex(previous.index, fresh, {
+  const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present: (test) => existsSync(resolve(root, test)),
     sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
-    ...(base === undefined ? {} : { base: base.index }),
+    ...(base === undefined ? {} : {
+      base: base.index,
+      sameBeforeText: (file: string) => recorded.has(file) && recorded.get(file) === base.texts?.get(file),
+    }),
   });
   const prior = lastCaseRunOf(previous);
   const again = run.commit !== undefined && prior?.commit === run.commit;
@@ -148,7 +151,13 @@ export function layCases(
   // text, and a reader leaves those modules unmeasured rather than compare
   // them; keeping the base's cut of every module would keep a second index.
   const before = again ? layerBefore(previous.before, retired, ran) : retired;
-  const beforeTexts = textsOfBefore(before, retired, base === undefined ? held : base.texts, again ? prior.beforeTexts : undefined);
+  const beforeTexts = textsOfBefore(
+    before,
+    retired,
+    base === undefined ? held : base.texts,
+    again ? prior.beforeTexts : undefined,
+    new Set(unlined),
+  );
   const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior === undefined ? stands : prior.commit;
   const files = [...ran].sort(codeUnitOrder);
   // A file laid over no index has no base; running it again at this commit
@@ -185,13 +194,15 @@ export function layCases(
  * run retired, since `before` takes their regions from `retired`, and `kept`'s,
  * what the earlier runs at this commit named, for the rest. `undefined` when
  * neither names a text, or `before` is not spelled as sets, which only a
- * layer older than these texts is.
+ * layer older than these texts is. A module `unlined` holds names none: it was
+ * cut at another text than `cut` names, and its lines could not be carried.
  */
 function textsOfBefore(
   before: Uint8Array | undefined,
   retired: Uint8Array | undefined,
   cut: ModuleTexts | undefined,
   kept: Readonly<Record<string, string>> | undefined,
+  unlined: ReadonlySet<string>,
 ): Record<string, string> | undefined {
   if (before === undefined || (cut === undefined && kept === undefined)) return undefined;
   const modules = openSetExecutionIndex(before)?.modules;
@@ -199,7 +210,7 @@ function textsOfBefore(
   const ownRegions = new Set(retired === undefined ? [] : openSetExecutionIndex(retired)?.modules.map((module) => module.file));
   const texts: Record<string, string> = {};
   for (const { file } of modules) {
-    const text = ownRegions.has(file) ? cut?.get(file) : kept?.[file];
+    const text = ownRegions.has(file) ? (unlined.has(file) ? undefined : cut?.get(file)) : kept?.[file];
     if (text !== undefined) texts[file] = text;
   }
   return texts;

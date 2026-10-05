@@ -158,6 +158,19 @@ describe('landCases', () => {
     expect(lastCaseRunOf(twice)?.beforeTexts).toEqual({ 'src/shared.ts': 'v1:head' });
   });
 
+  it('names no text for a before module cut at older lines than the text it is named at, which nothing could carry', () => {
+    // The snapshot names `v1:base` and the run recorded it; the index stands
+    // every region a line higher, and a callback written in front renumbered them.
+    const seated = { ...previous, index: index({ 'a.test.ts > one': ['anon#0'], 'b.test.ts > two': ['anon#1'] }, ['anon#0', 'anon#1']) };
+
+    const sections = layCases(seated, index({ 'a.test.ts > one': ['anon#1'] }, ['lead', 'anon#0', 'anon#1', 'anon#2']), root, {
+      commit: 'c0ffee', tests: [whole('a.test.ts')], modules: [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }],
+    }, undefined, new Map([['src/shared.ts', 'v1:base']]));
+
+    expect(read(sections.before)).toEqual({ 'a.test.ts > one': ['anon#0'] });
+    expect(lastCaseRunOf(sections)?.beforeTexts).toEqual({});
+  });
+
   it('names no text for a before layer kept in the row spelling, so a reader compares it as it always did', () => {
     // A record the row-spelling seams laid at this commit: neither layer opens as sets, so this run cuts no before of its own.
     const rows = encodeExecutionIndex(decodeExecutionIndex(index({ 'a.test.ts > one': ['alpha'] })));

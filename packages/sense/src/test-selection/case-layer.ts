@@ -26,6 +26,17 @@ export interface CaseRunFiles {
    */
   readonly sameText?: (file: string) => boolean;
   /**
+   * Whether the run recorded `file` from the text the before layer's cut of it
+   * is named at. The names are the snapshot's, and the snapshot re-cuts a
+   * carried module to the text on disk while the index keeps the lines it was
+   * recorded at, so a module no run re-recorded since an edit above one of its
+   * regions stands at the old lines under the new name. Where the run recorded
+   * that text, the before layer is cut at the lines it recorded. Asked only
+   * when `base` is given; without `base`, `sameText` answers it, and with
+   * `base` but without this, nothing is re-cut.
+   */
+  readonly sameBeforeText?: (file: string) => boolean;
+  /**
    * The index the before layer is cut from, when it is not the one the run is
    * laid over: the one a landing began with, which no shard it laid before
    * this one has re-cut to the shards' text.
@@ -51,6 +62,13 @@ export interface CaseLayers {
    * there was no index to take them from.
    */
   readonly before?: Buffer;
+  /**
+   * The modules of `before` cut at another text than the one they are named
+   * at, whose lines nothing could carry onto it: a reader has no text to
+   * compare them from. Absent when every module was carried or already stood
+   * at its text.
+   */
+  readonly unlined?: readonly string[];
 }
 
 /**
@@ -75,6 +93,11 @@ export interface CaseLayers {
  * rows by. A region the text no longer has drops its carried cases rather than
  * guessing a place for them. A module this run did not record keeps the regions
  * it was recorded with, as it did before any partial run.
+ *
+ * The before layer is cut at the lines of the text it is named at. A held
+ * module the run recorded from that text is read at the recorded lines where
+ * the index still stands at an older text's, and is named `unlined` where no
+ * address could carry it there.
  *
  * An index this cannot open — a row spelling, or bytes it did not write — is no
  * index to lay over, and the run is written alone: what the fold wrote before
@@ -134,12 +157,59 @@ export function layerCaseIndex(
     modules.push({ file, blocks: recorded.blocks, called, loaded });
   }
 
+  const unlined: string[] = [];
+  const before = cut === undefined ? undefined : beforeRun(cut, new Set([...files.ran, ...run.tests.map((test) => test.file)]), (module) => {
+    const recorded = runModules.get(module.file);
+    const same = (files.base === undefined ? files.sameText : files.sameBeforeText)?.(module.file);
+    if (recorded === undefined || same !== true) return module;
+    const lined = relined(module, recorded);
+    if (lined === undefined) unlined.push(module.file);
+    return lined ?? module;
+  });
   return {
     merged: encodeSetExecutionIndex({ tests, modules, sets: merged.pool() }),
     cases: tests.map((test) => test.id),
     last,
     announced,
-    ...(cut === undefined ? {} : { before: beforeRun(cut, new Set([...files.ran, ...run.tests.map((test) => test.file)])) }),
+    ...(before === undefined ? {} : { before }),
+    ...(unlined.length === 0 ? {} : { unlined }),
+  };
+}
+
+/**
+ * `held` at the lines `recorded` stands its regions on, when the two are named
+ * at one text; `undefined` when `held` was cut at another text and cannot be
+ * carried onto this one.
+ *
+ * Each held region is read at the recorded region of its address. When every
+ * line agrees, `held` was cut at the text it is named at and comes back as it
+ * was, whatever regions one cut holds and the other lacks. When a line does
+ * not, `held` was cut at an older text, and its regions take the recorded
+ * lines only where the two texts numbered alike ({@link sameNumbering}), the
+ * rule the snapshot re-cut its rows to the newer text by. Then a held region
+ * the recorded cut has no address for is left out: no line of the newer text
+ * holds it, and kept at a line of the older one it would pair with whatever
+ * region stands there now.
+ */
+function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
+  const lands = landing(recorded, held, true);
+  const to = new Map<number, number>();
+  for (const [block, from] of lands.entries()) if (from >= 0) to.set(from, block);
+  const moved = [...to].some(([from, block]) =>
+    held.blocks[from]!.startLine !== recorded.blocks[block]!.startLine ||
+    held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine);
+  if (!moved) return held;
+  if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
+  const kept = [...to.keys()].sort((left, right) => left - right);
+  return {
+    file: held.file,
+    blocks: kept.map((from) => ({
+      ...held.blocks[from]!,
+      startLine: recorded.blocks[to.get(from)!]!.startLine,
+      endLine: recorded.blocks[to.get(from)!]!.endLine,
+    })),
+    called: Uint32Array.from(kept, (from) => held.called[from]!),
+    loaded: Uint8Array.from(kept, (from) => held.loaded[from]!),
   };
 }
 
@@ -173,13 +243,17 @@ export function layerBefore(
  * module, not to these cases, and a comparison of what these cases entered must
  * not read it as theirs.
  */
-function beforeRun(held: OpenedSetExecutionIndex, ran: ReadonlySet<string>): Buffer {
+function beforeRun(
+  held: OpenedSetExecutionIndex,
+  ran: ReadonlySet<string>,
+  lines: (module: SetExecutionModule) => SetExecutionModule,
+): Buffer {
   const tests = held.tests.filter((test) => ran.has(test.file));
   const at = new Map(tests.map((test, index) => [test.id, index]));
   const cut = new Translation(tests.length);
   const from = cut.from(held.sets, held.tests.map((test) => (ran.has(test.file) ? at.get(test.id)! : -1)));
   const modules: SetExecutionModule[] = [];
-  for (const module of held.modules) {
+  for (const module of held.modules.map(lines)) {
     const kept = carried({ ...module, loaded: new Uint8Array(module.blocks.length) }, from);
     if (kept !== undefined) modules.push(kept);
   }
