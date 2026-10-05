@@ -97,25 +97,29 @@ each merge with its first parent:
 | Compass block | 1: #162 added an undeclared `reach`–`adjudication` edge | 0 |
 | Package | 0: no package edge was added or removed | 0 |
 
-#162 moved case-axis code from the CLI's `names` command module, which it deleted (−258
-lines) into `packages/sense/src/test-selection/case-axes.ts` (+136) and along
-the `cli`→`sense` edge that already existed. At package grain, no reader we
-tried sees it:
+#162 moved the CLI's `names` command module into
+`packages/sense/src/test-selection/name-grammar.ts`, coordinate
+`adjudication.variations`, and added `case-axes.ts` beside it, coordinate
+`reach`, which imports it. The move itself is visible at package grain:
 
-- No package edge changed.
-- Git's rename and copy detection, even with `--find-copies-harder`, pairs
-  neither file.
-- No declaration name survived the move.
+- Git pairs the two files as a rename, at 50% similarity in the commit and
+  49% across the merge, so the default threshold of 50% misses it at merge
+  grain and `-M40%` finds it.
+- Nine of the eleven exported names survived.
+- It ran along the `cli`→`sense` edge that already existed, so no package edge
+  changed.
 
-Only the declared grain saw it, because the code crossed a Compass boundary
-that is not a package boundary.
+What only the declared grain saw is the new import: `case-axes.ts` in `reach`
+reads the grammar in `adjudication.variations`, two blocks inside one package
+that the chart does not connect.
 
 ## What does not
 
 1. **Code crossing a block boundary.** The package-grain reading misses a
    move like #162. A move is read from declarations that left one block and
-   arrived in another between the two indexes. Matching by name failed on #162.
-   Matching by the body's normalized shape is unmeasured. Fixtures: a whole
+   arrived in another between the two indexes. On #162, matching by exported
+   name pairs nine of eleven; matching by the body's normalized shape is
+   unmeasured. Fixtures: a whole
    file renamed across packages, a function extracted and renamed, and a
    function copied with the original kept.
 2. **The declared reading.** The edges between Compass blocks, measured from
