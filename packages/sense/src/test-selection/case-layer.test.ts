@@ -205,6 +205,20 @@ describe('a module the index holds at an older text than the snapshot', () => {
     expect(linesOf(before)).toEqual([414, 415]);
   });
 
+  it('lands a case of a file the run did not run only where the numbering agrees, when the index stands at a text numbered apart', () => {
+    const other = 'other.test.ts > keeps';
+    // `other` entered the second callback, which a callback written in front made `anon#2`.
+    const seated = cutAt([one, other], 'src/blocks.ts', [[414, [], 'anon#0'], [415, [other], 'anon#1']]);
+    const reseated = cutAt([one], 'src/blocks.ts', [[415, [], 'anon#0'], [416, [], 'anon#1'], [417, [one], 'anon#2']]);
+
+    const { merged } = layerCaseIndex(seated, reseated, same);
+
+    const regions = decodeExecutionIndex(merged).modules[0]!.blocks;
+    const tests = decodeExecutionIndex(merged).tests;
+    const entered = regions.filter((block) => block.crossings.some((crossing) => tests[crossing.test]!.id === other));
+    expect(entered.map((block) => block.name)).not.toContain('anon#1');
+  });
+
   it('names nothing unlined when the index already stands at the lines the run recorded', () => {
     const extra = cutAt([one], 'src/blocks.ts', [[415, []], [416, [one]], [417, []], [418, [one], 'warningBlocks/build-only']]);
 

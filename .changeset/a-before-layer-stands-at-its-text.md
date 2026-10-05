@@ -14,4 +14,7 @@ the module from the text the before layer names, the before layer is cut at
 the lines the run recorded. When the two texts number their regions
 differently, the module is named under no text. A review then lists it as not
 compared, with the cases before recorded over another text, instead of
-inventing a loss.
+inventing a loss. A landing of several shards keeps the lines an earlier shard
+recorded when a later shard, which did not record the module, retires cases of
+it. Cases of a test file the run did not run land on the module's new regions
+only where the two texts number them alike.

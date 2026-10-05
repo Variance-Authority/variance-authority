@@ -31,7 +31,9 @@ export interface CaseRunFiles {
    * carried module to the text on disk while the index keeps the lines it was
    * recorded at, so a module no run re-recorded since an edit above one of its
    * regions stands at the old lines under the new name. Where the run recorded
-   * that text, the before layer is cut at the lines it recorded. Asked only
+   * that text, the before layer is cut at the lines it recorded. With `base`,
+   * "the run" is this one or a shard of the landing laid before it, whose
+   * lines the index this run is laid over holds. Asked only
    * when `base` is given; without `base`, `sameText` answers it, and with
    * `base` but without this, nothing is re-cut.
    */
@@ -145,7 +147,10 @@ export function layerCaseIndex(
       if (kept !== undefined) modules.push(kept);
       continue;
     }
-    const lands = before === undefined ? undefined : landing(recorded, before, files.sameText?.(file) === true);
+    // A name that says same text over lines an older text numbered apart is
+    // the snapshot's, not the index's: those cases land where the numbering agrees.
+    const same = files.sameText?.(file) === true && before !== undefined && relined(before, recorded) !== undefined;
+    const lands = before === undefined ? undefined : landing(recorded, before, same);
     const called = new Uint32Array(recorded.blocks.length);
     const loaded = new Uint8Array(recorded.blocks.length);
     for (let block = 0; block < recorded.blocks.length; block += 1) {
@@ -159,7 +164,9 @@ export function layerCaseIndex(
 
   const unlined: string[] = [];
   const before = cut === undefined ? undefined : beforeRun(cut, new Set([...files.ran, ...run.tests.map((test) => test.file)]), (module) => {
-    const recorded = runModules.get(module.file);
+    // A landing's earlier shard may have recorded what this one did not; the
+    // index it laid, the one this run is laid over, stands at those lines.
+    const recorded = runModules.get(module.file) ?? (files.base === undefined ? undefined : heldModules.get(module.file));
     const same = (files.base === undefined ? files.sameText : files.sameBeforeText)?.(module.file);
     if (recorded === undefined || same !== true) return module;
     const lined = relined(module, recorded);
@@ -191,6 +198,11 @@ export function layerCaseIndex(
  * holds it, and kept at a line of the older one it would pair with whatever
  * region stands there now.
  */
+// FIXME: regions told apart only by occurrence carry no seat for
+// `sameNumbering` to compare, so a sibling written in front of them re-lines
+// each one onto its neighbour without a signal — the limit the snapshot's
+// re-cut has. The index carrying the text each module was recorded from would
+// let a reader leave such a module uncompared instead.
 function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
   const lands = landing(recorded, held, true);
   const to = new Map<number, number>();

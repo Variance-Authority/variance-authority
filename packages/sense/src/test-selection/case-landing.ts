@@ -102,7 +102,9 @@ export interface LastCaseRun {
  * `eyes` are the run's Eyes, laid by {@link layEyes}: a case that ran has its
  * journals replaced by the run's, and has none when the run opened none.
  *
- * `held` is the text each module of `previous`'s index was cut from. A module
+ * `held` is the text the snapshot names each module of `previous`'s index at,
+ * which is the text it was cut from unless the snapshot re-cut a module no run
+ * re-recorded since an edit; where the lines disagree, the numbering decides. A module
  * the run recorded from that same text lands its held cases by address, as its
  * rows do; one whose text is not known on both sides lands them only where the
  * two cuts numbered alike.
@@ -114,7 +116,8 @@ export interface LastCaseRun {
  * `base` is the index the run's before is cut from, and the texts its modules
  * were cut from, when that is not `previous`: a landing's later shards are laid
  * over the index its earlier ones laid, whose modules they recorded are already
- * cut to the shards' text.
+ * cut to the shards' text. `recorded` is the text each module those earlier
+ * shards recorded was recorded from.
  *
  * Nothing is written here. The caller writes the result into the record with
  * the coverage it lands, in one write under the record's lock, so the two
@@ -128,7 +131,7 @@ export function layCases(
   eyes?: EyesSection,
   held?: ModuleTexts,
   stands?: string,
-  base?: { readonly index: Uint8Array; readonly texts?: ModuleTexts },
+  base?: { readonly index: Uint8Array; readonly texts?: ModuleTexts; readonly recorded?: ModuleTexts },
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
@@ -139,7 +142,10 @@ export function layCases(
     sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
     ...(base === undefined ? {} : {
       base: base.index,
-      sameBeforeText: (file: string) => recorded.has(file) && recorded.get(file) === base.texts?.get(file),
+      sameBeforeText: (file: string) => {
+        const text = recorded.get(file) ?? base.recorded?.get(file);
+        return text !== undefined && text === base.texts?.get(file);
+      },
     }),
   });
   const prior = lastCaseRunOf(previous);
@@ -298,6 +304,7 @@ export function landCases(
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
   let sections = previous;
   const texts = new Map(held ?? []);
+  const recorded = new Map<string, string>();
   // Every shard's before is cut from the index the landing began with.
   const base = previous.index === undefined ? undefined : { index: previous.index, ...(held === undefined ? {} : { texts: held }) };
   let laid = 0;
@@ -309,8 +316,11 @@ export function landCases(
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base);
-      for (const [file, text] of textsOf(run)) texts.set(file, text);
+      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) });
+      for (const [file, text] of textsOf(run)) {
+        texts.set(file, text);
+        recorded.set(file, text);
+      }
       for (const id of lastCaseRunOf(sections)?.cases ?? []) ran.add(id);
       laid += 1;
     } else if (run.tests.some((test) => test.complete)) {
