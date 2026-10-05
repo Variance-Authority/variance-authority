@@ -2257,8 +2257,10 @@ instead of naming them:
 A key is `variance-<file>:<branch>:<commit>`. The branch is the one a pull
 request targets, so a pull request restores what its target saved and never
 what it saved itself. A save appends the run id, because the Actions cache
-never overwrites a key, and a restore falls back to the newest key on the
-branch.
+never overwrites a key. A restore falls back to the newest key on the branch,
+then to the newest key on each other mainline. So a pull request into a branch
+that saves nothing, for example the base of a stacked pull request, restores
+what a mainline saved.
 
 Only a push to a mainline saves a recording. On any other run `carry save`
 prints no key for it, and stderr names the reason. The mainlines are the first

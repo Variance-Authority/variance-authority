@@ -20,6 +20,12 @@
  *   lands on. The colons around it are there because git refuses a colon in a
  *   ref name, so `main` never matches a key of `main-2`.
  *
+ * A restore looks under the line, then under each other mainline, so a line
+ * that saves nothing, such as the branch a stacked pull request targets,
+ * starts from what a mainline saved rather than from nothing. The host lets a
+ * run restore only its own branch's, its base's and the default branch's
+ * entries, so the default branch is the mainline such a restore finds.
+ *
  * Only a push to a mainline saves a recording. A pull request that saved its
  * own would restore it on its next push and review the change against itself.
  * The mainlines are asked of `share` (ADR-0077's order), and when nothing
@@ -184,7 +190,10 @@ export function carryPlan(input: CarryInput): CarryPlan {
   const line = lineOf(run);
   const cached: Cached[] = [];
   const notes: string[] = [];
-  const keyed = (artifact: string, paths: readonly string[], prefix: string, restoreFrom: string | undefined, fallback: readonly string[]): void => {
+  // Every restore ends with the other mainlines, so a line that saves none,
+  // pushed to or targeted by a pull request, restores what a mainline saved.
+  const mainlines = 'names' in input.mainlines ? input.mainlines.names.filter((name) => name !== line) : [];
+  const keyed = (artifact: string, paths: readonly string[], prefix: string, restoreFrom: string | undefined): void => {
     if (line === undefined || run.sha === undefined) {
       notes.push(`${artifact} is carried by the host cache, and this is not a host run, so it has no key here`);
       return;
@@ -199,16 +208,17 @@ export function carryPlan(input: CarryInput): CarryPlan {
       return;
     }
     const from = restoreFrom ?? run.sha;
+    const fallback = mainlines.map((name) => `variance-${prefix}:${name}:`);
     cached.push({ artifact, paths, key: `${at}${from}`, restoreKeys: [`${at}${from}-`, at, ...fallback] });
   };
 
   if (config?.baselines?.kind === 'directory' && config.baselines.carry === 'actions-cache') {
     // Keyed by this commit, so a re-run of it finds what an accept in it saved,
-    // then by the newest under the line.
-    keyed('baselines', [config.baselines.root], `${config.project}-baselines`, undefined, []);
+    // then by the newest under the line, then under another mainline.
+    keyed('baselines', [config.baselines.root], `${config.project}-baselines`, undefined);
   }
   if (config?.reportCarry === 'actions-cache') {
-    keyed('report', [config.report, config.images], `${config.project}-report`, undefined, []);
+    keyed('report', [config.report, config.images], `${config.project}-report`, undefined);
   }
   if (config?.reportCarry === 'share') notes.push('the report is carried by `variance share`');
 
@@ -222,16 +232,7 @@ export function carryPlan(input: CarryInput): CarryPlan {
     // and a saved recording is that something here.
     if (direction === 'save') eyesNote(input.root, suite.name, notes);
     const prefix = `suite-${suite.name}-${basename(top)}`;
-    const mainlines = 'names' in input.mainlines ? input.mainlines.names.filter((name) => name !== line) : [];
-    keyed(
-      artifact,
-      [top, `!${top}/**/.run-*`, `!${top}/.work`],
-      prefix,
-      run.base,
-      // Then the mainlines, for a line that saves none: a push to a branch
-      // that is not one restores what a mainline recorded.
-      mainlines.map((name) => `variance-${prefix}:${name}:`),
-    );
+    keyed(artifact, [top, `!${top}/**/.run-*`, `!${top}/.work`], prefix, run.base);
   }
 
   const store = config?.baselines;

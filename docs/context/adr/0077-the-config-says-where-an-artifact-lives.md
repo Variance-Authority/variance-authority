@@ -124,10 +124,15 @@ builds no key.**
     baseline-store boundary asks for.
   - A recording's restore keys are the base commit, then the newest entry on
     the line, then the newest on each other mainline. Baselines and a report
-    restore by this commit first, so a re-run finds what an accept in it saved.
-    The commit is in the key only because an Actions cache key cannot be
-    overwritten, so a save needs a new one; what a restore wants is the latest,
-    the same rule the share keeps.
+    restore by this commit first, so a re-run finds what an accept in it saved,
+    then the newest on the line, then the newest on each other mainline: a
+    line nobody accepted on (the base of a stacked pull request) starts from
+    a mainline's store rather than from nothing, where every subject reads
+    `new`. Only the default branch's entries are restorable from another
+    branch's run, so in practice that tail is the default branch. The commit
+    is in the key only because an Actions cache key cannot be overwritten, so
+    a save needs a new one; what a restore wants is the latest, the same rule
+    the share keeps.
 
 - **The base's cases are the suite's to keep.**
   - Runs at one commit add to the layer of replaced cases instead of
