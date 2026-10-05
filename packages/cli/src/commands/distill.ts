@@ -68,7 +68,7 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
       // The graph is read only when there is a load to give a cause: the scan costs more than the record.
       if (!flat.modules?.some(({ entered }) => entered === 0)) return flat;
       const graph = await fileGraph(options.root);
-      return distillFile({ ...input, imports: importsOf(graph), republishes: republishesOf(graph) });
+      return distillFile({ ...input, ...causesFrom(graph) });
     }
     const section = recordedEyesOf(bytes);
     return distill({
@@ -120,7 +120,7 @@ async function distillRecords(options: DistillOptions): Promise<ScopeDistillatio
   const flat = asOperator(() => distillScope(input));
   if (flat.spills.length === 0) return flat;
   const graph = await fileGraph(options.root);
-  return distillScope({ ...input, imports: importsOf(graph), republishes: republishesOf(graph) });
+  return distillScope({ ...input, ...causesFrom(graph) });
 }
 
 /** A record's bytes, or the operator's refusal when nothing is recorded there. */
@@ -147,20 +147,27 @@ function fileGraph(root: string): Promise<Relations> {
 
 /** The edges a runtime evaluates a module through on load: a dynamic import evaluates later, if at all. */
 const LOADING = new Set((['imports', 'reexports', 'asset'] as const satisfies readonly EdgeKind[]).map((kind) => EDGE_KINDS.indexOf(kind)));
+/** The edge a literal `import()` leaves: what it loads is paid when it runs. */
+const LAZY = new Set([EDGE_KINDS.indexOf('dynamic')]);
 const FILE = NODE_KINDS.indexOf('file');
 
-/** The files each file imports statically, read from the file graph by the names the record uses. */
-function importsOf(relations: Relations): (file: string) => readonly string[] {
+/** The files each file reaches by one set of edge kinds, read from the file graph by the names the record uses. */
+function importsOf(relations: Relations, through: ReadonlySet<number> = LOADING): (file: string) => readonly string[] {
   const { offset, target, kind } = relations.depends;
   return (file) => {
     const id = idOf(relations, 'file', file);
     if (id === undefined) return [];
     const found: string[] = [];
     for (let at = offset[id]!; at < offset[id + 1]!; at += 1) {
-      if (LOADING.has(kind[at]!) && relations.kinds[target[at]!] === FILE) found.push(relations.names[target[at]!]!);
+      if (through.has(kind[at]!) && relations.kinds[target[at]!] === FILE) found.push(relations.names[target[at]!]!);
     }
     return found;
   };
+}
+
+/** What a file reading needs from the file graph to name the import behind each load. */
+function causesFrom(relations: Relations) {
+  return { imports: importsOf(relations), lazy: importsOf(relations, LAZY), republishes: republishesOf(relations) };
 }
 
 const REEXPORTS = EDGE_KINDS.indexOf('reexports');

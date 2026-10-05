@@ -7,17 +7,28 @@ import type { TestCoverage } from '@variance-authority/sense/test-selection';
  *
  * `import`: every path from the test file to the module runs through one
  * import, `importer` → `imported`, and nothing behind that import is entered
- * by a case; it is the topmost such import. `shared`: no import brings the
- * module in alone — two paths reach it, or the import that does also brings in
- * code a case entered; `parts` is the nearest file every path to it runs
- * through. `unseen`: no static import reaches it from the test file, so a
- * dynamic import, a `require` the graph does not read, or the runner brought
- * it in.
+ * by a case; it is the topmost such import. `lazy` when that import is
+ * dynamic only: what it owns was paid when the import was called, not on load.
+ * `shared`: no import brings the module in alone — two paths reach it, or the
+ * import that does also brings in code a case entered; `parts` is the nearest
+ * file every path to it runs through. `unseen`: no import the graph reads
+ * reaches it from the test file, so a dynamic import whose specifier is not a
+ * literal, or the runner, brought it in.
  */
 export type LoadCause =
-  | { readonly kind: 'import'; readonly importer: string; readonly imported: string }
+  | { readonly kind: 'import'; readonly importer: string; readonly imported: string; readonly lazy?: true }
   | { readonly kind: 'shared'; readonly parts: string }
   | { readonly kind: 'unseen' };
+
+/** How an owning import reads in text: a lazy one says it was paid when it ran. */
+export function importOf(cause: { readonly importer: string; readonly imported: string; readonly lazy?: true }): string {
+  return `${cause.importer} ${cause.lazy === true ? 'lazily imports' : 'imports'} ${cause.imported}`;
+}
+
+/** The heading over what no one import owns. */
+export const SHARED = 'No one import brings these in alone';
+/** The heading over what no import the graph reads brought in. */
+export const UNSEEN = 'No import the graph reads reaches these from the test file';
 
 /** What the cause of a load is read from. */
 export interface CauseInput {
@@ -25,6 +36,8 @@ export interface CauseInput {
   readonly file: string;
   /** The files a file imports statically — imports, re-exports and assets — by the names the record uses. */
   readonly imports: (file: string) => readonly string[];
+  /** The files a file imports dynamically, by a literal specifier. Unsaid, a lazy import owns nothing and its files read as unseen. */
+  readonly lazy?: (file: string) => readonly string[];
   /** Whether every file a file imports, it also re-exports: a barrel. Unsaid, no file reads as one. */
   readonly republishes?: (file: string) => boolean;
   readonly coverage: TestCoverage;
@@ -64,7 +77,7 @@ export function causesOf(input: CauseInput): (module: string) => LoadCause {
     let found = edges.get(node);
     if (found === undefined) {
       // An import and a re-export of one module are one way in.
-      found = [...new Set(input.imports(node))].filter(followed);
+      found = [...new Set([...input.imports(node), ...(input.lazy?.(node) ?? [])])].filter(followed);
       edges.set(node, found);
     }
     return found;
@@ -109,7 +122,11 @@ export function causesOf(input: CauseInput): (module: string) => LoadCause {
       if (!unused(at) || carriesUse.has(at)) continue;
       // A predecessor `at` dominates closes a cycle back into it; every other one is a way in.
       const ways = (predecessors.get(at) ?? []).filter((from) => !dominates(at, from));
-      if (ways.length === 1) owner = { kind: 'import', importer: ways[0]!, imported: at };
+      if (ways.length !== 1) continue;
+      const importer = ways[0]!;
+      // A static import of the same module evaluates it on load, whatever else imports it lazily.
+      const lazy = !input.imports(importer).includes(at);
+      owner = { kind: 'import', importer, imported: at, ...(lazy ? { lazy: true as const } : {}) };
     }
     return owner ?? { kind: 'shared', parts: idom.get(module)! };
   };

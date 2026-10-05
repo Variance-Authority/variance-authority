@@ -4,7 +4,7 @@ import type {
   ExecutionTest,
   TestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { causesOf, type LoadCause } from './own.js';
+import { causesOf, importOf, SHARED, UNSEEN, type LoadCause } from './own.js';
 
 /** What names one test file, and the two readings of the record it is read from. */
 export interface FileDistillInput {
@@ -20,6 +20,12 @@ export interface FileDistillInput {
    * entered carries the import that made the file load it.
    */
   readonly imports?: (file: string) => readonly string[];
+  /**
+   * The files a file imports dynamically, by a literal specifier. Given with
+   * `imports`, what only a lazy import reaches is owned by it; unsaid, it
+   * reads as unseen.
+   */
+  readonly lazy?: (file: string) => readonly string[];
   /**
    * Whether every file a file imports, it also re-exports: a barrel. Unsaid,
    * no file reads as one.
@@ -109,6 +115,7 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
   const cause = imports === undefined ? undefined : causesOf({
     file,
     imports,
+    ...(input.lazy === undefined ? {} : { lazy: input.lazy }),
     ...(input.republishes === undefined ? {} : { republishes: input.republishes }),
     coverage: input.coverage,
     entered,
@@ -255,7 +262,7 @@ function byCause(modules: readonly LoadedModule[]): readonly (readonly [string, 
   for (const module of modules) {
     const cause = module.cause;
     const head = cause?.kind === 'import'
-      ? `${cause.importer} imports ${cause.imported}`
+      ? importOf(cause)
       : cause?.kind === 'shared' ? SHARED : UNSEEN;
     const group = groups.get(head);
     if (group === undefined) groups.set(head, [module]);
@@ -302,9 +309,6 @@ function listed(
   if (modules.length <= count) return head;
   return [...head, `${indent}and ${modules.length - count} more: ${lines(modules.slice(count))}`];
 }
-
-const SHARED = 'No one import brings these in alone';
-const UNSEEN = 'No static import reaches these from the test file';
 
 function partsOf(cause: LoadCause | undefined): string {
   return cause?.kind === 'shared' ? `, every path to it runs through ${cause.parts}` : '';

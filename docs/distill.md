@@ -256,15 +256,17 @@ it: the topmost import every path from the test file to the module runs
 through, with nothing behind it that a case entered. Removing that import frees
 everything listed under it. The import is often not in the test file: above,
 the test imports the dialog, and the dialog imports the editor. The file graph
-is read from the checkout and walks static imports and re-exports only. Two
-groups take what no one import accounts for:
+is read from the checkout and walks imports, re-exports, and dynamic imports
+whose specifier is a literal. An import that is dynamic only reads as `lazily
+imports`: what is listed under it was loaded when the import ran, not when the
+file did. Two groups take what no one import accounts for:
 
 - **No one import brings these in alone.** Two imports reach the module, or the
   only one that does also brings in code a case entered. The line names the
   nearest file every path to the module runs through, which is where to look.
-- **No static import reaches these from the test file.** A dynamic import, a
-  `require` the graph does not read, or the runner's own setup brought the
-  module in.
+- **No import the graph reads reaches these from the test file.** An import
+  or `require` whose specifier is not a literal, or the runner's own setup,
+  brought the module in.
 
 An import the record says the file never evaluated — a module mocked with a
 factory — is not walked; an automocked module was evaluated, and is.

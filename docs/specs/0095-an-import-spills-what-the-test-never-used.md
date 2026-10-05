@@ -136,7 +136,7 @@ proposal moves to the import.
 - A weight file with no runtime path from F on the graph was loaded by
   something the scan cannot see: a dynamic import, a harness file, a specifier
   that is not a literal. It is named as **unseen**, owned by no import, and given
-  no proposal. A literal dynamic import becomes an owner of its own under
+  no proposal. A literal dynamic import is an owner of its own under
   [spec 0097](0097-a-consumer-pays-for-what-it-loads.md).
 - A mock with a factory cuts its edge, and nothing behind it is loaded. A mock
   that did not take is `auditTaints`' finding, not this one's.

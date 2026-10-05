@@ -172,7 +172,7 @@ describe('distillScope', () => {
       'Loaded, and entered by no case of the test file that loaded it: 4 module load(s), 247 line(s).',
       '  packages/ui/src/index.ts imports packages/ui/src/chart.ts: 1 module(s) in 2 test file(s), 200 line(s)',
       '  packages/app/src/a.ts imports packages/app/src/heavy.ts: 1 module(s) in 1 test file(s), 40 line(s)',
-      '  No static import reaches these from the test file: 1 module(s) in 1 test file(s), 7 line(s)',
+      '  No import the graph reads reaches these from the test file: 1 module(s) in 1 test file(s), 7 line(s)',
       '',
       'Not recorded: suite e2e.',
       '',

@@ -22,6 +22,7 @@ function read(
   modules: Readonly<Record<string, Module>>,
   edges?: Readonly<Record<string, readonly string[]>>,
   republishing: readonly string[] = [],
+  lazy?: Readonly<Record<string, readonly string[]>>,
 ) {
   const coverage: TestCoverage = {
     version: 3,
@@ -61,6 +62,7 @@ function read(
       imports: (file: string) => edges[file] ?? [],
       republishes: (file: string) => republishing.includes(file),
     }),
+    ...(lazy === undefined ? {} : { lazy: (file: string) => lazy[file] ?? [] }),
   });
 }
 
@@ -156,10 +158,45 @@ describe('distillFile with the imports given', () => {
     expect(causes(result)).toEqual({ 'src/editor.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' } });
   });
 
-  it('calls a module no static import reaches unseen: a dynamic import is not followed', () => {
+  it('calls a module no import the graph reads reaches unseen, as a dynamic import whose specifier is not a literal', () => {
     const result = read({ 'src/dialog.ts': USED, 'src/lazy.ts': NEVER }, { [FILE]: ['src/dialog.ts'] });
 
     expect(causes(result)).toEqual({ 'src/lazy.ts': { kind: 'unseen' } });
+  });
+
+  it('gives what only a dynamic import reaches to that import, marked lazy', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/modal.ts': NEVER, 'src/editor.ts': NEVER },
+      { [FILE]: ['src/dialog.ts'], 'src/modal.ts': ['src/editor.ts'] },
+      [],
+      { 'src/dialog.ts': ['src/modal.ts'] },
+    );
+
+    const modal = { kind: 'import', importer: 'src/dialog.ts', imported: 'src/modal.ts', lazy: true };
+    expect(causes(result)).toEqual({ 'src/modal.ts': modal, 'src/editor.ts': modal });
+  });
+
+  it('counts a module a static and a dynamic import both reach to neither', () => {
+    const result = read(
+      { 'src/dialog.ts': USED, 'src/form.ts': USED, 'src/date.ts': NEVER },
+      { [FILE]: ['src/dialog.ts', 'src/form.ts'], 'src/form.ts': ['src/date.ts'] },
+      [],
+      { 'src/dialog.ts': ['src/date.ts'] },
+    );
+
+    expect(causes(result)).toEqual({ 'src/date.ts': { kind: 'shared', parts: FILE } });
+  });
+
+  it('gives a dynamic import under an unused static import to the static one, whose removal frees both', () => {
+    const result = read(
+      { 'src/dialog.ts': NEVER, 'src/modal.ts': NEVER },
+      { [FILE]: ['src/dialog.ts'] },
+      [],
+      { 'src/dialog.ts': ['src/modal.ts'] },
+    );
+
+    const dialog = { kind: 'import', importer: FILE, imported: 'src/dialog.ts' };
+    expect(causes(result)).toEqual({ 'src/dialog.ts': dialog, 'src/modal.ts': dialog });
   });
 
   it('cuts the edge into a module the file mocked with a factory, which it never evaluated', () => {
@@ -227,7 +264,7 @@ describe('formatFileDistillation with causes', () => {
       '    src/markdown.ts — 10 line(s)',
       '  No one import brings these in alone: 1 module(s), 10 line(s)',
       `    src/shared.ts — 10 line(s), every path to it runs through ${FILE}`,
-      '  No static import reaches these from the test file: 1 module(s), 10 line(s)',
+      '  No import the graph reads reaches these from the test file: 1 module(s), 10 line(s)',
       '    src/lazy.ts — 10 line(s)',
     ].join('\n'));
   });

@@ -1,6 +1,7 @@
 // compass: variance-authority/runtime/attention
 import type { ExecutionIndex, TestCoverage } from '@variance-authority/sense/test-selection';
 import { readTestFile, type FileDistillation } from './file.js';
+import { importOf, SHARED, UNSEEN } from './own.js';
 
 /** One record a scope is read from, and the suite it belongs to when one is declared. */
 export interface ScopeRecord {
@@ -18,17 +19,19 @@ export interface ScopeDistillInput {
   readonly unrecorded?: readonly string[];
   /** As {@link FileDistillInput.imports}: given, each spill is the import that brought its modules in. */
   readonly imports?: (file: string) => readonly string[];
+  /** As {@link FileDistillInput.lazy}. */
+  readonly lazy?: (file: string) => readonly string[];
   /** As {@link FileDistillInput.republishes}. */
   readonly republishes?: (file: string) => boolean;
 }
 
 /**
  * What brought a spill's modules in: one import, no one import (`shared`), or
- * no static import (`unseen`). A shared spill drops where each path parts,
- * which differs from one test file to the next.
+ * no import the graph reads (`unseen`). A shared spill drops where each path
+ * parts, which differs from one test file to the next.
  */
 export type SpillCause =
-  | { readonly kind: 'import'; readonly importer: string; readonly imported: string }
+  | { readonly kind: 'import'; readonly importer: string; readonly imported: string; readonly lazy?: true }
   | { readonly kind: 'shared' }
   | { readonly kind: 'unseen' };
 
@@ -83,6 +86,7 @@ export function distillScope(input: ScopeDistillInput): ScopeDistillation {
         execution: record.execution,
         coverage: record.coverage,
         ...(input.imports === undefined ? {} : { imports: input.imports }),
+        ...(input.lazy === undefined ? {} : { lazy: input.lazy }),
         ...(input.republishes === undefined ? {} : { republishes: input.republishes }),
       });
       readings.push({ ...(record.suite === undefined ? {} : { suite: record.suite }), reading });
@@ -150,13 +154,10 @@ function compare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-const SHARED = 'No one import brings these in alone';
-const UNSEEN = 'No static import reaches these from the test file';
-
 function headOf(spill: Spill): string {
   const cause = spill.cause;
   if (cause === undefined) return spill.modules[0]!;
-  if (cause.kind === 'import') return `${cause.importer} imports ${cause.imported}`;
+  if (cause.kind === 'import') return importOf(cause);
   return cause.kind === 'shared' ? SHARED : UNSEEN;
 }
 

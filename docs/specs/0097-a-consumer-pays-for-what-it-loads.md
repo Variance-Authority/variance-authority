@@ -1,14 +1,13 @@
 # Spec 0097 — a consumer pays for what it loads
 
-**Missing:** nothing says what a lazy import loaded, or which load was
-needed up front and which later. Spec 0095 names the import that brought
-in what a test file never used, but only for static imports, read over
-the whole file. What a modal's `import()` loads when a case opens it is
-owned by no import and reads as `unseen`. A static import evaluates its
-target at load, and nothing reads where its consumer used it, so an
-import needed when the file was collected looks the same as one needed
-only when a case acted. A browser test's page is drained once, so its
-first load and what its interactions loaded are one sum.
+**Missing:** nothing says which load was needed up front and which
+later. Spec 0095 names the import that brought in what a test file never
+used, and a literal `import()` owns what only it reaches, but every load
+is read over the whole file. A static import evaluates its target at
+load, and nothing reads where its consumer used it, so an import needed
+when the file was collected looks the same as one needed only when a
+case acted. A browser test's page is drained once, so its first load and
+what its interactions loaded are one sum.
 **Built on:** the attribution of
 [spec 0095](0095-an-import-spills-what-the-test-never-used.md): weight,
 ownership by dominator rooted at the test file, the scope reading, and a
@@ -73,9 +72,7 @@ owns it, as spec 0095 rules, because removing that import frees all of
 it. A file that a static and a dynamic import both reach is owned by
 neither. It is reported once, as shared, as spec 0095 reports a diamond.
 An import's size is exclusive: what a dynamic import nested under it owns
-is reported under the dynamic import, never twice. Today `distill` leaves
-`dynamic` out of the edges it walks, so a lazy import owns nothing and its
-files read as `unseen`.
+is reported under the dynamic import, never twice.
 
 Spec 0092's choke-point reading walks the same edges. Its "dynamic
 import" hole narrows to a non-literal one once `dominatorsOf` walks
@@ -217,14 +214,20 @@ those, a later load is read per import and is not divided.
 
 ## What would discharge it
 
-1. **A dynamic import owns what only it reaches.** This replaces the
+1. ~~**A dynamic import owns what only it reaches.** This replaces the
    fixture under spec 0095's item 2 in which a dynamic import reads as
-   unseen, and amends spec 0092's hole to a non-literal dynamic import.
-   Fixtures: a `React.lazy` modal whose files `distill` reports under the
-   `import()` with its line; a module both a static and a dynamic import
-   reach, reported once as shared; a lazy import under an unused static
-   import, owned by the static one; a non-literal `import()` still read as
-   unseen.
+   unseen. Fixtures: a lazy modal whose files `distill` reports under the
+   `import()`; a module both a static and a dynamic import reach, reported
+   once as shared; a lazy import under an unused static import, owned by
+   the static one; a non-literal `import()` still read as unseen.~~
+   **Discharged.** `causesOf` in `@variance-authority/distill` walks the
+   `lazy` edges it is handed beside the static ones, and marks an owning
+   import that is dynamic only `lazy: true`. `variance distill` hands it
+   the file graph's `dynamic` edges and prints that import as `lazily
+   imports`. Fixtures in `own.test.ts`, and a literal `import()` read
+   through the file graph in the CLI's file reading. The import's line
+   comes with spec 0095's item 5, as a static import's does. Spec 0092's
+   hole narrows when its own reading walks the same edges.
 2. **A use says whether an import was needed outside every case.**
    The reader walk places each read of an import binding, and each
    in-function `require` or `import()` call, in a module's region or a
