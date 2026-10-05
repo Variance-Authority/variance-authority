@@ -356,10 +356,14 @@ when summed importance crosses a threshold; consolidation was the largest
 single step in its ablation. Graphiti (Zep, arXiv 2501.13956) marks a
 contradicted fact with the time it stopped holding instead of deleting it.
 
-**Two results against the obvious product.** Google deployed a time-weighted
-FixCache ranking to developers (Lewis et al., ICSE 2013) and withdrew it: no
-behaviour changed, because a flag without an obvious reason is not acted on.
-Rahman et al. (FSE 2011) found the cache barely beat ordering files by closed
+**Two results against the obvious product.** Google deployed Time-Weighted
+Risk (TWR), a ranking of files by bug-fixing commits weighted toward recent
+ones, as an annotation on bug-prone files in code review (Lewis et al., ICSE
+2013); FixCache did not scale to its repository and was not deployed. After
+four weeks the annotation was demoted to a lint warning shown only to
+reviewers with warnings enabled, and the study found no statistically
+significant change in review time or comment counts: developers wanted a flag
+that said what to do and why. Rahman et al. (FSE 2011) found the cache barely beat ordering files by closed
 bug count. A ranking keeps its reason beside it and is measured against the
 naive count.
 
