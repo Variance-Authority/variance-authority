@@ -101,7 +101,14 @@ new edge in the package graph, and the answer names it too:
 packages/app 6: takes packages/format.
 ```
 
-Between the two lists, every package another package started or stopped
+A package that is new or gone is named with the packages it imports, because
+each of those imports is an edge it brought or took away:
+
+```
+Appeared: packages/search 4 (takes packages/format, packages/store)
+```
+
+Across these lists, every package another package started or stopped
 importing is named once.
 
 You can still say yes; no layer is wrong by itself. The reviewer sees what the

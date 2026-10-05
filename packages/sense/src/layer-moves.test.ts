@@ -33,7 +33,7 @@ describe('layerMoves', () => {
       ['a100', 2, 4, ['z'], ['x'], 99],
     ]);
     expect(moves.carried).toBe(99);
-    expect(moves.appeared).toEqual(['z']);
+    expect(moves.appeared).toEqual([{ package: 'z', layer: 3, takes: ['y'] }]);
   });
 
   it('counts a package that moved once, under the nearer of two causes', () => {
@@ -50,9 +50,15 @@ describe('layerMoves', () => {
     expect(causes.map((cause) => [cause.package, cause.from, cause.to, cause.carried])).toEqual([['deep', 3, 1, ['user']]]);
   });
 
-  it('lists a package that came or went apart from the movers', () => {
-    const moves = layerMoves(layered({ a: [], gone: [] }), layered({ a: [], fresh: ['a'] }));
-    expect(moves).toEqual({ causes: [], carried: 0, held: [], appeared: ['fresh'], vanished: ['gone'] });
+  it('lists a package that came or went apart from the movers, with the dependencies it brought or took away', () => {
+    const moves = layerMoves(layered({ a: [], gone: ['a'] }), layered({ a: [], fresh: ['a'] }));
+    expect(moves).toEqual({
+      causes: [],
+      carried: 0,
+      held: [],
+      appeared: [{ package: 'fresh', layer: 2, takes: ['a'] }],
+      vanished: [{ package: 'gone', layer: 2, takes: ['a'] }],
+    });
   });
 
   it('names a package whose own dependencies changed and whose layer held, once and apart from the causes', () => {

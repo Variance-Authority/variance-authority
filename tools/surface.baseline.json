@@ -2451,6 +2451,7 @@
         "LayerCause": "interface",
         "LayerHeld": "interface",
         "LayerMoves": "interface",
+        "LayerPresence": "interface",
         "MockTaintOptions": "interface",
         "ModuleCallsTaintOptions": "interface",
         "OrientFlow": "interface",

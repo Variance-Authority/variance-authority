@@ -11,8 +11,9 @@
  * down to a cause, so the counts add up to the total.
  *
  * A package whose own dependencies changed and whose layer did not is **held**.
- * Between causes and held packages, every dependency a package started or
- * stopped taking is told once, whether or not a layer moved.
+ * Between causes, held packages and the packages that appeared or vanished,
+ * every dependency a package started or stopped taking is told once, whether
+ * or not a layer moved.
  *
  * It performs no I/O: it compares two lists a code map kept.
  */
@@ -44,6 +45,14 @@ export interface LayerHeld {
   readonly removed: readonly string[];
 }
 
+/** A package in only one of the two maps, with its layer and every package it takes there. */
+export interface LayerPresence {
+  readonly package: string;
+  readonly layer: number;
+  /** In code-unit order: every edge it brought, or took away. */
+  readonly takes: readonly string[];
+}
+
 /** The layer moves between two code maps: the causes with what each carried, and the packages that only appeared or vanished. */
 export interface LayerMoves {
   /** Largest cascade first, then the largest move, then name. */
@@ -53,9 +62,9 @@ export interface LayerMoves {
   /** Packages in both maps whose dependencies changed and whose layer held, in code-unit order. */
   readonly held: readonly LayerHeld[];
   /** In the head map and not the base: they have no earlier layer to move from. */
-  readonly appeared: readonly string[];
+  readonly appeared: readonly LayerPresence[];
   /** In the base map and not the head. */
-  readonly vanished: readonly string[];
+  readonly vanished: readonly LayerPresence[];
 }
 
 function byCodeUnit(a: string, b: string): number {
@@ -71,8 +80,13 @@ function without(names: readonly string[], others: readonly string[]): string[] 
 export function layerMoves(base: readonly PackageLayer[], head: readonly PackageLayer[]): LayerMoves {
   const before = new Map(base.map((entry) => [entry.package, entry]));
   const after = new Map(head.map((entry) => [entry.package, entry]));
-  const appeared = head.filter((entry) => !before.has(entry.package)).map((entry) => entry.package).sort(byCodeUnit);
-  const vanished = base.filter((entry) => !after.has(entry.package)).map((entry) => entry.package).sort(byCodeUnit);
+  const presence = (entry: PackageLayer): LayerPresence => ({
+    package: entry.package,
+    layer: entry.layer,
+    takes: [...entry.takes].sort(byCodeUnit),
+  });
+  const appeared = head.filter((entry) => !before.has(entry.package)).map(presence).sort((a, b) => byCodeUnit(a.package, b.package));
+  const vanished = base.filter((entry) => !after.has(entry.package)).map(presence).sort((a, b) => byCodeUnit(a.package, b.package));
 
   const moved = new Map<string, { from: PackageLayer; to: PackageLayer }>();
   const held: LayerHeld[] = [];

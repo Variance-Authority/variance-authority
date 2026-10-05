@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -177,6 +177,33 @@ describe('variance layers', () => {
       '1 package changed its own dependencies and kept its layer.',
       '',
       '- `@t/e` 5: takes @t/a.',
+      '',
+    ].join('\n'));
+  });
+
+  it('names the dependencies of a package that appeared or vanished', async () => {
+    const root = checkout();
+    await run(['index']);
+    const base = keepAsBase(root);
+    // `f` goes, taking its edge to `e` with it; `g` arrives taking `a` and `c`.
+    rmSync(join(root, 'packages/f'), { recursive: true });
+    mkdirSync(join(root, 'packages/g/src'), { recursive: true });
+    writeFileSync(join(root, 'packages/g/package.json'), JSON.stringify({
+      name: '@t/g',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@t/a': '*', '@t/c': '*' },
+    }));
+    writeFileSync(join(root, 'packages/g/src/index.ts'), "import { a } from '@t/a';\nimport { c } from '@t/c';\nexport const g = [a, c];\n");
+    await run(['index']);
+
+    const told = await run(['layers', '--against', base, '--format', 'markdown']);
+
+    expect(told.out).toBe([
+      '<!-- variance-authority:layers -->',
+      '### Dependency layers',
+      '',
+      'Appeared: @t/g 4 (takes @t/a, @t/c)  ',
+      'Vanished: @t/f 6 (took @t/e)  ',
       '',
     ].join('\n'));
   });
