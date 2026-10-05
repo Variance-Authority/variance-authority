@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -112,6 +112,98 @@ describe('variance layers', () => {
       '1 package changed its layer by its own dependencies. 4 other packages moved with it.',
       '',
       '- `@t/b` 2 → 1: no longer takes @t/a. Carried 4 packages.',
+      '',
+    ].join('\n'));
+  });
+
+  it('names a package that took another without changing layer', async () => {
+    const root = checkout();
+    await run(['index']);
+    const base = keepAsBase(root);
+    // `f` also takes `a`, which sits below it already: no layer moves, one dependency is new.
+    writeFileSync(join(root, 'packages/f/package.json'), JSON.stringify({
+      name: '@t/f',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@t/a': '*', '@t/e': '*' },
+    }));
+    writeFileSync(join(root, 'packages/f/src/index.ts'), "import { a } from '@t/a';\nimport { e } from '@t/e';\nexport const f = [a, e];\n");
+    await run(['index']);
+
+    const told = await run(['layers', '--against', base, '--format', 'markdown']);
+
+    expect(told.code).toBe(EXIT_CLEAN);
+    expect(told.out).toBe([
+      '<!-- variance-authority:layers -->',
+      '### Dependency layers',
+      '',
+      '1 package changed its own dependencies and kept its layer.',
+      '',
+      '- `@t/f` 6: takes @t/a.',
+      '',
+    ].join('\n'));
+    expect((await run(['layers', '--against', base])).out).toBe([
+      'No package changed layer.',
+      '1 package changed its own dependencies and kept its layer.',
+      '@t/f 6: takes @t/a.',
+      '',
+    ].join('\n'));
+  });
+
+  it('tells a held package after the layer moves, under one heading', async () => {
+    const root = checkout();
+    await run(['index']);
+    const base = keepAsBase(root);
+    // `f` stops taking `e` and falls to layer 1; `e` also takes `a` and keeps its layer, one above `d`.
+    writeFileSync(join(root, 'packages/f/package.json'), JSON.stringify({ name: '@t/f', exports: { '.': './src/index.ts' } }));
+    writeFileSync(join(root, 'packages/f/src/index.ts'), 'export const f = [];\n');
+    writeFileSync(join(root, 'packages/e/package.json'), JSON.stringify({
+      name: '@t/e',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@t/a': '*', '@t/d': '*' },
+    }));
+    writeFileSync(join(root, 'packages/e/src/index.ts'), "import { a } from '@t/a';\nimport { d } from '@t/d';\nexport const e = [a, d];\n");
+    await run(['index']);
+
+    const told = await run(['layers', '--against', base, '--format', 'markdown']);
+
+    expect(told.out).toBe([
+      '<!-- variance-authority:layers -->',
+      '### Dependency layers',
+      '',
+      '1 package changed its layer by its own dependencies.',
+      '',
+      '- `@t/f` 6 → 1: no longer takes @t/e.',
+      '',
+      '1 package changed its own dependencies and kept its layer.',
+      '',
+      '- `@t/e` 5: takes @t/a.',
+      '',
+    ].join('\n'));
+  });
+
+  it('names the dependencies of a package that appeared or vanished', async () => {
+    const root = checkout();
+    await run(['index']);
+    const base = keepAsBase(root);
+    // `f` goes, taking its edge to `e` with it; `g` arrives taking `a` and `c`.
+    rmSync(join(root, 'packages/f'), { recursive: true });
+    mkdirSync(join(root, 'packages/g/src'), { recursive: true });
+    writeFileSync(join(root, 'packages/g/package.json'), JSON.stringify({
+      name: '@t/g',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@t/a': '*', '@t/c': '*' },
+    }));
+    writeFileSync(join(root, 'packages/g/src/index.ts'), "import { a } from '@t/a';\nimport { c } from '@t/c';\nexport const g = [a, c];\n");
+    await run(['index']);
+
+    const told = await run(['layers', '--against', base, '--format', 'markdown']);
+
+    expect(told.out).toBe([
+      '<!-- variance-authority:layers -->',
+      '### Dependency layers',
+      '',
+      'Appeared: @t/g 4 (takes @t/a, @t/c)  ',
+      'Vanished: @t/f 6 (took @t/e)  ',
       '',
     ].join('\n'));
   });

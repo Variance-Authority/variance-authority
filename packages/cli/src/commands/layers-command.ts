@@ -29,7 +29,9 @@ import {
   tierMoves,
   tierOf,
   type LayerCause,
+  type LayerHeld,
   type LayerMoves,
+  type LayerPresence,
   type PackageLayer,
   type TierCause,
   type TierMoves,
@@ -57,7 +59,7 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
-function edges(cause: LayerCause): string {
+function edges(cause: LayerCause | LayerHeld): string {
   return [
     ...cause.added.map((name) => `takes ${name}`),
     ...cause.removed.map((name) => `no longer takes ${name}`),
@@ -76,15 +78,29 @@ function headline(moves: LayerMoves): string {
   return `${plural(causes, 'package')} ${causes === 1 ? 'changed its layer' : 'changed layer'} by ${causes === 1 ? 'its' : 'their'} own dependencies.${rest}`;
 }
 
+/** A package that came or went, with its layer and the edges it brought or took away. */
+function presence(entry: LayerPresence, verb: string): string {
+  return `${entry.package} ${entry.layer}${entry.takes.length > 0 ? ` (${verb} ${entry.takes.join(', ')})` : ''}`;
+}
+
 function existence(moves: LayerMoves): string[] {
   const lines: string[] = [];
-  if (moves.appeared.length > 0) lines.push(`Appeared: ${moves.appeared.join(', ')}`);
-  if (moves.vanished.length > 0) lines.push(`Vanished: ${moves.vanished.join(', ')}`);
+  if (moves.appeared.length > 0) lines.push(`Appeared: ${moves.appeared.map((entry) => presence(entry, 'takes')).join(', ')}`);
+  if (moves.vanished.length > 0) lines.push(`Vanished: ${moves.vanished.map((entry) => presence(entry, 'took')).join(', ')}`);
   return lines;
 }
 
 function quiet(moves: LayerMoves): boolean {
   return moves.causes.length === 0 && moves.carried === 0 && existence(moves).length === 0;
+}
+
+function heldHeadline(moves: LayerMoves): string {
+  const count = moves.held.length;
+  return `${plural(count, 'package')} changed ${count === 1 ? 'its' : 'their'} own dependencies and kept ${count === 1 ? 'its layer' : 'their layers'}.`;
+}
+
+function heldLine(held: LayerHeld): string {
+  return `${held.package} ${held.layer}: ${edges(held)}.`;
 }
 
 
@@ -117,6 +133,7 @@ function text(moves: LayerMoves, tiers: TierMoves | undefined): string {
     for (const cause of moves.causes) lines.push(`${cause.package} ${cause.from} → ${cause.to}: ${edges(cause)}.${cascade(cause)}`);
     lines.push(...existence(moves));
   }
+  if (moves.held.length > 0) lines.push(heldHeadline(moves), ...moves.held.map(heldLine));
   if (tiers !== undefined) {
     if (tiers.causes.length === 0) lines.push('No package changed tier.');
     else lines.push(tierHeadline(tiers), ...tiers.causes.map(tierLine));
@@ -126,14 +143,20 @@ function text(moves: LayerMoves, tiers: TierMoves | undefined): string {
 
 function markdown(moves: LayerMoves, tiers: TierMoves | undefined): string {
   const tiersMoved = tiers !== undefined && tiers.causes.length > 0;
-  if (quiet(moves) && !tiersMoved) return '';
+  const held = moves.held.length > 0;
+  if (quiet(moves) && !held && !tiersMoved) return '';
   const lines = [LAYERS_MARKER];
+  if (!quiet(moves) || held) lines.push('### Dependency layers', '');
   if (!quiet(moves)) {
-    lines.push('### Dependency layers', '');
     if (moves.causes.length > 0) lines.push(headline(moves), '');
     for (const cause of moves.causes) lines.push(`- \`${cause.package}\` ${cause.from} → ${cause.to}: ${edges(cause)}.${cascade(cause)}`);
     const rest = existence(moves);
-    if (rest.length > 0) lines.push('', ...rest.map((line) => `${line}  `));
+    if (rest.length > 0) lines.push(...(moves.causes.length > 0 ? [''] : []), ...rest.map((line) => `${line}  `));
+  }
+  if (held) {
+    if (!quiet(moves)) lines.push('');
+    lines.push(heldHeadline(moves), '');
+    for (const entry of moves.held) lines.push(`- \`${entry.package}\`${heldLine(entry).slice(entry.package.length)}`);
   }
   if (tiersMoved) {
     if (lines.length > 1) lines.push('');
