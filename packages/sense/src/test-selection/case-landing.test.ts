@@ -201,6 +201,31 @@ describe('landCases', () => {
     expect(lastCaseRunOf(sections)?.beforeTexts).toEqual({});
   });
 
+  it('names no text for a before module a later shard found cut at another text, though an earlier shard retired its cases', async () => {
+    // Only `b` entered `src/shared.ts` in the base. Shard 1 retired `b`
+    // without loading it; shard 2 recorded it from `v1:base`, numbered apart
+    // from the index's cut, and retired no case of it.
+    const seated = { ...previous, index: index({ 'b.test.ts > two': ['anon#1'] }, ['anon#0', 'anon#1']) };
+    const first = await shard('shard-1.bin', encodeSetExecutionIndex({
+      tests: [{ id: 'b.test.ts > two', file: 'b.test.ts', name: 'two' }],
+      modules: [],
+      sets: (() => {
+        const sets = new CrossingSets(1);
+        sets.intern([]);
+        return sets.pool();
+      })(),
+    }));
+    const second = await shard('shard-2.bin', index({ 'a.test.ts > one': ['anon#1'] }, ['lead', 'anon#0', 'anon#1', 'anon#2']));
+
+    const { sections } = landCases(record, seated, root, [
+      { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: [] } },
+      { path: second, coverage: { commit: 'c0ffee', tests: [whole('a.test.ts')], modules: [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }] } },
+    ], new Map([['src/shared.ts', 'v1:base']]));
+
+    expect(read(sections.before)).toEqual({ 'b.test.ts > two': ['anon#1'] });
+    expect(lastCaseRunOf(sections)?.beforeTexts).toEqual({});
+  });
+
   it('names no text for a before layer kept in the row spelling, so a reader compares it as it always did', () => {
     // A record the row-spelling seams laid at this commit: neither layer opens as sets, so this run cuts no before of its own.
     const rows = encodeExecutionIndex(decodeExecutionIndex(index({ 'a.test.ts > one': ['alpha'] })));

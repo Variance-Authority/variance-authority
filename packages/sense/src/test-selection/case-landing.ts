@@ -200,8 +200,10 @@ export function layCases(
  * run retired, since `before` takes their regions from `retired`, and `kept`'s,
  * what the earlier runs at this commit named, for the rest. `undefined` when
  * neither names a text, or `before` is not spelled as sets, which only a
- * layer older than these texts is. A module `unlined` holds names none: it was
- * cut at another text than `cut` names, and its lines could not be carried.
+ * layer older than these texts is. A module `unlined` holds names none,
+ * whichever run retired it: the landing's index cut it at another text than
+ * `cut` names, and its lines could not be carried, so an earlier run at this
+ * commit that kept it at those lines named a text they do not stand at.
  */
 function textsOfBefore(
   before: Uint8Array | undefined,
@@ -216,7 +218,7 @@ function textsOfBefore(
   const ownRegions = new Set(retired === undefined ? [] : openSetExecutionIndex(retired)?.modules.map((module) => module.file));
   const texts: Record<string, string> = {};
   for (const { file } of modules) {
-    const text = ownRegions.has(file) ? (unlined.has(file) ? undefined : cut?.get(file)) : kept?.[file];
+    const text = unlined.has(file) ? undefined : ownRegions.has(file) ? cut?.get(file) : kept?.[file];
     if (text !== undefined) texts[file] = text;
   }
   return texts;
