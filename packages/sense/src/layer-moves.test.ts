@@ -71,4 +71,10 @@ describe('layerMoves', () => {
     expect(moves.causes.map((cause) => cause.package)).toEqual(['mid']);
     expect(moves.held).toEqual([]);
   });
+
+  it('lists held packages in code-unit order', () => {
+    const base = layered({ low: [], side: [], zeta: ['low'], alpha: ['low'] });
+    const head = layered({ low: [], side: [], zeta: ['side'], alpha: ['side'] });
+    expect(layerMoves(base, head).held.map((entry) => entry.package)).toEqual(['alpha', 'zeta']);
+  });
 });

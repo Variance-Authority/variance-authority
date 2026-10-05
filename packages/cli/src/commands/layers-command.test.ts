@@ -149,6 +149,38 @@ describe('variance layers', () => {
     ].join('\n'));
   });
 
+  it('tells a held package after the layer moves, under one heading', async () => {
+    const root = checkout();
+    await run(['index']);
+    const base = keepAsBase(root);
+    // `f` stops taking `e` and falls to layer 1; `e` also takes `a` and keeps its layer, one above `d`.
+    writeFileSync(join(root, 'packages/f/package.json'), JSON.stringify({ name: '@t/f', exports: { '.': './src/index.ts' } }));
+    writeFileSync(join(root, 'packages/f/src/index.ts'), 'export const f = [];\n');
+    writeFileSync(join(root, 'packages/e/package.json'), JSON.stringify({
+      name: '@t/e',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@t/a': '*', '@t/d': '*' },
+    }));
+    writeFileSync(join(root, 'packages/e/src/index.ts'), "import { a } from '@t/a';\nimport { d } from '@t/d';\nexport const e = [a, d];\n");
+    await run(['index']);
+
+    const told = await run(['layers', '--against', base, '--format', 'markdown']);
+
+    expect(told.out).toBe([
+      '<!-- variance-authority:layers -->',
+      '### Dependency layers',
+      '',
+      '1 package changed its layer by its own dependencies.',
+      '',
+      '- `@t/f` 6 → 1: no longer takes @t/e.',
+      '',
+      '1 package changed its own dependencies and kept its layer.',
+      '',
+      '- `@t/e` 5: takes @t/a.',
+      '',
+    ].join('\n'));
+  });
+
   it('refuses a base that holds no package layers, rather than reading it as nothing moved', async () => {
     checkout();
     await run(['index']);
