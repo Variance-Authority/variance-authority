@@ -74,14 +74,17 @@ export interface FileDistillation {
  * it.
  */
 export function distillFile(input: FileDistillInput): FileDistillation {
-  const file = testFileOf(input.coverage, input.file);
-  const cases = input.execution.tests
-    .map((test, at) => ({ test, at }))
-    .filter(({ test }) => test.file === file);
-  const candidates = input.coverage.modules.filter((module) => module.file !== file && module.instrumented && loadedBy(module, file));
+  return readTestFile(testFileOf(input.coverage, input.file), input);
+}
+
+/** {@link distillFile} for a test file named exactly as the record spells it. */
+export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>): FileDistillation {
+  const index = indexed(input.coverage, input.execution);
+  const cases = index.cases.get(file) ?? [];
+  const candidates = (index.loads.get(file) ?? []).filter((module) => module.file !== file);
   const base = { file, cases: cases.map(({ test }) => test), loaded: candidates.length };
   if (cases.length === 0) return { ...base, withheld: `the record keeps no cases for ${file}.` };
-  if (input.coverage.tests.some((test) => test.file === file && !test.complete)) {
+  if (index.incomplete.has(file)) {
     return {
       ...base,
       withheld: `the coverage row for ${file} is incomplete — a filtered, cancelled or stopped run, or source changed ` +
@@ -98,8 +101,10 @@ export function distillFile(input: FileDistillInput): FileDistillation {
   }
 
   const mine = new Set(cases.map(({ at }) => at));
-  const entries = new Map(input.execution.modules.map((module) => [module.file, enteredBy(module, mine)]));
-  const entered = new Map(candidates.map((module) => [module.file, entries.get(module.file)?.size ?? 0]));
+  const entered = new Map(candidates.map((module) => {
+    const executed = index.executed.get(module.file);
+    return [module.file, executed === undefined ? 0 : enteredBy(executed, mine).size];
+  }));
   const imports = input.imports;
   const cause = imports === undefined ? undefined : causesOf({
     file,
@@ -129,11 +134,45 @@ export function distillFile(input: FileDistillInput): FileDistillation {
 
 type CoverageModule = TestCoverage['modules'][number];
 
-/** The file's top level ran for `file` before its first case, and the module declares a function below it. */
-function loadedBy(module: CoverageModule, file: string): boolean {
-  const root = module.blocks.find((block) => block.kind === 'module');
-  return root?.loadedBy?.includes(file) === true &&
-    module.blocks.some((block) => block.kind === 'function' && block.source);
+/** A record's rows by the test file they belong to. */
+interface Indexed {
+  readonly cases: ReadonlyMap<string, readonly { readonly test: ExecutionTest; readonly at: number }[]>;
+  readonly incomplete: ReadonlySet<string>;
+  /** The instrumented modules each test file evaluated that declare a function below their top level. */
+  readonly loads: ReadonlyMap<string, readonly CoverageModule[]>;
+  readonly executed: ReadonlyMap<string, ExecutionIndex['modules'][number]>;
+}
+
+const indexes = new WeakMap<TestCoverage, WeakMap<ExecutionIndex, Indexed>>();
+
+/** The record indexed once, however many of its test files are read. */
+function indexed(coverage: TestCoverage, execution: ExecutionIndex): Indexed {
+  let byExecution = indexes.get(coverage);
+  if (byExecution === undefined) indexes.set(coverage, (byExecution = new WeakMap()));
+  const found = byExecution.get(execution);
+  if (found !== undefined) return found;
+  const cases = new Map<string, { test: ExecutionTest; at: number }[]>();
+  execution.tests.forEach((test, at) => push(cases, test.file, { test, at }));
+  const loads = new Map<string, CoverageModule[]>();
+  for (const module of coverage.modules) {
+    if (!module.instrumented || !module.blocks.some((block) => block.kind === 'function' && block.source)) continue;
+    // The file's top level ran for each of these test files before their first case.
+    for (const file of new Set(module.blocks.find((block) => block.kind === 'module')?.loadedBy ?? [])) push(loads, file, module);
+  }
+  const index: Indexed = {
+    cases,
+    incomplete: new Set(coverage.tests.filter((test) => !test.complete).map((test) => test.file)),
+    loads,
+    executed: new Map(execution.modules.map((module) => [module.file, module])),
+  };
+  byExecution.set(execution, index);
+  return index;
+}
+
+function push<T>(map: Map<string, T[]>, key: string, value: T): void {
+  const list = map.get(key);
+  if (list === undefined) map.set(key, [value]);
+  else list.push(value);
 }
 
 /**

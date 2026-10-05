@@ -32,6 +32,16 @@ export interface CauseInput {
   readonly entered: ReadonlyMap<string, number>;
 }
 
+type Row = TestCoverage['modules'][number];
+const rowsByCoverage = new WeakMap<TestCoverage, ReadonlyMap<string, Row>>();
+
+/** The record's rows by file, built once however many test files are read from it. */
+function rowsOf(coverage: TestCoverage): ReadonlyMap<string, Row> {
+  let rows = rowsByCoverage.get(coverage);
+  if (rows === undefined) rowsByCoverage.set(coverage, (rows = new Map(coverage.modules.map((module) => [module.file, module]))));
+  return rows;
+}
+
 /**
  * The cause of each load, read as dominance over the imports the test file
  * actually followed.
@@ -43,7 +53,7 @@ export interface CauseInput {
  * only turn an owned load into a shared one, never the reverse.
  */
 export function causesOf(input: CauseInput): (module: string) => LoadCause {
-  const rows = new Map(input.coverage.modules.map((module) => [module.file, module]));
+  const rows = rowsOf(input.coverage);
   const followed = (target: string): boolean => {
     const row = rows.get(target);
     if (row === undefined) return true;

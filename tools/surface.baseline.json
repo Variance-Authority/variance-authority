@@ -699,11 +699,18 @@
         "LoadCause": "type",
         "LoadedModule": "interface",
         "Region": "interface",
+        "ScopeDistillInput": "interface",
+        "ScopeDistillation": "interface",
+        "ScopeRecord": "interface",
+        "Spill": "interface",
+        "SpillCause": "type",
         "UpdatePhase": "interface",
         "distill": "function",
         "distillFile": "function",
+        "distillScope": "function",
         "formatDistillation": "function",
         "formatFileDistillation": "function",
+        "formatScopeDistillation": "function",
         "parseExecutionIndex": "function"
       }
     }
