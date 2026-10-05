@@ -2,13 +2,13 @@
 import { readFile } from 'node:fs/promises';
 import { parseExecutionIndex } from '@variance-authority/distill';
 import { OperatorError } from '../exit.js';
+import { suiteRecord } from './suite-record.js';
 import {
   caseSectionsAt,
   decodeExecutionIndex,
   isEncodedExecutionIndex,
   keepsCases,
   projectJourneyFile,
-  readableTestCoverage,
   type ExecutionIndex,
   type LineRange,
 } from '@variance-authority/sense/test-selection';
@@ -22,9 +22,9 @@ import {
  * that arm goes through `parseExecutionIndex`, which validates it field by
  * field, because nothing here recorded it.
  *
- * The first byte separates them: JSON opens on `{` or the whitespace before
- * it, and columns open on the little-endian length of a header. A coverage
- * record is read as the case index it carries.
+ * The frame separates them: columns open on the little-endian length of a
+ * header that follows it, and JSON opens on `{` after an optional byte order
+ * mark and whitespace. A coverage record is read as the case index it carries.
  */
 export async function readExecutionIndex(file: string): Promise<ExecutionIndex> {
   return executionIndexOf(await readFile(file));
@@ -33,7 +33,8 @@ export async function readExecutionIndex(file: string): Promise<ExecutionIndex> 
 /** {@link readExecutionIndex} for bytes already in hand, such as a record a share gave. */
 export function executionIndexOf(bytes: Uint8Array): ExecutionIndex {
   if (isEncodedExecutionIndex(bytes)) return decodeExecutionIndex(bytes);
-  return parseExecutionIndex(JSON.parse(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('utf8')));
+  // TextDecoder drops a leading byte order mark, which JSON.parse refuses.
+  return parseExecutionIndex(JSON.parse(new TextDecoder().decode(bytes)));
 }
 
 /**
@@ -74,14 +75,16 @@ export async function readExecutionFor(
  * A run writes its case index into the record its coverage is (spec 0094), so
  * the index is the record: with none named, the one a reader reads — the
  * nearest that holds it, which in a checkout that has not run is the mainline's
- * as last fetched here, else, in a worktree, the primary checkout's.
+ * as last fetched here, else, in a worktree, the primary checkout's. The suite
+ * is resolved as `review` resolves it, by {@link suiteRecord}: the only one
+ * declared when none is named, and a refusal naming them when several are.
  */
 export async function defaultExecutionFile(
   root: string,
   suite?: string,
   record?: string,
 ): Promise<string> {
-  return record ?? (await readableTestCoverage(root, { suite }));
+  return record ?? (await suiteRecord(root, suite));
 }
 
 /**

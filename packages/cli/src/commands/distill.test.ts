@@ -181,6 +181,27 @@ describe('the CLI distillation boundary', () => {
     expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'unit.ts', distance: 1 }]);
   });
 
+  it('asks for `--suite`, naming the declared suites, when several are declared and none is named', async () => {
+    const root = checkout();
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, e2e: { kind: 'e2e' } } }));
+
+    const answer = await run(['distill', '--test', 'plain']);
+
+    expect(answer.code).toBe(EXIT_OPERATOR);
+    expect(answer.err).toContain('declares the suites "e2e", "unit", and each records on its own; pass `--suite <name>`');
+  });
+
+  it('reads the only declared suite when none is named', async () => {
+    const root = checkout();
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    await indexed(testCoverageFile(root, { suite: 'unit' }), { ...plain, modules: [{ ...plain.modules[0]!, file: 'unit.ts' }] });
+
+    const answer = await run(['distill', '--test', 'plain', '--format', 'json']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(JSON.parse(answer.out).execution.entered).toEqual([{ file: 'unit.ts', distance: 1 }]);
+  });
+
   it('reads a case index named with --execution, which carries no journals', async () => {
     const root = checkout();
     const execution = join(root, 'execution.json');
