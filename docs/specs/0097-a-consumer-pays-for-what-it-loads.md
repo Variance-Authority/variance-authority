@@ -1,13 +1,14 @@
 # Spec 0097 — a consumer pays for what it loads
 
 **Missing:** nothing says what a lazy import loaded, or which load was
-paid up front and which later. Spec 0095 names the import that brought in
-what a test file never used, but only for static imports, read over the
-whole file. What a modal's `import()` loads when a case opens it is owned
-by no import and reads as `unseen`. The fold drops whether a module first
-evaluated inside a case, so a load paid when the file was collected looks
-the same as one paid when a case acted. A browser test's page is drained
-once, so its first load and what its interactions loaded are one sum.
+needed up front and which later. Spec 0095 names the import that brought
+in what a test file never used, but only for static imports, read over
+the whole file. What a modal's `import()` loads when a case opens it is
+owned by no import and reads as `unseen`. A static import evaluates its
+target at load, and nothing reads where its consumer used it, so an
+import needed when the file was collected looks the same as one needed
+only when a case acted. A browser test's page is drained once, so its
+first load and what its interactions loaded are one sum.
 **Built on:** the attribution of
 [spec 0095](0095-an-import-spills-what-the-test-never-used.md): weight,
 ownership by dominator rooted at the test file, the scope reading, and a
@@ -17,9 +18,12 @@ the scope reading is its item 6 on this repository; `distill --file` and
 which flags a region that ran while its module evaluated, keeps those
 ordinals in each case's frame, and charges them to the whole file
 ([spec 0059](0059-a-change-runs-the-cases-that-ran-it.md)); the
-`dynamic` edge kind in `Relations` and the scanner's dynamic request with
-its line; and the playwright-test collector, which drains each document
-once, at the test's teardown.
+`presence` regions the sense addon places in every module, one at every
+place control arrives; the addon's reader walk, which places each read
+of an imported binding in the function that holds it; the `dynamic` edge
+kind in `Relations` and the scanner's
+dynamic request with its line; and the playwright-test collector, which
+drains each document once, at the test's teardown.
 
 ## Purpose
 
@@ -33,23 +37,24 @@ editor and their locales is the same cost, paid later, by an action and
 through a lazy import. This spec reads that one.
 
 The north star is one reading of load cost for every consumer, at the
-moment it was paid:
+moment it was needed:
 
 - **What it reached:** the files its request loaded, owned by it.
 - **How much it consumed:** its spill's size and share, as spec 0095
   defines them. The avalanche is what that reading shows when a request
   took little and its spill is most of what it loaded. It is read from
   the two numbers, never cut at a threshold.
-- **When it was paid:** at the initial load or later, so a fix aims at the
-  moment that costs.
+- **When it was needed:** at the initial load or later, so a fix aims at
+  the moment that costs. For a lazy import, that is when it was paid.
 
-Initial load is what a test file pays outside every case, in collection
-or a hook, and what a page pays until its document's `load` event. Later
-load is what is paid when a case or an interaction reaches code nothing
-loaded yet. They call for different fixes. An initial cost is cut by
-narrowing or deleting an import. A later cost is cut by narrowing the lazy
-import that pays it, or accepted as a cost the user meets only when they
-act.
+Initial load is what a test file needs from its imports outside every
+case's frame, and what a page pays until its document's `load` event.
+Later load is what an import is needed for only inside a case or after
+an interaction, whether a lazy import paid for it then or a static
+import paid for it at load. They call for different fixes. An initial
+cost is cut by narrowing or deleting an import. A later cost is cut by
+making the import lazy, by narrowing the lazy import that pays it, or
+accepted as a cost the user meets only when they act.
 
 ## Definition
 
@@ -86,21 +91,25 @@ once.
 
 The record holds no order and no time
 ([ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md)), and
-this spec adds none to a test file's record. Initial and later split each
-loaded module by scope:
+this spec adds neither. Initial and later split each import by scope:
 
-- **In a test file,** a module is a later load when it first evaluated
-  inside some case's frame, and an initial load when it evaluated outside
-  every case frame: in collection or in any hook, the ambient bucket. The
-  fold keeps one fact per module and test file, beside the ordinals it
-  already keeps as loaded. It names no case, and selection still charges
-  a load to the whole file, as spec 0059 does. A load belongs to the
-  file, as spec 0095 says, because a module evaluates once per realm, for
-  whichever case imported it first, and which case that was depends on
-  the order the cases ran in. A later load is read per import, with the
-  cases that could have paid it left to the reader who asks for one case.
+- **In a test file,** an import is needed initially when its consumer
+  used it anywhere outside every case's frame, in collection or in a
+  hook, and needed later when every use came inside a case's frame. The
+  module behind a static import cannot say which: it evaluates when its
+  consumer does, whether or not the consumer ever uses it, so it reads
+  as loaded wherever its consumer loaded. Only the consumer holds the
+  moment, at the place it reads the import (below). A dynamic import or
+  a `require` inside a function evaluates its target when it runs, so its
+  call is the use, placed as a read is. The reading keeps one fact per
+  import and test file. It names no case, and selection still charges a
+  load to the whole file, as spec 0059 does, because a module evaluates
+  once per realm and which case paid for it depends on the order the
+  cases ran in.
 - **In a page,** what ran up to its document's `load` event is initial,
-  and what ran after it is later, for the test that drove it.
+  and what ran after it is later, for the test that drove it. A bundle
+  hides the consumer behind its chunks, so a page is split by when a load
+  was paid, which for a lazy chunk is when it was needed.
 
 The playwright-test collector drains each document once, at the test's
 teardown, so a test that loads a page and then clicks holds both moments
@@ -113,6 +122,57 @@ for load cost, and no phase is tagged on a probe. The Storybook collector
 navigates once per run, so a story has no `load` event of its own, and
 its loads are not split.
 
+### A use is read where the consumer reads the import
+
+The sense addon's reader walk already finds every read of an imported
+binding in the source and places it in the function that holds it, or on
+the module when it runs at load; it is what charges a changed constant to
+its readers. This spec extends that walk, never adds a second one. A
+read is placed in one of two ways, by what its consumer is:
+
+- **A module** is instrumented, so each read lands in the `presence`
+  region that holds it, and the run recorded whether that region was
+  entered outside every case's frame or only inside cases.
+- **A test file** is not instrumented: nothing enters one, and its own
+  edit is what runs it. A read is placed by the callback that holds it.
+  Inside a case's callback it is a use inside a case; at top level, in a
+  `describe` body or in a hook it is a use outside every case. A read in
+  a helper the file declares is asked of the helper's own readers, an
+  extension of the walk modelled on how it follows a pure binding's
+  readers, and one it cannot follow is a use outside every case.
+
+An import is needed initially when any of its uses is outside every
+case, and later when all of them are inside cases. A dynamic import or a
+`require` inside a function is placed by its call, as a read is.
+Nothing is added to the emitted code or to the running test.
+
+The fold folds the ambient bucket into every case of its file, so it
+drops which regions were entered outside every case. It keeps that fact
+per test file, one bit per region, taken from the ambient frames only.
+The `loaded` flag is not that fact: a module a case's `import()` pulls in
+evaluates inside the case's frame, and its region is flagged `loaded`
+all the same.
+
+A region is entered at its first statement, and a read later in it may
+never run: a call before it throws, or a loop exits early. Such a use
+reads as reached, in both directions. In a region entered outside every
+case it reads as initial, and the reading proposes narrowing an import
+that could be lazy. In a region entered only inside cases it reads as
+later, and the reading proposes making lazy an import that could be
+deleted.
+
+- **A probe at every read is not built.** It would record what the
+  regions already hold, a second implementation of region entry, and it
+  would be reconsidered only if the reached-but-not-run case above is
+  shown to change a reading.
+- **A proxy around what `require` returns is rejected.** It traps every
+  read of the module for as long as the test runs, not only the first,
+  and it hands the consumer an object that is not the module itself. A
+  spike built that way on react-hook-form's suite (252 source files, 122
+  test files, 1,492 cases) cost 2.3× on transform, 4.4% on runtime, and
+  about 14 KB of JSON per test file, against plain `@swc/jest`. The
+  reading above costs none of those at runtime.
+
 A later load can be divided by step only where the steps' order is
 already recorded. That is the opt-in story tap in Node, which is read for
 one case at a time and never for a suite
@@ -123,12 +183,16 @@ those, a later load is read per import and is not divided.
 
 ### Absent is not empty
 
-- A case whose frame wasn't kept leaves what it loaded **unmeasured**,
-  neither initial nor later.
-- A module that first evaluated in a continuation after its case had
-  ended lands in the ambient bucket and reads as initial. The recording
-  cannot tell it from a hook's load, so an initial load is read as "paid
-  outside every case", never as "paid before the cases ran".
+- An import of a module whose only uses lie in a case whose frame wasn't
+  kept is **unmeasured**, neither initial nor later. A test file's own
+  imports are placed by its source and are never unmeasured this way.
+- A run recorded under `entries` instead of `presence` holds module and
+  function regions only. Each read is held by a larger region, and more
+  reads that never ran read as reached.
+- A use in a continuation after its case had ended lands in the
+  ambient bucket and reads as initial. The recording cannot tell it from
+  a hook's use, so initial is read as "needed outside every case", never
+  as "needed before the cases ran".
 - A document replaced before it was drained leaves its test incomplete, as
   it does for execution, and its split isn't reported.
 - A dynamic import whose specifier isn't a quoted string has no edge, and
@@ -161,11 +225,19 @@ those, a later load is read per import and is not divided.
    reach, reported once as shared; a lazy import under an unused static
    import, owned by the static one; a non-literal `import()` still read as
    unseen.
-2. **The fold keeps whether a module first evaluated inside a case.** The
-   test file's reading splits weight into initial and later per import.
-   Fixtures: two cases where only one opens the modal, whose chunk reads
-   as later; a `require()` inside a function read as later and counted
-   once; a dropped frame read as unmeasured.
+2. **A use says whether an import was needed outside every case.**
+   The reader walk places each read of an import binding, and each
+   in-function `require` or `import()` call, in a module's region or a
+   test file's case or non-case callback; the fold keeps, per test file,
+   which regions were entered outside every case; and the test file's
+   reading splits weight into initial and later per import. Fixtures:
+   two cases where only one opens a statically imported modal, whose
+   import reads as later; the same modal opened through a helper the
+   file declares, read the same way; a `require()` inside a function read
+   as later and counted once; a hook's use read as initial; a component
+   whose import is read only in a handler a case fires, read as later; a
+   module consumer in a dropped frame read as unmeasured. The emitted
+   code and the runtime are unchanged.
 3. **A page splits its first load from what came after.** An ADR narrows
    ADR-0056's decision 3. The playwright-test collector drains at the
    document's `load` event and again at teardown, and selection is
