@@ -222,16 +222,16 @@ those, a later load is read per import and is not divided.
    reach, reported once as shared; a lazy import under an unused static
    import, owned by the static one; a non-literal `import()` still read as
    unseen.
-   **Discharged but for the line and spec 0092.** `causesOf` in
+   **Discharged but for the line.** `causesOf` in
    `@variance-authority/distill` walks the `lazy` edges it is handed beside
    the static ones, and marks an owning import that is dynamic only
    `lazy: true`. `variance distill` hands it the file graph's `dynamic`
    edges and prints that import as `lazily imports`. Fixtures in
-   `own.test.ts`, and a `React.lazy` modal read through the file graph in
-   the CLI's file reading. Open: the import's line, which `Relations` does
-   not carry and which comes with spec 0095's item 5 for every import; and
-   spec 0092's hole, which narrows when its reading, unbuilt, walks the
-   same edges.
+   `own.test.ts`, and, read through the file graph in the CLI's file
+   reading, a `React.lazy` modal and an `import()` of a template literal
+   that stays unseen. Spec 0092's hole names a non-literal dynamic import.
+   Open: the import's line, which `Relations` does not carry and which
+   comes with spec 0095's item 5 for every import.
 2. **A use says whether an import was needed outside every case.**
    The reader walk places each read of an import binding, and each
    in-function `require` or `import()` call, in a module's region or a

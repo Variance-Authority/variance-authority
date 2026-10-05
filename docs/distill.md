@@ -257,7 +257,7 @@ through, with nothing behind it that a case entered. Removing that import frees
 everything listed under it. The import is often not in the test file: above,
 the test imports the dialog, and the dialog imports the editor. The file graph
 is read from the checkout and walks imports, re-exports, and dynamic imports
-whose specifier is a literal. An import that is dynamic only reads as `lazily
+whose specifier is a quoted string. An import that is dynamic only reads as `lazily
 imports`: what is listed under it was loaded when the import ran, not when the
 file did. Two groups take what no one import accounts for:
 
@@ -265,7 +265,7 @@ file did. Two groups take what no one import accounts for:
   only one that does also brings in code a case entered. The line names the
   nearest file every path to the module runs through, which is where to look.
 - **No import the graph reads reaches these from the test file.** An import
-  or `require` whose specifier is not a literal, or the runner's own setup,
+  or `require` whose specifier is not a quoted string, or the runner's own setup,
   brought the module in.
 
 An import the record says the file never evaluated — a module mocked with a

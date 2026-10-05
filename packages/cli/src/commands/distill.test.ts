@@ -229,7 +229,7 @@ describe('the CLI distillation boundary', () => {
       version: 3,
       instrumentation: 'fixture-instrumentation',
       tests: [{ file: 'test/cart.spec.ts', complete: true, preconditions: [] }],
-      modules: ['src/cart.tsx', 'src/checkout-dialog.tsx', 'src/heavy-chart.tsx', 'src/rich-editor.tsx'].map((file, at) => ({
+      modules: ['src/cart.tsx', 'src/checkout-dialog.tsx', 'src/heavy-chart.tsx', 'src/rich-editor.tsx', 'src/locale-en.tsx'].map((file, at) => ({
         file, sourceDigest: file, instrumented: true, blocks: [root0(file, 10 * (at + 1)), fn(file, 'main')],
       })),
     });
@@ -248,11 +248,12 @@ describe('the CLI distillation boundary', () => {
     }));
 
     // The source the file graph is read from: the cart brought the chart in, the dialog brought the editor in
-    // when a case opened it, and no case drew either.
+    // when a case opened it, and no case drew either. A template literal leaves no edge, even with no substitution.
     const sources = {
       'test/cart.spec.ts': "import { Cart } from '../src/cart';\n",
       'src/cart.tsx': "import { Dialog } from './checkout-dialog';\nimport { Chart } from './heavy-chart';\nexport const Cart = [Dialog, Chart];\n",
-      'src/checkout-dialog.tsx': "import { lazy } from 'react';\nexport const Dialog = lazy(() => import('./rich-editor'));\n",
+      'src/checkout-dialog.tsx': "import { lazy } from 'react';\nexport const Dialog = lazy(() => import('./rich-editor'));\nexport const locale = () => import(`./locale-en`);\n",
+      'src/locale-en.tsx': 'export const words = {};\n',
       'src/rich-editor.tsx': 'export const Editor = 1;\n',
       'src/heavy-chart.tsx': 'export const Chart = 1;\n',
     };
@@ -267,18 +268,21 @@ describe('the CLI distillation boundary', () => {
     const answer = await run(['distill', '--file', 'cart.spec']);
 
     expect(answer.code).toBe(EXIT_CLEAN);
-    expect(answer.out).toContain('test/cart.spec.ts: 2 case(s); 4 loaded module(s) declare functions.');
+    expect(answer.out).toContain('test/cart.spec.ts: 2 case(s); 5 loaded module(s) declare functions.');
     expect(answer.out).toContain([
-      'Loaded, and entered by no case: 2 module(s), 70 line(s).',
+      'Loaded, and entered by no case: 3 module(s), 120 line(s).',
       '  src/checkout-dialog.tsx lazily imports src/rich-editor.tsx: 1 module(s), 40 line(s)',
       '    src/rich-editor.tsx — 40 line(s)',
       '  src/cart.tsx imports src/heavy-chart.tsx: 1 module(s), 30 line(s)',
       '    src/heavy-chart.tsx — 30 line(s)',
+      '  No import the graph reads reaches these from the test file: 1 module(s), 50 line(s)',
+      '    src/locale-en.tsx — 50 line(s)',
     ].join('\n'));
     expect(answer.out).toContain('  src/checkout-dialog.tsx — 20 line(s), entered by 1 of 2 case(s)');
     expect(answer.out).not.toContain('src/cart.tsx —');
     const json = JSON.parse((await run(['distill', '--file', 'cart.spec', '--format', 'json'])).out);
     expect(json.modules).toEqual([
+      { file: 'src/locale-en.tsx', lines: 50, entered: 0, cause: { kind: 'unseen' } },
       {
         file: 'src/rich-editor.tsx', lines: 40, entered: 0,
         cause: { kind: 'import', importer: 'src/checkout-dialog.tsx', imported: 'src/rich-editor.tsx', lazy: true },
