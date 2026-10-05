@@ -128,10 +128,11 @@ build minutes per commit, and unit tests selected per change fell from about
 **Next.js** answers it in the bundler: `optimizePackageImports` (Vercel, 2023)
 rewrites an import through a barrel package to the modules it uses.
 
-Spec 0095 attributes a test file's unused load to the import that owns it.
+[Spec 0095](../specs/0095-an-import-spills-what-the-test-never-used.md)
+attributes a test file's unused load to the import that owns it.
 [Spec 0097](../specs/0097-a-consumer-pays-for-what-it-loads.md) reads it per
-consumer and per moment: a static or lazy import, a case, a document's first
-load.
+lazy import and per moment: what a test file or a page paid up front, and what
+it paid later.
 
 ### Predictive test selection, and why it is not the model here
 

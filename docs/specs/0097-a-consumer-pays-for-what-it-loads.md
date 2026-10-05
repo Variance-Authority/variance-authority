@@ -1,180 +1,178 @@
 # Spec 0097 — a consumer pays for what it loads
 
-**Missing:** nothing says, for a consumer, how much it loaded against how
-much it used. Spec 0095 names the import that brought in what a test file
-never used, but it reads one moment, the file's collection, and one kind
-of consumer, a static import. A lazy import that fires when a case opens a
-modal is counted to no import and to no case. An import that only reads a
-constant looks the same as a dead one. A page's first load can't be told
-apart from what its interactions loaded later.
+**Missing:** nothing says what a lazy import loaded, or which load was
+paid up front and which later. Spec 0095 names the import that brought in
+what a test file never used, but only for static imports, read over the
+whole file. What a modal's `import()` loads when a case opens it is owned
+by no import and reads as `unseen`. The fold drops whether a module first
+evaluated inside a case, so a load paid when the file was collected looks
+the same as one paid when a case acted. A browser test's page is drained
+once, so its first load and what its interactions loaded are one sum.
 **Built on:** the attribution of
-[spec 0095](0095-an-import-spills-what-the-test-never-used.md): weight, the
-top-level-only rule, ownership by dominator rooted at the test file, and
-the product and published regimes. Also the test-selection recording,
-which flags a region that ran while its module evaluated and keeps those
-ordinals per case frame
-([spec 0027](0027-a-test-is-selected-by-what-it-executed.md)). And the
-`dynamic` edge kind in `Relations`, the scanner's dynamic request with its
-line, and the member reads it records through a namespace or an
-`import()`.
+[spec 0095](0095-an-import-spills-what-the-test-never-used.md): weight,
+ownership by dominator rooted at the test file, the scope reading, and a
+spill's size and share. Weight and ownership are its items 1 and 2, and
+the scope reading is its item 6 on this repository; `distill --file` and
+`distill` over a scope carry them. Also the test-selection recording,
+which flags a region that ran while its module evaluated, keeps those
+ordinals in each case's frame, and charges them to the whole file
+([spec 0059](0059-a-change-runs-the-cases-that-ran-it.md)); the
+`dynamic` edge kind in `Relations` and the scanner's dynamic request with
+its line; and the playwright-test collector, which drains each document
+once, at the test's teardown.
 
 ## Purpose
 
 A consumer asks for something and pays for whatever its request brings
 in. Asking for one constant and getting the module that defines it, every
 module that module imports, and every file behind a barrel on the way is
-the banana that came with the gorilla and the jungle. Rendering a modal
-that pulls in a date library, a rich-text editor and their locales is the
-same cost, paid later, by an action rather than by an import.
+the banana that came with the gorilla and the jungle. Spec 0095 reads that
+case for a test file's own imports, including an import that only reads a
+constant. Rendering a modal that pulls in a date library, a rich-text
+editor and their locales is the same cost, paid later, by an action and
+through a lazy import. This spec reads that one.
 
-The north star is one reading of that cost for every consumer, at the
+The north star is one reading of load cost for every consumer, at the
 moment it was paid:
 
-- **What it reached:** the files its request loaded, owned by it under the
-  attribution of spec 0095.
-- **How much it consumed:** the lines of what it loaded, against the lines
-  of what any case then used.
-- **Whether it avalanched:** the share of what it loaded that nothing used,
-  so an import that took one constant and loaded forty files heads the list
-  above one that loaded forty files and used thirty-nine.
+- **What it reached:** the files its request loaded, owned by it.
+- **How much it consumed:** its spill's size and share, as spec 0095
+  defines them. The avalanche is what that reading shows when a request
+  took little and its spill is most of what it loaded. It is read from
+  the two numbers, never cut at a threshold.
 - **When it was paid:** at the initial load or later, so a fix aims at the
   moment that costs.
 
-Initial load is what a test file pays before its first case, and what a
-page pays before its first interaction. Later load is what a case or an
-interaction pays when it reaches code nothing loaded yet. Both are
-valuable, and they call for different fixes. An initial cost is cut by
+Initial load is what a test file pays outside every case, in collection
+or a hook, and what a page pays until its document's `load` event. Later
+load is what is paid when a case or an interaction reaches code nothing
+loaded yet. They call for different fixes. An initial cost is cut by
 narrowing or deleting an import. A later cost is cut by narrowing the lazy
-import that pays it, or by accepting it as a cost the user meets only when
-they act.
+import that pays it, or accepted as a cost the user meets only when they
+act.
 
 ## Definition
 
 ### Consumers
 
-A consumer is a place that causes a load. There are four kinds:
+A consumer is an import that causes a load: a **static import**, as spec
+0095 reads it, or a **dynamic import**: a literal `import()`, `React.lazy`
+and every wrapper that compiles to one, each with the line the scanner
+gives it.
 
-| Consumer | Pays at | Read from |
-|---|---|---|
-| **A static import**, as its importer wrote it | Initial, when its importer evaluates | Spec 0095's ownership |
-| **A dynamic import**: a literal `import()`, `React.lazy` and every wrapper that compiles to one | Later, when the code around it runs | The `dynamic` edge, rooted at the import, with its line |
-| **A case** of a test file | Later, for what it evaluated first | The case frame's evaluating ordinals |
-| **A document** a browser test opened | Initial for its first load, later for what each interaction loaded | The page collector, drained per document |
+A dynamic import is a root of its own. Ownership stays spec 0095's,
+rooted at the test file, and walks dynamic edges too. What every path
+reaches only through one dynamic import is owned by that import, unless a
+static import above it is itself unused: then the topmost unused import
+owns it, as spec 0095 rules, because removing that import frees all of
+it. A file that a static and a dynamic import both reach is owned by
+neither. It is reported once, as shared, as spec 0095 reports a diamond.
+An import's size is exclusive: what a dynamic import nested under it owns
+is reported under the dynamic import, never twice. Today `distill` leaves
+`dynamic` out of the edges it walks, so a lazy import owns nothing and its
+files read as `unseen`.
 
-A `require()` inside a function is a static import to the scanner, which
-emits it as an import wherever it stands, but it pays later. It's read as
-a dynamic import when the recording shows its target evaluated inside a
-case.
+Spec 0092's choke-point reading walks the same edges. Its "dynamic
+import" hole narrows to a non-literal one once `dominatorsOf` walks
+dynamic edges.
 
-### What a consumer reached
-
-A static or dynamic import reached what it owns: the weight files and the
-used files behind it on the runtime graph, rooted where it stands, with
-factory mocks cutting their edge, as spec 0095 defines ownership. A
-dynamic import is a root of its own. What only it reaches is owned by it
-and not by the static import of its importer. Today `distill` leaves
-`dynamic` out of its loading edges, so this weight is reported as
-`unseen`.
-
-A case reached the modules first evaluated while it ran. A module
-evaluates once per realm, for the first case that imports it, so a later
-load belongs to the first case in the file's order that paid it. The case
-is named as the one that paid, never as the only one that needs the code.
-The consumer that answers for the cost is the import that loaded it,
-static or dynamic, and the case is the moment.
-
-### What it consumed
-
-For each consumer: the files and lines it loaded, the files and lines of
-those in which any case executed a declaration below the top level, and
-the difference. This is spec 0095's weight, counted per consumer and per
-moment instead of per test file.
-
-The **avalanche** is that difference read as a share of what the consumer
-loaded. A ranking orders consumers by unused lines, then by share. A
-consumer whose request was one name and whose load was a region is
-reported with both numbers, because the share is what makes it the banana.
-
-### A read is a use
-
-A read of an exported constant runs no region, so the recording can't see
-it, and an import that only reads a constant looks dead. The static side
-can see it. A named import says which names it takes, and the scanner
-records the member reads made through a namespace or an `import()`
-result. When every name an import takes resolves to a declaration that
-has no region below the top level, the import is a **read**: it was used,
-and what it owned beyond the file declaring those names is its avalanche.
-It is never proposed for deletion. It's proposed for the narrowest import
-that reaches the declaring file, under spec 0095's least-knowledge and
-regime rules.
+A `require()` inside a function is emitted by the scanner as an import
+wherever it stands, so it is owned as a static import. When its target
+evaluated inside a case, it is a later load (below). That is the same
+file read at a second moment, never a second owner, and it is counted
+once.
 
 ### Initial and later are scopes, not times
 
 The record holds no order and no time
 ([ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md)), and
-this spec adds none. Initial and later are a partition by scope:
+this spec adds none to a test file's record. Initial and later split each
+loaded module by scope:
 
-- **In a test file:** what evaluated outside any case, in collection and in
-  `beforeAll`, is initial. What evaluated inside a case's frame is later,
-  for that case.
-- **In a document:** what ran before the page settled from its first
-  navigation is initial. What ran after is later, for the test that drove
-  it.
+- **In a test file,** a module is a later load when it first evaluated
+  inside some case's frame, and an initial load when it evaluated outside
+  every case frame: in collection or in any hook, the ambient bucket. The
+  fold keeps one fact per module and test file, beside the ordinals it
+  already keeps as loaded. It names no case, and selection still charges
+  a load to the whole file, as spec 0059 does. A load belongs to the
+  file, as spec 0095 says, because a module evaluates once per realm, for
+  whichever case imported it first, and which case that was depends on
+  the order the cases ran in. A later load is read per import, with the
+  cases that could have paid it left to the reader who asks for one case.
+- **In a page,** what ran up to its document's `load` event is initial,
+  and what ran after it is later, for the test that drove it.
 
-A later load can be divided by step only where the order of steps is
-already recorded: the opt-in story tap in Node, and the Eyes journal joined
-by [spec 0054](0054-eyes-attention-is-read-as-test-steps.md). Without one
-of those, a later load is read per case or per test, and is not divided.
+The playwright-test collector drains each document once, at the test's
+teardown, so a test that loads a page and then clicks holds both moments
+as one set. The split needs a second drain of the same document, at its
+`load` event. That is a runtime addition ADR-0056's decision 3 does not
+allow, so it lands with an ADR that narrows that decision, as ADR-0076
+narrows ADR-0056 for the story. Selection reads the union of the two
+drains, so it answers exactly as it does with one. The split is read only
+for load cost, and no phase is tagged on a probe. The Storybook collector
+navigates once per run, so a story has no `load` event of its own, and
+its loads are not split.
+
+A later load can be divided by step only where the steps' order is
+already recorded. That is the opt-in story tap in Node, which is read for
+one case at a time and never for a suite
+([ADR-0076](../context/adr/0076-a-story-is-the-order-one-case-visited.md)), and
+the Eyes journal joined by
+[spec 0054](0054-eyes-attention-is-read-as-test-steps.md). Without one of
+those, a later load is read per import and is not divided.
 
 ### Absent is not empty
 
-- A case whose frame wasn't kept has an **unmeasured** later load, not an
-  empty one.
+- A case whose frame wasn't kept leaves what it loaded **unmeasured**,
+  neither initial nor later.
+- A module that first evaluated in a continuation after its case had
+  ended lands in the ambient bucket and reads as initial. The recording
+  cannot tell it from a hook's load, so an initial load is read as "paid
+  outside every case", never as "paid before the cases ran".
 - A document replaced before it was drained leaves its test incomplete, as
   it does for execution, and its split isn't reported.
-- A dynamic import whose specifier isn't a literal has no edge. What it
-  loaded stays **unseen**, named with the case that loaded it.
-- A read through a holder passed to another function lists no member, so
-  the import isn't read as a read. It falls back to spec 0095's reading.
+- A dynamic import whose specifier isn't a quoted string has no edge, and
+  neither does a template literal, even one with no substitution. What it
+  loaded stays **unseen**.
 
 ## Where it is read
 
-- **In `variance distill`,** for one case, one test file or a scope. A
-  test file's reading splits its weight into initial and later, and heads
-  each with the consumers that paid it, largest unused first. The
-  dynamic-import consumers carry their line.
-- **For a page,** in the browser collectors' readings: the initial load of
-  each document beside what each test's interactions added to it.
+- **In `variance distill`,** for one test file or a scope. A test file's
+  reading splits its weight into initial and later, and heads each with
+  the imports that own it, largest spill first. A dynamic import carries
+  its line.
+- **For a page,** in the playwright-test collector's reading: each
+  document's first load beside what the test's interactions added to it.
 
 ## Not part of it
 
 - **Bytes shipped.** A bundler decides what a user downloads. This reading
   counts the source a test or a page evaluated, which is what a fix to an
-  import changes, and leaves transfer size to the tools that read bundles.
+  import changes. Transfer size is left to the tools that read bundles.
 - **Time.** No duration is recorded and none is inferred from the counts.
 
 ## What would discharge it
 
-1. **A dynamic import owns what only it reaches.** Fixtures: a
-   `React.lazy` modal whose files `distill` reports under the `import()`
-   with its line rather than as `unseen`; a module both a static and a
-   dynamic import reach, owned by neither.
-2. **A case keeps what it loaded.** The fold keeps which case's frame first
-   evaluated each module, and a test file's reading splits weight into
-   initial and later per case. Fixtures: two cases where only one opens the
-   modal; a `require()` inside a function read as later; a dropped frame
-   read as unmeasured.
-3. **A read is a use.** An import taking only names that resolve to
-   region-less declarations is reported as a read with its avalanche and
-   the narrowest import, and never as dead. Fixtures: a constant behind a
-   barrel, a namespace read through a member, an enum.
-4. **The avalanche ranking** per consumer, in text and in `--format json`,
-   with unused lines and the share.
-5. **A document splits its first load from what came after.** The page
-   collector drains once when the first navigation settles and again at
-   teardown. Fixture: a page whose modal chunk loads on a click.
-6. **A later load per step,** read through the story tap in Node, and
+1. **A dynamic import owns what only it reaches.** This replaces the
+   fixture under spec 0095's item 2 in which a dynamic import reads as
+   unseen, and amends spec 0092's hole to a non-literal dynamic import.
+   Fixtures: a `React.lazy` modal whose files `distill` reports under the
+   `import()` with its line; a module both a static and a dynamic import
+   reach, reported once as shared; a lazy import under an unused static
+   import, owned by the static one; a non-literal `import()` still read as
+   unseen.
+2. **The fold keeps whether a module first evaluated inside a case.** The
+   test file's reading splits weight into initial and later per import.
+   Fixtures: two cases where only one opens the modal, whose chunk reads
+   as later; a `require()` inside a function read as later and counted
+   once; a dropped frame read as unmeasured.
+3. **A page splits its first load from what came after.** An ADR narrows
+   ADR-0056's decision 3. The playwright-test collector drains at the
+   document's `load` event and again at teardown, and selection is
+   unchanged on the union. Fixture: a page whose modal chunk loads on a
+   click.
+4. **A later load per step,** read through the story tap for one case, and
    through spec 0054's join where it lands.
-7. **Measured on this repository and on the seven-MUI corpus,** with the
-   time stated against `covering` on the same record. The public page
-   states the reading and lands its terms before any output prints them.
+5. **Measured with spec 0095's item 6** on the seven-MUI corpus. The public
+   page that spec 0095's item 7 names states initial and later load and
+   lands both terms before any output prints them.
