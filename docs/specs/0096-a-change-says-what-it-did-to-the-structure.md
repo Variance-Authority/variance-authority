@@ -19,55 +19,51 @@ heads every source file.
 
 Variance Authority reads two things about a codebase: what the project
 declares, and what the code measurably does. The variance is their
-difference. Application structure is the coarsest place to read it. The
-declaration is the architecture chart and the import rules. The measurement
-is the import graph, rolled up from files to the blocks a person reasons
-about.
+difference. Application structure is the coarsest place to read it, and the
+place where what to read is least settled.
 
-A structure reading answers three questions about a change:
-
-1. **What edges between blocks did it add or remove?** Derived from the code
-   alone, with no declaration.
-2. **What did it carry across a block boundary?** Code that left one block
-   and arrived in another, which can leave every edge between blocks as it
-   was.
-3. **Where does the code now disagree with the declaration?** A measured
-   edge between two blocks that the chart does not declare, and a declared
-   edge that no import carries.
-
-The reader of each answer is named:
+The readers are named:
 
 - **The pull request.** The `layers` comment, which already clears itself
   when there is nothing to say.
-- **A planner that reads the codebase before it changes it.** For example, an
-  agent's orientation phase reads the derived structure as evidence of how
-  things are, and never as a plan. Drift is a state, not a planned change.
-- **The chart.** A declaration that the measured graph contradicts is a
-  declaration to update, and the reading names the line.
+- **A planner that reads the codebase before it changes it.** It reads the
+  structure as evidence of how things are, and never as a plan. Drift is a
+  state, not a planned change.
+- **The chart.** A declaration the measurements contradict is a declaration to
+  update, and the reading names the line.
 
-## Definition
+## The open question: what the structure is
 
-A **block** is a unit of the application's structure. There are two grains:
+The first definition here made an edge an import between two blocks and the
+structure the import graph rolled up. That reads the minority signal: in the
+field's measurements, 91% of the links between files that change together
+have no import behind them, and no recovered architecture can be scored
+against a true one. The [prior art](../context/prior-art.md#architecture-that-keeps-what-matters)
+holds the figures.
 
-- **Derived:** a workspace package. Variance Authority computes it from the
-  manifest with no input from the project.
-- **Declared:** a block of the Compass chart, which owns the files whose
-  `// compass:` coordinate names it.
+The position this spec now works from, unmeasured:
 
-An **edge** between two blocks exists when a file in one imports a file in
-the other at runtime. Edges are compared without direction, because a
-declared "communicates with" names a flow of data, while an import names who
-consumes whom.
+- **Architecture is what is worth remembering about the code**, the good and
+  the bad, without the details. It is coupled to neither the import graph nor
+  the execution graph, and it is read from both.
+- **A fact is kept because evidence ranks it, and it carries its reason.**
+  Candidate signals: the audience of a region (cases that enter it, packages
+  that import it), the cost attributed to it, its failures and rejected
+  reviews, how often it changes, and where those signals disagree with each
+  other and with the declaration.
+- **What is kept is small, and forgetting is a policy.** A budget, decay from
+  the last time a change, a run or a review touched it, and consolidation from
+  file facts into block statements. A superseded fact is marked with when it
+  stopped holding, not deleted.
+- **It is judged by prediction.** A kept set is worth building only if it
+  predicts the next merges' failures and changes better than size, import
+  in-degree and a plain change count.
 
-**Scale is read from the diff.** The number of blocks a change touches sets
-how much is reported. A change across blocks reports edges between blocks and
-never the file edges under them. A change inside one block reports the file
-edges it added or removed, because at that scale they are the structure. A
-reading that lists leaves for a trunk-scale change is noise. Across the
-twenty-five merges measured below, the trunk-scale reading produced one event
-and no noise.
+### Blocks and absence
 
-### Absent is not empty
+A **block** is a unit of the application's structure at two grains: a
+workspace package, derived from the manifest; and a block of the Compass
+chart, which owns the files whose `// compass:` coordinate names it.
 
 - A base index with no code map is refused, as `layers` refuses it today. It
   is never read as "no edges".
@@ -115,29 +111,29 @@ that the chart does not connect.
 
 ## What does not
 
-1. **Code crossing a block boundary.** The package-grain reading misses a
-   move like #162. A move is read from declarations that left one block and
-   arrived in another between the two indexes. On #162, matching by exported
-   name pairs nine of eleven; matching by the body's normalized shape is
-   unmeasured. Fixtures: a whole
-   file renamed across packages, a function extracted and renamed, and a
-   function copied with the original kept.
-2. **The declared reading.** The edges between Compass blocks, measured from
-   the code map and compared with the chart's declared edges. Fixtures: an
-   undeclared edge added by the change; a declared edge with no import, read
-   as not seen in imports; and a shared vocabulary block, which every block
-   imports. That block is reported once as shared, not as an edge to each
-   block.
-3. **The scale rule.** A change inside one block reports its file edges; a
-   change across blocks reports only block edges. Fixture: the same file edge
-   reported in a single-block change and silent in a cross-block change.
-4. **A structure for a consumer that cannot import.** The derived and declared
-   blocks, their edges, and the variance between them, written in one machine
-   format that a diagram tool or an orientation phase reads without linking
-   this package. It is a format for a consumer, and never a second reading
-   surface.
-5. **The public page.** [`boundaries.md`](../boundaries.md) states the
-   declared reading and lands "block" before any output prints it.
-6. **A measurement on a corpus that is not this repository.** The replay above
-   on the seven-MUI corpus at package grain, with the time stated against
-   `variance layers --against`.
+1. **History of the structure.** A share keeps only the latest record of a
+   mainline or branch, a source index has no history, and only visual subjects
+   have a past. A memory cannot be read from one snapshot; this comes before
+   any ranking.
+2. **The prediction replay.** Over the last merges of this repository and the
+   seven-MUI corpus, a kept set ranked by the signals above is compared with
+   size, import in-degree and change count on the next merges' failures and
+   changes. If it does not beat them, items 3 to 7 are not built.
+3. **Change and co-change from git** for files and packages. Only visual
+   component churn is collected.
+4. **Audience and cost as ranked outputs.** Crossings per region are recorded
+   and never ranked
+   ([spec 0049](0049-nothing-can-ask-the-record-where-it-stands.md) names it), and case
+   duration is never attributed to the regions a case entered.
+5. **Pain joined to source.** Failures, flakes and review outcomes are keyed by
+   visual subject or by the latest run, never by file, region or package.
+6. **Code crossing a block boundary.** The package-grain reading misses a
+   move like #162. On #162, matching by exported name pairs nine of eleven;
+   matching by the body's normalized shape is unmeasured.
+7. **The declared reading.** Nothing parses the chart's blocks or its
+   "Communicates with" and "Uses" sections, so measured and declared edges are
+   never compared. A shared vocabulary block, which every block imports, is
+   reported once as shared.
+8. **A structure for a consumer that cannot import.** One machine format that
+   a diagram tool or an orientation phase reads without linking this package.
+   It is a format for a consumer, and never a second reading surface.
