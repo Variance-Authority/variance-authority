@@ -170,6 +170,37 @@ describe('baselines and a report', () => {
     ]);
   });
 
+  it('restore, on a line that saves none, what a mainline saved, as a recording does', () => {
+    const into = (mainlines: Parameters<typeof carryPlan>[0]['mainlines']) =>
+      carryPlan({
+        direction: 'restore',
+        root,
+        config: project({ reportCarry: 'actions-cache' }),
+        run: { ...PULL, baseRef: 'feat/stacked' },
+        mainlines,
+      }).cached.map((one) => one.restoreKeys);
+
+    expect(into({ names: ['main', 'release/2'] })).toEqual([
+      [
+        `variance-shop-baselines:feat/stacked:${SHA}-`,
+        'variance-shop-baselines:feat/stacked:',
+        'variance-shop-baselines:main:',
+        'variance-shop-baselines:release/2:',
+      ],
+      [
+        `variance-shop-report:feat/stacked:${SHA}-`,
+        'variance-shop-report:feat/stacked:',
+        'variance-shop-report:main:',
+        'variance-shop-report:release/2:',
+      ],
+    ]);
+    // With no mainline known, there is none to fall back to.
+    expect(into({ missing: ['config', 'remote-head', 'event'] })).toEqual([
+      [`variance-shop-baselines:feat/stacked:${SHA}-`, 'variance-shop-baselines:feat/stacked:'],
+      [`variance-shop-report:feat/stacked:${SHA}-`, 'variance-shop-report:feat/stacked:'],
+    ]);
+  });
+
   it('leave what `share` carries to `share`, and say so', () => {
     const plan = carryPlan({
       direction: 'save',

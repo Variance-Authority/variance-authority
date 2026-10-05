@@ -206,7 +206,8 @@ runs:
         $VARIANCE_COMMAND carry restore --config "$VARIANCE_CONFIG" --format github >> "$GITHUB_OUTPUT"
 
     # Saved keys end in the run, so no key is exact and the newest prefix match
-    # wins: this commit's accept first, then the newest on the line. A pull
+    # wins: this commit's accept first, then the newest on the line, then the
+    # newest on another mainline, for a line nobody accepted on. A pull
     # request searches its own cache scope before its base's, which is how an
     # accept made on it outranks what the base painted since.
     - if: ${{ steps.carry.outputs.baselines-key != '' }}
