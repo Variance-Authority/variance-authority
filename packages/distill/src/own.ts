@@ -12,8 +12,8 @@ import type { TestCoverage } from '@variance-authority/sense/test-selection';
  * `shared`: no import brings the module in alone — two paths reach it, or the
  * import that does also brings in code a case entered; `parts` is the nearest
  * file every path to it runs through. `unseen`: no import the graph reads
- * reaches it from the test file, so a dynamic import whose specifier is not a
- * literal, or the runner, brought it in.
+ * reaches it from the test file, so a dynamic import or `require` whose
+ * specifier is not a quoted string, or the runner, brought it in.
  */
 export type LoadCause =
   | { readonly kind: 'import'; readonly importer: string; readonly imported: string; readonly lazy?: true }
@@ -36,7 +36,7 @@ export interface CauseInput {
   readonly file: string;
   /** The files a file imports statically — imports, re-exports and assets — by the names the record uses. */
   readonly imports: (file: string) => readonly string[];
-  /** The files a file imports dynamically, by a literal specifier. Unsaid, a lazy import owns nothing and its files read as unseen. */
+  /** The files a file imports dynamically, by a quoted string. Unsaid, a lazy import owns nothing and its files read as unseen. */
   readonly lazy?: (file: string) => readonly string[];
   /** Whether every file a file imports, it also re-exports: a barrel. Unsaid, no file reads as one. */
   readonly republishes?: (file: string) => boolean;

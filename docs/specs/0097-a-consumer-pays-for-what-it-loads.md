@@ -74,9 +74,8 @@ neither. It is reported once, as shared, as spec 0095 reports a diamond.
 An import's size is exclusive: what a dynamic import nested under it owns
 is reported under the dynamic import, never twice.
 
-Spec 0092's choke-point reading walks the same edges. Its "dynamic
-import" hole narrows to a non-literal one once `dominatorsOf` walks
-dynamic edges.
+Spec 0092's choke-point reading walks the same edges, so its "dynamic
+import" hole is one whose specifier is not a quoted string.
 
 A `require()` inside a function is emitted by the scanner as an import
 wherever it stands, so it is owned as a static import. When its target
@@ -220,8 +219,8 @@ those, a later load is read per import and is not divided.
    Fixtures: a `React.lazy` modal whose files `distill` reports under the
    `import()` with its line; a module both a static and a dynamic import
    reach, reported once as shared; a lazy import under an unused static
-   import, owned by the static one; a non-literal `import()` still read as
-   unseen.
+   import, owned by the static one; an `import()` whose specifier is not a
+   quoted string still read as unseen.
    **Discharged but for the line.** `causesOf` in
    `@variance-authority/distill` walks the `lazy` edges it is handed beside
    the static ones, and marks an owning import that is dynamic only

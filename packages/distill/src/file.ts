@@ -21,7 +21,7 @@ export interface FileDistillInput {
    */
   readonly imports?: (file: string) => readonly string[];
   /**
-   * The files a file imports dynamically, by a literal specifier. Given with
+   * The files a file imports dynamically, by a quoted string. Given with
    * `imports`, what only a lazy import reaches is owned by it; unsaid, it
    * reads as unseen.
    */
