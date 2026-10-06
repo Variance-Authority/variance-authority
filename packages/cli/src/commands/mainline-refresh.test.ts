@@ -123,6 +123,19 @@ describe('a workstation reader past the reuse window', () => {
     expect(existsSync(lock.path)).toBe(false);
   });
 
+  it('fetches before it answers when starting the process throws, and leaves no lock behind', async () => {
+    const { base, second, lock } = await behind();
+    const detach: Detach = () => {
+      throw new Error('the log could not be opened');
+    };
+
+    const read = await base(LATER, detach);
+
+    expect(read).toMatchObject({ commit: second, fetched: at(LATER) });
+    expect(read).not.toHaveProperty('earlier');
+    expect(existsSync(lock.path)).toBe(false);
+  });
+
   it('fetches before it answers when the lock does not read, and leaves that lock where it is', async () => {
     const { base, second, lock } = await behind();
     await writeFile(lock.path, 'not a lock\n');

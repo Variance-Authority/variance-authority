@@ -121,7 +121,13 @@ if (entry !== undefined && isProgram(entry)) {
  * `main` called by a library has no process to relaunch, and does the work itself.
  */
 function relaunch(argv: readonly string[], log: string): number | undefined {
-  const out = openSync(log, 'w');
+  let out: number;
+  try {
+    out = openSync(log, 'w');
+  } catch {
+    // No log, no process: the caller does the work itself.
+    return undefined;
+  }
   try {
     const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), ...argv], {
       detached: true,

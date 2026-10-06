@@ -38,14 +38,14 @@ export function refreshMainline(readRoot: string, suite: string, detach: Detach)
       releaseLock(path, held.pid);
       if (!takeLock(path, { pid: process.pid, log })) return undefined;
     }
+    const pid = detach(['share', '--suite', suite], log);
+    if (pid === undefined) return undefined;
+    const lock = { pid, log };
+    handLock(path, lock);
+    return lock;
   } catch {
     return undefined;
   }
-  const pid = detach(['share', '--suite', suite], log);
-  if (pid === undefined) return undefined;
-  const lock = { pid, log };
-  handLock(path, lock);
-  return lock;
 }
 
 /** The part of a reader's note that names the process fetching the mainline's record, and where its output goes. */
