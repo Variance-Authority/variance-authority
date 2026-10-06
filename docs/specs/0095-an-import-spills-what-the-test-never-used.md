@@ -77,13 +77,27 @@ none of them.
 
 | Owning import | Reading | Proposal |
 |---|---|---|
+| In F, taking at least one name, every one of which resolves to declarations with nothing below their top level | **A read.** F used it for a constant, which runs no region, so the recording can't see the use. What it owns beyond the file declaring those names is its spill. | The narrowest import that reaches the declaring file, under the rules below. Never deletion. |
 | In F, with only weight behind it | **A dead import.** F loaded everything behind it and used none of it. | Delete it, or mock it with a factory if it is there for its side effects. |
 | In F or a used file, with a barrel behind it that leads to used and weight files | **A barrel spill.** F used some of what the barrel re-exports and loaded the rest. | The narrowest import the regime of the barrel's package allows (below). |
 | In a used file other than F | **An import F does not write.** A file F used imports something F never needed. | None at the test. The import is named with the file that writes it, as a fact about that file. |
 
+The first row that matches decides.
+
 A spill is reported by its size, the files and lines it owns that F loaded and
-never executed, and by the number of other test files the same import spills
-into.
+never executed; by its **share**, that size over every line F loaded through
+the import, used or not, which is everything the import dominates and wider
+than what it owns; and by the number of other test files the same import
+spills into. Spills rank by size. The share is a second column, read beside
+the size: two imports that each spill forty files read the same by size, and
+the share separates the one that loaded forty-one files for a constant from
+the one that loaded four hundred and used most of them.
+
+Which names an import takes is static: a named import lists them, and the
+scanner records the member reads made through a namespace or an `import()`
+result. An import that takes no name, such as `import './x'`, or a namespace
+whose holder is handed to another function and so lists no member, is never
+read as a read.
 
 ### Least knowledge
 
@@ -91,7 +105,8 @@ The boundary is the package. A proposal names only a specifier F already
 writes, a path inside the importer's own package, or an entry point another
 package declares. It never names a file inside another package by a path its
 `exports` do not declare, and it never proposes rewriting an import to such a
-path. 
+path.
+
 ### Who the package is for
 
 The barrel's package decides which narrower import may be proposed, and its
@@ -121,7 +136,8 @@ proposal moves to the import.
 - A weight file with no runtime path from F on the graph was loaded by
   something the scan cannot see: a dynamic import, a harness file, a specifier
   that is not a literal. It is named as **unseen**, owned by no import, and given
-  no proposal.
+  no proposal. A literal dynamic import becomes an owner of its own under
+  [spec 0097](0097-a-consumer-pays-for-what-it-loads.md).
 - A mock with a factory cuts its edge, and nothing behind it is loaded. A mock
   that did not take is `auditTaints`' finding, not this one's.
 
@@ -190,3 +206,6 @@ top of this one, per case rather than per file, and is not part of this spec.
    corpus is not measured.
 7. The public page: [`optimize-a-test.md`](../optimize-a-test.md) states the
    reading and lands its terms before any output prints them.
+8. A read is a use, and every spill carries its share. Fixtures: a constant
+   behind a barrel, a namespace read through a member, and an enum, each
+   reported as a read with the narrowest import and never as dead.

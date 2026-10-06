@@ -99,6 +99,41 @@ the tests executed, is
 firewall walks the same graph to widen a selection; a dominator bounds how far
 an edit inside its region can widen.
 
+### Load cost: what a request brings in
+
+**Joe Armstrong** named the shape in his interview in Peter Seibel's *Coders
+at Work* (2009). You ask for a banana and get the gorilla holding it, and the
+jungle with it. He meant objects that carry their environment with them, and a
+module that imports its world does the same.
+
+The browser tools measure the cost per file and stop there. The **Chrome
+DevTools Coverage** panel reports the used and unused bytes of each script and
+stylesheet. It records the page load and keeps recording through the
+interactions that follow, until you stop it, so it holds initial and later
+load as one sum. **Lighthouse**'s unused-JavaScript audit reads V8 coverage per
+script and flags any script with more than 20 KiB unused. A standard Lighthouse
+run measures the page load only. Neither names the import that brought a byte
+in. The bundle readers, **webpack-bundle-analyzer**, **source-map-explorer** and
+**Statoscope**, size what a build shipped, and Wix's **Import Cost** shows the
+bundled size of a package beside the line that imports it. All of them measure
+bytes shipped, not what a test or a session used.
+
+The barrel is the measured case. **Marvin Hagemeister** (*The barrel file
+debacle*, 2023) showed that loading cost grows with the number of modules a
+re-export file pulls in, and that test runners, which don't tree-shake, pay the
+most. **Atlassian** (*How We Achieved 75% Faster Builds by Removing Barrel
+Files*, 2025) removed barrels from the Jira frontend. They report 75% fewer
+build minutes per commit, and unit tests selected per change fell from about
+1,600 to 200. Removing barrels sharpened selection as much as it saved loading.
+**Next.js** answers it in the bundler: `optimizePackageImports` (Vercel, 2023)
+rewrites an import through a barrel package to the modules it uses.
+
+[Spec 0095](../specs/0095-an-import-spills-what-the-test-never-used.md)
+attributes a test file's unused load to the import that owns it.
+[Spec 0097](../specs/0097-a-consumer-pays-for-what-it-loads.md) reads it per
+lazy import and per moment: what a test file or a page paid up front, and what
+it paid later.
+
 ### Predictive test selection, and why it is not the model here
 
 **Facebook's predictive test selection** (Machalica et al., ICSE-SEIP 2019)
