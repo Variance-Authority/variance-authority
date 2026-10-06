@@ -78,8 +78,8 @@ export async function gitDigests(
     digests.set(relative, blob(fields[2]));
   }
 
-  if (changed === undefined) await overlayWorkingTree(root, digests, prefix === '');
-  else await overlayKnownChanges(root, digests, changed);
+  if (changed === undefined) await overlayWorkingTree(root, digests, prefix);
+  else await overlayKnownChanges(root, digests, changed, prefix);
 
   return digests;
 }
@@ -99,6 +99,7 @@ async function overlayKnownChanges(
   root: string,
   digests: Map<string, Digest>,
   changed: readonly string[],
+  prefix: string,
 ): Promise<void> {
   const paths = [...new Set(changed)];
   for (const path of paths) {
@@ -110,7 +111,7 @@ async function overlayKnownChanges(
     // the committed object name from claiming the old bytes are still present.
     digests.delete(path);
   }
-  for (const [path, digest] of await hashOnDisk(root, await filesAmong(root, paths))) digests.set(path, digest);
+  for (const [path, digest] of await hashOnDisk(root, prefix, await filesAmong(root, paths))) digests.set(path, digest);
 }
 
 /**
@@ -119,9 +120,16 @@ async function overlayKnownChanges(
  * Failure here removes the disagreeing paths rather than leaving them: a stale
  * digest on an edited file is a subject nobody observes, and no digest at all is
  * a file the scan hashes for itself.
+ *
+ * `prefix` is where `root` sits below the top of its checkout, as
+ * `rev-parse --show-prefix` spells it. Porcelain status names every path from
+ * that top wherever it runs, so each one is cut to the scan root before it meets
+ * a digest key. Below the top, status is asked with `-- .`, so every path it
+ * names is under the root: a rename across the root is a deletion or an
+ * addition on the root's side.
  */
-async function overlayWorkingTree(root: string, digests: Map<string, Digest>, top: boolean): Promise<void> {
-  const changes = await workingTreeChanges(root, top);
+async function overlayWorkingTree(root: string, digests: Map<string, Digest>, prefix: string): Promise<void> {
+  const changes = await workingTreeChanges(root, prefix);
   if (changes === undefined) {
     digests.clear();
     return;
@@ -131,7 +139,7 @@ async function overlayWorkingTree(root: string, digests: Map<string, Digest>, to
   // unreadable, or vanished between the two calls — hands the question back to
   // the scan rather than keeping a committed digest for contents nobody saw.
   for (const path of changes.changed) digests.delete(path);
-  for (const [path, digest] of await hashOnDisk(root, await filesAmong(root, changes.changed))) digests.set(path, digest);
+  for (const [path, digest] of await hashOnDisk(root, prefix, await filesAmong(root, changes.changed))) digests.set(path, digest);
 }
 
 /**
@@ -159,9 +167,14 @@ async function filesAmong(root: string, paths: readonly string[]): Promise<strin
  * One subprocess for every path, because `hash-object` reads its list from stdin.
  * The paths come back in the order they went in, which is the only thing pairing
  * them — `hash-object` prints digests and nothing else.
+ *
+ * `--stdin-paths` reads each path from the top of the checkout, whatever
+ * directory it runs in, so a scan-root path goes in behind `prefix` and comes
+ * back under its own spelling.
  */
 async function hashOnDisk(
   root: string,
+  prefix: string,
   paths: readonly string[],
 ): Promise<ReadonlyMap<string, Digest>> {
   const hashed = new Map<string, Digest>();
@@ -173,7 +186,7 @@ async function hashOnDisk(
       cwd: root,
       maxBuffer: MAX_OUTPUT,
     });
-    child.child.stdin?.end(`${paths.join('\n')}\n`);
+    child.child.stdin?.end(`${paths.map((path) => `${prefix}${path}`).join('\n')}\n`);
     ({ stdout } = await child);
   } catch {
     return hashed;

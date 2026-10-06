@@ -31,6 +31,14 @@ export type { ExecutionNarrowingOptions, FileReading, ImporterReason };
 export interface ExecutionNarrowing {
   /** Recorded tests whose observation was whole, so absence from `entered` is evidence. */
   readonly whole: readonly string[];
+  /**
+   * Recorded tests whose observation was not whole: a run that skipped every
+   * case, or one whose probes fired where nothing could place them. Absence
+   * from `entered` is no evidence for them, but they are named, so a caller
+   * that cuts the selection into legs can place them with the unplaced. Absent
+   * when the reader names no such list, which is not the same as none.
+   */
+  readonly incomplete?: readonly string[];
   /** Recorded tests that entered a region this diff changed. */
   readonly entered: readonly string[];
 
@@ -160,11 +168,16 @@ export function narrowByExecutionFromView(
   options: ExecutionNarrowingOptions = {},
 ): ExecutionNarrowing {
   const whole: string[] = [];
+  const incomplete: string[] = [];
   for (let test = 0; test < coverage.testPath.length; test += 1) {
-    if (coverage.testComplete.at(test) === 1) whole.push(coverage.string(coverage.testPath.at(test)));
+    (coverage.testComplete.at(test) === 1 ? whole : incomplete).push(coverage.string(coverage.testPath.at(test)));
   }
 
-  return { whole: whole.sort(codeUnitOrder), ...readDiff(coverage, diff, options) };
+  return {
+    whole: whole.sort(codeUnitOrder),
+    incomplete: incomplete.sort(codeUnitOrder),
+    ...readDiff(coverage, diff, options),
+  };
 }
 
 /** Query the binary columns without materializing the coverage graph. */

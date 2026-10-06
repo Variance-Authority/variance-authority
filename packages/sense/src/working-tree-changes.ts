@@ -29,8 +29,13 @@ export interface WorkingTreeChanges {
 /**
  * The paths under `root` that differ from `HEAD` in the working tree or the
  * index, untracked ones git does not ignore included, spelled from `root`.
- * `top` says `root` is the top of its checkout. `undefined` when git cannot
- * answer.
+ * `undefined` when git cannot answer.
+ *
+ * `prefix` is where `root` sits below the top of its checkout, as
+ * `rev-parse --show-prefix` spells it. Porcelain status names every path from
+ * that top wherever it runs, so each one is cut to `root`. Below the top,
+ * status is asked with `-- .`, so every path it names is under `root`: a rename
+ * across `root` is a deletion or an addition on `root`'s side.
  *
  * Nothing is passed for `core.fsmonitor` or `core.untrackedCache`. Both are
  * the repository's to configure and both are what make this call cheap on a
@@ -41,10 +46,12 @@ export interface WorkingTreeChanges {
  * against 40 ms on 288,197 paths. So at the top of the checkout the question
  * is asked in that shape, and the directories it collapses are listed apart.
  */
-export async function workingTreeChanges(root: string, top: boolean): Promise<WorkingTreeChanges | undefined> {
+export async function workingTreeChanges(root: string, prefix: string): Promise<WorkingTreeChanges | undefined> {
+  const top = prefix === '';
   const args = top
     ? ['status', '--porcelain=v1', '-z', '--untracked-files=normal']
-    : ['-c', 'status.relativePaths=true', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', '.'];
+    : ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', '.'];
+  const below = (path: string): string => path.slice(prefix.length);
   let status: string;
   try {
     ({ stdout: status } = await run('git', args, { cwd: root, maxBuffer: MAX_OUTPUT }));
@@ -62,12 +69,12 @@ export async function workingTreeChanges(root: string, top: boolean): Promise<Wo
     if (entry.length < 4) continue;
 
     const codes = entry.slice(0, 2);
-    const path = entry.slice(3);
+    const path = below(entry.slice(3));
 
     // A rename carries its old path as the next field, and that path is gone.
     if (codes.includes('R')) {
       const from = fields[at + 1];
-      if (from !== undefined) gone.push(from);
+      if (from !== undefined) gone.push(below(from));
       at += 1;
     }
 

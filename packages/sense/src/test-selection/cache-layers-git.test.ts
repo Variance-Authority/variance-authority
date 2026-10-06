@@ -35,17 +35,18 @@ describe('how often laying out a worktree\'s cache starts git', () => {
   });
 
   // The primary checkout is read from the worktree's own git layout, which
-  // already says it is a checkout's root; git is asked for the worktree only.
-  test('once, for the worktree, and not again for the checkout it was cut from', async () => {
+  // already says it is a checkout's root, and a worktree holding `.git` is its
+  // own checkout's top: git is asked for neither.
+  test('never, for the worktree or for the checkout it was cut from', async () => {
     const path = await worktree();
     started.mockClear();
 
     repositoryLayers(path);
 
-    expect(gits()).toBe(1);
+    expect(gits()).toBe(0);
   });
 
-  test('once when the fetched mainline is looked up before anything else asked', async () => {
+  test('never when the fetched mainline is looked up before anything else asked', async () => {
     const path = await worktree();
     const suites = { suites: { unit: { kind: 'unit', carry: 'share' } } };
     await writeFile(resolve(path, 'variance.config.json'), JSON.stringify(suites));
@@ -53,6 +54,6 @@ describe('how often laying out a worktree\'s cache starts git', () => {
 
     lastFetchedMainline(path, 'unit');
 
-    expect(gits()).toBe(1);
+    expect(gits()).toBe(0);
   });
 });

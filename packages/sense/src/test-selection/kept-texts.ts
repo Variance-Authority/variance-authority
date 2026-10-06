@@ -75,7 +75,7 @@ export async function keepRecordedTexts(
     return [];
   }
   // Asked as the scan asks it, so a checkout's untracked cache answers it.
-  const changes = await workingTreeChanges(repository, true);
+  const changes = await workingTreeChanges(repository, '');
   if (changes === undefined) return [];
   const kept: string[] = [];
   for (const file of changes.changed) {

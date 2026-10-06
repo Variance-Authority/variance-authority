@@ -77,7 +77,7 @@
  */
 
 import { resolve } from 'node:path';
-import { readingLines, type ExecutionNarrowing, type FileReading } from '@variance-authority/sense/test-selection';
+import { readingLines, type ExecutionNarrowing, type FileReading, type TestDistance } from '@variance-authority/sense/test-selection';
 import { many } from './reach.js';
 
 /** How the answer is written for whoever is about to run the tests. */
@@ -93,7 +93,12 @@ export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
  * make a broken `git` print the same thing as a clean recording.
  */
 export type SelectGround =
-  | { readonly kind: 'read'; readonly narrowing: ExecutionNarrowing }
+  | {
+      readonly kind: 'read';
+      readonly narrowing: ExecutionNarrowing;
+      /** How far the change travelled to each test it selected; asked only for a leg. */
+      readonly distances?: readonly TestDistance[];
+    }
   | { readonly kind: 'no-journal' }
   | { readonly kind: 'no-coverage' }
   | { readonly kind: 'no-diff'; readonly from: string }
@@ -183,6 +188,12 @@ export interface TestSelection {
    * against the journal, which is not the same as a diff that changed nothing.
    */
   readonly readings?: readonly FileReading[];
+  /** The hops `--at-distance` asked for; `to` is absent for an open leg. Absent when no leg was asked. */
+  readonly leg?: { readonly from: number; readonly to?: number };
+  /** The selected test files this leg skipped and another leg runs. Present exactly when `leg` is. */
+  readonly left?: readonly string[];
+  /** How far the change travelled to each test it entered. Present when a leg cut a narrowed selection. */
+  readonly distances?: readonly TestDistance[];
 }
 
 /**
@@ -438,6 +449,8 @@ function jsonOf(selection: TestSelection): object {
     ...(selection.declined === undefined ? {} : { declined: selection.declined }),
     stale: selection.stale,
     ...(selection.readings === undefined ? {} : { readings: selection.readings }),
+    ...(selection.leg === undefined ? {} : { leg: selection.leg, left: selection.left ?? [] }),
+    ...(selection.distances === undefined ? {} : { distances: selection.distances }),
   };
 }
 
