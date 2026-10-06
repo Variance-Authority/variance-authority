@@ -1619,9 +1619,12 @@ back empty would run nothing, and the suite would go green in seconds.
 So stdout gets paths and nothing else, and every sentence about the reading
 goes to stderr, where a `$(...)` cannot pick it up and hand it to a runner as a
 path. `--format plain` writes one path per line, relative to the repository;
-`vitest` writes `--exclude=` arguments naming each file's absolute path, because
-a workspace is many projects and a project matches an exclude pattern against
-its own directory rather than the root the journal counts from; `jest` writes
+`vitest` writes `--exclude=` arguments in the form the vitest installed in your
+repository matches: each file's absolute path from vitest 3 on, because a
+workspace is many projects and a project matches an exclude pattern against its
+own directory rather than the root the journal counts from, and the path
+relative to the repository on vitest 2, whose glob matches no absolute
+exclusion; `jest` writes
 `--testPathIgnorePatterns=` arguments and re-states jest's `/node_modules/`
 default, which that flag would otherwise replace. `--format json` reports the
 counts and the widening reason together for a program that decides for

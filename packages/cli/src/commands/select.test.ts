@@ -209,6 +209,15 @@ describe('what reaches the runner', () => {
     );
   });
 
+  it('writes vitest 2 exclusions relative to the root, which is how its glob matches them', () => {
+    // Vitest 2 hands each exclusion to fast-glob as an ignore relative to the
+    // project directory, and fast-glob matches no absolute ignore: the absolute
+    // form above narrows nothing there.
+    expect(formatSelection(selection, 'vitest', '/repo', { excludes: 'relative' })).toBe(
+      '--exclude=test/alpha.test.ts\n--exclude=test/gamma.test.ts\n',
+    );
+  });
+
   it('hands jest back its own node_modules default, which the flag would otherwise replace', () => {
     // `--testPathIgnorePatterns` is not additive: jest's default is
     // `["/node_modules/"]` and one on the command line takes its place. A skip

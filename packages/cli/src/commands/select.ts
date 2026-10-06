@@ -76,12 +76,50 @@
  * could type here.
  */
 
-import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { join, resolve } from 'node:path';
 import { readingLines, type ExecutionNarrowing, type FileReading } from '@variance-authority/sense/test-selection';
 import { many } from './reach.js';
 
 /** How the answer is written for whoever is about to run the tests. */
 export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
+
+/**
+ * The form a vitest exclusion takes to match a file, which the installed vitest
+ * decides and nothing on its command line reports.
+ *
+ * Vitest 3 and later match an absolute exclusion, and a workspace needs one: a
+ * project matches against its own directory rather than against the root the
+ * journal counts from, so a root-relative path matches in no project. Vitest 2
+ * hands each exclusion to fast-glob as an ignore relative to the project, and
+ * fast-glob matches no absolute ignore, so there only the root-relative path
+ * narrows the run. Either wrong form fails the same way: an exclusion that
+ * matches nothing is no error, and the narrowed run is the whole suite.
+ */
+export type VitestExcludes = 'absolute' | 'relative';
+
+/**
+ * The exclusion form the vitest installed at `root` matches.
+ *
+ * Absolute when no vitest resolves from there: that is the form every vitest
+ * still in support matches, and a runner installed somewhere this cannot see is
+ * a newer one more often than not.
+ */
+function vitestExcludes(root: string): VitestExcludes {
+  let manifest: string;
+  try {
+    manifest = createRequire(join(root, 'package.json')).resolve('vitest/package.json');
+  } catch {
+    return 'absolute';
+  }
+  const { version } = JSON.parse(readFileSync(manifest, 'utf8')) as { version?: string };
+  return Number.parseInt(version ?? '', 10) < 3 ? 'relative' : 'absolute';
+}
+
+function vitestExclusions(skip: readonly string[], root: string, excludes: VitestExcludes): string[] {
+  return skip.map((test) => `--exclude=${excludes === 'relative' ? test : resolve(root, test)}`);
+}
 
 /**
  * What the journal answered, or why it did not.
@@ -370,12 +408,14 @@ function recordingNotes(
  * formats both need it for the same reason from opposite directions: a runner
  * matches an ignore pattern against a place on disk, and a journal speaks in
  * paths relative to the repository. Jest gets an anchored expression because it
- * is handed absolute paths to match; vitest gets the absolute path itself.
+ * is handed absolute paths to match; vitest gets the path in the form the
+ * vitest installed at `root` matches, unless `excludes` names one.
  */
 export function formatSelection(
   selection: TestSelection,
   format: SelectFormat,
   root: string,
+  { excludes }: { readonly excludes?: VitestExcludes } = {},
 ): string {
   if (format === 'json') return `${JSON.stringify(jsonOf(selection), null, 2)}\n`;
   if (selection.skip.length === 0) return '';
@@ -384,14 +424,7 @@ export function formatSelection(
     format === 'plain'
       ? selection.skip
       : format === 'vitest'
-        ? // Absolute, because a workspace is many projects and a project matches
-          // an exclude pattern against its own directory rather than against the
-          // root the journal counts from. A path the record holds is relative to
-          // the workspace and relative to nothing any project holds, so a
-          // relative pattern matches in none of them and the narrowed run is the
-          // whole suite — silently, since an exclusion that matches nothing is
-          // not an error anywhere.
-          selection.skip.map((test) => `--exclude=${resolve(root, test)}`)
+        ? vitestExclusions(selection.skip, root, excludes ?? vitestExcludes(root))
         : // `--testPathIgnorePatterns` replaces jest's default rather than adding
           // to it, so the default has to be handed back or a run that skips four
           // test files also walks `node_modules`.
