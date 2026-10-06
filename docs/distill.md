@@ -357,7 +357,7 @@ cases used.
 
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
-| CLI | the run recorded in this checkout, or a record you name | `variance distill [--file <path> --test <title> \| --from <dir>] [--suite <name> \| --execution <path>]` |
+| CLI | the run recorded in this checkout, or a record you name | `variance distill [--file <path> [--test <title>] \| --test <title> \| --from <dir>] [--suite <name> \| --execution <path>]` |
 | [MCP](agent-questions.md#distill-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
 | [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 

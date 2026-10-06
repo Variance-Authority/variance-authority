@@ -11,6 +11,10 @@
  * type-only import loads nothing — and the walk passes through the file's
  * other shadows: a mock written without a factory still evaluates the real
  * module to learn its shape, and loads what that module imports.
+ *
+ * A file whose imports nobody could read — a parse failure, a specifier that
+ * is not a literal — may load anything, so a module the walk does not reach
+ * past one is not known to be unloaded: the entry names that file instead.
  */
 
 // compass: variance-authority.reach
@@ -24,6 +28,11 @@ export interface ShadowReach {
   readonly hops?: number;
   /** The file whose import is the last step of that trail. Present exactly when `hops` is. */
   readonly importer?: string;
+  /**
+   * A loaded file whose imports could not be read, present only when `hops` is
+   * absent: the module may load through it, so the file is not known not to load it.
+   */
+  readonly unread?: string;
 }
 
 /** Every module `file` shadows in `relations`, sorted, with its distance from the file. */
@@ -32,11 +41,13 @@ export function shadowReach(relations: Relations, file: string): readonly Shadow
   const seed = idOf(relations, 'file', file);
   if (shadowed.length === 0 || seed === undefined) return [];
   const walk = dependenciesOf(relations, [seed]);
+  const blind = walk.nodes.find((id) => relations.unknown[id] === 1);
+  const unread = blind === undefined ? undefined : nodeAt(relations, blind)!.name;
 
   return [...shadowed].sort(byCodeUnit).map((module) => {
     const id = idOf(relations, 'file', module);
     const trail = id === undefined ? [] : trailOf(walk, id);
-    if (trail.length < 2) return { module };
+    if (trail.length < 2) return unread === undefined ? { module } : { module, unread };
     return { module, hops: trail.length - 1, importer: nodeAt(relations, trail.at(-2)!)!.name };
   });
 }

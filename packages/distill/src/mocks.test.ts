@@ -46,7 +46,7 @@ describe('the mocks a test file writes, held against what it loads', () => {
     expect(text).toContain(
       `warning: ${FILE} mocks src/client.ts, 3 imports away; src/api.ts imports it, and ${FILE} does not import ` +
         'src/api.ts. Mock the import of the subject that loads it, or fix src/api.ts.');
-    expect(text.indexOf('Error:')).toBeLessThan(text.indexOf('Loaded, and entered'));
+    expect(text.indexOf('error:')).toBeLessThan(text.indexOf('Loaded, and entered'));
   });
 
   it('says nothing of mocks within the subject\'s imports, nor when the shadows are not given', () => {
@@ -54,6 +54,13 @@ describe('the mocks a test file writes, held against what it loads', () => {
 
     expect(distillFile({ file: 'card', execution: EXECUTION, coverage: COVERAGE, shadows: near }).mocks).toBeUndefined();
     expect(distillFile({ file: 'card', execution: EXECUTION, coverage: COVERAGE }).mocks).toBeUndefined();
+  });
+
+  it('says nothing of a mock it could not reach past a file whose imports nobody read', () => {
+    const blind = (file: string): readonly ShadowReach[] =>
+      file === FILE ? [{ module: 'src/legacy.ts', unread: 'src/plugins.ts' }] : [];
+
+    expect(distillFile({ file: 'card', execution: EXECUTION, coverage: COVERAGE, shadows: blind }).mocks).toBeUndefined();
   });
 
   it('holds the mocks against the graph when the record withholds the loads', () => {

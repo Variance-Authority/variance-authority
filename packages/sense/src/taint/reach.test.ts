@@ -33,6 +33,15 @@ describe('how far a test file is from what it shadows', () => {
     expect(reachOf(['src/orphan.ts', 'src/types.ts'])).toEqual([{ module: 'src/orphan.ts' }, { module: 'src/types.ts' }]);
   });
 
+  it('names the loaded file whose imports nobody could read, rather than say the test file does not load the module', () => {
+    const records = [...RECORDS, { file: 'src/plugins.ts', unknown: 'a specifier that is not a literal' }];
+    const withPlugins = records.map((record) =>
+      record.file === 'src/card.ts' ? { ...record, edges: [...record.edges!, { to: 'src/plugins.ts', kind: 'imports' as const }] } : record,
+    );
+    const relations = relationsOfFiles(withPlugins, { shadows: new Map([['src/card.test.ts', ['src/orphan.ts']]]) });
+    expect(shadowReach(relations, 'src/card.test.ts')).toEqual([{ module: 'src/orphan.ts', unread: 'src/plugins.ts' }]);
+  });
+
   it('is empty for a test file that shadows nothing, or that the graph does not hold', () => {
     const relations = relationsOfFiles(RECORDS);
     expect(shadowReach(relations, 'src/card.test.ts')).toEqual([]);

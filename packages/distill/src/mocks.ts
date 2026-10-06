@@ -16,9 +16,12 @@ export type MisplacedMock =
  */
 const SUBJECT_IMPORTS = 2;
 
-/** The mocks past the subject's imports, or of what the file does not load: errors first, then nearest. */
+/**
+ * The mocks past the subject's imports, or of what the file does not load: errors first, then nearest.
+ * A mock the walk could not reach past a file whose imports nobody read is neither.
+ */
 export function misplacedOf(reach: readonly ShadowReach[]): readonly MisplacedMock[] {
-  const unloaded = reach.filter(({ hops }) => hops === undefined).map(({ module }) => ({ module, kind: 'unloaded' as const }));
+  const unloaded = reach.filter(({ hops, unread }) => hops === undefined && unread === undefined).map(({ module }) => ({ module, kind: 'unloaded' as const }));
   const beyond = reach
     .filter(({ hops }) => hops !== undefined && hops > SUBJECT_IMPORTS)
     .map(({ module, hops, importer }) => ({ module, kind: 'beyond' as const, hops: hops!, importer: importer! }))
