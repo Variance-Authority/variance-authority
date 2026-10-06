@@ -163,6 +163,8 @@ export interface RecordedFrame {
   readonly sourceDigest: string;
   /** The file that text is, which is what a record must be named after. */
   readonly file: string;
+  /** The text {@link sourceDigest} is of, which a region's digest is cut from. */
+  readonly text: string;
 }
 
 export function recordedFrame(
@@ -192,6 +194,7 @@ export function recordedFrame(
     file: named,
     extentOf: sourceLines(code, map, file),
     sourceDigest: digestString(text ?? code),
+    text: text ?? code,
   };
 }
 
@@ -262,7 +265,7 @@ function wholeFile(file: string, original: (path: string) => string): RecordedFr
   const starts = lineStarts(text);
   // A newline ends the line it is on; it does not open one nothing is written on.
   const lines = Math.max(1, text.endsWith('\n') ? starts.length - 1 : starts.length);
-  return { file, extentOf: () => [1, lines], sourceDigest: digestString(text) };
+  return { file, extentOf: () => [1, lines], sourceDigest: digestString(text), text };
 }
 
 /**

@@ -5,7 +5,7 @@ import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { instrument, type InstrumentMode } from '../instrument/index.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
-import { coverageBlock } from './coverage-rows.js';
+import { coverageBlocks } from './coverage-rows.js';
 import { rawFrame } from './source-lines.js';
 import {
   carriedJournal,
@@ -337,7 +337,7 @@ function selectionPlugin(
       if (file === setupId || file === runnerId || globalSetup.has(file)) return null;
       const frame = rawFrame(code, file, include, (at) => readFileSync(at, 'utf8'));
       if (frame === undefined) return null;
-      const { extentOf, sourceDigest, file: wrote } = frame;
+      const { extentOf, sourceDigest, file: wrote, text } = frame;
 
       // Named after the file its map leads to, the same name every other seam
       // instruments under, so a journal reads the same whoever produced it. Its
@@ -357,7 +357,7 @@ function selectionPlugin(
             id: moduleId,
             sourceDigest,
             instrumented: true,
-            blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+            blocks: coverageBlocks(done.blocks, { extentOf, text }),
           });
       return done === undefined ? null : { code: done.code, map: null };
     },

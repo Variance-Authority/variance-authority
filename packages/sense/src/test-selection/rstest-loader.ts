@@ -21,7 +21,7 @@
 import { readFileSync } from 'node:fs';
 import { instrument } from '../instrument/index.js';
 import { cleanId, projectPath } from './instrumented-modules.js';
-import { coverageBlock } from './coverage-rows.js';
+import { coverageBlocks } from './coverage-rows.js';
 import { rawFrame } from './source-lines.js';
 import { runOf } from './selection-run.js';
 
@@ -61,7 +61,7 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
     this.callback(null, code);
     return;
   }
-  const { extentOf, sourceDigest, file: wrote } = frame;
+  const { extentOf, sourceDigest, file: wrote, text } = frame;
 
   // Under its path, the same one every other seam instruments under, so a journal
   // reads the same whoever produced it.
@@ -85,7 +85,7 @@ function instrumentModule(this: SelectionLoaderContext, code: string): void {
     id: moduleId,
     sourceDigest,
     instrumented: true,
-    blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+    blocks: coverageBlocks(done.blocks, { extentOf, text }),
   });
   // With no map: every probe sits on the line it reports, so SWC's map from
   // this text is a map from the file on disk.

@@ -34,7 +34,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import collectors from './collectors.cjs';
-import { coverageBlock } from './coverage-rows.js';
+import { coverageBlocks } from './coverage-rows.js';
 import journalFormat from './journal-format.cjs';
 import { recordFileFor } from './record-location.js';
 import {
@@ -238,7 +238,7 @@ export function instrumentModule(code: string, file: string, options: Instrument
   if (recording === undefined) return code;
   const path = resolve(file);
   const map = typeof options.map === 'string' ? (JSON.parse(options.map) as TransformSourceMap) : options.map;
-  const { extentOf, sourceDigest, file: wrote } = recordedFrame(code, map, path, (at) =>
+  const { extentOf, sourceDigest, file: wrote, text } = recordedFrame(code, map, path, (at) =>
     at === path && options.source !== undefined ? options.source : readFileSync(at, 'utf8'));
   const { records } = writerFor(recording);
   const name = projectPath(recording.root, wrote);
@@ -251,7 +251,7 @@ export function instrumentModule(code: string, file: string, options: Instrument
         id,
         sourceDigest,
         instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+        blocks: coverageBlocks(done.blocks, { extentOf, text }),
       });
   return done === undefined ? code : done.code;
 }

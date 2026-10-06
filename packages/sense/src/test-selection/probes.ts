@@ -24,7 +24,7 @@ import {
   writeRecord,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { coverageBlock } from './coverage-rows.js';
+import { coverageBlocks } from './coverage-rows.js';
 import { rawFrame } from './source-lines.js';
 import { repositoryRoot } from './repository-root.js';
 import probeLog from '../instrument/probe-log.cjs';
@@ -179,7 +179,7 @@ export function testSelectionProbes(
       if (source === RESOLVED_COLLECTOR) return null;
       const frame = rawFrame(code, source, include, (at) => readFileSync(at, 'utf8'));
       if (frame === undefined) return null;
-      const { extentOf, sourceDigest, file: wrote } = frame;
+      const { extentOf, sourceDigest, file: wrote, text } = frame;
 
       // Instrumented under its path, which is all the page then reports. The path
       // is repository-relative: a journal that named absolute paths would be a
@@ -199,7 +199,7 @@ export function testSelectionProbes(
         id: file,
         sourceDigest,
         instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+        blocks: coverageBlocks(done.blocks, { extentOf, text }),
       });
 
       // Hoisted in front of everything the module imports, and on the first line,
