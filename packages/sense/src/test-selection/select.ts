@@ -321,7 +321,14 @@ function readDiff(
   // handed over together they are one read of it rather than two, and that
   // table is the only part of a snapshot large enough for the difference to
   // be the query.
-  const answered = answerByImporters(coverage, [...changed.keys()].sort(codeUnitOrder), rowed, options, governing);
+  const answered = answerByImporters(
+    coverage,
+    [...changed.keys()].sort(codeUnitOrder),
+    rowed,
+    options,
+    disowned,
+    governing,
+  );
   // A declaration is unconditional — *if this file's text moves, retire this
   // observation* — and nothing here narrows it. It is the one thing a record
   // says that no region of any row can say.

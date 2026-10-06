@@ -11,7 +11,7 @@ import {
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
 import type { Unmeasured } from './route.js';
-import { disownedIn, type Disowned } from './shadowed.js';
+import type { Disowned } from './shadowed.js';
 
 /**
  * Answering a changed file the record holds no row for from the files that
@@ -180,12 +180,17 @@ for (const kind of RUNTIME_EDGES) LOADS[EDGE_KINDS.indexOf(kind)] = 1;
 /**
  * `rowed` is every name the caller answered from an instrumented row: a changed
  * file holding one under any of its names is the row's, and is not walked.
+ *
+ * `disowned` is the caller's `disownedIn` over the same coverage and
+ * `options.relations`: a chain that ends at a module a test mocked does not
+ * reach that test, for the reason a region of it does not (`shadowed.ts`).
  */
 export function answerByImporters(
   coverage: TestCoverageView,
   changed: readonly string[],
   rowed: ReadonlySet<string>,
   options: ExecutionNarrowingOptions,
+  disowned: Disowned | undefined,
   also: ReadonlySet<string> = new Set(),
 ): ImporterAnswer {
   const { relations } = options;
@@ -193,9 +198,6 @@ export function answerByImporters(
     return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also]) };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
-  // A chain that ends at a module a test mocked does not reach
-  // that test, for the reason a region of it does not (`shadowed.ts`).
-  const disowned = disownedIn(coverage, relations);
   // Every test a walk reached, with what reached it — held rather than
   // selected, because whether the chain is worth reporting depends on the
   // preconditions the test carries, and those are not read until the walks have
@@ -240,7 +242,11 @@ export function answerByImporters(
     }
     const reason: ImporterReason = { kind: 'importer', trail };
     for (const test of answer.tests) reached.push({ test, reason, seed, from });
-    for (const name of answer.governs) governing.set(name, [...(governing.get(name) ?? []), { reason, seed, from }]);
+    for (const name of answer.governs) {
+      const entries = governing.get(name);
+      if (entries === undefined) governing.set(name, [{ reason, seed, from }]);
+      else entries.push({ reason, seed, from });
+    }
     return answer.answered;
   };
 
