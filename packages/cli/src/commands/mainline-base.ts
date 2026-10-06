@@ -175,25 +175,29 @@ export async function mainlineBase(
   // Both caches when the caller named none, as a runner seam reads them.
   const last = selection.lastFetchedMainline(root, suite, here.cacheRoot);
 
-  if (here.refetch !== true) {
-    const chosen = await readerMainline(place, env, root);
-    const mainline = 'missing' in chosen ? undefined : chosen.name;
+  // The mainline chosen here, and `HEAD`'s merge base with it, are asked once
+  // for every distance measured below.
+  const chosen = here.refetch === true ? undefined : await readerMainline(place, env, root);
+  const named = chosen === undefined || 'missing' in chosen ? undefined : chosen;
+  const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
+  if (chosen !== undefined) {
+    const mainline = named?.name;
     if (last !== undefined && last.mainline === mainline && now - Date.parse(last.fetched) < MAINLINE_REUSE_MS) {
-      return earlier(place, root, last, { reused: true });
+      return earlier(place, root, last, { reused: true }, baseOf(last.mainline));
     }
     const noted = readMissedMainline(readRoot);
     if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MAINLINE_REUSE_MS) {
-      if (last !== undefined) return earlier(place, root, last, { unanswered: noted.miss, asked: noted.at });
+      if (last !== undefined) return earlier(place, root, last, { unanswered: noted.miss, asked: noted.at }, baseOf(last.mainline));
       return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
     }
     if (here.detach !== undefined && last !== undefined && last.mainline === mainline) {
       const started = refreshMainline(readRoot, suite, here.detach);
-      if (started !== undefined) return earlier(place, root, last, { refreshing: started });
+      if (started !== undefined) return earlier(place, root, last, { refreshing: started }, baseOf(last.mainline));
     }
   }
 
   try {
-    return await fetchNow({ root, suite, place, env, readRoot, last, now }, selection);
+    return await fetchNow({ root, suite, place, env, readRoot, last, now, named }, selection);
   } finally {
     // The process `refreshMainline` started holds the lock until this fetch is done;
     // so does a reader whose process could not be started.
@@ -210,16 +214,20 @@ interface Fetching {
   readonly readRoot: string;
   readonly last: LastFetched | undefined;
   readonly now: number;
+  /** The mainline `readerMainline` chose, and `HEAD`'s merge base with it, asked once by the caller. */
+  readonly named: { readonly name: string; readonly base?: string } | undefined;
 }
 
 /** Ask the mainline for its record now, and keep it where every reader looks, or say why there is none. */
 async function fetchNow(
-  { root, suite, place, env, readRoot, last, now }: Fetching,
+  { root, suite, place, env, readRoot, last, now, named }: Fetching,
   selection: typeof import('@variance-authority/sense/test-selection'),
 ): Promise<MainlineBase> {
   const { cacheRoot } = place;
+  const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
   const asked = new Date(now).toISOString();
-  const found = await mainlineSuite(place, suite, { env, cwd: root });
+  const at = named === undefined ? {} : { mainline: named.name, ...(named.base === undefined ? {} : { base: named.base }) };
+  const found = await mainlineSuite(place, suite, { env, cwd: root, ...at });
   if ('miss' in found) {
     // With no mainline, or no credential, the line was not asked: that is this
     // environment's answer, not the line's, and the next reader in the same
@@ -228,7 +236,7 @@ async function fetchNow(
       const { miss, holds } = found;
       await noteMissed(readRoot, { mainline: found.mainline, at: asked, miss, ...(holds === undefined ? {} : { holds }) });
     }
-    if (last !== undefined) return earlier(place, root, last, { unanswered: found.miss });
+    if (last !== undefined) return earlier(place, root, last, { unanswered: found.miss }, baseOf(last.mainline));
     return { suite, ...found };
   }
   const unread = async (detail: string): Promise<MainlineMissed> => {
@@ -300,8 +308,9 @@ async function earlier(
   root: string,
   last: LastFetched,
   why: NonNullable<MainlineRecord['earlier']>,
+  base: string | undefined,
 ): Promise<MainlineRecord> {
-  const distance = await distanceFrom(place, last.mainline, last.commit, root);
+  const distance = await distanceFrom(place, last.mainline, last.commit, root, base);
   const { keepsCases } = await import('@variance-authority/sense/test-selection');
   return {
     suite: last.suite,

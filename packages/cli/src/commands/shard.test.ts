@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { PlannedSubject } from './collector.js';
 import { isShardFilter } from './run-report.js';
-import { assign, declinedBy, parseShard, placedElsewhere } from './shard.js';
+import { parseShard } from '../shard-args.js';
+import { assign, declinedBy, placedElsewhere } from './shard.js';
 
 /**
  * Which subjects a shard owns. Every claim here is about what a *name-based*

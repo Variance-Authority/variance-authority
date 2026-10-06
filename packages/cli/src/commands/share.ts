@@ -33,8 +33,7 @@ import {
   type Unconfigured,
 } from '../share-lines.js';
 import { suiteIndexRoot } from './resources.js';
-import { readCliRunReport } from './run.js';
-import { isSlice, suitePartPath, type CliRunReport } from './run-report.js';
+import { isSlice, readCliRunReport, suitePartPath, type CliRunReport } from './run-report.js';
 
 export { mainlinesOf, type Mainlines } from '../share-lines.js';
 
@@ -319,7 +318,7 @@ export interface MainlineSuite extends MainlineAt {
 export async function mainlineSuite(
   config: Pick<Config, 'share' | 'cacheRoot'>,
   suite: string,
-  options: Here & { readonly mainline?: string } = {},
+  options: Here & { readonly mainline?: string; readonly base?: string } = {},
 ): Promise<MainlineSuite | MainlineMissed> {
   const found = await mainlineEntry(config, suiteEntry(suite), options);
   if ('miss' in found) return found;
@@ -334,29 +333,30 @@ export async function mainlineSuite(
 /**
  * Where the reader's mainline holds `name`, and a way to read its bytes.
  *
- * The mainline is the one named, or else the one `readerMainline` chooses. The
+ * The mainline is the one named, with `HEAD`'s merge base with it when the
+ * caller asked for it, or else the one `readerMainline` chooses. The
  * bytes are read only when asked, because a commit this machine already holds
  * is answered from disk.
  */
 export async function mainlineEntry(
   config: Pick<Config, 'share' | 'cacheRoot'>,
   name: string,
-  options: Here & { readonly mainline?: string },
+  options: Here & { readonly mainline?: string; readonly base?: string },
 ): Promise<{ readonly at: MainlineAt; readonly held: LineEntry } | MainlineMissed> {
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
-  let mainline = options.mainline;
+  let { mainline, base } = options;
   if (mainline === undefined) {
     const chosen = await readerMainline(config, env, cwd);
     if ('missing' in chosen) {
       return { miss: { kind: 'unconfigured', detail: `nothing answered from ${chosen.missing.join(', ')}` } };
     }
-    mainline = chosen.name;
+    ({ name: mainline, base } = chosen);
   }
   const found = await lineEntry(config, { kind: 'mainline', name: mainline }, name, cwd);
   if ('miss' in found) return { mainline, ...found };
 
-  const distance = await distanceFrom(config, mainline, found.entry.commit, cwd);
+  const distance = await distanceFrom(config, mainline, found.entry.commit, cwd, base);
   return { at: { mainline, commit: found.entry.commit, ...(distance !== undefined ? { distance } : {}) }, held: found };
 }
 

@@ -106,7 +106,18 @@ export type Disowned = (file: string, test: number, block?: number) => boolean;
 export function disownedIn(coverage: TestCoverageView, relations: Relations | undefined): Disowned | undefined {
   const shadowed = shadowedFor(relations);
   if (shadowed === undefined) return undefined;
+  // Asked once per crossing, so a test's path is decoded once per test row
+  // rather than once per question.
+  const byRow = new Map<number, ReadonlySet<string>>();
+  const shadowedBy = (test: number): ReadonlySet<string> => {
+    let found = byRow.get(test);
+    if (found === undefined) {
+      found = shadowed(coverage.string(coverage.testPath.at(test)));
+      byRow.set(test, found);
+    }
+    return found;
+  };
   return (file, test, block) =>
     (block === undefined || coverage.crossings.has(coverage.blockLoadedSet.at(block), test)) &&
-    shadowed(coverage.string(coverage.testPath.at(test))).has(file);
+    shadowedBy(test).has(file);
 }

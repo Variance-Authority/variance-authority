@@ -45,12 +45,9 @@ import {
   type IndexTurnHolder,
   type SourceUpdate,
 } from '@variance-authority/sense';
-import { publishedGeneration, readWorkspace, readWorkspaceSnapshot, refreshDependencyLexicon, refreshWorkspaceFromIndex, workspaceGeneration, workspaceSnapshotPath } from '@variance-authority/help';
 import { OperatorError } from '../exit.js';
-import { rmSync } from 'node:fs';
-import type { Parsed } from '../parse.js';
 import type { Detach } from './detached.js';
-import { awaitFollowUps, followUpsLockPath, followUpsLogPath, holdFollowUps, releaseFollowUps, reserveFollowUps } from './index-follow-ups.js';
+import { followUpsLogPath, holdFollowUps, releaseFollowUps, reserveFollowUps, waitingLine } from './index-follow-ups.js';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -113,10 +110,6 @@ function turnLine({ pid, root }: IndexTurnHolder): string {
   return `waiting for process ${pid}, which is indexing ${root}: one index at a time uses this machine's cores\n`;
 }
 
-function waitingLine({ pid, log }: { pid: number; log: string }): string {
-  return `waiting for process ${pid} to finish the code map, the journeys, the dependency lexicon and the questions \`variance index\` left to it; its lines are in ${log}\n`;
-}
-
 /**
  * What a detached `index` runs: the update again, which finds the index it was
  * handed and writes nothing, for the listing of the checkout it carries; then
@@ -127,26 +120,6 @@ export async function followUpsOutput(request: Omit<IndexRequest, 'detach'>): Pr
   const output = await inline(request);
   releaseFollowUps(sourceIndexPath(request.cwd), process.pid);
   return output;
-}
-
-/**
- * Wait for the follow-ups a detached `index` is making, before any command reads
- * them; the process making them is the one command that does not wait. A process
- * that is gone left them unmade, so they are made here, on stderr, before the
- * command runs — unless the command is `index`, which is about to make them anyway.
- */
-export async function settleFollowUps(parsed: Parsed, streams: { err(text: string): void }): Promise<void> {
-  if (parsed.command === 'index' && parsed.followUps === true) return;
-  const indexing = parsed.command === 'index';
-  const cwd = process.cwd();
-  const index = sourceIndexPath(cwd);
-  const waited = await awaitFollowUps(index, (lock) => streams.err(waitingLine(lock)));
-  if (!waited.held || waited.finished) return;
-  rmSync(followUpsLockPath(index), { force: true });
-  if (indexing) return;
-  const { pid, log } = waited.lock;
-  streams.err(`process ${pid} ended before it finished what \`variance index\` left to it, so it is made now; what it wrote is in ${log}\n`);
-  streams.err(await indexOutput({ cwd, waiting: (text) => streams.err(text) }));
 }
 
 async function followUps(request: IndexRequest, update: SourceUpdate): Promise<readonly string[]> {
@@ -174,6 +147,9 @@ async function followUps(request: IndexRequest, update: SourceUpdate): Promise<r
  * cache it could not write is a line in the log rather than a later refusal.
  */
 async function answerable(root: string, index: string, noGit: boolean): Promise<string> {
+  // Loaded here, by the follow-ups alone: the index a command waits on reads no help.
+  const { publishedGeneration, readWorkspace, readWorkspaceSnapshot, refreshWorkspaceFromIndex, workspaceGeneration, workspaceSnapshotPath } =
+    await import('@variance-authority/help');
   const at = workspaceSnapshotPath(index);
   try {
     // The index was written a moment ago, so the previous value is refreshed from it without
@@ -192,6 +168,7 @@ async function answerable(root: string, index: string, noGit: boolean): Promise<
 }
 
 async function lexicon(root: string): Promise<string> {
+  const { refreshDependencyLexicon } = await import('@variance-authority/help');
   try {
     const { path, packages, entrypoints, reused, unavailable, unchanged } = await refreshDependencyLexicon(root);
     if (unchanged) return `dependency lexicon: unchanged, nothing read: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${unavailable} unavailable, at ${path}`;

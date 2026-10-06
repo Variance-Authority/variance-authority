@@ -18,8 +18,10 @@
 
 // compass: variance-authority.reach.source-index
 
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { sourceIndexPath } from '@variance-authority/sense';
+import type { Parsed } from '../parse.js';
 import { alive, handLock, lockAt, releaseLock, takeLock, type ProcessLock } from './detached.js';
 
 export const followUpsLockPath = (index: string): string => `${index}.follow-ups`;
@@ -79,4 +81,30 @@ export async function awaitFollowUps(index: string, waiting: (lock: ProcessLock)
     waited = lock;
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
+}
+
+/**
+ * Wait for the follow-ups a detached `index` is making, before any command reads
+ * them; the process making them is the one command that does not wait. A process
+ * that is gone left them unmade, so they are made here, on stderr, before the
+ * command runs — unless the command is `index`, which is about to make them anyway.
+ */
+export async function settleFollowUps(parsed: Parsed, streams: { err(text: string): void }): Promise<void> {
+  if (parsed.command === 'index' && parsed.followUps === true) return;
+  const indexing = parsed.command === 'index';
+  const cwd = process.cwd();
+  const index = sourceIndexPath(cwd);
+  const waited = await awaitFollowUps(index, (lock) => streams.err(waitingLine(lock)));
+  if (!waited.held || waited.finished) return;
+  rmSync(followUpsLockPath(index), { force: true });
+  if (indexing) return;
+  const { pid, log } = waited.lock;
+  streams.err(`process ${pid} ended before it finished what \`variance index\` left to it, so it is made now; what it wrote is in ${log}\n`);
+  const { indexOutput } = await import('./index-command.js');
+  streams.err(await indexOutput({ cwd, waiting: (text) => streams.err(text) }));
+}
+
+/** What a command says while it waits on the process making the follow-ups. */
+export function waitingLine({ pid, log }: { pid: number; log: string }): string {
+  return `waiting for process ${pid} to finish the code map, the journeys, the dependency lexicon and the questions \`variance index\` left to it; its lines are in ${log}\n`;
 }

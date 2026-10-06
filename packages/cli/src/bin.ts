@@ -5,9 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { isCI } from 'ci-info';
 import { messageOf } from './config-values.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exit.js';
-import { dispatch } from './dispatch.js';
 import type { Detach } from './commands/detached.js';
-import { settleFollowUps } from './commands/index-command.js';
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
 import { helpFor } from './usage.js';
@@ -62,7 +60,23 @@ export async function main(
   }
 
   try {
+    // Loaded here and not above: the version and the help answer without a
+    // command, and every module a command needs is a module they would wait on.
+    const [{ settleFollowUps }, { answerConfigless, constantAnswer, withoutConfig }] = await Promise.all([
+      import('./commands/index-follow-ups.js'),
+      import('./commands/configless.js'),
+    ]);
     await settleFollowUps(parsed, streams);
+    // What answers before a config is read, and why each of them may: see
+    // `configless.ts`, which holds those reasons beside the `CONFIGLESS` list in
+    // `usage.ts` that keeps `--config` off them. The guard also narrows: past it,
+    // every command left in the union has a `--config` to load, and only then are
+    // the modules that read one loaded. A mistyped question is refused here, by
+    // `constantAnswer`, before a file is opened.
+    const constant = await constantAnswer(parsed, streams);
+    if (constant !== undefined) return constant;
+    if (withoutConfig(parsed)) return await answerConfigless(parsed, streams);
+    const { dispatch } = await import('./dispatch.js');
     return await dispatch(parsed, streams);
   } catch (error) {
     if (isOperatorError(error)) {
