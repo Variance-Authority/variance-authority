@@ -11,7 +11,7 @@ import { main } from '../bin.js';
 import { MAINLINE_REUSE_MS, mainlineBase, mainlineRead } from './mainline-base.js';
 import { mainlineRefreshLock } from './mainline-refresh.js';
 import { indexOutput } from './index-command.js';
-import { DISCOUNTS, PUSH, ROUNDS, collectedBoth, git, gitPublished, ranHere, ranWhole, recordIn } from './mainline-fixture.js';
+import { BEFORE, DISCOUNTS, PUSH, ROUNDS, collectedBoth, git, gitPublished, ranHere, ranWhole, recordIn } from './mainline-fixture.js';
 import { selectOutput } from './select-command.js';
 import { publishSuite } from './suite-share.js';
 
@@ -39,7 +39,12 @@ afterEach(async () => {
   await rm(home, { recursive: true, force: true });
 });
 
-/** A laptop clone that fetched `first` at `NOW`, after which the mainline published `second`. */
+/**
+ * A laptop clone that fetched `first` at `NOW`, after which the mainline
+ * published `second`. The two records disagree on who runs `applyDiscount`:
+ * `total.test.ts` at `first`, `other.test.ts` at `second`, so a change to it
+ * selects by which record was read.
+ */
 async function behind() {
   const { ci, origin, first } = await gitPublished(home);
   const dir = join(home, 'clone');
@@ -55,7 +60,7 @@ async function behind() {
   const second = await git(ci, 'rev-parse', 'HEAD');
   await git(ci, 'push', '--quiet', 'origin', 'main');
   process.env['VARIANCE_AUTHORITY_CACHE'] = join(home, 'ci-cache');
-  await recordIn(ci, second, ['test/total.test.ts'], [DISCOUNTS, ROUNDS]);
+  await recordIn(ci, second, ['test/other.test.ts'], [DISCOUNTS, ROUNDS]);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), second);
   const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
   if (!('published' in done)) throw new Error(`the record was to reach mainline main: ${JSON.stringify(done)}`);
@@ -181,8 +186,12 @@ describe('`variance select` past the reuse window', () => {
     await forgetLineAnswers(join(home, 'laptop-cache'));
     const { started, detach } = detaching(process.pid);
 
+    await writeFile(join(dir, 'src/total.ts'), BEFORE.replace('0.9', '0.8'));
+
     const selected = await selectOutput({ cwd: dir, format: 'plain', detach });
 
+    // The record fetched last says `total.test.ts` runs the change; the mainline's says `other.test.ts` does.
+    expect(selected.out).toBe('test/other.test.ts\n');
     expect(started).toEqual([['share', '--suite', 'unit', lock.log]]);
     expect(selected.err).toContain(`published at ${first}, fetched at `);
     expect(selected.err).toContain(`process ${String(process.pid)} is fetching the mainline's record now`);
