@@ -381,9 +381,9 @@ function cache<T extends { readonly byteLength: number }>(
   let decoded = 0;
   let repeated = 0;
   // The run at the back already. A walk reads row after row of one run, so most
-  // hits are on it, and moving it to where it already is cost a `Map` delete and
-  // insert a read: 2.3 million of them in one `variance select`, all but 13% on the
-  // run already there.
+  // hits are on it, and moving it to where it already is costs a `Map` delete and
+  // insert a read: one `variance select` over this repository hits a held run four
+  // hundred thousand times, 85% of them on the run already there.
   let newest: number | undefined;
   return Object.assign(
     (index: number, make: (index: number) => T): T => {

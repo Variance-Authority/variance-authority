@@ -3,7 +3,15 @@ import { encodeTestCoverage } from './format.js';
 import { openTestCoverage, type TestCoverageView } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { coverage, testFiles } from './__fixtures__/coverage.js';
-import { findModule, findModules, findString, findTest, sharedPreconditions, testsGovernedBy } from './lookup.js';
+import {
+  findModule,
+  findModules,
+  findString,
+  findTest,
+  sharedPreconditions,
+  testPathOf,
+  testsGovernedBy,
+} from './lookup.js';
 
 const view = (): TestCoverageView => openTestCoverage(encodeTestCoverage(coverage));
 
@@ -159,5 +167,95 @@ describe('the id a snapshot interned a string under', () => {
 
   it('declines a string it never held, which is what lets a column go unread', () => {
     expect(findString(view(), 'src/never-seen.ts')).toBeUndefined();
+  });
+});
+
+describe('a row found by its path, from a lookup the view keeps', () => {
+  // Forty modules, one of them read by two builds, and twenty tests: wide enough
+  // that a search probes rows its neighbours' searches probed too.
+  const modules = Array.from({ length: 40 }, (_, at) => `src/m${String(at).padStart(2, '0')}.ts`);
+  const tests = Array.from({ length: 20 }, (_, at) => `test/t${String(at).padStart(2, '0')}.test.ts`);
+  const wide: TestCoverage = {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: tests.map((file) => ({ file, complete: true, preconditions: [{ name: file, digest: `source:${file}` }] })),
+    modules: [...modules, 'src/m17.ts'].map((file, at) => ({
+      file,
+      sourceDigest: `source:${file}:${at}`,
+      instrumented: true,
+      blocks: [],
+    })),
+  };
+  // Before the first, between two, after the last, a prefix of one, and one
+  // name for each table that is the other table's.
+  const absent = ['a.ts', 'src/m17.tsx', 'src/m1.ts', 'src/m99.ts', 'zzz.ts', 'test/t05.test.tsx'];
+
+  /** The answers a decode of every row gives, which a lookup has to agree with. */
+  const scanned = (from: TestCoverageView, file: string): { modules: number[]; test: number | undefined } => {
+    const rows: number[] = [];
+    for (let row = 0; row < from.modulePath.length; row += 1) {
+      if (from.string(from.modulePath.at(row)) === file) rows.push(row);
+    }
+    let test: number | undefined;
+    for (let row = 0; row < from.testPath.length; row += 1) {
+      if (from.string(from.testPath.at(row)) === file) test = row;
+    }
+    return { modules: rows, test };
+  };
+
+  it('answers every path, held or absent, as a decode of every row does, in whichever order it is asked', () => {
+    const reference = openTestCoverage(encodeTestCoverage(wide));
+    const from = openTestCoverage(encodeTestCoverage(wide));
+    const asked = [...modules, ...tests, ...absent];
+
+    for (const file of [...asked, ...[...asked].reverse()]) {
+      const { modules: rows, test } = scanned(reference, file);
+      expect(findModules(from, file)).toEqual(rows);
+      expect(findModule(from, file) === undefined).toBe(rows.length === 0);
+      expect(findTest(from, file)).toBe(test);
+    }
+    expect(findModules(from, 'src/m17.ts')).toHaveLength(2);
+    for (const file of absent) {
+      expect(findModules(from, file)).toEqual([]);
+      expect(findTest(from, file)).toBeUndefined();
+    }
+  });
+
+  it('decodes each row it probes once per view, however many lookups probe it', () => {
+    const opened = openTestCoverage(encodeTestCoverage(wide));
+    let decoded = 0;
+    const from: TestCoverageView = {
+      ...opened,
+      string: (id) => {
+        decoded += 1;
+        return opened.string(id);
+      },
+    };
+
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (const file of [...modules, ...tests, ...absent]) {
+        findModules(from, file);
+        findTest(from, file);
+      }
+    }
+
+    expect(decoded).toBeLessThanOrEqual(from.modulePath.length + from.testPath.length);
+  });
+
+  it('names a test row by its path, decoded once per view', () => {
+    const opened = openTestCoverage(encodeTestCoverage(wide));
+    let decoded = 0;
+    const from: TestCoverageView = {
+      ...opened,
+      string: (id) => {
+        decoded += 1;
+        return opened.string(id);
+      },
+    };
+
+    for (let pass = 0; pass < 2; pass += 1) {
+      expect(tests.map((_, row) => testPathOf(from, row))).toEqual(tests);
+    }
+    expect(decoded).toBe(tests.length);
   });
 });
