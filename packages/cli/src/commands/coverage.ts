@@ -33,13 +33,13 @@ import {
   type SuiteKind,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCoverage } from '../coverage-args.js';
-import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { diffFromBase } from './base-diff.js';
 import { baseCommit } from './covering-motion.js';
 import { coverageSource, harnessReach, readSource, within, type CoverageSource, type MissedEntry, type Scoped } from './coverage-source.js';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
+import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's record and its base, or why it has neither. */
 export interface CoverageSuite {
@@ -161,14 +161,7 @@ export async function coverage(request: ParsedCoverage): Promise<Coverage> {
   }
 
   if (now.length === 0) {
-    throw new OperatorError(
-      declared === undefined
-        ? `nothing is recorded in \`${request.root}\`: no run left a per-case index. Run the suite with \`withTestSelection\` and ask again.`
-        : `nothing is recorded in \`${request.root}\`: none of the suites it declares, ${
-            counted.map((one) => `"${one!.name}"`).join(', ')
-          }, has a per-case index. Run a suite with \`withTestSelection\` and ask again.`,
-      { kind: 'unrecorded' },
-    );
+    throw nothingRecorded(request.root, declared === undefined ? undefined : counted.map((one) => one!.name));
   }
   const at = await head(request.root);
   const count = countCoverage(now);
@@ -293,13 +286,5 @@ async function head(root: string): Promise<string | undefined> {
     return (await promisify(execFile)('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
   } catch {
     return undefined;
-  }
-}
-
-function asOperator<T>(read: () => T): T {
-  try {
-    return read();
-  } catch (error) {
-    throw new OperatorError(messageOf(error), { cause: error });
   }
 }

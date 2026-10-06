@@ -154,7 +154,7 @@ variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
-variance distill [--test <name>] [--file <path>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
+variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json]
 variance story   [--file <text>] [--name <text>] [--label <label>] [--in <package or file> | --around <step> | --whole | --compare last|outcome|<a>,<b>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
@@ -324,6 +324,18 @@ variance distill --file test/checkout.spec.ts --test submits
 flag may be given alone. When more than one case fits, the command prints up to
 five of their ids and stops; pass one of them to `--test`. A case Playwright
 retried prints every attempt's journal, numbered from 1.
+
+`--file` alone reads the whole file: the modules it loaded that no case
+entered, and those only some of its cases entered, with their length in lines.
+The file pays for each once, when it loads, whichever cases use it. Each module
+no case entered is listed under the import that made the file load it, read
+from the checkout's file graph: the topmost import every path to it runs
+through, in the test file or in a module it used.
+
+Name neither flag, and `distill` reads every test file that way, or with
+`--from <dir>` every one under a folder or a package, and ranks the imports
+they load for nothing by their lines summed over the test files each reaches.
+With no `--suite`, it reads every declared suite.
 
 `distill` reads the record `covering` reads; `--suite <name>` picks one declared
 suite's, and `--execution <path>` reads any other record, or JSON from a tool

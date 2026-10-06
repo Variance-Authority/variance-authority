@@ -10,6 +10,7 @@
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts", "src/**/*.measure.ts"],
   "references": [
+    { "path": "../core" },
     { "path": "../eyes" },
     { "path": "../sense" }
   ]

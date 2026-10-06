@@ -169,6 +169,25 @@ interface MutableUpdates {
 
 export { formatDistillation } from './format.js';
 export { parseExecutionIndex } from './execution-json.js';
+export {
+  distillFile,
+  formatFileDistillation,
+  type FileDistillInput,
+  type FileDistillation,
+  type LoadedModule,
+} from './file.js';
+export {
+  distillScope,
+  formatScopeDistillation,
+  type ScopeDistillInput,
+  type ScopeDistillation,
+  type ScopeRecord,
+  type Spill,
+  type SpillCause,
+} from './scope.js';
+export { type ImportCharge } from './charge.js';
+export { type MisplacedMock } from './mocks.js';
+export { type ImportReach, type LoadCause } from './own.js';
 
 const PHASES = ['unphased', 'arrange', 'act', 'assert'] as const;
 

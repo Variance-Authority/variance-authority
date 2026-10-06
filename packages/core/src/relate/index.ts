@@ -38,6 +38,8 @@ export {
 
 export { beyondReach, type BeyondReach, type InstallMoved } from './beyond.js';
 
+export { dominatorsOf } from './dominate.js';
+
 export { type EdgeUse, type Uses } from './narrow.js';
 
 export {
