@@ -327,7 +327,7 @@ async function pointAt(roots: readonly string[], baseOf: (run: Run, at: string) 
     const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]), run);
     if (repository === undefined) return undefined;
     const base = await baseOf(run, repository);
-    return { repository, base, at: (path) => fileAt(repository, base, path) };
+    return { repository, base, at: filesAt(repository, base) };
   } catch {
     return undefined;
   }
@@ -363,23 +363,42 @@ export async function movedSince(point: DiffPoint | undefined, changed: readonly
 }
 
 /**
- * One file's contents at a revision, or `undefined` when that revision has no
- * such file.
+ * The files at a revision, each `undefined` when that revision has no such
+ * file.
  *
  * The two are told apart by the caller and mean different things: a lockfile
  * that was not there before is an install this cannot compare, and one that is
  * there at both ends is one it can.
+ *
+ * A diff that touches every workspace's manifest asks for each one at the base.
+ * The paths asked before the event loop next turns are read together, by the
+ * reader that answers a recording's texts, in one git process rather than one
+ * each.
  */
-async function fileAt(repository: string, revision: string, path: string): Promise<string | undefined> {
-  const run = promisify(execFile);
-  try {
-    const { stdout } = await run('git', [...PLAIN, 'show', `${revision}:${path}`], {
-      cwd: repository,
-      maxBuffer: 64 * 1024 * 1024,
+function filesAt(repository: string, revision: string): (path: string) => Promise<string | undefined> {
+  let asked: Map<string, ((text: string | undefined) => void)[]> | undefined;
+  return (path) =>
+    new Promise((resolve) => {
+      if (asked === undefined) {
+        const paths = (asked = new Map());
+        setImmediate(() => {
+          asked = undefined;
+          void read(paths);
+        });
+      }
+      const waiting = asked.get(path);
+      if (waiting === undefined) asked.set(path, [resolve]);
+      else waiting.push(resolve);
     });
-    return stdout;
-  } catch {
-    return undefined;
+
+  async function read(paths: ReadonlyMap<string, readonly ((text: string | undefined) => void)[]>): Promise<void> {
+    const textAt = await import('@variance-authority/sense/test-selection')
+      .then((selection) => selection.textAtRecording(repository, paths.keys()))
+      .catch(() => () => undefined);
+    for (const [path, waiting] of paths) {
+      const text = textAt(path, revision);
+      for (const resolve of waiting) resolve(text);
+    }
   }
 }
 

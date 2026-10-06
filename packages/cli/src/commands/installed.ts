@@ -154,8 +154,8 @@ async function installDiffAt(
   if (path.startsWith('..')) return undefined;
 
   const manifests = [pathTail(found.file), MANIFEST];
-  const moved = await movedSince(point, changed, from);
-  const before = await point.at(path);
+  // Asked in one turn, so a point that reads its files together reads them at once.
+  const [moved, before] = await Promise.all([movedSince(point, changed, from), point.at(path)]);
   if (before === found.text) return { packages: [], manifests, moved };
 
   if (before === undefined) {
@@ -255,15 +255,14 @@ async function movedManifests(
 ): Promise<readonly string[]> {
   const candidates = changed.filter((file) => pathTail(file) === MANIFEST);
   if (candidates.length === 0) return [];
+  // Every end is asked for before anything is awaited, so a caller that reads
+  // the asks of one turn together reads them in one go.
+  const read = candidates.map(ends);
   const moves = await import('@variance-authority/sense/lock')
     .then((lock) => lock.manifestMoved)
     .catch(() => () => true);
-  const moved: string[] = [];
-  for (const file of candidates) {
-    const [before, after] = await ends(file);
-    if (moves(before, after)) moved.push(file);
-  }
-  return moved;
+  const texts = await Promise.all(read);
+  return candidates.filter((_, at) => moves(...texts[at]!));
 }
 
 /** The packages that moved from `before` to `after`, which is parsed once however many commits read it. */
