@@ -54,20 +54,7 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
             if prefix.is_empty() {
                 git(root, &["status", "--porcelain=v1", "-z", "--untracked-files=normal"], None)
             } else {
-                git(
-                    root,
-                    &[
-                        "-c",
-                        "status.relativePaths=true",
-                        "status",
-                        "--porcelain=v1",
-                        "-z",
-                        "--untracked-files=all",
-                        "--",
-                        ".",
-                    ],
-                    None,
-                )
+                git(root, &["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], None)
             }
         });
         (listing.join().ok().flatten(), status.join().ok().flatten())
@@ -110,7 +97,7 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         listed.push((relative.to_vec(), oid));
     }
 
-    let (moved, unhashed) = match overlay(root, status) {
+    let (moved, unhashed) = match overlay(root, prefix, status) {
         Some((moved, unhashed)) => (Some(moved), unhashed),
         None => (None, Vec::new()),
     };
@@ -171,10 +158,17 @@ type Moved = HashMap<Vec<u8>, Option<Oid>>;
 /// hashed nothing, or `None` when git did not answer and every committed digest
 /// is withdrawn with it.
 ///
+/// Porcelain status spells every path from the top of the checkout, wherever it
+/// runs, and ignores `status.relativePaths`. So each path loses `prefix` here,
+/// the scan root's place in the checkout, to match the listing's names. Below
+/// the top, status is asked with `-- .`, so every path it names is under the
+/// root: a rename across the root is a deletion or an addition on the root's
+/// side.
+///
 /// Failure removes the disagreeing paths rather than leaving them: a stale
 /// digest on an edited file is a subject nobody observes, and no digest at all
 /// is a file the scan hashes for itself.
-fn overlay(root: &str, status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)> {
+fn overlay(root: &str, prefix: &[u8], status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)> {
     let status = status?;
 
     let fields: Vec<&[u8]> = status.split(|byte| *byte == 0).collect();
@@ -191,15 +185,17 @@ fn overlay(root: &str, status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)>
         }
 
         let codes = &entry[..2];
-        let path = &entry[3..];
 
         // A rename carries its old path as the next field, and that path is gone.
         if codes.contains(&b'R') {
-            if let Some(from) = fields.get(at) {
+            if let Some(from) = fields.get(at).and_then(|from| from.strip_prefix(prefix)) {
                 moved.insert(from.to_vec(), None);
             }
             at += 1;
         }
+        let Some(path) = entry[3..].strip_prefix(prefix) else {
+            continue;
+        };
 
         if codes.contains(&b'D') {
             moved.insert(path.to_vec(), None);
@@ -247,7 +243,7 @@ fn overlay(root: &str, status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)>
     // trailing slash, or a link to a directory or to nothing, fails the batch,
     // and a failed batch withdraws every edited file's digest with its own.
     let files: Vec<&[u8]> = dirty.iter().map(Vec::as_slice).filter(|path| is_file(root, path)).collect();
-    for (path, oid) in hash_on_disk(root, &files) {
+    for (path, oid) in hash_on_disk(root, prefix, &files) {
         moved.insert(path, Some(oid));
     }
     let unhashed = dirty.into_iter().filter(|path| moved.get(path).is_some_and(Option::is_none)).collect();
@@ -291,12 +287,18 @@ fn is_file(root: &str, path: &[u8]) -> bool {
 /// means git stopped early, on a path that went away or could not be opened
 /// after `is_file` saw it, and pairing the survivors by position would attach
 /// one file's digest to another's name; the whole batch is discarded instead.
-fn hash_on_disk(root: &str, paths: &[&[u8]]) -> Vec<(Vec<u8>, Oid)> {
+///
+/// `hash-object --stdin-paths` reads each path from the top of the checkout,
+/// wherever it runs, so each goes in behind `prefix` and comes back without it.
+/// Spelled from the top rather than absolute, a path matches `.gitattributes`
+/// as it would from a scan at the top.
+fn hash_on_disk(root: &str, prefix: &[u8], paths: &[&[u8]]) -> Vec<(Vec<u8>, Oid)> {
     if paths.is_empty() {
         return Vec::new();
     }
-    let mut stdin = Vec::with_capacity(paths.iter().map(|path| path.len() + 1).sum());
+    let mut stdin = Vec::with_capacity(paths.iter().map(|path| prefix.len() + path.len() + 1).sum());
     for path in paths {
+        stdin.extend_from_slice(prefix);
         stdin.extend_from_slice(path);
         stdin.push(b'\n');
     }
