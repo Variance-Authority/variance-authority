@@ -1,12 +1,13 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cacheRootFor, declaredSuites, mainlineReadRoot, testCoverageFile, writeFetchedMainline } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
 import type { Detach } from './detached.js';
+import { main } from '../bin.js';
 import { MAINLINE_REUSE_MS, mainlineBase, mainlineRead } from './mainline-base.js';
 import { mainlineRefreshLock } from './mainline-refresh.js';
 import { indexOutput } from './index-command.js';
@@ -122,6 +123,19 @@ describe('a workstation reader past the reuse window', () => {
     expect(existsSync(lock.path)).toBe(false);
   });
 
+  it('fetches before it answers when the lock does not read, and leaves that lock where it is', async () => {
+    const { base, second, lock } = await behind();
+    await writeFile(lock.path, 'not a lock\n');
+    const { started, detach } = detaching(process.pid);
+
+    const read = await base(LATER, detach);
+
+    expect(read).toMatchObject({ commit: second, fetched: at(LATER) });
+    expect(read).not.toHaveProperty('earlier');
+    expect(started).toHaveLength(0);
+    expect(await readFile(lock.path, 'utf8')).toBe('not a lock\n');
+  });
+
   it('says which process is fetching, and where its output goes', async () => {
     const { base, first, lock } = await behind();
     const read = await base(LATER, detaching(4242).detach);
@@ -173,5 +187,21 @@ describe('`variance select` past the reuse window', () => {
     expect(started).toEqual([['share', '--suite', 'unit', lock.log]]);
     expect(selected.err).toContain('record of "unit": read from this checkout\'s own');
     expect(selected.err).toContain(`process ${String(process.pid)} is fetching the mainline's record now`);
+  });
+
+  it('is handed the program\'s process from the command line', async () => {
+    const { dir, first, lock } = await behind();
+    process.chdir(dir);
+    await indexOutput({ cwd: dir });
+    await writeFetchedMainline(cacheRootFor(dir), 'unit', { mainline: 'main', commit: first, fetched: at(Date.now() - MAINLINE_REUSE_MS - 1) });
+    await forgetLineAnswers(join(home, 'laptop-cache'));
+    const { started, detach } = detaching(process.pid);
+    let err = '';
+
+    const code = await main(['select', '--format', 'plain'], { out: () => {}, err: (text) => { err += text; }, detach });
+
+    expect(code).toBe(0);
+    expect(started).toEqual([['share', '--suite', 'unit', lock.log]]);
+    expect(err).toContain(`process ${String(process.pid)} is fetching the mainline's record now`);
   });
 });
