@@ -33,11 +33,9 @@ import { promisify } from 'node:util';
 import { digestString, type Digest } from './digest.js';
 import { native, type NativeGitTree } from './native.js';
 import { directoriesOf } from './witness.js';
+import { MAX_OUTPUT, workingTreeChanges } from './working-tree-changes.js';
 
 const run = promisify(execFile);
-
-/** Enough for a repository of two hundred thousand paths. */
-const MAX_OUTPUT = 256 * 1024 * 1024;
 
 /**
  * Every tracked path under `root`, with the digest of the bytes on disk.
@@ -123,75 +121,17 @@ async function overlayKnownChanges(
  * a file the scan hashes for itself.
  */
 async function overlayWorkingTree(root: string, digests: Map<string, Digest>, top: boolean): Promise<void> {
-  // Nothing is passed for `core.fsmonitor` or `core.untrackedCache`. Both are the
-  // repository's to configure and both are what make this call cheap on a large
-  // checkout; an override here would quietly cost a user who turned them on the
-  // whole saving, and turning them on from here would start a daemon nobody
-  // asked for. The untracked cache answers only `--untracked-files=normal` with
-  // no pathspec, and either one alone walks every directory again: 370 ms
-  // against 40 ms on 288,197 paths. So at the top of the checkout the question
-  // is asked in that shape, and the directories it collapses are listed apart.
-  const args = top
-    ? ['status', '--porcelain=v1', '-z', '--untracked-files=normal']
-    : ['-c', 'status.relativePaths=true', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', '.'];
-  let status: string;
-  try {
-    ({ stdout: status } = await run('git', args, { cwd: root, maxBuffer: MAX_OUTPUT }));
-  } catch {
+  const changes = await workingTreeChanges(root, top);
+  if (changes === undefined) {
     digests.clear();
     return;
   }
-
-  const dirty: string[] = [];
-  const collapsed: string[] = [];
-  const fields = status.split('\0');
-
-  for (let at = 0; at < fields.length; at += 1) {
-    const entry = fields[at]!;
-    if (entry.length < 4) continue;
-
-    const codes = entry.slice(0, 2);
-    const path = entry.slice(3);
-
-    // A rename carries its old path as the next field, and that path is gone.
-    if (codes.includes('R')) {
-      const from = fields[at + 1];
-      if (from !== undefined) digests.delete(from);
-      at += 1;
-    }
-
-    if (codes.includes('D')) digests.delete(path);
-    // A directory git did not descend: untracked, collapsed by
-    // `--untracked-files=normal`, or a repository of its own. It has no blob,
-    // and one in the batch fails `hash-object` for every file.
-    else if (path.endsWith('/')) {
-      if (codes === '??') collapsed.push(path);
-    } else dirty.push(path);
-  }
-
-  if (collapsed.length > 0) {
-    // Only the directories git collapsed are walked, and the walk is git's, so
-    // the ignore rules are the ones `status` applied. Unanswered, the files under
-    // them are unknown, and git has not answered.
-    let listed: string;
-    try {
-      ({ stdout: listed } = await run(
-        'git',
-        ['--literal-pathspecs', 'ls-files', '-z', '--others', '--exclude-standard', '--', ...collapsed],
-        { cwd: root, maxBuffer: MAX_OUTPUT },
-      ));
-    } catch {
-      digests.clear();
-      return;
-    }
-    for (const path of listed.split('\0')) if (path !== '' && !path.endsWith('/')) dirty.push(path);
-  }
-
+  for (const path of changes.gone) digests.delete(path);
   // Removed before the refill, so a path that hashes nothing — not a file,
   // unreadable, or vanished between the two calls — hands the question back to
   // the scan rather than keeping a committed digest for contents nobody saw.
-  for (const path of dirty) digests.delete(path);
-  for (const [path, digest] of await hashOnDisk(root, await filesAmong(root, dirty))) digests.set(path, digest);
+  for (const path of changes.changed) digests.delete(path);
+  for (const [path, digest] of await hashOnDisk(root, await filesAmong(root, changes.changed))) digests.set(path, digest);
 }
 
 /**
