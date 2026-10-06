@@ -197,6 +197,11 @@ export function layerCaseIndex(
  * the recorded cut has no address for is left out: no line of the newer text
  * holds it, and kept at a line of the older one it would pair with whatever
  * region stands there now.
+ *
+ * The module's own region is not one of those lines. It starts where the
+ * build that cut it starts the module — the source at its first line, a build
+ * at the first statement it kept — so two cuts of one text part there, while a
+ * line written above everything moves every other region as well.
  */
 // FIXME: regions told apart only by occurrence carry no seat for
 // `sameNumbering` to compare, so a sibling taken out in front of them and
@@ -208,9 +213,9 @@ function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExe
   const lands = landing(recorded, held, true);
   const to = new Map<number, number>();
   for (const [block, from] of lands.entries()) if (from >= 0) to.set(from, block);
-  const moved = [...to].some(([from, block]) =>
+  const moved = [...to].some(([from, block]) => held.blocks[from]!.kind !== 'module' && (
     held.blocks[from]!.startLine !== recorded.blocks[block]!.startLine ||
-    held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine);
+    held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine));
   if (!moved) return held;
   if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
   const kept = [...to.keys()].sort((left, right) => left - right);

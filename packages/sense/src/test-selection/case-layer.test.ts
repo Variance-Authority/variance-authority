@@ -259,6 +259,59 @@ describe('a module the index holds at an older text than the snapshot', () => {
   });
 });
 
+/** A region of one cut: its kind, name, path and lines, and the cases that called it. */
+type Spelled = readonly [kind: string, name: string, path: string, lines: readonly [number, number], callers: readonly string[]];
+
+function cutOf(cases: readonly string[], file: string, regions: readonly Spelled[]): Buffer {
+  const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
+  const sets = new CrossingSets(tests.length);
+  sets.intern([]);
+  const at = new Map(cases.map((id, position) => [id, position]));
+  const module: SetExecutionModule = {
+    file,
+    blocks: regions.map(([kind, name, path, [startLine, endLine]]) => ({ kind, name, path, startLine, endLine, source: true })),
+    called: Uint32Array.from(regions, ([, , , , callers]) => sets.intern(callers.map((id) => at.get(id)!))),
+    loaded: new Uint8Array(regions.length),
+  };
+  return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
+}
+
+describe('two cuts of one text', () => {
+  it('keeps the cases of a file the run did not run when the cuts part only where a build starts the module and which awaits it kept', () => {
+    const kept = 'ignore.test.ts > keeps';
+    // The whole suite's cut kept the regions every build cut alike: the module
+    // from its first line, and two of the three awaits. One shard's build
+    // starts the module at its first statement and keeps all three.
+    const held = cutOf([kept], 'src/observe.ts', [
+      ['module', '', 'module', [1, 419], []],
+      ['function', 'observePair', 'entry', [338, 354], [kept]],
+      ['resume', 'observePair', 'await#0', [343, 343], [kept]],
+      ['resume', 'observePair', 'await#1', [345, 345], [kept]],
+    ]);
+    const fresh = cutOf(['other.test.ts > loads'], 'src/observe.ts', [
+      ['module', '', 'module', [16, 419], []],
+      ['function', 'observePair', 'entry', [338, 354], []],
+      ['resume', 'observePair', 'await#0', [343, 343], []],
+      ['resume', 'observePair', 'await#1', [345, 345], []],
+      ['resume', 'observePair', 'await#2', [347, 352], []],
+    ]);
+
+    const { merged } = layerCaseIndex(held, fresh, { ...ran(['other.test.ts']), sameText: () => true });
+
+    const decoded = decodeExecutionIndex(merged);
+    expect(decoded.modules[0]!.blocks.map((block) => [
+      `${block.kind} ${block.path}`,
+      block.crossings.map((crossing) => decoded.tests[crossing.test]!.id),
+    ])).toEqual([
+      ['module module', []],
+      ['function entry', [kept]],
+      ['resume await#0', [kept]],
+      ['resume await#1', [kept]],
+      ['resume await#2', []],
+    ]);
+  });
+});
+
 /** The lines a layer's one module stands its regions on. */
 function linesOf(layer: Uint8Array | undefined): number[] {
   return decodeExecutionIndex(layer!).modules[0]!.blocks.map((block) => block.startLine);
