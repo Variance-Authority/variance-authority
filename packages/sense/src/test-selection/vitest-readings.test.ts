@@ -231,4 +231,60 @@ describe('a module the runner loaded from its build alone', () => {
   it('is recorded under the source its map leads to by the default include, which refuses built output', async () => {
     expect((await recordedUnder(defaultInclude, ['build'])).map((module) => module.file)).toEqual(['src/cart.ts']);
   });
+
+  it('leaves a declared globalSetup file alone', async () => {
+    // Vitest runs `globalSetup` in its own process, before any test
+    // environment: the setup shim that installs `globalThis.__VA__` is a
+    // `setupFiles` entry and has not run there. Instrumented, the file throws
+    // at its first probe and the whole suite dies before a test loads.
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-global-setup-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      const configured = withTestSelection(
+        { test: { globalSetup: ['./eyes.globalSetup.ts'] } },
+        { root, coverageFile },
+      );
+      const plugin = (configured.plugins as unknown as Array<{
+        transform(code: string, id: string): { code: string } | null;
+      }>)[0]!;
+      const source = 'export default function setup() { return 1; }';
+
+      expect(plugin.transform(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
+      // The exclusion is the named path, not every file beside it.
+      expect(plugin.transform(source, resolve(root, 'src/cart.ts'))!.code).toContain('function __va(i)');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves a declared globalSetup file alone when its build\'s map names a source', async () => {
+    // A workspace's setup consumed from its build: the map beside it would
+    // name the module after `src/setup.ts`, which the configuration never
+    // declared, and the probes would still run in the Vitest process.
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-global-setup-built-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await mkdir(resolve(root, 'dist'), { recursive: true });
+      await writeFile(resolve(root, 'src/setup.ts'), 'export default function setup() { return 1; }\n');
+      await writeFile(
+        resolve(root, 'dist/setup.js.map'),
+        JSON.stringify({ version: 3, sources: ['../src/setup.ts'], names: [], mappings: 'AAAA' }),
+      );
+      const configured = withTestSelection({ test: { globalSetup: ['./dist/setup.js'] } }, { root, coverageFile });
+      const plugin = (configured.plugins as unknown as Array<{
+        transform(code: string, id: string): { code: string } | null;
+      }>)[0]!;
+      const built = 'export default function setup() { return 1; }\n//# sourceMappingURL=setup.js.map\n';
+      await writeFile(resolve(root, 'dist/setup.js'), built);
+      await writeFile(resolve(root, 'dist/other.js'), built.replace('setup.js.map', 'other.js.map'));
+
+      expect(plugin.transform(built, resolve(root, 'dist/setup.js'))).toBeNull();
+      // Read from another build, the same text is a library like any other.
+      await writeFile(resolve(root, 'dist/other.js.map'), JSON.stringify({ version: 3, sources: ['../src/setup.ts'], names: [], mappings: 'AAAA' }));
+      expect(plugin.transform(built.replace('setup.js.map', 'other.js.map'), resolve(root, 'dist/other.js'))).not.toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
