@@ -166,12 +166,35 @@ describe('one leg of the selection', () => {
     expect(json.left).toEqual([FAR, GHOST]);
   });
 
+  it('writes how far the change travelled to each test it entered into json, beside the leg', () => {
+    const input = read();
+    const json = JSON.parse(formatSelection(inLeg(skippableTests(input), input, { from: 0, to: 2 }), 'json', '/repo'));
+
+    expect(json.distances).toEqual([
+      { test: FAR, bearing: 'transitive', hops: 3 },
+      { test: GHOST, bearing: 'unexplained' },
+      { test: MID, bearing: 'transitive', hops: 2 },
+      { test: NEAR, bearing: 'direct', hops: 1 },
+    ]);
+  });
+
+  it('counts the selection by hops on stderr, so the next leg can be chosen from it', () => {
+    const input = read();
+    const err = selectionNotes(inLeg(skippableTests(input), input, { from: 0, to: 2 }));
+
+    expect(err).toContain(
+      'the change entered 4 test files: 1 at 1 hop, 1 at 2 hops, 1 at 3 hops, ' +
+        'and 1 at no measured distance, which runs with the furthest leg',
+    );
+  });
+
   it('writes no leg into json when none was asked', () => {
     const input = read();
     const json = JSON.parse(formatSelection(inLeg(skippableTests(input), input, undefined), 'json', '/repo'));
 
     expect(json).not.toHaveProperty('leg');
     expect(json).not.toHaveProperty('left');
+    expect(json).not.toHaveProperty('distances');
   });
 
   it.each([

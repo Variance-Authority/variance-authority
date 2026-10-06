@@ -1639,9 +1639,12 @@ vitest run $(variance select --at-distance 3- --format vitest)
 
 A leg is still a skip list. A selection that declines to narrow skips nothing
 in any leg, and a test the change did not enter and the record never saw whole
-(new, or recorded incomplete) runs in both. stderr names how many selected files
-the leg left and the command that runs them, and
-`--format json` gives the leg as `leg` and those files as `left`.
+(new, or recorded incomplete) runs in both. A test the change entered by no
+import it executed has no hop count and runs in the furthest leg. stderr counts
+the entered tests at each hop count, and names how many selected files the leg
+left and the command that runs them. `--format json` gives the leg as `leg`,
+those files as `left`, and each entered test's `hops`, `bearing` and, where no
+distance was measured, `because`, as `distances`.
 
 It declines to narrow, out loud on stderr and with an empty stdout, whenever the
 journal holds no answer: nothing recorded on this machine, a diff git would not

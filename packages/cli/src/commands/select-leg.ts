@@ -25,9 +25,17 @@
  * no skip list and runs in every leg. A test the change entered is placed by
  * its hops whether or not the record saw it whole. That is the safe side of a skip list: it
  * costs a file run twice, never a file run zero times.
+ *
+ * ## The reading a leg was cut from is said with it
+ *
+ * A leg is chosen by hop counts, so the counts it was chosen from are given
+ * beside it: stderr counts the entered tests at each distance, and `json` gives
+ * each one's distance as sense measured it, its bearing and, for one it could
+ * not place, the reason. A test the change entered by no import it executed is
+ * the one a reader expects in the near leg and finds in the furthest.
  */
 
-import { remaining, type TestDistance } from '@variance-authority/sense/test-selection';
+import { groupByDistance, remaining, type TestDistance } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { many } from './reach.js';
 import type { SelectInput, TestSelection } from './select.js';
@@ -67,7 +75,9 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   const { entered } = input.ground.narrowing;
   const placed = new Map((input.ground.distances ?? []).map((distance) => [distance.test, distance]));
   // An entered test with no measured distance is unplaced, as `test:since` reads one.
-  const reading: readonly TestDistance[] = entered.map((test) => placed.get(test) ?? { test, bearing: 'unexplained' });
+  const reading: readonly TestDistance[] = entered
+    .map((test): TestDistance => placed.get(test) ?? { test, bearing: 'unexplained' })
+    .sort((one, other) => codeUnitOrder(one.test, other.test));
   const left = remaining(reading, leg.from, leg.to);
   const skip = [...new Set([...selection.skip, ...left])].sort(codeUnitOrder);
   const nearer = left.filter((test) => (placed.get(test)?.hops ?? Number.MAX_SAFE_INTEGER) < leg.from);
@@ -79,6 +89,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     ...asked,
     skip,
     left,
+    distances: reading,
     // `left` can hold an entered test the record never saw whole, so the two
     // counts are named apart rather than as a share of the whole.
     because:
@@ -86,11 +97,24 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
       `covered no changed line, and ${left.length} ${left.length === 1 ? 'is' : 'are'} outside \`--at-distance ${range}\`; ` +
       'every other test file runs',
     notes: [
+      ...byDistance(reading),
       ...leftNote(further, 'for a later leg', `${leg.to + 1}-`),
       ...leftNote(nearer.length, `for an earlier leg, nearer than ${many(leg.from, 'hop')}`, spelled({ from: 0, to: leg.from - 1 })),
       ...selection.notes,
     ],
   };
+}
+
+/** How many entered tests sit at each distance, nearest first, the unplaced last. */
+function byDistance(reading: readonly TestDistance[]): readonly string[] {
+  if (reading.length === 0) return [];
+  const counts = groupByDistance(reading).map((group) =>
+    group.unplaced
+      ? `${group.tests.length} at no measured distance, which ${group.tests.length === 1 ? 'runs' : 'run'} with the furthest leg`
+      : `${group.tests.length} at ${many(group.hops ?? 0, 'hop')}`,
+  );
+  const listed = counts.length === 1 ? counts[0] : `${counts.slice(0, -1).join(', ')}, and ${counts.at(-1)}`;
+  return [`the change entered ${many(reading.length, 'test file')}: ${listed}`];
 }
 
 /** How many selected files this leg left, and the leg that runs them. */

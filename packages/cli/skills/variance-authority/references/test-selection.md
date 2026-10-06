@@ -88,8 +88,10 @@ variance reach --since origin/main              # files a diff reaches over impo
   needs `--execution` and is refused beside `--since`. `--no-git` reads file
   contents from the working tree, not git's object store. `--at-distance <hops>`
   cuts the run to one leg of the selection and skips the selected files outside
-  it; `0-2` then `3-` runs every selected file in one of the two. `json` gives
-  the leg as `leg` and the files it left as `left`.
+  it; `0-2` then `3-` runs every selected file in one of the two. stderr counts
+  the entered tests at each hop count. `json` gives the leg as `leg`, the files
+  it left as `left`, and each entered test's hops, bearing and the reason none
+  was measured as `distances`; a test with no hop count runs in the furthest leg.
 - **`reach` needs no recording**, and reads JavaScript, TypeScript, Python,
   Rust, Java, Kotlin and Swift. It prints a run list, so a reading that cannot
   produce one exits `2` with an empty stdout rather than print a short list.
