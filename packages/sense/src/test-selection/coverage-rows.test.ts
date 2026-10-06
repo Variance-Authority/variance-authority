@@ -112,6 +112,23 @@ describe('recordedBlocks', () => {
     expect(rows.filter(shared).map(extent)).toEqual(cut.map(extent));
   });
 
+  it('keeps a build region with no source of its own off the lines of the source region named like it', () => {
+    // A region the build cut empty is not the region the source wrote under that
+    // name: a span would charge it for lines it does not cover.
+    const source = 'export async function f(a) {\n  await a.go(\n    1,\n  );\n}\n';
+    const code = 'var __name = (target, value) => target;\nexport async function f(a) {\n  await a.go(1);\n}\n';
+    const map = { mappings: ';AAAA;AACA;AAGA', sources: [FILE] };
+    const frame = recordedFrame(code, map, FILE, () => source);
+    const blocks = instrument(code, FILE)!.blocks;
+    const at = blocks.findIndex((block) => block.kind === 'resume');
+    const emptied = blocks.map((block, index) => (index === at ? { ...block, end: block.start } : block));
+
+    const rows = recordedBlocks(emptied, frame, code, 'presence');
+
+    expect(rows[at]).toMatchObject({ kind: 'resume', path: 'await#0', source: false });
+    expect(rows[at]!.endLine).toBe(rows[at]!.startLine);
+  });
+
   it('reads a build through its map when it moved regions its source names alike', () => {
     // The walk names both callbacks `f/on.arg1`; the build swapped their lines.
     const source = "export function f(a) {\n  a.on('x', () => 1);\n  a.on('x', () => 22);\n}\n";

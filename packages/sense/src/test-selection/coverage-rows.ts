@@ -127,21 +127,21 @@ export function recordedBlocks(
   if (own === undefined) return coverageBlocks(blocks, frame);
   const cut = own.rows;
   if (sameRegions(blocks, own.blocks)) return cut;
-  // A region the source names once, and the build names once, is the same
-  // region in both, and takes the source's lines: an `await` the map closed a
+  // A region the source names once, and the build names once with the same
+  // claim to source text, is the same region in both, and takes the source's lines: an `await` the map closed a
   // line short ends where the source's does. A region either walk names twice
   // cannot be told from its namesake and keeps the lines its map gives it, and
   // so does one the build cut alone. The module is always the source's.
   // FIXME: a build whose regions are named apart from its source's keeps its
   // map's lines: the walk names an arrow passed as a JSX attribute `anon#N` in
   // the source and after the property it became in the build.
-  const counted = (rows: readonly { kind: string; name: string; path: string }[]) => {
+  const counted = (rows: readonly Region[]) => {
     const count = new Map<string, number>();
     for (const row of rows) count.set(regionKey(row), (count.get(regionKey(row)) ?? 0) + 1);
     return count;
   };
-  const inBuild = counted(blocks);
-  const inSource = counted(own.blocks);
+  const inBuild = counted(blocks.map(ownsText));
+  const inSource = counted(own.blocks.map(ownsText));
   const sourceRow = new Map(cut.map((row) => [regionKey(row), row]));
   const [module, ...inside] = blocks.map((block) => coverageBlock(frame.text, block, frame.extentOf));
   const whole = cut[0]!;
@@ -156,9 +156,22 @@ export function recordedBlocks(
   ], frame.text);
 }
 
-/** What names a region in a walk, apart from the ordinal the walk gave it. */
-function regionKey(region: { readonly kind: string; readonly name: string; readonly path: string }): string {
-  return `${region.kind}\0${region.name}\0${region.path}`;
+/** A region as a walk names it, apart from the ordinal the walk gave it. */
+interface Region {
+  readonly kind: string;
+  readonly name: string;
+  readonly path: string;
+  /** The region spans text of its own, as `CoverageBlock.source` records it. */
+  readonly source: boolean;
+}
+
+/** What names a region in a walk: two that claim text apart are not one region. */
+function regionKey(region: Region): string {
+  return `${region.kind}\0${region.name}\0${region.path}\0${region.source ? 1 : 0}`;
+}
+
+function ownsText(block: Block): Region {
+  return { kind: block.kind, name: block.name, path: block.path, source: block.end > block.start };
 }
 
 /**
