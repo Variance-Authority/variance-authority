@@ -9,6 +9,7 @@ import type { Parsed } from '../parse.js';
 import { landJourneys } from './land.js';
 import { recordedJourneys } from './resources.js';
 import { subjectsInReport } from './run-report.js';
+import { collectedIn } from './suite-share.js';
 import { landingRecord, suiteRecord } from './suite-record.js';
 
 /** What `variance journeys` was asked for, once the flags are off the command line. */
@@ -24,6 +25,8 @@ export interface JourneysRequest {
   /** Shard directories to land before anything is read. */
   readonly shards: readonly string[];
   readonly into?: string;
+  /** The runner's list of the files the suite collects, which the landing keeps the record's test files to. */
+  readonly collected?: string;
   /** Whose record is read and landed on, when more than one suite is declared. */
   readonly suite?: string;
   readonly file?: string;
@@ -46,7 +49,12 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
   const landed =
     request.shards.length === 0
       ? undefined
-      : await landJourneys(request.cwd, request.shards, request.into ?? (await landingRecord(request.cwd, request.suite)));
+      : await landJourneys(
+          request.cwd,
+          request.shards,
+          request.into ?? (await landingRecord(request.cwd, request.suite)),
+          request.collected === undefined ? undefined : await collectedIn(request.cwd, request.collected),
+        );
   const record = landed?.at ?? request.into ?? (await suiteRecord(request.cwd, request.suite));
 
   const named = request.all || request.report === undefined ? undefined : await subjectsInReport(request.report);
@@ -89,6 +97,7 @@ export async function runJourneys(
       all: parsed.all,
       shards: parsed.shards,
       ...(parsed.into !== undefined ? { into: parsed.into } : {}),
+      ...(parsed.collected !== undefined ? { collected: parsed.collected } : {}),
       ...(parsed.suite !== undefined ? { suite: parsed.suite } : {}),
       ...(parsed.file !== undefined ? { file: parsed.file } : {}),
       ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),

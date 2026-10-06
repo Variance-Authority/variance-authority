@@ -17,6 +17,7 @@ import {
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
 import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
+import { journeysOutput } from './journeys-command.js';
 import { landJourneys } from './land.js';
 import { probedModule, published, ranWhole, wholeRecord } from './mainline-fixture.js';
 
@@ -136,6 +137,20 @@ describe('landJourneys and the run its shards were', () => {
     expect(last.cases).toEqual([alone.id, discounts.id]);
     const named = (await readExecutionIndex(record)).tests.filter((test) => last.cases.includes(test.id));
     expect(named.map((test) => [test.id, test.preconditions])).toEqual([[alone.id, alone.preconditions], [discounts.id, discounts.preconditions]]);
+  });
+
+  it('lets go of the cases of a test file the shards did not run and the runner no longer collects', async () => {
+    const { dir, first } = await published(home, { publish: false, record: wholeRecord });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    const alone = said('test/other.test.ts', 'stands alone', 'guest');
+
+    // As `vitest list --filesOnly` prints it: absolute, one file a line.
+    await writeFile(join(dir, 'collected.txt'), `${join(dir, 'test/other.test.ts')}\n`);
+
+    await journeysOutput({ cwd: dir, all: true, shards: [await casedShard('shard-1.bin', first, alone)], into: record, collected: 'collected.txt' });
+
+    expect((await readExecutionIndex(record)).tests.map((test) => test.file)).toEqual(['test/other.test.ts']);
+    expect((await readTestCoverage(record)).tests.map((test) => test.file)).toEqual(['test/other.test.ts']);
   });
 });
 

@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
+import type { Collects } from './commit-runs.js';
 import { defaultInclude, type CapturedModule } from './instrumented-modules.js';
 
 export interface SelectionRun {
@@ -74,6 +75,12 @@ export interface SelectionRun {
    * until it closes, because every rerun's workers load them.
    */
   watching: boolean;
+  /**
+   * The runner's answer to which test files the suite collects, which a
+   * landing drops the record's other files by; absent when the runner gives
+   * none, and then nothing is dropped.
+   */
+  collects: Collects | undefined;
 }
 
 const RUNS = Symbol.for('variance-authority.test-selection.runs');
@@ -114,6 +121,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     cases: true,
     settled: false,
     watching: false,
+    collects: undefined,
   };
 }
 

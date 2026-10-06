@@ -218,24 +218,26 @@ function agree(
  * nobody touched. Only a region the new text no longer has loses its crossings,
  * and only then is a test demoted. A module whose text cannot be read as source,
  * one recorded as not instrumented, and one `onDisk` does not name are each
- * carried as they were.
+ * carried as they were. A test in `uncollected` is one the runner no longer
+ * collects: it leaves with its crossings, since no run will re-record it.
  */
 export function mergeCoverage(
   previous: TestCoverage | undefined,
   current: TestCoverage,
   onDisk: ReadonlyMap<string, string> = new Map(),
+  uncollected: ReadonlySet<string> = new Set(),
 ): TestCoverage {
   if (previous === undefined) return current;
   if (previous.instrumentation !== current.instrumentation) return current;
 
   const currentTests = new Map(current.tests.map((test) => [test.file, test]));
   const previousTests = new Map(previous.tests.map((test) => [test.file, test]));
-  const retired = new Set(current.tests.flatMap((test) => {
+  const retired = new Set([...uncollected, ...current.tests.flatMap((test) => {
     const before = previousTests.get(test.file);
     return test.complete || (before !== undefined && !samePreconditions(before, test))
       ? [test.file]
       : [];
-  }));
+  })]);
   // Both sides are indexed before the walk rather than searched inside it. The
   // merge is the read-modify-write at the end of every run, so a scan nested in
   // a scan here is M_prev · M_cur — four times ten to the tenth at two hundred
@@ -348,7 +350,7 @@ export function mergeCoverage(
   }
   const tests = [
     ...previous.tests
-      .filter((test) => !currentTests.has(test.file))
+      .filter((test) => !currentTests.has(test.file) && !uncollected.has(test.file))
       .map((test) => (stale.has(test.file) ? { ...test, complete: false } : test)),
     ...current.tests,
   ].sort((left, right) => codeUnitOrder(left.file, right.file));

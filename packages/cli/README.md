@@ -160,7 +160,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
-variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
+variance journeys [--config <path> | --suite <name>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>] [--collected <file>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
@@ -1483,6 +1483,14 @@ folds and uploads names the artifact it uploads. Landing is a layer, not a
 replacement: what was already there is merged under the fold, so the result
 stands at the fold's commit, retires every observation the fold re-recorded
 whole, and keeps the ones it did not.
+
+A test file the suite stopped collecting is one no shard re-records, so it
+keeps standing where it last ran, and every file changed since then is read for
+it. Hand the landing the runner's own list with `--collected <file>` — one test
+file per line, as `vitest list --filesOnly` prints them — and the landing lets
+go of every test file the record holds that the shards did not run and the list
+does not name: its rows, its cases and its place in the runs record. Without
+the list nothing leaves, because only the runner knows what it collects.
 
 The case index lands with the snapshot, because it is part of it: a seam that
 records cases writes them into the record, so each shard's one file carries

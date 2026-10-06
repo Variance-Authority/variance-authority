@@ -226,9 +226,9 @@ const RUNS_PART = 'coverage.runs.json';
  * file the suite no longer collects there. The runs record lists the tests that
  * ran at its commit and, under `standing`, where every other test last ran; a
  * record without `standing` does not know, and is not taken as whole. A test
- * file the suite stopped collecting stays in the record, because its cases are
- * what the base had, so a test standing at an older commit counts against the
- * run only while the suite still collects it.
+ * file the suite stopped collecting stays in the record when nothing told the
+ * landing what the runner collects, so a test standing at an older commit
+ * counts against the run only while the suite still collects it.
  *
  * The runner owns what the suite collects, so `collected` is its answer: the
  * repository-relative test files it lists at `commit`, each of which the runs

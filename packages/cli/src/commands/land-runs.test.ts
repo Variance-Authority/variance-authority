@@ -65,8 +65,8 @@ function run(commit: string, files: readonly string[], instrumentation = 'fixtur
   };
 }
 
-/** Land `runs` as shards, one snapshot each, over the snapshot at `into`. */
-async function land(...runs: TestCoverage[]): Promise<void> {
+/** Land `runs` as shards, one snapshot each, over the snapshot at `into`, keeping the files `collected` names when it is given. */
+async function landCollected(collected: ReadonlySet<string> | undefined, ...runs: TestCoverage[]): Promise<void> {
   const shards = await Promise.all(
     runs.map(async (shard, index) => {
       const path = join(home, `shard-${index}.bin`);
@@ -74,8 +74,11 @@ async function land(...runs: TestCoverage[]): Promise<void> {
       return path;
     }),
   );
-  await landJourneys(home, shards, into);
+  await landJourneys(home, shards, into, collected);
 }
+
+/** Land `runs` as shards, one snapshot each, over the snapshot at `into`. */
+const land = (...runs: TestCoverage[]): Promise<void> => landCollected(undefined, ...runs);
 
 /** P ran every test, then H ran `near` alone. */
 async function partial(): Promise<void> {
@@ -217,5 +220,30 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     await land(run('C', ['other.test.ts']));
 
     expect((await readdir(home)).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+  });
+});
+
+describe('a landing handed the files the suite collects', () => {
+  it('lets go of a test file the record holds that the shards did not run and the runner no longer collects', async () => {
+    await partial();
+
+    await landCollected(new Set(['near.test.ts', 'other.test.ts']), run('C', ['other.test.ts']));
+
+    expect((await readTestCoverage(into)).tests.map((test) => test.file)).toEqual(['near.test.ts', 'other.test.ts']);
+    expect(await readCommitRuns(into)).toMatchObject({
+      commit: 'C',
+      over: 'H',
+      files: ['other.test.ts'],
+      standing: [{ commit: 'H', files: ['near.test.ts'] }],
+    });
+  });
+
+  it('keeps a test file the shards ran though the list does not name it', async () => {
+    await partial();
+
+    await landCollected(new Set(), run('C', ['other.test.ts']));
+
+    expect((await readTestCoverage(into)).tests.map((test) => test.file)).toEqual(['other.test.ts']);
+    expect(await readCommitRuns(into)).toMatchObject({ commit: 'C', files: ['other.test.ts'], standing: [] });
   });
 });

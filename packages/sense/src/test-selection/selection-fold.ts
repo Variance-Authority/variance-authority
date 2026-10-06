@@ -158,7 +158,7 @@ export function foldRun(
         }, joined.readings)
       : undefined;
     const merged = await withIndexLock(coverageFile, async () => {
-      await landRun(coverageFile, current, root, undefined, cases);
+      await landRun(coverageFile, current, root, undefined, cases, run.collects);
       markCheckout(repositoryRoot(root));
     });
     // A run that placed no module says so once the snapshot saying every file

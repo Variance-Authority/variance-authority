@@ -27,6 +27,8 @@ export interface LaidRun {
   readonly commit?: string;
   /** The text each module the run recorded was cut from, as its coverage names it; absent when the run measured nothing. */
   readonly modules?: readonly Pick<CoverageModule, 'file' | 'sourceDigest'>[];
+  /** Test files the record holds that the run's runner says it no longer collects; their cases leave as a deleted file's do. */
+  readonly uncollected?: ReadonlySet<string>;
 }
 
 /** The text each module of a case index was cut from, by file, as the coverage beside the index names it. */
@@ -138,7 +140,7 @@ export function layCases(
   const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
-    present: (test) => existsSync(resolve(root, test)),
+    present: (test) => run.uncollected?.has(test) !== true && existsSync(resolve(root, test)),
     sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
     ...(base === undefined ? {} : {
       base: base.index,
@@ -293,6 +295,9 @@ export type CaseLanding =
  * `stands` is the commit the record's snapshot stands at, which names the
  * before layer when `previous` names no last run — see {@link layCases}.
  *
+ * `uncollected` names the test files the landing lets go, whose cases leave as
+ * a deleted file's do.
+ *
  * Nothing is written here. The landing writes the sections into the record it
  * writes, under that record's lock.
  */
@@ -303,6 +308,7 @@ export function landCases(
   shards: readonly LandedShard[],
   held?: ModuleTexts,
   stands?: string,
+  uncollected?: ReadonlySet<string>,
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
   let sections = previous;
   const texts = new Map(held ?? []);
@@ -314,8 +320,9 @@ export function landCases(
   for (const shard of shards) {
     const kept = caseSectionsAt(shard.path);
     const fresh = layableIndex(kept.index);
-    const run = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
-    if (run === undefined) continue;
+    const shardRun = shard.coverage ?? lastRunOf(kept) ?? (fresh === undefined ? undefined : indexRunOf(fresh.tests));
+    if (shardRun === undefined) continue;
+    const run: LaidRun = uncollected === undefined ? shardRun : { ...shardRun, uncollected };
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
       sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) });

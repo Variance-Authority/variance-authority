@@ -16,7 +16,7 @@ export interface CaseRunFiles {
   readonly ran: ReadonlySet<string>;
   /** The files that ran to the end: their cases replace every case the index held for them. */
   readonly finished: ReadonlySet<string>;
-  /** Whether a test file the index holds is still in the checkout. */
+  /** Whether a test file the index holds is still the suite's: in the checkout, and collected by its runner. */
   readonly present: (file: string) => boolean;
   /**
    * Whether the run recorded `file` from the text the index's regions of it

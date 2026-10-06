@@ -31,6 +31,14 @@ import { landingRecord } from './suite-record.js';
  * is asked of git by the review that reads it, not here, where the landing may
  * run outside the checkout or before the other commit was fetched.
  *
+ * A landing handed the runner's list of the files the suite collects lets go
+ * of every test file the record holds that the list does not name and the
+ * shards did not run: its rows, crossings, cases and stand. Carried, such a
+ * file stands where it last ran for good, and every reading reads the whole of
+ * the change since then for it. Dropping one wrongly costs a run of it, since
+ * a file the record does not hold is never skipped. Without a list nothing
+ * leaves, as a runner seam that cannot ask its runner leaves nothing.
+ *
  * The cases travel in the record (spec 0094): each shard's seam kept its own in
  * the shard's record, and those are laid over the target's in the same order
  * and written into the record the landing writes; a shard that kept none takes
@@ -52,6 +60,7 @@ export async function landJourneys(
   root: string,
   shards: readonly string[],
   into?: string,
+  collected?: ReadonlySet<string>,
 ): Promise<LandedJourneys> {
   const selection = await import('@variance-authority/sense/test-selection');
   const at = into ?? (await landingRecord(root));
@@ -141,9 +150,13 @@ export async function landJourneys(
     // A runs record that cannot be read is written afresh, and said so, as a
     // runner's `landRun` does: refusing would leave the operator to delete it
     // and land again, which writes the same record.
-    const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
-    const landed = folded === undefined ? previous : selection.mergeCoverage(previous, folded);
-    const runs = folded === undefined ? undefined : selection.commitRunsAfter(previous, held, folded);
+    const record = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
+    // A test file the shards did not run and the runner no longer collects
+    // leaves: no run of the suite will observe it again.
+    const uncollected = uncollectedBy(previous, folded, collected);
+    const { before, held } = selection.lettingGo(previous, record, uncollected);
+    const landed = folded === undefined ? previous : selection.mergeCoverage(previous, folded, new Map(), uncollected);
+    const runs = folded === undefined ? undefined : selection.commitRunsAfter(before, held, folded);
     // The index beside the snapshot was cut from the texts the snapshot names.
     const { landing: cases, sections } = selection.landCases(
       at,
@@ -152,6 +165,7 @@ export async function landJourneys(
       read,
       selection.textsOf(previous),
       previous?.commit,
+      uncollected,
     );
     // Shards that measured nothing and kept no case this build reads, over no
     // coverage, leave nothing to write: the target stays as it was.
@@ -191,6 +205,21 @@ export async function landJourneys(
     modules: landed?.modules.length ?? 0,
     cases,
   };
+}
+
+/**
+ * The test files `previous` holds that the fold did not run and the runner's
+ * list of the suite's files does not name. Without a list, or a fold to land,
+ * none.
+ */
+function uncollectedBy(
+  previous: { readonly tests: readonly { readonly file: string }[] } | undefined,
+  folded: { readonly tests: readonly { readonly file: string }[] } | undefined,
+  collected: ReadonlySet<string> | undefined,
+): ReadonlySet<string> {
+  if (previous === undefined || folded === undefined || collected === undefined) return new Set();
+  const ran = new Set(folded.tests.map((test) => test.file));
+  return new Set(previous.tests.flatMap((test) => (ran.has(test.file) || collected.has(test.file) ? [] : [test.file])));
 }
 
 /**

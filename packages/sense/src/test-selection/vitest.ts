@@ -20,6 +20,7 @@ import {
 } from './finished-files.js';
 import { browserSetupSource, caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
+import { collectionOf, type CollectingRunner } from './runner-collection.js';
 import { reportedCases, taskCases } from './case-durations.js';
 import {
   declareConfig,
@@ -421,16 +422,17 @@ function selectionReporter(
   let byName = new Map<string, string>();
   // Held, not copied: a name filter and a cancel are both set on the runner
   // after `onInit`, and each run's end asks it afresh.
-  let runner: RunnerContext | undefined;
+  let runner: (RunnerContext & CollectingRunner) | undefined;
   const configsOf = (config: string | undefined) => (config === undefined ? {} : { configs: [config] });
   // A rerun starts as `onWatcherRerun` in every major and as `onTestRunStart`
   // from Vitest 3, both after the last run's end was awaited: the fold reopens
   // there, and the rerun's end folds the files the rerun ran.
   return {
-    onInit: (context: RunnerContext) => {
+    onInit: (context: RunnerContext & CollectingRunner) => {
       runner = context;
       byName = noteRunner(run, context);
       run.watching = context.config?.watch === true;
+      run.collects = collectionOf(() => runner);
     },
     onWatcherRerun: () => reopenRun(run),
     onTestRunStart: () => reopenRun(run),

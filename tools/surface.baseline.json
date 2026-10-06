@@ -2858,6 +2858,7 @@
         "layerTestCoverage": "function",
         "layeredCoverage": "function",
         "layeredFiles": "function",
+        "lettingGo": "function",
         "machineOwners": "function",
         "mainlineReadRoot": "function",
         "mergeCoverage": "function",

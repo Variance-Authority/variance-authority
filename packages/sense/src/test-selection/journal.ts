@@ -406,6 +406,8 @@ export async function recordExecution(
           ...(eyes === undefined ? {} : { eyes }),
         };
   const merged = await withIndexLock(coverageFile, async () => {
+    // FIXME: a runner landing through here does not say what it collects, so a
+    // test file it stopped collecting stands in the record where it last ran.
     await landRun(coverageFile, current, root, options.cacheRoot, cases);
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });

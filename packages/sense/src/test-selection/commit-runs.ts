@@ -42,6 +42,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { layCases, type FreshCases, type ModuleTexts } from './case-landing.js';
 import { casesRecordedOver, recordOfCases, withCaseSections } from './case-record.js';
 import { askCoverageFile } from './coverage-file.js';
@@ -126,6 +127,13 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
 };
 
 /**
+ * Whether the runner's configuration collects the test file at the absolute
+ * path `file`: `undefined` when the run cannot say, as one narrowed on its
+ * command line cannot.
+ */
+export type Collects = (file: string) => Promise<boolean | undefined>;
+
+/**
  * Lay `current` over the snapshot, add it to the runs at its commit, and keep
  * the text of every module it recorded over an edit (`kept-texts.ts`).
  *
@@ -135,6 +143,14 @@ export type RecordedTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
  * no module lands its cases and nothing else ({@link landUncovered}), except a
  * file it could not finish measuring: probes that fired where nothing could
  * place them leave the file incomplete, which selects it, and that row lands.
+ *
+ * `collects` is the runner's own answer to which test files the suite has. A
+ * file the record holds that the runner says it does not collect leaves the
+ * record, rows, crossings, cases and stand: no run of the suite will observe it
+ * again, and carried, it would stand where it last ran for good, and every
+ * reading would read everything changed since then whole for it. Dropping one
+ * wrongly costs a run of it: a file the record does not hold is never skipped.
+ * Without an answer nothing leaves.
  *
  * The caller holds the index lock: the base read here, the write after it and
  * the record of both are one read-modify-write, so two processes finishing
@@ -146,6 +162,7 @@ export async function landRun(
   root: string,
   cacheRoot?: string,
   cases?: FreshCases,
+  collects?: Collects,
 ): Promise<void> {
   if (current.modules.length === 0) {
     // A complete row over no module would say its file reaches nothing. An
@@ -153,18 +170,19 @@ export async function landRun(
     const selecting = current.tests.filter((test) => !test.complete);
     if (selecting.length === 0) return landUncovered(coverageFile, root, cases);
     if (selecting.length < current.tests.length) {
-      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases);
+      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases, collects);
     }
   }
-  const before = await recordedSnapshot(coverageFile);
-  const held = await heldCommitRuns(coverageFile);
+  const recorded = await recordedSnapshot(coverageFile);
+  const uncollected = await uncollectedOf(recorded, current, root, collects);
+  const { before, held } = lettingGo(recorded, await heldCommitRuns(coverageFile), uncollected);
   const previous = casesRecordedOver(coverageFile);
   // The run's modules are named with the text each was cut from, so a module
   // re-cut over the text the index already holds lands its cases as its rows do.
   const laid = cases === undefined
     ? previous
-    : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules }, cases.eyes, recordedTexts(coverageFile), before?.commit);
-  const coverage = await layeredCoverage(coverageFile, current, root);
+    : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules, uncollected }, cases.eyes, recordedTexts(coverageFile), before?.commit);
+  const coverage = await layeredCoverage(coverageFile, current, root, uncollected);
   const bytes = Object.values(laid).every((part) => part === undefined) ? coverage : withCaseSections(coverage, laid);
   await writeCoverageBytes(coverageFile, bytes);
   // The snapshot's rows are coordinates in the texts on disk now, and the
@@ -396,6 +414,37 @@ export async function heldCommitRuns(
     );
     return undefined;
   }
+}
+
+/**
+ * The snapshot's tests and the runs record beside it without the test files in
+ * `gone`, which the landing lets go: what it lays its run over, so no stand of
+ * theirs is carried into the record it writes.
+ */
+export function lettingGo<T extends RecordedTests>(
+  recorded: T | undefined,
+  held: CommitRuns | undefined,
+  gone: ReadonlySet<string>,
+): { readonly before: T | undefined; readonly held: CommitRuns | undefined } {
+  if (gone.size === 0) return { before: recorded, held };
+  return {
+    before: recorded && { ...recorded, tests: recorded.tests.filter((test) => !gone.has(test.file)) },
+    held: held && { ...held, files: held.files.filter((file) => !gone.has(file)) },
+  };
+}
+
+/** The tests `recorded` holds and `current` did not run that `collects` says the suite no longer collects. */
+async function uncollectedOf(
+  recorded: RecordedTests | undefined,
+  current: TestCoverage,
+  root: string,
+  collects: Collects | undefined,
+): Promise<ReadonlySet<string>> {
+  if (recorded === undefined || collects === undefined) return new Set();
+  const ran = new Set(current.tests.map((test) => test.file));
+  const held = recorded.tests.map((test) => test.file).filter((file) => !ran.has(file));
+  const answers = await Promise.all(held.map((file) => collects(resolve(root, file))));
+  return new Set(held.filter((_, at) => answers[at] === false));
 }
 
 /** The text each module of the snapshot at `coverageFile` was cut from; `undefined` when it holds none this build reads. */

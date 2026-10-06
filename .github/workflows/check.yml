@@ -670,7 +670,11 @@ jobs:
       # jobs laid. A slice that ran whole in one job handed its record on already
       # layered, and it replaces the base. A sharded slice's shards are folded
       # and landed over the base by `variance journeys --suite`, which is what a
-      # sharded suite's fan-in runs anywhere. A slice nothing handed on keeps
+      # sharded suite's fan-in runs anywhere, handed the files the slice's
+      # runner collects so the base lets go of the ones it stopped collecting:
+      # no shard re-records them, and each would stand where it last ran for
+      # good. A slice whose files cannot be listed is not folded, and the job
+      # fails. A slice nothing handed on keeps
       # the base, and on a push the publish refuses it as recorded at another
       # commit. Every slice's record sits under one directory, which is what
       # the publish job is handed.
@@ -702,7 +706,11 @@ jobs:
             else
               mapfile -t shards < <(find "$RAN" -path "$RAN/variance-shard-$suite-*" -path "*/suites/$suite/coverage.bin" | sort)
               if [ "${#shards[@]}" -gt 0 ]; then
-                node packages/cli/dist/bin.js journeys "${shards[@]}" --suite "$suite"
+                if ! node tools/list-collected.mjs "$suite" "$RUNNER_TEMP/collected-$suite.txt"; then
+                  echo "::error::The files the $suite suite collects were not listed, so its shards are not folded."
+                  exit 1
+                fi
+                node packages/cli/dist/bin.js journeys "${shards[@]}" --suite "$suite" --collected "$RUNNER_TEMP/collected-$suite.txt"
               else
                 echo "$suite: nothing was handed on, so the base stands."
               fi
@@ -854,24 +862,19 @@ jobs:
           path: ${{ steps.records.outputs.dir }}
 
       # The test files the runner collects at this commit, asked of the runner:
-      # a test file the suite stopped collecting keeps its rows in the record
-      # and last ran before this commit, and only the runner can say it no
-      # longer counts against a whole run. Each shared suite is asked under its
-      # own slice's config, which `slicesOf` in `tools/test-since.mjs` names. A
-      # suite whose files cannot be listed is left without a list and the others
-      # are still listed: the publish below refuses that suite alone.
+      # a test file the suite stopped collecting that a landing kept stands
+      # before this commit, and only the runner can say it no longer counts
+      # against a whole run. Each shared suite is asked under its
+      # own slice's config, by `tools/list-collected.mjs`. A suite whose files
+      # cannot be listed is left without a list and the others are still
+      # listed: the publish below refuses that suite alone.
       - name: what the suite collects
         shell: bash
         env:
           SHARED: ${{ needs.record.outputs.shared }}
         run: |
           for suite in $SHARED; do
-            if ! config=$(SUITE="$suite" node --input-type=module -e "
-              const { slicesOf } = await import('./tools/test-since.mjs');
-              const slice = slicesOf(process.cwd()).find((one) => one.suite === process.env.SUITE);
-              if (slice === undefined) throw new Error('no slice is declared for ' + process.env.SUITE);
-              process.stdout.write(slice.config);
-            ") || ! yarn vitest list --filesOnly --config "$config" > "$RUNNER_TEMP/collected-$suite.txt"; then
+            if ! node tools/list-collected.mjs "$suite" "$RUNNER_TEMP/collected-$suite.txt"; then
               rm -f "$RUNNER_TEMP/collected-$suite.txt"
               echo "::error::The files the $suite suite collects were not listed, so its record is not published."
             fi

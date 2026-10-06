@@ -233,6 +233,9 @@ class JestCoverageReporter {
           })), root),
         });
     const merged = await withIndexLock(coverageFile, async () => {
+      // FIXME: Jest is not asked what it collects, so a test file it stopped
+      // collecting stands in the record where it last ran. Its own answer is
+      // `SearchSource.isTestFilePath` over the run's contexts.
       await landRun(coverageFile, current, root, undefined, cases);
       markCheckout(repositoryRoot(root));
     });

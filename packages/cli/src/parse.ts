@@ -9,7 +9,6 @@ import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseStory, type ParsedStory } from './story-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
-import { oneRecord } from './commands/suite-record.js';
 import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
 import { parseReviewArgs, type ParsedReview } from './review-args.js';
@@ -19,6 +18,7 @@ import { parseRestrictionsArgs, type ParsedRestrictions } from './restrictions-a
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parseCarryArgs, type ParsedCarry } from './carry-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
+import { parseJourneysArgs, type ParsedJourneys } from './journeys-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
 import { parseCommentArgs, type ParsedComment } from './comment-args.js';
 import { parseShard, type Shard } from './commands/shard.js';
@@ -145,42 +145,7 @@ export type Parsed =
       /** `--since <rev>`: read forward from this revision, exclusive. */
       readonly since?: string;
     }
-  | {
-      readonly command: 'journeys';
-      readonly operation?: undefined;
-      readonly config: string;
-      /**
-       * `--all`: read every whole observation the snapshot holds.
-       *
-       * The default pool is the subjects the configured report names, because
-       * the snapshot accumulates across runs and a subject deleted two commits
-       * ago is still a party to every parting it was recorded in. This asks for
-       * that record on purpose, which is a different question and has to look
-       * like one.
-       */
-      readonly all: boolean;
-      /** `--file <text>`: substring, case-insensitive, over the recorded module path. */
-      readonly file?: string;
-      readonly limit?: number;
-      /** Shard snapshots to fold and land before reading, and `--into <path>`, where they land; this repository's cache otherwise. */
-      readonly shards: readonly string[];
-      readonly into?: string;
-      /** `--suite <name>`: whose record is read, and where shards land, with no project config; beside `--into`, refused. */
-      readonly suite?: string;
-    }
-  | {
-      readonly command: 'journeys';
-      readonly operation: 'finalize';
-      readonly config: string;
-      readonly journeyFile: string;
-    }
-  | {
-      readonly command: 'journeys';
-      readonly operation: 'stitch';
-      readonly config: string;
-      readonly shards: readonly string[];
-      readonly into: string;
-    }
+  | ParsedJourneys
   | {
       readonly command: 'adjudicate';
       readonly config: string;
@@ -416,59 +381,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
       };
     }
 
-    case 'journeys': {
-      const file = flags.values.get('--file');
-      const limit = countOf(flags.values.get('--limit'), 'modules to name');
-      const into = flags.values.get('--into');
-      const operation = flags.positionals[0];
-
-      if (operation === 'finalize') {
-        if (flags.present.size > 0 || flags.positionals.length !== 2) {
-          throw new OperatorError('`variance journeys finalize` takes one journey file and no flags');
-        }
-        return {
-          command: 'journeys',
-          operation: 'finalize',
-          config,
-          journeyFile: resolve(flags.positionals[1]!),
-        };
-      }
-
-      if (operation === 'stitch') {
-        const otherFlags = [...flags.present].filter((flag) => flag !== '--into');
-        if (otherFlags.length > 0 || into === undefined || flags.positionals.length < 2) {
-          throw new OperatorError(
-            '`variance journeys stitch` takes one or more shard files and `--into <journey-file>`',
-          );
-        }
-        return {
-          command: 'journeys',
-          operation: 'stitch',
-          config,
-          shards: flags.positionals.slice(1).map((path) => resolve(path)),
-          into: resolve(into),
-        };
-      }
-
-      if (into !== undefined && flags.positionals.length === 0) {
-        throw new OperatorError('`--into` says where a fold lands, and nothing was named to fold');
-      }
-      const suite = flags.values.get('--suite');
-      oneRecord(suite, into, '--into');
-      if (suite !== undefined && flags.values.has('--config'))
-        throw new OperatorError('`journeys --suite` reads the suite from the root variance.config.json, so it takes no `--config`');
-
-      return {
-        command: 'journeys',
-        config,
-        all: flags.present.has('--all'),
-        ...(file !== undefined ? { file } : {}),
-        ...(limit !== undefined ? { limit } : {}),
-        shards: flags.positionals.map((path) => resolve(path)),
-        ...(into !== undefined ? { into: resolve(into) } : {}),
-        ...(suite !== undefined ? { suite } : {}),
-      };
-    }
+    case 'journeys': return parseJourneysArgs(flags, config);
 
     case 'push':
       return parsePushArgs(flags, config);

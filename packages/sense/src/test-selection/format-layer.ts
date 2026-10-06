@@ -40,6 +40,7 @@ export function layerTestCoverage(
   previous: Uint8Array | undefined,
   current: TestCoverage,
   onDisk: ReadonlyMap<string, string> = new Map(),
+  uncollected: ReadonlySet<string> = new Set(),
 ): Buffer {
   if (previous === undefined) return encodeTestCoverage(current);
   // Undecodable counts as nothing to merge with, which is the bargain
@@ -80,13 +81,12 @@ export function layerTestCoverage(
   }
   const previousTests = new Map(previousTestRows.map((test) => [test.file, test]));
   const currentTests = new Map(current.tests.map((test) => [test.file, test]));
-  const retired = new Set(current.tests.flatMap((test) => {
+  const retired = new Set([...uncollected, ...current.tests.flatMap((test) => {
     const before = previousTests.get(test.file);
     return test.complete || (before !== undefined && !samePreconditions(before, test))
       ? [test.file]
       : [];
-  }));
-
+  })]);
 
   const { order, objects, stale } = layeredRows({
     view,
@@ -101,7 +101,7 @@ export function layerTestCoverage(
 
   const tests = [
     ...previousTestRows
-      .filter((test) => !currentTests.has(test.file))
+      .filter((test) => !currentTests.has(test.file) && !uncollected.has(test.file))
       .map((test) => (stale.has(test.file) ? { ...test, complete: false } : test)),
     ...current.tests,
   ].sort((left, right) => codeUnitOrder(left.file, right.file)).map(settledTest);
@@ -109,7 +109,9 @@ export function layerTestCoverage(
   const testRemap = new Uint32Array(previousCount);
   const retiredTest = new Uint8Array(previousCount);
   for (let test = 0; test < previousCount; test += 1) {
-    testRemap[test] = testIndex.get(previousTestRows[test]!.file)!;
+    // An uncollected test has no row to remap to; it is retired, so no set
+    // reads its entry.
+    testRemap[test] = testIndex.get(previousTestRows[test]!.file) ?? 0;
     retiredTest[test] = retired.has(previousTestRows[test]!.file) ? 1 : 0;
   }
 
@@ -307,6 +309,7 @@ export async function layeredCoverage(
   file: string,
   current: TestCoverage,
   root: string,
+  uncollected: ReadonlySet<string> = new Set(),
 ): Promise<Buffer> {
   let previous: Buffer;
   try {
@@ -314,5 +317,7 @@ export async function layeredCoverage(
   } catch {
     return encodeTestCoverage(current);
   }
-  return layerTestCoverage(previous, current, await carriedSources(root, previous, current));
+  return layerTestCoverage(
+    previous, current, await carriedSources(root, previous, current), uncollected,
+  );
 }

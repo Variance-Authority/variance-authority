@@ -215,7 +215,10 @@ interface Case {
   readonly previous: TestCoverage | undefined;
   readonly current: TestCoverage;
   readonly onDisk?: ReadonlyMap<string, string>;
+  readonly uncollected?: ReadonlySet<string>;
 }
+
+const BETA = new Set(['test/beta.test.ts']);
 
 const CASES: Readonly<Record<string, Case>> = {
   'nothing underneath': {
@@ -358,17 +361,47 @@ const CASES: Readonly<Record<string, Case>> = {
     current: { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
     onDisk: new Map([['src/alpha.ts', DECIDE]]),
   },
+  'a test the runner no longer collects, crossing re-recorded and carried modules': {
+    previous: loadedByOne(BASELINE, WIDE),
+    current: at(LOCAL, 'test/alpha.test.ts'),
+    uncollected: BETA,
+  },
+  'a test the runner no longer collects, crossing a carried module whose text moved': {
+    previous: at(BASELINE, 'test/beta.test.ts', WIDE),
+    current: at(LOCAL, 'test/alpha.test.ts'),
+    onDisk: new Map([['src/alpha.ts', DECIDE]]),
+    uncollected: BETA,
+  },
+  'a test the runner no longer collects that the record never held': {
+    previous: at(BASELINE, 'test/alpha.test.ts', WIDE),
+    current: at(LOCAL, 'test/alpha.test.ts'),
+    uncollected: BETA,
+  },
 };
 
 describe('layerTestCoverage', () => {
-  for (const [what, { previous, current, onDisk }] of Object.entries(CASES)) {
+  for (const [what, { previous, current, onDisk, uncollected }] of Object.entries(CASES)) {
     it(`writes the same file as decode, merge and encode: ${what}`, () => {
       const bytes = previous === undefined ? undefined : encodeTestCoverage(previous);
-      const expected = encodeTestCoverage(mergeCoverage(previous, current, onDisk));
+      const expected = encodeTestCoverage(mergeCoverage(previous, current, onDisk, uncollected));
 
-      expect(layerTestCoverage(bytes, current, onDisk).equals(expected)).toBe(true);
+      expect(layerTestCoverage(bytes, current, onDisk, uncollected).equals(expected)).toBe(true);
     });
   }
+
+  it('leaves no row or crossing of a test the runner no longer collects', () => {
+    const layered = decodeTestCoverage(layerTestCoverage(
+      encodeTestCoverage(loadedByOne(BASELINE, WIDE)),
+      at(LOCAL, 'test/alpha.test.ts'),
+      new Map(),
+      BETA,
+    ));
+    const crossed = new Set(layered.modules.flatMap((module) =>
+      module.blocks.flatMap((block) => [...block.testFiles, ...(block.loadedBy ?? [])])));
+
+    expect(layered.tests.map((test) => test.file)).toEqual(['test/alpha.test.ts']);
+    expect([...crossed]).toEqual(['test/alpha.test.ts']);
+  });
 
   it('keeps a carried test whole over another build of the text it ran', () => {
     // The layer is what CI writes with: a one-file shard that loaded the

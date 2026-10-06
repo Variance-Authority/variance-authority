@@ -190,17 +190,8 @@ export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, rec
 export { recordOfCases, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
 export { RecordWithoutCoverage } from './format-validation.js';
-export {
-  commitRunsAfter,
-  commitRunsFile,
-  heldCommitRuns,
-  landRun,
-  readCommitRuns,
-  writeCommitRuns,
-  type CommitRuns,
-  type RecordedTests,
-  type StandingEntry,
-} from './commit-runs.js';
+export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, lettingGo, readCommitRuns, writeCommitRuns } from './commit-runs.js';
+export { type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
 export { askPerStand, readingFrom, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandReading } from './stands.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MismatchedRow, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export {

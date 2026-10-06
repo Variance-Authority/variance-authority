@@ -152,10 +152,10 @@ export async function suiteShareLines(root: string, options: SuiteShareOptions, 
 
 /**
  * The runner's list of collected test files, as paths relative to the
- * repository root, which is how the runs record names them. A list that cannot
- * be read is refused: the publish was told to count against it.
+ * repository root, which is how the record and its runs record name them. A
+ * list that cannot be read is refused: the command was told to count against it.
  */
-async function collectedIn(root: string, file: string): Promise<ReadonlySet<string>> {
+export async function collectedIn(root: string, file: string): Promise<ReadonlySet<string>> {
   let listed: string;
   try {
     listed = await readFile(resolve(root, file), 'utf8');
