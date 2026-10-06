@@ -160,8 +160,10 @@ type Moved = HashMap<Vec<u8>, Option<Oid>>;
 ///
 /// Porcelain status spells every path from the top of the checkout, wherever it
 /// runs, and ignores `status.relativePaths`. So each path loses `prefix` here,
-/// the scan root's place in the checkout, to match the listing's names, and a
-/// path outside the root (a rename's old name can be) is dropped.
+/// the scan root's place in the checkout, to match the listing's names. Below
+/// the top, status is asked with `-- .`, so every path it names is under the
+/// root: a rename across the root is a deletion or an addition on the root's
+/// side.
 ///
 /// Failure removes the disagreeing paths rather than leaving them: a stale
 /// digest on an edited file is a subject nobody observes, and no digest at all

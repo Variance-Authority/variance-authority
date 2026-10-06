@@ -126,7 +126,9 @@ async function overlayKnownChanges(
  * `prefix` is where `root` sits below the top of its checkout, as
  * `rev-parse --show-prefix` spells it. Porcelain status names every path from
  * that top wherever it runs, so each one is cut to the scan root before it meets
- * a digest key, and one outside the root is dropped.
+ * a digest key. Below the top, status is asked with `-- .`, so every path it
+ * names is under the root: a rename across the root is a deletion or an
+ * addition on the root's side.
  */
 async function overlayWorkingTree(root: string, digests: Map<string, Digest>, prefix: string): Promise<void> {
   const top = prefix === '';
@@ -141,8 +143,7 @@ async function overlayWorkingTree(root: string, digests: Map<string, Digest>, pr
   const args = top
     ? ['status', '--porcelain=v1', '-z', '--untracked-files=normal']
     : ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', '.'];
-  const below = (path: string): string | undefined =>
-    top ? path : path.startsWith(prefix) ? path.slice(prefix.length) : undefined;
+  const below = (path: string): string => path.slice(prefix.length);
   let status: string;
   try {
     ({ stdout: status } = await run('git', args, { cwd: root, maxBuffer: MAX_OUTPUT }));
@@ -164,13 +165,11 @@ async function overlayWorkingTree(root: string, digests: Map<string, Digest>, pr
     // A rename carries its old path as the next field, and that path is gone.
     if (codes.includes('R')) {
       const from = fields[at + 1];
-      const gone = from === undefined ? undefined : below(from);
-      if (gone !== undefined) digests.delete(gone);
+      if (from !== undefined) digests.delete(below(from));
       at += 1;
     }
 
     const path = below(entry.slice(3));
-    if (path === undefined) continue;
     if (codes.includes('D')) digests.delete(path);
     // A directory git did not descend: untracked, collapsed by
     // `--untracked-files=normal`, or a repository of its own. It has no blob,

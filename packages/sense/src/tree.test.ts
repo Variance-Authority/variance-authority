@@ -229,6 +229,22 @@ describe('digests read out of git', () => {
     expect(digests?.get('new.ts')).toBe(await onDisk(root, 'src/new.ts'));
   });
 
+  it('reads a rename across a scan root inside the checkout as a deletion or an addition', async () => {
+    const root = await repository();
+    await write(root, 'outside.ts', 'export const outside = 1\n');
+    await git(root, ['add', 'outside.ts']);
+    await git(root, ['-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'two']);
+    await git(root, ['mv', 'outside.ts', 'src/inside.ts']);
+    await git(root, ['mv', 'src/tokens.css', 'tokens.css']);
+
+    // Asked with `-- .`, status names only paths under the root: a rename that
+    // crosses it is the deletion or the addition on the root's side.
+    const digests = await gitDigests(join(root, 'src'));
+
+    expect([...digests?.keys() ?? []].sort()).toEqual(['Button.tsx', 'inside.ts']);
+    expect(digests?.get('inside.ts')).toBe(await onDisk(root, 'src/inside.ts'));
+  });
+
   it('applies known additions, deletions and both sides of a rename', async () => {
     const root = await repository();
     await unlink(join(root, 'src/Button.tsx'));

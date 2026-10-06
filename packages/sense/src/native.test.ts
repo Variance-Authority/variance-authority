@@ -114,6 +114,10 @@ describe('the native tree against the JavaScript one', () => {
     await unlink(join(root, 'src/panel/Panel.tsx'));
     await git(root, ['mv', 'src/tokens.css', 'src/theme.css']);
     await write(root, 'docs/readme.md', 'two\n');
+    // Asked with `-- .`, status reads a rename across the root as a deletion
+    // inside it, or an addition, and names nothing outside it.
+    await git(root, ['mv', 'src/panel/deep/nested/leaf.ts', 'leaf.ts']);
+    await git(root, ['mv', 'yarn.lock', 'src/yarn.lock']);
     const scanned = join(root, 'src');
 
     const { oracle, answered } = await both(scanned);
@@ -126,6 +130,8 @@ describe('the native tree against the JavaScript one', () => {
     expect(tree.get('theme.css')).toBeDefined();
     expect([...tree.paths()]).not.toContain('tokens.css');
     expect([...tree.paths()]).not.toContain('panel/Panel.tsx');
+    expect([...tree.paths()]).not.toContain('panel/deep/nested/leaf.ts');
+    expect(tree.get('yarn.lock')).toBeDefined();
   });
 
   it.runIf(native)('names every file in a directory git collapsed, and none it ignores', async () => {
