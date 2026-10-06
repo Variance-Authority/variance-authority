@@ -154,8 +154,9 @@ describe('layerCaseIndex', () => {
 
   it('reads no string of a case or region the run did not touch, and asks once a file whether it is present', () => {
     const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
-    const layered = (untouched: number): { readonly decoded: number; readonly asked: number } => {
-      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
+    const layered = (files: number, each: number): { readonly decoded: number; readonly asked: number } => {
+      // The kept cases take turns across the files, so no two neighbours share one.
+      const kept = Array.from({ length: files * each }, (_, at) => `kept-${at % files}.test.ts > case ${at}`);
       const held = index([...kept, 'a.test.ts > one'], {
         'src/shared.ts': [['entry', ['a.test.ts > one']]],
         ...Object.fromEntries(kept.map((id, at) => [`src/kept-${at}.ts`, [['entry', [id]], ['idle', []]]])),
@@ -170,7 +171,11 @@ describe('layerCaseIndex', () => {
       }
     };
 
-    expect(layered(400)).toEqual(layered(10));
+    expect(layered(4, 100)).toEqual(layered(4, 3));
+    const more = layered(5, 3);
+    const fewer = layered(4, 3);
+    expect(more.asked - fewer.asked).toBe(1);
+    expect(more.decoded - fewer.decoded).toBe(1);
   });
 
   it('reads no precondition of a case the run did not touch, however many spellings the index holds', () => {
