@@ -38,9 +38,21 @@ export function vitestExcludes(root: string): VitestExcludes | undefined {
   }
 }
 
-/** One `--exclude=` per skipped file, in `excludes`' form. */
+/**
+ * One `--exclude=` per skipped file, in `excludes`' form.
+ *
+ * Every vitest reads an exclusion as a glob, and the journal's paths are
+ * literal, so each glob character is escaped: unescaped, `cart[1].test.ts`
+ * also excludes `cart1.test.ts` on vitest 2, 3 and 4, and on vitest 2
+ * `app/(shop)/page.test.ts` excludes nothing.
+ */
 export function vitestExclusions(skip: readonly string[], root: string, excludes: VitestExcludes): string[] {
-  return skip.map((test) => `--exclude=${excludes === 'relative' ? test : resolve(root, test)}`);
+  return skip.map((test) => `--exclude=${literal(excludes === 'relative' ? test : resolve(root, test))}`);
+}
+
+/** `path` as a glob that matches only itself. */
+function literal(path: string): string {
+  return path.replace(/[!()*+?@[\]{|}]/g, '\\$&');
 }
 
 /**

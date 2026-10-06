@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { selectionNotes, skippableTests } from './select.js';
-import { vitestExcludes } from './vitest-excludes.js';
+import { vitestExclusions, vitestExcludes } from './vitest-excludes.js';
 
 /** A root with a vitest manifest of `manifest`'s text installed, or none at all. */
 function rootWith(manifest?: string): string {
@@ -45,5 +45,17 @@ describe('the exclusion form is read from the installed vitest', () => {
 
     expect(selectionNotes(selection, { vitestAt: root })).toContain(`no vitest resolves from ${root}`);
     expect(selectionNotes(selection)).not.toContain('no vitest resolves');
+  });
+});
+
+describe('an exclusion names the one file the journal names', () => {
+  it('escapes each glob character, in either form', () => {
+    const skip = ['app/(shop)/cart[1].test.ts', 'test/a{b,c}+@!?*|.test.ts'];
+
+    expect(vitestExclusions(skip, '/repo', 'relative')).toEqual([
+      '--exclude=app/\\(shop\\)/cart\\[1\\].test.ts',
+      '--exclude=test/a\\{b,c\\}\\+\\@\\!\\?\\*\\|.test.ts',
+    ]);
+    expect(vitestExclusions(skip, '/repo', 'absolute')[0]).toBe('--exclude=/repo/app/\\(shop\\)/cart\\[1\\].test.ts');
   });
 });
