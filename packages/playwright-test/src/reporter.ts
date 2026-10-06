@@ -55,9 +55,7 @@ export interface ExecutionReporterOptions {
    * relative to the checkout it sits in, never to it.
    */
   readonly root?: string;
-  /** Matches the `label` given to `testSelectionProbes()`. Defaults to `build`. */
-  readonly label?: string;
-  /** Where that build wrote its records. Defaults to the repository's cache. */
+  /** Where the coverage layers live. Defaults to the repository's cache. */
   readonly cacheRoot?: string;
   /** The coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
@@ -132,7 +130,6 @@ export default class implements Reporter {
       const record = await recordExecution({
         root: this.#root,
         subjects: staged.subjects,
-        ...(this.#options.label === undefined ? {} : { label: this.#options.label }),
         ...(this.#options.cacheRoot === undefined ? {} : { cacheRoot: this.#options.cacheRoot }),
         ...(this.#coverageFile === undefined ? {} : { coverageFile: this.#coverageFile }),
         ...(this.#options.suite === undefined ? {} : { suite: this.#options.suite }),
@@ -140,9 +137,6 @@ export default class implements Reporter {
         ...(this.#options.preconditions === undefined
           ? {}
           : { preconditions: this.#options.preconditions }),
-        ...(staged.heads === undefined || staged.heads.length === 0
-          ? {}
-          : { heads: staged.heads }),
         ...(staged.cases !== undefined && staged.cases.length > 0
           ? { cases: staged.cases }
           : {}),

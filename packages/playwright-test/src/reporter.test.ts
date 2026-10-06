@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { FullConfig } from '@playwright/test/reporter';
 import {
+  moduleId,
   stageExecution,
   stagingDirectory,
-  testSelectionProbes,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
@@ -26,18 +26,15 @@ async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
   }
 }
 
-/** One real instrumented module, so the records the fold reads exist. */
+/** One real module on disk, so the fold can cut what its id names. */
 async function instrumented(root: string): Promise<string> {
-  const cacheRoot = resolve(root, 'cache');
-  const module = resolve(root, 'price.js');
-  await writeFile(module, SOURCE, 'utf8');
-  testSelectionProbes({ root, cacheRoot }).transform(SOURCE, module);
-  return cacheRoot;
+  await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
+  return resolve(root, 'cache');
 }
 
 const journal = (...hits: number[]): ExecutionJournal => ({
   instrumentation: INSTRUMENTATION,
-  modules: [{ id: 'price.js', hits, shared: [] }],
+  modules: [{ id: moduleId('price.js', SOURCE), hits, shared: [] }],
 });
 
 describe('the reporter that folds what the workers recorded', () => {
@@ -114,7 +111,7 @@ describe('the reporter that folds what the workers recorded', () => {
       expect(directory.startsWith(`${root}/`)).toBe(true);
       const walked: ExecutionJournal = {
         instrumentation: INSTRUMENTATION,
-        modules: [{ id: 'packages/ui/price.js', hits: [0], shared: [] }],
+        modules: [{ id: moduleId('packages/ui/price.js', SOURCE), hits: [0], shared: [] }],
       };
       await stageExecution(directory, {
         subjects: [{ owner: 'packages/ui/tests/checkout.spec.ts', journal: walked, complete: true }],

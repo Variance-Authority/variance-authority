@@ -10,9 +10,10 @@
  * configuration names by path:
  *
  * - [`jest-transform.ts`](./jest-transform.ts) wraps the project's own
- *   transformer, places probes on its output, and writes what the ordinals mean
- *   to an inventory keyed by the same cache key Jest stores the text under. A
- *   warm run pays neither the transform nor the parse.
+ *   transformer and places probes on the file as Jest read it, before the
+ *   project's transformer runs. A warm run pays neither the transform nor the
+ *   parse, and nothing about what the probes mean is written: the fold cuts
+ *   each file again from the text its probes report.
  * - [`jest-setup.cts`](./jest-setup.cts) runs inside each test file's sandbox,
  *   gives every instrumented module the log it writes into, and writes one
  *   journal per test file to disk in `afterAll`. Nothing crosses the worker's IPC channel,
@@ -106,15 +107,10 @@ export interface JestJourneyCoverageOptions {
   readonly continuations?: boolean;
   /**
    * Directories where processes beyond a fence write what they ran under a
-   * case's journey id: part frames (`.vac`) and the inventories they name
-   * (`.rec`). Read when the run is finalized, never while it runs.
+   * case's journey id, as part frames (`.vac`). Read when the run is
+   * finalized, never while it runs.
    */
   readonly parts?: readonly string[];
-  /**
-   * Labels of Node services instrumented with `testSelectionProbes`, whose
-   * inventories sit in the checkout's record store under that label.
-   */
-  readonly heads?: readonly string[];
   /**
    * A module whose export is the application's tracing, told to carry each
    * case's journey as its trace id: `module.exports = sentry(Sentry)` after
@@ -178,7 +174,6 @@ interface JourneyReporterConfig {
   readonly mode?: InstrumentMode;
   readonly continuations?: boolean;
   readonly parts?: readonly string[];
-  readonly heads?: readonly string[];
 }
 
 /** The variable the reporter sets before workers fork, and the setup file reads. */
@@ -315,7 +310,6 @@ export function withJourneyCoverage(
     ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
     ...(options.parts === undefined ? {} : { parts: options.parts.map((part) => resolve(rootDir, part)) }),
-    ...(options.heads === undefined ? {} : { heads: [...options.heads] }),
   };
 
   return {
@@ -442,20 +436,6 @@ function configuredPath(file: string, rootDir: string): readonly string[] {
   return file.startsWith('<rootDir>') || file.startsWith('.') || file.startsWith('/')
     ? [resolve(rootDir, file.replace(/^<rootDir>\/?/, ''))]
     : [];
-}
-
-/**
- * Where one Jest project keeps its module records, inside Jest's own cache.
- *
- * Inside the cache directory so that `jest --clearCache` discards the
- * transformed text and the records of what its ordinals mean together, and
- * under the project id so two projects that transform one file differently do
- * not take turns overwriting each other. `id` is Jest's own hash of the project
- * configuration, which is exactly the question a store has to answer: which
- * build produced this text.
- */
-export function jestStore(cacheDirectory: string, id = 'project'): string {
-  return resolve(cacheDirectory, 'variance-authority-test-selection', id);
 }
 
 export { mergeCoverage } from './merge.js';

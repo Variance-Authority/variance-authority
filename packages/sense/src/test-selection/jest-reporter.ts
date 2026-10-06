@@ -9,17 +9,17 @@
  * the parent to the workers that Jest does not already have. An in-band run
  * reads the same variable from the same process.
  *
- * Each journal names, per module, the path and cache key its probes were numbered
- * by. A journey-only run seals those journals and their inventory locations for
- * a post-Jest fold. A selection run folds its file-level journals here and layers
- * the result over its snapshot.
+ * Each journal names, per module, the file and the text its probes were placed
+ * on, and the fold cuts that text again to read them. A journey-only run seals
+ * its journals for a post-Jest fold. A selection run folds its file-level
+ * journals here and layers the result over its snapshot.
  */
 
 import { randomUUID } from 'node:crypto';
 import { readFile, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
-import { instrumentationId, type ModuleId } from '../instrument/index.js';
+import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { askedForStories } from '../story/directory.js';
 import { freshCases } from './case-fold.js';
 import { caseDurations, finishedCase } from './case-durations.js';
@@ -35,16 +35,14 @@ import {
   crossingsOf,
   loadedOf,
   projectPath,
-  readRecords,
-  recordStores,
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
+import { deriveModules } from './captured-modules.js';
 import {
   CASE_DIRECTORY_VARIABLE,
   CONTINUATIONS_VARIABLE,
-  jestStore,
   STORY_DIRECTORY_VARIABLE,
   RUN_DIRECTORY_VARIABLE,
   SELECTION_GLOBALS,
@@ -104,10 +102,9 @@ export interface JestTest {
 interface JourneyReporterConfig {
   readonly root: string;
   readonly journeyFile: string;
-  readonly mode?: Parameters<typeof instrumentationId>[0];
+  readonly mode?: InstrumentMode;
   readonly continuations?: boolean;
   readonly parts?: readonly string[];
-  readonly heads?: readonly string[];
 }
 
 type JestReporterConfig = SelectionReporterConfig | JourneyReporterConfig;
@@ -146,7 +143,7 @@ class JestCoverageReporter {
     if (stories !== undefined) process.env[STORY_DIRECTORY_VARIABLE] = stories;
   }
 
-  async onRunComplete(contexts: Iterable<JestTestContext>, results: JestRunResults): Promise<void> {
+  async onRunComplete(_contexts: Iterable<JestTestContext>, results: JestRunResults): Promise<void> {
     const runDirectory = this.#runDirectory;
     if (runDirectory === undefined) return;
     const caseDirectory = this.#caseDirectory;
@@ -159,29 +156,29 @@ class JestCoverageReporter {
     this.#caseDirectory = undefined;
 
     const { root } = this.#config;
-    const instrumentation = instrumentationId(this.#config.mode);
-    const stores = [...new Set(
-      [...contexts].map((context) => jestStore(context.config.cacheDirectory, context.config.id)),
-    )];
+    const { mode } = this.#config;
+    const instrumentation = instrumentationId(mode);
 
     if ('journeyFile' in this.#config) {
       const cases = caseDirectory ?? `${runDirectory}-cases`;
       await stageJestJourneys(this.#config.journeyFile, cases, runDirectory, {
-        version: 1,
+        version: 2,
         root,
-        stores,
-        instrumentation,
+        ...(mode === undefined ? {} : { mode }),
         parts: this.#config.parts ?? [],
-        partStores: [
-          ...(this.#config.parts ?? []),
-          ...(this.#config.heads ?? []).flatMap((label) => recordStores(root, label)),
-        ],
       });
       return;
     }
 
     const journals = await readJournals(runDirectory);
-    const modules = await records(journals, stores, instrumentation);
+    // A module whose file is gone is left out, and the file that entered it is
+    // recorded incomplete: a crossing nobody can place is one this run may not
+    // let a later run skip on.
+    const modules = await deriveModules(
+      root,
+      journals.flatMap((journal) => journal.modules.map((entered) => entered.id)),
+      mode,
+    );
     const selection = this.#config;
     const { coverageFile } = selection;
 
@@ -246,28 +243,6 @@ class JestCoverageReporter {
     if (caseDirectory !== undefined) await rm(caseDirectory, { recursive: true, force: true });
     await rm(runDirectory, { recursive: true, force: true });
   }
-}
-
-/**
- * Every record the journals name, read once each.
- *
- * A journal naming an id no store holds is a transform whose text Jest kept and
- * whose record something else discarded. Nothing here can rebuild it — the
- * inner transformer and its options live in the worker — so the module is
- * dropped, and the file that entered it is recorded incomplete: a test file
- * with a crossing nobody can place is a file this run may not let a later one
- * skip.
- */
-async function records(
-  journals: readonly ReadJournal[],
-  stores: readonly string[],
-  instrumentation: string,
-): Promise<ReadonlyMap<ModuleId, CapturedModule>> {
-  return readRecords(
-    stores,
-    journals.flatMap((journal) => journal.modules.map((entered) => entered.id)),
-    instrumentation,
-  );
 }
 
 /**

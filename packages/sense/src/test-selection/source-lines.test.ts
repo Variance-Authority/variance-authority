@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { sourceLines, type ExtentOf } from './source-lines.js';
-import { testSelectionProbes } from './probes.js';
-import { readRecord, recordStore } from './instrumented-modules.js';
+import { captureModule } from './captured-modules.js';
 import { coverageBlock, coverageModule } from './coverage-rows.js';
 import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
@@ -188,21 +187,13 @@ describe('reading a block back to where it was written', () => {
   });
 });
 
-const cacheRoot = join(tmpdir(), `variance-source-lines-${process.pid}`);
-const recorded = async () =>
-  await readRecord(recordStore('/repo', 'build', cacheRoot), 'app/src/a.ts');
+/** The module the transform cuts from `code`, handed to it as `path`. */
+const cut = (root: string, path: string, code: string, include: (file: string) => boolean = () => true) =>
+  captureModule(root, path, code, include, undefined);
 
-afterEach(async () => {
-  await rm(cacheRoot, { force: true, recursive: true });
-});
-
-describe('what the build seam writes down', () => {
-  it('records a block at the line the author would find it on', async () => {
-    const plugin = testSelectionProbes({ root: '/repo', cacheRoot });
-
-    plugin.transform(ORIGINAL, '/repo/app/src/a.ts');
-
-    const written = await recorded();
+describe('what the build seam cuts', () => {
+  it('records a block at the line the author would find it on', () => {
+    const written = cut('/repo', '/repo/app/src/a.ts', ORIGINAL)?.module;
     const arrow = written?.blocks.find((block) => block.kind === 'function');
 
     expect(written?.file).toBe('app/src/a.ts');
@@ -262,9 +253,7 @@ describe('a text the seam cannot map back to the file', () => {
   const record = async () => {
     await mkdir(join(root, 'src'), { recursive: true });
     await writeFile(join(root, module), onDisk);
-    const plugin = testSelectionProbes({ root, cacheRoot });
-    plugin.transform(transformed, join(root, module));
-    return await readRecord(recordStore(root, 'build', cacheRoot), module);
+    return cut(root, join(root, module), transformed)?.module;
   };
 
   afterEach(async () => {
@@ -347,15 +336,13 @@ describe('a module the host loaded from its build', () => {
     // `defaultInclude` refuses build output, so a suite that reaches its
     // subject through a manifest's `exports` says so — this repository's own
     // config is one. Recording it is the opt-in; naming it is this.
-    const plugin = testSelectionProbes({ root, cacheRoot, include });
     const disk = `${TRANSFORMED}\n${pointer}\n`;
     await writeFile(join(root, 'dist/a.js'), disk);
-    const done = plugin.transform(handed(disk), join(root, 'dist/a.js'));
-    const store = recordStore(root, 'build', cacheRoot);
+    const done = cut(root, join(root, 'dist/a.js'), handed(disk), include);
     return {
       done,
-      original: await readRecord(store, 'src/a.ts'),
-      generated: await readRecord(store, 'dist/a.js'),
+      original: done?.module.file === 'src/a.ts' ? done.module : undefined,
+      generated: done?.module.file === 'dist/a.js' ? done.module : undefined,
     };
   };
 
@@ -381,7 +368,6 @@ describe('a module the host loaded from its build', () => {
     const blanked = await built(pointer, files, undefined, (disk) => disk.replace(pointer, ' '.repeat(pointer.length)));
     expect(blanked.original?.file).toBe('src/a.ts');
     await rm(root, { force: true, recursive: true });
-    await rm(cacheRoot, { force: true, recursive: true });
 
     // A plugin ahead of this one changed the text, so the map no longer describes it.
     const changed = await built(pointer, files, undefined, (disk) => `// banner\n${disk}`);
@@ -403,8 +389,7 @@ describe('a module the host loaded from its build', () => {
       expect(original).toBeUndefined();
       expect(generated?.file).toBe('dist/a.js');
       await rm(root, { force: true, recursive: true });
-      await rm(cacheRoot, { force: true, recursive: true });
-    }
+      }
   });
 
   it('keeps a module `include` accepts under its own name when its map leads to a file `include` refuses', async () => {
@@ -426,6 +411,6 @@ describe('a module the host loaded from its build', () => {
       () => false,
     );
 
-    expect([done, original, generated]).toEqual([null, undefined, undefined]);
+    expect([done, original, generated]).toEqual([undefined, undefined, undefined]);
   });
 });

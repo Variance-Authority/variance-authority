@@ -452,19 +452,19 @@ const journeys = collectJourneys({ head: 'pricing', parts: '/tmp/va-parts' });
 appends frames to its own file in that directory: one frame per journey as its
 scope settles, plus one frame for what ran outside any journey (startup, a
 request with no cookie). If the process is killed mid-write, the fold reads past
-the torn last frame. Then tell the Jest seam where the parts are and which
-builds cut them:
+the torn last frame. Then tell the Jest seam where the parts are:
 
 ```js
 withJourneyCoverage(config, {
   journeyFile: '.variance-authority/journeys.bin',
   parts: ['/tmp/va-parts'],
-  heads: ['pricing'],
 });
 ```
 
-`heads` are the `label`s the service's build gave `testSelectionProbes()`. The
-fold reads their inventories under whatever recipe cut them.
+Each module in a part names its repository-relative file and a digest of the
+text the service's build placed probes on. The fold reads that file from your
+checkout and cuts it into regions again, so the service's build writes nothing
+for the run to read.
 
 A journey's frame is charged to the case that minted the id and to no other. The
 no-journey frame is charged to every case the same file served. A shared
@@ -576,10 +576,10 @@ export default async () =>
 ```
 
 Jest transforms inside the workers it forks and keeps the transformed text on
-disk under a content key. The probes ride that cache, and the record of what
-those probes mean is stored under the same key inside Jest's `cacheDirectory`,
-so `jest --clearCache` discards both halves together. Each test file writes one
-journal from `afterAll`; nothing crosses the worker channel.
+disk under a content key. The probes ride that cache, and nothing else is
+written: each probe reports its file and a digest of the text it was placed on,
+and the reporter cuts that file again from your checkout. Each test file writes
+one journal from `afterAll`; nothing crosses the worker channel.
 
 A Jest worker runs many test files, and each of them loads modules with probes
 in them, so a recorded run needs more memory per worker than a plain one while
@@ -761,30 +761,27 @@ that and names where to look.
 A Storybook preview or a Playwright-driven application is built by one process
 and driven by another, so the two halves are written down separately and joined
 by the driver. `testSelectionProbes()` instruments product source in your own
-build and writes each module's block record down; the page counts crossings; and
-`recordExecution` merges the drained journals into the same snapshot the Vitest
-seam writes. Same probes, same ordinals, same file.
+build; the page counts crossings; and `recordExecution` merges the drained
+journals into the same snapshot the Vitest seam writes. Same probes, same
+ordinals, same file.
 
 ```ts
 // vite.config.ts, or a Storybook `viteFinal`
 import { testSelectionProbes } from '@variance-authority/sense/journal';
 
 export default {
-  plugins: [testSelectionProbes({ root: process.cwd(), label: 'preview' })],
+  plugins: [testSelectionProbes({ root: process.cwd() })],
 };
 ```
 
-`label` separates two builds over one repository: a Storybook preview and the
-application a Playwright suite drives are different builds of overlapping
-source, and one store over both would answer an ordinal with whichever built
-last. Give the driver the same label. `testSelectionProbes` also takes `include`
-and `cacheRoot` — where the label's store lives, defaulting to the cache root
-above.
+`testSelectionProbes` also takes `include`, which decides which transformed
+modules are product source, `mode`, and `journeys` with `label`, which install
+a journey head for a service bundle under that name (`build` by default).
 
 `testSelectionProbes` runs at `enforce: 'pre'`, ahead of Vite's own plugins
 and every plugin without `enforce: 'pre'`. List it first in `plugins` so it
 also runs ahead of the other `pre` plugins: the probes then go into the text
-you wrote, and a record is named after that file, digested as its text and
+you wrote, and each module is named after that file, digested as its text and
 placed on its lines. TypeScript, JSX,
 decorators and `vi.mock` hoisting are compiled after the probes, so a region a
 compiler writes is never recorded.
@@ -801,10 +798,16 @@ accepts that: an inline map, a bundle's map of many sources, a map or source
 that cannot be read. A Vite dev server and `vite build` decide alike, and so do
 the Vitest, Jest and Rstest seams.
 
-A module reports the id it was instrumented under, and that id is the digest of
-its repository-relative path. Nothing allocates it and no build has to have
-ended for it to mean something: transform ten files of a large tree, in any
-order, and the ten records that land are the only ones that had to move.
+A module reports the id it was instrumented under: its repository-relative path
+and a digest of the text the probes were placed on, `src/cart/total.ts@<digest>`.
+The build writes nothing else down. `recordExecution` reads that file from your
+checkout and cuts it into regions again, the same cut the transform made, so a
+preview built yesterday and driven today is joined against the checkout as it
+is today. A file whose text no longer matches the digest is recorded as not
+instrumented, so a change to it selects every subject that ran it. A file that
+is gone is left out, and the subjects that ran it are recorded incomplete, so
+the next run selects them. Nothing allocates an id and no build has to have
+ended for it to mean something.
 
 Two sibling packages do the draining for you, and each installs separately:
 
@@ -827,17 +830,16 @@ To drive it yourself: evaluate `executionCollectorSource()` in the page if the
 build does not hoist it, call `drainExecution(page)` to close one **subject**'s
 window — one named UI state you asked for and can ask for again, such as
 `cart/empty` — and hand the journals to `recordExecution`. It takes the same
-`root`, `label`, and `cacheRoot`, plus `suite`, `coverageFile` and `subjects`: one entry
+`root`, plus `cacheRoot`, `suite`, `coverageFile` and `subjects`: one entry
 per window the driver closed, each an `owner`, the drained `journal`, optional
 `preconditions`, and `complete`, which is false for a subject that did not
-finish and keeps it from ever justifying a skip. `heads` names other builds the
-same run drove, whose stores join this call. `commit` overrides where the
+finish and keeps it from ever justifying a skip. `commit` overrides where the
 recording stands, which otherwise reads the checkout's `HEAD`.
 
 Recording refuses in one direction only. Each of these records **nothing** and
 prints why, costing the next run its full suite:
 
-- a run whose reported modules no store can identify
+- a run none of whose reported modules is a file in the checkout
 - a record from another probe recipe
 - a page with no collector
 
@@ -877,8 +879,8 @@ export function handled<Result>(cookie: string | undefined, run: () => Result): 
 }
 ```
 
-`head` is the `label` that service's build gave `testSelectionProbes()`, and
-defaults to `VARIANCE_AUTHORITY_HEAD`; `enabled` defaults to whether
+`head` is the name this service reports under, the name a driver lists in
+`heads`, and defaults to `VARIANCE_AUTHORITY_HEAD`; `enabled` defaults to whether
 `VARIANCE_AUTHORITY_JOURNEYS` is set, so one `env` block configures a service
 that names neither. Told neither, `collectJourneys` installs nothing and `enter`
 is the identity, so the call above ships to production unconditionally.
@@ -936,15 +938,16 @@ const stitched = stitchJourneys({ reports, heads: ['api'], owners });
 await recordExecution({
   root: process.cwd(),
   subjects: joinObservations([...stitched.heads.values()]),
-  heads: [...stitched.heads.keys()],
 });
 ```
 
 One `recordExecution` for the run, never one per head: two calls naming the same
 subjects are two runs as far as the merge is concerned, and the second retires
 what the first wrote. `joinObservations` folds the page's rows and every head's
-into one row per owner. Where two stores disagree about a module, that module is
-recorded as not instrumented, so unknown widens where a guess would skip.
+into one row per owner. Each module a head reports names its file and the
+digest of the text its probes were placed on, and `recordExecution` cuts that
+file again from your checkout. A file whose text no longer matches is recorded
+as not instrumented, so unknown widens where a guess would skip.
 
 `stitchJourneys` takes `reports`, the `heads` this run declares, the `owners`
 map, and two fields for the driver's own knowledge: `preconditions` and
@@ -1648,6 +1651,14 @@ different facts, and only the caller can keep them apart. A function stringified
 into a browser, worker, or other realm loses the generated runtime declarations
 and throws at its first probe.
 
+The third argument is the id the probes report, and defaults to the file. When
+the journals go to `recordExecution`, pass `moduleId(file, sourceText)` from
+`@variance-authority/sense/journal`: the file's repository-relative path and a
+digest of the text, `src/price.ts@<digest>`. `recordExecution` reads that file
+from the checkout and cuts it again to learn what each ordinal means. A module
+whose id names no file under the root is left out of the record, and the
+subjects that ran it are recorded incomplete.
+
 The fourth argument picks the recipe. `{ mode: 'entries' }` places a probe at
 the module and at every function body and nothing inside them — no branch, loop,
 handler or `await` — so a run pays one probe per function rather than one per
@@ -1655,7 +1666,7 @@ decision. A function has the same name and path under either mode; what changes
 is how many regions there are. The two recipes number regions differently, so
 each reports under its own `instrumentation` id: `instrumentationId(mode)` gives
 it and `instrumentModeOf(id)` reads it back, and nothing that reads one recipe's
-records, journals or snapshot accepts the other's.
+journals or snapshots accepts the other's.
 
 ## See where two observers parted
 
@@ -2016,9 +2027,9 @@ Two answers are properties of the record rather than of a host, so they read the
 same under every host:
 
 - **A run that transforms nothing because every module came from a warm cache
-  still attributes what its tests covered.** What a region means is stored per
-  module under a content key, and a run joins those records rather than
-  producing them.
+  still attributes what its tests covered.** Each probe reports its file and a
+  digest of the text it was placed on, and the run cuts that file again from
+  the checkout to learn what each region means.
 - **An observation that did not finish is dropped from the pool rather than
   counted as a miss,** so nothing a host retries or interrupts can justify a
   skip.

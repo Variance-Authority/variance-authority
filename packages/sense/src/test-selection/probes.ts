@@ -1,31 +1,14 @@
 /**
- * The build half of the journal: probes in, inventory out.
+ * The build half of the journal: probes in.
  *
  * Everything here runs in whichever process bundles product source, and none
- * of it ever meets the run it is preparing for. That is the split the journal
- * seam exists to bridge, so it is also the split between the two files: this
- * one knows what a block means — its name, its span, the digest of the source
- * it was cut from — and knows nothing about who executed it.
- * {@link EvaluatingPage} and the join live next door.
+ * of it ever meets the run it is preparing for. Nothing has to: the probes
+ * report the file and the text they were placed on, and the join next door
+ * cuts that text again to learn what each ordinal means.
  */
-import { readFileSync } from 'node:fs';
-import {
-  instrument,
-  instrumentationId,
-  type InstrumentMode,
-  type ModuleId,
-} from '../instrument/index.js';
-import {
-  cleanId,
-  defaultInclude,
-  projectPath,
-  openRecords,
-  recordStore,
-  writeRecord,
-  type CapturedModule,
-} from './instrumented-modules.js';
-import { coverageBlocks } from './coverage-rows.js';
-import { rawFrame } from './source-lines.js';
+import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { captureModule } from './captured-modules.js';
+import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
 import probeLog from '../instrument/probe-log.cjs';
 
@@ -40,7 +23,7 @@ export const EXECUTION_GLOBAL = '__variance_authority_execution__';
 
 /** What one module reported: the ordinals it entered, deduplicated. */
 export interface ExecutedModule {
-  /** What the module called itself: its number, or its path until it has one. */
+  /** What the module called itself: its path and the digest of its text, `path@digest`. */
   readonly id: ModuleId;
   readonly hits: readonly number[];
   /**
@@ -76,16 +59,8 @@ export interface TestSelectionProbeOptions {
   readonly root?: string;
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
-  /**
-   * Separates two bundlers over one repository. Defaults to `build`.
-   *
-   * A Storybook preview and the application a Playwright suite drives are
-   * different builds of overlapping source; one label for both would answer a
-   * block ordinal with whichever build wrote its inventory last.
-   */
+  /** The journey head this build installs, with `journeys`. Defaults to `build`. */
   readonly label?: string;
-  /** Where the module records go. Defaults to the repository's cache, `cacheRootFor(root)`. */
-  readonly cacheRoot?: string;
   /**
    * `presence` probes every arrival region; `entries` probes modules and
    * functions only, and costs a fraction of it.
@@ -123,7 +98,7 @@ const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
 const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
 
 /**
- * Instrument a build and write down what its ordinals mean.
+ * Instrument a build.
  *
  * ```js
  * // .storybook/main.js
@@ -132,33 +107,21 @@ const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
  * export default {
  *   viteFinal: (config) => ({
  *     ...config,
- *     plugins: [...config.plugins, testSelectionProbes({ label: 'storybook' })],
+ *     plugins: [...config.plugins, testSelectionProbes()],
  *   }),
  * };
  * ```
  *
  * `enforce: 'pre'` for the reason the Vitest seam has it: probes land on the
- * file as it is on disk, so a record is named, digested and counted in the
- * text a diff is written against, and every transform after it carries the
- * probes along with the code they sit in.
+ * file as it is on disk, which is the text the join cuts again and the text a
+ * diff is written against, and every transform after it carries the probes
+ * along with the code they sit in.
  */
 export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},
 ): InstrumentingPlugin {
   const root = repositoryRoot(options.root ?? process.cwd());
   const include = options.include ?? defaultInclude;
-
-  // One record per module, written as that module is transformed. A dev server
-  // has no end to write at: a Playwright suite drives a server that keeps
-  // transforming for the whole life of the run, and a driver draining the page
-  // needs the record for what it just executed. A build with a warm cache has no
-  // end either, in the sense that matters — it never holds the modules it did
-  // not transform, so it must never write a document that claims to.
-  const instrumentation = instrumentationId(options.mode);
-  const records = openRecords(recordStore(root, options.label, options.cacheRoot), instrumentation);
-  const persist = (captured: CapturedModule): void => {
-    writeRecord(records, captured);
-  };
 
   return {
     name: 'variance-authority:test-selection-probes',
@@ -177,36 +140,14 @@ export function testSelectionProbes(
     transform(code, specifier) {
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR) return null;
-      const frame = rawFrame(code, source, include, (at) => readFileSync(at, 'utf8'));
-      if (frame === undefined) return null;
-      const { extentOf, sourceDigest, file: wrote, text } = frame;
-
-      // Instrumented under its path, which is all the page then reports. The path
-      // is repository-relative: a journal that named absolute paths would be a
-      // journal from the build machine's disk — unreadable on a driver that
-      // mounted the checkout somewhere else, and a leak of a layout nobody asked
-      // for. It rides in the record, once, rather than in every copy of the
-      // module the bundle ships.
-      const file = projectPath(root, wrote);
-      const done = instrument(code, file, file, options.mode === undefined ? {} : { mode: options.mode });
-      if (done === undefined) {
-        persist({ file, id: file, sourceDigest, instrumented: false, blocks: [] });
-        return null;
-      }
-
-      persist({
-        file,
-        id: file,
-        sourceDigest,
-        instrumented: true,
-        blocks: coverageBlocks(done.blocks, { extentOf, text }),
-      });
+      const captured = captureModule(root, source, code, include, options.mode);
+      if (captured?.code === undefined) return null;
 
       // Hoisted in front of everything the module imports, and on the first line,
       // so line numbers survive the way every other insertion in this package
       // preserves them. An instrumented module whose collector arrived late would
       // throw at its own module probe.
-      return { code: `import ${JSON.stringify(VIRTUAL_COLLECTOR)};${done.code}`, map: null };
+      return { code: `import ${JSON.stringify(VIRTUAL_COLLECTOR)};${captured.code}`, map: null };
     },
   };
 }
