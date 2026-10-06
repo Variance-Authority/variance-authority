@@ -3,7 +3,7 @@
  * Vitest seam, arranged for a runner that bundles the suite before it runs it.
  *
  * Rstest builds with Rspack, so the two halves are an
- * [`enforce: 'post'` loader](./rstest-loader.ts) and a reporter. Both live in
+ * [`enforce: 'pre'` loader](./rstest-loader.ts) and a reporter. Both live in
  * the process Rstest was started in — the loader runs in the main process, not
  * in a worker — so they are joined the way the Vitest seam joins its plugin to
  * its reporter, through the run registry in
@@ -289,10 +289,10 @@ export function withTestSelection(
             rules: [
               {
                 test: /\.[cm]?[jt]sx?$/,
-                // After the project's own loaders and after SWC, so the probes
-                // land on JavaScript and the map back to the author's lines is
-                // the one the bundler already made.
-                enforce: 'post',
+                // Before SWC and the project's own loaders, so the probes land
+                // on the file as it is on disk, and every loader after carries
+                // them along with the code they sit in.
+                enforce: 'pre',
                 use: [{ loader: SELECTION_LOADER, options: { coverageFile } }],
               },
             ],

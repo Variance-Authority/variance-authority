@@ -25,7 +25,7 @@ import {
   type CapturedModule,
 } from './instrumented-modules.js';
 import { coverageBlocks } from './coverage-rows.js';
-import { recordedFrame, type TransformSourceMap } from './source-lines.js';
+import { rawFrame } from './source-lines.js';
 import { repositoryRoot } from './repository-root.js';
 import probeLog from '../instrument/probe-log.cjs';
 
@@ -110,47 +110,13 @@ export interface TestSelectionProbeOptions {
   readonly journeys?: boolean;
 }
 
-/**
- * What a bundler hands the transform hook as `this`.
- *
- * One method, because one question is asked of it: what did the text arriving
- * here look like before every plugin that ran first. Named rather than imported
- * for the reason the plugin shape below is — a package that has to install Vite
- * to describe two hooks has made Vite a dependency of the recipe.
- */
-export interface TransformingContext {
-  readonly getCombinedSourcemap: () => TransformSourceMap;
-}
-
 /** The subset of Vite's plugin surface this uses, so nothing here needs Vite. */
 export interface InstrumentingPlugin {
   readonly name: string;
-  readonly enforce: 'post';
+  readonly enforce: 'pre';
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
-  readonly transform: (
-    this: TransformingContext,
-    code: string,
-    id: string,
-  ) => { code: string; map: null } | null;
-}
-
-/**
- * The map from the file on disk to the text this hook received, when there is one.
- *
- * A bundler that keeps no chain throws rather than answering, and a build with
- * no prior transform has nothing to answer with. Neither says the text *is* the
- * file — only that nothing here can show where it came from — so `recordedFrame`
- * leaves the extents where the transform left them and digests that same text,
- * rather than vouching for a number line nobody read.
- */
-export function priorMap(context: TransformingContext): TransformSourceMap | undefined {
-  try {
-    const map = context.getCombinedSourcemap();
-    return typeof map?.mappings === 'string' ? map : undefined;
-  } catch {
-    return undefined;
-  }
+  readonly transform: (code: string, id: string) => { code: string; map: null } | null;
 }
 
 const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
@@ -171,9 +137,10 @@ const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
  * };
  * ```
  *
- * `enforce: 'post'` for the reason the Vitest seam has it: probes land on JS
- * after TypeScript is stripped, so nothing here parses a syntax `oxc` would have
- * to be taught.
+ * `enforce: 'pre'` for the reason the Vitest seam has it: probes land on the
+ * file as it is on disk, so a record is named, digested and counted in the
+ * text a diff is written against, and every transform after it carries the
+ * probes along with the code they sit in.
  */
 export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},
@@ -195,7 +162,7 @@ export function testSelectionProbes(
 
   return {
     name: 'variance-authority:test-selection-probes',
-    enforce: 'post',
+    enforce: 'pre',
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => {
       if (id !== RESOLVED_COLLECTOR) return null;
@@ -209,17 +176,10 @@ export function testSelectionProbes(
 
     transform(code, specifier) {
       const source = cleanId(specifier);
-      if (source === RESOLVED_COLLECTOR || !include(source)) return null;
-      // The digest and the lines from one decision, so they cannot describe two
-      // texts: the file on disk when the prior chain reads the extents back into
-      // it, and `code` when there is no chain and the extents stay where the
-      // transform left them.
-      const { extentOf, sourceDigest, file: wrote, text } = recordedFrame(
-        code,
-        priorMap(this),
-        source,
-        (at) => readFileSync(at, 'utf8'),
-      );
+      if (source === RESOLVED_COLLECTOR) return null;
+      const frame = rawFrame(code, source, include, (at) => readFileSync(at, 'utf8'));
+      if (frame === undefined) return null;
+      const { extentOf, sourceDigest, file: wrote, text } = frame;
 
       // Instrumented under its path, which is all the page then reports. The path
       // is repository-relative: a journal that named absolute paths would be a

@@ -2950,7 +2950,6 @@
         "STAGE_VARIABLE": "const",
         "StagedExecution": "interface",
         "TestSelectionProbeOptions": "interface",
-        "TransformingContext": "interface",
         "closeStage": "function",
         "drainExecution": "function",
         "executionCollectorSource": "function",

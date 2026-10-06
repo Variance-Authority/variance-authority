@@ -14,10 +14,10 @@ import { narrowByExecution } from './index.js';
  * A module of nothing but types is recorded from the file on disk.
  *
  * `shapes.ts` declares an interface and a type, and `area.ts` re-exports it, so
- * the module is loaded at runtime and the transform hands the seam an empty
- * text with an empty map. Recorded from that empty text, the digest matches no
- * commit, and every edit to the file — a comment included — reads as a stale
- * frame and charges every test that loaded it.
+ * the module is loaded at runtime, and the transform after the seam leaves it
+ * an empty text. Recorded from that empty text, the digest would match no
+ * commit, and every edit to the file — a comment included — would read as a
+ * stale frame and charge every test that loaded it.
  */
 
 const execute = promisify(execFile);
@@ -75,12 +75,12 @@ describe('a module the transform leaves empty', () => {
     ]);
   });
 
-  it('is recorded from the file on disk, every line of it', async () => {
+  it('is recorded from the file on disk, from its first statement on', async () => {
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     const row = coverage.modules.find((module) => module.file === shapes);
     const text = readFileSync(resolve(repository, shapes), 'utf8');
     expect(row?.sourceDigest).toBe(digestString(text));
-    expect(row?.blocks.map((block) => [block.startLine, block.endLine])).toEqual([[1, 7]]);
+    expect(row?.blocks.map((block) => [block.startLine, block.endLine])).toEqual([[3, 7]]);
   });
 
   it('selects nothing for a comment, and does not call the frame stale', async () => {

@@ -24,7 +24,6 @@ import {
   type ExecutionJournal,
   type InstrumentMode,
 } from '../journal.js';
-import type { TransformingContext } from '../probes.js';
 
 /** A module with one decision in it, and no export, so a test can evaluate it. */
 export const SOURCE = [
@@ -111,13 +110,6 @@ export function evaluate(transformed: string, mode?: InstrumentMode): Realm {
   };
 }
 
-/** A transform that ran first in a build keeping no chain, as a page's lone module is. */
-const NO_PRIOR_TRANSFORM: TransformingContext = {
-  getCombinedSourcemap: () => {
-    throw new Error('no transform ran before this one');
-  },
-};
-
 /** The two branches of the fixture module, drained a case at a time. */
 export function twoCases(root: string, source = SOURCE): {
   readonly premium: ExecutionJournal;
@@ -137,7 +129,7 @@ export function twoCases(root: string, source = SOURCE): {
     },
     write: async () => {
       await writeFile(module, source, 'utf8');
-      const realm = evaluate(plugin.transform.call(NO_PRIOR_TRANSFORM, source, module)!.code);
+      const realm = evaluate(plugin.transform(source, module)!.code);
       realm.price(20);
       premium = realm.collector.drain();
       realm.price(1);

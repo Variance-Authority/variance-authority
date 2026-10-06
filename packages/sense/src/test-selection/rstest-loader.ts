@@ -3,9 +3,8 @@
  *
  * Rstest builds the suite with Rspack and runs what it built, so the place a
  * module can be instrumented is a loader rather than a plugin hook. Declared
- * `enforce: 'post'`, it receives what SWC made of a `.ts` file plus the map
- * that says where each line came from — the same situation a Vite plugin at
- * `enforce: 'post'` is in, and {@link recordedFrame} already answers it.
+ * `enforce: 'pre'`, it receives the file as it is on disk, before SWC — the
+ * same text the Vite and Jest seams instrument, read by {@link rawFrame}.
  *
  * A loader is loaded by path and given options, never handed the object the
  * configuration built, so the run it belongs to cannot be closed over. It is
@@ -23,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { instrument } from '../instrument/index.js';
 import { cleanId, projectPath } from './instrumented-modules.js';
 import { coverageBlocks } from './coverage-rows.js';
-import { recordedFrame, type TransformSourceMap } from './source-lines.js';
+import { rawFrame } from './source-lines.js';
 import { runOf } from './selection-run.js';
 
 /** What the loader asks of the options its rule carries. */
@@ -37,11 +36,7 @@ export interface SelectionLoaderContext {
   /** The file on disk, without a bundler's query suffix. */
   readonly resourcePath: string;
   readonly getOptions: () => SelectionLoaderOptions;
-  readonly callback: (
-    error: null,
-    code: string,
-    map?: TransformSourceMap | undefined,
-  ) => void;
+  readonly callback: (error: null, code: string) => void;
 }
 
 /**
@@ -50,31 +45,23 @@ export interface SelectionLoaderContext {
  *
  * A module this run has no business in — the seam's own setup shim, anything
  * the `include` predicate refuses, a build whose snapshot names no run — is
- * handed back exactly as it arrived, map and all.
+ * handed back exactly as it arrived.
  */
-function instrumentModule(
-  this: SelectionLoaderContext,
-  code: string,
-  map?: TransformSourceMap,
-): void {
+function instrumentModule(this: SelectionLoaderContext, code: string): void {
   const file = cleanId(this.resourcePath);
   const run = runOf(this.getOptions().coverageFile);
   // This seam's own setup module installs the probe log; instrumented,
   // its own header would ask for the log before the module has installed
   // it. It is a file under the project root like any other, so it is excluded
   // by path rather than by the shape of its name.
-  if (run === undefined || run.shims.has(file) || !run.include(file)) {
-    this.callback(null, code, map);
+  const frame = run === undefined || run.shims.has(file)
+    ? undefined
+    : rawFrame(code, file, run.include, (at) => readFileSync(at, 'utf8'));
+  if (run === undefined || frame === undefined) {
+    this.callback(null, code);
     return;
   }
-
-  // The digest is of the text on disk, which is what the block lines are
-  // coordinates in once SWC's map is read back through — and of `code`, which
-  // is what SWC made of it, when there is no map and the lines stay where they
-  // were left.
-  const { extentOf, sourceDigest, file: wrote, text } = recordedFrame(code, map, file, (at) =>
-    readFileSync(at, 'utf8'),
-  );
+  const { extentOf, sourceDigest, file: wrote, text } = frame;
 
   // Under its path, the same one every other seam instruments under, so a journal
   // reads the same whoever produced it.
@@ -89,7 +76,7 @@ function instrumentModule(
       instrumented: false,
       blocks: [],
     });
-    this.callback(null, code, map);
+    this.callback(null, code);
     return;
   }
 
@@ -100,8 +87,8 @@ function instrumentModule(
     instrumented: true,
     blocks: coverageBlocks(done.blocks, { extentOf, text }),
   });
-  // Without the map it arrived with: the probes moved every line below the
-  // first of them, and a map that says otherwise is worse than none.
+  // With no map: every probe sits on the line it reports, so SWC's map from
+  // this text is a map from the file on disk.
   this.callback(null, done.code);
 }
 

@@ -28,11 +28,7 @@ async function instrumented() {
   const source = resolve(root, 'src/pricing.mjs');
   const code = await readFile(source, 'utf8');
   const probes = testSelectionProbes({ root, label: process.env.VARIANCE_AUTHORITY_HEAD });
-  const transformed = probes.transform.call(
-    { getCombinedSourcemap: () => ({ mappings: '' }) },
-    code,
-    source,
-  );
+  const transformed = probes.transform(code, source);
 
   // The collector import is the page's half, and this realm already has a
   // factory that knows more than it does. Everything else is byte-for-byte what

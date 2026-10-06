@@ -86,7 +86,6 @@ export {
   type ExecutionJournal,
   type InstrumentingPlugin,
   type TestSelectionProbeOptions,
-  type TransformingContext,
 } from './probes.js';
 
 /** What a module reports itself as, for a driver that writes its own journal. */

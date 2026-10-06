@@ -278,7 +278,7 @@ describe('withTestSelection for Jest', () => {
 });
 
 describe('the Jest transformer', () => {
-  it("runs the wrapped transformer first, places probes on its output, and writes the module's record", async () => {
+  it("places probes on the project's text, runs the wrapped transformer on it, and writes the module's record", async () => {
     const root = await project();
     const options = transformOptions(root);
     const path = resolve(root, 'src/pick.js');

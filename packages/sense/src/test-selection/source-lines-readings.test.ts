@@ -3,14 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readRecord, recordStore } from './instrumented-modules.js';
-import { testSelectionProbes, type TransformingContext } from './probes.js';
+import { testSelectionProbes } from './probes.js';
 
 /**
- * One source, read through two transforms, cut into the same regions.
+ * One source, read as itself and through its build, cut into the same regions.
  *
  * Vitest reads a workspace module twice in one run: a package's own tests load
- * `src/x.ts` through esbuild, and another package's tests load `dist/x.js`,
- * which `tsc` built, through the manifest. Both readings are filed under
+ * `src/x.ts`, and another package's tests load `dist/x.js`, which `tsc` built,
+ * through the manifest. Both readings are filed under
  * `src/x.ts`, and the run records only the regions both cut, each where both
  * put it (`joinReadings` in `readings.ts`). A region the two place on different
  * lines is dropped, and its lines select through the region around it.
@@ -19,9 +19,6 @@ import { testSelectionProbes, type TransformingContext } from './probes.js';
  * recorded its `else` on lines 57 to 61 and on 56 to 61.
  */
 
-// The texts and maps vite 5's esbuild and tsc 7 (ES2022, NodeNext) produce for
-// `SOURCE`, verbatim. esbuild opens lines 6 and 7 with the origin of the `if`
-// above, carried over, and gives the nested `if` no segment of its own.
 const SOURCE = [
   'export function tally(lines: readonly string[]): [number, number] {',
   '  let removed = 0;',
@@ -39,30 +36,7 @@ const SOURCE = [
   '',
 ].join('\n');
 
-const ESBUILD = {
-  code: [
-    'export function tally(lines) {',
-    '  let removed = 0;',
-    '  let added = 0;',
-    '  for (const line of lines) {',
-    '    if (line.startsWith("-")) removed += 1;',
-    '    else if (line.startsWith("+")) added += 1;',
-    '    else if (!line.startsWith("\\\\")) {',
-    '      removed += 1;',
-    '      added += 1;',
-    '    }',
-    '  }',
-    '  return [removed, added];',
-    '}',
-    '',
-  ].join('\n'),
-  map: {
-    sources: ['/repo/app/src/a.ts'],
-    mappings:
-      'AAAO,gBAAS,MAAM,OAA4C;AAChE,MAAI,UAAU;AACd,MAAI,QAAQ;AACZ,aAAW,QAAQ,OAAO;AACxB,QAAI,KAAK,WAAW,GAAG,EAAG,YAAW;AAAA,aAC5B,KAAK,WAAW,GAAG,EAAG,UAAS;AAAA,aAC/B,CAAC,KAAK,WAAW,IAAI,GAAG;AAC/B,iBAAW;AACX,eAAS;AAAA,IACX;AAAA,EACF;AACA,SAAO,CAAC,SAAS,KAAK;AACxB;',
-  },
-};
-
+// What tsc 7 (ES2022, NodeNext) writes for `SOURCE`, and the map beside it, verbatim.
 const TSC = {
   code: [
     'export function tally(lines) {',
@@ -94,32 +68,75 @@ const cacheRoot = join(root, '.cache');
 
 beforeAll(async () => {
   await mkdir(join(root, 'app/src'), { recursive: true });
+  await mkdir(join(root, 'app/dist'), { recursive: true });
+  await mkdir(join(root, 'node_modules/app/dist'), { recursive: true });
   await writeFile(join(root, 'app/src/a.ts'), SOURCE);
+  await writeFile(join(root, 'app/dist/a.js'), TSC.code);
+  await writeFile(join(root, 'app/dist/b.js'), TSC.code.replace('a.js.map', 'b.js.map'));
+  await writeFile(join(root, 'node_modules/app/dist/a.js'), TSC.code);
+  await writeFile(join(root, 'app/dist/a.js.map'), JSON.stringify({ version: 3, ...TSC.map }));
+  await writeFile(join(root, 'app/dist/b.js.map'), JSON.stringify({ version: 3, ...TSC.map, sources: ['../src/a.ts', '../src/b.ts'] }));
+  await writeFile(
+    join(root, 'node_modules/app/dist/a.js.map'),
+    JSON.stringify({ version: 3, ...TSC.map, sources: ['../../../app/src/a.ts'] }),
+  );
 });
 
 afterAll(async () => {
   await rm(root, { force: true, recursive: true });
 });
 
-/** The regions the build seam, `testSelectionProbes`, records once `reading` is its last transform of the module. */
+/** The regions the build seam, `testSelectionProbes`, records once it read `code` as `file` last. */
 const recordedAfter = async (
-  reading: typeof ESBUILD,
+  code: string,
   file: string,
 ): Promise<readonly (readonly [string, number, number])[]> => {
   const plugin = testSelectionProbes({ root, cacheRoot, include: () => true });
-  const context: TransformingContext = { getCombinedSourcemap: () => reading.map };
-  plugin.transform.call(context, reading.code, join(root, file));
+  plugin.transform(code, join(root, file));
   const record = await readRecord(recordStore(root, 'build', cacheRoot), 'app/src/a.ts');
   return (record?.blocks ?? []).map((block) => [block.path, block.startLine, block.endLine] as const);
 };
 
-describe('a module read through esbuild and through its tsc build', () => {
+describe('a module read as itself and through its tsc build', () => {
   it('records an `else if` chain on the same lines whichever reading came last', async () => {
-    const build = await recordedAfter(TSC, 'app/dist/a.js');
-    const source = await recordedAfter(ESBUILD, 'app/src/a.ts');
+    const build = await recordedAfter(TSC.code, 'app/dist/a.js');
+    const source = await recordedAfter(SOURCE, 'app/src/a.ts');
 
     expect(build).toContainEqual(['for#0/body/if#0/else', 6, 10]);
     expect(build).toContainEqual(['for#0/body/if#0/else/if#0/else', 7, 10]);
     expect(source).toEqual(build);
+  });
+});
+
+/**
+ * A workspace library consumed through its manifest: the bundler loads
+ * `dist/a.js`, which the default include refuses, and the map `tsc` wrote
+ * beside it leads back to `src/a.ts`, which it accepts. The include is asked
+ * about the file the module is recorded under, so the build is product source
+ * by the name of its source.
+ */
+describe('a module loaded from its tsc build under the default include', () => {
+  const transformed = (file: string, code = TSC.code) =>
+    testSelectionProbes({ root, cacheRoot, label: 'default-include' }).transform(code, join(root, file));
+
+  it('is instrumented and recorded under the source its map leads to', async () => {
+    const done = transformed('app/dist/a.js');
+
+    expect(done?.code).toContain('.r("app/src/a.ts",');
+    expect(done?.code).not.toContain('"app/dist/a.js"');
+    const record = await readRecord(recordStore(root, 'default-include', cacheRoot), 'app/src/a.ts');
+    expect(record).toMatchObject({ file: 'app/src/a.ts', instrumented: true });
+  });
+
+  it('is left out when it points at no map', () => {
+    expect(transformed('app/dist/a.js', TSC.code.replace(/\n\/\/# sourceMappingURL=.*$/, ''))).toBeNull();
+  });
+
+  it('is left out when its map names several sources, as a bundled library does', () => {
+    expect(transformed('app/dist/b.js', TSC.code.replace('a.js.map', 'b.js.map'))).toBeNull();
+  });
+
+  it('is left out under `node_modules`, wherever its map leads', () => {
+    expect(transformed('node_modules/app/dist/a.js')).toBeNull();
   });
 });

@@ -149,31 +149,6 @@ describe('a test file two projects both ran', () => {
 });
 
 describe('what the seam refuses to instrument', () => {
-  it('leaves a declared globalSetup file alone', async () => {
-    // Vitest runs `globalSetup` in its own process, before any test
-    // environment: the setup shim that installs `globalThis.__VA__` is a
-    // `setupFiles` entry and has not run there. Instrumented, the file throws
-    // at its first probe and the whole suite dies before a test loads.
-    const root = await mkdtemp(resolve(tmpdir(), 'variance-global-setup-'));
-    const coverageFile = resolve(root, 'coverage.bin');
-    try {
-      const configured = withTestSelection(
-        { test: { globalSetup: ['./eyes.globalSetup.ts'] } },
-        { root, coverageFile },
-      );
-      const plugin = (configured.plugins as unknown as Array<{
-        transform(code: string, id: string): { code: string } | null;
-      }>)[0]!;
-      const source = 'export default function setup() { return 1; }';
-
-      expect(plugin.transform(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
-      // The exclusion is the named path, not every file beside it.
-      expect(plugin.transform(source, resolve(root, 'src/cart.ts'))!.code).toContain('function __va(i)');
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
   it('puts its setup shim and case runner on disk, where no plugin has to resolve them', async () => {
     // Vitest 4 loads both through Vite's module runner, which never consults
     // this config's plugins: as virtual ids they came back

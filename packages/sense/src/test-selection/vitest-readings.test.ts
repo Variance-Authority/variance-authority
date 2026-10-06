@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
+import { defaultInclude } from './instrumented-modules.js';
 import { withTestSelection } from './vitest.js';
 import type { TestCoverage } from './index.js';
-import type { TransformingContext } from './probes.js';
 
 /**
  * A monorepo's own tests load `src/cart.ts`, and another package's tests reach
@@ -25,7 +25,8 @@ const SOURCE = [
 
 /**
  * What a build emitted for {@link SOURCE}: a helper the source never wrote,
- * which the map gives no origin, and the callback wrapped in it.
+ * which the map gives no origin, the callback wrapped in it, and a pointer to
+ * the map written beside it.
  */
 const BUILT = [
   "var __name = (target, value) => Object.defineProperty(target, 'name', { value, configurable: true });",
@@ -35,6 +36,7 @@ const BUILT = [
   '  }',
   "  return items.reduce(__name(function (sum, item) { return sum + item; }, 'sum'), 0);",
   '}',
+  '//# sourceMappingURL=cart.js.map',
   '',
 ].join('\n');
 
@@ -44,6 +46,7 @@ const LEGACY = [
   '  if (items.length === 0) return 0;',
   '  return items.reduce(function (sum, item) { return sum + item; }, 0);',
   '}',
+  '//# sourceMappingURL=cart.js.map',
   '',
 ].join('\n');
 
@@ -53,7 +56,7 @@ const EDITED = `// What a cart holds.\n${SOURCE}`;
 /** Another module of the package, whose tests load it and not the cart. */
 const RATE = 'export const rate = 0.2;\n';
 
-type Transform = (this: TransformingContext | undefined, code: string, id: string) => unknown;
+type Transform = (code: string, id: string) => unknown;
 
 type Reading = 'source' | 'build' | 'legacy' | 'rate';
 
@@ -69,6 +72,17 @@ async function recorded(
   rerun?: readonly Reading[],
   changed: 'source' | 'build' | 'nothing' = 'source',
 ): Promise<TestCoverage['modules']> {
+  return recordedUnder(() => true, order, projects, rerun, changed);
+}
+
+/** {@link recorded}, by a seam that asks `include` which modules are product source. */
+async function recordedUnder(
+  include: (file: string) => boolean,
+  order: readonly Reading[],
+  projects: 1 | 2 = 1,
+  rerun?: readonly Reading[],
+  changed: 'source' | 'build' | 'nothing' = 'source',
+): Promise<TestCoverage['modules']> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-two-readings-'));
   const coverageFile = resolve(root, 'coverage.bin');
   try {
@@ -79,7 +93,7 @@ async function recorded(
     await writeFile(resolve(root, 'dist/cart.js'), BUILT, 'utf8');
     await writeFile(resolve(root, 'lib/cart.js'), LEGACY, 'utf8');
     await writeFile(resolve(root, 'src/rate.ts'), RATE, 'utf8');
-    const configured = withTestSelection({}, { root, coverageFile, include: () => true });
+    const configured = withTestSelection({}, { root, coverageFile, include });
     const plugin = (configured.plugins as unknown as Array<{
       transform: Transform;
       watchChange(id: string): void;
@@ -87,38 +101,29 @@ async function recorded(
     // A `projects` layout wraps each project's config, and each brings a plugin of its own.
     const other = projects === 1
       ? plugin
-      : (withTestSelection({}, { root, coverageFile, include: () => true }).plugins as unknown as Array<{
+      : (withTestSelection({}, { root, coverageFile, include }).plugins as unknown as Array<{
           transform: Transform;
         }>)[0]!;
     const reporter = (configured.test!.reporters as unknown as Array<{
       onFinished(files: readonly []): Promise<void>;
       onWatcherRerun(): void;
     }>)[1]!;
-    // A build of the edited source maps its first line one line further down.
-    let first = 'AAAA';
-    // The build's map: one source, the file the build was made from, line for line after the helper.
-    const built: TransformingContext = {
-      getCombinedSourcemap: () => ({
-        version: 3,
-        sources: ['../src/cart.ts'],
-        names: [],
-        mappings: `;${first};AACA;AACA;AACA;AACA;AACA`,
-      }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
+    // The maps each build wrote beside itself: one source, the file the build
+    // was made from. A build of the edited source maps its first line one line
+    // further down.
+    const maps = async (first: string): Promise<void> => {
+      const map = (mappings: string): string =>
+        JSON.stringify({ version: 3, sources: ['../src/cart.ts'], names: [], mappings });
+      await writeFile(resolve(root, 'dist/cart.js.map'), map(`;${first};AACA;AACA;AACA;AACA;AACA`), 'utf8');
+      await writeFile(resolve(root, 'lib/cart.js.map'), map(`${first};AACA;AAGA;AACA`), 'utf8');
     };
-    const legacy: TransformingContext = {
-      getCombinedSourcemap: () => ({
-        version: 3,
-        sources: ['../src/cart.ts'],
-        names: [],
-        mappings: `${first};AACA;AAGA;AACA`,
-      }) as unknown as ReturnType<TransformingContext['getCombinedSourcemap']>,
-    };
+    await maps('AAAA');
     const transform = (readings: readonly Reading[], source: string): void => {
       for (const reading of readings) {
-        if (reading === 'source') plugin.transform.call(undefined, source, resolve(root, 'src/cart.ts'));
-        else if (reading === 'build') other.transform.call(built, BUILT, resolve(root, 'dist/cart.js'));
-        else if (reading === 'legacy') other.transform.call(legacy, LEGACY, resolve(root, 'lib/cart.js'));
-        else plugin.transform.call(undefined, RATE, resolve(root, 'src/rate.ts'));
+        if (reading === 'source') plugin.transform(source, resolve(root, 'src/cart.ts'));
+        else if (reading === 'build') other.transform(BUILT, resolve(root, 'dist/cart.js'));
+        else if (reading === 'legacy') other.transform(LEGACY, resolve(root, 'lib/cart.js'));
+        else plugin.transform(RATE, resolve(root, 'src/rate.ts'));
       }
     };
     transform(order, SOURCE);
@@ -127,7 +132,7 @@ async function recorded(
       // What Vite's watcher tells every plugin once a file changed on disk.
       if (changed === 'source') {
         await writeFile(resolve(root, 'src/cart.ts'), EDITED, 'utf8');
-        first = 'AACA';
+        await maps('AACA');
         plugin.watchChange(resolve(root, 'src/cart.ts'));
       } else if (changed === 'build') {
         await writeFile(resolve(root, 'dist/cart.js'), BUILT, 'utf8');
@@ -219,5 +224,67 @@ describe('a module two transforms both name', () => {
 
   it('is recorded without the reading of a build written again that the rerun did not load', async () => {
     expect(await recorded(['build', 'legacy'], 1, ['legacy'], 'build')).toEqual(await recorded(['legacy']));
+  });
+});
+
+describe('a module the runner loaded from its build alone', () => {
+  it('is recorded under the source its map leads to by the default include, which refuses built output', async () => {
+    expect((await recordedUnder(defaultInclude, ['build'])).map((module) => module.file)).toEqual(['src/cart.ts']);
+  });
+
+  it('leaves a declared globalSetup file alone', async () => {
+    // Vitest runs `globalSetup` in its own process, before any test
+    // environment: the setup shim that installs `globalThis.__VA__` is a
+    // `setupFiles` entry and has not run there. Instrumented, the file throws
+    // at its first probe and the whole suite dies before a test loads.
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-global-setup-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      const configured = withTestSelection(
+        { test: { globalSetup: ['./eyes.globalSetup.ts'] } },
+        { root, coverageFile },
+      );
+      const plugin = (configured.plugins as unknown as Array<{
+        transform(code: string, id: string): { code: string } | null;
+      }>)[0]!;
+      const source = 'export default function setup() { return 1; }';
+
+      expect(plugin.transform(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
+      // The exclusion is the named path, not every file beside it.
+      expect(plugin.transform(source, resolve(root, 'src/cart.ts'))!.code).toContain('function __va(i)');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves a declared globalSetup file alone when its build\'s map names a source', async () => {
+    // A workspace's setup consumed from its build: the map beside it would
+    // name the module after `src/setup.ts`, which the configuration never
+    // declared, and the probes would still run in the Vitest process.
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-global-setup-built-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await mkdir(resolve(root, 'dist'), { recursive: true });
+      await writeFile(resolve(root, 'src/setup.ts'), 'export default function setup() { return 1; }\n');
+      await writeFile(
+        resolve(root, 'dist/setup.js.map'),
+        JSON.stringify({ version: 3, sources: ['../src/setup.ts'], names: [], mappings: 'AAAA' }),
+      );
+      const configured = withTestSelection({ test: { globalSetup: ['./dist/setup.js'] } }, { root, coverageFile });
+      const plugin = (configured.plugins as unknown as Array<{
+        transform(code: string, id: string): { code: string } | null;
+      }>)[0]!;
+      const built = 'export default function setup() { return 1; }\n//# sourceMappingURL=setup.js.map\n';
+      await writeFile(resolve(root, 'dist/setup.js'), built);
+      await writeFile(resolve(root, 'dist/other.js'), built.replace('setup.js.map', 'other.js.map'));
+
+      expect(plugin.transform(built, resolve(root, 'dist/setup.js'))).toBeNull();
+      // Read from another build, the same text is a library like any other.
+      await writeFile(resolve(root, 'dist/other.js.map'), JSON.stringify({ version: 3, sources: ['../src/setup.ts'], names: [], mappings: 'AAAA' }));
+      expect(plugin.transform(built.replace('setup.js.map', 'other.js.map'), resolve(root, 'dist/other.js'))).not.toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

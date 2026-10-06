@@ -150,11 +150,7 @@ export async function head(root: string, label = 'build', options: HeadOptions =
   const module = resolve(root, 'currency.js');
   await writeFile(module, source, 'utf8');
   const plugin = testSelectionProbes({ root, label, cacheRoot });
-  const transformed = plugin.transform.call(
-    { getCombinedSourcemap: () => ({ mappings: '', sources: [] }) },
-    source,
-    module,
-  )!;
+  const transformed = plugin.transform(source, module)!;
   return {
     where: { cacheRoot, label, coverageFile: resolve(root, 'coverage.bin') },
     currency: options.lazy ? unevaluated : evaluate(transformed.code),

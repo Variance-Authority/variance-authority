@@ -1,11 +1,11 @@
 /**
- * The Jest transformer: the project's own transform first, probes on its output.
+ * The Jest transformer: probes on the project's text, then the project's own transform.
  *
  * Named in a configuration by the Jest wrappers, and loaded by Jest once per
  * worker. It wraps whatever transformer the configuration named — `@swc/jest`,
  * `ts-jest`, `babel-jest`, anything with Jest's transformer shape — and never
- * chooses one: the project's transformer runs first, with the project's
- * options, and the probes land on what it produced.
+ * chooses one: the probes land on the file as Jest read it, and the project's
+ * transformer runs on that, with the project's options.
  *
  * Two things decide what it costs. The first is Jest's transform cache: the
  * text this returns is stored on disk under `getCacheKey`, shared by every
@@ -16,9 +16,9 @@
  * that same key: a cache hit is a hit for both halves, and a cache miss rewrites
  * both. Nothing is recomputed at report time.
  *
- * A module the instrumenter cannot read passes through as the inner transformer
- * produced it, with an inventory that says so; the selector widens over such a
- * module rather than trusting an absence of crossings.
+ * A module the instrumenter cannot read reaches the inner transformer as it
+ * is, with an inventory that says so; the selector widens over such a module
+ * rather than trusting an absence of crossings.
  */
 
 import { createHash } from 'node:crypto';
@@ -33,12 +33,11 @@ import {
   openRecords,
   projectPath,
   writeRecord,
-  type CapturedModule,
   type RecordWriter,
 } from './instrumented-modules.js';
 import { coverageBlocks } from './coverage-rows.js';
 import { jestStore, type SelectionTransformerConfig } from './jest.js';
-import { recordedFrame, type TransformSourceMap } from './source-lines.js';
+import { rawFrame, type TransformSourceMap } from './source-lines.js';
 
 /** The fields of Jest's project configuration this reads. */
 export interface JestProjectConfig {
@@ -147,25 +146,21 @@ export async function createTransformer(
     getCacheKeyAsync: async (source, path, options) =>
       keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options))),
     processAsync: async (source, path, options) => {
-      const transformed = innerProcessAsync === undefined
-        ? { code: source }
-        : await innerProcessAsync(source, path, forInner(options));
-      return place(root, recordsOf(options.config), path, options, source, transformed, mode, excluded);
+      const code = place(root, recordsOf(options.config), path, options, source, mode, excluded);
+      return innerProcessAsync === undefined ? { code } : innerProcessAsync(code, path, forInner(options));
     },
   };
   if (inner === undefined || inner.process !== undefined) {
     transformer.process = (source, path, options) => {
-      const transformed = inner?.process === undefined
-        ? { code: source }
-        : inner.process(source, path, forInner(options));
-      return place(root, recordsOf(options.config), path, options, source, transformed, mode, excluded);
+      const code = place(root, recordsOf(options.config), path, options, source, mode, excluded);
+      return inner?.process === undefined ? { code } : inner.process(code, path, forInner(options));
     };
   }
   return transformer;
 }
 
 /**
- * Probes on the transformed text, and the inventory beside Jest's cache entry.
+ * Probes on the project's text, and the inventory beside Jest's cache entry.
  *
  * The inventory is written before the text is returned, synchronously, because
  * Jest writes its own cache entry the moment this returns and a worker can be
@@ -176,6 +171,9 @@ export async function createTransformer(
  * runs it. Which files are tests is the project's `testMatch` or `testRegex`,
  * read from the configuration Jest hands every transform, matched the way
  * Jest's own search matches them.
+ *
+ * Every probe is placed on the line it reports, so the wrapped transformer's
+ * map names the right line of the project's source for a stack trace.
  */
 function place(
   root: string,
@@ -183,30 +181,20 @@ function place(
   path: string,
   options: JestTransformRequest,
   source: string,
-  transformed: JestTransformedSource,
   mode: InstrumentMode,
   excluded: ReadonlySet<string>,
-): JestTransformedSource {
-  if (excluded.has(resolve(path)) || !defaultInclude(path) || isTestFile(path, options.config)) {
-    return transformed;
-  }
-  // The digest is of the project's text, which is what the block lines are
-  // coordinates in once the wrapped transformer's map is read back through —
-  // and of the transformed text when there is no map to read back through, so
-  // the digest never vouches for a number line it did not see.
-  const { extentOf, sourceDigest, file: wrote, text } = recordedFrame(
-    transformed.code,
-    parsedMap(transformed),
-    path,
-    (at) => (at === path ? source : readFileSync(at, 'utf8')),
-  );
-  const file = projectPath(root, wrote);
+): string {
+  if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return source;
+  const frame = rawFrame(source, path, defaultInclude, (at) => (at === path ? source : readFileSync(at, 'utf8')));
+  if (frame === undefined) return source;
+  const file = projectPath(root, frame.file);
   // The module reports under the path Jest transformed, which is the path its
-  // journal row names; `file` is where the regions' lines are, which a source
-  // map may place elsewhere.
+  // journal row names; `file` is where the regions' lines are, which a build's
+  // map may place in its source.
   const id = projectPath(root, path);
-  const done = instrument(transformed.code, file, id, { mode });
-  const captured: CapturedModule = done === undefined
+  const done = instrument(source, file, id, { mode });
+  const { extentOf, sourceDigest, text } = frame;
+  writeRecord(records, done === undefined
     ? { file, id, sourceDigest, instrumented: false, blocks: [] }
     : {
         file,
@@ -214,14 +202,8 @@ function place(
         sourceDigest,
         instrumented: true,
         blocks: coverageBlocks(done.blocks, { extentOf, text }),
-      };
-  writeRecord(records, captured);
-  // Every probe is placed on the line it reports, so the wrapped transformer's
-  // map still names the right line of the project's source for a stack trace;
-  // only columns have moved. An inline map rides along inside the text.
-  return done === undefined
-    ? transformed
-    : { code: done.code, ...(transformed.map === undefined ? {} : { map: transformed.map }) };
+      });
+  return done?.code ?? source;
 }
 
 /** What Jest hashes when a transformer declares no key of its own. */
@@ -263,22 +245,6 @@ function isTestFile(path: string, config: JestProjectConfig): boolean {
     testMatchers.set(identity, matcher);
   }
   return matcher(path);
-}
-
-/**
- * The map the inner transformer returned, or the one it inlined: `@swc/jest`
- * appends its map to the text as a data URL rather than returning it.
- */
-function parsedMap(transformed: JestTransformedSource): TransformSourceMap | undefined {
-  const inline = transformed.map === undefined || transformed.map === null
-    ? /\/\/# sourceMappingURL=data:application\/json[^,]*;base64,([A-Za-z0-9+/=]+)\s*$/.exec(transformed.code)?.[1]
-    : undefined;
-  const map = inline === undefined ? transformed.map : Buffer.from(inline, 'base64').toString('utf8');
-  if (map === undefined || map === null) return undefined;
-  const value = typeof map === 'string' ? (JSON.parse(map) as Partial<TransformSourceMap>) : map;
-  return typeof value.mappings === 'string' && Array.isArray(value.sources)
-    ? { mappings: value.mappings, sources: value.sources }
-    : undefined;
 }
 
 /**

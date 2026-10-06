@@ -6,6 +6,7 @@ import { decodeTestCoverage } from './format.js';
 import { statusesComplete } from './finished-files.js';
 import { runOf } from './selection-run.js';
 import { SELECTION_LOADER, withTestSelection } from './rstest.js';
+import instrumentModule from './rstest-loader.js';
 
 const temporary: string[] = [];
 
@@ -24,7 +25,7 @@ interface Rules {
 }
 
 describe('what a wrapped Rstest configuration becomes', () => {
-  it('adds a post loader carrying the snapshot the reporter will write, without replacing the project\'s own', async () => {
+  it('adds a pre loader carrying the snapshot the reporter will write, without replacing the project\'s own', async () => {
     const directory = await root();
     const coverageFile = resolve(directory, 'coverage.bin');
     const mine = { module: { rules: [] } };
@@ -42,7 +43,7 @@ describe('what a wrapped Rstest configuration becomes', () => {
     const rule = (rspack[1] as Rules).module.rules[0]!;
     // After the project's loaders and after SWC, so the probes land on
     // JavaScript and the map back to the author's lines is the bundler's own.
-    expect(rule.enforce).toBe('post');
+    expect(rule.enforce).toBe('pre');
     expect(rule.use[0]!.loader).toBe(SELECTION_LOADER);
     // The one string that names a run: a loader is loaded by path and can be
     // handed options, never the object the configuration built.
@@ -185,5 +186,44 @@ describe('what a finished Rstest file is worth', () => {
     expect(statusesComplete('pass', ['pass', 'fail'])).toBe(false);
     // Nothing ran, so there is nothing to be evidence of.
     expect(statusesComplete('pass', [])).toBe(false);
+  });
+});
+
+describe('the Rstest loader', () => {
+  /** What the loader hands Rspack for `code` at `file`, and the run it recorded into. */
+  async function loaded(file: string, code: string, files: Readonly<Record<string, string>> = {}) {
+    const directory = await root();
+    const coverageFile = resolve(directory, 'coverage.bin');
+    for (const [path, text] of Object.entries(files)) {
+      await mkdir(resolve(directory, path, '..'), { recursive: true });
+      await writeFile(resolve(directory, path), text);
+    }
+    withTestSelection({ root: directory }, { coverageFile });
+    let handed: string | undefined;
+    instrumentModule.call(
+      { resourcePath: resolve(directory, file), getOptions: () => ({ coverageFile }), callback: (_error, text) => { handed = text; } },
+      code,
+    );
+    return { handed, modules: [...runOf(coverageFile)!.modules.values()] };
+  }
+
+  it('records a module loaded from its build under the source its own map file names', async () => {
+    const built = 'export const pick = (value) => (value ? 1 : 2);\n//# sourceMappingURL=pick.js.map\n';
+    const { handed, modules } = await loaded('dist/pick.js', built, {
+      'dist/pick.js': built,
+      'src/pick.ts': 'export const pick = (value: boolean): number => (value ? 1 : 2);\n',
+      'dist/pick.js.map': JSON.stringify({ version: 3, sources: ['../src/pick.ts'], names: [], mappings: 'AAAA' }),
+    });
+
+    expect(handed).not.toBe(built);
+    expect(modules.map((module) => module.file)).toEqual(['src/pick.ts']);
+  });
+
+  it('hands a module it cannot parse back as it arrived, recorded as not instrumented', async () => {
+    const broken = 'export const pick = (;\n';
+    const { handed, modules } = await loaded('src/pick.ts', broken);
+
+    expect(handed).toBe(broken);
+    expect(modules).toEqual([expect.objectContaining({ file: 'src/pick.ts', instrumented: false, blocks: [] })]);
   });
 });
