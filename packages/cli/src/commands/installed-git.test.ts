@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { installDiff } from './installed.js';
+import { installDiff, installDiffOfPatch } from './installed.js';
 import { diffPoint } from './since.js';
 
 /**
@@ -73,5 +73,33 @@ describe('the install at a commit, read through git', () => {
     const { diff, changed } = await compared(20);
 
     expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: changed });
+  });
+});
+
+describe('the install a patch names, read through git', () => {
+  /** The git processes reading a patch of `count` staged manifests started, and its answer. */
+  async function patched(count: number) {
+    const { repo, changed } = edited(count);
+    execFileSync('git', ['-C', repo, 'add', '.']);
+    const patch = execFileSync('git', ['-C', repo, 'diff', '--cached', 'HEAD'], { encoding: 'utf8' });
+    let diff: Awaited<ReturnType<typeof installDiffOfPatch>>;
+    const started = await gitStarted(repo, async () => (diff = await installDiffOfPatch(patch, repo)));
+    return { started, diff: diff!, changed };
+  }
+
+  // Each end of each manifest was a `git cat-file` of its own, all started at once.
+  it('reads twenty patched manifests in as many git processes as two', async () => {
+    const few = await patched(2);
+    const many = await patched(20);
+
+    expect(few.started.length).toBeGreaterThan(0);
+    expect(many.started.length).toBe(few.started.length);
+  });
+
+  it('reads each manifest by its blob names, so each one whose `type` moved is carried', async () => {
+    const { diff, changed } = await patched(20);
+
+    // A patch lists its files in git's path order.
+    expect(diff).toEqual({ packages: [], manifests: ['package.json'], moved: [...changed].sort() });
   });
 });
