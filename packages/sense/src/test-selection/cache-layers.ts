@@ -81,7 +81,11 @@ export interface RootConfig {
  * setting it would have made is one the reader never sees.
  */
 export function rootConfig(root: string): RootConfig | undefined {
-  const repository = repositoryRoot(root);
+  return configOf(repositoryRoot(root));
+}
+
+/** {@link rootConfig} for a directory known to be a checkout's root. */
+function configOf(repository: string): RootConfig | undefined {
   if (!configs.has(repository)) configs.set(repository, readRootConfig(repository));
 
   return configs.get(repository);
@@ -112,13 +116,32 @@ export function rootConfig(root: string): RootConfig | undefined {
  * the cache a run would fall back to is one the reader never sees.
  */
 export function cacheRootFor(root: string): string {
-  const config = rootConfig(root);
+  return cacheRootOf(repositoryRoot(root));
+}
+
+/**
+ * The cache directory of the checkout `here` was cut from: {@link cacheRootFor}
+ * its primary checkout, and `here`'s own when it was cut from none.
+ *
+ * A worktree's primary checkout is read from git's own layout — the directory
+ * holding the git directory the worktree points into — so it is that
+ * checkout's root already, and git is not started to say so a second time.
+ */
+export function primaryCacheRoot(here: string): string {
+  const primary = primaryCheckout(here);
+
+  return primary === here ? cacheRootFor(here) : cacheRootOf(primary);
+}
+
+/** {@link cacheRootFor} for a directory known to be a checkout's root. */
+function cacheRootOf(repository: string): string {
+  const config = configOf(repository);
   const named = config === undefined ? undefined : cacheRootIn(config);
   if (named !== undefined) return named;
   const isolated = process.env[CACHE_VARIABLE];
   if (isolated !== undefined && isAbsolute(isolated)) return resolve(isolated);
 
-  return resolve(repositoryRoot(root), 'node_modules', '.cache', 'variance-authority');
+  return resolve(repository, 'node_modules', '.cache', 'variance-authority');
 }
 
 function cacheRootIn({ file, value: config }: RootConfig): string | undefined {
@@ -180,7 +203,7 @@ export interface CacheLayers {
 export function cacheLayers(root: string, cacheRoot?: string): CacheLayers {
   const here = resolve(root);
   const primary = primaryCheckout(here);
-  const base = resolve(cacheRoot ?? cacheRootFor(primary), 'test-selection', keyOf(primary));
+  const base = resolve(cacheRoot ?? primaryCacheRoot(here), 'test-selection', keyOf(primary));
   if (primary === here) return { top: base, base };
   // Each checkout reads its own `cacheRoot`: a relative one names a directory
   // inside the worktree, which is the one directory a sandboxed agent may write.
