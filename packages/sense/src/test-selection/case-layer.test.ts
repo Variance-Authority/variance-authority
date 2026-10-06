@@ -196,6 +196,27 @@ describe('layerCaseIndex', () => {
 
     expect(decoded(400)).toBe(decoded(10));
   });
+
+  it('reads no module of the landing\'s base that no shard of it recorded', () => {
+    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
+    const decoded = (untouched: number): number => {
+      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
+      const base = index([...kept, 'a.test.ts > one'], {
+        'src/shared.ts': [['entry', ['a.test.ts > one']]],
+        ...Object.fromEntries(kept.map((id, at) => [`src/kept-${at}.ts`, [['entry', [id]], ['idle', []]]])),
+      });
+      const files = { ...ran(['a.test.ts']), sameText: () => true, base, sameBeforeText: new Set(['src/shared.ts']) };
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        layerCaseIndex(base, fresh, files);
+        return decode.mock.calls.length;
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(decoded(400)).toBe(decoded(10));
+  });
 });
 
 /** A region at one line, the cases that called it, and its name when it is not the callback's. */
@@ -244,8 +265,8 @@ describe('a module the index holds at an older text than the snapshot', () => {
     const files = { ...same, base: held };
 
     expect(linesOf(layerCaseIndex(fresh, fresh, files).before)).toEqual([414, 415, 416]);
-    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: () => false }).before)).toEqual([414, 415, 416]);
-    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: () => true }).before)).toEqual([415, 416, 417]);
+    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: new Set<string>() }).before)).toEqual([414, 415, 416]);
+    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: new Set(['src/blocks.ts']) }).before)).toEqual([415, 416, 417]);
   });
 
   it('leaves out a region the recorded cut has no address for, since no line of the newer text holds it', () => {

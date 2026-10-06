@@ -22,18 +22,19 @@ export interface CaseRunFiles {
    */
   readonly sameText?: (file: string) => boolean;
   /**
-   * Whether the run recorded `file` from the text the before layer's cut of it
+   * The files the run recorded from the text the before layer's cut of them
    * is named at. The names are the snapshot's, and the snapshot re-cuts a
    * carried module to the text on disk while the index keeps the lines it was
    * recorded at, so a module no run re-recorded since an edit above one of its
    * regions stands at the old lines under the new name. Where the run recorded
    * that text, the before layer is cut at the lines it recorded. With `base`,
    * "the run" is this one or a shard of the landing laid before it, whose
-   * lines the index this run is laid over holds. Asked only
-   * when `base` is given; without `base`, `sameText` answers it, and with
-   * `base` but without this, nothing is re-cut.
+   * lines the index this run is laid over holds. Read only when `base` is
+   * given; without `base`, `sameText` answers it, and with `base` but without
+   * this, nothing is re-cut. A set rather than a question, so a landing reads
+   * the base's modules these name and no other.
    */
-  readonly sameBeforeText?: (file: string) => boolean;
+  readonly sameBeforeText?: ReadonlySet<string>;
   /**
    * The index the before layer is cut from, when it is not the one the run is
    * laid over: the one a landing began with, which no shard it laid before
@@ -154,15 +155,21 @@ export function layerCaseIndex(
 
   const unlined: string[] = [];
   const recordedRows = cut === undefined ? undefined : recordedIn(cut, runModules);
+  const sameBefore = cut === undefined || files.base === undefined ? undefined : namedIn(cut, files.sameBeforeText ?? []);
   const before = cut === undefined ? undefined : beforeRun(cut, new Set([...files.ran, ...run.tests.map((test) => test.file)]), (row) => {
     const named = cut.columns.moduleFile[row]!;
-    // A landing's earlier shard may have recorded what this one did not; the
-    // index it laid, the one this run is laid over, stands at those lines.
-    const recorded = recordedRows!.get(named) ??
-      (files.base === undefined ? undefined : heldModule(held, cut.string(named)));
-    if (recorded === undefined) return undefined;
-    const same = (files.base === undefined ? files.sameText : files.sameBeforeText)?.(recorded.file);
-    if (same !== true) return undefined;
+    let recorded: SetExecutionModule | undefined;
+    if (sameBefore === undefined) {
+      recorded = recordedRows!.get(named);
+      if (recorded === undefined || files.sameText?.(recorded.file) !== true) return undefined;
+    } else {
+      const file = sameBefore.get(named);
+      if (file === undefined) return undefined;
+      // A landing's earlier shard may have recorded what this one did not; the
+      // index it laid, the one this run is laid over, stands at those lines.
+      recorded = recordedRows!.get(named) ?? heldModule(held, file);
+      if (recorded === undefined) return undefined;
+    }
     const module = cut.module(row);
     const lined = relined(module, recorded);
     if (lined === undefined || (lined === module && strayed(module, recorded))) unlined.push(recorded.file);
@@ -396,6 +403,16 @@ function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetEx
     if (called[block] !== EMPTY || module.loaded[block] === 1) entered = true;
   }
   return entered ? { ...module, called } : undefined;
+}
+
+/** The files `held` holds among `files`, by the id of their path; one `held` lacks is none of its rows. */
+function namedIn(held: HeldIndex, files: Iterable<string>): ReadonlyMap<number, string> {
+  const found = new Map<number, string>();
+  for (const file of files) {
+    const key = held.key(file);
+    if (key % 2 === 1) found.set((key - 1) / 2, file);
+  }
+  return found;
 }
 
 /** The modules a run recorded, by the id of their path in `held`; one `held` lacks is none of its rows. */
