@@ -50,13 +50,31 @@ export function ask(root: string, args: readonly string[], input?: string): Prom
 /** Non-empty lines. */
 const lines = (text: string): string[] => text.split('\n').filter((line) => line !== '');
 
+const shallowFiles = new Map<string, Promise<Answer>>();
+
+/**
+ * Where `root`'s clone keeps its shallow list, asked once per process: a
+ * reader counts several distances in one checkout, and the place git keeps the
+ * list does not move while it runs. The list itself is read each time.
+ */
+function shallowFile(root: string): Promise<Answer> {
+  const held = shallowFiles.get(root);
+  if (held !== undefined) return held;
+  const asked = ask(root, ['rev-parse', '--git-path', 'shallow']);
+  shallowFiles.set(root, asked);
+  void asked.then((answer) => {
+    if (answer.code !== 0) shallowFiles.delete(root);
+  });
+  return asked;
+}
+
 /**
  * The commits a shallow clone's history was cut at, none when it is not
  * shallow, or why that cannot be said. Only a missing `shallow` file means the
  * clone is whole; a file that cannot be found or read may hide a cut.
  */
 async function cut(root: string): Promise<Set<string> | string> {
-  const at = await ask(root, ['rev-parse', '--git-path', 'shallow']);
+  const at = await shallowFile(root);
   if (at.code !== 0) return `git said: ${at.said}`;
   try {
     const text = await readFile(resolve(root, at.out), 'utf8');

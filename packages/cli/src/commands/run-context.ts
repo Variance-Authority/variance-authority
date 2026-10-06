@@ -12,7 +12,8 @@ import type { InstallDiff } from './installed.js';
 import type { MovedExports } from './reach.js';
 import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
 import type { SuitePart } from './suite-part.js';
-import type { Costs, Shard } from './shard.js';
+import type { Shard } from '../shard-args.js';
+import type { Costs } from './shard.js';
 
 /**
  * What a run is handed, and what one subject's decision is handed.

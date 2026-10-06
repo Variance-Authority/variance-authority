@@ -204,7 +204,9 @@
     "names": {
       ".": {
         "CaptureArtifact": "interface",
-        "CaptureMaterial": "type"
+        "CaptureMaterial": "type",
+        "didYouMean": "function",
+        "nearest": "function"
       },
       "./format": {
         "AccessibilitySnapshot": "interface",
@@ -1284,12 +1286,10 @@
         "TreeOptions": "interface",
         "VANTAGE_TOOLS": "const",
         "decodeSourceTree": "function",
-        "didYouMean": "function",
         "diffState": "function",
         "encodeSourceTree": "function",
         "entryPoints": "function",
         "eyesToolByName": "function",
-        "nearest": "function",
         "notObservedSentence": "function",
         "observabilityToolByName": "function",
         "pathsOf": "function",

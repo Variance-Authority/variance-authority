@@ -25,7 +25,6 @@ import {
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
 import { pruneWhenDueLines } from './commands/prune-cache.js';
 import { ask, costsSubject } from './commands/ask.js';
-import { questionFor } from './commands/asking.js';
 import { said } from './here.js';
 import { formatReport } from './commands/report.js';
 import {
@@ -51,7 +50,7 @@ import { mainlinesOf, publishedLine } from './commands/share.js';
 import { shareOutput, writeSuitePart } from './commands/suite-part.js';
 import { runCarry } from './commands/carry.js';
 import { runSuiteShare } from './commands/suite-share.js';
-import { answerConfigless, constantAnswer, withoutConfig } from './commands/configless.js';
+import type { Configless } from './commands/configless.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { ChangelogSelection } from '@variance-authority/report';
@@ -68,22 +67,9 @@ import { rendererFor } from './renderer.js';
  * which is exactly the point of parsing into a value first.
  */
 export async function dispatch(
-  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' }>,
+  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' } | Configless>,
   streams: { out(text: string): void; err(text: string): void; detach?(argv: readonly string[], log: string): number | undefined },
 ): Promise<ExitCode> {
-  // What answers before a config is read, and why each of them may: see
-  // `configless.ts`, which holds those reasons beside the `CONFIGLESS` list in
-  // `usage.ts` that keeps `--config` off them. The guard also narrows: past it,
-  // every command left in the union has a `--config` to load.
-  // A question nobody asks is refused before a file is opened. The name is a
-  // fact about this tool and not about the project, so a mistyped one answered
-  // with "cannot read the config" sends the reader to fix the wrong thing —
-  // and sends the reader who cannot see the two are unrelated a long way.
-  if (parsed.command === 'ask' && parsed.question !== undefined) questionFor(parsed.question);
-
-  const constant = await constantAnswer(parsed, streams);
-  if (constant !== undefined) return constant;
-  if (withoutConfig(parsed)) return answerConfigless(parsed, streams);
   if (parsed.command === 'journeys' && parsed.operation !== undefined)
     return runJourneyArtifactCommand(parsed, streams);
   if (parsed.command === 'carry') return runCarry(parsed, streams, mainlinesOf);
@@ -118,7 +104,7 @@ export async function dispatch(
       // itself stays free of both — it is handed an identity or it is not, and a
       // test can hand it one without setting environment variables that outlive
       // the test.
-      const history = historyFor(effective);
+      const history = await historyFor(effective);
 
       // One fetch for both verbs when they name the same ref, and `--since`
       // implies `--against` wherever a graph is configured: the walk has already
@@ -259,7 +245,7 @@ export async function dispatch(
 
     case 'accept': {
       const report = await reportToPromoteFrom(config.report);
-      const acceptHistory = historyFor(config);
+      const acceptHistory = await historyFor(config);
       const result = await accept({
         report,
         reportDir: dirname(config.report),

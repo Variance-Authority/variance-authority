@@ -318,8 +318,9 @@ export async function distanceFrom(
 ): Promise<number | undefined> {
   const base = (await git(['merge-base', 'HEAD', `refs/remotes/${remoteOf(config)}/${mainline}`], cwd))?.trim();
   if (base === undefined || base === '') return undefined;
-  const behind = await countPast(cwd, commit, base);
-  const ahead = await countPast(cwd, base, commit);
+  // Git named the base, so the clone holds it: a record at it is no distance.
+  if (commit === base) return 0;
+  const [behind, ahead] = await Promise.all([countPast(cwd, commit, base), countPast(cwd, base, commit)]);
   if (behind === undefined || ahead === undefined) return undefined;
   if (ahead === 0) return behind;
   if (behind === 0) return -ahead;

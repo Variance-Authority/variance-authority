@@ -33,8 +33,7 @@ import {
   type Unconfigured,
 } from '../share-lines.js';
 import { suiteIndexRoot } from './resources.js';
-import { readCliRunReport } from './run.js';
-import { isSlice, suitePartPath, type CliRunReport } from './run-report.js';
+import { isSlice, readCliRunReport, suitePartPath, type CliRunReport } from './run-report.js';
 
 export { mainlinesOf, type Mainlines } from '../share-lines.js';
 
