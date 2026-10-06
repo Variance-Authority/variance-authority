@@ -221,9 +221,10 @@ describe('the CLI distillation boundary', () => {
       ordinal: 0, kind: 'module' as const, digest: `${file}#0`, name: '', path: '', source: true,
       testFiles: ['test/cart.spec.ts'], loadedBy: ['test/cart.spec.ts'], startLine: 1, endLine,
     });
+    // The function lies below every source line, so no top-level reference reads as run by a case.
     const fn = (file: string, name: string) => ({
       ordinal: 1, kind: 'function' as const, owner: 0, digest: `${file}#1`, name, path: name, source: true,
-      testFiles: ['test/cart.spec.ts'], startLine: 2, endLine: 9,
+      testFiles: ['test/cart.spec.ts'], startLine: 4, endLine: 9,
     });
     await writeTestCoverage(at, {
       version: 3,
@@ -233,7 +234,7 @@ describe('the CLI distillation boundary', () => {
         file, sourceDigest: file, instrumented: true, blocks: [root0(file, 10 * (at + 1)), fn(file, 'main')],
       })),
     });
-    const block = { kind: 'function', name: 'main', path: 'main', startLine: 2, endLine: 9, source: true };
+    const block = { kind: 'function', name: 'main', path: 'main', startLine: 4, endLine: 9, source: true };
     writeFileSync(at, withCaseSections(readFileSync(at), {
       index: encodeExecutionIndex({
         tests: [

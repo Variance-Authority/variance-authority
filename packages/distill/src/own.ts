@@ -11,7 +11,8 @@ import type { TestCoverage } from '@variance-authority/sense/test-selection';
  * by a case; it is the topmost such import. `lazy` when that import is
  * dynamic only: what it owns was paid when the import was called, not on load.
  * `charge`, for a static import a file other than the test file writes, says
- * where that file references what it imports. `reach`, for a static import,
+ * where that file references what it imports, and `ran` on a read at load
+ * when a case also runs a function that reads it. `reach`, for a static import,
  * says how far from the test file its importer is.
  * `shared`: no import brings the module in alone — two paths reach it, or the
  * import that does also brings in code a case entered; `parts` is the nearest

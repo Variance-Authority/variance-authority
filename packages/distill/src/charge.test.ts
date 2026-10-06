@@ -180,10 +180,14 @@ describe('an import a used file writes, charged to the code that reads it', () =
 
 describe('what to do about an import, by how far from the test file its importer is', () => {
   it('reads the test file\'s own import as an error to fix', () => {
-    const own = read(referencing([]), { [FILE]: [UTILS, PDF], [UTILS]: [] });
+    const own = read(referencing([]), { [FILE]: [UTILS, PDF], [UTILS]: [] }, [], referencing([]));
     expect(formatFileDistillation(own)).toContain(
       `    error: ${FILE} imports ${PDF}, and none of its cases enters what that loads: delete the import.`,
     );
+    // Unread, the test file's text is no evidence that it reads none of the import.
+    const unread = formatFileDistillation(read(referencing([]), { [FILE]: [UTILS, PDF], [UTILS]: [] }));
+    expect(unread).toContain(`    error: ${FILE} imports ${PDF}, and none of its cases enters what that loads.`);
+    expect(unread).not.toContain('delete the import');
     // Read at the test file's top level, as a title, the import is not deleted: the line under it says where.
     const atLoad = read(referencing([]), { [FILE]: [UTILS, PDF], [UTILS]: [] }, [], referencing([{ file: PDF, name: 'TITLE', line: 3, load: true }]));
     expect(formatFileDistillation(atLoad)).toContain([
@@ -207,6 +211,22 @@ describe('what to do about an import, by how far from the test file its importer
     );
     expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'load', line: 6, name: 'render' } }))
       .toBe(`Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({ render: jest.fn() }));`);
+  });
+
+  it('proposes no mock where the subject reads the import at load and a case runs a function that reads it too', () => {
+    // A factory standing in only the name read at load would hand the case undefined for the other.
+    const result = read(referencing([
+      { file: PDF, name: 'default', line: 6, load: true },
+      { file: PDF, name: 'Modal', line: 3, load: false },
+    ]));
+    expect(chargeOf(result)).toEqual({ kind: 'load', line: 6, name: 'default', ran: true });
+    expect(formatFileDistillation(result)).not.toContain('jest.mock(');
+  });
+
+  it('proposes no mock where what the subject reads is not known, or the load is the point', () => {
+    for (const charge of [undefined, { kind: 'unmeasured' }, { kind: 'effect' }] as const) {
+      expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', ...(charge === undefined ? {} : { charge }) })).toBeUndefined();
+    }
   });
 
   it('proposes no mock where a case runs, or the subject hands on, what reads the import', () => {

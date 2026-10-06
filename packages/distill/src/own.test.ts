@@ -271,7 +271,6 @@ describe('formatFileDistillation with causes', () => {
     expect(formatFileDistillation(result)).toContain([
       'Loaded, and entered by no case: 4 module(s), 40 line(s).',
       '  src/dialog.ts imports src/editor.ts: 2 module(s), 20 line(s)',
-      "    Or mock it in this file, so src/dialog.ts does not load it: jest.mock('../src/editor', () => ({}));",
       '    src/editor.ts — 10 line(s)',
       '    src/markdown.ts — 10 line(s)',
       '  No one import brings these in alone: 1 module(s), 10 line(s)',
@@ -297,16 +296,14 @@ describe('formatFileDistillation with causes', () => {
 
     expect(text).toContain([
       '  src/dialog.ts imports src/m00.ts: 5 module(s), 50 line(s)',
-      "    Or mock it in this file, so src/dialog.ts does not load it: jest.mock('../src/m00', () => ({}));",
       '    src/deep1.ts — 10 line(s)',
       '    src/deep2.ts — 10 line(s)',
       '    src/deep3.ts — 10 line(s)',
       '    and 2 more: 2 module(s), 20 line(s)',
       '  src/dialog.ts imports src/m01.ts: 1 module(s), 10 line(s)',
-      "    Or mock it in this file, so src/dialog.ts does not load it: jest.mock('../src/m01', () => ({}));",
     ].join('\n'));
     expect(text).toContain('  src/dialog.ts imports src/m09.ts: 1 module(s), 10 line(s)\n' +
-      "    Or mock it in this file, so src/dialog.ts does not load it: jest.mock('../src/m09', () => ({}));" + '\n    src/m09.ts — 10 line(s)\n  and 2 more import(s): 2 module(s), 20 line(s)\n\n');
+      '    src/m09.ts — 10 line(s)\n  and 2 more import(s): 2 module(s), 20 line(s)\n\n');
     expect(text).not.toContain('src/m10.ts');
     expect(Object.keys(causes(result))).toHaveLength(16);
   });

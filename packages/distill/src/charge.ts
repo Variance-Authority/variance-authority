@@ -32,7 +32,7 @@ import type { ImportReach } from './own.js';
 export type ImportCharge =
   | { readonly kind: 'never' }
   | { readonly kind: 'effect' }
-  | { readonly kind: 'load'; readonly line: number; readonly name: string }
+  | { readonly kind: 'load'; readonly line: number; readonly name: string; readonly ran?: true }
   | { readonly kind: 'handed' }
   | { readonly kind: 'ran'; readonly functions: readonly { readonly name: string; readonly line: number }[] }
   | {
@@ -85,8 +85,7 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
       return found.imported.includes(imported) ? { kind: 'never' } : undefined;
     }
     const load = references.find((reference) => reference.load);
-    if (load !== undefined) return { kind: 'load', line: load.line, name: load.name };
-    if (found.passed.includes(imported)) return { kind: 'handed' };
+    if (load === undefined && found.passed.includes(imported)) return { kind: 'handed' };
 
     const blocks = executed.get(importer) ?? [];
     const regions = new Map<Block, (typeof references)[number]>();
@@ -98,9 +97,13 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
     }
     const named = (block: Block) => ({ name: block.name || block.path, line: block.startLine });
     const mine = (crossing: Block['crossings'][number]) => input.mine.has(crossing.test);
-    const atLoad = [...regions].find(([block]) => block.crossings.some((crossing) => crossing.loaded === true && mine(crossing)));
-    if (atLoad !== undefined) return { kind: 'load', line: atLoad[1].line, name: atLoad[1].name };
     const ran = [...regions.keys()].filter((block) => called(block).some(mine));
+    // Read at load, the import is also marked when a case ran a function that reads it: a mock would change what the case does.
+    const also = ran.length > 0 ? { ran: true as const } : {};
+    if (load !== undefined) return { kind: 'load', line: load.line, name: load.name, ...also };
+    const atLoad = [...regions].find(([block]) => block.crossings.some((crossing) => crossing.loaded === true && mine(crossing)));
+    if (atLoad !== undefined) return { kind: 'load', line: atLoad[1].line, name: atLoad[1].name, ...also };
+    if (found.passed.includes(imported)) return { kind: 'handed' };
     if (ran.length > 0) return { kind: 'ran', functions: ran.map(named) };
     if (unmeasured !== undefined) return { kind: 'unmeasured', line: unmeasured };
     const union = new Set<string>();
@@ -123,9 +126,10 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
  * One line that says what the test file `file` can do about an import, by its
  * reach. A mock is proposed with a factory: an automock requires the module to
  * read its shape, which is the load it is there to stop. The factory stands a
- * function in for the name the importer reads when it loads, and none is
- * proposed where a case runs, or the importer hands on, what reads the import:
- * there the mock would change what the case does. Absent when nothing is.
+ * function in for the name the importer reads when it loads. None is proposed
+ * where a case runs, or the importer hands on, what reads the import, since
+ * the mock would change what the case does; where loading it is the point; or
+ * where what the importer reads is not known. Absent when nothing is.
  */
 export function reachLine(
   file: string,
@@ -135,9 +139,9 @@ export function reachLine(
     case 'test':
       // Deleting is the fix only when the file reads nothing it imports; otherwise the line under it says where it does.
       return `error: ${file} imports ${imported}, and none of its cases enters what that loads` +
-        (charge === undefined || charge.kind === 'never' ? ': delete the import.' : '.');
+        (charge?.kind === 'never' ? ': delete the import.' : '.');
     case 'subject': {
-      if (charge?.kind === 'ran' || charge?.kind === 'handed') return undefined;
+      if (charge?.kind !== 'never' && charge?.kind !== 'functions' && (charge?.kind !== 'load' || charge.ran === true)) return undefined;
       const specifier = posix.relative(posix.dirname(file), imported).replace(/\.[cm]?[jt]sx?$/, '');
       return `Or mock it in this file, so ${importer} does not load it: ` +
         `jest.mock('${specifier.startsWith('.') ? specifier : `./${specifier}`}', () => (${factoryOf(charge)}));`;

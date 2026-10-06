@@ -229,7 +229,8 @@ loaded for its effect, unmeasured, never read.
 The test file's own import is read this way too, but a runner records
 no regions in a test file, so a reference there inside a function reads
 as unmeasured. A reference in a function the recording keeps no region
-for leaves the import **unmeasured**.
+for leaves the import **unmeasured**. A file with a `require` or an
+`import()` no name traces is never read as never reading an import.
 
 ### What the test file does about it is decided by how far away it is
 
@@ -248,14 +249,16 @@ reads as one of three:
   name the subject reads when it loads, so a call, `new` or `extends` at
   load still works. No mock is proposed where a case runs, or the subject
   hands on, what reads the import: there the mock changes what the case
-  does.
+  does, or where it reads the import at load and a case also runs a
+  function that reads it: a factory standing in one name hands that
+  function `undefined` for the rest. None is proposed where what the
+  subject reads is not known, or where loading the import is the point.
 - **Written further away.** Mocking it ties the test to code it does not
   import, against the principle of least knowledge. The reading is a
   warning that names the importer as the place to fix it.
 
 The mock is written as `jest.mock`: the record does not say which runner
-made it. A file with a `require` or
-an `import()` no name traces is never read as never reading an import.
+made it.
 
 ### Absent is not empty
 
