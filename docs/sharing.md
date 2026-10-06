@@ -585,9 +585,8 @@ Records are read in this order:
    mainline's record again. The answer prints that process's id and the file
    its output goes to, and a command you run after it ends reads the new
    record. In CI, and for every other reader, the record is fetched before the
-   answer. When the remote does
-   not answer, the record fetched earlier is read, and the answer prints when it
-   was fetched and why it was not fetched again.
+   answer. When the remote does not answer, the record fetched earlier is read,
+   and the answer prints when it was fetched and why it was not fetched again.
 3. **In a worktree, the primary checkout's record**, only when no mainline
    record was ever fetched on this machine. It is what that checkout last ran,
    so the answer names it as the offline fallback and prints why the mainline's

@@ -22,9 +22,9 @@ export function mainlineRefreshLock(readRoot: string): { readonly path: string; 
 
 /**
  * The process fetching the mainline's record of `suite` into `readRoot`: one
- * already running, or one started now. `undefined` when none runs and none
- * could be started; then this process holds the lock, and the reader fetches
- * before it answers.
+ * already running, or one started now. `undefined` when none could be started
+ * or the lock could not be read or taken; the reader then fetches before it
+ * answers, and releases the lock only if it names this process.
  */
 export function refreshMainline(readRoot: string, suite: string, detach: Detach): ProcessLock | undefined {
   const { path, log } = mainlineRefreshLock(readRoot);
