@@ -93,6 +93,21 @@ describe('recordedBlocks', () => {
     expect(rows[0]).toMatchObject({ kind: 'module', startLine: own[0]!.startLine, endLine: own[0]!.endLine, digest: own[0]!.digest });
   });
 
+  it('reads a build through its map when it moved regions its source names alike', () => {
+    // The walk names both callbacks `f/on.arg1`; the build swapped their lines.
+    const source = "export function f(a) {\n  a.on('x', () => 1);\n  a.on('x', () => 22);\n}\n";
+    const lines = source.split('\n');
+    const code = [lines[0], lines[2], lines[1], ...lines.slice(3)].join('\n');
+    const map = { mappings: 'AAAA;AAEA;AADA;AAEA', sources: [FILE] };
+    const frame = recordedFrame(code, map, FILE, () => source);
+    const blocks = instrument(code, FILE)!.blocks;
+    const twentyTwo = blocks.findIndex((block) => block.name === 'f/on.arg1' && code.slice(block.start, block.end).includes('22'));
+
+    const rows = recordedBlocks(blocks, frame, code, 'presence');
+
+    expect(rows[twentyTwo]).toMatchObject({ name: 'f/on.arg1', startLine: 3, endLine: 3 });
+  });
+
   it('reads a build through its map when the source it maps to does not parse', () => {
     // A source the walk refuses has no cut of its own to record a build at.
     const broken = `${SOURCE}export function (\n`;

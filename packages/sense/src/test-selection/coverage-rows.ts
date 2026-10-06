@@ -157,9 +157,16 @@ export function sourceCut(
   return { blocks: walked.blocks, sourceDigest: walked.sourceDigest, rows: coverageBlocks(walked.blocks, { extentOf, text }) };
 }
 
-/** Two walks that numbered one region at every ordinal. */
+/**
+ * Two walks that numbered one region at every ordinal.
+ *
+ * A walk can name two regions alike — sibling callbacks to one call, a function
+ * shadowed in its scope — and a build is free to reorder those, so a pair of
+ * walks that repeats a name is not known to agree and is read through the map.
+ */
 function sameRegions(left: readonly Block[], right: readonly Block[]): boolean {
-  return left.length === right.length && left.every((block, at) => {
+  const named = new Set(left.map((block) => `${block.kind}\0${block.name}\0${block.path}\0${String(block.owner)}`));
+  return named.size === left.length && left.length === right.length && left.every((block, at) => {
     const other = right[at]!;
     return block.kind === other.kind &&
       block.name === other.name &&
