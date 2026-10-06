@@ -1,6 +1,7 @@
 import type { ExecutionIndex, FileReferences, TestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { distillFile, formatFileDistillation, type ImportCharge } from './index.js';
+import { reachLine } from './charge.js';
 
 const FILE = 'test/report.test.ts';
 const OTHER = 'test/export.test.ts';
@@ -19,6 +20,7 @@ function read(
   references: FileReferences | undefined,
   edges: Readonly<Record<string, readonly string[]>> = {},
   setup: readonly number[] = [],
+  own?: FileReferences,
 ) {
   const root = (file: string, by: readonly string[]): Block => ({
     ordinal: 0, kind: 'module', digest: `${file}#root`, name: '', path: '', source: true,
@@ -38,7 +40,8 @@ function read(
     ],
   };
   const region = (name: string, startLine: number, endLine: number, tests: readonly number[], loaded = false) => ({
-    kind: 'function', name, path: name, startLine, endLine, source: true,
+    // The walker opens a declaration's own region under the structural path `entry`; the name is the function's.
+    kind: 'function', name, path: 'entry', startLine, endLine, source: true,
     crossings: tests.map((test) => ({ test, distance: 0, ...(loaded ? { loaded: true } : {}) })),
   });
   const execution: ExecutionIndex = {
@@ -57,7 +60,7 @@ function read(
     coverage,
     execution,
     imports: (file) => imports[file] ?? [],
-    references: (file) => (file === UTILS ? references : undefined),
+    references: (file) => (file === UTILS ? references : file === FILE ? own : undefined),
   });
 }
 
@@ -168,9 +171,60 @@ describe('an import a used file writes, charged to the code that reads it', () =
     );
   });
 
-  it('charges nothing to the test file\'s own import, nor where the importer\'s text was not read', () => {
+  it('marks the test file\'s own import as its own, and charges nothing where the importer\'s text was not read', () => {
     const own = read(referencing([]), { [FILE]: [UTILS, PDF], [UTILS]: [] });
-    expect(own.modules?.find(({ file }) => file === PDF)?.cause).toEqual({ kind: 'import', importer: FILE, imported: PDF });
+    expect(own.modules?.find(({ file }) => file === PDF)?.cause).toEqual({ kind: 'import', importer: FILE, imported: PDF, reach: 'test' });
     expect(chargeOf(read(undefined))).toBeUndefined();
+  });
+});
+
+describe('what to do about an import, by how far from the test file its importer is', () => {
+  it('reads the test file\'s own import as an error to fix', () => {
+    const own = read(referencing([]), { [FILE]: [UTILS, PDF], [UTILS]: [] });
+    expect(formatFileDistillation(own)).toContain(
+      `    error: ${FILE} imports ${PDF}, and none of its cases enters what that loads: delete the import.`,
+    );
+    // Read at the test file's top level, as a title, the import is not deleted: the line under it says where.
+    const atLoad = read(referencing([]), { [FILE]: [UTILS, PDF], [UTILS]: [] }, [], referencing([{ file: PDF, name: 'TITLE', line: 3, load: true }]));
+    expect(formatFileDistillation(atLoad)).toContain([
+      `    error: ${FILE} imports ${PDF}, and none of its cases enters what that loads.`,
+      `    ${FILE} reads TITLE from ${PDF} at line 3 when it loads: move that reference into the function that needs it.`,
+    ].join('\n'));
+  });
+
+  it('proposes mocking, with an empty factory, an import the file\'s subject never reads', () => {
+    const result = read(referencing([]));
+    expect(result.modules?.find(({ file }) => file === PDF)?.cause).toMatchObject({ reach: 'subject' });
+    expect(formatFileDistillation(result)).toContain(
+      `    Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({}));`,
+    );
+  });
+
+  it('stands a function in, in the factory, for the name the subject reads when it loads', () => {
+    // An empty factory would hand the subject undefined where it calls, constructs or extends what it read.
+    expect(formatFileDistillation(read(referencing([{ file: PDF, name: 'default', line: 6, load: true }])))).toContain(
+      `    Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({ __esModule: true, default: jest.fn() }));`,
+    );
+    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'load', line: 6, name: 'render' } }))
+      .toBe(`Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({ render: jest.fn() }));`);
+  });
+
+  it('proposes no mock where a case runs, or the subject hands on, what reads the import', () => {
+    const ran = { kind: 'ran', functions: [{ name: 'render', line: 6 }] } as const;
+    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: ran })).toBeUndefined();
+    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'handed' } })).toBeUndefined();
+  });
+
+  it('warns that mocking an import further away ties the test to what it does not import', () => {
+    const result = read(referencing([{ file: PDF, name: 'default', line: 6, load: true }]), {
+      [FILE]: ['src/index.ts'],
+      'src/index.ts': [UTILS],
+    });
+    expect(result.modules?.find(({ file }) => file === PDF)?.cause).toMatchObject({ reach: 'beyond' });
+    const text = formatFileDistillation(result);
+    expect(text).toContain(
+      `    warning: this file does not import ${UTILS}; mocking ${PDF} here would tie it to code it does not know: fix it in ${UTILS}.`,
+    );
+    expect(text).not.toContain('jest.mock(');
   });
 });

@@ -226,9 +226,35 @@ loads, handed on, read in a function a case ran, unmeasured, read only
 in functions no case ran. One that references none reads: handed on,
 loaded for its effect, unmeasured, never read.
 
-The test file itself is never read this way: it has no regions, and its
-imports are item 2's. A reference in a function the recording keeps no
-region for leaves the import **unmeasured**. A file with a `require` or
+The test file's own import is read this way too, but a runner records
+no regions in a test file, so a reference there inside a function reads
+as unmeasured. A reference in a function the recording keeps no region
+for leaves the import **unmeasured**.
+
+### What the test file does about it is decided by how far away it is
+
+The reading says where the importer reads the import. What the test file
+itself can do depends on how far the importer is from it, and each import
+reads as one of three:
+
+- **Written by the test file.** It is the test file's own fault, and an
+  error. Deleting the import is the fix only when the file references
+  none of it; otherwise the reading under it says where it does.
+- **Written by a file the test file imports.** That file is the test's
+  subject, which the test already knows, so mocking the import there
+  costs it no new knowledge. The proposal is a mock with a factory: an
+  automock requires the real module to read its shape, which is the load
+  the mock is there to stop. The factory stands a function in for the
+  name the subject reads when it loads, so a call, `new` or `extends` at
+  load still works. No mock is proposed where a case runs, or the subject
+  hands on, what reads the import: there the mock changes what the case
+  does.
+- **Written further away.** Mocking it ties the test to code it does not
+  import, against the principle of least knowledge. The reading is a
+  warning that names the importer as the place to fix it.
+
+The mock is written as `jest.mock`: the record does not say which runner
+made it. A file with a `require` or
 an `import()` no name traces is never read as never reading an import.
 
 ### Absent is not empty
@@ -311,7 +337,10 @@ an `import()` no name traces is never read as never reading an import.
    passed as a prop in a function a case ran; an import the file never
    reads; one it writes only to load the module; a reference in a type position that
    charges nothing; two sources that export the same name, each charged
-   to its own references.
+   to its own references. Each import also reads by its importer's
+   distance from the test file: an error for the test file's own import,
+   a `jest.mock` with a factory for its subject's, a warning for one
+   further away. A real Jest run over `jest-prune` prints all three.
 4. **A page splits its first load from what came after.** An ADR narrows
    ADR-0056's decision 3. The playwright-test collector drains at the
    document's `load` event and again at teardown, and selection is

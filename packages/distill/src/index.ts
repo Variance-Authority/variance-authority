@@ -186,7 +186,7 @@ export {
   type SpillCause,
 } from './scope.js';
 export { type ImportCharge } from './charge.js';
-export { type LoadCause } from './own.js';
+export { type ImportReach, type LoadCause } from './own.js';
 
 const PHASES = ['unphased', 'arrange', 'act', 'assert'] as const;
 

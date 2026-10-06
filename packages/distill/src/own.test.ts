@@ -80,7 +80,7 @@ describe('distillFile with the imports given', () => {
       { [FILE]: ['src/dialog.ts'], 'src/dialog.ts': ['src/editor.ts'], 'src/editor.ts': ['src/markdown.ts'] },
     );
 
-    const editor = { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' };
+    const editor = { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts', reach: 'subject' };
     expect(causes(result)).toEqual({ 'src/editor.ts': editor, 'src/markdown.ts': editor });
   });
 
@@ -90,7 +90,7 @@ describe('distillFile with the imports given', () => {
       { [FILE]: ['src/index.ts'], 'src/index.ts': ['src/button.ts', 'src/chart.ts'] },
     );
 
-    expect(causes(result)).toEqual({ 'src/chart.ts': { kind: 'import', importer: 'src/index.ts', imported: 'src/chart.ts' } });
+    expect(causes(result)).toEqual({ 'src/chart.ts': { kind: 'import', importer: 'src/index.ts', imported: 'src/chart.ts', reach: 'subject' } });
   });
 
   it('gives what a barrel no case uses brings in to the import of the barrel', () => {
@@ -100,7 +100,7 @@ describe('distillFile with the imports given', () => {
       ['src/index.ts'],
     );
 
-    const barrel = { kind: 'import', importer: FILE, imported: 'src/index.ts' };
+    const barrel = { kind: 'import', importer: FILE, imported: 'src/index.ts', reach: 'test' };
     expect(causes(result)).toEqual({ 'src/chart.ts': barrel, 'src/table.ts': barrel });
   });
 
@@ -110,7 +110,7 @@ describe('distillFile with the imports given', () => {
       { [FILE]: ['src/config.ts'], 'src/config.ts': ['src/heavy.ts'] },
     );
 
-    expect(causes(result)).toEqual({ 'src/heavy.ts': { kind: 'import', importer: 'src/config.ts', imported: 'src/heavy.ts' } });
+    expect(causes(result)).toEqual({ 'src/heavy.ts': { kind: 'import', importer: 'src/config.ts', imported: 'src/heavy.ts', reach: 'subject' } });
   });
 
   it('counts a module two used imports reach to neither, and names where their paths part', () => {
@@ -135,7 +135,7 @@ describe('distillFile with the imports given', () => {
     );
 
     expect(new Set(Object.values(causes(result)).map((cause) => JSON.stringify(cause)))).toEqual(
-      new Set([JSON.stringify({ kind: 'import', importer: 'src/dialog.ts', imported: 'src/heavy.ts' })]),
+      new Set([JSON.stringify({ kind: 'import', importer: 'src/dialog.ts', imported: 'src/heavy.ts', reach: 'subject' })]),
     );
   });
 
@@ -145,7 +145,7 @@ describe('distillFile with the imports given', () => {
       { [FILE]: ['src/dialog.ts'], 'src/dialog.ts': ['src/editor.ts'], 'src/editor.ts': ['src/helpers.ts'], 'src/helpers.ts': ['src/editor.ts'] },
     );
 
-    const editor = { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' };
+    const editor = { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts', reach: 'subject' };
     expect(causes(result)).toEqual({ 'src/editor.ts': editor, 'src/helpers.ts': editor });
   });
 
@@ -155,7 +155,7 @@ describe('distillFile with the imports given', () => {
       { [FILE]: ['src/dialog.ts'], 'src/dialog.ts': ['src/editor.ts', 'src/editor.ts'] },
     );
 
-    expect(causes(result)).toEqual({ 'src/editor.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' } });
+    expect(causes(result)).toEqual({ 'src/editor.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts', reach: 'subject' } });
   });
 
   it('calls a module no import the graph reads reaches unseen, as a dynamic import whose specifier is not a literal', () => {
@@ -195,7 +195,7 @@ describe('distillFile with the imports given', () => {
       { 'src/dialog.ts': ['src/modal.ts'] },
     );
 
-    expect(causes(result)).toEqual({ 'src/modal.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/modal.ts' } });
+    expect(causes(result)).toEqual({ 'src/modal.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/modal.ts', reach: 'subject' } });
   });
 
   it('gives a dynamic import under an unused static import to the static one, whose removal frees both', () => {
@@ -206,7 +206,7 @@ describe('distillFile with the imports given', () => {
       { 'src/dialog.ts': ['src/modal.ts'] },
     );
 
-    const dialog = { kind: 'import', importer: FILE, imported: 'src/dialog.ts' };
+    const dialog = { kind: 'import', importer: FILE, imported: 'src/dialog.ts', reach: 'test' };
     expect(causes(result)).toEqual({ 'src/dialog.ts': dialog, 'src/modal.ts': dialog });
   });
 
@@ -216,7 +216,7 @@ describe('distillFile with the imports given', () => {
       { [FILE]: ['src/dialog.ts', 'src/mocked.ts'], 'src/dialog.ts': ['src/editor.ts'], 'src/mocked.ts': ['src/editor.ts'] },
     );
 
-    expect(causes(result)).toEqual({ 'src/editor.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts' } });
+    expect(causes(result)).toEqual({ 'src/editor.ts': { kind: 'import', importer: 'src/dialog.ts', imported: 'src/editor.ts', reach: 'subject' } });
   });
 
   it('keeps the edge into an automocked module, which the file still evaluated', () => {
@@ -271,6 +271,7 @@ describe('formatFileDistillation with causes', () => {
     expect(formatFileDistillation(result)).toContain([
       'Loaded, and entered by no case: 4 module(s), 40 line(s).',
       '  src/dialog.ts imports src/editor.ts: 2 module(s), 20 line(s)',
+      "    Or mock it in this file, so src/dialog.ts does not load it: jest.mock('../src/editor', () => ({}));",
       '    src/editor.ts — 10 line(s)',
       '    src/markdown.ts — 10 line(s)',
       '  No one import brings these in alone: 1 module(s), 10 line(s)',
@@ -296,13 +297,16 @@ describe('formatFileDistillation with causes', () => {
 
     expect(text).toContain([
       '  src/dialog.ts imports src/m00.ts: 5 module(s), 50 line(s)',
+      "    Or mock it in this file, so src/dialog.ts does not load it: jest.mock('../src/m00', () => ({}));",
       '    src/deep1.ts — 10 line(s)',
       '    src/deep2.ts — 10 line(s)',
       '    src/deep3.ts — 10 line(s)',
       '    and 2 more: 2 module(s), 20 line(s)',
       '  src/dialog.ts imports src/m01.ts: 1 module(s), 10 line(s)',
+      "    Or mock it in this file, so src/dialog.ts does not load it: jest.mock('../src/m01', () => ({}));",
     ].join('\n'));
-    expect(text).toContain('  src/dialog.ts imports src/m09.ts: 1 module(s), 10 line(s)\n    src/m09.ts — 10 line(s)\n  and 2 more import(s): 2 module(s), 20 line(s)\n\n');
+    expect(text).toContain('  src/dialog.ts imports src/m09.ts: 1 module(s), 10 line(s)\n' +
+      "    Or mock it in this file, so src/dialog.ts does not load it: jest.mock('../src/m09', () => ({}));" + '\n    src/m09.ts — 10 line(s)\n  and 2 more import(s): 2 module(s), 20 line(s)\n\n');
     expect(text).not.toContain('src/m10.ts');
     expect(Object.keys(causes(result))).toHaveLength(16);
   });

@@ -275,6 +275,7 @@ describe('the CLI distillation boundary', () => {
       '    src/rich-editor.tsx — 40 line(s)',
       '  src/cart.tsx imports src/heavy-chart.tsx: 1 module(s), 30 line(s)',
       '    src/cart.tsx reads Chart from src/heavy-chart.tsx at line 3 when it loads: move that reference into the function that needs it.',
+      "    Or mock it in this file, so src/cart.tsx does not load it: jest.mock('../src/heavy-chart', () => ({ Chart: jest.fn() }));",
       '    src/heavy-chart.tsx — 30 line(s)',
       '  No import the graph reads reaches these from the test file: 1 module(s), 50 line(s)',
       '    src/locale-en.tsx — 50 line(s)',
@@ -291,7 +292,7 @@ describe('the CLI distillation boundary', () => {
       {
         file: 'src/heavy-chart.tsx', lines: 30, entered: 0,
         // The cart writes `[Dialog, Chart]` when it loads, so every test file that loads the cart loads the chart.
-        cause: { kind: 'import', importer: 'src/cart.tsx', imported: 'src/heavy-chart.tsx', charge: { kind: 'load', line: 3, name: 'Chart' } },
+        cause: { kind: 'import', importer: 'src/cart.tsx', imported: 'src/heavy-chart.tsx', charge: { kind: 'load', line: 3, name: 'Chart' }, reach: 'subject' },
       },
       { file: 'src/checkout-dialog.tsx', lines: 20, entered: 1 },
     ]);

@@ -5,7 +5,7 @@ import type {
   FileReferences,
   TestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { chargeLine, chargesOf } from './charge.js';
+import { chargeLine, chargesOf, reachLine } from './charge.js';
 import { causesOf, importOf, SHARED, UNSEEN, type LoadCause } from './own.js';
 
 /** What names one test file, and the two readings of the record it is read from. */
@@ -135,9 +135,10 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
   });
   const charged = (module: string): LoadCause => {
     const found = cause!(module);
-    if (charge === undefined || found.kind !== 'import' || found.lazy === true || found.importer === file) return found;
-    const reading = charge(found.importer, found.imported);
-    return reading === undefined ? found : { ...found, charge: reading };
+    if (found.kind !== 'import' || found.lazy === true) return found;
+    const reach = found.importer === file ? 'test' : imports!(file).includes(found.importer) ? 'subject' : 'beyond';
+    const reading = charge?.(found.importer, found.imported);
+    return { ...found, ...(reading === undefined ? {} : { charge: reading }), reach };
   };
   const modules = candidates
     .map((module): LoadedModule => {
@@ -253,7 +254,7 @@ export function formatFileDistillation(result: FileDistillation): string {
     ...(never.some(({ cause }) => cause !== undefined)
       ? groupsShown(byCause(never)).flatMap(([head, modules, shown]) => [
         `  ${head}: ${lines(modules)}`,
-        ...chargedOf(modules, shown),
+        ...chargedOf(result.file, modules, shown),
         ...(shown
           ? listed(modules, MODULES_SHOWN, '    ', lines, (module) => `${module.file} — ${size(module)}${partsOf(module.cause)}`)
           : []),
@@ -270,8 +271,8 @@ export function formatFileDistillation(result: FileDistillation): string {
       'Delete it, or mock it with a factory, when nothing behind it is used; when part is, import past the barrel ' +
       'inside its own package, or from an entry its package declares; ' +
       'make it lazy in the code that uses it, or move those cases to a file of their own, when only some cases ' +
-      'use it: which case calls it does not change what the file loads. Mocking a listed module by its own path ties the test ' +
-      'to an internal. Rerun the file after the change: a top level can register something a case depends on.',
+      'use it: which case calls it does not change what the file loads. Mock only what this file\'s subject imports: a module ' +
+      'further away is an internal of code the test does not import. Rerun the file after the change: a top level can register something a case depends on.',
     ...(result.cases.length > 1 ? ['', 'Read one case with --test <id>:', ...casesShown(result.cases)] : []),
   ].join('\n');
 }
@@ -330,11 +331,15 @@ function listed(
   return [...head, `${indent}and ${modules.length - count} more: ${lines(modules.slice(count))}`];
 }
 
-/** Where the importer of a listed group reads its import, under the group's head. */
-function chargedOf(modules: readonly LoadedModule[], shown: boolean): readonly string[] {
+/** Where the importer of a listed group reads its import, and what this file can do about it, under the group's head. */
+function chargedOf(file: string, modules: readonly LoadedModule[], shown: boolean): readonly string[] {
   const cause = modules[0]?.cause;
-  if (!shown || cause?.kind !== 'import' || cause.charge === undefined) return [];
-  return [`    ${chargeLine(cause.importer, cause.imported, cause.charge)}`];
+  if (!shown || cause?.kind !== 'import') return [];
+  const charged = cause.charge === undefined ? [] : [chargeLine(cause.importer, cause.imported, cause.charge)];
+  const line = cause.reach === undefined ? undefined : reachLine(file, { ...cause, reach: cause.reach });
+  const reached = line === undefined ? [] : [line];
+  // The test file's own import is an error, said before where it reads it.
+  return (cause.reach === 'test' ? [...reached, ...charged] : [...charged, ...reached]).map((line) => `    ${line}`);
 }
 
 function partsOf(cause: LoadCause | undefined): string {

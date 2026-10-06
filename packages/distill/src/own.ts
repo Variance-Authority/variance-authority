@@ -11,7 +11,8 @@ import type { TestCoverage } from '@variance-authority/sense/test-selection';
  * by a case; it is the topmost such import. `lazy` when that import is
  * dynamic only: what it owns was paid when the import was called, not on load.
  * `charge`, for a static import a file other than the test file writes, says
- * where that file references what it imports.
+ * where that file references what it imports. `reach`, for a static import,
+ * says how far from the test file its importer is.
  * `shared`: no import brings the module in alone — two paths reach it, or the
  * import that does also brings in code a case entered; `parts` is the nearest
  * file every path to it runs through. `unseen`: no import the graph reads
@@ -25,9 +26,20 @@ export type LoadCause =
     readonly imported: string;
     readonly lazy?: true;
     readonly charge?: ImportCharge;
+    readonly reach?: ImportReach;
   }
   | { readonly kind: 'shared'; readonly parts: string }
   | { readonly kind: 'unseen' };
+
+/**
+ * How far from the test file the importer of an import is, which decides what
+ * to do about it. `test`: the test file writes it, an error to fix there.
+ * `subject`: a file the test file imports writes it, so the test file may mock
+ * it. `beyond`: a file further away writes it, which the test file does not
+ * know; mocking it there would tie the test to that file's internals, so the
+ * fix is in the importer.
+ */
+export type ImportReach = 'test' | 'subject' | 'beyond';
 
 /** How an owning import reads in text: a lazy one says it was paid when it ran. */
 export function importOf(cause: { readonly importer: string; readonly imported: string; readonly lazy?: true }): string {

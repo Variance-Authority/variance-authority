@@ -697,6 +697,7 @@
         "FileDistillInput": "interface",
         "FileDistillation": "interface",
         "ImportCharge": "type",
+        "ImportReach": "type",
         "LoadCause": "type",
         "LoadedModule": "interface",
         "Region": "interface",

@@ -5,6 +5,8 @@ import {
   type FileReferences,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { posix } from 'node:path';
+import type { ImportReach } from './own.js';
 
 /**
  * Where a used file references an import no case of the test file ran, read
@@ -94,7 +96,7 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
       if (at.length === 0) unmeasured ??= reference.line;
       for (const block of at) if (!regions.has(block)) regions.set(block, reference);
     }
-    const named = (block: Block) => ({ name: block.path || block.name, line: block.startLine });
+    const named = (block: Block) => ({ name: block.name || block.path, line: block.startLine });
     const mine = (crossing: Block['crossings'][number]) => input.mine.has(crossing.test);
     const atLoad = [...regions].find(([block]) => block.crossings.some((crossing) => crossing.loaded === true && mine(crossing)));
     if (atLoad !== undefined) return { kind: 'load', line: atLoad[1].line, name: atLoad[1].name };
@@ -115,6 +117,41 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
     if (!charged.has(key)) charged.set(key, charge(importer, imported));
     return charged.get(key);
   };
+}
+
+/**
+ * One line that says what the test file `file` can do about an import, by its
+ * reach. A mock is proposed with a factory: an automock requires the module to
+ * read its shape, which is the load it is there to stop. The factory stands a
+ * function in for the name the importer reads when it loads, and none is
+ * proposed where a case runs, or the importer hands on, what reads the import:
+ * there the mock would change what the case does. Absent when nothing is.
+ */
+export function reachLine(
+  file: string,
+  { importer, imported, reach, charge }: { importer: string; imported: string; reach: ImportReach; charge?: ImportCharge },
+): string | undefined {
+  switch (reach) {
+    case 'test':
+      // Deleting is the fix only when the file reads nothing it imports; otherwise the line under it says where it does.
+      return `error: ${file} imports ${imported}, and none of its cases enters what that loads` +
+        (charge === undefined || charge.kind === 'never' ? ': delete the import.' : '.');
+    case 'subject': {
+      if (charge?.kind === 'ran' || charge?.kind === 'handed') return undefined;
+      const specifier = posix.relative(posix.dirname(file), imported).replace(/\.[cm]?[jt]sx?$/, '');
+      return `Or mock it in this file, so ${importer} does not load it: ` +
+        `jest.mock('${specifier.startsWith('.') ? specifier : `./${specifier}`}', () => (${factoryOf(charge)}));`;
+    }
+    case 'beyond':
+      return `warning: this file does not import ${importer}; mocking ${imported} here would tie it to code it does not know: ` +
+        `fix it in ${importer}.`;
+  }
+}
+
+/** The object a mock's factory returns: a function for the name read at load, so the importer can call, construct or extend it. */
+function factoryOf(charge: ImportCharge | undefined): string {
+  if (charge?.kind !== 'load' || !/^[A-Za-z_$][\w$]*$/.test(charge.name)) return '{}';
+  return charge.name === 'default' ? '{ __esModule: true, default: jest.fn() }' : `{ ${charge.name}: jest.fn() }`;
 }
 
 /** One line that says where the importer references the import, and what to change. */
