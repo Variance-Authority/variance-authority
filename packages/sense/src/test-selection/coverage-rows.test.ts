@@ -92,4 +92,12 @@ describe('recordedBlocks', () => {
     expect(rows.length).toBe(own.length + 1);
     expect(rows[0]).toMatchObject({ kind: 'module', startLine: own[0]!.startLine, endLine: own[0]!.endLine, digest: own[0]!.digest });
   });
+
+  it('reads a build through its map when the source it maps to does not parse', () => {
+    // A source the walk refuses has no cut of its own to record a build at.
+    const broken = `${SOURCE}export function (\n`;
+    const frame = recordedFrame(MODERN.code, MODERN.map, FILE, () => broken);
+    const blocks = instrument(MODERN.code, FILE)!.blocks;
+    expect(recordedBlocks(blocks, frame, MODERN.code, 'presence')).toEqual(coverageBlocks(blocks, frame));
+  });
 });
