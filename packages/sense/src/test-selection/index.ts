@@ -84,7 +84,7 @@ export { changedLines, type LineRange } from './diff-lines.js';
 // The other half of that wiring, for the ordinary case of a git checkout. It
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
-export { textAtRecording } from './recorded-text.js';
+export { textAtRecording, textsAt } from './recorded-text.js';
 export { keptTexts } from './kept-texts.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export type {

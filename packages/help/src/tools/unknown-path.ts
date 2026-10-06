@@ -12,7 +12,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { didYouMean } from '@variance-authority/mcp/tools';
+import { didYouMean } from '@variance-authority/core';
 import { checkoutListing, recordedPaths, type CheckoutListing } from '@variance-authority/sense';
 
 /**

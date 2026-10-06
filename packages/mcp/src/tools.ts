@@ -124,10 +124,6 @@ export {
 } from './tools/start-point.js';
 export type { StateDifference };
 
-// A refusal names the closest thing that exists, and both binaries refuse the
-// same way: the CLI a flag or a question, a tool a path.
-export { didYouMean, nearest } from './tools/nearest.js';
-
 // The tool-authoring contract, not an implementation detail of this set. A
 // server over another subject writes tools against the same interface, and the
 // first thing any tool does with a model's argument is refuse it or narrow it.

@@ -24,6 +24,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
 
     expect(narrowByExecutionFromView(view(), diff('src/rules.css'), { relations })).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
@@ -54,6 +55,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
 
     expect(narrowByExecutionFromView(view(), diff('src/tokens.css'), { relations })).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
@@ -254,6 +256,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
 
     expect(narrowByExecutionFromView(view(), diff('src/rules.css'), { relations })).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],

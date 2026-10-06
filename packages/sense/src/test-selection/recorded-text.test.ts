@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { nativeAvailable } from '../native.js';
-import { textAtRecording } from './recorded-text.js';
+import { textAtRecording, textsAt } from './recorded-text.js';
 
 /**
  * More paths than one window holds, so the answers below cross a window edge
@@ -72,6 +72,72 @@ describe('the text at a recording is read a window at a time', () => {
     });
   });
 
+  it('reads the paths a jump ahead left behind in one more window, not a process apiece', async () => {
+    await checkout(async (root, commit) => {
+      const sourceAt = textAtRecording(root, every(0, FILES).map(path));
+      const trace = resolve(root, '.git', 'trace2.json');
+      const reads = async (): Promise<number> =>
+        (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"') && line.includes('"cat-file"')).length;
+
+      // The selector asks a few paths out of order before it walks the rest in
+      // order: one window opens at 20 and goes when the far end is asked, before
+      // the paths it read after 20 were asked. Walking from the start then reads
+      // everything not yet answered, those paths included, in one more window.
+      process.env['GIT_TRACE2_EVENT'] = trace;
+      try {
+        expect(sourceAt(path(20), commit)).toBe(body(20));
+        expect(sourceAt(path(FILES - 10), commit)).toBe(body(FILES - 10));
+        for (const at of every(0, FILES - 10).filter((at) => at !== 20)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
+      } finally {
+        delete process.env['GIT_TRACE2_EVENT'];
+      }
+
+      expect(await reads()).toBe(3);
+    });
+  });
+
+  it.runIf(nativeAvailable())('asks whether the checkout is a partial clone once, however many windows answer a path missing', async () => {
+    await checkout(async (root, commit) => {
+      // A path added since the recording sorts beside each end of the list, so
+      // the first window and a later one each answer one missing.
+      const added = ['src/f000-added.ts', `src/f${FILES - 1}-added.ts`];
+      const sourceAt = textAtRecording(root, [...every(0, FILES).map(path), ...added]);
+      const trace = resolve(root, '.git', 'trace2.json');
+      process.env['GIT_TRACE2_EVENT'] = trace;
+      try {
+        for (const at of every(0, FILES)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
+        for (const file of added) expect(sourceAt(file, commit), file).toBeUndefined();
+      } finally {
+        delete process.env['GIT_TRACE2_EVENT'];
+      }
+
+      const started = (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"'));
+      expect(started.filter((line) => line.includes('"cat-file"')).length).toBeGreaterThan(1);
+      expect(started.filter((line) => line.includes('"config"'))).toHaveLength(1);
+    });
+  });
+
+  it('reads paths at several commits from one process', async () => {
+    await checkout(async (root, first) => {
+      const git = async (...args: string[]): Promise<string> => (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
+      await writeFile(resolve(root, path(0)), 'export const at = "since";\n', 'utf8');
+      await git('commit', '--quiet', '--all', '--message', 'since');
+      const second = await git('rev-parse', 'HEAD');
+      const trace = resolve(root, '.git', 'trace2.json');
+      process.env['GIT_TRACE2_EVENT'] = trace;
+      let texts: ReturnType<typeof textsAt>;
+      try {
+        texts = textsAt(root, new Map([[first, [path(0), path(1), 'src/added-since.ts']], [second, [path(0)]]]));
+      } finally {
+        delete process.env['GIT_TRACE2_EVENT'];
+      }
+
+      expect(texts).toEqual(new Map([[first, new Map([[path(0), body(0)], [path(1), body(1)]])], [second, new Map([[path(0), 'export const at = "since";\n']])]]));
+      const started = (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"') && line.includes('"cat-file"'));
+      expect(started).toHaveLength(1);
+    });
+  });
+
   it('answers a path the caller never named', async () => {
     await checkout(async (root, commit) => {
       // The list is what the reads are sized by, not what may be asked: a
@@ -99,6 +165,71 @@ describe('the text at a recording is read a window at a time', () => {
       const sourceAt = textAtRecording(root, [path(0)]);
 
       expect(sourceAt(path(0), undefined)).toBeUndefined();
+    });
+  });
+});
+
+/** The Git commands `run` started, as argv, read from Git's own trace. */
+function gitStarted(root: string, run: () => void): string[][] {
+  const trace = resolve(root, '.git', 'variance-trace.json');
+  rmSync(trace, { force: true });
+  vi.stubEnv('GIT_TRACE2_EVENT', trace);
+  try {
+    run();
+  } finally {
+    vi.unstubAllEnvs();
+  }
+  const lines = existsSync(trace) ? readFileSync(trace, 'utf8').trim().split('\n') : [];
+  return lines
+    .map((line) => JSON.parse(line) as { event: string; argv?: string[] })
+    .filter((event) => event.event === 'start')
+    .map((event) => event.argv ?? []);
+}
+
+describe('the text at a recording of a path the caller never named', () => {
+  it('is read for a hundred paths in as many processes as for ten', async () => {
+    await checkout(async (root, commit) => {
+      const asked = (count: number): string[][] => {
+        const sourceAt = textAtRecording(root, [path(FILES - 1)]);
+        return gitStarted(root, () => {
+          for (const at of every(0, count)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
+        });
+      };
+
+      const few = asked(10);
+      expect(few.length).toBeGreaterThan(0);
+      expect(asked(100).length).toBe(few.length);
+    });
+  });
+
+  it('leaves the window it arrived in place', async () => {
+    await checkout(async (root, commit) => {
+      const sourceAt = textAtRecording(root, every(0, 50).map(path));
+      expect(sourceAt(path(0), commit)).toBe(body(0));
+      expect(sourceAt(path(120), commit)).toBe(body(120));
+
+      // The window that answered `path(0)` holds these, so none is read again.
+      const started = gitStarted(root, () => {
+        for (const at of every(1, 50)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
+      });
+      expect(started).toEqual([]);
+    });
+  });
+
+  it('is the commit\'s text when the file on disk was edited, deleted or added since', async () => {
+    await checkout(async (root, commit) => {
+      await writeFile(resolve(root, path(10)), `${body(10)}// since\n`, 'utf8');
+      await unlink(resolve(root, path(11)));
+      await writeFile(resolve(root, 'src/added-since.ts'), 'export {};\n', 'utf8');
+      const sourceAt = textAtRecording(root, [path(FILES - 1)]);
+
+      // Two paths first, so the three below are asked after the reader has
+      // had reason to stop reading each one alone.
+      expect(sourceAt(path(0), commit)).toBe(body(0));
+      expect(sourceAt(path(1), commit)).toBe(body(1));
+      expect(sourceAt(path(10), commit)).toBe(body(10));
+      expect(sourceAt(path(11), commit)).toBe(body(11));
+      expect(sourceAt('src/added-since.ts', commit)).toBeUndefined();
     });
   });
 });

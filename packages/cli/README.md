@@ -145,7 +145,7 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
-variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
+variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]
@@ -1628,6 +1628,25 @@ its own directory rather than the root the journal counts from; `jest` writes
 default, which that flag would otherwise replace. `--format json` reports the
 counts and the widening reason together for a program that decides for
 itself.
+
+A failure near the change comes back sooner when the nearest tests run first.
+`--at-distance <hops>` cuts the selection to one leg, the selected test files
+that many imports from the change, and adds the rest to the skip list. Run
+`0-2`, then `3-`, and every selected file runs in one of the two:
+
+```bash
+vitest run $(variance select --at-distance 0-2 --format vitest)
+vitest run $(variance select --at-distance 3- --format vitest)
+```
+
+A leg is still a skip list. A selection that declines to narrow skips nothing
+in any leg, and a test the change did not enter and the record never saw whole
+(new, or recorded incomplete) runs in both. A test the change entered by no
+import it executed has no hop count and runs in the furthest leg. stderr counts
+the entered tests at each hop count, and names how many selected files the leg
+left and the command that runs them. `--format json` gives the leg as `leg`,
+those files as `left`, and each entered test's `hops`, `bearing` and, where no
+distance was measured, `because`, as `distances`.
 
 It declines to narrow, out loud on stderr and with an empty stdout, whenever the
 journal holds no answer: nothing recorded on this machine, a diff git would not

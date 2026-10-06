@@ -31,6 +31,14 @@ export type { ExecutionNarrowingOptions, FileReading, ImporterReason };
 export interface ExecutionNarrowing {
   /** Recorded tests whose observation was whole, so absence from `entered` is evidence. */
   readonly whole: readonly string[];
+  /**
+   * Recorded tests whose observation was not whole: a run that skipped every
+   * case, or one whose probes fired where nothing could place them. Absence
+   * from `entered` is no evidence for them, but they are named, so a caller
+   * that cuts the selection into legs can place them with the unplaced. Absent
+   * when the reader names no such list, which is not the same as none.
+   */
+  readonly incomplete?: readonly string[];
   /** Recorded tests that entered a region this diff changed. */
   readonly entered: readonly string[];
 
@@ -160,11 +168,16 @@ export function narrowByExecutionFromView(
   options: ExecutionNarrowingOptions = {},
 ): ExecutionNarrowing {
   const whole: string[] = [];
+  const incomplete: string[] = [];
   for (let test = 0; test < coverage.testPath.length; test += 1) {
-    if (coverage.testComplete.at(test) === 1) whole.push(coverage.string(coverage.testPath.at(test)));
+    (coverage.testComplete.at(test) === 1 ? whole : incomplete).push(coverage.string(coverage.testPath.at(test)));
   }
 
-  return { whole: whole.sort(codeUnitOrder), ...readDiff(coverage, diff, options) };
+  return {
+    whole: whole.sort(codeUnitOrder),
+    incomplete: incomplete.sort(codeUnitOrder),
+    ...readDiff(coverage, diff, options),
+  };
 }
 
 /** Query the binary columns without materializing the coverage graph. */
@@ -321,7 +334,14 @@ function readDiff(
   // handed over together they are one read of it rather than two, and that
   // table is the only part of a snapshot large enough for the difference to
   // be the query.
-  const answered = answerByImporters(coverage, [...changed.keys()].sort(codeUnitOrder), rowed, options, governing);
+  const answered = answerByImporters(
+    coverage,
+    [...changed.keys()].sort(codeUnitOrder),
+    rowed,
+    options,
+    disowned,
+    governing,
+  );
   // A declaration is unconditional — *if this file's text moves, retire this
   // observation* — and nothing here narrows it. It is the one thing a record
   // says that no region of any row can say.

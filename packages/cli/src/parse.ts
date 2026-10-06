@@ -4,7 +4,7 @@ import type { ProfileId } from '@variance-authority/core/format';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
 import { COMMANDS, DEFAULT_CONFIG, flagsFor, isCommand, synopsisFor } from './usage.js';
-import { didYouMean, nearest } from '@variance-authority/mcp/tools';
+import { didYouMean, nearest } from '@variance-authority/core';
 import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseStory, type ParsedStory } from './story-args.js';
@@ -21,7 +21,7 @@ import { parseCarryArgs, type ParsedCarry } from './carry-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
 import { parseCommentArgs, type ParsedComment } from './comment-args.js';
-import { parseShard, type Shard } from './commands/shard.js';
+import { parseShard, type Shard } from './shard-args.js';
 
 export { USAGE } from './usage.js';
 /**

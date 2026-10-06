@@ -29,6 +29,8 @@
 
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { sourceIndexPath } from '@variance-authority/sense';
+import type { Parsed } from '../parse.js';
 
 /** The lock, as written beside the index. */
 export interface FollowUpsLock {
@@ -129,4 +131,48 @@ function alive(pid: number): boolean {
     // Somebody else's process under a reused id is still a process.
     return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
+}
+
+/**
+ * The commands that read the source index and the records, and none of the
+ * code map, the journeys, the dependency lexicon or the questions. Each waits
+ * only while the index may still be folded. Declared, not inferred: a command
+ * joins once a run of it is shown to open none of the four.
+ */
+const READS_THE_INDEX_ALONE: ReadonlySet<Parsed['command']> = new Set(['select']);
+
+/**
+ * Wait for the follow-ups a detached `index` is making, before any command reads
+ * them; the process making them is the one command that does not wait. A process
+ * that is gone left them unmade, so they are made here, on stderr, before the
+ * command runs — unless the command is `index`, which is about to make them anyway.
+ * A command that reads the index alone waits for the fold and no further, and
+ * leaves the follow-ups of a gone process to the next command that reads them.
+ */
+export async function settleFollowUps(parsed: Parsed, streams: { err(text: string): void }): Promise<void> {
+  if (parsed.command === 'index' && parsed.followUps === true) return;
+  const indexing = parsed.command === 'index';
+  const cwd = process.cwd();
+  const index = sourceIndexPath(cwd);
+  if (READS_THE_INDEX_ALONE.has(parsed.command)) {
+    await awaitFollowUps(index, (lock) => streams.err(foldingLine(lock)), 'readied');
+    return;
+  }
+  const waited = await awaitFollowUps(index, (lock) => streams.err(waitingLine(lock)));
+  if (!waited.held || waited.finished) return;
+  rmSync(followUpsLockPath(index), { force: true });
+  if (indexing) return;
+  const { pid, log } = waited.lock;
+  streams.err(`process ${pid} ended before it finished what \`variance index\` left to it, so it is made now; what it wrote is in ${log}\n`);
+  const { indexOutput } = await import('./index-command.js');
+  streams.err(await indexOutput({ cwd, waiting: (text) => streams.err(text) }));
+}
+
+/** What a command says while it waits on the process making the follow-ups. */
+export function waitingLine({ pid, log }: { pid: number; log: string }): string {
+  return `waiting for process ${pid} to finish the code map, the journeys, the dependency lexicon and the questions \`variance index\` left to it; its lines are in ${log}\n`;
+}
+
+function foldingLine({ pid, log }: { pid: number; log: string }): string {
+  return `waiting for process ${pid} to fold the source index \`variance index\` left to it; its lines are in ${log}\n`;
 }
