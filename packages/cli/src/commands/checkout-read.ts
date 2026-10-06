@@ -10,9 +10,8 @@
  * record it is.
  */
 
-import { execFile } from 'node:child_process';
 import type { OwnLayer, OwnState, Repin, RepinRefusal } from '@variance-authority/sense/test-selection';
-import { countPast } from '../clone-cut.js';
+import { ask, countPast } from '../clone-cut.js';
 
 /** Test files a state lists by name; past it, a count. */
 const LISTED = 20;
@@ -69,12 +68,9 @@ async function since(cwd: string, commit: string): Promise<string> {
   return count === undefined ? 'at a distance this clone cannot count' : `${String(count)} commit(s) before HEAD`;
 }
 
-function ancestor(cwd: string, commit: string): Promise<boolean | undefined> {
-  return new Promise((done) => {
-    execFile('git', ['merge-base', '--is-ancestor', commit, 'HEAD'], { cwd }, (error) =>
-      done(error === null ? true : error.code === 1 ? false : undefined),
-    );
-  });
+async function ancestor(cwd: string, commit: string): Promise<boolean | undefined> {
+  const { code } = await ask(cwd, ['merge-base', '--is-ancestor', commit, 'HEAD']);
+  return code === 0 ? true : code === 1 ? false : undefined;
 }
 
 function short(commit: string): string {

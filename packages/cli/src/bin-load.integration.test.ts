@@ -39,15 +39,20 @@ async function packagesLoaded(args: readonly string[]): Promise<string[]> {
       '} });\n',
   );
   // `CI=false` is how a workstation is told apart from a CI job, which makes the follow-ups itself.
-  const { pid } = spawnSync(process.execPath, ['--import', hook, BIN, ...args], { cwd: at, encoding: 'utf8', env: { ...process.env, CI: 'false' } });
-  const own = `${String(pid)} `;
-  const urls = readFileSync(loaded, 'utf8')
-    .split('\n')
-    .filter((line) => line.startsWith(own))
-    .map((line) => line.slice(own.length));
-  // The follow-ups were started by this test, so it waits for them before it deletes where they write.
-  await awaitFollowUps(sourceIndexPath(at), () => undefined);
-  rmSync(at, { recursive: true, force: true });
+  let urls: string[];
+  try {
+    const run = spawnSync(process.execPath, ['--import', hook, BIN, ...args], { cwd: at, encoding: 'utf8', env: { ...process.env, CI: 'false' } });
+    if (run.error !== undefined || run.status !== 0) throw new Error(`\`variance ${args.join(' ')}\` exited ${String(run.status)}: ${run.error?.message ?? run.stderr}`);
+    const own = `${String(run.pid)} `;
+    urls = readFileSync(loaded, 'utf8')
+      .split('\n')
+      .filter((line) => line.startsWith(own))
+      .map((line) => line.slice(own.length));
+    // The follow-ups were started by this test, so it waits for them before it deletes where they write.
+    await awaitFollowUps(sourceIndexPath(at), () => undefined);
+  } finally {
+    rmSync(at, { recursive: true, force: true });
+  }
   const names = urls
     .map((url) => /node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(url)?.[1] ?? /\/packages\/([^/]+)\/dist\//.exec(url)?.[1])
     .filter((name) => name !== undefined);
