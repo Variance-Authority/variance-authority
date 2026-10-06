@@ -674,10 +674,9 @@ jobs:
       # runner collects so the base lets go of the ones it stopped collecting:
       # no shard re-records them, and each would stand where it last ran for
       # good. A slice whose files cannot be listed is not folded, and the job
-      # fails. A slice nothing handed on keeps
-      # the base, and on a push the publish refuses it as recorded at another
-      # commit. Every slice's record sits under one directory, which is what
-      # the publish job is handed.
+      # fails. A slice nothing handed on keeps the base, and on a push the
+      # publish refuses it as recorded at another commit. Every slice's record
+      # sits under one directory, which is what the publish job is handed.
       - name: fold the slices
         id: records
         shell: bash

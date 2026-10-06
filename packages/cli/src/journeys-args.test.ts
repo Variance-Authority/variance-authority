@@ -15,6 +15,6 @@ describe('journeys --collected', () => {
   });
 
   it('refuses a list with nothing to fold', () => {
-    expect(() => parseArgs(['journeys', '--suite', 'unit', '--collected', 'collected-unit.txt'])).toThrow('`--collected`');
+    expect(() => parseArgs(['journeys', '--suite', 'unit', '--collected', 'collected-unit.txt'])).toThrow('`--collected` says which test files a fold keeps, and nothing was named to fold');
   });
 });

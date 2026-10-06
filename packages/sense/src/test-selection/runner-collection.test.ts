@@ -18,8 +18,10 @@ describe('collectionOf', () => {
     expect(await ask({ projects: [{ isTargetFile: async () => false }] })).toBe(false);
   });
 
-  it.each<[string, CollectingRunner]>([
-    ['no runner yet', {}],
+  it.each<[string, CollectingRunner | undefined]>([
+    ['no runner yet', undefined],
+    ['a runner that names no projects', {}],
+    ['a runner with no projects', { projects: [] }],
     ['a project that answers neither way', { projects: [says(false), {}] }],
     ['a project that cannot read the file', {
       projects: [{ isTargetFile: () => Promise.reject(new Error('ENOENT')) }],
