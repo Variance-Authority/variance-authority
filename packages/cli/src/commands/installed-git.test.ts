@@ -65,6 +65,7 @@ describe('the install at a commit, read through git', () => {
     const few = await compared(2);
     const many = await compared(20);
 
+    expect(few.started.length).toBeGreaterThan(0);
     expect(many.started.length).toBe(few.started.length);
   });
 

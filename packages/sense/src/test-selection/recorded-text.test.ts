@@ -130,7 +130,9 @@ describe('the text at a recording of a path the caller never named', () => {
         });
       };
 
-      expect(asked(100).length).toBe(asked(10).length);
+      const few = asked(10);
+      expect(few.length).toBeGreaterThan(0);
+      expect(asked(100).length).toBe(few.length);
     });
   });
 

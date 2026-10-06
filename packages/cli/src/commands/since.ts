@@ -396,7 +396,13 @@ function filesAt(repository: string, revision: string): (path: string) => Promis
       .then((selection) => selection.textAtRecording(repository, paths.keys()))
       .catch(() => () => undefined);
     for (const [path, waiting] of paths) {
-      const text = textAt(path, revision);
+      let text: string | undefined;
+      try {
+        text = textAt(path, revision);
+      } catch {
+        // Unread is not there, as a failed `git show` was: every waiter is answered.
+        text = undefined;
+      }
       for (const resolve of waiting) resolve(text);
     }
   }

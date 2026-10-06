@@ -155,7 +155,7 @@ export function textAtRecording(
     // and the callers this serves ask in the diff's order.
     if (from < read) {
       outside += 1;
-      if (outside > 1) listing ??= listed(root, commit);
+      if (outside > 1 && listing === undefined) listing = listed(root, commit);
       return (listing ? unchangedOnDisk(root, listing, file) : undefined) ?? batch(root, commit, [file]).get(file);
     }
     const window = expected.slice(from, from + width);
