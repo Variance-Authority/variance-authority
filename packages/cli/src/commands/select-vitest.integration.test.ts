@@ -58,7 +58,7 @@ describe('a skip list reaches the vitest that is installed', () => {
     const args = formatSelection(selection, 'vitest', root).split('\n').filter((line) => line !== '');
 
     expect(selection.skip).toEqual(['test/alpha.test.mjs', 'test/gamma.test.mjs']);
-    expect(collected(root, args)).toEqual([join('test', 'beta.test.mjs')]);
+    expect(collected(root, args)).toEqual(['test/beta.test.mjs']);
   });
 
   it.todo(

@@ -471,7 +471,7 @@ function saidOf(
   const selection = skippableTests(input);
   return {
     out: formatSelection(selection, request.format, request.cwd),
-    err: selectionNotes(selection),
+    err: selectionNotes(selection, request.format === 'vitest' ? { vitestAt: request.cwd } : {}),
   };
 }
 

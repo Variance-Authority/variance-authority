@@ -76,50 +76,12 @@
  * could type here.
  */
 
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { join, resolve } from 'node:path';
 import { readingLines, type ExecutionNarrowing, type FileReading } from '@variance-authority/sense/test-selection';
 import { many } from './reach.js';
+import { unreadVitestNote, vitestExcludes, vitestExclusions, type VitestExcludes } from './vitest-excludes.js';
 
 /** How the answer is written for whoever is about to run the tests. */
 export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
-
-/**
- * The form a vitest exclusion takes to match a file, which the installed vitest
- * decides and nothing on its command line reports.
- *
- * Vitest 3 and later match an absolute exclusion, and a workspace needs one: a
- * project matches against its own directory rather than against the root the
- * journal counts from, so a root-relative path matches in no project. Vitest 2
- * hands each exclusion to fast-glob as an ignore relative to the project, and
- * fast-glob matches no absolute ignore, so there only the root-relative path
- * narrows the run. Either wrong form fails the same way: an exclusion that
- * matches nothing is no error, and the narrowed run is the whole suite.
- */
-export type VitestExcludes = 'absolute' | 'relative';
-
-/**
- * The exclusion form the vitest installed at `root` matches.
- *
- * Absolute when no vitest resolves from there: that is the form every vitest
- * still in support matches, and a runner installed somewhere this cannot see is
- * a newer one more often than not.
- */
-function vitestExcludes(root: string): VitestExcludes {
-  let manifest: string;
-  try {
-    manifest = createRequire(join(root, 'package.json')).resolve('vitest/package.json');
-  } catch {
-    return 'absolute';
-  }
-  const { version } = JSON.parse(readFileSync(manifest, 'utf8')) as { version?: string };
-  return Number.parseInt(version ?? '', 10) < 3 ? 'relative' : 'absolute';
-}
-
-function vitestExclusions(skip: readonly string[], root: string, excludes: VitestExcludes): string[] {
-  return skip.map((test) => `--exclude=${excludes === 'relative' ? test : resolve(root, test)}`);
-}
 
 /**
  * What the journal answered, or why it did not.
@@ -424,7 +386,7 @@ export function formatSelection(
     format === 'plain'
       ? selection.skip
       : format === 'vitest'
-        ? vitestExclusions(selection.skip, root, excludes ?? vitestExcludes(root))
+        ? vitestExclusions(selection.skip, root, excludes ?? vitestExcludes(root) ?? 'absolute')
         : // `--testPathIgnorePatterns` replaces jest's default rather than adding
           // to it, so the default has to be handed back or a run that skips four
           // test files also walks `node_modules`.
@@ -482,7 +444,7 @@ function jsonOf(selection: TestSelection): object {
  * runner's own output follows this on the same terminal, so it is a short block
  * rather than a report.
  */
-export function selectionNotes(selection: TestSelection): string {
+export function selectionNotes(selection: TestSelection, { vitestAt }: { readonly vitestAt?: string } = {}): string {
   // A widened answer is said once: `because` restates "every test file runs",
   // which `skipping nothing` already says. `json` keeps both fields.
   const lines =
@@ -492,6 +454,9 @@ export function selectionNotes(selection: TestSelection): string {
 
   for (const note of selection.notes) lines.push(`${note}.`);
   lines.push(...readingLines(selection.readings ?? []));
+  if (vitestAt !== undefined && selection.skip.length > 0 && vitestExcludes(vitestAt) === undefined) {
+    lines.push(`${unreadVitestNote(vitestAt)}.`);
+  }
 
   return `${lines.join('\n')}\n`;
 }

@@ -204,7 +204,7 @@ describe('what reaches the runner', () => {
     // root matches inside none of them, and an exclusion that matches nothing
     // is not an error in any runner — so a narrowed run would quietly be the
     // whole suite.
-    expect(formatSelection(selection, 'vitest', '/repo')).toBe(
+    expect(formatSelection(selection, 'vitest', '/repo', { excludes: 'absolute' })).toBe(
       '--exclude=/repo/test/alpha.test.ts\n--exclude=/repo/test/gamma.test.ts\n',
     );
   });
