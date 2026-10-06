@@ -119,6 +119,7 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
         effects: ['src/c.ts'],
         untraced: false,
         carries: [],
+        traced: [],
       });
       // An `export *` leaves the set to the other file.
       expect(importReferences(root, undefined, 'src/index.ts')).not.toHaveProperty('exports');
@@ -153,6 +154,9 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
       expect(dialog?.carries).toEqual(expect.arrayContaining([{ name: 'label', file: 'src/base.ts', origin: 'PREFIX' }]));
       expect(dialog?.carries.some(({ name }) => name === 'open')).toBe(false);
       expect(importReferences(root, undefined, 'src/base.ts')?.exports).toEqual(['default', 'PREFIX', 'shout']);
+      // `open` reads `label`, which `PREFIX` set at load: a mock of base.ts changes what `open` returns.
+      expect(dialog?.traced).toEqual(expect.arrayContaining([{ file: 'src/base.ts', name: 'PREFIX', line: 4 }]));
+      expect(importReferences(root, undefined, 'src/base.ts')?.traced).toEqual([]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -192,7 +192,8 @@ nothing. Deleting it is wrong, because the file is used. Where the file
 references what it imports decides the fix, and the reader walk gives
 every reference of every import, by source, with whether it runs when
 the file loads. Each reference is placed in the region the recording
-keeps for its line, and the import reads as one of six:
+keeps for its line, and the import reads as one of six, or as
+unmeasured below:
 
 - **Never read.** The file references none of the import's names. The
   import is dead in that file, or written for what loading the module
@@ -251,7 +252,7 @@ reads as one of three:
   in the subject or anywhere else. No mock is proposed where it changes
   what a case does: where a case runs, or the subject hands on, what reads
   the import; where the subject reads it at load and a case also runs a
-  function that reads it; or where the test file reads an export of the
+  function that reads it, or reads a binding that read set; or where the test file reads an export of the
   subject whose value that read at load carries. None is proposed where
   what the subject reads, or what the module exports, is not known, or
   where loading the import is the point.

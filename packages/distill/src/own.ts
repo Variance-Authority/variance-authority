@@ -10,8 +10,8 @@ import type { TestCoverage } from '@variance-authority/sense/test-selection';
  * import, `importer` → `imported`, and nothing behind that import is entered
  * by a case; it is the topmost such import. `lazy` when that import is
  * dynamic only: what it owns was paid when the import was called, not on load.
- * `charge`, for a static import a file other than the test file writes, says
- * where that file references what it imports, and `ran` on a read at load
+ * `charge`, for a static import, says where its importer references what it
+ * imports, and `ran` on a read at load
  * when a case also runs a function that reads it. `reach`, for a static import,
  * says how far from the test file its importer is, and `exports`, for an
  * import the subject writes, every value the imported module exports.

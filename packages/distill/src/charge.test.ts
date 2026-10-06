@@ -73,7 +73,7 @@ function chargeOf(result: ReturnType<typeof distillFile>): ImportCharge | undefi
 const referencing = (
   references: FileReferences['references'],
   more: Partial<FileReferences> = {},
-): FileReferences => ({ references, passed: [], imported: [PDF], effects: [], untraced: false, carries: [], ...more });
+): FileReferences => ({ references, passed: [], imported: [PDF], effects: [], untraced: false, carries: [], traced: [], ...more });
 
 describe('an import a used file writes, charged to the code that reads it', () => {
   it('names the functions no case of the file ran that read it, and how many test files that load the importer run one', () => {
@@ -128,6 +128,9 @@ describe('an import a used file writes, charged to the code that reads it', () =
       ran: 0,
       loading: 3,
     });
+    // A re-export does not hide it: the file still pays for the module when it loads.
+    expect(chargeOf(read(referencing([{ file: PDF, name: 'PdfViewer', line: 25, load: false }], { passed: [PDF] }), {}, [0])))
+      .toEqual({ kind: 'load', line: 25, name: 'PdfViewer' });
   });
 
   it('leaves an import written only to load the module where it is, and says where else it could go', () => {
@@ -254,6 +257,13 @@ describe('what to do about an import, by how far from the test file its importer
     ]));
     expect(chargeOf(result)).toEqual({ kind: 'load', line: 6, name: 'default', ran: true });
     expect(formatFileDistillation(result)).not.toContain('jest.mock(');
+    // So does a function a case runs that reads a binding the read at load set: `const MODE = PREFIX + '-strict'`.
+    const derived = read(referencing([{ file: PDF, name: 'PREFIX', line: 6, load: true }], { traced: [{ file: PDF, name: 'PREFIX', line: 3 }] }));
+    expect(chargeOf(derived)).toEqual({ kind: 'load', line: 6, name: 'PREFIX', ran: true });
+    expect(formatFileDistillation(derived)).not.toContain('jest.mock(');
+    // One that no case of this file runs changes nothing a case sees.
+    const idle = read(referencing([{ file: PDF, name: 'PREFIX', line: 6, load: true }], { traced: [{ file: PDF, name: 'PREFIX', line: 12 }] }));
+    expect(chargeOf(idle)).toEqual({ kind: 'load', line: 6, name: 'PREFIX' });
   });
 
   it('proposes no mock where what the subject reads is not known, or the load is the point', () => {

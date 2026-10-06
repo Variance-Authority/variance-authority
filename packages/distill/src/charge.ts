@@ -98,7 +98,6 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
       return found.imported.includes(imported) ? { kind: 'never' } : undefined;
     }
     const load = references.find((reference) => reference.load);
-    if (load === undefined && found.passed.includes(imported)) return { kind: 'handed' };
 
     const blocks = executed.get(importer) ?? [];
     const regions = new Map<Block, (typeof references)[number]>();
@@ -111,8 +110,11 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
     const named = (block: Block) => ({ name: block.name || block.path, line: block.startLine });
     const mine = (crossing: Block['crossings'][number]) => input.mine.has(crossing.test);
     const ran = [...regions.keys()].filter((block) => called(block).some(mine));
-    // Read at load, the import is also marked when a case ran a function that reads it: a mock would change what the case does.
-    const also = ran.length > 0 ? { ran: true as const } : {};
+    // Read at load, the import is also marked when a case ran a function that reads it, or reads what it set at load:
+    // a mock would change what the case does.
+    const derived = found.traced.filter(({ file }) => file === imported)
+      .some(({ line }) => innermostAt(blocks, line).some((block) => block.kind !== 'module' && called(block).some(mine)));
+    const also = ran.length > 0 || derived ? { ran: true as const } : {};
     if (load !== undefined) return { kind: 'load', line: load.line, name: load.name, ...also, ...carriedOf(importer, imported, found, load.name) };
     const atLoad = [...regions].find(([block]) => block.crossings.some((crossing) => crossing.loaded === true && mine(crossing)));
     if (atLoad !== undefined) return { kind: 'load', line: atLoad[1].line, name: atLoad[1].name, ...also };

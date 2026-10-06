@@ -127,9 +127,15 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
     coverage: input.coverage,
     entered,
   });
-  const charge = input.references === undefined ? undefined : chargesOf({
+  // Each file is read once however many owned modules ask for it, by the charge or for its exports.
+  const read = new Map<string, FileReferences | undefined>();
+  const references = input.references === undefined ? undefined : (at: string) => {
+    if (!read.has(at)) read.set(at, input.references!(at));
+    return read.get(at);
+  };
+  const charge = references === undefined ? undefined : chargesOf({
     file,
-    references: input.references,
+    references,
     coverage: input.coverage,
     execution: input.execution,
     mine,
@@ -139,7 +145,7 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
     if (found.kind !== 'import' || found.lazy === true) return found;
     const reach = found.importer === file ? 'test' : imports!(file).includes(found.importer) ? 'subject' : 'beyond';
     const reading = charge?.(found.importer, found.imported);
-    const exports = reach === 'subject' ? input.references?.(found.imported)?.exports : undefined;
+    const exports = reach === 'subject' ? references?.(found.imported)?.exports : undefined;
     return { ...found, ...(reading === undefined ? {} : { charge: reading }), reach, ...(exports === undefined ? {} : { exports }) };
   };
   const modules = candidates

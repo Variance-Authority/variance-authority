@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import type { Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
-import type { Read } from '../read.js';
+import { readModule, type Read } from '../read.js';
 import { listedIn } from './effects.js';
 
 /** Where one file references what it imports, by the repository file each import lands on. */
@@ -38,6 +38,12 @@ export interface FileReferences {
    * the export sees a mock of that import.
    */
   readonly carries: readonly { readonly name: string; readonly file: string; readonly origin: string }[];
+  /**
+   * Each line inside a function that reads a name the file reads when it loads,
+   * or a binding that name set at load, with the file it is imported from: a
+   * case that runs the line sees a mock of that import.
+   */
+  readonly traced: readonly { readonly file: string; readonly name: string; readonly line: number }[];
 }
 
 /**
@@ -80,6 +86,7 @@ export function importReferences(root: string, relations: Relations | undefined,
     untraced: found.untraced,
     ...(exports === undefined ? {} : { exports }),
     carries: (readers?.exported ?? []).map(({ name, origin }) => ({ name, file: atLoad.get(origin)!, origin })),
+    traced: (readers?.reads ?? []).map(({ name, line }) => ({ file: atLoad.get(name)!, name, line })),
   };
 }
 
@@ -87,7 +94,7 @@ export function importReferences(root: string, relations: Relations | undefined,
 function exportsOf(file: string, text: string): readonly string[] | undefined {
   let read: Read;
   try {
-    read = JSON.parse(native()!.readSource(file, text)) as Read;
+    read = readModule(file, text);
   } catch {
     return undefined;
   }
