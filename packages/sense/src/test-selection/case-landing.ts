@@ -102,7 +102,9 @@ export interface LastCaseRun {
  * `eyes` are the run's Eyes, laid by {@link layEyes}: a case that ran has its
  * journals replaced by the run's, and has none when the run opened none.
  *
- * `held` is the text each module of `previous`'s index was cut from. A module
+ * `held` is the text the snapshot names each module of `previous`'s index at,
+ * which is the text it was cut from unless the snapshot re-cut a module no run
+ * re-recorded since an edit; where the lines disagree, the numbering decides. A module
  * the run recorded from that same text lands its held cases by address, as its
  * rows do; one whose text is not known on both sides lands them only where the
  * two cuts numbered alike.
@@ -114,7 +116,8 @@ export interface LastCaseRun {
  * `base` is the index the run's before is cut from, and the texts its modules
  * were cut from, when that is not `previous`: a landing's later shards are laid
  * over the index its earlier ones laid, whose modules they recorded are already
- * cut to the shards' text.
+ * cut to the shards' text. `recorded` is the text each module those earlier
+ * shards recorded was recorded from.
  *
  * Nothing is written here. The caller writes the result into the record with
  * the coverage it lands, in one write under the record's lock, so the two
@@ -128,16 +131,22 @@ export function layCases(
   eyes?: EyesSection,
   held?: ModuleTexts,
   stands?: string,
-  base?: { readonly index: Uint8Array; readonly texts?: ModuleTexts },
+  base?: { readonly index: Uint8Array; readonly texts?: ModuleTexts; readonly recorded?: ModuleTexts },
 ): CaseSections {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
-  const { merged, cases, last, announced, before: retired } = layerCaseIndex(previous.index, fresh, {
+  const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
     ran,
     finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
     present: (test) => existsSync(resolve(root, test)),
     sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
-    ...(base === undefined ? {} : { base: base.index }),
+    ...(base === undefined ? {} : {
+      base: base.index,
+      sameBeforeText: (file: string) => {
+        const text = recorded.get(file) ?? base.recorded?.get(file);
+        return text !== undefined && text === base.texts?.get(file);
+      },
+    }),
   });
   const prior = lastCaseRunOf(previous);
   const again = run.commit !== undefined && prior?.commit === run.commit;
@@ -148,7 +157,13 @@ export function layCases(
   // text, and a reader leaves those modules unmeasured rather than compare
   // them; keeping the base's cut of every module would keep a second index.
   const before = again ? layerBefore(previous.before, retired, ran) : retired;
-  const beforeTexts = textsOfBefore(before, retired, base === undefined ? held : base.texts, again ? prior.beforeTexts : undefined);
+  const beforeTexts = textsOfBefore(
+    before,
+    retired,
+    base === undefined ? held : base.texts,
+    again ? prior.beforeTexts : undefined,
+    new Set(unlined),
+  );
   const at = again ? (prior.files.some((test) => ran.has(test)) ? undefined : prior.before) : prior === undefined ? stands : prior.commit;
   const files = [...ran].sort(codeUnitOrder);
   // A file laid over no index has no base; running it again at this commit
@@ -185,13 +200,17 @@ export function layCases(
  * run retired, since `before` takes their regions from `retired`, and `kept`'s,
  * what the earlier runs at this commit named, for the rest. `undefined` when
  * neither names a text, or `before` is not spelled as sets, which only a
- * layer older than these texts is.
+ * layer older than these texts is. A module `unlined` holds names none,
+ * whichever run retired it: the landing's index cut it at another text than
+ * `cut` names, and its lines could not be carried, so an earlier run at this
+ * commit that kept it at those lines named a text they do not stand at.
  */
 function textsOfBefore(
   before: Uint8Array | undefined,
   retired: Uint8Array | undefined,
   cut: ModuleTexts | undefined,
   kept: Readonly<Record<string, string>> | undefined,
+  unlined: ReadonlySet<string>,
 ): Record<string, string> | undefined {
   if (before === undefined || (cut === undefined && kept === undefined)) return undefined;
   const modules = openSetExecutionIndex(before)?.modules;
@@ -199,7 +218,7 @@ function textsOfBefore(
   const ownRegions = new Set(retired === undefined ? [] : openSetExecutionIndex(retired)?.modules.map((module) => module.file));
   const texts: Record<string, string> = {};
   for (const { file } of modules) {
-    const text = ownRegions.has(file) ? cut?.get(file) : kept?.[file];
+    const text = unlined.has(file) ? undefined : ownRegions.has(file) ? cut?.get(file) : kept?.[file];
     if (text !== undefined) texts[file] = text;
   }
   return texts;
@@ -287,6 +306,7 @@ export function landCases(
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
   let sections = previous;
   const texts = new Map(held ?? []);
+  const recorded = new Map<string, string>();
   // Every shard's before is cut from the index the landing began with.
   const base = previous.index === undefined ? undefined : { index: previous.index, ...(held === undefined ? {} : { texts: held }) };
   let laid = 0;
@@ -298,8 +318,11 @@ export function landCases(
     if (run === undefined) continue;
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base);
-      for (const [file, text] of textsOf(run)) texts.set(file, text);
+      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) });
+      for (const [file, text] of textsOf(run)) {
+        texts.set(file, text);
+        recorded.set(file, text);
+      }
       for (const id of lastCaseRunOf(sections)?.cases ?? []) ran.add(id);
       laid += 1;
     } else if (run.tests.some((test) => test.complete)) {
