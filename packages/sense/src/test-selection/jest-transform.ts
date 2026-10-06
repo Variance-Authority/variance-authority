@@ -38,7 +38,7 @@ import {
 } from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
 import { jestStore, type SelectionTransformerConfig } from './jest.js';
-import { recordedFrame, type TransformSourceMap } from './source-lines.js';
+import { includedFrame, type TransformSourceMap } from './source-lines.js';
 
 /** The fields of Jest's project configuration this reads. */
 export interface JestProjectConfig {
@@ -187,19 +187,21 @@ function place(
   mode: InstrumentMode,
   excluded: ReadonlySet<string>,
 ): JestTransformedSource {
-  if (excluded.has(resolve(path)) || !defaultInclude(path) || isTestFile(path, options.config)) {
-    return transformed;
-  }
+  if (excluded.has(resolve(path)) || isTestFile(path, options.config)) return transformed;
   // The digest is of the project's text, which is what the block lines are
   // coordinates in once the wrapped transformer's map is read back through —
   // and of the transformed text when there is no map to read back through, so
-  // the digest never vouches for a number line it did not see.
-  const { extentOf, sourceDigest, file: wrote } = recordedFrame(
+  // the digest never vouches for a number line it did not see. Product source
+  // is judged by the file the frame names, so a build is read as its source.
+  const frame = includedFrame(
     transformed.code,
-    parsedMap(transformed),
+    () => parsedMap(transformed),
     path,
+    defaultInclude,
     (at) => (at === path ? source : readFileSync(at, 'utf8')),
   );
+  if (frame === undefined) return transformed;
+  const { extentOf, sourceDigest, file: wrote } = frame;
   const file = projectPath(root, wrote);
   // The module reports under the path Jest transformed, which is the path its
   // journal row names; `file` is where the regions' lines are, which a source

@@ -123,3 +123,39 @@ describe('a module read through esbuild and through its tsc build', () => {
     expect(source).toEqual(build);
   });
 });
+
+/**
+ * A workspace library consumed through its manifest: the bundler loads
+ * `dist/a.js`, which the default include refuses, and `tsc`'s map leads back to
+ * `src/a.ts`, which it accepts. The include is asked about the file the module
+ * is recorded under, so the build is product source by the name of its source.
+ */
+describe('a module loaded from its tsc build under the default include', () => {
+  const transformed = (file: string, map: TransformingContext['getCombinedSourcemap'] | undefined) => {
+    const plugin = testSelectionProbes({ root, cacheRoot, label: 'default-include' });
+    const context = map === undefined ? undefined : { getCombinedSourcemap: map };
+    return plugin.transform.call(context as TransformingContext, TSC.code, join(root, file));
+  };
+
+  it('is instrumented and recorded under the source its map leads to', async () => {
+    const done = transformed('app/dist/a.js', () => TSC.map);
+
+    expect(done?.code).toContain('.r("app/src/a.ts",');
+    expect(done?.code).not.toContain('"app/dist/a.js"');
+    const record = await readRecord(recordStore(root, 'default-include', cacheRoot), 'app/src/a.ts');
+    expect(record).toMatchObject({ file: 'app/src/a.ts', instrumented: true });
+  });
+
+  it('is left out when no map leads anywhere but itself', () => {
+    expect(transformed('app/dist/a.js', undefined)).toBeNull();
+  });
+
+  it('is left out when its map names several sources, as a bundled library does', () => {
+    expect(transformed('app/dist/a.js', () => ({ ...TSC.map, sources: ['../src/a.ts', '../src/b.ts'] }))).toBeNull();
+  });
+
+  it('is left out under `node_modules`, wherever its map leads', () => {
+    expect(transformed('node_modules/app/dist/a.js', () => ({ ...TSC.map, sources: ['../../../app/src/a.ts'] })))
+      .toBeNull();
+  });
+});

@@ -25,7 +25,7 @@ import {
   type CapturedModule,
 } from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
-import { recordedFrame, type TransformSourceMap } from './source-lines.js';
+import { includedFrame, type TransformSourceMap } from './source-lines.js';
 import { repositoryRoot } from './repository-root.js';
 import probeLog from '../instrument/probe-log.cjs';
 
@@ -209,17 +209,21 @@ export function testSelectionProbes(
 
     transform(code, specifier) {
       const source = cleanId(specifier);
-      if (source === RESOLVED_COLLECTOR || !include(source)) return null;
+      if (source === RESOLVED_COLLECTOR) return null;
       // The digest and the lines from one decision, so they cannot describe two
       // texts: the file on disk when the prior chain reads the extents back into
       // it, and `code` when there is no chain and the extents stay where the
-      // transform left them.
-      const { extentOf, sourceDigest, file: wrote } = recordedFrame(
+      // transform left them. The include is asked about the file that decision
+      // names, so a library loaded from its build is product source by its source.
+      const frame = includedFrame(
         code,
-        priorMap(this),
+        () => priorMap(this),
         source,
+        include,
         (at) => readFileSync(at, 'utf8'),
       );
+      if (frame === undefined) return null;
+      const { extentOf, sourceDigest, file: wrote } = frame;
 
       // Instrumented under its path, which is all the page then reports. The path
       // is repository-relative: a journal that named absolute paths would be a

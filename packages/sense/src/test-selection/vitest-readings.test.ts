@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
+import { defaultInclude } from './instrumented-modules.js';
 import { withTestSelection } from './vitest.js';
 import type { TestCoverage } from './index.js';
 import type { TransformingContext } from './probes.js';
@@ -69,6 +70,17 @@ async function recorded(
   rerun?: readonly Reading[],
   changed: 'source' | 'build' | 'nothing' = 'source',
 ): Promise<TestCoverage['modules']> {
+  return recordedUnder(() => true, order, projects, rerun, changed);
+}
+
+/** {@link recorded}, by a seam that asks `include` which modules are product source. */
+async function recordedUnder(
+  include: (file: string) => boolean,
+  order: readonly Reading[],
+  projects: 1 | 2 = 1,
+  rerun?: readonly Reading[],
+  changed: 'source' | 'build' | 'nothing' = 'source',
+): Promise<TestCoverage['modules']> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-two-readings-'));
   const coverageFile = resolve(root, 'coverage.bin');
   try {
@@ -79,7 +91,7 @@ async function recorded(
     await writeFile(resolve(root, 'dist/cart.js'), BUILT, 'utf8');
     await writeFile(resolve(root, 'lib/cart.js'), LEGACY, 'utf8');
     await writeFile(resolve(root, 'src/rate.ts'), RATE, 'utf8');
-    const configured = withTestSelection({}, { root, coverageFile, include: () => true });
+    const configured = withTestSelection({}, { root, coverageFile, include });
     const plugin = (configured.plugins as unknown as Array<{
       transform: Transform;
       watchChange(id: string): void;
@@ -87,7 +99,7 @@ async function recorded(
     // A `projects` layout wraps each project's config, and each brings a plugin of its own.
     const other = projects === 1
       ? plugin
-      : (withTestSelection({}, { root, coverageFile, include: () => true }).plugins as unknown as Array<{
+      : (withTestSelection({}, { root, coverageFile, include }).plugins as unknown as Array<{
           transform: Transform;
         }>)[0]!;
     const reporter = (configured.test!.reporters as unknown as Array<{
@@ -219,5 +231,11 @@ describe('a module two transforms both name', () => {
 
   it('is recorded without the reading of a build written again that the rerun did not load', async () => {
     expect(await recorded(['build', 'legacy'], 1, ['legacy'], 'build')).toEqual(await recorded(['legacy']));
+  });
+});
+
+describe('a module the runner loaded from its build alone', () => {
+  it('is recorded under the source its map leads to by the default include, which refuses built output', async () => {
+    expect((await recordedUnder(defaultInclude, ['build'])).map((module) => module.file)).toEqual(['src/cart.ts']);
   });
 });

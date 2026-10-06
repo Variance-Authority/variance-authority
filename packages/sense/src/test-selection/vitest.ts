@@ -7,7 +7,7 @@ import { instrument, type InstrumentMode } from '../instrument/index.js';
 import { priorMap, type TransformingContext } from './probes.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
-import { recordedFrame } from './source-lines.js';
+import { includedFrame } from './source-lines.js';
 import {
   carriedJournal,
   readFinished,
@@ -150,8 +150,7 @@ export function withTestSelection(
       .filter((file): file is string => typeof file === 'string')
       .map((file) => resolve(configRoot, file)),
   );
-  const chosen = options.include ?? defaultInclude;
-  const include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
+  const include = options.include ?? defaultInclude;
   const setupFiles = array(config.test?.setupFiles);
   // What the author declared is declared for the tests this configuration
   // governs, which for the one that describes the run is every test.
@@ -181,7 +180,7 @@ export function withTestSelection(
     };
   }
 
-  const plugin = selectionPlugin(root, setupId, runnerId, run, include, mode, declared, settle);
+  const plugin = selectionPlugin(root, setupId, runnerId, globalSetup, run, include, mode, declared, settle);
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = options.continuations === true;
@@ -266,6 +265,7 @@ function selectionPlugin(
   root: string,
   setupId: string,
   runnerId: string,
+  globalSetup: ReadonlySet<string>,
   run: SelectionRun,
   include: (file: string) => boolean,
   mode: InstrumentMode,
@@ -331,20 +331,25 @@ function selectionPlugin(
       // The runner module is this seam's too, and both sit under the root the
       // default include reaches. Compared after the query suffix is stripped,
       // because the runner is a file on disk now and a real file is the kind of
-      // id a bundler decorates.
+      // id a bundler decorates. A `globalSetup` file is the file Vitest runs,
+      // so it is refused by the name it was loaded under, whatever its map says.
       const file = cleanId(id);
-      if (file === setupId || file === runnerId) return null;
-      if (!include(file)) return null;
+      if (file === setupId || file === runnerId || globalSetup.has(file)) return null;
       // The digest is of the text on disk, which is what the block lines are
       // coordinates in once the prior transforms' maps are read back through —
       // and of `code`, which is what those transforms made of it, when there is
       // no map to read back through and the lines stay where they were left.
-      const { extentOf, sourceDigest, file: wrote } = recordedFrame(
+      // The include is asked about the file the frame names, so a build is
+      // product source by its source.
+      const frame = includedFrame(
         code,
-        priorMap(this),
+        () => priorMap(this),
         file,
+        include,
         (at) => readFileSync(at, 'utf8'),
       );
+      if (frame === undefined) return null;
+      const { extentOf, sourceDigest, file: wrote } = frame;
 
       // Named after the file its map leads to, the same name every other seam
       // instruments under, so a journal reads the same whoever produced it. Its

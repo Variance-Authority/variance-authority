@@ -5,7 +5,7 @@
  * module can be instrumented is a loader rather than a plugin hook. Declared
  * `enforce: 'post'`, it receives what SWC made of a `.ts` file plus the map
  * that says where each line came from — the same situation a Vite plugin at
- * `enforce: 'post'` is in, and {@link recordedFrame} already answers it.
+ * `enforce: 'post'` is in, and {@link includedFrame} already answers it.
  *
  * A loader is loaded by path and given options, never handed the object the
  * configuration built, so the run it belongs to cannot be closed over. It is
@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs';
 import { instrument } from '../instrument/index.js';
 import { cleanId, projectPath } from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
-import { recordedFrame, type TransformSourceMap } from './source-lines.js';
+import { includedFrame, type TransformSourceMap } from './source-lines.js';
 import { runOf } from './selection-run.js';
 
 /** What the loader asks of the options its rule carries. */
@@ -63,18 +63,20 @@ function instrumentModule(
   // its own header would ask for the log before the module has installed
   // it. It is a file under the project root like any other, so it is excluded
   // by path rather than by the shape of its name.
-  if (run === undefined || run.shims.has(file) || !run.include(file)) {
-    this.callback(null, code, map);
-    return;
-  }
-
+  //
   // The digest is of the text on disk, which is what the block lines are
   // coordinates in once SWC's map is read back through — and of `code`, which
   // is what SWC made of it, when there is no map and the lines stay where they
-  // were left.
-  const { extentOf, sourceDigest, file: wrote } = recordedFrame(code, map, file, (at) =>
-    readFileSync(at, 'utf8'),
-  );
+  // were left. Product source is judged by the file the frame names, so a
+  // build is read as its source.
+  const frame = run === undefined || run.shims.has(file)
+    ? undefined
+    : includedFrame(code, () => map, file, run.include, (at) => readFileSync(at, 'utf8'));
+  if (run === undefined || frame === undefined) {
+    this.callback(null, code, map);
+    return;
+  }
+  const { extentOf, sourceDigest, file: wrote } = frame;
 
   // Under its path, the same one every other seam instruments under, so a journal
   // reads the same whoever produced it.

@@ -287,7 +287,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `root` | the configuration root, then the current directory | the configuration is evaluated outside the checkout it records. Recorded paths are relative to the checkout that contains `root`, never to `root` itself, so a package-level configuration and a repository-level one name a file the same way. Relative option paths resolve against `root` |
 | `suite` | none; required once the root config declares `suites` | the repository declares its suites, and this configuration runs one of them. It cannot be combined with `coverageFile` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
-| `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path after Vitest transforms it |
+| `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path after Vitest transforms it, and for a module it refuses whose map leads to exactly one source, that source's path |
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
@@ -533,7 +533,8 @@ The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
 `mode`, and `continuations`, with the meanings above. Jest does not report which
 config file it loaded, so name it in `preconditions`. There is no `include`:
 product source is every JavaScript and TypeScript module the configuration's
-`testMatch` or `testRegex` does not name, less dependencies and built output. A
+`testMatch` or `testRegex` does not name, less dependencies and built output whose map does
+not lead to exactly one source. A
 setup entry that names a package — `dotenv/config` — is left alone. A
 configuration with `projects` is instrumented project by project, each keeping
 its own transform and setup files, with one reporter for the run. Each test's
@@ -779,6 +780,14 @@ source, and one store over both would answer an ordinal with whichever built
 last. Give the driver the same label. `testSelectionProbes` also takes `include`
 and `cacheRoot` — where the label's store lives, defaulting to the cache root
 above.
+
+A workspace library your application imports through its `tsc` build is
+recorded under its source. When `include` refuses a module and the map the
+transform received leads to exactly one source outside `node_modules`, the
+module is judged and recorded as that source, so `ui/dist/Button.js` counts as
+`ui/src/Button.ts`. A Vite dev server reads the build's own `.js.map` and hands
+it on; `vite build` does not, so a build of the application leaves the library
+out. The Vitest, Jest and Rstest seams decide the same way.
 
 A module reports the id it was instrumented under, and that id is the digest of
 its repository-relative path. Nothing allocates it and no build has to have

@@ -6,6 +6,7 @@ import { decodeTestCoverage } from './format.js';
 import { statusesComplete } from './finished-files.js';
 import { runOf } from './selection-run.js';
 import { SELECTION_LOADER, withTestSelection } from './rstest.js';
+import instrumentModule from './rstest-loader.js';
 
 const temporary: string[] = [];
 
@@ -185,5 +186,32 @@ describe('what a finished Rstest file is worth', () => {
     expect(statusesComplete('pass', ['pass', 'fail'])).toBe(false);
     // Nothing ran, so there is nothing to be evidence of.
     expect(statusesComplete('pass', [])).toBe(false);
+  });
+});
+
+describe('the Rstest loader over a module loaded from its build', () => {
+  it('records it under the source its map leads to, which the default include accepts', async () => {
+    const directory = await root();
+    const coverageFile = resolve(directory, 'coverage.bin');
+    await mkdir(resolve(directory, 'src'), { recursive: true });
+    await writeFile(resolve(directory, 'src/pick.ts'), 'export const pick = (value: boolean): number => (value ? 1 : 2);\n');
+    withTestSelection({ root: directory }, { coverageFile });
+    const built = 'export const pick = (value) => (value ? 1 : 2);\n';
+    let handed: string | undefined;
+
+    instrumentModule.call(
+      {
+        resourcePath: resolve(directory, 'dist/pick.js'),
+        getOptions: () => ({ coverageFile }),
+        callback: (_error, code) => {
+          handed = code;
+        },
+      },
+      built,
+      { version: 3, sources: ['../src/pick.ts'], names: [], mappings: 'AAAA' },
+    );
+
+    expect(handed).not.toBe(built);
+    expect([...runOf(coverageFile)!.modules.values()].map((module) => module.file)).toEqual(['src/pick.ts']);
   });
 });

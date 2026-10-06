@@ -195,6 +195,35 @@ export function recordedFrame(
   };
 }
 
+/**
+ * The frame of a module the include accepts, asked about the file the module is
+ * recorded under rather than the one the host loaded; `undefined` when it refuses.
+ *
+ * A workspace library consumed through its manifest arrives as `dist/x.js`, and
+ * an include refuses built output; its map leads to `src/x.ts`, which is what
+ * the record is named after. So a module refused under its own name is asked
+ * about again under the one its map gives — and only then is the map asked for,
+ * because a host builds one for every module it is asked about. A module under
+ * `node_modules` is not asked again: a dependency's map leads into the
+ * dependency. The map is a thunk for that reason.
+ */
+export function includedFrame(
+  code: string,
+  map: () => TransformSourceMap | undefined,
+  file: string,
+  include: (file: string) => boolean,
+  original: (path: string) => string,
+): RecordedFrame | undefined {
+  const own = include(file);
+  if (!own && /[/\\]node_modules[/\\]/.test(file)) return undefined;
+  const prior = map();
+  if (!own && originalFile(prior, file) === undefined) return undefined;
+  const frame = recordedFrame(code, prior, file, original);
+  // A map whose original cannot be read leaves the frame under the host's name,
+  // and that name was answered already.
+  return (frame.file === file ? own : include(frame.file)) ? frame : undefined;
+}
+
 /** The frame of a module whose transformed text is empty: the file, every line of it. */
 function wholeFile(file: string, original: (path: string) => string): RecordedFrame | undefined {
   let text: string;
