@@ -382,8 +382,8 @@ export async function movedSince(point: DiffPoint | undefined, changed: readonly
 }
 
 /**
- * One file's contents at a revision, or `undefined` when that revision has no
- * such file.
+ * The files at a revision, each `undefined` when that revision has no such
+ * file.
  *
  * The two are told apart by the caller and mean different things: a lockfile
  * that was not there before is an install this cannot compare, and one that is

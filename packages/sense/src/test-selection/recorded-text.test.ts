@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { nativeAvailable } from '../native.js';
 import { textAtRecording, textsAt } from './recorded-text.js';
 
@@ -165,6 +165,71 @@ describe('the text at a recording is read a window at a time', () => {
       const sourceAt = textAtRecording(root, [path(0)]);
 
       expect(sourceAt(path(0), undefined)).toBeUndefined();
+    });
+  });
+});
+
+/** The Git commands `run` started, as argv, read from Git's own trace. */
+function gitStarted(root: string, run: () => void): string[][] {
+  const trace = resolve(root, '.git', 'variance-trace.json');
+  rmSync(trace, { force: true });
+  vi.stubEnv('GIT_TRACE2_EVENT', trace);
+  try {
+    run();
+  } finally {
+    vi.unstubAllEnvs();
+  }
+  const lines = existsSync(trace) ? readFileSync(trace, 'utf8').trim().split('\n') : [];
+  return lines
+    .map((line) => JSON.parse(line) as { event: string; argv?: string[] })
+    .filter((event) => event.event === 'start')
+    .map((event) => event.argv ?? []);
+}
+
+describe('the text at a recording of a path the caller never named', () => {
+  it('is read for a hundred paths in as many processes as for ten', async () => {
+    await checkout(async (root, commit) => {
+      const asked = (count: number): string[][] => {
+        const sourceAt = textAtRecording(root, [path(FILES - 1)]);
+        return gitStarted(root, () => {
+          for (const at of every(0, count)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
+        });
+      };
+
+      const few = asked(10);
+      expect(few.length).toBeGreaterThan(0);
+      expect(asked(100).length).toBe(few.length);
+    });
+  });
+
+  it('leaves the window it arrived in place', async () => {
+    await checkout(async (root, commit) => {
+      const sourceAt = textAtRecording(root, every(0, 50).map(path));
+      expect(sourceAt(path(0), commit)).toBe(body(0));
+      expect(sourceAt(path(120), commit)).toBe(body(120));
+
+      // The window that answered `path(0)` holds these, so none is read again.
+      const started = gitStarted(root, () => {
+        for (const at of every(1, 50)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
+      });
+      expect(started).toEqual([]);
+    });
+  });
+
+  it('is the commit\'s text when the file on disk was edited, deleted or added since', async () => {
+    await checkout(async (root, commit) => {
+      await writeFile(resolve(root, path(10)), `${body(10)}// since\n`, 'utf8');
+      await unlink(resolve(root, path(11)));
+      await writeFile(resolve(root, 'src/added-since.ts'), 'export {};\n', 'utf8');
+      const sourceAt = textAtRecording(root, [path(FILES - 1)]);
+
+      // Two paths first, so the three below are asked after the reader has
+      // had reason to stop reading each one alone.
+      expect(sourceAt(path(0), commit)).toBe(body(0));
+      expect(sourceAt(path(1), commit)).toBe(body(1));
+      expect(sourceAt(path(10), commit)).toBe(body(10));
+      expect(sourceAt(path(11), commit)).toBe(body(11));
+      expect(sourceAt('src/added-since.ts', commit)).toBeUndefined();
     });
   });
 });

@@ -47,11 +47,29 @@
  * The caller decides which paths are worth a window at all. `files` is the set
  * this expects to be asked about, and it is read in order as the asks arrive, so
  * a caller that hands over only the paths it has a digest to compare against
- * never pays for the rest of the diff. A path arriving from outside that set is
- * still answered, on its own.
+ * never pays for the rest of the diff.
+ *
+ * ## A path from outside the set
+ *
+ * A path arriving from outside that set is still answered, and the window
+ * stays where it is: the selector asks about a changed file's importers between
+ * two changed files, and a window dropped for each of them would leave every
+ * changed file after it to be read alone.
+ *
+ * Those paths are mostly files the change did not touch, and a reading that
+ * follows a changed export asks about every importer of it, a few hundred for a
+ * shared module. At a process apiece that is seconds. So from the second such
+ * path at a commit, the commit's tree is listed once, and a path whose bytes on
+ * disk hash to the blob the commit holds there is answered from disk. The hash
+ * is git's own object name for those bytes, so the answer is the commit's text
+ * whatever happened on disk since; a path the hash does not match, or the
+ * listing does not hold, is read from git alone, as before.
  */
 
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { native } from '../addon.js';
 
 /**
@@ -107,6 +125,10 @@ export function textAtRecording(
   let width = FIRST_WINDOW;
   let held = new Map<string, string>();
   let asked = new Set<string>();
+  // How many paths from outside the window this commit was asked about, and its
+  // tree once the second arrived: `null` when git could not list it.
+  let outside = 0;
+  let listing: Listing | null | undefined;
 
   return (file, commit) => {
     // No position to read from. A snapshot recorded outside a checkout cannot be
@@ -120,6 +142,8 @@ export function textAtRecording(
       width = FIRST_WINDOW;
       held = new Map();
       asked = new Set();
+      outside = 0;
+      listing = undefined;
     }
     // Asked about, and answered — including answered *missing*, which is a fact
     // about the commit and not a reason to ask again.
@@ -128,14 +152,22 @@ export function textAtRecording(
       return held.get(file);
     }
 
-    // A path the caller never named, or one asked again after its window went, is
-    // read on its own. Any other path opens a window over it and the paths after
-    // it not yet answered: the selector asks a few paths ahead of the rest, so a
-    // window can go before the paths it read are asked, and those paths are then
-    // read again together rather than a process apiece.
+    // A path the caller never named, or one asked again after its window went,
+    // leaves the window where it is: the selector asks about a changed file's
+    // importers between two changed files. From the second such path at a
+    // commit, one whose bytes on disk are the commit's blob is answered from disk.
     const from = answered.has(file) ? -1 : positionOf(expected, file);
     answered.add(file);
-    const window = from === -1 ? [file] : unanswered(expected, from, width, answered);
+    if (from === -1) {
+      outside += 1;
+      if (outside > 1 && listing === undefined) listing = listed(root, commit);
+      return (listing ? unchangedOnDisk(root, listing, file) : undefined) ?? batch(root, new Map([[commit, [file]]])).get(commit)!.get(file);
+    }
+    // Any other path opens a window over it and the paths after it not yet
+    // answered: the selector asks a few paths ahead of the rest, so a window can
+    // go before the paths it read are asked, and those paths are then read again
+    // together rather than a process apiece.
+    const window = unanswered(expected, from, width, answered);
 
     // The previous window goes before the next one arrives, so no two are ever
     // resident together.
@@ -271,4 +303,78 @@ function read(
   }
 
   return { texts, missing };
+}
+
+/**
+ * A commit's tree as `ls-tree -r -z --full-tree` wrote it, with where each
+ * entry starts. Git writes the entries in the byte order of the full path, so
+ * a path is found by bisecting the bytes rather than by a map of every path in
+ * the repository.
+ */
+interface Listing {
+  readonly bytes: Buffer;
+  readonly starts: Uint32Array;
+}
+
+function listed(root: string, commit: string): Listing | null {
+  let bytes: Buffer;
+  try {
+    bytes = execFileSync('git', ['ls-tree', '-r', '-z', '--full-tree', commit], {
+      cwd: root,
+      maxBuffer: 1 << 30,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch {
+    return null;
+  }
+  const starts: number[] = [];
+  for (let at = 0; at < bytes.length; ) {
+    const end = bytes.indexOf(0, at);
+    if (end === -1) break;
+    starts.push(at);
+    at = end + 1;
+  }
+  return { bytes, starts: Uint32Array.from(starts) };
+}
+
+/**
+ * The text on disk at `file`, when its bytes are the blob the listed commit
+ * holds there. `undefined` otherwise, for the caller to ask git: a path the
+ * listing does not hold, one that is not a regular file there, or one whose
+ * bytes on disk moved or are gone.
+ */
+function unchangedOnDisk(root: string, listing: Listing, file: string): string | undefined {
+  const { bytes, starts } = listing;
+  const target = Buffer.from(file, 'utf8');
+  let low = 0;
+  let high = starts.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    const start = starts[mid]!;
+    const tab = bytes.indexOf(0x09, start);
+    const order = bytes.compare(target, 0, target.length, tab + 1, bytes.indexOf(0, tab));
+    if (order < 0) low = mid + 1;
+    else if (order > 0) high = mid - 1;
+    else {
+      // `<mode> <type> <object>`: a symbolic link's blob is its target, not what reading it gives.
+      const [mode, type, object] = bytes.toString('latin1', start, tab).split(' ');
+      if (type !== 'blob' || (mode !== '100644' && mode !== '100755') || object === undefined) return undefined;
+      let text: Buffer;
+      try {
+        text = readFileSync(join(root, file));
+      } catch {
+        return undefined;
+      }
+      return blobName(text, object.length) === object ? text.toString('utf8') : undefined;
+    }
+  }
+  return undefined;
+}
+
+/** Git's name for `bytes` as a blob, in the repository's hash: a SHA-256 name is 64 digits. */
+function blobName(bytes: Buffer, digits: number): string {
+  return createHash(digits === 64 ? 'sha256' : 'sha1')
+    .update(`blob ${bytes.length}\0`)
+    .update(bytes)
+    .digest('hex');
 }
