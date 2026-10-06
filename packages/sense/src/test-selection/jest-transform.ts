@@ -16,8 +16,9 @@
  * that same key: a cache hit is a hit for both halves, and a cache miss rewrites
  * both. Nothing is recomputed at report time.
  *
- * A module the instrumenter cannot read reaches the inner transformer as it is, with an inventory that says so; the selector widens over such a
- * module rather than trusting an absence of crossings.
+ * A module the instrumenter cannot read reaches the inner transformer as it
+ * is, with an inventory that says so; the selector widens over such a module
+ * rather than trusting an absence of crossings.
  */
 
 import { createHash } from 'node:crypto';
