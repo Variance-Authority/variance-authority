@@ -287,7 +287,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `root` | the configuration root, then the current directory | the configuration is evaluated outside the checkout it records. Recorded paths are relative to the checkout that contains `root`, never to `root` itself, so a package-level configuration and a repository-level one name a file the same way. Relative option paths resolve against `root` |
 | `suite` | none; required once the root config declares `suites` | the repository declares its suites, and this configuration runs one of them. It cannot be combined with `coverageFile` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
-| `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path, and first, for a build whose sibling map leads to exactly one source, that source's path ([below](#a-library-loaded-from-its-build)) |
+| `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path, except for a build whose sibling map leads to exactly one source: it receives that source's path first, and the module's own only if it refuses the source ([below](#a-library-loaded-from-its-build)) |
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
@@ -781,9 +781,11 @@ last. Give the driver the same label. `testSelectionProbes` also takes `include`
 and `cacheRoot` — where the label's store lives, defaulting to the cache root
 above.
 
-`testSelectionProbes` runs at `enforce: 'pre'`, ahead of every other
-transform: the probes go into the text you wrote, and a record is named after
-that file, digested as its text and placed on its lines. TypeScript, JSX,
+`testSelectionProbes` runs at `enforce: 'pre'`, ahead of Vite's own plugins
+and every plugin without `enforce: 'pre'`. List it first in `plugins` so it
+also runs ahead of the other `pre` plugins: the probes then go into the text
+you wrote, and a record is named after that file, digested as its text and
+placed on its lines. TypeScript, JSX,
 decorators and `vi.mock` hoisting are compiled after the probes, so a region a
 compiler writes is never recorded.
 
