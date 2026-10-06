@@ -102,6 +102,16 @@ describe('a pull request reads from what its last push ran', () => {
     expect(existsSync(testCoverageFile(clone, { suite: 'unit' }))).toBe(false);
   });
 
+  it('leaves a suite whose record names no commit its tests ran at', async () => {
+    const { clone } = await pullRequest();
+    const carried = join(clone, '.carried');
+    await mkdir(join(carried, 'unit'), { recursive: true });
+    await writeFile(join(carried, 'unit', 'coverage.bin'), 'carried');
+
+    expect(await takeCarried(clone, carried)).toEqual({ taken: [], left: [{ suite: 'unit', unlisted: true }] });
+    expect(existsSync(testCoverageFile(clone, { suite: 'unit' }))).toBe(false);
+  });
+
   it('lays nothing over a record the checkout already has', async () => {
     const { clone, kept } = await pullRequest();
     const own = testCoverageFile(clone, { suite: 'unit' });

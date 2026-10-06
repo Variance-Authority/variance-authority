@@ -763,14 +763,16 @@ jobs:
       # What this push ran, for the pull request's next push to read from: the
       # step `what the last push ran` in `base` says why. A red suite is kept
       # too, since the files it left incomplete are what the next push reruns.
+      # Saved only when the copy finished: a part-copied record is not one.
       - name: keep what this push ran
+        id: stage
         if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.records.outputs.dir != '' }}
         shell: bash
         env:
           RECORDS: ${{ steps.records.outputs.dir }}
         run: rm -rf .variance-carry && cp -R "$RECORDS" .variance-carry
 
-      - if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.records.outputs.dir != '' }}
+      - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
         uses: actions/cache/save@v4
         with:
           path: .variance-carry

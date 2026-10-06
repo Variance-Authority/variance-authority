@@ -31,10 +31,14 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readCommitRuns, testCoverageFile } from '@variance-authority/sense/test-selection';
 
-/** The commits a selection reads from the record at `coverage`: where it was recorded, where its runs started, and where each test stands. */
+/**
+ * The commits a selection reads from the record at `coverage`: where it was
+ * recorded, where its runs started, and where each test stands. Undefined when
+ * no runs record beside it names where it was recorded.
+ */
 async function namedCommits(coverage) {
   const runs = await readCommitRuns(coverage);
-  if (runs === undefined) return [];
+  if (runs?.commit === undefined) return undefined;
   return [...new Set([runs.commit, runs.over, ...(runs.standing ?? []).map((entry) => entry.commit)])].filter(
     (commit) => commit !== undefined,
   );
@@ -52,7 +56,9 @@ const holds = (root, commit) => {
 /**
  * Lay each suite under `carried` into the checkout at `root`. `taken` names
  * the suites laid; `left` the rest, each with the commits the remote did not
- * give or the record the checkout already held.
+ * give, the record the checkout already held, or `unlisted` when the record
+ * names no commit its tests ran at: a selection would have nothing to diff
+ * each test from.
  */
 export async function takeCarried(root, carried) {
   let entries;
@@ -72,7 +78,12 @@ export async function takeCarried(root, carried) {
       left.push({ suite, held: own });
       continue;
     }
-    const absent = (await namedCommits(join(from, 'coverage.bin'))).filter((commit) => !holds(root, commit));
+    const named = await namedCommits(join(from, 'coverage.bin'));
+    if (named === undefined) {
+      left.push({ suite, unlisted: true });
+      continue;
+    }
+    const absent = named.filter((commit) => !holds(root, commit));
     if (absent.length > 0) {
       try {
         execFileSync('git', ['fetch', '--quiet', '--no-tags', 'origin', ...absent], { cwd: root, stdio: 'ignore' });
@@ -106,9 +117,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   for (const suite of taken) console.error(`take-carried: ${suite} reads from what the last push ran.`);
   for (const { suite, missing, held } of left) {
     console.error(
-      held === undefined
-        ? `take-carried: ${suite} reads the mainline's record: the remote no longer has ${missing.map((commit) => commit.slice(0, 12)).join(', ')}, which the last push's record stands on.`
-        : `take-carried: ${suite} keeps the record already at ${held}.`,
+      held !== undefined
+        ? `take-carried: ${suite} keeps the record already at ${held}.`
+        : missing !== undefined
+          ? `take-carried: ${suite} reads the mainline's record: the remote no longer has ${missing.map((commit) => commit.slice(0, 12)).join(', ')}, which the last push's record stands on.`
+          : `take-carried: ${suite} reads the mainline's record: the last push's record has no runs record naming the commit it was recorded at.`,
     );
   }
   if (taken.length === 0 && left.length === 0) console.error('take-carried: no earlier push carried a record, so every suite reads the mainline\'s.');
