@@ -72,6 +72,30 @@ describe('the text at a recording is read a window at a time', () => {
     });
   });
 
+  it('reads the paths a jump ahead left behind in one more window, not a process apiece', async () => {
+    await checkout(async (root, commit) => {
+      const sourceAt = textAtRecording(root, every(0, FILES).map(path));
+      const trace = resolve(root, '.git', 'trace2.json');
+      const reads = async (): Promise<number> =>
+        (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"') && line.includes('"cat-file"')).length;
+
+      // The selector asks a few paths out of order before it walks the rest in
+      // order: one window opens at 20 and goes when the far end is asked, before
+      // the paths it read after 20 were asked. Walking from the start then reads
+      // everything not yet answered, those paths included, in one more window.
+      process.env['GIT_TRACE2_EVENT'] = trace;
+      try {
+        expect(sourceAt(path(20), commit)).toBe(body(20));
+        expect(sourceAt(path(FILES - 10), commit)).toBe(body(FILES - 10));
+        for (const at of every(0, FILES - 10).filter((at) => at !== 20)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
+      } finally {
+        delete process.env['GIT_TRACE2_EVENT'];
+      }
+
+      expect(await reads()).toBe(3);
+    });
+  });
+
   it('answers a path the caller never named', async () => {
     await checkout(async (root, commit) => {
       // The list is what the reads are sized by, not what may be asked: a

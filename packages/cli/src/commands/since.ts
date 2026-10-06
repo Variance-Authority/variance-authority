@@ -327,7 +327,7 @@ async function pointAt(roots: readonly string[], baseOf: (run: Run, at: string) 
     const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]), run);
     if (repository === undefined) return undefined;
     const base = await baseOf(run, repository);
-    return { repository, base, at: (path) => fileAt(repository, base, path) };
+    return { repository, base, at: filesAt(repository, base) };
   } catch {
     return undefined;
   }
@@ -369,18 +369,33 @@ export async function movedSince(point: DiffPoint | undefined, changed: readonly
  * The two are told apart by the caller and mean different things: a lockfile
  * that was not there before is an install this cannot compare, and one that is
  * there at both ends is one it can.
+ *
+ * A diff that bumps a workspace names dozens of manifests, and each is read at
+ * the revision. So the paths asked in one turn of the event loop are read
+ * together, by the reader the selection already uses for the text at a
+ * recording: one `git cat-file --batch` rather than a `git show` apiece.
  */
-async function fileAt(repository: string, revision: string, path: string): Promise<string | undefined> {
-  const run = promisify(execFile);
-  try {
-    const { stdout } = await run('git', [...PLAIN, 'show', `${revision}:${path}`], {
-      cwd: repository,
-      maxBuffer: 64 * 1024 * 1024,
+function filesAt(repository: string, revision: string): (path: string) => Promise<string | undefined> {
+  let asked: Map<string, ((text: string | undefined) => void)[]> | undefined;
+  return (path) =>
+    new Promise((answer) => {
+      if (asked === undefined) {
+        const turn = (asked = new Map());
+        setImmediate(() => {
+          asked = undefined;
+          void import('@variance-authority/sense/test-selection')
+            .then(({ textAtRecording }) => textAtRecording(repository, turn.keys()))
+            .catch(() => undefined)
+            .then((textAt) => {
+              for (const [file, answers] of turn) {
+                const text = textAt?.(file, revision);
+                for (const one of answers) one(text);
+              }
+            });
+        });
+      }
+      asked.set(path, [...(asked.get(path) ?? []), answer]);
     });
-    return stdout;
-  } catch {
-    return undefined;
-  }
 }
 
 /**

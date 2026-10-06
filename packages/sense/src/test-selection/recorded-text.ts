@@ -101,9 +101,9 @@ export function textAtRecording(
 ): (file: string, commit: string | undefined) => string | undefined {
   const expected = [...new Set(files)].sort();
   let at: string | undefined;
-  // How far through `expected` the windows have read, and how wide the next one
-  // is: both are positions in this one commit's reading and reset with it.
-  let read = 0;
+  // Which paths this commit's reading has answered, and how wide the next window
+  // is: both reset with the commit.
+  let answered = new Set<string>();
   let width = FIRST_WINDOW;
   let held = new Map<string, string>();
   let asked = new Set<string>();
@@ -116,21 +116,26 @@ export function textAtRecording(
 
     if (at !== commit) {
       at = commit;
-      read = 0;
+      answered = new Set();
       width = FIRST_WINDOW;
       held = new Map();
       asked = new Set();
     }
     // Asked about, and answered — including answered *missing*, which is a fact
     // about the commit and not a reason to ask again.
-    if (asked.has(file)) return held.get(file);
+    if (asked.has(file)) {
+      answered.add(file);
+      return held.get(file);
+    }
 
-    const from = positionOf(expected, file);
-    // A path the caller never named, or one the window has already rolled past,
-    // is read on its own. Sliding backwards would re-read every path between,
-    // and the callers this serves ask in the diff's order.
-    const window = from < read ? [file] : expected.slice(from, from + width);
-    if (from >= read) read = from + width;
+    // A path the caller never named, or one asked again after its window went, is
+    // read on its own. Any other path opens a window over it and the paths after
+    // it not yet answered: the selector asks a few paths ahead of the rest, so a
+    // window can go before the paths it read are asked, and those paths are then
+    // read again together rather than a process apiece.
+    const from = answered.has(file) ? -1 : positionOf(expected, file);
+    answered.add(file);
+    const window = from === -1 ? [file] : unanswered(expected, from, width, answered);
 
     // The previous window goes before the next one arrives, so no two are ever
     // resident together.
@@ -147,6 +152,16 @@ export function textAtRecording(
 
     return held.get(file);
   };
+}
+
+/** `expected[from]`, then up to `width` in all of the paths after it that `answered` does not hold. */
+function unanswered(expected: readonly string[], from: number, width: number, answered: ReadonlySet<string>): string[] {
+  const window = [expected[from] as string];
+  for (let at = from + 1; at < expected.length && window.length < width; at += 1) {
+    const file = expected[at] as string;
+    if (!answered.has(file)) window.push(file);
+  }
+  return window;
 }
 
 /**

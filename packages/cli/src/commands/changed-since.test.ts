@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { changedSince, diffSince } from './since.js';
+import { installDiff } from './installed.js';
+import { changedSince, diffPoint, diffSince } from './since.js';
 
 /**
  * The join between the two ways a file gets named, which is where this quietly
@@ -267,5 +268,34 @@ describe('what a diff touched, named the way the run names files', () => {
 
     expect(await diffSince('HEAD', [], undefined, { cwd: outside })).toBeUndefined();
     await expect(changedSince('HEAD', [relative(root, outside)])).rejects.toThrow(/is not in a git checkout/);
+  });
+});
+
+describe('the commit a diff is measured from', () => {
+  it('reads every changed manifest and the lockfile there from one git process', async () => {
+    // A selection compares every changed `package.json` at the merge base with
+    // the working tree, and a branch that bumps a workspace's packages names
+    // dozens. A process apiece is most of the selection's git time.
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-since-')));
+    repo(root);
+    const names = Array.from({ length: 12 }, (_, at) => `packages/p${String(at).padStart(2, '0')}/package.json`);
+    const manifest = (at: number, field: string): string => `${JSON.stringify({ name: `p${at}`, [field]: './index.js' })}\n`;
+    commit(root, { 'yarn.lock': '# the install\n', ...Object.fromEntries(names.map((name, at) => [name, manifest(at, 'main')])) }, 'first');
+    // Half the manifests move what a resolver reads, half only a field the install speaks for.
+    names.forEach((name, at) => writeFileSync(join(root, name), at % 2 === 0 ? manifest(at, 'module') : `${JSON.stringify({ name: `p${at}`, main: './index.js', private: true })}\n`));
+    process.chdir(root);
+
+    const trace = join(root, '.git', 'trace2.json');
+    process.env['GIT_TRACE2_EVENT'] = trace;
+    let diff: Awaited<ReturnType<typeof installDiff>>;
+    try {
+      diff = await installDiff(await diffPoint('HEAD'), names, root);
+    } finally {
+      delete process.env['GIT_TRACE2_EVENT'];
+    }
+
+    expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: names.filter((_, at) => at % 2 === 0) });
+    const reads = readFileSync(trace, 'utf8').split('\n').filter((line) => line.includes('"event":"start"') && /"(show|cat-file)"/.test(line));
+    expect(reads).toHaveLength(1);
   });
 });

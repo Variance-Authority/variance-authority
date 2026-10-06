@@ -154,8 +154,8 @@ async function installDiffAt(
   if (path.startsWith('..')) return undefined;
 
   const manifests = [pathTail(found.file), MANIFEST];
-  const moved = await movedSince(point, changed, from);
-  const before = await point.at(path);
+  // Asked together, so the lockfile and the manifests are read at the commit by one process.
+  const [moved, before] = await Promise.all([movedSince(point, changed, from), point.at(path)]);
   if (before === found.text) return { packages: [], manifests, moved };
 
   if (before === undefined) {
@@ -255,15 +255,14 @@ async function movedManifests(
 ): Promise<readonly string[]> {
   const candidates = changed.filter((file) => pathTail(file) === MANIFEST);
   if (candidates.length === 0) return [];
-  const moves = await import('@variance-authority/sense/lock')
-    .then((lock) => lock.manifestMoved)
-    .catch(() => () => true);
-  const moved: string[] = [];
-  for (const file of candidates) {
-    const [before, after] = await ends(file);
-    if (moves(before, after)) moved.push(file);
-  }
-  return moved;
+  // Every manifest is asked for at once, so a caller reading them from git can read them together.
+  const [both, moves] = await Promise.all([
+    Promise.all(candidates.map(ends)),
+    import('@variance-authority/sense/lock')
+      .then((lock) => lock.manifestMoved)
+      .catch(() => () => true),
+  ]);
+  return candidates.filter((_, at) => moves(...both[at]!));
 }
 
 /** The packages that moved from `before` to `after`, which is parsed once however many commits read it. */
