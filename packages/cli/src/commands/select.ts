@@ -371,13 +371,15 @@ function recordingNotes(
  * matches an ignore pattern against a place on disk, and a journal speaks in
  * paths relative to the repository. Jest gets an anchored expression because it
  * is handed absolute paths to match; vitest gets the path in the form the
- * vitest installed at `root` matches, unless `excludes` names one.
+ * vitest installed at `root` matches, unless `excludes` names one. A format
+ * that had to assume something to write its lines tells `say`, which the
+ * caller prints with the notes: nothing on a runner's command line reports it.
  */
 export function formatSelection(
   selection: TestSelection,
   format: SelectFormat,
   root: string,
-  { excludes }: { readonly excludes?: VitestExcludes } = {},
+  { excludes, say }: { readonly excludes?: VitestExcludes; readonly say?: (note: string) => void } = {},
 ): string {
   if (format === 'json') return `${JSON.stringify(jsonOf(selection), null, 2)}\n`;
   if (selection.skip.length === 0) return '';
@@ -386,13 +388,21 @@ export function formatSelection(
     format === 'plain'
       ? selection.skip
       : format === 'vitest'
-        ? vitestExclusions(selection.skip, root, excludes ?? vitestExcludes(root) ?? 'absolute')
+        ? vitestExclusions(selection.skip, root, excludes ?? vitestForm(root, say))
         : // `--testPathIgnorePatterns` replaces jest's default rather than adding
           // to it, so the default has to be handed back or a run that skips four
           // test files also walks `node_modules`.
           ['--testPathIgnorePatterns=/node_modules/', ...selection.skip.map(jestIgnore)];
 
   return `${lines.join('\n')}\n`;
+}
+
+/** The form the vitest at `root` matches, or absolute, said to `say`, when none resolves there. */
+function vitestForm(root: string, say: ((note: string) => void) | undefined): VitestExcludes {
+  const read = vitestExcludes(root);
+  if (read !== undefined) return read;
+  say?.(unreadVitestNote(root));
+  return 'absolute';
 }
 
 /**
@@ -444,7 +454,7 @@ function jsonOf(selection: TestSelection): object {
  * runner's own output follows this on the same terminal, so it is a short block
  * rather than a report.
  */
-export function selectionNotes(selection: TestSelection, { vitestAt }: { readonly vitestAt?: string } = {}): string {
+export function selectionNotes(selection: TestSelection): string {
   // A widened answer is said once: `because` restates "every test file runs",
   // which `skipping nothing` already says. `json` keeps both fields.
   const lines =
@@ -454,9 +464,6 @@ export function selectionNotes(selection: TestSelection, { vitestAt }: { readonl
 
   for (const note of selection.notes) lines.push(`${note}.`);
   lines.push(...readingLines(selection.readings ?? []));
-  if (vitestAt !== undefined && selection.skip.length > 0 && vitestExcludes(vitestAt) === undefined) {
-    lines.push(`${unreadVitestNote(vitestAt)}.`);
-  }
 
   return `${lines.join('\n')}\n`;
 }

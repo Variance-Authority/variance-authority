@@ -469,10 +469,9 @@ function saidOf(
   request: { readonly format: SelectFormat; readonly cwd: string },
 ): SelectOutput {
   const selection = skippableTests(input);
-  return {
-    out: formatSelection(selection, request.format, request.cwd),
-    err: selectionNotes(selection, request.format === 'vitest' ? { vitestAt: request.cwd } : {}),
-  };
+  const said: string[] = [];
+  const out = formatSelection(selection, request.format, request.cwd, { say: (note) => said.push(`${note}.\n`) });
+  return { out, err: selectionNotes(selection) + said.join('') };
 }
 
 /**

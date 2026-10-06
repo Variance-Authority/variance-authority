@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { selectionNotes, skippableTests } from './select.js';
+import { formatSelection, skippableTests } from './select.js';
 import { vitestExclusions, vitestExcludes } from './vitest-excludes.js';
 
 /** A root with a vitest manifest of `manifest`'s text installed, or none at all. */
@@ -32,7 +32,7 @@ describe('the exclusion form is read from the installed vitest', () => {
     expect(vitestExcludes(rootWith('{'))).toBeUndefined();
   });
 
-  it('says on stderr that the form was assumed when it was not read', () => {
+  it('says that the form was assumed when it was not read, and only then', () => {
     const root = rootWith();
     const selection = skippableTests({
       at: join(root, 'coverage.bin'),
@@ -43,8 +43,17 @@ describe('the exclusion form is read from the installed vitest', () => {
       },
     });
 
-    expect(selectionNotes(selection, { vitestAt: root })).toContain(`no vitest resolves from ${root}`);
-    expect(selectionNotes(selection)).not.toContain('no vitest resolves');
+    const said: string[] = [];
+    const say = (note: string) => said.push(note);
+
+    formatSelection(selection, 'vitest', root, { say });
+    expect(said).toEqual([expect.stringContaining(`no vitest resolves from ${root}`)]);
+
+    said.length = 0;
+    formatSelection(selection, 'vitest', root, { excludes: 'absolute', say });
+    formatSelection(selection, 'vitest', rootWith('{"name":"vitest","version":"3.0.0"}'), { say });
+    formatSelection(selection, 'jest', root, { say });
+    expect(said).toEqual([]);
   });
 });
 
