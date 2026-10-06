@@ -24,7 +24,7 @@ import {
   writeRecord,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { coverageBlock } from './coverage-rows.js';
+import { coverageBlocks } from './coverage-rows.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 import { repositoryRoot } from './repository-root.js';
 import probeLog from '../instrument/probe-log.cjs';
@@ -214,7 +214,7 @@ export function testSelectionProbes(
       // texts: the file on disk when the prior chain reads the extents back into
       // it, and `code` when there is no chain and the extents stay where the
       // transform left them.
-      const { extentOf, sourceDigest, file: wrote } = recordedFrame(
+      const { extentOf, sourceDigest, file: wrote, text } = recordedFrame(
         code,
         priorMap(this),
         source,
@@ -239,7 +239,7 @@ export function testSelectionProbes(
         id: file,
         sourceDigest,
         instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+        blocks: coverageBlocks(done.blocks, { extentOf, text }),
       });
 
       // Hoisted in front of everything the module imports, and on the first line,

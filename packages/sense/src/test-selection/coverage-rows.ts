@@ -8,10 +8,11 @@
  * that conversion happens.
  */
 
+import { digestString } from '../digest.js';
 import type { Block } from '../instrument/index.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import { codeUnitOrder, type CapturedModule } from './instrumented-modules.js';
-import type { ExtentOf } from './source-lines.js';
+import type { ExtentOf, RecordedFrame } from './source-lines.js';
 
 /** The coverage row a captured module makes once its crossings are known. */
 export function coverageModule(
@@ -71,6 +72,48 @@ export function coverageBlock(
     source: block.end > block.start,
     testFiles: [],
   };
+}
+
+/**
+ * Every block of one module as coverage records it, each digested from the
+ * lines of the source it maps to.
+ *
+ * The addon digests a region from the text it instrumented, and one source has
+ * as many texts as it has builds: a package's own tests load it through one
+ * transform, every other package's tests load its build through another, and
+ * both records are filed under the source with one source digest and one set of
+ * lines. A digest of the emitted text would read every region as edited the
+ * first time the two met in a merge. The lines are the one thing both builds
+ * agree on, so the digest is cut from them: a region's own lines of `text`,
+ * with the lines inside each region it owns left to that region. A region the
+ * map gives no lines, and one with no source of its own, keeps the addon's.
+ */
+export function coverageBlocks(
+  blocks: readonly Block[],
+  frame: Pick<RecordedFrame, 'extentOf' | 'text'>,
+): CoverageBlock[] {
+  const rows = blocks.map((block) => coverageBlock(frame.text, block, frame.extentOf));
+  const lines = frame.text.split('\n');
+  const owned = new Map<number, CoverageBlock[]>();
+  for (const row of rows) {
+    if (row.owner === undefined || row.startLine === undefined || !row.source) continue;
+    owned.set(row.owner, [...(owned.get(row.owner) ?? []), row]);
+  }
+  return rows.map((row) => {
+    if (row.startLine === undefined || row.endLine === undefined || !row.source) return row;
+    const own: string[] = [];
+    let line = row.startLine;
+    const inner = (owned.get(row.ordinal) ?? []).slice().sort((a, b) => a.startLine! - b.startLine!);
+    for (const child of inner) {
+      const from = Math.max(child.startLine! + 1, line);
+      const to = Math.min(child.endLine! - 1, row.endLine);
+      if (from > to) continue;
+      own.push(...lines.slice(line - 1, from - 1), '\0');
+      line = to + 1;
+    }
+    own.push(...lines.slice(line - 1, row.endLine));
+    return { ...row, digest: digestString(own.join('\n')) };
+  });
 }
 
 export function lineAt(source: string, offset: number): number {

@@ -36,7 +36,7 @@ import {
   type CapturedModule,
   type RecordWriter,
 } from './instrumented-modules.js';
-import { coverageBlock } from './coverage-rows.js';
+import { coverageBlocks } from './coverage-rows.js';
 import { jestStore, type SelectionTransformerConfig } from './jest.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 
@@ -194,7 +194,7 @@ function place(
   // coordinates in once the wrapped transformer's map is read back through —
   // and of the transformed text when there is no map to read back through, so
   // the digest never vouches for a number line it did not see.
-  const { extentOf, sourceDigest, file: wrote } = recordedFrame(
+  const { extentOf, sourceDigest, file: wrote, text } = recordedFrame(
     transformed.code,
     parsedMap(transformed),
     path,
@@ -213,7 +213,7 @@ function place(
         id,
         sourceDigest,
         instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(transformed.code, block, extentOf)),
+        blocks: coverageBlocks(done.blocks, { extentOf, text }),
       };
   writeRecord(records, captured);
   // Every probe is placed on the line it reports, so the wrapped transformer's

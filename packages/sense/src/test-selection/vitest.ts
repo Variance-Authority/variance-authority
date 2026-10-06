@@ -6,7 +6,7 @@ import type { UserConfig } from 'vitest/config';
 import { instrument, type InstrumentMode } from '../instrument/index.js';
 import { priorMap, type TransformingContext } from './probes.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
-import { coverageBlock } from './coverage-rows.js';
+import { coverageBlocks } from './coverage-rows.js';
 import { recordedFrame } from './source-lines.js';
 import {
   carriedJournal,
@@ -339,7 +339,7 @@ function selectionPlugin(
       // coordinates in once the prior transforms' maps are read back through —
       // and of `code`, which is what those transforms made of it, when there is
       // no map to read back through and the lines stay where they were left.
-      const { extentOf, sourceDigest, file: wrote } = recordedFrame(
+      const { extentOf, sourceDigest, file: wrote, text } = recordedFrame(
         code,
         priorMap(this),
         file,
@@ -364,7 +364,7 @@ function selectionPlugin(
             id: moduleId,
             sourceDigest,
             instrumented: true,
-            blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
+            blocks: coverageBlocks(done.blocks, { extentOf, text }),
           });
       return done === undefined ? null : { code: done.code, map: null };
     },
