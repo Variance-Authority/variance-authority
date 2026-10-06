@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
+import { parseAtDistance } from './covering-args.js';
 import { OperatorError } from './exit.js';
 import type { SelectFormat } from './commands/select.js';
 
@@ -18,6 +19,8 @@ export interface ParsedSelect {
    * beside a journey file, whose `before` it is read against.
    */
   readonly suite?: string;
+  /** `--at-distance <hops>`: one leg of the selection; an open end is `Number.MAX_SAFE_INTEGER`. */
+  readonly atDistance?: { readonly from: number; readonly to: number };
 }
 
 /**
@@ -41,6 +44,7 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
   const execution = flags.values.get('--execution');
   const diff = flags.values.get('--diff');
   const suite = flags.values.get('--suite');
+  const atDistance = parseAtDistance(flags);
   if (diff !== undefined && execution === undefined) {
     throw new OperatorError(
       '`--diff` is read against a journey file, and none was named: pass `--execution <path>`',
@@ -58,5 +62,6 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
     ...(diff === undefined ? {} : { diff: diff === '-' ? diff : resolve(diff) }),
     ...(suite === undefined ? {} : { suite }),
+    ...(atDistance === undefined ? {} : { atDistance }),
   };
 }

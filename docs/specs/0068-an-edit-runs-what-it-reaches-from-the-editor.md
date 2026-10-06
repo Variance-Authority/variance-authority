@@ -6,7 +6,7 @@ the last `yarn test`. `test:since` already selects the tests an edit reaches,
 nearest first. Nothing starts it from an editor, streams its outcomes back, or
 folds the run into the record the editor is painting from.
 **Built on:** the selection behind `tools/test-since.mjs` and
-`variance select --format vitest|jest`, the distance grouping in
+`variance select --at-distance <hops> --format vitest|jest`, the distance grouping in
 `packages/sense/src/test-selection/at-distance.ts`,
 [0063](0063-an-editor-asks-about-the-text-it-holds.md) (the reader and its
 `changed` signal), [0067](0067-a-case-carries-its-outcome.md) (outcomes in the
@@ -36,6 +36,13 @@ script with the selection passed as the runner's file filter
 layers over the snapshot the way every `yarn test` does, so after it the reader
 answers from the new record and sends `changed`. Nothing writes a record the
 project's own run would not have written.
+
+Each leg is its own `variance select`. `--at-distance 0-2 --format vitest`
+prints the exclusions that cut the run down to that leg, which is the cut
+`test:since --at-distance 0-2` makes. `--format json` carries the leg and the
+selected files it `left`, which is the count and the command item 5 shows. A
+selection that declines to narrow skips nothing in any leg. This amends item 2,
+which handed the runner the whole selection and left the legs to `test:since`.
 
 **3. Outcomes stream while it runs.** The seam's reporter writes each case's
 outcome (0067) as it finishes. The reader forwards those as
