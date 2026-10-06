@@ -190,7 +190,8 @@ describe('`variance select` past the reuse window', () => {
 
     const selected = await selectOutput({ cwd: dir, format: 'plain', detach });
 
-    // The record fetched last says `total.test.ts` runs the change; the mainline's says `other.test.ts` does.
+    // `select` prints what to skip. The record fetched last runs the change in `total.test.ts`, so it skips
+    // `other.test.ts`; the mainline's would run it in `other.test.ts`, and skip `total.test.ts`.
     expect(selected.out).toBe('test/other.test.ts\n');
     expect(started).toEqual([['share', '--suite', 'unit', lock.log]]);
     expect(selected.err).toContain(`published at ${first}, fetched at `);
