@@ -244,14 +244,15 @@ describe('what to do about an import, by how far from the test file its importer
 
   it('proposes no mock where what the subject reads is not known, or the load is the point', () => {
     for (const charge of [undefined, { kind: 'unmeasured' }, { kind: 'effect' }] as const) {
-      expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', ...(charge === undefined ? {} : { charge }) })).toBeUndefined();
+      expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', exports: ['render'], ...(charge === undefined ? {} : { charge }) }))
+        .toBeUndefined();
     }
   });
 
   it('proposes no mock where a case runs, or the subject hands on, what reads the import', () => {
     const ran = { kind: 'ran', functions: [{ name: 'render', line: 6 }] } as const;
-    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: ran })).toBeUndefined();
-    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'handed' } })).toBeUndefined();
+    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: ran, exports: ['render'] })).toBeUndefined();
+    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'handed' }, exports: ['render'] })).toBeUndefined();
   });
 
   it('warns that mocking an import further away ties the test to what it does not import', () => {

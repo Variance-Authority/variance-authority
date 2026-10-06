@@ -85,5 +85,6 @@ function exportsOf(file: string, text: string): readonly string[] | undefined {
   // A file with no module export may publish through `module.exports`, which the reader does not list.
   if (values.length === 0 || values.some((entry) => entry.exported === undefined)) return undefined;
   const types = new Set((read.symbols ?? []).filter(({ kind }) => kind === 'interface' || kind === 'type').map(({ name }) => name));
-  return [...new Set(values.flatMap(({ exported, local }) => (local !== undefined && types.has(local) ? [] : [exported!])))];
+  const names = [...new Set(values.flatMap(({ exported, local }) => (local !== undefined && types.has(local) ? [] : [exported!])))];
+  return names.length === 0 ? undefined : names;
 }

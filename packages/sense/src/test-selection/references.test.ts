@@ -143,6 +143,7 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
         ].join('\n'),
         'src/base.ts': "export default class Base {}\nexport const PREFIX = '>';\nexport const shout = (s: string) => s;\n",
         'src/legacy.js': 'module.exports = { size: { x: 1 } };\n',
+        'src/shape.ts': 'interface Shape { label: string }\nexport { Shape };\n',
       };
       for (const [file, body] of Object.entries(files)) {
         await mkdir(dirname(join(root, file)), { recursive: true });
@@ -153,6 +154,8 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
       expect(importReferences(root, undefined, 'src/base.ts')?.exports).toEqual(['default', 'PREFIX', 'shout']);
       // A factory of `{}` would hand a reader of `size.x` a throw while the test file loads.
       expect(importReferences(root, undefined, 'src/legacy.js')).not.toHaveProperty('exports');
+      // Nor for a file whose only export names a type, which loads nothing a factory could stand in for.
+      expect(importReferences(root, undefined, 'src/shape.ts')).not.toHaveProperty('exports');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
