@@ -13,23 +13,34 @@
  *
  * A lock whose process is gone — killed, or the machine slept through it — is
  * not trusted and not waited on: the next command makes the follow-ups itself,
- * and says so. The process and its lock are `detached.ts`'s.
+ * and says so.
  */
 
 // compass: variance-authority.reach.source-index
 
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Parsed } from '../parse.js';
-import { alive, handLock, lockAt, releaseLock, takeLock, type ProcessLock } from './detached.js';
+
+/** The lock, as written beside the index. */
+export interface FollowUpsLock {
+  readonly pid: number;
+  /** Where the process writes the lines `index` would have printed. */
+  readonly log: string;
+}
+
+/** Relaunch this program with `argv`, its output written to `log`; the process id. */
+export type Detach = (argv: readonly string[], log: string) => number | undefined;
 
 export const followUpsLockPath = (index: string): string => `${index}.follow-ups`;
 export const followUpsLogPath = (index: string): string => `${index}.follow-ups.log`;
 
 /** Hand the lock to `lock.pid` in one rename, so no reader ever finds it absent or half written. */
-export function holdFollowUps(index: string, lock: ProcessLock): void {
-  handLock(followUpsLockPath(index), lock);
+export function holdFollowUps(index: string, lock: FollowUpsLock): void {
+  const written = `${followUpsLockPath(index)}.${process.pid}.tmp`;
+  writeFileSync(written, `${JSON.stringify(lock)}\n`);
+  renameSync(written, followUpsLockPath(index));
 }
 
 /**
@@ -39,13 +50,14 @@ export function holdFollowUps(index: string, lock: ProcessLock): void {
  * the first was still making what it names. False when the lock cannot be
  * written at all: the index beside it cannot be either, and writing it says why.
  */
-export async function reserveFollowUps(index: string, log: string, waiting: (lock: ProcessLock) => void): Promise<boolean> {
+export async function reserveFollowUps(index: string, log: string, waiting: (lock: FollowUpsLock) => void): Promise<boolean> {
   for (;;) {
     try {
       mkdirSync(dirname(index), { recursive: true });
-      if (takeLock(followUpsLockPath(index), { pid: process.pid, log })) return true;
-    } catch {
-      return false;
+      writeFileSync(followUpsLockPath(index), `${JSON.stringify({ pid: process.pid, log })}\n`, { flag: 'wx' });
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') return false;
     }
     const waited = await awaitFollowUps(index, waiting);
     // A holder that is gone left nothing this run is not about to make.
@@ -55,24 +67,29 @@ export async function reserveFollowUps(index: string, log: string, waiting: (loc
 
 /** Drop the lock when it is still the one `pid` holds. */
 export function releaseFollowUps(index: string, pid: number): void {
-  releaseLock(followUpsLockPath(index), pid);
+  if (heldBy(index)?.pid === pid) rmSync(followUpsLockPath(index), { force: true });
 }
 
-export function heldBy(index: string): ProcessLock | undefined {
-  return lockAt(followUpsLockPath(index));
+export function heldBy(index: string): FollowUpsLock | undefined {
+  try {
+    const held = JSON.parse(readFileSync(followUpsLockPath(index), 'utf8')) as Partial<FollowUpsLock>;
+    return typeof held.pid === 'number' && typeof held.log === 'string' ? { pid: held.pid, log: held.log } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** What waiting found: nothing held, a process that finished, or one that is gone. */
 export type Waited =
   | { readonly held: false }
-  | { readonly held: true; readonly lock: ProcessLock; readonly finished: boolean };
+  | { readonly held: true; readonly lock: FollowUpsLock; readonly finished: boolean };
 
 /**
  * Wait until no live process holds the follow-ups of the index at `index`.
  * `waiting` is told once, before the first pause.
  */
-export async function awaitFollowUps(index: string, waiting: (lock: ProcessLock) => void): Promise<Waited> {
-  let waited: ProcessLock | undefined;
+export async function awaitFollowUps(index: string, waiting: (lock: FollowUpsLock) => void): Promise<Waited> {
+  let waited: FollowUpsLock | undefined;
   for (;;) {
     const lock = heldBy(index);
     if (lock === undefined) return waited === undefined ? { held: false } : { held: true, lock: waited, finished: true };
@@ -80,6 +97,16 @@ export async function awaitFollowUps(index: string, waiting: (lock: ProcessLock)
     if (waited === undefined) waiting(lock);
     waited = lock;
     await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // Somebody else's process under a reused id is still a process.
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
 

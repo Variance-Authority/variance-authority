@@ -1,7 +1,7 @@
 // compass: variance-authority.reach
 /**
  * The mainline's record of a suite: fetched, kept where every reader and every
- * runner seam on this machine finds it, and reused for a while.
+ * runner seam on this machine finds it, and reused until a nearer one can exist.
  *
  * `review` and `select` measure a change from a base, and a base taken from the
  * branch's own record would measure the change against itself, so the mainline
@@ -20,25 +20,22 @@
  * of the same commit writes the same bytes to the same place.
  *
  * A fetch costs a round trip to the remote, and on a network that hangs, the
- * whole of the store's timeout. So the record fetched last, by this checkout or
- * by the primary checkout it was cut from, is reused for
- * {@link MAINLINE_REUSE_MS} while the reader's mainline is still the one it was
- * fetched from. A line that gave no record, because it could not be reached,
- * held none, or held one this version cannot keep, is not asked again for as
- * long either: its answer stands, and the note says when it was given. Every
- * reader of a sitting, and every job of a CI run handed the read root, reads
- * the same answer, never a record the line came to hold in between. Past that
- * the mainline is asked again, and when it does not answer, the record fetched
- * last is still the base, and the note says why it was not refreshed.
- * `variance share --suite <name>` always asks.
+ * whole of the store's timeout. The best base is the record at `HEAD`'s merge
+ * base with the mainline, and the line holds only its newest record, so asking
+ * can only help while the record fetched last is behind that merge base. The
+ * record fetched last, by this checkout or by the primary checkout it was cut
+ * from, stands without asking while the reader's mainline is the one it was
+ * fetched from and either it is at or past the merge base, or the line was
+ * asked at this same merge base. A merge base moves on a pull or a rebase, so
+ * that is when the line is asked again; every reader of a checkout, and every
+ * job of a CI run, which all share one merge base, reads the same record. When
+ * the line does not answer, the record fetched last is still the base, and the
+ * note says why it was not refreshed.
  *
- * Past the window, a workstation does not wait for that ask. A reader given a
- * {@link Detach} answers from the record fetched last and starts
- * `share --suite <name>` as a process of its own, under a lock in the read root,
- * so a second reader in the meantime starts none; the command run after that
- * process ends reads what it fetched. `bin.ts` passes one only outside CI, so
- * a CI job, and every caller of the library, asks before it answers. The first
- * fetch, with nothing fetched earlier, is always asked before the answer.
+ * A line that gave no record, because it could not be reached, held none, or
+ * held one this version cannot keep, names no commit to place that answer by.
+ * It stands for {@link MISS_STANDS_MS}, and the note says when it was given.
+ * `variance share --suite <name>` always asks.
  */
 
 import { readFileSync } from 'node:fs';
@@ -46,24 +43,22 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { DeclaredSuite, LastFetched, RootConfig } from '@variance-authority/sense/test-selection';
 import { parseShare } from '../config-share.js';
-import type { Config } from '../config.js';
 import { ConfigError, messageOf } from '../config-values.js';
 import { distanceFrom, readerMainline, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
-import { releaseLock, type Detach, type ProcessLock } from './detached.js';
-import { mainlineRefreshLock, refreshing, refreshMainline } from './mainline-refresh.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
 
 /**
- * How long the record fetched last stands for the mainline's without asking the
- * remote again, and how long the line's answer that it gave none stands.
+ * How long the line's answer that it gave no record stands without asking the
+ * remote again.
  *
- * Long enough that an edit loop of `yarn test:since` asks once, and short
- * enough that a record `main` published while you worked arrives in the same
- * sitting. The mainline moves on the order of merges, not seconds.
+ * A record is placed by its commit; a miss has none, so a clock places it. Long
+ * enough that an edit loop of `yarn test:since` on a network that hangs waits
+ * once, and short enough that a remote back in reach is read in the same
+ * sitting.
  */
-export const MAINLINE_REUSE_MS = 10 * 60_000;
+export const MISS_STANDS_MS = 10 * 60_000;
 
 /** Where a checkout notes that the line was asked and gave no record, beside `fetched.json`. */
 const MISSED = 'missed.json';
@@ -87,15 +82,13 @@ export interface MainlineRecord {
   /** When it was fetched, as an ISO time: now, unless it is the record fetched earlier. */
   readonly fetched: string;
   /**
-   * Present when it is the record fetched earlier: reused within the window,
+   * Present when it is the record fetched earlier: reused without asking, or
    * kept because the mainline gave no record, now or, as `asked` says, earlier
-   * within the window, or past the window while `refreshing` names the process
-   * that is fetching the mainline's.
+   * within {@link MISS_STANDS_MS}. It is reused when it is at or past `HEAD`'s
+   * merge base with the mainline (`nearest`), or else when the line was asked
+   * at this same merge base (`asked`).
    */
-  readonly earlier?:
-    | { readonly reused: true }
-    | { readonly unanswered: MainlineMiss; readonly asked?: string }
-    | { readonly refreshing: ProcessLock };
+  readonly earlier?: { readonly reused: 'nearest' | 'asked' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
   readonly pruned?: string;
 }
@@ -109,7 +102,7 @@ export interface MainlineMissed {
   readonly holds?: readonly string[];
   /** `false` when the root config's `share` section stopped the read before the share was asked. */
   readonly shareAsked?: false;
-  /** When the line gave this answer, as an ISO time, when it was earlier within the window and not now. */
+  /** When the line gave this answer, as an ISO time, when it was earlier within {@link MISS_STANDS_MS} and not now. */
   readonly asked?: string;
 }
 
@@ -132,11 +125,6 @@ export interface MainlineAsk {
   readonly refetch?: boolean;
   /** The clock, for a test. */
   readonly now?: number;
-  /**
-   * Past the window, start the fetch as a process of its own and answer from
-   * the record fetched last. Absent, the fetch is made before the answer.
-   */
-  readonly detach?: Detach;
 }
 
 /**
@@ -176,55 +164,27 @@ export async function mainlineBase(
   const last = selection.lastFetchedMainline(root, suite, here.cacheRoot);
 
   // The mainline chosen here, and `HEAD`'s merge base with it, are asked once
-  // for every distance measured below.
-  const chosen = here.refetch === true ? undefined : await readerMainline(place, env, root);
-  const named = chosen === undefined || 'missing' in chosen ? undefined : chosen;
+  // for every distance measured below, and the fetch keeps the merge base.
+  const chosen = await readerMainline(place, env, root);
+  const named = 'missing' in chosen ? undefined : chosen;
   const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
-  if (chosen !== undefined) {
+  if (here.refetch !== true) {
     const mainline = named?.name;
-    if (last !== undefined && last.mainline === mainline && now - Date.parse(last.fetched) < MAINLINE_REUSE_MS) {
-      return earlier(place, root, last, { reused: true }, baseOf(last.mainline));
+    if (last !== undefined && last.mainline === mainline) {
+      const distance = await distanceFrom(place, last.mainline, last.commit, root, named?.base);
+      // At or past the merge base, nothing the line could hold is nearer it.
+      // Behind it, the line was asked here already when the merge base is the
+      // one it was asked at, the clone naming none then and now included.
+      const reused = distance !== undefined && distance <= 0 ? 'nearest' : last.base === named?.base ? 'asked' : undefined;
+      if (reused !== undefined) return earlier(last, { reused }, distance);
     }
     const noted = readMissedMainline(readRoot);
-    if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MAINLINE_REUSE_MS) {
-      if (last !== undefined) return earlier(place, root, last, { unanswered: noted.miss, asked: noted.at }, baseOf(last.mainline));
+    if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
+      if (last !== undefined) return measured(place, root, last, { unanswered: noted.miss, asked: noted.at }, baseOf(last.mainline));
       return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
     }
-    if (here.detach !== undefined && last !== undefined && last.mainline === mainline) {
-      const started = refreshMainline(readRoot, suite, here.detach);
-      if (started !== undefined) return earlier(place, root, last, { refreshing: started }, baseOf(last.mainline));
-    }
   }
 
-  try {
-    return await fetchNow({ root, suite, place, env, readRoot, last, now, named }, selection);
-  } finally {
-    // The process `refreshMainline` started holds the lock until this fetch is done;
-    // so does a reader whose process could not be started.
-    releaseLock(mainlineRefreshLock(readRoot).path, process.pid);
-  }
-}
-
-/** What a fetch of the mainline's record is asked with. */
-interface Fetching {
-  readonly root: string;
-  readonly suite: string;
-  readonly place: Pick<Config, 'share'> & { readonly cacheRoot: string };
-  readonly env: Env;
-  readonly readRoot: string;
-  readonly last: LastFetched | undefined;
-  readonly now: number;
-  /** The mainline `readerMainline` chose, and `HEAD`'s merge base with it, asked once by the caller. */
-  readonly named: { readonly name: string; readonly base?: string } | undefined;
-}
-
-/** Ask the mainline for its record now, and keep it where every reader looks, or say why there is none. */
-async function fetchNow(
-  { root, suite, place, env, readRoot, last, now, named }: Fetching,
-  selection: typeof import('@variance-authority/sense/test-selection'),
-): Promise<MainlineBase> {
-  const { cacheRoot } = place;
-  const baseOf = (mainline: string) => (named?.name === mainline ? named.base : undefined);
   const asked = new Date(now).toISOString();
   const at = named === undefined ? {} : { mainline: named.name, ...(named.base === undefined ? {} : { base: named.base }) };
   const found = await mainlineSuite(place, suite, { env, cwd: root, ...at });
@@ -236,7 +196,7 @@ async function fetchNow(
       const { miss, holds } = found;
       await noteMissed(readRoot, { mainline: found.mainline, at: asked, miss, ...(holds === undefined ? {} : { holds }) });
     }
-    if (last !== undefined) return earlier(place, root, last, { unanswered: found.miss }, baseOf(last.mainline));
+    if (last !== undefined) return measured(place, root, last, { unanswered: found.miss }, baseOf(last.mainline));
     return { suite, ...found };
   }
   const unread = async (detail: string): Promise<MainlineMissed> => {
@@ -282,7 +242,8 @@ async function fetchNow(
   // Named last, once every file it names is in place, so a seam that reads the
   // name finds them.
   const fetched = asked;
-  await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched });
+  const base = baseOf(found.mainline);
+  await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }) });
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
@@ -303,14 +264,18 @@ async function fetchNow(
 }
 
 /** The record fetched earlier, as a base, measured against this checkout now. */
-async function earlier(
+async function measured(
   place: Parameters<typeof distanceFrom>[0],
   root: string,
   last: LastFetched,
   why: NonNullable<MainlineRecord['earlier']>,
   base: string | undefined,
 ): Promise<MainlineRecord> {
-  const distance = await distanceFrom(place, last.mainline, last.commit, root, base);
+  return earlier(last, why, await distanceFrom(place, last.mainline, last.commit, root, base));
+}
+
+/** The record fetched earlier, as a base, `distance` commits behind this checkout's merge base. */
+async function earlier(last: LastFetched, why: NonNullable<MainlineRecord['earlier']>, distance: number | undefined): Promise<MainlineRecord> {
   const { keepsCases } = await import('@variance-authority/sense/test-selection');
   return {
     suite: last.suite,
@@ -432,20 +397,18 @@ export function rootShare(config: RootConfig | undefined) {
  * reader's own verdict.
  */
 export function mainlineRead(read: MainlineRecord): string {
-  const why = read.earlier;
-  const minutes = String(MAINLINE_REUSE_MS / 60_000);
-  const when = why === undefined
+  const when = read.earlier === undefined
     ? ''
-    : 'reused' in why
-      ? `, fetched at ${read.fetched} and reused for ${minutes} minutes`
-      : 'refreshing' in why
-        ? `, fetched at ${read.fetched}, more than ${minutes} minutes ago`
-        : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(why.unanswered)}` + answeredAt(why.asked);
+    : 'reused' in read.earlier
+      ? `, fetched at ${read.fetched}` + (read.earlier.reused === 'nearest'
+        ? ' and kept: the line holds nothing nearer the merge base'
+        : ' and kept: the line was asked at this merge base')
+      : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(read.earlier.unanswered)}` +
+        answeredAt(read.earlier.asked);
   return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +
     `${describeDistance(read.distance)}; kept at ${read.coverage}` +
     (read.casesUnread === undefined ? '' : `; ${read.casesUnread}`) +
-    (read.pruned === undefined ? '' : `; ${read.pruned}`) +
-    (why !== undefined && 'refreshing' in why ? `; ${refreshing(why.refreshing)}` : '');
+    (read.pruned === undefined ? '' : `; ${read.pruned}`);
 }
 
 /**
@@ -464,9 +427,9 @@ export function mainlineMissed(missed: MainlineMissed): string {
   return `record of "${missed.suite}": ${opening}; ${line}: ${said}${answeredAt(missed.asked)}`;
 }
 
-/** When the line's answer was given, for one given earlier within the window. */
+/** When the line's answer was given, for one given earlier within {@link MISS_STANDS_MS}. */
 function answeredAt(asked: string | undefined): string {
-  return asked === undefined ? '' : `; that was the line's answer at ${asked}, which stands for ${String(MAINLINE_REUSE_MS / 60_000)} minutes`;
+  return asked === undefined ? '' : `; that was the line's answer at ${asked}, which stands for ${String(MISS_STANDS_MS / 60_000)} minutes`;
 }
 
 /**

@@ -46,8 +46,9 @@ import {
   type SourceUpdate,
 } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
-import type { Detach } from './detached.js';
-import { followUpsLogPath, holdFollowUps, releaseFollowUps, reserveFollowUps, waitingLine } from './index-follow-ups.js';
+import { followUpsLogPath, holdFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
+
+export type { Detach } from './index-follow-ups.js';
 
 export interface IndexRequest {
   readonly cwd: string;

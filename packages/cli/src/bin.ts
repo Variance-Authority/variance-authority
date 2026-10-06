@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { isCI } from 'ci-info';
 import { messageOf } from './config-values.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exit.js';
-import type { Detach } from './commands/detached.js';
+import type { Detach } from './commands/index-follow-ups.js';
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
 import { helpFor } from './usage.js';
@@ -135,13 +135,7 @@ if (entry !== undefined && isProgram(entry)) {
  * `main` called by a library has no process to relaunch, and does the work itself.
  */
 function relaunch(argv: readonly string[], log: string): number | undefined {
-  let out: number;
-  try {
-    out = openSync(log, 'w');
-  } catch {
-    // No log, no process: the caller does the work itself.
-    return undefined;
-  }
+  const out = openSync(log, 'w');
   try {
     const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), ...argv], {
       detached: true,

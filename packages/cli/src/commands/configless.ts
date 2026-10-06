@@ -22,7 +22,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
-import type { Detach } from './detached.js';
+import type { Detach } from './index-follow-ups.js';
 
 /** The nine commands that read no project configuration at all. */
 export type Configless = Extract<
@@ -236,7 +236,6 @@ export async function answerConfigless(
         ...(parsed.execution === undefined ? {} : { execution: parsed.execution }),
         ...(parsed.suite === undefined ? {} : { suite: parsed.suite }),
         ...(parsed.diff === undefined ? {} : { diff: parsed.diff }),
-        ...(streams.detach === undefined ? {} : { detach: streams.detach }),
         ...(parsed.atDistance === undefined ? {} : { atDistance: parsed.atDistance }),
       });
       streams.err(said.err);
