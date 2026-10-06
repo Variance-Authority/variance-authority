@@ -103,6 +103,8 @@ export interface Node {
 }
 
 export { moduleCallsTaint, type ModuleCallsTaintOptions } from './calls.js';
+export { mayMock } from './mocks.js';
+export { shadowReach, type ShadowReach } from './reach.js';
 
 /** What one file imports beyond, or short of, what its text says. */
 export interface ImportDiff {

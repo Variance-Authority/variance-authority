@@ -86,6 +86,14 @@ export function isTestLike(file: string): boolean {
 }
 
 /**
+ * Whether `source` may mock a module or load an original: `false` means
+ * {@link mockDiff} has nothing to say, without the parse it costs.
+ */
+export function mayMock(source: string): boolean {
+  return /\.(?:mock|requireActual|importActual)\b/u.test(source);
+}
+
+/**
  * What `source` mocks and loads for real, under `callers` — `vi`, `jest` and
  * `sb` when absent, which is what the module reader records in every parse.
  */
@@ -95,7 +103,7 @@ export function mockDiff(
   callers: ReadonlySet<string> = DEFAULT_CALLERS,
 ): ImportDiff | undefined {
   // A file that neither mocks nor loads an original has nothing to say. The parse is the cost this skips.
-  if (!/\.(?:mock|requireActual|importActual)\b/u.test(source)) return undefined;
+  if (!mayMock(source)) return undefined;
 
   const mocked: string[] = [];
   const actual = new Set<string>();

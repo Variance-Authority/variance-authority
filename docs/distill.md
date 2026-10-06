@@ -285,6 +285,14 @@ ties the test to a file its code never names. An error boundary's fallback is
 the usual example: imported by every case, rendered by none, because no error
 happened.
 
+The reading also holds the file's own mocks against the file graph, whatever
+the record says. A mock of a module the file does not load, directly or through
+anything it imports, is an error: it replaces nothing, so delete it. A mock of
+a module more than two imports away, past what the file's subject imports, is a
+warning that names the file importing it: the mock replaces an internal of
+code the test never names. The distance is the shortest trail along the imports
+a runtime evaluates; a type-only import loads nothing.
+
 The reading counts a module only when it declares a function below its top
 level. A barrel or a file of constants runs all it has when it loads, and a read
 of a constant is not recorded, so the record cannot say the file did without it.

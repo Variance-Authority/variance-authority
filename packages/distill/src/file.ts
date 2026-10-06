@@ -5,7 +5,9 @@ import type {
   FileReferences,
   TestCoverage,
 } from '@variance-authority/sense/test-selection';
+import type { ShadowReach } from '@variance-authority/sense/taint';
 import { chargeLine, chargesOf, reachLine } from './charge.js';
+import { misplacedLines, misplacedOf, type MisplacedMock } from './mocks.js';
 import { causesOf, importOf, SHARED, UNSEEN, type LoadCause } from './own.js';
 
 /** What names one test file, and the two readings of the record it is read from. */
@@ -38,6 +40,12 @@ export interface FileDistillInput {
    * static import a used file writes carries where that file reads it.
    */
   readonly references?: (file: string) => FileReferences | undefined;
+  /**
+   * The modules a file mocks, each with its distance from the file on the
+   * import graph. Given, each mock of a module the file does not load, or past
+   * its subject's imports, is named.
+   */
+  readonly shadows?: (file: string) => readonly ShadowReach[];
 }
 
 /** One module a test file loaded that not every one of its cases entered. */
@@ -68,6 +76,8 @@ export interface FileDistillation {
   readonly modules?: readonly LoadedModule[];
   /** Present exactly when `modules` is absent: why. */
   readonly withheld?: string;
+  /** The mocks the import graph argues against, read from the graph alone. Absent when there are none or no shadows were given. */
+  readonly mocks?: readonly MisplacedMock[];
 }
 
 /**
@@ -95,7 +105,8 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
   const index = indexed(input.coverage, input.execution);
   const cases = index.cases.get(file) ?? [];
   const candidates = (index.loads.get(file) ?? []).filter((module) => module.file !== file);
-  const base = { file, cases: cases.map(({ test }) => test), loaded: candidates.length };
+  const mocks = input.shadows === undefined ? [] : misplacedOf(input.shadows(file));
+  const base = { file, cases: cases.map(({ test }) => test), loaded: candidates.length, ...(mocks.length === 0 ? {} : { mocks }) };
   if (cases.length === 0) return { ...base, withheld: `the record keeps no cases for ${file}.` };
   if (index.incomplete.has(file)) {
     return {
@@ -245,7 +256,11 @@ function compare(left: string, right: string): number {
 
 /** Render a file distillation for a person or agent. */
 export function formatFileDistillation(result: FileDistillation): string {
-  const head = `${result.file}: ${result.cases.length} case(s); ${result.loaded} loaded module(s) declare functions.`;
+  // The mocks are read from the graph, not the record, so they stand however the loads read.
+  const head = [
+    `${result.file}: ${result.cases.length} case(s); ${result.loaded} loaded module(s) declare functions.`,
+    ...(result.mocks === undefined ? [] : ['', ...misplacedLines(result.file, result.mocks)]),
+  ].join('\n');
   if (result.modules === undefined) return [head, `Loaded but not entered: unmeasured; ${result.withheld}`].join('\n');
   const never = result.modules.filter(({ entered }) => entered === 0);
   const some = result.modules.filter(({ entered }) => entered > 0);

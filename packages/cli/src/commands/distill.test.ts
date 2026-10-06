@@ -260,6 +260,7 @@ describe('the CLI distillation boundary', () => {
     };
     mkdirSync(join(root, 'test'));
     mkdirSync(join(root, 'src'));
+    mkdirSync(join(root, 'node_modules/pad'), { recursive: true });
     for (const [file, text] of Object.entries(sources)) writeFileSync(join(root, file), text);
     execFileSync('git', ['add', 'test', 'src'], { cwd: root, stdio: 'pipe' });
     execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'source'], { cwd: root, stdio: 'pipe' });
@@ -296,6 +297,57 @@ describe('the CLI distillation boundary', () => {
       },
       { file: 'src/checkout-dialog.tsx', lines: 20, entered: 1 },
     ]);
+  });
+
+  it('reads a test file\'s mocks against the file graph though every load was used: one of nothing it loads, one past its subject\'s imports', async () => {
+    const root = checkout();
+    const at = testCoverageFile(root);
+    await writeTestCoverage(at, {
+      version: 3,
+      instrumentation: 'fixture-instrumentation',
+      tests: [{ file: 'test/cart.spec.ts', complete: true, preconditions: [] }],
+      modules: [{
+        file: 'src/cart.tsx', sourceDigest: 'src/cart.tsx', instrumented: true, blocks: [
+          { ordinal: 0, kind: 'module', digest: 'cart#0', name: '', path: '', source: true, testFiles: ['test/cart.spec.ts'], loadedBy: ['test/cart.spec.ts'], startLine: 1, endLine: 4 },
+          { ordinal: 1, kind: 'function', owner: 0, digest: 'cart#1', name: 'main', path: 'main', source: true, testFiles: ['test/cart.spec.ts'], startLine: 3, endLine: 3 },
+        ],
+      }],
+    });
+    writeFileSync(at, withCaseSections(readFileSync(at), {
+      index: encodeExecutionIndex({
+        tests: [{ id: CASE, file: 'test/cart.spec.ts', name: 'adds one item', stopped: false }],
+        modules: [{ file: 'src/cart.tsx', blocks: [{ kind: 'function', name: 'main', path: 'main', startLine: 3, endLine: 3, source: true, crossings: [{ test: 0, distance: 0 }] }] }],
+      }),
+    }));
+    // The cart imports the api, which imports the client: the client is an internal of the api.
+    const sources = {
+      'test/cart.spec.ts': "import { Cart } from '../src/cart';\njest.mock('../src/legacy', () => ({}));\njest.mock('../src/client', () => ({}));\njest.mock('pad');\n",
+      'node_modules/pad/package.json': '{"name":"pad","main":"index.js"}',
+      'node_modules/pad/index.js': 'module.exports = 1;\n',
+      'src/cart.tsx': "import { api } from './api';\nexport const Cart = api;\nexport function main() {}\n",
+      'src/api.ts': "import { client } from './client';\nimport pad from 'pad';\nexport const api = client + pad;\n",
+      'src/client.ts': 'export const client = 1;\n',
+      'src/legacy.ts': 'export const old = 1;\n',
+    };
+    mkdirSync(join(root, 'test'));
+    mkdirSync(join(root, 'src'));
+    mkdirSync(join(root, 'node_modules/pad'), { recursive: true });
+    for (const [file, text] of Object.entries(sources)) writeFileSync(join(root, file), text);
+    execFileSync('git', ['add', 'test', 'src'], { cwd: root, stdio: 'pipe' });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'source'], { cwd: root, stdio: 'pipe' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const answer = await run(['distill', '--file', 'cart.spec']);
+
+    expect(answer.code).toBe(EXIT_CLEAN);
+    expect(answer.out).toContain([
+      'error: test/cart.spec.ts mocks src/legacy.ts, which it does not load, directly or through anything it imports: ' +
+        'the mock replaces nothing. Delete it.',
+      'warning: test/cart.spec.ts mocks src/client.ts, 3 imports away; src/api.ts imports it, and test/cart.spec.ts does not ' +
+        'import src/api.ts. Mock the import of the subject that loads it, or fix src/api.ts.',
+    ].join('\n'));
+    // A package is not a file of the graph: its mock is not judged, rather than read as one the file does not load.
+    expect(answer.out).not.toContain('pad');
   });
 
   it('refuses a file reading of a case index named with --execution, which keeps no loads', async () => {

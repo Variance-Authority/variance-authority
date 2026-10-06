@@ -1,6 +1,7 @@
 // compass: variance-authority/runtime/attention
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { EDGE_KINDS, NODE_KINDS, idOf, type EdgeKind, type Relations } from '@variance-authority/core/relate';
 import { parseEyesJournal } from '@variance-authority/eyes/archive';
 import {
@@ -25,6 +26,7 @@ import {
   recordedEyesOf,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
+import { mayMock, shadowReach } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { executionIndexOf, recordedExecutionFile } from './execution-input.js';
@@ -66,10 +68,15 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     if (options.test === undefined && options.file !== undefined) {
       const input = { file: options.file, execution, coverage: coverageOf(bytes, record) };
       const flat = distillFile(input);
-      // The graph is read only when there is a load to give a cause: the scan costs more than the record.
-      if (!flat.modules?.some(({ entered }) => entered === 0)) return flat;
+      // The graph is read only when there is a load to give a cause, or a mock to hold against it: the scan costs more than the record.
+      if (!flat.modules?.some(({ entered }) => entered === 0) && !(await mocksIn(options.root, flat.file))) return flat;
       const graph = await fileGraph(options.root);
-      return distillFile({ ...input, ...causesFrom(graph), references: (file) => importReferences(options.root, graph, file) });
+      return distillFile({
+        ...input,
+        ...causesFrom(graph),
+        references: (file) => importReferences(options.root, graph, file),
+        shadows: (file) => shadowReach(graph, file),
+      });
     }
     const section = recordedEyesOf(bytes);
     return distill({
@@ -139,9 +146,15 @@ function suitesOf(root: string): readonly string[] | undefined {
   return asOperator(() => declaredSuites(root))?.map((suite) => suite.name);
 }
 
+/** Whether a test file's text may mock a module; one the checkout does not hold mocks nothing to read. */
+async function mocksIn(root: string, file: string): Promise<boolean> {
+  const path = join(root, file);
+  return existsSync(path) && mayMock(await readFile(path, 'utf8'));
+}
+
 function fileGraph(root: string): Promise<Relations> {
   return relationsFor(root, ['.'], [], [], {
-    why: 'a file reading names the import that brought in each module no case entered, from the file graph',
+    why: 'a file reading names the import that brought in each module no case entered, and holds its mocks against what it loads, from the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   });
 }
