@@ -165,7 +165,6 @@ export function reachLine(
 
 /** The object a mock's factory returns: a function for each value the module exports, `default` as an ES module's. */
 function factoryOf(exports: readonly string[]): string {
-  if (exports.length === 0) return '{}';
   const names = exports.map((name) => `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)}: jest.fn()`);
   return `{ ${exports.includes('default') ? '__esModule: true, ' : ''}${names.join(', ')} }`;
 }

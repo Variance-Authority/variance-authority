@@ -348,6 +348,13 @@ made it.
    distance from the test file: an error for the test file's own import,
    a `jest.mock` with a factory for its subject's, a warning for one
    further away. A real Jest run over `jest-prune` prints all three.
+   **Discharged for the file reading.** The sense addon's
+   `moduleReferences` and `importReferences` give each reference with its
+   source; `chargesOf` and `reachLine` in `@variance-authority/distill`
+   place and print it, with the fixtures in `references.test.ts`,
+   `charge.test.ts` and the CLI's `distill.integration.test.ts`. Open: the
+   scope reading over a folder or suite, which drops the charge and the
+   reach when it gathers across test files.
 4. **A page splits its first load from what came after.** An ADR narrows
    ADR-0056's decision 3. The playwright-test collector drains at the
    document's `load` event and again at teardown, and selection is

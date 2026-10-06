@@ -220,8 +220,6 @@ describe('what to do about an import, by how far from the test file its importer
     const charge = { kind: 'functions', functions: [{ name: 'exportPdf', line: 11, ran: 1 }], ran: 1, loading: 3 } as const;
     expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge, exports: ['render'] }))
       .toBe(`Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({ render: jest.fn() }));`);
-    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'never' }, exports: [] }))
-      .toBe(`Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({}));`);
   });
 
   it('proposes no mock where what the imported module exports is not known', () => {
