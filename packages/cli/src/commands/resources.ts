@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
 import { createHttpHistoryStore } from '@variance-authority/history/client';
 import type { PngDecoder } from '@variance-authority/png';
-import { cacheRootFor, type ExecutionNarrowing, type Unmeasured } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, type ExecutionNarrowing, type Stand, type TestDistance, type Unmeasured } from '@variance-authority/sense/test-selection';
 import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
 import { createRemoteStore } from '@variance-authority/remote/store';
 import { createDurableStore } from '@variance-authority/store/durable';
@@ -175,18 +175,40 @@ export async function journeyAgainst(
   /** `nothing` for a suite that declines relations: a file its record did not measure selects nobody. */
   unmeasured?: Unmeasured,
 ): Promise<ExecutionNarrowing | undefined> {
+  return (await recordAgainst(root, diff, { relations, at, checkout, unmeasured }))?.narrowing;
+}
+
+/**
+ * {@link journeyAgainst}, and with `distances` how far the change travelled to
+ * each test it selected, from the same decode of the snapshot.
+ */
+export async function recordAgainst(
+  root: string,
+  diff: string,
+  options: {
+    readonly relations?: Relations | undefined;
+    readonly at?: string | undefined;
+    readonly checkout?: string | undefined;
+    readonly unmeasured?: Unmeasured | undefined;
+    readonly distances?: boolean;
+  },
+): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
+  const { relations, at, checkout = root, unmeasured } = options;
   const selection = await import('@variance-authority/sense/test-selection');
   const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
+  const asked = {
+    sourceAt,
+    keptText: selection.keptTexts(checkout),
+    root,
+    ...(relations === undefined ? {} : { relations }),
+    ...(unmeasured === undefined ? {} : { unmeasured }),
+  };
 
   try {
-    return await selection.narrowByExecution(file, diff, {
-      sourceAt,
-      keptText: selection.keptTexts(checkout),
-      root,
-      ...(relations === undefined ? {} : { relations }),
-      ...(unmeasured === undefined ? {} : { unmeasured }),
-    });
+    return options.distances === true
+      ? await selection.distanceByExecution(file, diff, asked)
+      : { narrowing: await selection.narrowByExecution(file, diff, asked) };
   } catch (error) {
     // A record whose run instrumented nothing measured nothing: it narrows nothing, as no record does.
     if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return undefined;
@@ -197,6 +219,25 @@ export async function journeyAgainst(
       { cause: error },
     );
   }
+}
+
+/**
+ * The journal asked once per stand, each answer kept for the tests standing
+ * there. A journal that is gone by the time it is asked again answers
+ * `undefined`, the way a journal that was never there does.
+ */
+export async function recordPerStand(
+  stands: readonly Stand[],
+  ask: (whole: readonly string[], stand: string | undefined) => ReturnType<typeof recordAgainst>,
+): ReturnType<typeof recordAgainst> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  let missing = false;
+  const answer = await selection.askPerStand(stands, async (whole, stand) => {
+    const asked = await ask(whole, stand);
+    if (asked === undefined) missing = true;
+    return asked ?? { narrowing: { whole: [], entered: [], unread: [], stale: [], because: [] } };
+  });
+  return missing ? undefined : answer;
 }
 
 /**

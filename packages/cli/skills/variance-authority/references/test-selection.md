@@ -86,7 +86,10 @@ variance reach --since origin/main              # files a diff reaches over impo
   the recording names no commit. `--execution <journey file>` reads that file
   instead of the record, and `--diff <patch>|-` hands it the change; `--diff`
   needs `--execution` and is refused beside `--since`. `--no-git` reads file
-  contents from the working tree, not git's object store.
+  contents from the working tree, not git's object store. `--at-distance <hops>`
+  cuts the run to one leg of the selection and skips the selected files outside
+  it; `0-2` then `3-` runs every selected file in one of the two. `json` gives
+  the leg as `leg` and the files it left as `left`.
 - **`reach` needs no recording**, and reads JavaScript, TypeScript, Python,
   Rust, Java, Kotlin and Swift. It prints a run list, so a reading that cannot
   produce one exits `2` with an empty stdout rather than print a short list.
