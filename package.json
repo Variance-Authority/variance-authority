@@ -33,8 +33,8 @@
     "documented": "node tools/documented.mjs",
     "typecheck": "tsc --build --force",
     "verify": "yarn lint && yarn check && yarn measure && yarn test",
-    "verify:far": "yarn test:since --at-distance 3-",
-    "verify:near": "yarn lint && tsc --build && yarn test:since --at-distance 0-2",
+    "verify:far": "variance index && node tools/test-since.mjs --at-distance 3-",
+    "verify:near": "oxlint && tsc --build && variance index && node tools/test-since.mjs --at-distance 0-2",
     "verify:rules": "yarn check"
   },
   "devDependencies": {

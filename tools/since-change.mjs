@@ -7,7 +7,8 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
 import { beyondReach } from '@variance-authority/core/relate';
 import {
   askPerStand,
@@ -30,9 +31,18 @@ const paths = (text) => text.split('\0').filter((path) => path !== '');
 
 export const isTest = (path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
 
+/**
+ * Vitest's own entry under `root`, run by this Node. `yarn vitest` would find the
+ * same file after starting a second Yarn, which costs more than the answer.
+ */
+export function vitestBin(root) {
+  const manifest = createRequire(resolve(root, 'package.json')).resolve('vitest/package.json');
+  return resolve(dirname(manifest), 'vitest.mjs');
+}
+
 /** Every test file the runner would collect under one config, asked of the runner. */
 export function suiteFiles(root, config) {
-  const listed = execFileSync('yarn', ['vitest', 'list', '--filesOnly', '--config', config], {
+  const listed = execFileSync(process.execPath, [vitestBin(root), 'list', '--filesOnly', '--config', config], {
     cwd: root,
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,

@@ -23,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { isAbsolute } from 'node:path';
 import { assign } from '../packages/cli/dist/commands/shard.js';
 import { parseShard } from '../packages/cli/dist/shard-args.js';
-import { suiteFiles } from './since-change.mjs';
+import { suiteFiles, vitestBin } from './since-change.mjs';
 
 /** The flags that take a value. */
 export const MATRIX_FLAGS = ['--suite', '--shard', '--record-into'];
@@ -63,7 +63,7 @@ export function matrixOf(argv) {
 export function runnerOf({ root, config, shard, into, say, durations }) {
   const env = into === undefined ? process.env : { ...process.env, VARIANCE_AUTHORITY_CACHE: into };
   const spawn = (files) =>
-    spawnSync('yarn', ['vitest', 'run', '--config', config, ...files], { cwd: root, stdio: 'inherit', env }).status ?? 1;
+    spawnSync(process.execPath, [vitestBin(root), 'run', '--config', config, ...files], { cwd: root, stdio: 'inherit', env }).status ?? 1;
   return (...files) => {
     if (shard === undefined) return spawn(files);
     const leg = files.length > 0 ? files : suiteFiles(root, config);
