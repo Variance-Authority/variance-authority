@@ -159,7 +159,7 @@ describe('parseArgs', () => {
     expect(parseArgs(['distill', '--test', 'redraw'])).not.toHaveProperty('execution');
     // The archive flag is gone, not ignored: a journal is read from the record.
     expect(attempt(['distill', '--test', 'redraw', '--eyes', 'eyes.json']).message).toContain('--eyes');
-    expect(attempt(['distill', '--execution', 'execution.json']).message).toContain('--test');
+    expect(parseArgs(['distill', '--execution', 'execution.json'])).toMatchObject({ execution: resolve('execution.json') });
   });
 
   it('reads journeys with no pool named, which is the run rather than the record', () => {

@@ -40,6 +40,9 @@ use crate::module_shape::Lines;
 mod walker;
 use walker::reading_of;
 
+#[path = "module_references.rs"]
+mod references;
+
 #[derive(Clone, Copy, PartialEq)]
 enum Where {
     Function,
@@ -54,6 +57,26 @@ struct Read {
     into: Option<String>,
     /// Converted as the module loads, by an operator or a template.
     converted: bool,
+    /// Inside a function or an instance field, so it runs when that is called, not when the module loads.
+    nested: bool,
+}
+
+/// One name an import declaration binds.
+struct Import {
+    local: String,
+    /// The name it imports, `default` or `*`.
+    imported: String,
+    /// The specifier, as written.
+    source: String,
+}
+
+/// One `export … from`.
+struct Reexport {
+    /// The name taken from the source, `*` for all.
+    taken: String,
+    /// The name given, if any.
+    given: Option<String>,
+    source: String,
 }
 
 /// One walk over a file, which every question about its readers is asked of.
@@ -61,10 +84,13 @@ pub struct Reading {
     reads: Vec<Read>,
     /// Local name to the names the module exports it as.
     exports: BTreeMap<String, Vec<String>>,
-    /// Every value import: its local name and the name it imports, `default` or `*`.
-    pub imports: Vec<(String, String)>,
-    /// `export … from`: the name taken from the source (`*` for all), and the name given, if any.
-    pub reexports: Vec<(String, Option<String>)>,
+    /// Every name a value import binds.
+    imports: Vec<Import>,
+    reexports: Vec<Reexport>,
+    /// Every specifier a value import or re-export names, side effects included.
+    sources: BTreeSet<String>,
+    /// Every specifier an import with no braces or binding names, `import './x'`, loaded for its effect.
+    effects: BTreeSet<String>,
     /// A `require`, an `import()` or an `import x = require()`: a binding no name reaches.
     pub untraced: bool,
 }
@@ -171,7 +197,7 @@ pub fn readers_of(reading: &Reading, seeds: impl IntoIterator<Item = (String, St
 /// whose other uses are an escape.
 pub fn imported_as(reading: &Reading, exported: &[String]) -> Vec<(String, String)> {
     let mut seeds = Vec::new();
-    for (local, imported) in &reading.imports {
+    for Import { local, imported, .. } in &reading.imports {
         if imported == "*" {
             seeds.extend(exported.iter().map(|name| (format!("{local}.{name}"), name.clone())));
             // The namespace itself, handed on whole, carries every changed name.
@@ -266,7 +292,7 @@ pub fn module_readers(file: String, text: String, names: Vec<String>, imported: 
     let readers = readers_of(&reading, seeds);
     let mut passed = BTreeMap::new();
     if imported {
-        for (taken, given) in &reading.reexports {
+        for Reexport { taken, given, .. } in &reading.reexports {
             match (taken.as_str(), given) {
                 ("*", Some(namespace)) => {
                     if let Some(first) = names.first() {
@@ -285,7 +311,7 @@ pub fn module_readers(file: String, text: String, names: Vec<String>, imported: 
             }
         }
     }
-    let imports = reading.imports.iter().filter(|(_, imported)| imported != "*").map(|(_, imported)| imported.clone());
+    let imports = reading.imports.iter().filter(|it| it.imported != "*").map(|it| it.imported.clone());
     let pairs = |map: BTreeMap<String, String>| {
         map.into_iter().map(|(name, origin)| ModuleExport { name, origin }).collect::<Vec<_>>()
     };

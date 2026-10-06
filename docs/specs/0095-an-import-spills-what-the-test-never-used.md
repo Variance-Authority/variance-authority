@@ -77,13 +77,27 @@ none of them.
 
 | Owning import | Reading | Proposal |
 |---|---|---|
+| In F, taking at least one name, every one of which resolves to declarations with nothing below their top level | **A read.** F used it for a constant, which runs no region, so the recording can't see the use. What it owns beyond the file declaring those names is its spill. | The narrowest import that reaches the declaring file, under the rules below. Never deletion. |
 | In F, with only weight behind it | **A dead import.** F loaded everything behind it and used none of it. | Delete it, or mock it with a factory if it is there for its side effects. |
 | In F or a used file, with a barrel behind it that leads to used and weight files | **A barrel spill.** F used some of what the barrel re-exports and loaded the rest. | The narrowest import the regime of the barrel's package allows (below). |
 | In a used file other than F | **An import F does not write.** A file F used imports something F never needed. | None at the test. The import is named with the file that writes it, as a fact about that file. |
 
+The first row that matches decides.
+
 A spill is reported by its size, the files and lines it owns that F loaded and
-never executed, and by the number of other test files the same import spills
-into.
+never executed; by its **share**, that size over every line F loaded through
+the import, used or not, which is everything the import dominates and wider
+than what it owns; and by the number of other test files the same import
+spills into. Spills rank by size. The share is a second column, read beside
+the size: two imports that each spill forty files read the same by size, and
+the share separates the one that loaded forty-one files for a constant from
+the one that loaded four hundred and used most of them.
+
+Which names an import takes is static: a named import lists them, and the
+scanner records the member reads made through a namespace or an `import()`
+result. An import that takes no name, such as `import './x'`, or a namespace
+whose holder is handed to another function and so lists no member, is never
+read as a read.
 
 ### Least knowledge
 
@@ -91,7 +105,8 @@ The boundary is the package. A proposal names only a specifier F already
 writes, a path inside the importer's own package, or an entry point another
 package declares. It never names a file inside another package by a path its
 `exports` do not declare, and it never proposes rewriting an import to such a
-path. 
+path.
+
 ### Who the package is for
 
 The barrel's package decides which narrower import may be proposed, and its
@@ -121,7 +136,8 @@ proposal moves to the import.
 - A weight file with no runtime path from F on the graph was loaded by
   something the scan cannot see: a dynamic import, a harness file, a specifier
   that is not a literal. It is named as **unseen**, owned by no import, and given
-  no proposal.
+  no proposal. A literal dynamic import is an owner of its own under
+  [spec 0097](0097-a-consumer-pays-for-what-it-loads.md).
 - A mock with a factory cuts its edge, and nothing behind it is loaded. A mock
   that did not take is `auditTaints`' finding, not this one's.
 
@@ -148,14 +164,27 @@ top of this one, per case rather than per file, and is not part of this spec.
 
 ## What would discharge it
 
-1. Weight per test file from the recording, with the top-level-only rule.
+1. ~~Weight per test file from the recording, with the top-level-only rule.~~
+   **Discharged.** `distillFile` in `@variance-authority/distill`, read by
+   `variance distill --file` alone. A function-less barrel pins the
+   top-level-only rule for the constants file and the polyfill.
    Fixtures: a constants file, a polyfill, and a file whose declarations no case
    in the file executed while one case in a second file did.
-2. Ownership over the runtime graph by request, rooted at the test file, with
+2. ~~Ownership over the runtime graph by request, rooted at the test file, with
    factory mocks cutting. Fixtures for a dead import, a barrel spill, an import
    the test file does not write, a diamond whose shared weight is counted to
    neither import, a dynamic import read as unseen, and an automock that still
-   loads.
+   loads.~~
+   **Discharged.** `dominatorsOf` in `@variance-authority/core/relate`, read by
+   `distillFile` when it is handed the file graph's static imports, and by
+   `variance distill --file` alone. The walk keeps only files the recording
+   says F evaluated, so a factory mock cuts its edge with no mock reader. An
+   import names its importer and imported file, not the specifier as written:
+   the specifier and its line come with item 5. Shared weight names the nearest
+   file every path runs through rather than the imports that reach it. An
+   unused file that dominates an entered one reads as shared, because removing
+   its import would lose code a case ran. Fixtures in `own.test.ts`, plus a
+   cycle and a file the recording does not hold.
 3. The least-knowledge rule, with a fixture whose only narrower import is a path
    into another package that its `exports` do not declare, so no proposal names
    the internal.
@@ -168,5 +197,15 @@ top of this one, per case rather than per file, and is not part of this spec.
 6. The question for one file and for the suite, measured on this repository and
    on the seven-MUI corpus, with its time stated against the time `covering`
    takes on the same record. One test file answers in under a second.
+   **Discharged on this repository.** `distillScope` in
+   `@variance-authority/distill`, read by `variance distill` with no case and no
+   file, over `--from <dir>`, one `--suite`, or every declared suite. Imports
+   rank by their lines summed over the test files they reach. Every test file
+   of this repository's three suites reads in 0.9 s, one package in 0.55 s,
+   against 0.4 s for `covering --file` on the same record. The seven-MUI
+   corpus is not measured.
 7. The public page: [`optimize-a-test.md`](../optimize-a-test.md) states the
    reading and lands its terms before any output prints them.
+8. A read is a use, and every spill carries its share. Fixtures: a constant
+   behind a barrel, a namespace read through a member, and an enum, each
+   reported as a read with the narrowest import and never as dead.

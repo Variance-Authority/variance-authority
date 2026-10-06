@@ -298,4 +298,54 @@ describe('the Jest integration', () => {
     };
     expect(await recorded(taped)).toEqual(await recorded(plain));
   }, 120_000);
+  it('records what a test file loaded before its first case apart from what each case called, and that every case finished', async () => {
+    const loads = resolve(repository, 'packages/sense/test/fixtures/jest-loads');
+    const inLoads = (path: string): string => `${relative(repository, loads)}/${path}`;
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-loads-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+    await execute(
+      process.execPath,
+      [jest, '--config', resolve(loads, 'jest.config.mjs'), '--watchman=false'],
+      {
+        cwd: loads,
+        env: {
+          ...process.env,
+          VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+          VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
+          VARIANCE_AUTHORITY_CACHE: directory,
+        },
+      },
+    );
+
+    // `distill --file` reads these three facts; without any one of them a Jest
+    // record reads as unmeasured, or credits a case with an import's evaluation.
+    const bytes = await readFile(coverageFile);
+    const testFile = inLoads('test/dialog.case.ts');
+    const coverage = decodeTestCoverage(bytes);
+    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([[testFile, true]]);
+    const loadedBy = new Map(coverage.modules.map((module) =>
+      [module.file, module.blocks.find((block) => block.kind === 'module')?.loadedBy]));
+    for (const file of ['src/dialog.ts', 'src/editor.ts', 'src/fallback.ts', 'src/confirm.ts']) {
+      expect(loadedBy.get(inLoads(file))).toEqual([testFile]);
+    }
+
+    const cases = decodeExecutionIndex(bytes);
+    expect(cases.tests.map((test) => [test.id, test.stopped])).toEqual(expect.arrayContaining([
+      [`${testFile} > opens`, false],
+      [`${testFile} > confirms on click`, false],
+      [`${testFile} > opens twice`, false],
+    ]));
+    const called = new Map(cases.modules.map((module) => [
+      module.file,
+      [...new Set(module.blocks
+        .filter((block) => block.kind !== 'module')
+        .flatMap((block) => block.crossings)
+        .filter((crossing) => crossing.loaded !== true)
+        .map((crossing) => cases.tests[crossing.test]!.id))].sort(),
+    ]));
+    expect(called.get(inLoads('src/confirm.ts'))).toEqual([`${testFile} > confirms on click`]);
+    expect(called.get(inLoads('src/editor.ts')) ?? []).toEqual([]);
+    expect(called.get(inLoads('src/fallback.ts')) ?? []).toEqual([]);
+  }, 120_000);
 });

@@ -51,7 +51,7 @@ const LISTED = new WeakMap<Relations, string[]>();
  * that word, and passing it lands an added import on the name the graph walks
  * from. Once per graph, because every changed file asks about the same one.
  */
-function listedIn(relations: Relations | undefined): string[] | undefined {
+export function listedIn(relations: Relations | undefined): string[] | undefined {
   if (relations === undefined) return undefined;
   let listed = LISTED.get(relations);
   if (listed === undefined) {
