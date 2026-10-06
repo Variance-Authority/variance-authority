@@ -13,6 +13,8 @@
 import { execFileSync } from 'node:child_process';
 import type { OwnLayer, OwnState, Repin, RepinRefusal } from '@variance-authority/sense/test-selection';
 import { countPast } from '../clone-cut.js';
+import type { ProcessLock } from './detached.js';
+import { refreshing } from './mainline-refresh.js';
 
 /** Test files a state lists by name; past it, a count. */
 const LISTED = 20;
@@ -20,21 +22,23 @@ const LISTED = 20;
 export async function checkoutRead(
   suite: string,
   cwd: string,
-  base: { readonly layer?: OwnLayer; readonly repin?: Repin },
+  base: { readonly layer?: OwnLayer; readonly repin?: Repin; readonly refreshing?: ProcessLock },
 ): Promise<string> {
   const { layer, repin } = base;
   const head = `record of "${suite}": read from this checkout's own`;
+  const fetching = base.refreshing === undefined ? '' : `; ${refreshing(base.refreshing)}`;
   if (layer === undefined) {
     return `${head}, which its runs landed on the base the first of them was laid on; ` +
-      "it was laid before checkouts kept a ledger, so which of its tests ran here is not known";
+      `it was laid before checkouts kept a ledger, so which of its tests ran here is not known${fetching}`;
   }
   const pinned = layer.pinned;
   const over = pinned === undefined
     ? "over the primary checkout's record, which is no mainline record"
     : `over mainline ${pinned.mainline} at ${short(pinned.commit)}, ${await since(cwd, pinned.commit)}`;
-  const moved = repin === undefined ? '' : repin.repinned
+  const repinned = repin === undefined ? '' : repin.repinned
     ? `; moved from ${short(repin.from)}${repin.dropped.length === 0 ? '' : `, and ${String(repin.dropped.length)} test file(s) that ran over older code than it are read from it now`}`
     : refused(repin.why);
+  const moved = `${repinned}${fetching}`;
   const tests = layer.ran.flatMap((state) => state.files).length;
   if (tests === 0) return `${head}, ${over}${moved}; this checkout has run no test of it itself`;
   return `${head}, ${over}${moved}; ${String(tests)} test file(s) ran here, every other is the mainline's: ` +

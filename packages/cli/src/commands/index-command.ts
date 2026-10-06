@@ -49,9 +49,8 @@ import { publishedGeneration, readWorkspace, readWorkspaceSnapshot, refreshDepen
 import { OperatorError } from '../exit.js';
 import { rmSync } from 'node:fs';
 import type { Parsed } from '../parse.js';
-import { awaitFollowUps, followUpsLockPath, followUpsLogPath, holdFollowUps, releaseFollowUps, reserveFollowUps, type Detach } from './index-follow-ups.js';
-
-export type { Detach } from './index-follow-ups.js';
+import type { Detach } from './detached.js';
+import { awaitFollowUps, followUpsLockPath, followUpsLogPath, holdFollowUps, releaseFollowUps, reserveFollowUps } from './index-follow-ups.js';
 
 export interface IndexRequest {
   readonly cwd: string;

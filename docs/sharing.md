@@ -580,9 +580,14 @@ Records are read in this order:
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
    run writes, so it is never read as your checkout's own. One fetch is reused
    for 10 minutes, and so is the result that the line has none for you, with the
-   time of that result. After that, when the remote does not answer, the record
-   fetched earlier is read, and the answer prints when it was fetched and why it
-   was not fetched again.
+   time of that result. After that, outside CI, `variance select` answers from
+   the record fetched earlier and starts a process of its own that fetches the
+   mainline's record again. The answer prints that process's id and the file
+   its output goes to, and a command you run after it ends reads the new
+   record. In CI, and for every other reader, the record is fetched before the
+   answer. When the remote does
+   not answer, the record fetched earlier is read, and the answer prints when it
+   was fetched and why it was not fetched again.
 3. **In a worktree, the primary checkout's record**, only when no mainline
    record was ever fetched on this machine. It is what that checkout last ran,
    so the answer names it as the offline fallback and prints why the mainline's

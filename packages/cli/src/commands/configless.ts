@@ -32,7 +32,7 @@ import { formatCoverage } from './coverage-text.js';
 import { coveringAnswer, formatCoveringAnswer } from './covering-suites.js';
 import { distillFiles, formatDistill } from './distill.js';
 import { followUpsOutput, indexOutput } from './index-command.js';
-import type { Detach } from './index-follow-ups.js';
+import type { Detach } from './detached.js';
 import { pruneOutput } from './prune-cache.js';
 import { reachOutput } from './reach-command.js';
 import { reviewWithCoverage } from './review-evidence.js';
@@ -241,6 +241,7 @@ export async function answerConfigless(
         ...(parsed.execution === undefined ? {} : { execution: parsed.execution }),
         ...(parsed.suite === undefined ? {} : { suite: parsed.suite }),
         ...(parsed.diff === undefined ? {} : { diff: parsed.diff }),
+        ...(streams.detach === undefined ? {} : { detach: streams.detach }),
       });
       streams.err(said.err);
       streams.out(said.out);

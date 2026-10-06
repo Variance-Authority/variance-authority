@@ -52,17 +52,10 @@ import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { many } from './reach.js';
 import { journeySuite, restingOf } from './select-before.js';
 import { relationsFor } from './source-graph.js';
-import { suiteBase } from './suite-base.js';
+import type { Detach } from './detached.js';
+import { suiteBaseHanding } from './suite-base.js';
 import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
-import {
-  formatSelection,
-  selectionNotes,
-  skippableTests,
-  type SelectFormat,
-  type SelectGround,
-  type SelectInput,
-  type SelectSource,
-} from './select.js';
+import { formatSelection, selectionNotes, skippableTests, type SelectFormat, type SelectGround, type SelectInput, type SelectSource } from './select.js';
 
 /** What `variance select` was asked for, once the flags are off the command line. */
 export interface SelectRequest {
@@ -77,6 +70,8 @@ export interface SelectRequest {
   readonly diff?: string;
   /** `--suite <name>`: whose record is read, when more than one suite is declared. */
   readonly suite?: string;
+  /** Where a fetch of the mainline's record past its reuse window is handed: the program's, outside CI. */
+  readonly detach?: Detach;
 }
 
 /**
@@ -361,7 +356,7 @@ async function recordedOrMainline(
   const recorded = await recordedSuite(request.cwd, request.suite);
   const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
   if (suite === undefined) return { at: recorded.file, held: await exists(recorded.file) };
-  const base = await suiteBase(request.cwd, { suite });
+  const base = await suiteBaseHanding(request.cwd, { suite }, request.detach);
   if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: await checkoutRead(suite, request.cwd, base) } };
   if (base.from === 'mainline') {
     const read = base.mainline;

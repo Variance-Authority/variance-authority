@@ -35,7 +35,8 @@
 import { stat } from 'node:fs/promises';
 import type { LastFetched, OwnLayer, Repin } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
-import { mainlineBase, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
+import type { Detach, ProcessLock } from './detached.js';
+import { mainlineBase, type MainlineAsk, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
 
 /** Which record a reader measures from, where it is, and why the others were passed over. */
 export type SuiteBase =
@@ -47,6 +48,8 @@ export type SuiteBase =
       readonly layer?: OwnLayer;
       /** What a fetched mainline record did to the pin, when one was read. */
       readonly repin?: Repin;
+      /** The process fetching the mainline's record, when the one the pin was read against is the record fetched last. */
+      readonly refreshing?: ProcessLock;
     }
   | { readonly from: 'mainline'; readonly suite: string; readonly file: string; readonly mainline: MainlineRecord }
   | { readonly from: 'primary'; readonly suite?: string; readonly file: string; readonly missed?: MainlineMissed }
@@ -67,6 +70,16 @@ export interface SuiteBaseOptions {
  * write.
  */
 export async function suiteBase(root: string, options: SuiteBaseOptions = {}): Promise<SuiteBase> {
+  return suiteBaseHanding(root, options, undefined);
+}
+
+/**
+ * `suiteBase`, with a fetch of the mainline's record past its reuse window
+ * handed to `detach` (see {@link MainlineAsk}). The program passes one outside
+ * CI. The package does not publish this, so a library caller fetches before it
+ * answers.
+ */
+export async function suiteBaseHanding(root: string, options: SuiteBaseOptions, detach: Detach | undefined): Promise<SuiteBase> {
   const selection = await import('@variance-authority/sense/test-selection');
   const suites = selection.declaredSuites(root);
   const suite = options.suite ?? onlySuite(suites);
@@ -76,22 +89,23 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
   // it declares several, is refused before anything is fetched.
   const own = selection.testCoverageFile(root, named);
   const at = suite === undefined ? {} : { suite };
+  const ask: MainlineAsk = {
+    ...(options.env === undefined ? {} : { env: options.env }),
+    ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
+    ...(detach === undefined ? {} : { detach }),
+  };
   if (await exists(own)) {
     // The milestone under the checkout moves forward when the mainline's
     // newest record is one HEAD contains: see `repinOwnLayer`.
-    const read = declared?.carry === 'share' ? await mainlineBase(root, declared, {
-      ...(options.env === undefined ? {} : { env: options.env }),
-      ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
-    }) : undefined;
+    const read = declared?.carry === 'share' ? await mainlineBase(root, declared, ask) : undefined;
     const repin = read === undefined || 'miss' in read ? undefined : await selection.repinOwnLayer(own, fetchedOf(read), root);
     const layer = await selection.readOwnLayer(own);
-    return { from: 'own', ...at, file: own, ...(layer === undefined ? {} : { layer }), ...(repin === undefined ? {} : { repin }) };
+    const earlier = read === undefined || 'miss' in read ? undefined : read.earlier;
+    const refreshing = earlier !== undefined && 'refreshing' in earlier ? { refreshing: earlier.refreshing } : {};
+    return { from: 'own', ...at, file: own, ...(layer === undefined ? {} : { layer }), ...(repin === undefined ? {} : { repin }), ...refreshing };
   }
 
-  const read = await mainlineBase(root, declared, {
-    ...(options.env === undefined ? {} : { env: options.env }),
-    ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
-  });
+  const read = await mainlineBase(root, declared, ask);
   if (read !== undefined && !('miss' in read)) return { from: 'mainline', suite: read.suite, file: read.coverage, mainline: read };
   const missed = read === undefined ? {} : { missed: read };
 

@@ -31,6 +31,14 @@
  * the mainline is asked again, and when it does not answer, the record fetched
  * last is still the base, and the note says why it was not refreshed.
  * `variance share --suite <name>` always asks.
+ *
+ * Past the window, a workstation does not wait for that ask. A reader given a
+ * {@link Detach} answers from the record fetched last and starts
+ * `share --suite <name>` as a process of its own, under a lock in the read root,
+ * so a second reader in the meantime starts none; the command run after that
+ * process ends reads what it fetched. `bin.ts` passes one only outside CI, so
+ * a CI job, and every caller of the library, asks before it answers. The first
+ * fetch, with nothing fetched earlier, is always asked before the answer.
  */
 
 import { readFileSync } from 'node:fs';
@@ -38,9 +46,12 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { DeclaredSuite, LastFetched, RootConfig } from '@variance-authority/sense/test-selection';
 import { parseShare } from '../config-share.js';
+import type { Config } from '../config.js';
 import { ConfigError, messageOf } from '../config-values.js';
 import { distanceFrom, readerMainline, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
+import { releaseLock, type Detach, type ProcessLock } from './detached.js';
+import { mainlineRefreshLock, refreshing, refreshMainline } from './mainline-refresh.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
 
@@ -76,11 +87,15 @@ export interface MainlineRecord {
   /** When it was fetched, as an ISO time: now, unless it is the record fetched earlier. */
   readonly fetched: string;
   /**
-   * Present when it is the record fetched earlier: reused within the window, or
+   * Present when it is the record fetched earlier: reused within the window,
    * kept because the mainline gave no record, now or, as `asked` says, earlier
-   * within the window.
+   * within the window, or past the window while `refreshing` names the process
+   * that is fetching the mainline's.
    */
-  readonly earlier?: { readonly reused: true } | { readonly unanswered: MainlineMiss; readonly asked?: string };
+  readonly earlier?:
+    | { readonly reused: true }
+    | { readonly unanswered: MainlineMiss; readonly asked?: string }
+    | { readonly refreshing: ProcessLock };
   /** What the fetch's daily prune of this cache took, when it took something. */
   readonly pruned?: string;
 }
@@ -117,6 +132,11 @@ export interface MainlineAsk {
   readonly refetch?: boolean;
   /** The clock, for a test. */
   readonly now?: number;
+  /**
+   * Past the window, start the fetch as a process of its own and answer from
+   * the record fetched last. Absent, the fetch is made before the answer.
+   */
+  readonly detach?: Detach;
 }
 
 /**
@@ -166,8 +186,38 @@ export async function mainlineBase(
       if (last !== undefined) return earlier(place, root, last, { unanswered: noted.miss, asked: noted.at });
       return { suite, mainline: noted.mainline, miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }), asked: noted.at };
     }
+    if (here.detach !== undefined && last !== undefined && last.mainline === mainline) {
+      const started = refreshMainline(readRoot, suite, here.detach);
+      if (started !== undefined) return earlier(place, root, last, { refreshing: started });
+    }
   }
 
+  try {
+    return await fetchNow({ root, suite, place, env, readRoot, last, now }, selection);
+  } finally {
+    // The process `refreshMainline` started holds the lock until this fetch is done;
+    // so does a reader whose process could not be started.
+    releaseLock(mainlineRefreshLock(readRoot).path, process.pid);
+  }
+}
+
+/** What a fetch of the mainline's record is asked with. */
+interface Fetching {
+  readonly root: string;
+  readonly suite: string;
+  readonly place: Pick<Config, 'share'> & { readonly cacheRoot: string };
+  readonly env: Env;
+  readonly readRoot: string;
+  readonly last: LastFetched | undefined;
+  readonly now: number;
+}
+
+/** Ask the mainline for its record now, and keep it where every reader looks, or say why there is none. */
+async function fetchNow(
+  { root, suite, place, env, readRoot, last, now }: Fetching,
+  selection: typeof import('@variance-authority/sense/test-selection'),
+): Promise<MainlineBase> {
+  const { cacheRoot } = place;
   const asked = new Date(now).toISOString();
   const found = await mainlineSuite(place, suite, { env, cwd: root });
   if ('miss' in found) {
@@ -373,16 +423,20 @@ export function rootShare(config: RootConfig | undefined) {
  * reader's own verdict.
  */
 export function mainlineRead(read: MainlineRecord): string {
-  const when = read.earlier === undefined
+  const why = read.earlier;
+  const minutes = String(MAINLINE_REUSE_MS / 60_000);
+  const when = why === undefined
     ? ''
-    : 'reused' in read.earlier
-      ? `, fetched at ${read.fetched} and reused for ${String(MAINLINE_REUSE_MS / 60_000)} minutes`
-      : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(read.earlier.unanswered)}` +
-        answeredAt(read.earlier.asked);
+    : 'reused' in why
+      ? `, fetched at ${read.fetched} and reused for ${minutes} minutes`
+      : 'refreshing' in why
+        ? `, fetched at ${read.fetched}, more than ${minutes} minutes ago`
+        : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(why.unanswered)}` + answeredAt(why.asked);
   return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +
     `${describeDistance(read.distance)}; kept at ${read.coverage}` +
     (read.casesUnread === undefined ? '' : `; ${read.casesUnread}`) +
-    (read.pruned === undefined ? '' : `; ${read.pruned}`);
+    (read.pruned === undefined ? '' : `; ${read.pruned}`) +
+    (why !== undefined && 'refreshing' in why ? `; ${refreshing(why.refreshing)}` : '');
 }
 
 /**
