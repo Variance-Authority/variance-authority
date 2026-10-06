@@ -188,6 +188,17 @@ describe('one leg of the selection', () => {
     );
   });
 
+  it('counts no distances when the change entered no test', () => {
+    const input: SelectInput = {
+      at: '/cache/coverage.bin',
+      ground: { kind: 'read', narrowing: { whole: WHOLE, entered: [], unread: [], stale: [], because: [] }, distances: [] },
+    };
+    const selection = inLeg(skippableTests(input), input, { from: 0, to: 2 });
+
+    expect(selection.left).toEqual([]);
+    expect(selectionNotes(selection)).not.toContain('the change entered');
+  });
+
   it('writes no leg into json when none was asked', () => {
     const input = read();
     const json = JSON.parse(formatSelection(inLeg(skippableTests(input), input, undefined), 'json', '/repo'));
