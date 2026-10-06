@@ -29,21 +29,10 @@ export interface FileReferences {
   readonly untraced: boolean;
   /**
    * Every value name the file exports, `default` included. Absent when an
-   * `export *` leaves the set to another file, or the file's exports were not read.
+   * `export *` leaves the set to another file, the file exports nothing as a
+   * module does (`module.exports` is not read), or its exports were not read.
    */
   readonly exports?: readonly string[];
-  /**
-   * The exports whose value carries a name the file reads when it loads, with
-   * the file that name is imported from and the name as imported: a reader of
-   * the export sees a mock of that import.
-   */
-  readonly carries: readonly { readonly name: string; readonly file: string; readonly origin: string }[];
-  /**
-   * Each line inside a function that reads a name the file reads when it loads,
-   * or a binding that name set at load, with the file it is imported from: a
-   * case that runs the line sees a mock of that import.
-   */
-  readonly traced: readonly { readonly file: string; readonly name: string; readonly line: number }[];
 }
 
 /**
@@ -73,10 +62,6 @@ export function importReferences(root: string, relations: Relations | undefined,
     const target = at.get(source);
     return target === undefined ? [] : [{ file: target, name, line, load }];
   });
-  // The reader takes names as imported, not by source: two imports of one name are charged to the first read at load.
-  const atLoad = new Map<string, string>();
-  for (const { name, file: from, load } of references) if (load && !atLoad.has(name)) atLoad.set(name, from);
-  const readers = atLoad.size === 0 ? null : scanner.moduleReaders?.(file, text, [...atLoad.keys()], true) ?? null;
   const exports = exportsOf(file, text);
   return {
     references,
@@ -85,12 +70,10 @@ export function importReferences(root: string, relations: Relations | undefined,
     effects: [...new Set(found.effects.flatMap((source) => at.get(source) ?? []))],
     untraced: found.untraced,
     ...(exports === undefined ? {} : { exports }),
-    carries: (readers?.exported ?? []).map(({ name, origin }) => ({ name, file: atLoad.get(origin)!, origin })),
-    traced: (readers?.reads ?? []).map(({ name, line }) => ({ file: atLoad.get(name)!, name, line })),
   };
 }
 
-/** The value names `file` exports, or nothing when an `export *` leaves them to another file. */
+/** The value names `file` exports, or nothing when an `export *` leaves them to another file or it exports none. */
 function exportsOf(file: string, text: string): readonly string[] | undefined {
   let read: Read;
   try {
@@ -99,7 +82,8 @@ function exportsOf(file: string, text: string): readonly string[] | undefined {
     return undefined;
   }
   const values = (read.exports ?? []).filter((entry) => !entry.type);
-  if (values.some((entry) => entry.exported === undefined)) return undefined;
+  // A file with no module export may publish through `module.exports`, which the reader does not list.
+  if (values.length === 0 || values.some((entry) => entry.exported === undefined)) return undefined;
   const types = new Set((read.symbols ?? []).filter(({ kind }) => kind === 'interface' || kind === 'type').map(({ name }) => name));
   return [...new Set(values.flatMap(({ exported, local }) => (local !== undefined && types.has(local) ? [] : [exported!])))];
 }

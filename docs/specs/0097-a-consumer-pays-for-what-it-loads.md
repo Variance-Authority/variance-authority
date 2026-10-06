@@ -248,14 +248,15 @@ reads as one of three:
   automock requires the real module to read its shape, which is the load
   the mock is there to stop. The mock replaces the module for every file
   the test loads, so the factory stands a function in for every value the
-  module exports: a call, `new`, `extends` or read at load still works,
-  in the subject or anywhere else. No mock is proposed where it changes
-  what a case does: where a case runs, or the subject hands on, what reads
-  the import; where the subject reads it at load and a case also runs a
-  function that reads it, or reads a binding that read set; or where the test file reads an export of the
-  subject whose value that read at load carries. None is proposed where
-  what the subject reads, or what the module exports, is not known, or
-  where loading the import is the point.
+  module exports: any file the test loads can call, construct or extend
+  it. A mock is proposed only where the subject reads none of the import,
+  or reads it only in functions no case of the test file runs. A stand-in
+  the subject reads at load is used at load or kept for a case, as
+  `const viewer = new Viewer()` keeps a mock instance for every case that
+  calls `viewer`, so there the subject's line is the fix and no mock is
+  proposed; nor where a case runs, or the subject hands on, what reads the
+  import. None is proposed where what the module exports is not known: an
+  `export *`, or a file that publishes through `module.exports`.
 - **Written further away.** Mocking it ties the test to code it does not
   import, against the principle of least knowledge. The reading is a
   warning that names the importer as the place to fix it.

@@ -8,4 +8,7 @@ export function open(): string {
 export function click(answer: boolean): string {
   return confirm(answer);
 }
-export const handlers = { edit, fallback };
+export function rename(text: string): string {
+  return edit(text);
+}
+export const handlers = { fallback };

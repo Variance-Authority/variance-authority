@@ -134,7 +134,6 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
     return read.get(at);
   };
   const charge = references === undefined ? undefined : chargesOf({
-    file,
     references,
     coverage: input.coverage,
     execution: input.execution,

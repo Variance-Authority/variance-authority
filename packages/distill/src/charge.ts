@@ -15,8 +15,7 @@ import type { ImportReach } from './own.js';
  * `never`: it references none of the import's names. `effect`: it imports the
  * module with no binding, `import './x'`, so loading it is the point. `load`: a
  * reference runs when the file loads, the first one named, or sits in a function
- * that ran while it loaded; `carried` names an export of the file that the test
- * file reads and whose value that read carries. `handed`: it re-exports a name
+ * that ran while it loaded. `handed`: it re-exports a name
  * from the import, so the use is its importers'. `ran`: a case of the test
  * file ran a function that references it, so the import was needed and nothing
  * called into it. `functions`: it is referenced only in functions no case of
@@ -33,7 +32,7 @@ import type { ImportReach } from './own.js';
 export type ImportCharge =
   | { readonly kind: 'never' }
   | { readonly kind: 'effect' }
-  | { readonly kind: 'load'; readonly line: number; readonly name: string; readonly ran?: true; readonly carried?: string }
+  | { readonly kind: 'load'; readonly line: number; readonly name: string }
   | { readonly kind: 'handed' }
   | { readonly kind: 'ran'; readonly functions: readonly { readonly name: string; readonly line: number }[] }
   | {
@@ -46,8 +45,6 @@ export type ImportCharge =
 
 /** What an import is charged from. */
 export interface ChargeInput {
-  /** The test file, whose reads of an importer's exports say whether a mock reaches its cases. */
-  readonly file: string;
   /** Where a file references what it imports. */
   readonly references: (file: string) => FileReferences | undefined;
   readonly coverage: TestCoverage;
@@ -80,12 +77,6 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
     if (!read.has(file)) read.set(file, input.references(file));
     return read.get(file);
   };
-  // An export of the importer the test file reads, whose value a read of the import at load carries.
-  const carriedOf = (importer: string, imported: string, found: FileReferences, name: string) => {
-    const reads = (referencesOf(input.file)?.references ?? []).filter(({ file }) => file === importer).map((reference) => reference.name);
-    const carried = found.carries.find((carry) => carry.file === imported && carry.origin === name && (reads.includes(carry.name) || reads.includes('*')));
-    return carried === undefined ? {} : { carried: carried.name };
-  };
 
   const charge = (importer: string, imported: string): ImportCharge | undefined => {
     const found = referencesOf(importer);
@@ -110,14 +101,9 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
     const named = (block: Block) => ({ name: block.name || block.path, line: block.startLine });
     const mine = (crossing: Block['crossings'][number]) => input.mine.has(crossing.test);
     const ran = [...regions.keys()].filter((block) => called(block).some(mine));
-    // Read at load, the import is also marked when a case ran a function that reads it, or reads what it set at load:
-    // a mock would change what the case does.
-    const derived = found.traced.filter(({ file }) => file === imported)
-      .some(({ line }) => innermostAt(blocks, line).some((block) => block.kind !== 'module' && called(block).some(mine)));
-    const also = ran.length > 0 || derived ? { ran: true as const } : {};
-    if (load !== undefined) return { kind: 'load', line: load.line, name: load.name, ...also, ...carriedOf(importer, imported, found, load.name) };
+    if (load !== undefined) return { kind: 'load', line: load.line, name: load.name };
     const atLoad = [...regions].find(([block]) => block.crossings.some((crossing) => crossing.loaded === true && mine(crossing)));
-    if (atLoad !== undefined) return { kind: 'load', line: atLoad[1].line, name: atLoad[1].name, ...also };
+    if (atLoad !== undefined) return { kind: 'load', line: atLoad[1].line, name: atLoad[1].name };
     if (found.passed.includes(imported)) return { kind: 'handed' };
     if (ran.length > 0) return { kind: 'ran', functions: ran.map(named) };
     if (unmeasured !== undefined) return { kind: 'unmeasured', line: unmeasured };
@@ -143,11 +129,11 @@ export function chargesOf(input: ChargeInput): (importer: string, imported: stri
  * read its shape, which is the load it is there to stop. The factory stands a
  * function in for every value `exports` names, since the mock replaces the
  * module for every file the test loads; a function can be called, constructed,
- * extended and read. None is proposed where a case runs, or the importer hands
- * on, what reads the import, or the test file reads an export that carries it,
- * since the mock would change what the case does; where loading it is the
- * point; or where what the importer reads, or the module exports, is not
- * known. Absent when nothing is.
+ * extended and read. One is proposed only where the importer reads none of
+ * the import, or reads it only in functions no case of the test file ran: a
+ * stand-in read at load is used at load or kept for a case, and one a case
+ * runs, or the importer hands on, changes what the case does. None is proposed
+ * where what the module exports is not known. Absent when nothing is.
  */
 export function reachLine(
   file: string,
@@ -166,8 +152,7 @@ export function reachLine(
         (charge?.kind === 'never' ? ': delete the import.' : '.');
     case 'subject': {
       if (exports === undefined) return undefined;
-      if (charge?.kind !== 'never' && charge?.kind !== 'functions' && charge?.kind !== 'load') return undefined;
-      if (charge.kind === 'load' && (charge.ran === true || charge.carried !== undefined)) return undefined;
+      if (charge?.kind !== 'never' && charge?.kind !== 'functions') return undefined;
       const specifier = posix.relative(posix.dirname(file), imported).replace(/\.[cm]?[jt]sx?$/, '');
       return `Or mock it in this file, so ${importer} does not load it: ` +
         `jest.mock('${specifier.startsWith('.') ? specifier : `./${specifier}`}', () => (${factoryOf(exports)}));`;

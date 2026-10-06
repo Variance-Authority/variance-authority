@@ -118,8 +118,6 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
         imported: ['src/a.ts', 'src/b.ts', 'src/c.ts'],
         effects: ['src/c.ts'],
         untraced: false,
-        carries: [],
-        traced: [],
       });
       // An `export *` leaves the set to the other file.
       expect(importReferences(root, undefined, 'src/index.ts')).not.toHaveProperty('exports');
@@ -129,8 +127,8 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
     }
   });
 
-  it('lists every value the file exports, and which of them carry a name it reads when it loads', async () => {
-    // What a mock's factory must stand in for, and what a mock of the import changes for a reader of the file.
+  it('lists every value the file exports, and none for a file that publishes through `module.exports`', async () => {
+    // What a mock's factory must stand in for: a name it leaves out reads undefined.
     const root = await mkdtemp(join(tmpdir(), 'variance-authority-references-'));
     try {
       const files: Record<string, string> = {
@@ -144,6 +142,7 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
           '',
         ].join('\n'),
         'src/base.ts': "export default class Base {}\nexport const PREFIX = '>';\nexport const shout = (s: string) => s;\n",
+        'src/legacy.js': 'module.exports = { size: { x: 1 } };\n',
       };
       for (const [file, body] of Object.entries(files)) {
         await mkdir(dirname(join(root, file)), { recursive: true });
@@ -151,12 +150,9 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
       }
       const dialog = importReferences(root, undefined, 'src/dialog.ts');
       expect(dialog?.exports).toEqual(['label', 'Dialog', 'open', 'default']);
-      expect(dialog?.carries).toEqual(expect.arrayContaining([{ name: 'label', file: 'src/base.ts', origin: 'PREFIX' }]));
-      expect(dialog?.carries.some(({ name }) => name === 'open')).toBe(false);
       expect(importReferences(root, undefined, 'src/base.ts')?.exports).toEqual(['default', 'PREFIX', 'shout']);
-      // `open` reads `label`, which `PREFIX` set at load: a mock of base.ts changes what `open` returns.
-      expect(dialog?.traced).toEqual(expect.arrayContaining([{ file: 'src/base.ts', name: 'PREFIX', line: 4 }]));
-      expect(importReferences(root, undefined, 'src/base.ts')?.traced).toEqual([]);
+      // A factory of `{}` would hand a reader of `size.x` a throw while the test file loads.
+      expect(importReferences(root, undefined, 'src/legacy.js')).not.toHaveProperty('exports');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

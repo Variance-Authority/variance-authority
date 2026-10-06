@@ -9,7 +9,8 @@ import { updateSourceIndex } from '@variance-authority/sense';
 import { distillFiles, formatDistill } from './distill.js';
 
 // A test file recorded through the real Jest seam, whose imports reach three
-// distances from it: one it writes itself, two its subject writes, and one a
+// distances from it: one it writes itself, two its subject writes (one read only
+// in a function no case runs, one read at load), and one a
 // module its subject imports writes.
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
@@ -44,9 +45,14 @@ describe('an import no case of a Jest test file needs, by how far from the file 
     expect(text).toContain(`error: ${at}/test/dialog.case.ts imports ${at}/src/strings.ts, and none of its cases enters what that loads.`);
   });
 
-  it('is mocked in the test file when the test file\'s subject writes it', () => {
+  it('is mocked in the test file when the test file\'s subject reads it only in a function no case runs', () => {
     expect(text).toContain(`Or mock it in this file, so ${at}/src/dialog.ts does not load it: jest.mock('../src/editor', () => ({ edit: jest.fn(), format: jest.fn() }));`);
-    expect(text).toContain(`Or mock it in this file, so ${at}/src/dialog.ts does not load it: jest.mock('../src/fallback', () => ({ fallback: jest.fn() }));`);
+  });
+
+  it('is fixed in the subject, not mocked, when the subject reads it when it loads', () => {
+    // A stand-in read at load is kept for whatever reads `handlers` later.
+    expect(text).toContain(`${at}/src/dialog.ts reads fallback from ${at}/src/fallback.ts at line 14 when it loads`);
+    expect(text).not.toContain(`jest.mock('../src/fallback'`);
   });
 
   it('is a warning to fix where it is written when a module further away writes it', () => {
