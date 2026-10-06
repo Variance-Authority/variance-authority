@@ -194,6 +194,40 @@ describe('digests read out of git', () => {
     expect([...digests?.keys() ?? []].sort()).toEqual(['Button.tsx', 'tokens.css']);
   });
 
+  it('hashes a known change under a scan root inside the checkout', async () => {
+    const root = await repository();
+    await write(root, 'src/Button.tsx', 'export function Button() { return <b /> }\n');
+
+    // `hash-object --stdin-paths` reads each path from the top of the checkout,
+    // whatever directory it runs in, so a scan-root path names nothing there.
+    const digests = await gitDigests(join(root, 'src'), ['Button.tsx']);
+
+    expect(digests?.get('Button.tsx')).toBe(await onDisk(root, 'src/Button.tsx'));
+  });
+
+  it('spells working-tree changes relative to a scan root inside the checkout', async () => {
+    const root = await repository();
+    await write(root, 'outside.ts', 'export const outside = 1\n');
+    await write(root, 'src/old.ts', 'export const moved = 1\n');
+    await git(root, ['add', 'outside.ts', 'src/old.ts']);
+    await git(root, ['-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'two']);
+    await write(root, 'src/Button.tsx', 'export function Button() { return <b /> }\n');
+    await unlink(join(root, 'src/tokens.css'));
+    await write(root, 'src/Clock.tsx', 'export const Clock = () => null\n');
+    await write(root, 'outside.ts', 'export const outside = 2\n');
+    await git(root, ['mv', 'src/old.ts', 'src/new.ts']);
+
+    // Porcelain status spells every path from the top of the checkout, whatever
+    // directory it runs in. Read as scan-root paths, the edit keeps its committed
+    // digest, and the deletion and the rename's old name keep digests for bytes
+    // that are gone.
+    const digests = await gitDigests(join(root, 'src'));
+
+    expect([...digests?.keys() ?? []].sort()).toEqual(['Button.tsx', 'Clock.tsx', 'new.ts']);
+    expect(digests?.get('Button.tsx')).toBe(await onDisk(root, 'src/Button.tsx'));
+    expect(digests?.get('Clock.tsx')).toBe(await onDisk(root, 'src/Clock.tsx'));
+  });
+
   it('applies known additions, deletions and both sides of a rename', async () => {
     const root = await repository();
     await unlink(join(root, 'src/Button.tsx'));
