@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { selectionNotes, skippableTests } from './select.js';
 import { vitestExclusions, vitestExcludes } from './vitest-excludes.js';
@@ -57,5 +57,9 @@ describe('an exclusion names the one file the journal names', () => {
       '--exclude=test/a\\{b,c\\}\\+\\@\\!\\?\\*\\|.test.ts',
     ]);
     expect(vitestExclusions(skip, '/repo', 'absolute')[0]).toBe('--exclude=/repo/app/\\(shop\\)/cart\\[1\\].test.ts');
+  });
+
+  it.skipIf(sep !== '/')('escapes a backslash where it is part of a name rather than a separator', () => {
+    expect(vitestExclusions(['test/a\\b.test.ts'], '/repo', 'relative')).toEqual(['--exclude=test/a\\\\b.test.ts']);
   });
 });

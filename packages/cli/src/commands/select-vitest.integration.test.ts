@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { formatSelection, skippableTests } from './select.js';
 
@@ -82,6 +82,27 @@ describe('a skip list reaches the vitest that is installed', () => {
     const args = formatSelection(selection, 'vitest', root).split('\n').filter((line) => line !== '');
 
     expect(collected(root, args)).toEqual(['test/cart1.test.mjs']);
+  });
+
+  it.skipIf(sep !== '/')('leaves out a file whose name holds a backslash, which is no separator here', () => {
+    const root = project(['a\\b', 'ab']);
+    const selection = skippableTests({
+      at: join(root, 'coverage.bin'),
+      commit: 'c0ffee',
+      ground: {
+        kind: 'read',
+        narrowing: {
+          whole: ['test/a\\b.test.mjs', 'test/ab.test.mjs'],
+          entered: ['test/ab.test.mjs'],
+          because: [],
+          stale: [],
+          unread: [],
+        },
+      },
+    });
+    const args = formatSelection(selection, 'vitest', root).split('\n').filter((line) => line !== '');
+
+    expect(collected(root, args)).toEqual(['test/ab.test.mjs']);
   });
 
   it.todo(

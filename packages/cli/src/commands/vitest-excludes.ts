@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 
 /**
  * The two forms, and which vitest matches each.
@@ -50,9 +50,12 @@ export function vitestExclusions(skip: readonly string[], root: string, excludes
   return skip.map((test) => `--exclude=${literal(excludes === 'relative' ? test : resolve(root, test))}`);
 }
 
-/** `path` as a glob that matches only itself. */
+/**
+ * `path` as a glob that matches only itself. A backslash is a character of the
+ * name where `/` separates, and is escaped there too; on Windows it separates.
+ */
 function literal(path: string): string {
-  return path.replace(/[!()*+?@[\]{|}]/g, '\\$&');
+  return path.replace(sep === '/' ? /[!()*+?@[\\\]{|}]/g : /[!()*+?@[\]{|}]/g, '\\$&');
 }
 
 /**
