@@ -3,8 +3,8 @@ import { mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeF
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { installDiff } from './installed.js';
-import { changedSince, diffPoint, diffSince } from './since.js';
+import { installDiff, installDiffs } from './installed.js';
+import { changedSince, commitPoint, diffPoint, diffSince } from './since.js';
 
 /**
  * The join between the two ways a file gets named, which is where this quietly
@@ -295,6 +295,54 @@ describe('the commit a diff is measured from', () => {
     }
 
     expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: names.filter((_, at) => at % 2 === 0) });
+    const reads = readFileSync(trace, 'utf8').split('\n').filter((line) => line.includes('"event":"start"') && /"(show|cat-file)"/.test(line));
+    expect(reads).toHaveLength(1);
+  });
+
+  it('names the top of the checkout once for every diff and commit read from it', async () => {
+    // A selection reads the diff and then the commit each group of tests last
+    // ran at, and each asks where the checkout's top is: the same answer.
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-since-')));
+    repo(root);
+    commit(root, { 'src/a.ts': 'export const a = 1;\n' }, 'first');
+    writeFileSync(join(root, 'src/a.ts'), 'export const a = 2;\n');
+    writeFileSync(join(root, 'src/b.ts'), 'export const b = 1;\n');
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+
+    const trace = join(root, '.git', 'trace2.json');
+    process.env['GIT_TRACE2_EVENT'] = trace;
+    try {
+      expect(await diffSince('HEAD', [], undefined, { cwd: root })).toContain('+export const b = 1;');
+      expect(await Promise.all([commitPoint(head, [], root), commitPoint(head, [], root)])).toMatchObject([{ base: head }, { base: head }]);
+    } finally {
+      delete process.env['GIT_TRACE2_EVENT'];
+    }
+
+    const tops = readFileSync(trace, 'utf8').split('\n').filter((line) => line.includes('"event":"start"') && line.includes('"--show-toplevel"'));
+    expect(tops).toHaveLength(1);
+  });
+
+  it('reads the lockfile at every commit a group of tests last ran at from one git process', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-since-')));
+    repo(root);
+    const heads: string[] = [];
+    for (const at of [0, 1, 2]) {
+      commit(root, { 'yarn.lock': `# the install, ${at}\n`, 'src/a.ts': `export const a = ${at};\n` }, `run ${at}`);
+      heads.push(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim());
+    }
+    writeFileSync(join(root, 'src/a.ts'), 'export const a = 3;\n');
+    const points = await Promise.all(heads.map((head) => commitPoint(head, [], root)));
+
+    const trace = join(root, '.git', 'trace2.json');
+    process.env['GIT_TRACE2_EVENT'] = trace;
+    let diffs: Awaited<ReturnType<typeof installDiffs>>;
+    try {
+      diffs = await installDiffs(points.map((point) => ({ point, changed: ['src/a.ts'] })), root);
+    } finally {
+      delete process.env['GIT_TRACE2_EVENT'];
+    }
+
+    expect(diffs).toHaveLength(3);
     const reads = readFileSync(trace, 'utf8').split('\n').filter((line) => line.includes('"event":"start"') && /"(show|cat-file)"/.test(line));
     expect(reads).toHaveLength(1);
   });

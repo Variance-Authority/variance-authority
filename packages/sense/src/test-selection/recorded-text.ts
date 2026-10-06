@@ -141,7 +141,7 @@ export function textAtRecording(
     // resident together.
     held = new Map();
     asked = new Set(window);
-    held = batch(root, commit, window);
+    held = batch(root, new Map([[commit, window]])).get(commit)!;
 
     let bytes = 0;
     for (const text of held.values()) bytes += text.length;
@@ -165,9 +165,27 @@ function unanswered(expected: readonly string[], from: number, width: number, an
 }
 
 /**
- * One window of paths at one commit, from one process — and in a partial
- * clone, a second for the paths it had not fetched yet, after fetching all of
- * them in one request.
+ * Paths at several commits from one `git cat-file --batch`, by commit and then
+ * path, leaving out a path the commit does not hold.
+ *
+ * For a reader that wants a few paths at each of a few commits at once — the
+ * manifests and the lockfile where each group of tests last ran — which
+ * `textAtRecording` would read a process per commit.
+ */
+export function textsAt(root: string, asked: ReadonlyMap<string, Iterable<string>>): Map<string, Map<string, string>> {
+  return batch(root, new Map([...asked].map(([commit, files]) => [commit, [...new Set(files)]])));
+}
+
+/**
+ * Checkouts the addon found no promisor remote in. Whether a clone is partial
+ * is settled when it is cloned, so it is asked once per checkout rather than
+ * once for every window that answers a path missing.
+ */
+const whole = new Set<string>();
+
+/**
+ * Paths at each commit, from one process — and in a partial clone, a second
+ * for the paths it had not fetched yet, after fetching each commit's together.
  *
  * `cat-file --batch` fetches each object a partial clone lacks in a request of
  * its own, a network round trip per path. So with the addon at hand the first
@@ -176,19 +194,28 @@ function unanswered(expected: readonly string[], from: number, width: number, an
  * the commit does not hold. Without the addon the read fetches as git does by
  * default: slower in a partial clone, and the same answers.
  */
-function batch(root: string, commit: string, files: readonly string[]): Map<string, string> {
-  const fetchMissingAt = native()?.fetchMissingAt;
-  const { texts, missing } = read(root, commit, files, fetchMissingAt === undefined);
-  if (missing.length > 0 && fetchMissingAt?.(root, commit, missing) === true) {
-    for (const [file, text] of read(root, commit, missing, true).texts) texts.set(file, text);
+function batch(root: string, asked: ReadonlyMap<string, readonly string[]>): Map<string, Map<string, string>> {
+  const fetchMissingAt = whole.has(root) ? undefined : native()?.fetchMissingAt;
+  const { texts, missing } = read(root, asked, fetchMissingAt === undefined);
+  const fetched = new Map<string, string[]>();
+  for (const [commit, files] of missing) {
+    const answer = fetchMissingAt?.(root, commit, files);
+    if (answer === false) {
+      whole.add(root);
+      break;
+    }
+    if (answer === true) fetched.set(commit, files);
+  }
+  for (const [commit, found] of read(root, fetched, true).texts) {
+    for (const [file, text] of found) texts.get(commit)?.set(file, text);
   }
   return texts;
 }
 
 /**
- * `files` at `commit` from one `cat-file --batch`, with the paths it answered
- * missing. Without `fetch`, an object a partial clone has not fetched is
- * answered missing too.
+ * `asked` from one `cat-file --batch`, with the paths it answered missing.
+ * Without `fetch`, an object a partial clone has not fetched is answered
+ * missing too.
  *
  * `--batch` writes `<sha> <type> <size>\n<size bytes>\n` per found object and
  * `<spec> missing\n` per absent one, so the sizes are read rather than the
@@ -197,19 +224,19 @@ function batch(root: string, commit: string, files: readonly string[]): Map<stri
  */
 function read(
   root: string,
-  commit: string,
-  files: readonly string[],
+  asked: ReadonlyMap<string, readonly string[]>,
   fetch: boolean,
-): { texts: Map<string, string>; missing: string[] } {
-  const texts = new Map<string, string>();
-  const missing: string[] = [];
-  if (files.length === 0) return { texts, missing };
+): { texts: Map<string, Map<string, string>>; missing: Map<string, string[]> } {
+  const texts = new Map([...asked.keys()].map((commit) => [commit, new Map<string, string>()]));
+  const missing = new Map<string, string[]>();
+  const specs = [...asked].flatMap(([commit, files]) => files.map((file) => ({ commit, file })));
+  if (specs.length === 0) return { texts, missing };
 
   let output: Buffer;
   try {
     output = execFileSync('git', ['cat-file', '--batch'], {
       cwd: root,
-      input: files.map((file) => `${commit}:${file}\n`).join(''),
+      input: specs.map(({ commit, file }) => `${commit}:${file}\n`).join(''),
       maxBuffer: 1 << 30,
       ...(fetch ? {} : { env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } }),
     });
@@ -220,11 +247,11 @@ function read(
     // together. Otherwise this is not a checkout, no such commit, or no git;
     // every module then reads as unverified, which widens rather than narrows,
     // and is the direction this whole subsystem is allowed to fail in.
-    return { texts, missing: fetch ? missing : [...files] };
+    return { texts, missing: fetch ? missing : new Map([...asked].map(([commit, files]) => [commit, [...files]])) };
   }
 
   let at = 0;
-  for (const file of files) {
+  for (const { commit, file } of specs) {
     const newline = output.indexOf(0x0a, at);
     if (newline === -1) break;
     const header = output.toString('utf8', at, newline);
@@ -233,12 +260,12 @@ function read(
     // where this line ended.
     const size = Number(header.slice(header.lastIndexOf(' ') + 1));
     if (!Number.isFinite(size)) {
-      if (header.endsWith(' missing')) missing.push(file);
+      if (header.endsWith(' missing')) missing.set(commit, [...(missing.get(commit) ?? []), file]);
       continue;
     }
     // Advance past the body whatever its type, so one path that is somehow not a
     // blob costs its own answer and not every answer after it.
-    if (header.endsWith(` blob ${size}`)) texts.set(file, output.toString('utf8', at, at + size));
+    if (header.endsWith(` blob ${size}`)) texts.get(commit)!.set(file, output.toString('utf8', at, at + size));
     // The object, then the newline `--batch` writes after it.
     at += size + 1;
   }

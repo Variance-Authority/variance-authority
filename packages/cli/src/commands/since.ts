@@ -16,7 +16,7 @@
 import { execFile } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { promisify } from 'node:util';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { OperatorError } from '../exit.js';
 import type { DiffPoint } from './installed.js';
 import type { MovedExports } from './reach.js';
@@ -63,7 +63,7 @@ export async function changedSince(ref: string, roots: readonly string[] = []): 
 
   try {
     const asked = roots[0] === undefined ? here : join(here, roots[0]);
-    const repository = await topLevel(asked, run);
+    const repository = await topLevel(asked);
     if (repository === undefined) throw new Error(`${asked} is not in a git checkout`);
     const base = await mergeBase(run, ref, repository);
     return [...(await changedFiles(run, repository, base)), ...(await untrackedFiles(run, repository))].map(
@@ -119,21 +119,30 @@ export async function diffSince(
 ): Promise<string | undefined> {
   const run = promisify(execFile);
   const here = options.cwd ?? process.cwd();
-  const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]), run);
+  const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]));
   if (repository === undefined) return undefined;
   const side = [...(options.reverse === true ? REVERSED : []), ...(options.unified === undefined ? [] : [`-U${options.unified}`])];
 
   try {
     // FIXME: a changed submodule is one `Subproject commit` hunk under its gitlink
     // path, so no test under it, or that entered a file inside it, is charged.
-    const { stdout } = await run('git', [...PLAIN, 'diff', ...NO_DECORATION, ...side, '--no-renames', from ?? (await mergeBase(run, ref, repository))], {
-      cwd: repository,
-      maxBuffer: 64 * 1024 * 1024,
-    });
+    const diffed = (async () =>
+      (await run('git', [...PLAIN, 'diff', ...NO_DECORATION, ...side, '--no-renames', from ?? (await mergeBase(run, ref, repository))], {
+        cwd: repository,
+        maxBuffer: 64 * 1024 * 1024,
+      })).stdout)();
     // An untracked file has no diff of its own: it is shown as the addition it
     // is, so its every line is charged and the graph is asked who imports it.
-    const added: string[] = [];
-    for (const file of await untrackedFiles(run, repository)) added.push(await diffOfNew(run, repository, file, side));
+    // Each is a process of its own, so a few run at once, in the order listed.
+    const untracked = untrackedFiles(run, repository);
+    // Both are awaited before either is read, so a failed diff does not leave the listing unawaited.
+    const [stdout, files] = await Promise.all([diffed, untracked]);
+    const added = Array.from<string>({ length: files.length });
+    let next = 0;
+    const diffing = async (): Promise<void> => {
+      for (let at = next++; at < files.length; at = next++) added[at] = await diffOfNew(run, repository, files[at]!, side);
+    };
+    await Promise.all(Array.from({ length: Math.min(NEW_AT_ONCE, files.length) }, diffing));
 
     return inCoordinates([stdout, ...added].join('\n'), here, repository);
   } catch {
@@ -156,6 +165,16 @@ type Run = (file: string, args: readonly string[], options: object) => Promise<{
 const PLAIN = ['-c', 'core.quotePath=false', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false'];
 const NO_DECORATION = ['--no-color', '--no-ext-diff'];
 const REVERSED = ['-R', '--src-prefix=b/', '--dst-prefix=a/'];
+
+/** How many untracked files are diffed at once, each by a process of its own. */
+const NEW_AT_ONCE = 8;
+
+/**
+ * Each directory's top level, asked once per process: a selection asks it for
+ * the diff and again for every commit it reads at, and where a checkout's top
+ * is does not move while it runs.
+ */
+const tops = new Map<string, Promise<string | undefined>>();
 
 /** Files a diff from `base` to the working tree names, one per record. */
 async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
@@ -275,7 +294,7 @@ export async function indexPosition(
   const selection = await import('@variance-authority/sense/test-selection');
 
   try {
-    const repository = await topLevel(roots[0] === undefined ? root : join(root, roots[0]), run);
+    const repository = await topLevel(roots[0] === undefined ? root : join(root, roots[0]));
     if (repository === undefined) return undefined;
     // The position, and nothing else decoded to reach it: a snapshot of a
     // repository holds hundreds of thousands of regions and this asks it for
@@ -324,7 +343,7 @@ export async function commitPoint(commit: string, roots: readonly string[] = [],
 async function pointAt(roots: readonly string[], baseOf: (run: Run, at: string) => Promise<string>, here: string): Promise<DiffPoint | undefined> {
   const run = promisify(execFile);
   try {
-    const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]), run);
+    const repository = await topLevel(roots[0] === undefined ? here : join(here, roots[0]));
     if (repository === undefined) return undefined;
     const base = await baseOf(run, repository);
     return { repository, base, at: filesAt(repository, base) };
@@ -371,31 +390,49 @@ export async function movedSince(point: DiffPoint | undefined, changed: readonly
  * there at both ends is one it can.
  *
  * A diff that bumps a workspace names dozens of manifests, and each is read at
- * the revision. So the paths asked in one turn of the event loop are read
- * together, by the reader the selection already uses for the text at a
- * recording: one `git cat-file --batch` rather than a `git show` apiece.
+ * the revision; a selection over several groups of tests reads the lockfile at
+ * each group's commit. So the paths asked of a repository in one turn of the
+ * event loop, at any revision, are read together: one `git cat-file --batch`
+ * rather than a `git show` apiece, or a process per revision.
  */
 function filesAt(repository: string, revision: string): (path: string) => Promise<string | undefined> {
-  let asked: Map<string, ((text: string | undefined) => void)[]> | undefined;
   return (path) =>
     new Promise((answer) => {
-      if (asked === undefined) {
-        const turn = (asked = new Map());
+      let turn = pending.get(repository);
+      if (turn === undefined) {
+        const asked = (turn = new Map());
+        pending.set(repository, asked);
         setImmediate(() => {
-          asked = undefined;
-          void import('@variance-authority/sense/test-selection')
-            .then(({ textAtRecording }) => textAtRecording(repository, turn.keys()))
-            .catch(() => undefined)
-            .then((textAt) => {
-              for (const [file, answers] of turn) {
-                const text = textAt?.(file, revision);
-                for (const one of answers) one(text);
-              }
-            });
+          pending.delete(repository);
+          void readTurn(repository, asked);
         });
       }
-      asked.set(path, [...(asked.get(path) ?? []), answer]);
+      const paths = turn.get(revision) ?? new Map<string, Answer[]>();
+      turn.set(revision, paths);
+      paths.set(path, [...(paths.get(path) ?? []), answer]);
     });
+}
+
+type Answer = (text: string | undefined) => void;
+
+/** The paths asked of each repository this turn, by revision, with who is waiting on each. */
+const pending = new Map<string, Map<string, Map<string, Answer[]>>>();
+
+/** Answers every path in `turn`; one the read could not answer is `undefined`, so nobody waits forever. */
+async function readTurn(repository: string, turn: ReadonlyMap<string, ReadonlyMap<string, readonly Answer[]>>): Promise<void> {
+  let texts: ReadonlyMap<string, ReadonlyMap<string, string>> | undefined;
+  try {
+    const { textsAt } = await import('@variance-authority/sense/test-selection');
+    texts = textsAt(repository, new Map([...turn].map(([revision, paths]) => [revision, paths.keys()])));
+  } catch {
+    texts = undefined;
+  }
+  for (const [revision, paths] of turn) {
+    for (const [file, answers] of paths) {
+      const text = texts?.get(revision)?.get(file);
+      for (const one of answers) one(text);
+    }
+  }
 }
 
 /**
@@ -407,13 +444,23 @@ function filesAt(repository: string, revision: string): (path: string) => Promis
  * caller with no checkout has no diff, which skips nothing; `changedSince`
  * refuses instead, with a sentence naming the ref the operator typed.
  */
-export async function topLevel(from: string, run: Run = promisify(execFile)): Promise<string | undefined> {
-  try {
-    const { stdout } = await run('git', ['rev-parse', '--show-toplevel'], { cwd: from });
-    return stdout.trim() || undefined;
-  } catch {
-    return undefined;
+export function topLevel(from: string): Promise<string | undefined> {
+  const key = resolve(from);
+  let asked = tops.get(key);
+  if (asked === undefined) {
+    asked = (async () => {
+      try {
+        const { stdout } = await promisify(execFile)('git', ['rev-parse', '--show-toplevel'], { cwd: from });
+        return stdout.trim() || undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    tops.set(key, asked);
+    // No checkout is not kept: a directory can become one.
+    void asked.then((top) => top === undefined && tops.delete(key));
   }
+  return asked;
 }
 
 function messageOf(error: unknown): string {

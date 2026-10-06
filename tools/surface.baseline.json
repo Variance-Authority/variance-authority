@@ -2917,6 +2917,7 @@
         "testsReaching": "function",
         "testsReachingFromView": "function",
         "textAtRecording": "function",
+        "textsAt": "function",
         "textsOf": "function",
         "unmeasuredOf": "function",
         "valued": "function",

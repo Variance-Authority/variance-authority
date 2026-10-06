@@ -75,7 +75,8 @@ describe('a distance in a clone that holds all of it', () => {
     // Past the record: four on main, eight on side, its merge; eight on topic, its merge.
     expect(await headPast(record, clone)).toBe(22);
     expect(await distanceFrom(config, 'main', record, clone)).toBe(13);
-    expect(await readerMainline(config, {}, clone)).toEqual({ name: 'main', since: 9 });
+    const base = git(clone, 'merge-base', 'HEAD', 'refs/remotes/origin/main');
+    expect(await readerMainline(config, {}, clone)).toEqual({ name: 'main', since: 9, base });
     expect(await note(clone, record)).toContain('22 commit(s) before HEAD');
   });
 });
@@ -90,7 +91,8 @@ describe('a distance in a shallow clone that holds the record', () => {
 
     expect.soft(await headPast(record, clone)).toBeUndefined();
     expect.soft(await distanceFrom(config, 'main', record, clone)).toBeUndefined();
-    expect.soft(await readerMainline(config, {}, clone)).toEqual({ name: 'main' });
+    const base = git(clone, 'merge-base', 'HEAD', 'refs/remotes/origin/main');
+    expect.soft(await readerMainline(config, {}, clone)).toEqual({ name: 'main', base });
     expect.soft(await note(clone, record)).toContain('at a distance this clone cannot count');
   });
 

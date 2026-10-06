@@ -6,7 +6,7 @@ import { delimiter, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { nativeAvailable } from '../native.js';
-import { textAtRecording } from './recorded-text.js';
+import { textAtRecording, textsAt } from './recorded-text.js';
 
 /**
  * More paths than one window holds, so the answers below cross a window edge
@@ -93,6 +93,48 @@ describe('the text at a recording is read a window at a time', () => {
       }
 
       expect(await reads()).toBe(3);
+    });
+  });
+
+  it.runIf(nativeAvailable())('asks whether the checkout is a partial clone once, however many windows answer a path missing', async () => {
+    await checkout(async (root, commit) => {
+      // A path added since the recording sorts beside each end of the list, so
+      // the first window and a later one each answer one missing.
+      const added = ['src/f000-added.ts', `src/f${FILES - 1}-added.ts`];
+      const sourceAt = textAtRecording(root, [...every(0, FILES).map(path), ...added]);
+      const trace = resolve(root, '.git', 'trace2.json');
+      process.env['GIT_TRACE2_EVENT'] = trace;
+      try {
+        for (const at of every(0, FILES)) expect(sourceAt(path(at), commit), path(at)).toBe(body(at));
+        for (const file of added) expect(sourceAt(file, commit), file).toBeUndefined();
+      } finally {
+        delete process.env['GIT_TRACE2_EVENT'];
+      }
+
+      const started = (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"'));
+      expect(started.filter((line) => line.includes('"cat-file"')).length).toBeGreaterThan(1);
+      expect(started.filter((line) => line.includes('"config"'))).toHaveLength(1);
+    });
+  });
+
+  it('reads paths at several commits from one process', async () => {
+    await checkout(async (root, first) => {
+      const git = async (...args: string[]): Promise<string> => (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
+      await writeFile(resolve(root, path(0)), 'export const at = "since";\n', 'utf8');
+      await git('commit', '--quiet', '--all', '--message', 'since');
+      const second = await git('rev-parse', 'HEAD');
+      const trace = resolve(root, '.git', 'trace2.json');
+      process.env['GIT_TRACE2_EVENT'] = trace;
+      let texts: ReturnType<typeof textsAt>;
+      try {
+        texts = textsAt(root, new Map([[first, [path(0), path(1), 'src/added-since.ts']], [second, [path(0)]]]));
+      } finally {
+        delete process.env['GIT_TRACE2_EVENT'];
+      }
+
+      expect(texts).toEqual(new Map([[first, new Map([[path(0), body(0)], [path(1), body(1)]])], [second, new Map([[path(0), 'export const at = "since";\n']])]]));
+      const started = (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"') && line.includes('"cat-file"'));
+      expect(started).toHaveLength(1);
     });
   });
 
