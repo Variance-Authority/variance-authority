@@ -341,6 +341,80 @@ per question; Compass's is staleness, which its own `growth-and-drift.md` says
 no structural comparison sees. The rule for both: **derive what an owner knows;
 declare only what no owner knows.**
 
+## Architecture that keeps what matters
+
+The field that asks which facts about a codebase deserve to be remembered, and
+what may be forgotten. It splits by who decides what matters: a model, a
+person, or a measurement.
+
+**Archify** (`tt-a1i/archify`) is the model. An LLM writes the whole
+architecture as JSON, following prose defaults ("led by the main user
+journey", "accurately named subsystems"), and stops when every responsibility
+has a source it cites. No count of nodes is a target or a ceiling. Code only
+validates and renders, and `archify compare` diffs two snapshots by exact id.
+Git is read only to check that a cited path and line exist: no history, no
+co-change, nothing that ran. Its own benchmark scored 8 of 15 first passes as
+usable.
+
+**CodeScene** (Tornhill) is the person plus a measurement. Components are
+declared as file globs; hotspots (change frequency × size, cut at the knee of
+the distribution) and change coupling are recomputed at that grain, so a
+ripple between components is kept and a file edge is dropped. Its published
+figures are a vendor's. The independent version is Xiao, Cai and Kazman
+(ICSE 2016, seven Apache projects): the top five architectural debts sit in
+8–25% of the error-prone files and take 20–61% of maintenance effort.
+
+**Architecture recovery has no ground truth to win against.** Garcia, Ivkovic
+and Medvidovic (ASE 2013) and Lutellier et al. (ICSE 2015) scored six to nine
+clustering techniques against expert architectures: the best reach MoJoFM
+41–77, the winner flips in four of five cases with the dependency input
+(symbol-level beats include-level by 7–12%), and one ground truth costs about
+a hundred expert hours. Le et al. (arXiv 2102.09835) judge recovery by what it
+predicts instead: smells on a recovered architecture predict future issue- and
+change-proneness at 70–95% precision and recall, and the directory tree scores
+10–20% below the recovered view.
+
+**Imports are a minority of what changes together.** Oliva and Gerosa found 91%
+of co-change links join files with no structural dependency, and a dependent
+co-changes with its dependency about 32% of the time. Beck and Diehl (EMSE
+2013) found co-change alone clusters worse than structure, because it is
+sparser, and the two combined better than either. Silva, Valente and Maia show
+what co-change costs to read: dropping commits over ten packages and edges of
+weight one keeps 14–22% of commits.
+
+**Forgetting is a policy that can be measured.** FixCache (Kim et al., ICSE
+2007) keeps 10% of files, loads a fixed file with what changed beside it,
+evicts the least recently used, and catches 73–95% of faults across seven
+projects. Generative Agents (Park et al., 2023) score a memory by recency,
+importance and relevance, decay recency from the last access, and consolidate
+when summed importance crosses a threshold; consolidation was the largest
+single step in its ablation. Graphiti (Zep, arXiv 2501.13956) marks a
+contradicted fact with the time it stopped holding instead of deleting it.
+
+**Two results against the obvious product.** Google deployed Time-Weighted
+Risk (TWR), a ranking of files by bug-fixing commits weighted toward recent
+ones, as an annotation on bug-prone files in code review (Lewis et al., ICSE
+2013); FixCache did not scale to its repository and was not deployed. After
+four weeks the annotation was demoted to a lint warning shown only to
+reviewers with warnings enabled, and the study found no statistically
+significant change in review time or comment counts: developers wanted a flag
+that said what to do and why. Rahman et al. (FSE 2011) found the cache barely beat ordering files by closed
+bug count. A ranking keeps its reason beside it and is measured against the
+naive count.
+
+**What it means here.** Two positions follow, and neither is built:
+
+- Structure read from imports alone, as
+  [spec 0096](../specs/0096-a-change-says-what-it-did-to-the-structure.md)
+  first defined it, reads the minority signal. The facts worth keeping sit
+  where the signals disagree: an import nothing executes, a crossing at runtime
+  with no import, files that change together with neither, a declared edge
+  nothing carries. Only this project records what ran.
+- The predictive-selection rejection above stands for selection, which needs a
+  cause. Co-change as a measure of what matters needs no cause, and its decay on
+  reorganization is the forgetting such a memory wants. The two do not
+  contradict, and a page that uses co-change says which of the two it is doing.
+
 ## Where the field contradicts us
 
 | Our position | Who measured otherwise | What it costs us |
@@ -351,6 +425,7 @@ declare only what no owner knows.**
 | The corpus is enough to argue from | Methods2Test: ground truth at a scale in-house corpora do not reach | Named in [spec 0022](../specs/0022-evidence-from-code-this-project-did-not-write.md) already |
 | Naming the witnesses beats counting the lines | Schuler & Zeller, Petrović et al.: execution is the weak half either way | True against a percentage, not against an oracle-aware measure; say which |
 | An index saves the agent's exploration | SWE-grep: trained parallel grep matches frontier retrieval in about four turns, with no index | The claim needs an agent benchmark in tool calls and tokens before a product page quotes it |
+| Structure is the import graph, rolled up | Oliva & Gerosa: 91% of co-change links have no structural dependency | Spec 0096's first definition of an edge; a structure reading names which signal it read |
 
 None of those is a refutation of a shipped behaviour. Each is a reason a
 sentence on a product page needs a measurement behind it before it is quoted as
