@@ -277,37 +277,48 @@ function cutOf(cases: readonly string[], file: string, regions: readonly Spelled
 }
 
 describe('two cuts of one text', () => {
-  it('keeps the cases of a file the run did not run when the cuts part only where a build starts the module and which awaits it kept', () => {
-    const kept = 'ignore.test.ts > keeps';
-    // The whole suite's cut kept the regions every build cut alike: the module
-    // from its first line, and two of the three awaits. One shard's build
-    // starts the module at its first statement and keeps all three.
-    const held = cutOf([kept], 'src/observe.ts', [
-      ['module', '', 'module', [1, 419], []],
-      ['function', 'observePair', 'entry', [338, 354], [kept]],
-      ['resume', 'observePair', 'await#0', [343, 343], [kept]],
-      ['resume', 'observePair', 'await#1', [345, 345], [kept]],
-    ]);
-    const fresh = cutOf(['other.test.ts > loads'], 'src/observe.ts', [
-      ['module', '', 'module', [16, 419], []],
-      ['function', 'observePair', 'entry', [338, 354], []],
-      ['resume', 'observePair', 'await#0', [343, 343], []],
-      ['resume', 'observePair', 'await#1', [345, 345], []],
-      ['resume', 'observePair', 'await#2', [347, 352], []],
-    ]);
+  const kept = 'ignore.test.ts > keeps';
+  const loads = 'other.test.ts > loads';
+  // The whole suite's cut kept the regions every build cut alike: the module
+  // from its first line, and two of the three awaits. One shard's build
+  // starts the module at its first statement and keeps all three.
+  const held = cutOf([kept, loads], 'src/observe.ts', [
+    ['module', '', 'module', [1, 419], [loads]],
+    ['function', 'observePair', 'entry', [338, 354], [kept]],
+    ['resume', 'observePair', 'await#0', [343, 343], [kept]],
+    ['resume', 'observePair', 'await#1', [345, 345], [kept]],
+  ]);
+  const fresh = cutOf([loads], 'src/observe.ts', [
+    ['module', '', 'module', [16, 419], [loads]],
+    ['function', 'observePair', 'entry', [338, 354], []],
+    ['resume', 'observePair', 'await#0', [343, 343], []],
+    ['resume', 'observePair', 'await#1', [345, 345], []],
+    ['resume', 'observePair', 'await#2', [347, 352], []],
+  ]);
+  const same = { ...ran(['other.test.ts']), sameText: () => true };
 
-    const { merged } = layerCaseIndex(held, fresh, { ...ran(['other.test.ts']), sameText: () => true });
+  it('keeps the cases of a file the run did not run when the cuts part only where a build starts the module and which awaits it kept', () => {
+    const { merged } = layerCaseIndex(held, fresh, same);
 
     const decoded = decodeExecutionIndex(merged);
     expect(decoded.modules[0]!.blocks.map((block) => [
       `${block.kind} ${block.path}`,
       block.crossings.map((crossing) => decoded.tests[crossing.test]!.id),
     ])).toEqual([
-      ['module module', []],
+      ['module module', [loads]],
       ['function entry', [kept]],
       ['resume await#0', [kept]],
       ['resume await#1', [kept]],
       ['resume await#2', []],
+    ]);
+  });
+
+  it('cuts the before layer at the module the run recorded, and names nothing unlined', () => {
+    const { before, unlined } = layerCaseIndex(held, fresh, same);
+
+    expect(unlined).toBeUndefined();
+    expect(decodeExecutionIndex(before!).modules[0]!.blocks.map((block) => [block.startLine, block.endLine])).toEqual([
+      [16, 419], [338, 354], [343, 343], [345, 345],
     ]);
   });
 });

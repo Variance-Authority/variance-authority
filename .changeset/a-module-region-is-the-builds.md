@@ -14,4 +14,5 @@ from a build. When the two cuts also kept a different set of a function's
 awaits, the check read the module as cut from another text and dropped every
 held case on it. The next review reported each region those tests entered as
 `Lost every case`, in a file the pull request did not touch. The module's own
-region is now left out of that check, and the held cases land by address.
+region is now left out of that check: the held cases land by address, and the
+cases a review compares against stand on the module lines the run recorded.

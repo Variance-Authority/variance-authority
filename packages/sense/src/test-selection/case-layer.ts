@@ -198,10 +198,13 @@ export function layerCaseIndex(
  * holds it, and kept at a line of the older one it would pair with whatever
  * region stands there now.
  *
- * The module's own region is not one of those lines. It starts where the
- * build that cut it starts the module — the source at its first line, a build
- * at the first statement it kept — so two cuts of one text part there, while a
- * line written above everything moves every other region as well.
+ * The module's own region does not say which text `held` was cut at. It spans
+ * from the first to the last line the build that cut it kept — the source
+ * keeps line 1, a build may start at the first statement — so two cuts of one
+ * text part there. A line written above everything moves every other region as
+ * well, and one written below adds or takes away a region of its own, which
+ * lands nothing. When only that region moved, `held` takes the recorded lines
+ * whatever the numbering.
  */
 // FIXME: regions told apart only by occurrence carry no seat for
 // `sameNumbering` to compare, so a sibling taken out in front of them and
@@ -213,11 +216,12 @@ function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExe
   const lands = landing(recorded, held, true);
   const to = new Map<number, number>();
   for (const [block, from] of lands.entries()) if (from >= 0) to.set(from, block);
-  const moved = [...to].some(([from, block]) => held.blocks[from]!.kind !== 'module' && (
+  const moved = [...to].filter(([from, block]) =>
     held.blocks[from]!.startLine !== recorded.blocks[block]!.startLine ||
-    held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine));
-  if (!moved) return held;
-  if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
+    held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine);
+  if (moved.length === 0) return held;
+  const older = moved.some(([from]) => held.blocks[from]!.kind !== 'module');
+  if (older && !sameNumbering(held.blocks, recorded.blocks)) return undefined;
   const kept = [...to.keys()].sort((left, right) => left - right);
   return {
     file: held.file,
