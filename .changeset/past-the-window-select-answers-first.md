@@ -6,11 +6,11 @@ Past the reuse window, `variance select` answers from the mainline record it fet
 
 After the 10 minutes a fetched mainline record is reused, `variance select`
 waited for the share to answer before it printed anything: about 2.5 s for a
-`git` share over SSH, on every command in an edit loop that outlasted the
-window. Outside CI it now answers from the record fetched last, and starts
+`git` share over SSH, on the first command after each window lapsed. Outside CI it now answers from the record fetched last, and starts
 `variance share --suite <name>` as a process of its own to fetch the mainline's
 record again. The note prints that process's id and the file its output goes
-to, and the command run after it ends reads the record it fetched. A lock in
+to, and when its fetch succeeds, the command run after it ends reads the record
+it fetched. A lock in
 the suite's read root keeps a second command from starting a second process
 while one runs; a lock whose process is gone is taken over.
 

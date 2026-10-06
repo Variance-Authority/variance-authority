@@ -62,9 +62,11 @@ fetched here, and the reader says so.**
   `variance share --suite <name>` under a lock in the read root; the next
   command reads what it fetched. The first fetch on a machine is made before
   the answer, and CI and every library caller still fetch before they answer.
-  An older base is the same kind of answer the window already gives: the diff
-  from it to HEAD names every file changed since it, so the selection grows
-  with the gap rather than missing a change.
+  An older base is the same kind of answer the window already gives. Unless a
+  patch is handed in with `--diff`, the change is read from that record's
+  commit to the working tree, and a test file the record does not hold is never
+  skipped, so the selection grows with the gap rather than missing a change. A
+  patch handed in with `--diff` is read as the whole change and does not grow.
 - **Pruning keeps what `fetched.json` names.** A fetch runs the daily prune
   of ADR-0078 against the checkout being read, and the commit the name points
   at is never removed, however far off the line it is.
@@ -128,8 +130,10 @@ fetched here, and the reader says so.**
 ## Cost
 
 - A reader can be ten minutes behind a push to main. A workstation `select`
-  past the window can be further behind, by as long as the machine was idle:
-  the first command after the gap answers from the record fetched before it.
+  past the window can be further behind, by the time since the last fetch that
+  succeeded: the first command after an idle gap answers from the record
+  fetched before it, and while the remote does not answer, each `select` starts
+  another fetch and answers from the same record.
 - The publish job runs `vitest list` as well as the build.
 - A developer who never runs `variance share --suite <name>`, `test:since` or
   `select` has never fetched, and their seams lay the primary checkout's
