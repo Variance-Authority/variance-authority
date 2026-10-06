@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { instrument } from '../instrument/index.js';
-import { coverageBlocks } from './coverage-rows.js';
+import { coverageBlocks, recordedBlocks } from './coverage-rows.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 
 const FILE = '/checkout/src/price.ts';
@@ -67,5 +67,29 @@ describe('coverageBlocks', () => {
       .filter((row, index) => row.digest !== after[index]!.digest)
       .map((row) => `${row.name} ${row.path}`);
     expect(changed).toEqual(['price if#0/then']);
+  });
+});
+
+describe('recordedBlocks', () => {
+  // What a runner's own transform hands `instrumentModule` with its map, and
+  // what a seam reads of a build through the map beside it.
+  const built = (build: { code: string; map: TransformSourceMap }) => {
+    const frame = recordedFrame(build.code, build.map, FILE, () => SOURCE);
+    return recordedBlocks(instrument(build.code, FILE)!.blocks, frame, build.code, 'presence');
+  };
+  const own = coverageBlocks(instrument(SOURCE, FILE)!.blocks, recordedFrame(SOURCE, undefined, FILE, () => SOURCE));
+
+  it('records a build that cut the regions its source cuts as the source', () => {
+    expect(built(MODERN)).toEqual(own);
+  });
+
+  it('opens and closes the module of a build that cut regions its source has not where the source does', () => {
+    // A helper a bundler wrote above the module, with no origin in its map.
+    const rows = built({
+      code: `var __name = (target, value) => target;\n${MODERN.code}`,
+      map: { ...MODERN.map, mappings: `;${MODERN.map.mappings}` },
+    });
+    expect(rows.length).toBe(own.length + 1);
+    expect(rows[0]).toMatchObject({ kind: 'module', startLine: own[0]!.startLine, endLine: own[0]!.endLine, digest: own[0]!.digest });
   });
 });

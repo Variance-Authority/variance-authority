@@ -35,7 +35,7 @@ import {
   writeRecord,
   type RecordWriter,
 } from './instrumented-modules.js';
-import { coverageBlocks } from './coverage-rows.js';
+import { recordedBlocks } from './coverage-rows.js';
 import { jestStore, type SelectionTransformerConfig } from './jest.js';
 import { rawFrame, type TransformSourceMap } from './source-lines.js';
 
@@ -193,7 +193,7 @@ function place(
   // map may place in its source.
   const id = projectPath(root, path);
   const done = instrument(source, file, id, { mode });
-  const { extentOf, sourceDigest, text } = frame;
+  const { sourceDigest } = frame;
   writeRecord(records, done === undefined
     ? { file, id, sourceDigest, instrumented: false, blocks: [] }
     : {
@@ -201,7 +201,7 @@ function place(
         id,
         sourceDigest,
         instrumented: true,
-        blocks: coverageBlocks(done.blocks, { extentOf, text }),
+        blocks: recordedBlocks(done.blocks, frame, source, mode),
       });
   return done?.code ?? source;
 }
