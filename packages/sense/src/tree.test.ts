@@ -219,13 +219,14 @@ describe('digests read out of git', () => {
 
     // Porcelain status spells every path from the top of the checkout, whatever
     // directory it runs in. Read as scan-root paths, the edit keeps its committed
-    // digest, and the deletion and the rename's old name keep digests for bytes
-    // that are gone.
+    // digest, the deletion and the rename's old name keep digests for bytes that
+    // are gone, and the untracked file gets none.
     const digests = await gitDigests(join(root, 'src'));
 
     expect([...digests?.keys() ?? []].sort()).toEqual(['Button.tsx', 'Clock.tsx', 'new.ts']);
     expect(digests?.get('Button.tsx')).toBe(await onDisk(root, 'src/Button.tsx'));
     expect(digests?.get('Clock.tsx')).toBe(await onDisk(root, 'src/Clock.tsx'));
+    expect(digests?.get('new.ts')).toBe(await onDisk(root, 'src/new.ts'));
   });
 
   it('applies known additions, deletions and both sides of a rename', async () => {

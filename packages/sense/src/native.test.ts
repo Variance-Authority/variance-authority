@@ -104,6 +104,30 @@ describe('the native tree against the JavaScript one', () => {
     expect(answered).toEqual(oracle);
   });
 
+  it.runIf(native)('agrees at a scan root inside the checkout', async () => {
+    const root = await repository();
+    // Porcelain status and `hash-object --stdin-paths` both spell a path from the
+    // top of the checkout, wherever they run, so each change under `src/` has to
+    // lose the prefix on the way in and gain it on the way to `hash-object`.
+    await write(root, 'src/Button.tsx', 'export function Button() { return <b /> }\n');
+    await write(root, 'src/Clock.tsx', 'export const Clock = () => null\n');
+    await unlink(join(root, 'src/panel/Panel.tsx'));
+    await git(root, ['mv', 'src/tokens.css', 'src/theme.css']);
+    await write(root, 'docs/readme.md', 'two\n');
+    const scanned = join(root, 'src');
+
+    const { oracle, answered } = await both(scanned);
+    const tree = (await gitTreeOf(scanned))!;
+    const edited = (await run('git', ['hash-object', 'src/Button.tsx'], { cwd: root })).stdout.trim();
+
+    expect(answered).toEqual(oracle);
+    expect(tree.get('Button.tsx')).toBe(`git:${edited}`);
+    expect(tree.get('Clock.tsx')).toBeDefined();
+    expect(tree.get('theme.css')).toBeDefined();
+    expect([...tree.paths()]).not.toContain('tokens.css');
+    expect([...tree.paths()]).not.toContain('panel/Panel.tsx');
+  });
+
   it.runIf(native)('names every file in a directory git collapsed, and none it ignores', async () => {
     const root = await repository();
     // At the top of a checkout `status` is asked with `--untracked-files=normal`,
