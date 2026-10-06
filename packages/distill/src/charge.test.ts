@@ -149,13 +149,23 @@ describe('an import a used file writes, charged to the code that reads it', () =
     expect(chargeOf(read(referencing([], { untraced: true })))).toEqual({ kind: 'unmeasured' });
     // A barrel's `export *` is its importers' use, whatever else the barrel loads untraced.
     expect(chargeOf(read(referencing([], { passed: [PDF], untraced: true })))).toEqual({ kind: 'handed' });
+    // So is one the barrel also reads in a function of its own.
+    const handed = read(referencing([{ file: PDF, name: 'Modal', line: 3, load: false }], { passed: [PDF] }));
+    expect(chargeOf(handed)).toEqual({ kind: 'handed' });
+    expect(formatFileDistillation(handed)).toContain(
+      `    ${UTILS} re-exports what it imports from ${PDF}, so its importers use it: import past ${UTILS} where they do.`,
+    );
+    expect(formatFileDistillation(read(referencing([], { untraced: true })))).toContain(
+      `    ${UTILS} has a \`require\` or \`import()\` no name traces, so where it reads ${PDF} is unmeasured.`,
+    );
   });
 
   it('leaves an import unmeasured where a reference sits in no region the record keeps', () => {
-    expect(chargeOf(read(referencing([{ file: PDF, name: 'PDFDocument', line: 20, load: false }])))).toEqual({
-      kind: 'unmeasured',
-      line: 20,
-    });
+    const result = read(referencing([{ file: PDF, name: 'PDFDocument', line: 20, load: false }]));
+    expect(chargeOf(result)).toEqual({ kind: 'unmeasured', line: 20 });
+    expect(formatFileDistillation(result)).toContain(
+      `    ${UTILS} reads ${PDF} at line 20, where the record keeps no region: unmeasured.`,
+    );
   });
 
   it('charges nothing to the test file\'s own import, nor where the importer\'s text was not read', () => {

@@ -1,5 +1,9 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { native, nativeAvailable } from '../native.js';
+import { importReferences } from './references.js';
 
 /**
  * Where a file references what it imports, asked of the addon directly: each
@@ -86,5 +90,38 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
       effects: [],
       untraced: true,
     });
+  });
+
+  it('lands each source on a file of the checkout, and leaves out one it cannot find', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-authority-references-'));
+    try {
+      const files: Record<string, string> = {
+        'src/index.ts': [
+          "import { a } from './a';",
+          "import './c';",
+          "import { gone } from './gone';",
+          "export * from './b';",
+          'export const f = () => [a, gone];',
+          '',
+        ].join('\n'),
+        'src/a.ts': 'export const a = 1;\n',
+        'src/b.ts': 'export const b = 1;\n',
+        'src/c.ts': 'globalThis.c = 1;\n',
+      };
+      for (const [file, body] of Object.entries(files)) {
+        await mkdir(dirname(join(root, file)), { recursive: true });
+        await writeFile(join(root, file), body);
+      }
+      expect(importReferences(root, undefined, 'src/index.ts')).toEqual({
+        references: [{ file: 'src/a.ts', name: 'a', line: 5, load: false }],
+        passed: ['src/b.ts'],
+        imported: ['src/a.ts', 'src/b.ts', 'src/c.ts'],
+        effects: ['src/c.ts'],
+        untraced: false,
+      });
+      expect(importReferences(root, undefined, 'src/missing.ts')).toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
