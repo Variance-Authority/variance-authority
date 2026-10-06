@@ -1,4 +1,4 @@
-import { respelled, UNHEARD, preconditionStrings, preconditionWords } from './case-precondition-column.js';
+import { UNHEARD, preconditionStrings, preconditionWords } from './case-precondition-column.js';
 import type { CrossingSetsPool } from './crossing-sets.js';
 import { durationColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
 import { moduleAt, openSetColumns, writeSetColumns, type SetExecutionModule } from './execution-set-format.js';
@@ -15,7 +15,10 @@ import type { ExecutionTest } from './reverse.js';
  * so the order of two of them is the order of their ids, and they are copied
  * into the output as the bytes they are stored as. A string is decoded only
  * where the layer reasons about it — a test file it asks whether the checkout
- * still holds, a module the run recorded again — and once.
+ * still holds, a module the run recorded again — and once. A case's
+ * preconditions are carried as stored too: every writer of the column spells a
+ * row as `JSON.stringify` does, so the stored bytes are what the case would be
+ * written as again.
  */
 export class HeldIndex {
   readonly columns: SetColumns;
@@ -25,14 +28,12 @@ export class HeldIndex {
   readonly #ascends: boolean;
   readonly #decoder = new TextDecoder();
   readonly #strings = new Map<number, string>();
-  readonly #respelled = new Map<number, string>();
   readonly #modules = new Map<number, SetExecutionModule>();
   #moduleOfFile: Map<number, number> | undefined;
 
   /**
    * The index these bytes hold, or nothing when they hold none this can lay a
-   * run over: the row spelling, or bytes it did not write — a precondition that
-   * does not parse among them, which no case could be read back from.
+   * run over: the row spelling, or bytes it did not write.
    */
   static open(bytes: Uint8Array | undefined): HeldIndex | undefined {
     if (bytes === undefined) return undefined;
@@ -50,11 +51,6 @@ export class HeldIndex {
     const blob = columns.strings.blob;
     this.#blob = Buffer.isBuffer(blob) ? blob : Buffer.from(blob.buffer, blob.byteOffset, blob.byteLength);
     this.#ascends = below(this.#blob);
-    // Each distinct spelling once, as the writer spells it: a layer writes the
-    // spelling it would write for the case as it reads it.
-    for (const word of columns.testPreconditions ?? []) {
-      if (word !== UNHEARD && !this.#respelled.has(word)) this.#respelled.set(word, respelled(this.string(word)));
-    }
   }
 
   string(id: number): string {
@@ -65,11 +61,6 @@ export class HeldIndex {
       this.#strings.set(id, found);
     }
     return found;
-  }
-
-  /** A held precondition word's string as the output spells it. */
-  respelled(word: number): string {
-    return this.#respelled.get(word)!;
   }
 
   /**
@@ -159,7 +150,7 @@ export function writeLaid(
       marked[columns.testFile[test]!] = 1;
       marked[columns.testName[test]!] = 1;
       const word = columns.testPreconditions?.[test] ?? UNHEARD;
-      if (word !== UNHEARD) fresh.add(held.respelled(word));
+      if (word !== UNHEARD) marked[word] = 1;
       continue;
     }
     objects.push(test);
@@ -212,7 +203,7 @@ export function writeLaid(
       testStopped[at] = columns.testStopped?.[test] ?? 0;
       testDuration[at] = columns.testDuration?.[test] ?? NO_DURATION;
       const word = columns.testPreconditions?.[test] ?? UNHEARD;
-      testPreconditions[at] = word === UNHEARD ? UNHEARD : id(held.respelled(word));
+      testPreconditions[at] = word === UNHEARD ? UNHEARD : remap[word]!;
       continue;
     }
     testId[at] = id(test.id);

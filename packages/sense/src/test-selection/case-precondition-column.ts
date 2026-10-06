@@ -129,16 +129,6 @@ export function preconditionSection(words: Uint32Array): Readonly<Record<string,
 }
 
 /**
- * A stored spelling as a writer spells it: what {@link preconditionsSpelled}
- * reads, spelled again. A producer outside this package may spell one
- * differently — a number, an escape — and the index a layer writes holds the
- * spelling it would write for the case as it reads it.
- */
-export function respelled(text: string): string {
-  return spelled(preconditionsSpelled(text))!;
-}
-
-/**
  * What two runs of one case named, as one row, resolved as the calls of one
  * run are: per name the narrowest level wins, so a body one run reached
  * overrides the `beforeEach` a run that never reached it heard, and two values

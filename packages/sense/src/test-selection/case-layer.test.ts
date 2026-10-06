@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { layerCaseIndex, type CaseRunFiles } from './case-layer.js';
+import type { CasePrecondition } from './case-precondition-column.js';
 import { caseMotion } from './case-motion.js';
 import { coverageChange } from './coverage-count.js';
 import { CrossingSets } from './crossing-sets.js';
@@ -9,9 +10,19 @@ import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-se
 /** A region, the cases that called it by id, and whether it ran at load. */
 type Region = readonly [name: string, callers: readonly string[], loaded?: boolean, kind?: string];
 
-/** Spell a case index the way a fold writes one, from cases and the regions they called. */
-function index(cases: readonly string[], modules: Record<string, readonly Region[]>): Buffer {
-  const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
+/**
+ * Spell a case index the way a fold writes one, from cases and the regions
+ * they called, and what each case said it arranged where `said` names it.
+ */
+function index(
+  cases: readonly string[],
+  modules: Record<string, readonly Region[]>,
+  said: (id: string) => readonly CasePrecondition[] | undefined = () => undefined,
+): Buffer {
+  const tests = cases.map((id) => {
+    const preconditions = said(id);
+    return { id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]!, ...(preconditions === undefined ? {} : { preconditions }) };
+  });
   const sets = new CrossingSets(tests.length);
   sets.intern([]);
   const at = new Map(cases.map((id, position) => [id, position]));
@@ -160,6 +171,30 @@ describe('layerCaseIndex', () => {
     };
 
     expect(layered(400)).toEqual(layered(10));
+  });
+
+  it('reads no precondition of a case the run did not touch, however many spellings the index holds', () => {
+    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
+    const decoded = (untouched: number): number => {
+      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
+      // Each case says it in its own body, so no two share a spelling.
+      const said = (id: string): readonly CasePrecondition[] =>
+        [{ name: 'flag', value: id, site: `kept.test.ts:${kept.indexOf(id) + 2}`, level: 65535 }];
+      const held = index([...kept, 'a.test.ts > one'], {
+        'src/shared.ts': [['entry', ['a.test.ts > one', ...kept]]],
+      }, said);
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        const { merged } = layerCaseIndex(held, fresh, ran(['a.test.ts']));
+        const count = decode.mock.calls.length;
+        expect(decodeExecutionIndex(merged).tests.filter((test) => test.preconditions !== undefined)).toHaveLength(untouched);
+        return count;
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(decoded(400)).toBe(decoded(10));
   });
 });
 
