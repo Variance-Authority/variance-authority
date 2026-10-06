@@ -2,7 +2,7 @@ import type { SetId } from './crossing-sets.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { addressKey, sameNumbering } from './merge-carry.js';
+import { landing, relined, strayed } from './region-landing.js';
 import type { ExecutionTest } from './reverse.js';
 import { EMPTY, Translation } from './set-translation.js';
 
@@ -237,7 +237,7 @@ function layeredCases(held: HeldIndex, run: OpenedSetExecutionIndex, files: Case
   }
 
   const merged = new Translation(tests.length);
-  const fromHeld = merged.from(held.columns.sets, Int32Array.from(testId, (id, row) => (gone(row) ? -1 : heldAt.get(id)!)));
+  const fromHeld = merged.from(held.columns.sets, placed(testId, heldAt, gone));
   const fromRun = merged.from(run.sets, run.tests.map((test) => runAt.get(test.id)!));
   return { tests, merged, fromHeld, fromRun };
 }
@@ -281,49 +281,6 @@ function heldModule(held: HeldIndex, file: string): SetExecutionModule | undefin
 }
 
 /**
- * `held` at the lines `recorded` stands its regions on, when the two are named
- * at one text; `undefined` when `held` was cut at another text and cannot be
- * carried onto this one.
- *
- * Each held region is read at the recorded region of its address. When every
- * line agrees, `held` was cut at the text it is named at and comes back as it
- * was, whatever regions one cut holds and the other lacks. When a line does
- * not, `held` was cut at an older text, and its regions take the recorded
- * lines only where the two texts numbered alike ({@link sameNumbering}), the
- * rule the snapshot re-cut its rows to the newer text by. Then a held region
- * the recorded cut has no address for is left out: no line of the newer text
- * holds it, and kept at a line of the older one it would pair with whatever
- * region stands there now.
- */
-// FIXME: regions told apart only by occurrence carry no seat for
-// `sameNumbering` to compare, so a sibling taken out in front of them and
-// another written behind keep their count and re-line each one onto its
-// neighbour without a signal — the limit the snapshot's
-// re-cut has. The index carrying the text each module was recorded from would
-// let a reader leave such a module uncompared instead.
-function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
-  const lands = landing(recorded, held, true);
-  const to = new Map<number, number>();
-  for (const [block, from] of lands.entries()) if (from >= 0) to.set(from, block);
-  const moved = [...to].some(([from, block]) =>
-    held.blocks[from]!.startLine !== recorded.blocks[block]!.startLine ||
-    held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine);
-  if (!moved) return held;
-  if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
-  const kept = [...to.keys()].sort((left, right) => left - right);
-  return {
-    file: held.file,
-    blocks: kept.map((from) => ({
-      ...held.blocks[from]!,
-      startLine: recorded.blocks[to.get(from)!]!.startLine,
-      endLine: recorded.blocks[to.get(from)!]!.endLine,
-    })),
-    called: Uint32Array.from(kept, (from) => held.called[from]!),
-    loaded: Uint8Array.from(kept, (from) => held.loaded[from]!),
-  };
-}
-
-/**
  * What the runs at one commit retired, as one before: `retired` laid over
  * `kept`, which the earlier runs at that commit left.
  *
@@ -360,16 +317,12 @@ function beforeRun(
   lines: (row: number) => SetExecutionModule | undefined,
 ): Buffer {
   const { testId, testFile, moduleFile } = held.columns;
-  const ranFiles = new Set<number>();
-  for (const file of ran) {
-    const key = held.key(file);
-    if (key % 2 === 1) ranFiles.add((key - 1) / 2);
-  }
+  const ranFiles = namedIn(held, ran);
   const tests: number[] = [];
   for (let row = 0; row < testId.length; row += 1) if (ranFiles.has(testFile[row]!)) tests.push(row);
   const at = new Map(tests.map((row, index) => [testId[row]!, index]));
   const cut = new Translation(tests.length);
-  const from = cut.from(held.columns.sets, Int32Array.from(testId, (id, row) => (ranFiles.has(testFile[row]!) ? at.get(id)! : -1)));
+  const from = cut.from(held.columns.sets, placed(testId, at, (row) => !ranFiles.has(testFile[row]!)));
   const modules: { readonly file: number; readonly module: LaidModule }[] = [];
   for (let row = 0; row < moduleFile.length; row += 1) {
     const lined = lines(row);
@@ -405,6 +358,20 @@ function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetEx
   return entered ? { ...module, called } : undefined;
 }
 
+/**
+ * Where each held case stands among `at`, by its id, and -1 where `dropped`.
+ * A case `at` lacks is refused: an Int32Array would spell it as 0, which is
+ * somebody's.
+ */
+function placed(testId: Uint32Array, at: ReadonlyMap<number, number>, dropped: (row: number) => boolean): Int32Array {
+  return Int32Array.from(testId, (id, row) => {
+    if (dropped(row)) return -1;
+    const to = at.get(id);
+    if (to === undefined) throw new Error('a case index names a case it does not hold');
+    return to;
+  });
+}
+
 /** The files `held` holds among `files`, by the id of their path; one `held` lacks is none of its rows. */
 function namedIn(held: HeldIndex, files: Iterable<string>): ReadonlyMap<number, string> {
   const found = new Map<number, string>();
@@ -423,81 +390,6 @@ function recordedIn(held: HeldIndex, runModules: ReadonlyMap<string, SetExecutio
     if (key % 2 === 1) found.set((key - 1) / 2, module);
   }
   return found;
-}
-
-/**
- * For each region recorded now, the held region its cases carry from, or -1.
- *
- * An address is half a seat among siblings: a function written in front of an
- * anonymous one takes the seat it held. Where the two cuts filled a counter
- * differently over different text, an address names another region, and every
- * region is -1. Over the same text the seats are the text's: a run that read a
- * file through its source and its build keeps only the regions both cut alike,
- * so one cut can lack a region the other holds. A seat it lacks among regions
- * told apart only by occurrence moves every later sibling down one, so where
- * the two cuts of one text hold an address a different number of times, a
- * region lands only on the held one at its own lines, and the rest are absent
- * from the other cut rather than its neighbours.
- */
-function landing(recorded: SetExecutionModule, before: SetExecutionModule, sameText: boolean): Int32Array {
-  // A layer asks one pair this up to four times: whether its text is the same,
-  // where its cases land, and twice again for the before layer.
-  const memo = landed[sameText ? 1 : 0];
-  const known = memo.get(recorded)?.get(before);
-  if (known !== undefined) return known;
-  const found = landingOf(recorded, before, sameText);
-  if (!memo.has(recorded)) memo.set(recorded, new WeakMap());
-  memo.get(recorded)!.set(before, found);
-  return found;
-}
-
-/** {@link landing} by the text the pair was named at: `[other, same]`. Modules are read-only, so an answer stands while both do. */
-const landed = [
-  new WeakMap<SetExecutionModule, WeakMap<SetExecutionModule, Int32Array>>(),
-  new WeakMap<SetExecutionModule, WeakMap<SetExecutionModule, Int32Array>>(),
-] as const;
-
-function landingOf(recorded: SetExecutionModule, before: SetExecutionModule, sameText: boolean): Int32Array {
-  if (!sameText && !sameNumbering(before.blocks, recorded.blocks)) return new Int32Array(recorded.blocks.length).fill(-1);
-  const [heldCount, recordedCount] = [addressCounts(before.blocks), addressCounts(recorded.blocks)];
-  const seen = new Map<string, number>();
-  // Lines are a seat only over one text; two callbacks on one line still part by order.
-  const keyOf = (block: Region): string => {
-    const key = address(block);
-    const byOrder = !sameText || heldCount.get(key) === recordedCount.get(key);
-    return addressKey(byOrder ? key : `${key}\0@${block.startLine}-${block.endLine}`, seen);
-  };
-  const heldAt = new Map<string, number>();
-  for (const [at, block] of before.blocks.entries()) heldAt.set(keyOf(block), at);
-  seen.clear();
-  return Int32Array.from(recorded.blocks, (block) => {
-    const at = heldAt.get(keyOf(block));
-    return at !== undefined && before.blocks[at]!.kind === block.kind ? at : -1;
-  });
-}
-
-type Region = SetExecutionModule['blocks'][number];
-
-function address(block: Region): string {
-  return `${block.name}\0${block.path}`;
-}
-
-function addressCounts(blocks: readonly Region[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const block of blocks) counts.set(address(block), (counts.get(address(block)) ?? 0) + 1);
-  return counts;
-}
-
-/**
- * Whether a held region went unmatched among siblings the two cuts hold a
- * different number of times: its cut lacked one the run recorded, or the text
- * changed under a name that says it did not, and nothing tells which.
- */
-function strayed(held: SetExecutionModule, recorded: SetExecutionModule): boolean {
-  const matched = new Set(landing(recorded, held, true));
-  const [heldCount, recordedCount] = [addressCounts(held.blocks), addressCounts(recorded.blocks)];
-  return held.blocks.some((block, at) =>
-    !matched.has(at) && recordedCount.has(address(block)) && heldCount.get(address(block)) !== recordedCount.get(address(block)));
 }
 
 function caseOrder(left: KeyedCase, right: KeyedCase): number {
