@@ -19,7 +19,7 @@ async function worktree(): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-layers-git-'));
   const primary = resolve(at, 'primary');
   const git = (...args: string[]): void => {
-    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { stdio: 'ignore' });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { stdio: 'ignore' });
   };
   git('init', '--quiet', primary);
   git('-C', primary, 'commit', '--quiet', '--allow-empty', '-m', 'first');
