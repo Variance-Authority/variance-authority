@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -13,6 +13,7 @@ import {
   type TestDistance,
 } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../parse.js';
+import { answerConfigless, withoutConfig } from './configless.js';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
 import { inLeg } from './select-leg.js';
@@ -236,6 +237,23 @@ describe('a leg read from a real record and a real graph', () => {
     expect(near.left).toEqual([FAR, GHOST]);
     expect(end.skip).toEqual([IDLE, MID, NEAR]);
     expect(end.left).toEqual([MID, NEAR]);
+  });
+
+  it('carries `--at-distance` from the command line to the leg it cuts', async () => {
+    const { root, head } = checkout();
+    // The command line answers from the working directory, which the system
+    // reports by its real path, so the record is kept under that path.
+    await writeTestCoverage(testCoverageFile(realpathSync(root)), snapshot(head));
+    writeFileSync(join(root, 'src/widget.ts'), WIDGET.replace("return 'a';", "return 'z';"));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const parsed = parseArgs(['select', '--at-distance', '0-2', '--format', 'json']);
+    if (!withoutConfig(parsed)) throw new Error('`select` answers without a config');
+    let out = '';
+    await answerConfigless(parsed, { out: (text) => (out += text), err: () => {} });
+
+    expect(JSON.parse(out)).toMatchObject({ leg: { from: 0, to: 2 }, skip: [FAR, GHOST, IDLE], left: [FAR, GHOST] });
   });
 });
 
