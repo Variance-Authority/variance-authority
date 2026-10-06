@@ -56,16 +56,27 @@ export function findTest(coverage: TestCoverageView, file: string): number | und
  * search a column for it already has its answer and can decline to look.
  */
 export function findString(coverage: TestCoverageView, value: string): number | undefined {
+  const id = stringBound(coverage.strings, (at) => codeUnitOrder(coverage.string(at), value));
+  return id < coverage.strings && coverage.string(id) === value ? id : undefined;
+}
+
+/**
+ * Where a string sorts among a dictionary of `strings` sorted in code-unit
+ * order: the first id whose string is not below it, and `strings` when every
+ * one is. `order(id)` compares the string at `id` with the one wanted, as
+ * `codeUnitOrder` does. A reader that holds the stored bytes compares those, so
+ * finding a name decodes nothing; one that reads through a view decodes the
+ * strings the search visits.
+ */
+export function stringBound(strings: number, order: (id: number) => number): number {
   let low = 0;
-  let high = coverage.strings - 1;
-  while (low <= high) {
-    const middle = Math.floor((low + high) / 2);
-    const candidate = coverage.string(middle);
-    if (candidate === value) return middle;
-    if (candidate < value) low = middle + 1;
-    else high = middle - 1;
+  let high = strings;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (order(middle) < 0) low = middle + 1;
+    else high = middle;
   }
-  return undefined;
+  return low;
 }
 
 function search(coverage: TestCoverageView, column: WordColumn, file: string): number | undefined {

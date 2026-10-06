@@ -5,6 +5,7 @@ import { moduleAt, openSetColumns, writeSetColumns, type SetExecutionModule } fr
 import { below, mergedDictionary } from './format-dictionary.js';
 import { NO_DURATION } from './format-layout.js';
 import { codeUnitOrder } from './instrumented-modules.js';
+import { stringBound } from './lookup.js';
 import type { ExecutionTest } from './reverse.js';
 
 /**
@@ -73,19 +74,11 @@ export class HeldIndex {
   key(value: string): number {
     const { offsets } = this.columns.strings;
     const bytes = Buffer.from(value, 'utf8');
-    const byBytes = this.#ascends && below(bytes);
-    let low = 0;
-    let high = this.size;
-    while (low < high) {
-      const middle = (low + high) >>> 1;
-      const order = byBytes
-        ? this.#blob.compare(bytes, 0, bytes.length, offsets[middle]!, offsets[middle + 1]!)
-        : codeUnitOrder(this.string(middle), value);
-      if (order === 0) return 2 * middle + 1;
-      if (order < 0) low = middle + 1;
-      else high = middle;
-    }
-    return 2 * low;
+    const order = this.#ascends && below(bytes)
+      ? (id: number) => this.#blob.compare(bytes, 0, bytes.length, offsets[id]!, offsets[id + 1]!)
+      : (id: number) => codeUnitOrder(this.string(id), value);
+    const at = stringBound(this.size, order);
+    return at < this.size && order(at) === 0 ? 2 * at + 1 : 2 * at;
   }
 
   /** The module stored at `row` as an object, its regions naming the sets they are stored with. */
