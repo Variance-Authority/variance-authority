@@ -453,3 +453,23 @@ export function reusableBlock(
 ): boolean {
   return current.kind === previous.kind;
 }
+
+/**
+ * Whether a region carried at its address was edited between the two cuts.
+ *
+ * A region's digest is taken of the text the probes were spliced into, which
+ * is a build's output and not the file the author edited. One source reaches a
+ * suite as more than one build — a package's own tests load `src/thing.ts`
+ * through the runner's transform, and every other package's tests load
+ * `dist/thing.js` — and both are recorded under the source's path and the
+ * source's digest, so the two cut one unedited region under two digests. The
+ * source digest is the owner of *was this text edited*: where it stands, no
+ * region in it moved, whatever the emitted text says. Only where it moved does
+ * a region's digest say which regions moved with it.
+ */
+export function editedRegion(
+  current: { readonly sourceDigest: string; readonly digest: string },
+  previous: { readonly sourceDigest: string; readonly digest: string },
+): boolean {
+  return current.sourceDigest !== previous.sourceDigest && current.digest !== previous.digest;
+}

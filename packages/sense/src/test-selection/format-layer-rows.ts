@@ -10,6 +10,7 @@ import {
   addressed,
   crossedBlock,
   crossingsAround,
+  editedRegion,
   lostCrossings,
   recutRows,
   reusableBlock,
@@ -221,7 +222,10 @@ export function layeredRows(input: {
             files.push(previousTestRows[test]!.file);
           }
           surviving.set(block, { files, loaded: loadedOf(before) });
-          if (block.digest !== view.string(blockDigest[before]!)) {
+          if (editedRegion(
+            { sourceDigest: module.sourceDigest, digest: block.digest },
+            { sourceDigest: view.string(moduleSource[at]!), digest: view.string(blockDigest[before]!) },
+          )) {
             for (const file of files) if (!currentTests.has(file)) stale.add(file);
           }
           continue;
