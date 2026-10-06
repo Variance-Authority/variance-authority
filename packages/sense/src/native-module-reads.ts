@@ -1,4 +1,4 @@
-/** What the addon says of a module's reads and of what moved in it, as columns the callers of `moduleVerdict` and `moduleReaders` take. */
+/** What the addon says of a module's reads and of what moved in it, as columns the callers of `moduleVerdict`, `moduleReaders` and `moduleReferences` take. */
 
 // compass: variance-authority.reach
 
@@ -36,4 +36,20 @@ export interface NativeModuleReaders {
   readonly passed: Array<{ readonly name: string; readonly origin: string }>;
   /** Every name this file exports. */
   readonly interface: string[];
+}
+
+export interface NativeModuleReferences {
+  /**
+   * Every reference to an imported binding, by line: the specifier its import names, the name taken
+   * (`default`, a namespace member, or `*` for a namespace used whole), and whether it runs when the file loads.
+   */
+  readonly references: Array<{ readonly line: number; readonly source: string; readonly name: string; readonly load: boolean }>;
+  /** Imported names the file exports again, and every `export … from`, by source; `*` for all. */
+  readonly passed: Array<{ readonly source: string; readonly name: string }>;
+  /** Every specifier the file loads, side effects and re-exports included, and no type. */
+  readonly sources: string[];
+  /** Every specifier imported with no binding, `import './x'`: loaded for its effect. */
+  readonly effects: string[];
+  /** A `require`, an `import()` or an `import x = require()` no name reaches. */
+  readonly untraced: boolean;
 }

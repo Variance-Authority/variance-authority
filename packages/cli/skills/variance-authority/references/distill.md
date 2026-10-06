@@ -6,10 +6,27 @@ has never configured this tool gets the same answer. Its input is one record:
 the one `covering` reads, the declared suite's `--suite` names, or the file
 `--execution` names. `--test` takes a case id, an exact title or a part of one,
 and `--file` a part of the test file's path; give either or both. More than one
-fitting case is refused with their ids. `--root` (default: the working
+fitting case is refused with their ids. `--file` alone reads the file instead:
+the modules it loaded, from the record's coverage rows, that no case entered
+and those only some of its cases entered. Each module no case entered is
+listed under the import that made the file load it — the topmost import every
+path to it runs through, in the test file or a module it used — or as shared by
+two imports, or as reached by no static import. The fix is that import, never a
+mock of the listed path. It needs a recorded run, not `--execution` JSON, and is
+withheld when a case stopped or the file's coverage row is incomplete; run the
+file again. Name neither `--test` nor `--file`, and distill reads every test
+file of the record the same way, or with `--from <dir>` every one under a
+directory from the repository root, and ranks each import by the lines it loads
+for nothing, counted once in every test file it reaches: the heaviest import
+across a package or a suite. With no `--suite`, that reading takes every
+declared suite and names one that has not recorded. `--root` (default: the working
 directory) is the root the record's paths are relative to. `--format json`
-returns the same reading as data, and the `variance_distill` MCP tool returns
-the same deterministic reading.
+returns the same reading as data; for a file, the text names ten imports and
+three modules a group, and the JSON every module with its `cause`; for many
+files, the text names ten imports, and the JSON every import with its modules
+and test files. The `variance_distill` MCP tool returns the
+same deterministic reading of one case, and needs its test id; the file reading
+is the CLI's.
 
 ```bash
 variance distill --file checkout.test.tsx --test submits

@@ -67,7 +67,7 @@ not in the reading.
 | Theory | Reality | Reading |
 |---|---|---|
 | choke point | choke point | **Confirmed**, on the number of cases stated. |
-| choke point | not | Cases executed Y without X, by a path the graph cannot see: a dynamic import, a file the harness loads, a specifier that is not a literal. **The graph has a hole**, and the answer names those cases. |
+| choke point | not | Cases executed Y without X, by a path the graph cannot see: a dynamic import or `require` whose specifier is not a quoted string, or a file the harness loads. A dynamic import of a quoted string is an edge the reading walks, as [spec 0097](0097-a-consumer-pays-for-what-it-loads.md) reads it. **The graph has a hole**, and the answer names those cases. |
 | not | choke point | The graph has a path to Y that avoids X, and no recorded case ran Y without also running X. Whether a case took that path cannot be read from places visited. **No case shows the path is needed**, and the answer names the path and the files on it that no case ran. A path with such a file is untested; one whose every file ran is unknown, never called untested. |
 | not | not | No region. |
 
@@ -97,10 +97,12 @@ Not as a new question. A choke point is a line in answers that already exist:
 1. A dominator pass over `Relations` with tests as entries, runtime edges,
    barrels resolved by name and mocks cut. Fixtures for a diamond, a cycle, a
    barrel that re-exports two unrelated files, a mocked choke point, and a test
-   importing Y directly.
+   importing Y directly. `dominatorsOf` in `core/relate` computes the
+   dominators of one root; several test entries hang from a virtual root.
 2. The reality pass: set inclusion over executed files, restricted to files
    with an import path to Y. One fixture where a setup file every case runs is
-   not a choke point, one where a dynamic import makes the readings disagree
+   not a choke point, one where a dynamic import whose specifier is not a quoted
+   string makes the readings disagree
    and the answer names the cases that went around, and one where a case runs
    both X and the side path's files, so X qualifies and the side path reads
    unknown rather than untested.

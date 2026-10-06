@@ -104,6 +104,31 @@ export async function recordedSuite(
   }
 }
 
+/** Run a read whose refusal is the operator's: whatever it throws is said as an {@link OperatorError}. */
+export function asOperator<T>(read: () => T): T {
+  try {
+    return read();
+  } catch (error) {
+    if (error instanceof OperatorError) throw error;
+    throw new OperatorError(messageOf(error), { cause: error });
+  }
+}
+
+/**
+ * The refusal of a reading across records when none holds a per-case index:
+ * the repository's one record, or every suite it declares, named.
+ */
+export function nothingRecorded(root: string, suites?: readonly string[]): OperatorError {
+  return new OperatorError(
+    suites === undefined
+      ? `nothing is recorded in \`${root}\`: no run left a per-case index. Run the suite with \`withTestSelection\` and ask again.`
+      : `nothing is recorded in \`${root}\`: none of the suites it declares, ${
+          suites.map((name) => `"${name}"`).join(', ')
+        }, has a per-case index. Run a suite with \`withTestSelection\` and ask again.`,
+    { kind: 'unrecorded' },
+  );
+}
+
 /**
  * Refuse `--suite` beside a flag that names the record by path: both say which
  * record, and honouring one would read or write where the operator did not look.

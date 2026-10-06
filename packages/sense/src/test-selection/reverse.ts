@@ -305,6 +305,7 @@ function sortTests(tests: CoveringTest[]): readonly CoveringTest[] {
   );
 }
 
+/** The smallest recorded regions over a 1-based line, each with source of its own; none for a line no region holds. */
 export function innermostAt(
   blocks: readonly ExecutionBlock[],
   line: number,
