@@ -45,12 +45,13 @@ import { OperatorError } from '../exit.js';
 import { readExecutionFor } from './execution-input.js';
 import { installDiff, installDiffs, installDiffOfPatch, patchPreimages, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, withWhole } from './select-beyond.js';
-import { isMissing, journeyAgainst } from './resources.js';
+import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { many } from './reach.js';
 import { journeySuite, restingOf } from './select-before.js';
+import { inLeg, type Leg } from './select-leg.js';
 import { relationsFor } from './source-graph.js';
 import type { Detach } from './detached.js';
 import { suiteBaseHanding } from './suite-base.js';
@@ -72,6 +73,8 @@ export interface SelectRequest {
   readonly suite?: string;
   /** Where a fetch of the mainline's record past its reuse window is handed: the program's, outside CI. */
   readonly detach?: Detach;
+  /** `--at-distance <hops>`: one leg of the selection, by import hops from the change. */
+  readonly atDistance?: Leg;
 }
 
 /**
@@ -217,15 +220,13 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // The files a stand reads whole leave the hunk diff, so none is also read by
   // its hunks, and each group is charged the install that moved since it ran.
   const ask = (whole: readonly string[], stand: string | undefined) =>
-    journeyAgainst(
+    recordAgainst(
       here,
       withWhole([selection.withoutFiles(diff, whole), ...whole.map(selection.wholeEntry)].join('\n'), beyond.get(stand)!.files),
-      relations,
-      at,
-      request.cwd,
-      selection.unmeasuredOf(declared),
+      { relations, at, checkout: request.cwd, unmeasured: selection.unmeasuredOf(declared), distances: request.atDistance !== undefined },
     );
-  const narrowing = stands.length === 0 ? await ask([], undefined) : await perStand(stands, ask);
+  const asked = stands.length === 0 ? await ask([], undefined) : await recordPerStand(stands, ask);
+  const narrowing: ExecutionNarrowing | undefined = asked?.narrowing;
   // The lockfile and the manifests beside it are unread by the journal and
   // answered by the comparisons above, which have already said what moved.
   const manifests = [...installs.values()].flatMap((installed) => compared(installed)?.manifests ?? []);
@@ -235,6 +236,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
       ? { kind: 'no-journal' }
       : {
           kind: 'read',
+          ...(request.atDistance === undefined || asked?.distances === undefined ? {} : { distances: asked.distances }),
           narrowing: {
             ...narrowing,
             unread: [...new Set([...withoutManifests(narrowing.unread, manifests), ...unplaced])].sort(),
@@ -320,25 +322,6 @@ function handedNotes(reading: StandReading, commit: string): readonly string[] {
       `whole change, so what changed before ${at} is not read for ${count === 1 ? 'it' : 'them'}. Leave out ` +
       '`--diff` to read the working tree against where each test last ran',
   ];
-}
-
-/**
- * The journal asked once per stand, each answer kept for the tests standing
- * there. A journal that is gone by the time it is asked again answers
- * `undefined`, the way a journal that was never there does.
- */
-async function perStand(
-  stands: readonly Stand[],
-  ask: (whole: readonly string[], stand: string | undefined) => Promise<ExecutionNarrowing | undefined>,
-): Promise<ExecutionNarrowing | undefined> {
-  const selection = await import('@variance-authority/sense/test-selection');
-  let missing = false;
-  const { narrowing } = await selection.askPerStand(stands, async (whole, stand) => {
-    const answer = await ask(whole, stand);
-    if (answer === undefined) missing = true;
-    return { narrowing: answer ?? { whole: [], entered: [], unread: [], stale: [], because: [] } };
-  });
-  return missing ? undefined : narrowing;
 }
 
 /**
@@ -461,9 +444,9 @@ async function stdin(): Promise<string> {
 
 function saidOf(
   input: SelectInput,
-  request: { readonly format: SelectFormat; readonly cwd: string },
+  request: { readonly format: SelectFormat; readonly cwd: string; readonly atDistance?: Leg },
 ): SelectOutput {
-  const selection = skippableTests(input);
+  const selection = inLeg(skippableTests(input), input, request.atDistance);
   return {
     out: formatSelection(selection, request.format, request.cwd),
     err: selectionNotes(selection),

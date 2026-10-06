@@ -24,6 +24,7 @@ describe('a changed module with no row, asked of the files that import it', () =
 
     expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/aaa.test.ts'],
       unread: [],
       stale: [],
@@ -53,6 +54,7 @@ describe('a changed module with no row, asked of the files that import it', () =
 
     expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
@@ -235,6 +237,7 @@ describe('a changed module with no row, asked of the files that import it', () =
 
     expect(narrowByExecutionFromView(view(), diff, { relations })).toEqual({
       whole: testFiles,
+      incomplete: [],
       entered: ['test/alpha.test.ts'],
       unread: [],
       stale: [],
