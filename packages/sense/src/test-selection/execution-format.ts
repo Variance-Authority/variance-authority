@@ -10,14 +10,8 @@ import type {
   ExecutionModule,
   ExecutionTest,
 } from './reverse.js';
-import {
-  decodeSetExecutionIndex,
-  durationColumn,
-  durationFrom,
-  executionTestsOf,
-  stoppedColumn,
-  stoppedFrom,
-} from './execution-set-format.js';
+import { decodeSetExecutionIndex, executionTestsOf } from './execution-set-format.js';
+import { durationColumn, durationFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
 
 /**
  * The execution index as columns, because the JSON spelling of it is the

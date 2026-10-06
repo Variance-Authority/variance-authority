@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { layerCaseIndex, type CaseRunFiles } from './case-layer.js';
 import { caseMotion } from './case-motion.js';
 import { coverageChange } from './coverage-count.js';
@@ -133,9 +133,33 @@ describe('layerCaseIndex', () => {
   it('writes the run alone, and no before, when there is no index to lay it over', () => {
     const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
 
-    const alone = { merged: fresh, cases: ['a.test.ts > one'], last: ['a.test.ts > one'], announced: ['a.test.ts > one'] };
-    expect(layerCaseIndex(undefined, fresh, ran(['a.test.ts']))).toEqual(alone);
-    expect(layerCaseIndex(Buffer.from('not an index'), fresh, ran(['a.test.ts']))).toEqual(alone);
+    const alone = { merged: fresh, last: ['a.test.ts > one'], announced: ['a.test.ts > one'] };
+    for (const previous of [undefined, Buffer.from('not an index')]) {
+      const { cases, ...layers } = layerCaseIndex(previous, fresh, ran(['a.test.ts']));
+      expect(layers).toEqual(alone);
+      expect(cases()).toEqual(['a.test.ts > one']);
+    }
+  });
+
+  it('reads no string of a case or region the run did not touch, and asks once a file whether it is present', () => {
+    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
+    const layered = (untouched: number): { readonly decoded: number; readonly asked: number } => {
+      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
+      const held = index([...kept, 'a.test.ts > one'], {
+        'src/shared.ts': [['entry', ['a.test.ts > one']]],
+        ...Object.fromEntries(kept.map((id, at) => [`src/kept-${at}.ts`, [['entry', [id]], ['idle', []]]])),
+      });
+      let asked = 0;
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        layerCaseIndex(held, fresh, { ...ran(['a.test.ts']), present: () => (asked += 1) > 0 });
+        return { decoded: decode.mock.calls.length, asked };
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(layered(400)).toEqual(layered(10));
   });
 });
 

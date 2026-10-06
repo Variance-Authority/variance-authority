@@ -1,14 +1,10 @@
-import { CrossingSets, type SetId } from './crossing-sets.js';
-import type { CrossingSetsView } from './crossing-sets-read.js';
-import {
-  encodeSetExecutionIndex,
-  openSetExecutionIndex,
-  type OpenedSetExecutionIndex,
-  type SetExecutionModule,
-} from './execution-set-format.js';
+import type { SetId } from './crossing-sets.js';
+import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { addressKey, sameNumbering } from './merge-carry.js';
 import type { ExecutionTest } from './reverse.js';
+import { EMPTY, Translation } from './set-translation.js';
 
 /** What a run knows about the test files it was handed. */
 export interface CaseRunFiles {
@@ -49,8 +45,11 @@ export interface CaseRunFiles {
 export interface CaseLayers {
   /** The whole suite: this run laid over what the index held. */
   readonly merged: Buffer;
-  /** The id of every case `merged` holds, in its order. */
-  readonly cases: readonly string[];
+  /**
+   * The id of every case `merged` holds, in its order, read when asked: a
+   * carried case is not decoded for a landing that never asks.
+   */
+  readonly cases: () => readonly string[];
   /** The cases this run recorded, by id: the run {@link CaseRunFiles} laid over the rest. */
   readonly last: readonly string[];
   /**
@@ -87,7 +86,10 @@ export interface CaseLayers {
  * Nothing is decoded to a crossing. A region names a set, and a set is
  * translated to the new test numbering once however many regions share it, so
  * the work is regions plus distinct sets, which is what the index costs to
- * hold.
+ * hold. Nor is a carried string decoded: a carried case or region is its ids,
+ * copied as the bytes they name (see {@link HeldIndex}). What is decoded is
+ * what the run touched, and each held test file once, to ask whether the
+ * checkout still holds it.
  *
  * A module this run recorded is read at the regions it recorded now, and the
  * carried cases land on them by address — the region's name and structural
@@ -114,41 +116,29 @@ export function layerCaseIndex(
   if (run === undefined) throw new Error('a case fold wrote an index it cannot open');
   const last = run.tests.map((test) => test.id);
   const announced = run.tests.filter((test) => files.ran.has(test.file)).map((test) => test.id);
-  const held = openPrevious(previous);
-  const cut = files.base === undefined ? held : openPrevious(files.base);
+  const held = HeldIndex.open(previous);
+  const cut = files.base === undefined ? held : HeldIndex.open(files.base);
   // FIXME: no index is read as no other cases, and a landing that removed the
   // index leaves exactly that. The next local run then writes its own files'
   // cases alone, and that partial index stands for the whole suite beside a
   // snapshot that still holds every file — the state `seedTestCoverage` keeps a
   // worktree's first run out of. An index that is absent beside a snapshot that
   // is not should be laid only over what it can answer for.
-  if (held === undefined) return { merged: Buffer.from(fresh), cases: last, last, announced };
+  if (held === undefined) return { merged: Buffer.from(fresh), cases: () => last, last, announced };
 
-  const gone = (file: string): boolean => files.finished.has(file) || !files.present(file);
-  const byId = new Map<string, ExecutionTest>();
-  for (const test of held.tests) if (!gone(test.file)) byId.set(test.id, test);
-  // A case that ran again says how it settled this time.
-  for (const test of run.tests) byId.set(test.id, test);
-  const tests = [...byId.values()].sort(caseOrder);
-  const at = new Map(tests.map((test, index) => [test.id, index]));
-
-  const merged = new Translation(tests.length);
-  const fromHeld = merged.from(held.sets, held.tests.map((test) => (gone(test.file) ? -1 : at.get(test.id)!)));
-  const fromRun = merged.from(run.sets, run.tests.map((test) => at.get(test.id)!));
-
-  const heldModules = new Map(held.modules.map((module) => [module.file, module]));
+  const { tests, fromHeld, fromRun, merged } = layeredCases(held, run, files);
   const runModules = new Map(run.modules.map((module) => [module.file, module]));
-  const modules: SetExecutionModule[] = [];
-  for (const file of [...new Set([...heldModules.keys(), ...runModules.keys()])].sort(codeUnitOrder)) {
-    const recorded = runModules.get(file);
-    const before = heldModules.get(file);
+  const modules: LaidModule[] = [];
+  for (const { row, recorded } of moduleUnion(held, runModules)) {
     if (recorded === undefined) {
-      const kept = carried(before!, fromHeld);
+      const kept = carriedRow(held, row!, fromHeld, false);
       if (kept !== undefined) modules.push(kept);
       continue;
     }
+    const before = row === undefined ? undefined : held.module(row);
     // A name that says same text over lines an older text numbered apart is
     // the snapshot's, not the index's: those cases land where the numbering agrees.
+    const file = recorded.file;
     const same = files.sameText?.(file) === true && before !== undefined && relined(before, recorded) !== undefined;
     const lands = before === undefined ? undefined : landing(recorded, before, same);
     const called = new Uint32Array(recorded.blocks.length);
@@ -163,24 +153,124 @@ export function layerCaseIndex(
   }
 
   const unlined: string[] = [];
-  const before = cut === undefined ? undefined : beforeRun(cut, new Set([...files.ran, ...run.tests.map((test) => test.file)]), (module) => {
+  const recordedRows = cut === undefined ? undefined : recordedIn(cut, runModules);
+  const before = cut === undefined ? undefined : beforeRun(cut, new Set([...files.ran, ...run.tests.map((test) => test.file)]), (row) => {
+    const named = cut.columns.moduleFile[row]!;
     // A landing's earlier shard may have recorded what this one did not; the
     // index it laid, the one this run is laid over, stands at those lines.
-    const recorded = runModules.get(module.file) ?? (files.base === undefined ? undefined : heldModules.get(module.file));
-    const same = (files.base === undefined ? files.sameText : files.sameBeforeText)?.(module.file);
-    if (recorded === undefined || same !== true) return module;
+    const recorded = recordedRows!.get(named) ??
+      (files.base === undefined ? undefined : heldModule(held, cut.string(named)));
+    if (recorded === undefined) return undefined;
+    const same = (files.base === undefined ? files.sameText : files.sameBeforeText)?.(recorded.file);
+    if (same !== true) return undefined;
+    const module = cut.module(row);
     const lined = relined(module, recorded);
-    if (lined === undefined || (lined === module && strayed(module, recorded))) unlined.push(module.file);
+    if (lined === undefined || (lined === module && strayed(module, recorded))) unlined.push(recorded.file);
     return lined ?? module;
   });
   return {
-    merged: encodeSetExecutionIndex({ tests, modules, sets: merged.pool() }),
-    cases: tests.map((test) => test.id),
+    merged: writeLaid(held, tests.map((test) => test.laid), modules, merged.pool()),
+    cases: () => tests.map((test) => (typeof test.laid === 'number' ? held.string(held.columns.testId[test.laid]!) : test.laid.id)),
     last,
     announced,
     ...(before === undefined ? {} : { before }),
     ...(unlined.length === 0 ? {} : { unlined }),
   };
+}
+
+/** A case of the output, with the keys it is ordered by: see {@link HeldIndex.key}. */
+interface KeyedCase {
+  readonly laid: LaidTest;
+  readonly file: number;
+  readonly name: number;
+  readonly id: number;
+}
+
+/**
+ * The output's cases in their order, and the translation of both indexes'
+ * sets onto them. A held case is read as its ids: only its file is decoded,
+ * once a file, to ask whether the run retired it.
+ */
+function layeredCases(held: HeldIndex, run: OpenedSetExecutionIndex, files: CaseRunFiles): {
+  readonly tests: readonly KeyedCase[];
+  readonly merged: Translation;
+  readonly fromHeld: (set: SetId) => SetId;
+  readonly fromRun: (set: SetId) => SetId;
+} {
+  const { testId, testFile, testName } = held.columns;
+  const goneFiles = new Map<number, boolean>();
+  const gone = (row: number): boolean => {
+    let found = goneFiles.get(testFile[row]!);
+    if (found === undefined) {
+      const file = held.string(testFile[row]!);
+      found = files.finished.has(file) || !files.present(file);
+      goneFiles.set(testFile[row]!, found);
+    }
+    return found;
+  };
+  const byId = new Map<number, number>();
+  for (let row = 0; row < testId.length; row += 1) if (!gone(row)) byId.set(testId[row]!, row);
+  // A case that ran again says how it settled this time.
+  const runById = new Map<string, KeyedCase>();
+  for (const test of run.tests) {
+    const id = held.key(test.id);
+    if (id % 2 === 1) byId.delete((id - 1) / 2);
+    runById.set(test.id, { laid: test, file: held.key(test.file), name: held.key(test.name), id });
+  }
+  const tests = [
+    ...Array.from(byId.values(), (row): KeyedCase =>
+      ({ laid: row, file: 2 * testFile[row]! + 1, name: 2 * testName[row]! + 1, id: 2 * testId[row]! + 1 })),
+    ...runById.values(),
+  ].sort(caseOrder);
+  const heldAt = new Map<number, number>();
+  const runAt = new Map<string, number>();
+  for (const [at, test] of tests.entries()) {
+    if (test.id % 2 === 1) heldAt.set((test.id - 1) / 2, at);
+    if (typeof test.laid !== 'number') runAt.set(test.laid.id, at);
+  }
+
+  const merged = new Translation(tests.length);
+  const fromHeld = merged.from(held.columns.sets, Int32Array.from(testId, (id, row) => (gone(row) ? -1 : heldAt.get(id)!)));
+  const fromRun = merged.from(run.sets, run.tests.map((test) => runAt.get(test.id)!));
+  return { tests, merged, fromHeld, fromRun };
+}
+
+/**
+ * The output's modules in code-unit order of path: each held row the run did
+ * not record, and each module the run recorded with the held row of its path.
+ */
+function moduleUnion(
+  held: HeldIndex,
+  runModules: ReadonlyMap<string, SetExecutionModule>,
+): { readonly row?: number; readonly recorded?: SetExecutionModule }[] {
+  const recorded = [...runModules.values()]
+    .map((module) => ({ module, key: held.key(module.file) }))
+    .sort((left, right) => left.key - right.key || codeUnitOrder(left.module.file, right.module.file));
+  const rows = held.moduleRows();
+  const union: { row?: number; recorded?: SetExecutionModule }[] = [];
+  let next = 0;
+  for (const row of rows) {
+    const key = 2 * held.columns.moduleFile[row]! + 1;
+    while (next < recorded.length && recorded[next]!.key < key) {
+      union.push({ recorded: recorded[next]!.module });
+      next += 1;
+    }
+    if (next < recorded.length && recorded[next]!.key === key) {
+      union.push({ row, recorded: recorded[next]!.module });
+      next += 1;
+      continue;
+    }
+    union.push({ row });
+  }
+  for (; next < recorded.length; next += 1) union.push({ recorded: recorded[next]!.module });
+  return union;
+}
+
+/** The held module named `file`, as an object, when the index holds one. */
+function heldModule(held: HeldIndex, file: string): SetExecutionModule | undefined {
+  const key = held.key(file);
+  const row = key % 2 === 1 ? held.moduleOf((key - 1) / 2) : undefined;
+  return row === undefined ? undefined : held.module(row);
 }
 
 /**
@@ -254,26 +344,51 @@ export function layerBefore(
  * Regions keep the shape they were recorded with, and no region says it ran
  * while its module loaded: that flag belongs to every file that imported the
  * module, not to these cases, and a comparison of what these cases entered must
- * not read it as theirs.
+ * not read it as theirs. `lines` gives a module read at other lines, or nothing
+ * for one carried as it is stored.
  */
 function beforeRun(
-  held: OpenedSetExecutionIndex,
+  held: HeldIndex,
   ran: ReadonlySet<string>,
-  lines: (module: SetExecutionModule) => SetExecutionModule,
+  lines: (row: number) => SetExecutionModule | undefined,
 ): Buffer {
-  const tests = held.tests.filter((test) => ran.has(test.file));
-  const at = new Map(tests.map((test, index) => [test.id, index]));
-  const cut = new Translation(tests.length);
-  const from = cut.from(held.sets, held.tests.map((test) => (ran.has(test.file) ? at.get(test.id)! : -1)));
-  const modules: SetExecutionModule[] = [];
-  for (const module of held.modules.map(lines)) {
-    const kept = carried({ ...module, loaded: new Uint8Array(module.blocks.length) }, from);
-    if (kept !== undefined) modules.push(kept);
+  const { testId, testFile, moduleFile } = held.columns;
+  const ranFiles = new Set<number>();
+  for (const file of ran) {
+    const key = held.key(file);
+    if (key % 2 === 1) ranFiles.add((key - 1) / 2);
   }
-  return encodeSetExecutionIndex({ tests, modules, sets: cut.pool() });
+  const tests: number[] = [];
+  for (let row = 0; row < testId.length; row += 1) if (ranFiles.has(testFile[row]!)) tests.push(row);
+  const at = new Map(tests.map((row, index) => [testId[row]!, index]));
+  const cut = new Translation(tests.length);
+  const from = cut.from(held.columns.sets, Int32Array.from(testId, (id, row) => (ranFiles.has(testFile[row]!) ? at.get(id)! : -1)));
+  const modules: { readonly file: number; readonly module: LaidModule }[] = [];
+  for (let row = 0; row < moduleFile.length; row += 1) {
+    const lined = lines(row);
+    const kept = lined === undefined
+      ? carriedRow(held, row, from, true)
+      : carried({ ...lined, loaded: new Uint8Array(lined.blocks.length) }, from);
+    if (kept !== undefined) modules.push({ file: moduleFile[row]!, module: kept });
+  }
+  modules.sort((left, right) => left.file - right.file);
+  return writeLaid(held, tests, modules.map(({ module }) => module), cut.pool());
 }
 
-/** A module read at the regions it was recorded with, or nothing when no case is left in it. */
+/** A held row read at the regions it was stored with, or nothing when no case is left in it; `unloaded` clears its load flags. */
+function carriedRow(held: HeldIndex, row: number, from: (set: SetId) => SetId, unloaded: boolean): CarriedModule | undefined {
+  const { moduleBlocks, blockCalled, blockLoaded } = held.columns;
+  const [first, last] = [moduleBlocks[row]!, moduleBlocks[row + 1]!];
+  const called = new Uint32Array(last - first);
+  for (let block = first; block < last; block += 1) called[block - first] = from(blockCalled[block]!);
+  const loaded = unloaded ? new Uint8Array(last - first) : blockLoaded.subarray(first, last);
+  for (let block = 0; block < called.length; block += 1) {
+    if (called[block] !== EMPTY || loaded[block] === 1) return { row, called, loaded };
+  }
+  return undefined;
+}
+
+/** A module object read at the regions it was recorded with, or nothing when no case is left in it. */
 function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetExecutionModule | undefined {
   const called = module.called.map(from);
   let entered = false;
@@ -281,6 +396,16 @@ function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetEx
     if (called[block] !== EMPTY || module.loaded[block] === 1) entered = true;
   }
   return entered ? { ...module, called } : undefined;
+}
+
+/** The modules a run recorded, by the id of their path in `held`; one `held` lacks is none of its rows. */
+function recordedIn(held: HeldIndex, runModules: ReadonlyMap<string, SetExecutionModule>): ReadonlyMap<number, SetExecutionModule> {
+  const found = new Map<number, SetExecutionModule>();
+  for (const module of runModules.values()) {
+    const key = held.key(module.file);
+    if (key % 2 === 1) found.set((key - 1) / 2, module);
+  }
+  return found;
 }
 
 /**
@@ -298,6 +423,24 @@ function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetEx
  * from the other cut rather than its neighbours.
  */
 function landing(recorded: SetExecutionModule, before: SetExecutionModule, sameText: boolean): Int32Array {
+  // A layer asks one pair this up to four times: whether its text is the same,
+  // where its cases land, and twice again for the before layer.
+  const memo = landed[sameText ? 1 : 0];
+  const known = memo.get(recorded)?.get(before);
+  if (known !== undefined) return known;
+  const found = landingOf(recorded, before, sameText);
+  if (!memo.has(recorded)) memo.set(recorded, new WeakMap());
+  memo.get(recorded)!.set(before, found);
+  return found;
+}
+
+/** {@link landing} by the text the pair was named at: `[other, same]`. Modules are read-only, so an answer stands while both do. */
+const landed = [
+  new WeakMap<SetExecutionModule, WeakMap<SetExecutionModule, Int32Array>>(),
+  new WeakMap<SetExecutionModule, WeakMap<SetExecutionModule, Int32Array>>(),
+] as const;
+
+function landingOf(recorded: SetExecutionModule, before: SetExecutionModule, sameText: boolean): Int32Array {
   if (!sameText && !sameNumbering(before.blocks, recorded.blocks)) return new Int32Array(recorded.blocks.length).fill(-1);
   const [heldCount, recordedCount] = [addressCounts(before.blocks), addressCounts(recorded.blocks)];
   const seen = new Map<string, number>();
@@ -340,79 +483,12 @@ function strayed(held: SetExecutionModule, recorded: SetExecutionModule): boolea
     !matched.has(at) && recordedCount.has(address(block)) && heldCount.get(address(block)) !== recordedCount.get(address(block)));
 }
 
-function openPrevious(bytes: Uint8Array | undefined): OpenedSetExecutionIndex | undefined {
-  if (bytes === undefined) return undefined;
-  try {
-    return openSetExecutionIndex(bytes);
-  } catch {
-    return undefined;
+function caseOrder(left: KeyedCase, right: KeyedCase): number {
+  for (const field of ['file', 'name', 'id'] as const) {
+    // Equal even keys are two strings the held index lacks, both of the run's cases.
+    const order = left[field] - right[field] ||
+      (left[field] % 2 === 0 ? codeUnitOrder((left.laid as ExecutionTest)[field], (right.laid as ExecutionTest)[field]) : 0);
+    if (order !== 0) return order;
   }
-}
-
-function caseOrder(left: ExecutionTest, right: ExecutionTest): number {
-  return codeUnitOrder(left.file, right.file) ||
-    codeUnitOrder(left.name, right.name) ||
-    codeUnitOrder(left.id, right.id);
-}
-
-/** The first set a pool interns is the empty one, and every translation starts it that way. */
-const EMPTY = 0;
-
-/**
- * One output pool, and the translation of each input pool into it.
- *
- * Each input set is read once and interned once, however many regions name it;
- * a union is interned once per distinct pair. That keeps the layering at the
- * size of the sets rather than of the crossings they stand for.
- */
-class Translation {
-  readonly #sets: CrossingSets;
-  readonly #members: Uint32Array[] = [];
-  readonly #unions = new Map<string, SetId>();
-
-  constructor(testCount: number) {
-    this.#sets = new CrossingSets(testCount);
-    this.#intern(new Uint32Array());
-  }
-
-  /** Translate `view`'s sets through `remap`, which names -1 for a case that is gone. */
-  from(view: CrossingSetsView, remap: readonly number[]): (set: SetId) => SetId {
-    const memo = new Map<SetId, SetId>();
-    return (set) => {
-      let found = memo.get(set);
-      if (found === undefined) {
-        const members: number[] = [];
-        for (const test of view.members(set)) {
-          const to = remap[test];
-          if (to === undefined) throw new Error('a case index names a case it does not hold');
-          if (to >= 0) members.push(to);
-        }
-        found = this.#intern(Uint32Array.from(members).sort());
-        memo.set(set, found);
-      }
-      return found;
-    };
-  }
-
-  union(left: SetId, right: SetId): SetId {
-    if (left === right || right === EMPTY) return left;
-    if (left === EMPTY) return right;
-    const key = left < right ? `${left},${right}` : `${right},${left}`;
-    let found = this.#unions.get(key);
-    if (found === undefined) {
-      found = this.#intern(Uint32Array.from(new Set([...this.#members[left]!, ...this.#members[right]!])).sort());
-      this.#unions.set(key, found);
-    }
-    return found;
-  }
-
-  pool(): ReturnType<CrossingSets['pool']> {
-    return this.#sets.pool();
-  }
-
-  #intern(members: Uint32Array): SetId {
-    const id = this.#sets.intern(members);
-    this.#members[id] ??= members;
-    return id;
-  }
+  return 0;
 }

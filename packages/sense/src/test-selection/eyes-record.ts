@@ -97,7 +97,8 @@ export function readableEyes(bytes: Uint8Array | undefined): EyesSection | undef
 /**
  * The Eyes section once a run's Eyes are laid over the record's.
  *
- * `cases` are the ids of the index the run leaves in the record, and `ran` the
+ * `cases` reads the ids of the index the run leaves in the record, asked only
+ * when there are Eyes to lay, and `ran` the
  * cases the run recorded. A case that ran has its journals, and whether it was
  * watched, replaced by the run's: every attempt, and none when the run opened
  * none for it. What `fresh` holds of a case the run did not record, as a
@@ -112,12 +113,12 @@ export function readableEyes(bytes: Uint8Array | undefined): EyesSection | undef
 export function layEyes(
   previous: Uint8Array | undefined,
   fresh: EyesSection | undefined,
-  cases: readonly string[],
+  cases: () => readonly string[],
   ran: readonly string[],
 ): Uint8Array | undefined {
   const prior = readableEyes(previous);
   if (prior === undefined && fresh === undefined) return undefined;
-  const held = new Set(cases);
+  const held = new Set(cases());
   for (const row of fresh?.journals ?? []) {
     if (!held.has(row.case)) throw new Error(`an Eyes journal names a case the run did not record: ${row.case}`);
   }
