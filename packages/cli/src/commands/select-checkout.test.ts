@@ -346,6 +346,20 @@ describe('reading this checkout', () => {
     expect(said.err).not.toContain('records nothing about');
     expect(said.err).toContain('skipping 3 of 3 test files recorded whole');
   });
+
+  it('hands vitest paths from the top of the checkout when run from a directory inside it', async () => {
+    // The journal names files from the top, so an exclude resolved against `src/`
+    // names `src/test/alpha.test.ts`, which is no file, and the run skips nothing.
+    const { root, head } = checkout();
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: join(root, 'src'), format: 'vitest' });
+
+    expect(said.out).toBe(['alpha', 'gamma'].map((name) => `--exclude=${join(root, `test/${name}.test.ts`)}\n`).join(''));
+  });
 });
 
 const SOURCE = [

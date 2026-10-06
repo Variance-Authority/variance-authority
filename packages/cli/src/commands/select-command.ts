@@ -39,7 +39,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile, realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import type { CommitRuns, ExecutionNarrowing, Stand, StandReading } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor } from './execution-input.js';
@@ -109,8 +109,8 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   oneRecord(request.suite, request.execution, '--execution');
   const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
   const { at, source } = found;
-  const said = (input: Parameters<typeof saidOf>[0]) =>
-    saidOf(source === undefined ? input : { ...input, source }, request);
+  const said = (input: Parameters<typeof saidOf>[0], root = request.cwd) =>
+    saidOf(source === undefined ? input : { ...input, source }, { ...request, cwd: root });
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to
@@ -158,8 +158,10 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   const handed = request.diff !== undefined;
   // The stands, the diff, the installs and the import graph are named from the top
   // of the checkout `cwd` is in, as git spells it, which is how the journal names files.
+  // The skip list is resolved from there too, spelled the way the caller spells `cwd`.
   const top = await topLevel(request.cwd);
   const here = top ?? request.cwd;
+  const root = top === undefined ? request.cwd : resolve(request.cwd, relative(await realpath(request.cwd), top));
   const own = at === (await landingRecord(request.cwd, request.suite));
   const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, own);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
@@ -168,15 +170,12 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
   const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
   if (!handed && reading?.widened !== undefined) {
-    return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } });
+    return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } }, root);
   }
   const diff = request.diff === undefined
     ? await diffSince(request.since ?? base, [], commit, { cwd: here })
     : await handedDiff(request.diff);
-  if (diff === undefined) {
-    const ground: SelectGround = { kind: 'no-diff', from: base };
-    return said({ ...recorded, ground });
-  }
+  if (diff === undefined) return said({ ...recorded, ground: { kind: 'no-diff', from: base } }, root);
 
   // Read at the commit each group of tests last ran at — the journal's own, or
   // a stand's, exactly, on whatever line it is — or at the merge base with
@@ -202,7 +201,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   for (const installed of installs.values()) {
     if (installed !== undefined && 'whole' in installed) {
       const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
-      return said({ ...recorded, ground });
+      return said({ ...recorded, ground }, root);
     }
   }
 
@@ -218,7 +217,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
   const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.whole), ...beyondFiles])]);
   const rested = { ...recorded, ...rest };
-  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } });
+  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } }, root);
   // The files a stand reads whole leave the hunk diff, so none is also read by
   // its hunks, and each group is charged the install that moved since it ran.
   const ask = (whole: readonly string[], stand: string | undefined) =>
@@ -246,7 +245,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
           },
         };
 
-  return said({ ...rested, ground });
+  return said({ ...rested, ground }, root);
 }
 
 /** An install comparison that was made, or `undefined` for one there was nothing to make. */
