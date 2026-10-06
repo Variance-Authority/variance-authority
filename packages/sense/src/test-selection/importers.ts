@@ -11,7 +11,7 @@ import {
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
 import type { Unmeasured } from './route.js';
-import { disownedIn } from './shadowed.js';
+import { disownedIn, type Disowned } from './shadowed.js';
 
 /**
  * Answering a changed file the record holds no row for from the files that
@@ -213,11 +213,14 @@ export function answerByImporters(
   // those are asked for by name once the walks are done.
   const governing = new Map<string, Reached[]>();
 
+  // What a file answers is the same whichever walk reached it — its rows under
+  // the same names, their crossings, the mocks that disown them — and a file
+  // behind many changed files is reached by every one of their walks. So it is
+  // read once, and each walk replays the answer under its own trail.
+  const answers = new Map<NodeId, FileAnswer>();
+
   /**
-   * Reads one file a walk reached under every name it may be held by: a test
-   * row, a row with probes behind it however few tests crossed them, or a row
-   * without probes, whose tests the table names once the walks are done. A
-   * name with none of those selects nobody.
+   * Reads one file a walk reached (`answerOf`), for the walk that reached it.
    *
    * True when a test or a row with probes answered, which is where a module's
    * chain stops.
@@ -230,46 +233,15 @@ export function answerByImporters(
   ): boolean => {
     const node = nodeAt(relations, id);
     if (node === undefined || node.kind !== 'file') return false;
-    const reason: ImporterReason = { kind: 'importer', trail };
-    let answered = false;
-    for (const name of knownAs(node.name)) {
-      const test = findTest(coverage, name);
-      if (test !== undefined) {
-        reached.push({ test, reason, seed, from });
-        answered = true;
-      }
-      for (const module of findModules(coverage, name)) {
-        if (coverage.moduleInstrumented.at(module) !== 1) {
-          governing.set(name, [...(governing.get(name) ?? []), { reason, seed, from }]);
-          continue;
-        }
-        answered = true;
-        // A module's regions usually share one set, so the ids are deduplicated
-        // before their members are: the repeat is the common case and reading it
-        // again would be the whole module's crossings over again. The set a
-        // block was loaded by rides along, because a load a mock explains is
-        // disowned and a call is not, so each block that shares a set asks once.
-        const sets = new Map<number, number>();
-        for (
-          let block = coverage.moduleBlocks.at(module);
-          block < coverage.moduleBlocks.at(module + 1);
-          block += 1
-        ) {
-          const key = coverage.blockSet.at(block) * 0x1_0000_0000 + coverage.blockLoadedSet.at(block);
-          if (!sets.has(key)) sets.set(key, block);
-        }
-        const seen = new Set<number>();
-        for (const block of sets.values()) {
-          for (const entered of coverage.crossings.members(coverage.blockSet.at(block))) {
-            if (seen.has(entered)) continue;
-            if (disowned?.(node.name, entered, block) === true) continue;
-            seen.add(entered);
-            reached.push({ test: entered, reason, seed, from });
-          }
-        }
-      }
+    let answer = answers.get(id);
+    if (answer === undefined) {
+      answer = answerOf(coverage, knownAs(node.name), node.name, disowned);
+      answers.set(id, answer);
     }
-    return answered;
+    const reason: ImporterReason = { kind: 'importer', trail };
+    for (const test of answer.tests) reached.push({ test, reason, seed, from });
+    for (const name of answer.governs) governing.set(name, [...(governing.get(name) ?? []), { reason, seed, from }]);
+    return answer.answered;
   };
 
   const unread: string[] = [];
@@ -332,6 +304,69 @@ export function answerByImporters(
   }
 
   return { selected, unread: unread.sort(codeUnitOrder), governed: asked(held, also) };
+}
+
+/** What one file a walk reached answers, before a walk's trail is put on it. */
+interface FileAnswer {
+  /** A test or a row with probes answered, so a module's chain stops here. */
+  readonly answered: boolean;
+  /** Test rows reached, in the order they were read: each name's test row, then its rows' crossings. */
+  readonly tests: readonly number[];
+  /** Names of rows without probes, whose tests the precondition table names. */
+  readonly governs: readonly string[];
+}
+
+/**
+ * Reads one file under every name it may be held by: a test row, a row with
+ * probes behind it however few tests crossed them, or a row without probes,
+ * whose tests the table names once the walks are done. A name with none of
+ * those selects nobody.
+ *
+ * `file` is the graph's name, the one shadows are written in.
+ */
+function answerOf(
+  coverage: TestCoverageView,
+  names: readonly string[],
+  file: string,
+  disowned: Disowned | undefined,
+): FileAnswer {
+  const tests: number[] = [];
+  const governs: string[] = [];
+  let answered = false;
+  for (const name of names) {
+    const test = findTest(coverage, name);
+    if (test !== undefined) {
+      tests.push(test);
+      answered = true;
+    }
+    for (const module of findModules(coverage, name)) {
+      if (coverage.moduleInstrumented.at(module) !== 1) {
+        governs.push(name);
+        continue;
+      }
+      answered = true;
+      // A module's regions usually share one set, so the ids are deduplicated
+      // before their members are: the repeat is the common case and reading it
+      // again would be the whole module's crossings over again. The set a
+      // block was loaded by rides along, because a load a mock explains is
+      // disowned and a call is not, so each block that shares a set asks once.
+      const sets = new Map<number, number>();
+      for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) {
+        const key = coverage.blockSet.at(block) * 0x1_0000_0000 + coverage.blockLoadedSet.at(block);
+        if (!sets.has(key)) sets.set(key, block);
+      }
+      const seen = new Set<number>();
+      for (const block of sets.values()) {
+        for (const entered of coverage.crossings.members(coverage.blockSet.at(block))) {
+          if (seen.has(entered)) continue;
+          if (disowned?.(file, entered, block) === true) continue;
+          seen.add(entered);
+          tests.push(entered);
+        }
+      }
+    }
+  }
+  return { answered, tests, governs };
 }
 
 /** The part of one read of the precondition table that answers a caller's own names. */
