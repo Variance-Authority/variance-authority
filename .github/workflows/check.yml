@@ -226,6 +226,7 @@ jobs:
     # was stops when it cannot download it.
     outputs:
       handed: ${{ steps.hand.outputs.artifact-id != '' }}
+      carried: ${{ steps.carry.outputs.artifact-id != '' }}
 
     steps:
       # Every commit, because the read says how far behind HEAD the record was
@@ -279,6 +280,53 @@ jobs:
         with:
           name: variance-base
           path: ${{ steps.read.outputs.dir }}
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+
+      # What this pull request's last push ran, as its `record` job left it in
+      # the Actions cache. A second push then runs what changed since the first
+      # ran, and every file the first left incomplete, a failed one included:
+      # what `yarn test:since` does between two runs on a laptop. Without it,
+      # every push is measured from `main`, and a fix reruns the whole change.
+      #
+      # A pull request's caches are scoped to it: only its own later runs read
+      # them. Each push saves under a key of its own, because a cache is never
+      # overwritten, and the prefix restores the newest. One unused for seven
+      # days is evicted, and the push after that reads `main`'s record, as a
+      # first push does: a pull request lives hours or days, not months.
+      #
+      # Read after the mainline, which an own layer would answer in its place.
+      - name: what the last push ran
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: .variance-carry
+          key: variance-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: variance-pr-${{ github.event.pull_request.number }}-
+
+      # The record names the commits its tests last ran at, the merge commits
+      # of earlier pushes, which no ref holds any more: `tools/take-carried.mjs`
+      # fetches each by name. A suite whose commits the remote no longer has is
+      # not handed on, and reads `main`'s record; checked once here, so every
+      # job reads the same.
+      - name: check what the last push ran
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          taken=$(node tools/take-carried.mjs .variance-carry false)
+          for dir in .variance-carry/*/; do
+            [ -d "$dir" ] || continue
+            case " $taken " in *" $(basename "$dir") "*) ;; *) rm -rf "$dir" ;; esac
+          done
+
+      - name: hand the last push on
+        id: carry
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-carried
+          path: .variance-carry
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 1
@@ -381,6 +429,21 @@ jobs:
         env:
           HANDED: ${{ needs.base.outputs.handed }}
         run: node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
+
+      # What this pull request's last push ran, as `base` checked it, laid as
+      # this checkout's own layer. The step below then keeps it rather than lay
+      # the mainline's, and the selection diffs each test from the commit it
+      # last ran at. A suite `base` handed on and this job cannot take stops it.
+      - uses: actions/download-artifact@v4
+        if: needs.base.outputs.carried == 'true'
+        with:
+          name: variance-carried
+          path: ${{ runner.temp }}/carried
+
+      - name: take what the last push ran
+        if: needs.base.outputs.carried == 'true'
+        shell: bash
+        run: node tools/take-carried.mjs "$RUNNER_TEMP/carried" true
 
       # The mainline's record of this slice, read by `base` from
       # `refs/variance/mainline/main` on `origin`, where the `publish` job
@@ -570,6 +633,38 @@ jobs:
           HANDED: ${{ needs.base.outputs.handed }}
         run: node tools/take-base.mjs "$RUNNER_TEMP/base" "$HANDED"
 
+      # What the last push ran, taken as the suite jobs took it, so the slices
+      # fold over the record they ran from. The review still compares with
+      # `main`: the cases the fold replaces are the last push's, so the
+      # mainline's cases are named to it, read before the own layer answers in
+      # their place.
+      - uses: actions/download-artifact@v4
+        if: needs.base.outputs.carried == 'true'
+        with:
+          name: variance-carried
+          path: ${{ runner.temp }}/carried
+
+      - name: take what the last push ran
+        id: carried
+        if: needs.base.outputs.carried == 'true'
+        shell: bash
+        run: |
+          cases=$(node --input-type=module -e "
+            const cli = await import('@variance-authority/cli');
+            const base = await cli.suiteBase(process.cwd(), { suite: 'unit' });
+            process.stdout.write(base.from === 'mainline' ? base.mainline.cases ?? '' : '');
+          ")
+          taken=$(node tools/take-carried.mjs "$RUNNER_TEMP/carried" true)
+          case " $taken " in
+            *" unit "*)
+              if [ -n "$cases" ]; then
+                echo "against=$cases" >> "$GITHUB_OUTPUT"
+              else
+                echo "::notice::The mainline published no unit cases that read, so the review compares the cases with the last push's."
+              fi
+              ;;
+          esac
+
       # Each slice's record, as the suite job that ran it would have left it in
       # this checkout. The mainline's record is laid first, the one the suite
       # jobs laid. A slice that ran whole in one job handed its record on already
@@ -622,7 +717,9 @@ jobs:
       #
       # The suite kept the cases it replaced, and the commit they were recorded
       # at, so what `main` moved after that commit is left out of the comparison
-      # whichever recording the restore found.
+      # whichever recording the restore found. When the last push's record was
+      # taken, the cases replaced are that push's, and the mainline's are named
+      # with `--against` instead.
       #
       # The changed-code review reads the unit slice; coverage is carried for
       # every declared suite, each with its own denominator and baseline.
@@ -635,9 +732,12 @@ jobs:
         env:
           BASE: ${{ steps.carry.outputs.base }}
           REVIEW: ${{ steps.carry.outputs.review }}
+          AGAINST: ${{ steps.carried.outputs.against }}
         run: |
+          against=()
+          if [ -n "$AGAINST" ]; then against=(--against "$AGAINST"); fi
           node packages/cli/dist/bin.js index
-          node packages/cli/dist/bin.js review --since "$BASE" --suite unit --coverage \
+          node packages/cli/dist/bin.js review --since "$BASE" --suite unit --coverage "${against[@]}" \
             --out "$REVIEW" --format markdown >> "$GITHUB_STEP_SUMMARY"
 
       - name: keep the review
@@ -659,6 +759,24 @@ jobs:
         run: |
           body="$REVIEW/review.md"
           node .github/actions/variance/post-comment.mjs --body-file "$body" --marker "$(head -n 1 "$body")"
+
+      # What this push ran, for the pull request's next push to read from: the
+      # step `what the last push ran` in `base` says why. A red suite is kept
+      # too, since the files it left incomplete are what the next push reruns.
+      # Saved only when the copy finished: a part-copied record is not one.
+      - name: keep what this push ran
+        id: stage
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.records.outputs.dir != '' }}
+        shell: bash
+        env:
+          RECORDS: ${{ steps.records.outputs.dir }}
+        run: rm -rf .variance-carry && cp -R "$RECORDS" .variance-carry
+
+      - if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .variance-carry
+          key: variance-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # Only a push to `main` hands its records on, to the `publish` job, which
       # is the one job holding a token that can write to the repository. A red
