@@ -58,4 +58,16 @@ describe('a module cut again from the checkout', () => {
 
     expect((await deriveModules(root, [module.id], undefined)).size).toBe(0);
   });
+
+  it('is left out when its id names no text', async () => {
+    const { root } = await checkout(SOURCE);
+
+    expect((await deriveModules(root, ['src-cart.js'], undefined)).size).toBe(0);
+  });
+
+  it('throws what reading the file threw when the file is there', async () => {
+    const { root } = await checkout(SOURCE);
+
+    await expect(deriveModules(root, [`.@${'0'.repeat(32)}`], undefined)).rejects.toMatchObject({ code: 'EISDIR' });
+  });
 });
