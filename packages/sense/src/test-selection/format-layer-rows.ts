@@ -68,13 +68,14 @@ export function layeredRows(input: {
   readonly view: TestCoverageView;
   readonly columns: CarriedColumns;
   readonly previousSets: CrossingSetsView;
-  readonly previousTestRows: readonly CoverageTest[];
+  /** Each previous test row's file, in row order. */
+  readonly previousFiles: readonly string[];
   readonly currentTests: ReadonlyMap<string, CoverageTest>;
   readonly retired: ReadonlySet<string>;
   readonly current: TestCoverage;
   readonly onDisk: ReadonlyMap<string, string>;
 }): LayeredRows {
-  const { view, previousSets, previousTestRows, currentTests, retired, current, onDisk } = input;
+  const { view, previousSets, previousFiles, currentTests, retired, current, onDisk } = input;
   const {
     modulePath, moduleSource, moduleInstrumented, moduleBlocks,
     blockOrdinal, blockKind, blockOwner, blockDigest, blockName, blockPath,
@@ -155,7 +156,7 @@ export function layeredRows(input: {
   const loadedOf = (at: number): readonly string[] => {
     const files: string[] = [];
     for (const test of previousSets.members(blockLoadedSet[at]!)) {
-      files.push(previousTestRows[test]!.file);
+      files.push(previousFiles[test]!);
     }
     return files;
   };
@@ -164,7 +165,7 @@ export function layeredRows(input: {
   const blockAt = (at: number): CoverageBlock => {
     const testFiles: string[] = [];
     for (const test of previousSets.members(blockSet[at]!)) {
-      testFiles.push(previousTestRows[test]!.file);
+      testFiles.push(previousFiles[test]!);
     }
     const loadedBy = loadedOf(at);
     return {
@@ -219,7 +220,7 @@ export function layeredRows(input: {
         ) {
           const files: string[] = [];
           for (const test of previousSets.members(blockSet[before]!)) {
-            files.push(previousTestRows[test]!.file);
+            files.push(previousFiles[test]!);
           }
           surviving.set(block, { files, loaded: loadedOf(before) });
           if (editedRegion(
@@ -231,7 +232,7 @@ export function layeredRows(input: {
           continue;
         }
         for (const test of previousSets.members(blockSet[before]!)) {
-          const file = previousTestRows[test]!.file;
+          const file = previousFiles[test]!;
           if (!currentTests.has(file)) stale.add(file);
         }
       }

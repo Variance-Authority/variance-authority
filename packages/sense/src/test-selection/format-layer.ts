@@ -29,7 +29,8 @@ import type { CoverageTest, TestCoverage } from './index.js';
  * bytes, and the only thing that happens to either is the renumbering the new
  * dictionary implies. Objects are made for exactly what the merge has to reason
  * about: the tests, the modules `current` re-recorded, and the carried modules
- * whose text moved on disk.
+ * whose text moved on disk. A test the run did not touch is an object without
+ * its preconditions, which are carried as ids like a row's strings.
  *
  * The output is **byte-identical** to the composition it replaces, which is what
  * the gate test in `format-layer.test.ts` asserts across every case the merge
@@ -58,11 +59,23 @@ export function layerTestCoverage(
   } = columns;
   const previousSets = openCrossingSets(crossings);
 
-  // The tests, as objects. A snapshot holds thousands of them against millions
-  // of regions, and every rule the merge applies is about a test.
+  // The tests, by file. A snapshot holds thousands of them against millions of
+  // regions, and every rule the merge applies is about a test. Their
+  // preconditions are another matter: a test's are its module closure, a
+  // hundred and more digests, and only a rule comparing them reads them as
+  // text. Every other test keeps them as the ids they are stored under, which
+  // the dictionary renumbers as it does a carried row's.
   const previousCount = testPath.length;
-  const previousTestRows: CoverageTest[] = [];
-  for (let test = 0; test < previousCount; test += 1) {
+  const previousFiles = Array.from(testPath, (path) => view.string(path));
+  const heldTest = (test: number): Omit<CoverageTest, 'preconditions'> => {
+    const duration = testDuration?.[test] ?? NO_DURATION;
+    return {
+      file: previousFiles[test]!,
+      complete: testComplete[test] === 1,
+      ...(duration === NO_DURATION ? {} : { duration }),
+    };
+  };
+  const previousTest = (test: number): CoverageTest => {
     const preconditions = [];
     for (let at = testPreconditions[test]!; at < testPreconditions[test + 1]!; at += 1) {
       preconditions.push({
@@ -70,57 +83,65 @@ export function layerTestCoverage(
         digest: view.string(preconditionDigest[at]!),
       });
     }
-    const duration = testDuration?.[test] ?? NO_DURATION;
-    previousTestRows.push({
-      file: view.string(testPath[test]!),
-      complete: testComplete[test] === 1,
-      preconditions,
-      ...(duration === NO_DURATION ? {} : { duration }),
-    });
-  }
-  const previousTests = new Map(previousTestRows.map((test) => [test.file, test]));
+    return { ...heldTest(test), preconditions };
+  };
+  // Ids sort as their strings do, so a test whose ids ascend is one
+  // `settledTest` would hand back as it is. Every writer settles them; one
+  // that did not is read as text and settled as the merge would.
+  const settledAt = (test: number): boolean => {
+    for (let at = testPreconditions[test]! + 1; at < testPreconditions[test + 1]!; at += 1) {
+      const name = preconditionName[at]! - preconditionName[at - 1]!;
+      if (name < 0 || (name === 0 && preconditionDigest[at]! <= preconditionDigest[at - 1]!)) return false;
+    }
+    return true;
+  };
+  const previousRows = new Map(previousFiles.map((file, test) => [file, test]));
   const currentTests = new Map(current.tests.map((test) => [test.file, test]));
   const retired = new Set(current.tests.flatMap((test) => {
-    const before = previousTests.get(test.file);
-    return test.complete || (before !== undefined && !samePreconditions(before, test))
-      ? [test.file]
-      : [];
+    if (test.complete) return [test.file];
+    const before = previousRows.get(test.file);
+    return before !== undefined && !samePreconditions(previousTest(before), test) ? [test.file] : [];
   }));
-
 
   const { order, objects, stale } = layeredRows({
     view,
     columns,
     previousSets,
-    previousTestRows,
+    previousFiles,
     currentTests,
     retired,
     current,
     onDisk,
   });
 
-  const tests = [
-    ...previousTestRows
-      .filter((test) => !currentTests.has(test.file))
-      .map((test) => (stale.has(test.file) ? { ...test, complete: false } : test)),
-    ...current.tests,
-  ].sort((left, right) => codeUnitOrder(left.file, right.file)).map(settledTest);
+  const carriedTests: LayeredTest[] = [];
+  for (let test = 0; test < previousCount; test += 1) {
+    if (currentTests.has(previousFiles[test]!)) continue;
+    const held = settledAt(test) ? { ...heldTest(test), row: test } : settledTest(previousTest(test));
+    carriedTests.push(stale.has(held.file) ? { ...held, complete: false } : held);
+  }
+  const tests = [...carriedTests, ...current.tests.map(settledTest)]
+    .sort((left, right) => codeUnitOrder(left.file, right.file));
   const testIndex = new Map(tests.map((test, at) => [test.file, at]));
   const testRemap = new Uint32Array(previousCount);
   const retiredTest = new Uint8Array(previousCount);
   for (let test = 0; test < previousCount; test += 1) {
-    testRemap[test] = testIndex.get(previousTestRows[test]!.file)!;
-    retiredTest[test] = retired.has(previousTestRows[test]!.file) ? 1 : 0;
+    testRemap[test] = testIndex.get(previousFiles[test]!)!;
+    retiredTest[test] = retired.has(previousFiles[test]!) ? 1 : 0;
   }
 
   const { remap, id, blob: stringBlob, offsets: stringOffsets } = layeredDictionary({
     view,
     rows: order,
     objects,
-    tests,
+    tests: tests.filter((test): test is CoverageTest => !('row' in test)),
+    carriedTests: tests.flatMap((test) => ('row' in test ? [test.row] : [])),
     instrumentation: current.instrumentation,
     commit: current.commit,
-    columns: { modulePath, moduleSource, moduleBlocks, blockName, blockPath, blockDigest },
+    columns: {
+      modulePath, moduleSource, moduleBlocks, blockName, blockPath, blockDigest,
+      testPath, testPreconditions, preconditionName, preconditionDigest,
+    },
   });
 
   let blockCount = 0;
@@ -132,8 +153,11 @@ export function layerTestCoverage(
     blockCount += moduleBlocks[row + 1]! - moduleBlocks[row]!;
   }
 
-  const preconditionCount = tests.reduce((sum, test) => sum + test.preconditions.length, 0);
-  const testPaths = Uint32Array.from(tests, (test) => id(test.file));
+  const preconditionsOf = (test: LayeredTest): number => ('row' in test
+    ? testPreconditions[test.row + 1]! - testPreconditions[test.row]!
+    : test.preconditions.length);
+  const preconditionCount = tests.reduce((sum, test) => sum + preconditionsOf(test), 0);
+  const testPaths = Uint32Array.from(tests, (test) => ('row' in test ? remap[testPath[test.row]!]! : id(test.file)));
   const outComplete = Uint8Array.from(tests, (test) => (test.complete ? 1 : 0));
   const outDuration = Uint32Array.from(tests, (test) => durationWord(test.duration));
   const outPreconditions = new Uint32Array(tests.length + 1);
@@ -142,6 +166,14 @@ export function layerTestCoverage(
   let precondition = 0;
   for (const [at, test] of tests.entries()) {
     outPreconditions[at] = precondition;
+    if ('row' in test) {
+      for (let held = testPreconditions[test.row]!; held < testPreconditions[test.row + 1]!; held += 1) {
+        outName[precondition] = remap[preconditionName[held]!]!;
+        outDigest[precondition] = remap[preconditionDigest[held]!]!;
+        precondition += 1;
+      }
+      continue;
+    }
     for (const input of test.preconditions) {
       outName[precondition] = id(input.name);
       outDigest[precondition] = id(input.digest);
@@ -286,6 +318,14 @@ export function layerTestCoverage(
 }
 
 
+
+/** A test the run did not touch, named by its previous row: its preconditions stay the ids they are stored under. */
+interface CarriedTest extends Omit<CoverageTest, 'preconditions'> {
+  readonly row: number;
+}
+
+/** A test of the output: an object where a rule read it, its previous row where none did. */
+type LayeredTest = CoverageTest | CarriedTest;
 
 /**
  * The read-modify-write a run ends with: the index on disk, this run laid over

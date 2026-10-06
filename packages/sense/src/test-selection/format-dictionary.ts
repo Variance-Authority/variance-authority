@@ -12,7 +12,7 @@ import type { CoverageModule, CoverageTest } from './index.js';
  */
 export type LayeredOrder = Int32Array;
 
-/** The id columns a carried row names its strings through. */
+/** The id columns a carried row or a carried test names its strings through. */
 export interface NamingColumns {
   readonly modulePath: Uint32Array;
   readonly moduleSource: Uint32Array;
@@ -20,6 +20,10 @@ export interface NamingColumns {
   readonly blockName: Uint32Array;
   readonly blockPath: Uint32Array;
   readonly blockDigest: Uint32Array;
+  readonly testPath: Uint32Array;
+  readonly testPreconditions: Uint32Array;
+  readonly preconditionName: Uint32Array;
+  readonly preconditionDigest: Uint32Array;
 }
 
 /** The dictionary the output gets, and the two ways to name a string in it. */
@@ -46,13 +50,17 @@ export function layeredDictionary(input: {
   readonly view: TestCoverageView;
   readonly rows: LayeredOrder;
   readonly objects: readonly CoverageModule[];
+  /** The tests the output names as objects. */
   readonly tests: readonly CoverageTest[];
+  /** The previous test rows the output carries as they are stored, its file and preconditions with it. */
+  readonly carriedTests: readonly number[];
   readonly instrumentation: string;
   readonly commit: string | undefined;
   readonly columns: NamingColumns;
 }): LayeredDictionary {
-  const { view, rows, objects, tests, columns } = input;
+  const { view, rows, objects, tests, carriedTests, columns } = input;
   const { modulePath, moduleSource, moduleBlocks, blockName, blockPath, blockDigest } = columns;
+  const { testPath, testPreconditions, preconditionName, preconditionDigest } = columns;
   const current = { instrumentation: input.instrumentation, commit: input.commit };
 
   // Which previous strings the output still names. No string is made to answer
@@ -72,6 +80,13 @@ export function layeredDictionary(input: {
       marked[blockName[block]!] = 1;
       marked[blockPath[block]!] = 1;
       marked[blockDigest[block]!] = 1;
+    }
+  }
+  for (const test of carriedTests) {
+    marked[testPath[test]!] = 1;
+    for (let at = testPreconditions[test]!; at < testPreconditions[test + 1]!; at += 1) {
+      marked[preconditionName[at]!] = 1;
+      marked[preconditionDigest[at]!] = 1;
     }
   }
   // Counted before it is filled, so the ids go straight into an array of the
