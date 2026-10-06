@@ -129,6 +129,23 @@ describe('recordedBlocks', () => {
     expect(rows[at]!.endLine).toBe(rows[at]!.startLine);
   });
 
+  it('keeps a region a transform inserted off the lines of the source region it took the name of', () => {
+    // The walk numbers a function's decisions in order, so the guard written
+    // above the source's `if` takes `if#0`, and the source's own `if` is `if#1`.
+    const source = 'export function f(a) {\n  if (a) return 1;\n  return 0;\n}\n';
+    const code = 'export function f(a) {\n  if (a === undefined) throw 0;\n  if (a) return 1;\n  return 0;\n}\n';
+    const map = { mappings: 'AAAA;;AACA;AACA;AACA', sources: [FILE] };
+    const frame = recordedFrame(code, map, FILE, () => source);
+    const blocks = instrument(code, FILE)!.blocks;
+    const guard = blocks.findIndex((block) => block.path === 'if#0/then');
+    const mapped = coverageBlocks(blocks, frame)[guard]!;
+
+    const rows = recordedBlocks(blocks, frame, code, 'presence');
+
+    expect(rows[guard]).toMatchObject({ path: 'if#0/then', startLine: mapped.startLine, endLine: mapped.endLine });
+    expect(rows[guard]!.startLine).not.toBe(2);
+  });
+
   it('reads a build through its map when it moved regions its source names alike', () => {
     // The walk names both callbacks `f/on.arg1`; the build swapped their lines.
     const source = "export function f(a) {\n  a.on('x', () => 1);\n  a.on('x', () => 22);\n}\n";

@@ -127,11 +127,13 @@ export function recordedBlocks(
   if (own === undefined) return coverageBlocks(blocks, frame);
   const cut = own.rows;
   if (sameRegions(blocks, own.blocks)) return cut;
-  // A region the source names once, and the build names once with the same
-  // claim to source text, is the same region in both, and takes the source's lines: an `await` the map closed a
-  // line short ends where the source's does. A region either walk names twice
-  // cannot be told from its namesake and keeps the lines its map gives it, and
-  // so does one the build cut alone. The module is always the source's.
+  // A region named once in each walk, with the same claim to source text, whose
+  // mapped lines meet the source region's lines, is that region, and takes the
+  // source's lines: an `await` the map closed a line short ends where the
+  // source's does. A name alone is not enough: the walk numbers in order, so a
+  // guard a transform wrote above the source's `if` is the build's `if#0`, and
+  // its map leads nowhere near the source's `if#0`. Every other region keeps the
+  // lines its map gives it. The module is always the source's.
   // FIXME: a build whose regions are named apart from its source's keeps its
   // map's lines: the walk names an arrow passed as a JSX attribute `anon#N` in
   // the source and after the property it became in the build.
@@ -150,7 +152,9 @@ export function recordedBlocks(
     ...inside.map((row) => {
       const key = regionKey(row);
       const shared = inBuild.get(key) === 1 && inSource.get(key) === 1 ? sourceRow.get(key) : undefined;
-      if (shared?.startLine === undefined) return row;
+      if (shared?.startLine === undefined || shared.endLine === undefined) return row;
+      if (row.startLine === undefined || row.endLine === undefined) return row;
+      if (row.endLine < shared.startLine || shared.endLine < row.startLine) return row;
       return { ...row, startLine: shared.startLine, endLine: shared.endLine };
     }),
   ], frame.text);
