@@ -18,7 +18,7 @@ import { digestString } from '../digest.js';
 import { instrument, instrumentModeOf } from '../instrument/index.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { coverageBlock } from './coverage-rows.js';
+import { coverageBlocks } from './coverage-rows.js';
 import { sourceLines } from './source-lines.js';
 
 /**
@@ -380,7 +380,7 @@ export function recutRows(
   // One lookup for the whole module: the default counts newlines from the top
   // of the file on every offset, and a module re-cut here asks twice per region.
   const extentOf = sourceLines(source, undefined, module.file);
-  const rows = fresh.blocks.map((block) => coverageBlock(source, block, extentOf));
+  const rows = coverageBlocks(fresh.blocks, { extentOf, text: source });
   if (!sameNumbering(module.blocks, rows)) return 'mislaid';
   const before = new Map(addressed(module.blocks));
   // Rows by ordinal as they are decided, which is what a gained region reads its
@@ -452,4 +452,24 @@ export function reusableBlock(
   previous: Pick<CoverageBlock, 'kind'>,
 ): boolean {
   return current.kind === previous.kind;
+}
+
+/**
+ * Whether a region carried at its address was edited between the two cuts.
+ *
+ * A region's digest is taken of the text the probes were spliced into, which
+ * is a build's output and not the file the author edited. One source reaches a
+ * suite as more than one build — a package's own tests load `src/thing.ts`
+ * through the runner's transform, and every other package's tests load
+ * `dist/thing.js` — and both are recorded under the source's path and the
+ * source's digest, so the two cut one unedited region under two digests. The
+ * source digest is the owner of *was this text edited*: where it stands, no
+ * region in it moved, whatever the emitted text says. Only where it moved does
+ * a region's digest say which regions moved with it.
+ */
+export function editedRegion(
+  current: { readonly sourceDigest: string; readonly digest: string },
+  previous: { readonly sourceDigest: string; readonly digest: string },
+): boolean {
+  return current.sourceDigest !== previous.sourceDigest && current.digest !== previous.digest;
 }

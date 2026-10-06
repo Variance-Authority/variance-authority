@@ -109,6 +109,29 @@ describe('mergeCoverage', () => {
     ]);
   });
 
+  it('keeps a carried test whole when another build of the same text cut its regions', () => {
+    // A package's own tests load `src/decide.ts` through the runner's transform
+    // and every other package's tests load it as `dist/decide.js`; both are
+    // recorded under the source path with the source's digest. A region's
+    // digest is taken of the text the probes were spliced into, so the two
+    // builds digest one unedited region apart. A run that loaded the other
+    // build edited nothing alpha ran over, and alpha stays whole.
+    const otherBuild = at(LOCAL, 'test/beta.test.ts');
+    const merged = mergeCoverage(at(BASELINE, 'test/alpha.test.ts'), {
+      ...otherBuild,
+      modules: otherBuild.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) => ({ ...block, digest: 'block:decide-dist' })),
+      })),
+    });
+
+    expect(merged.tests.every((test) => test.complete)).toBe(true);
+    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual([
+      'test/alpha.test.ts',
+      'test/beta.test.ts',
+    ]);
+  });
+
   it('keeps a carried test whole when its regions are the ones it saw', () => {
     const merged = mergeCoverage(at(BASELINE, 'test/alpha.test.ts'), at(LOCAL, 'test/beta.test.ts'));
 

@@ -8,7 +8,7 @@
 // in an index somebody has already written.
 
 import { describe, expect, it } from 'vitest';
-import { encodeTestCoverage } from './format.js';
+import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
 import { mergeCoverage } from './merge.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
@@ -75,6 +75,20 @@ function rewritten(coverage: TestCoverage): TestCoverage {
       ...module,
       sourceDigest: `${module.sourceDigest}-edited`,
       blocks: module.blocks.map((block) => ({ ...block, digest: `${block.digest}-edited` })),
+    })),
+  };
+}
+
+/**
+ * The same snapshot cut by another build of the same text: the source digest
+ * stands and every region's digest, taken of the emitted text, moved.
+ */
+function rebuilt(coverage: TestCoverage): TestCoverage {
+  return {
+    ...coverage,
+    modules: coverage.modules.map((module) => ({
+      ...module,
+      blocks: module.blocks.map((block) => ({ ...block, digest: `${block.digest}-dist` })),
     })),
   };
 }
@@ -232,6 +246,10 @@ const CASES: Readonly<Record<string, Case>> = {
     previous: at(BASELINE, 'test/alpha.test.ts'),
     current: rewritten(at(LOCAL, 'test/beta.test.ts')),
   },
+  'a run that re-recorded the module another build of its text cut': {
+    previous: at(BASELINE, 'test/alpha.test.ts'),
+    current: rebuilt(at(LOCAL, 'test/beta.test.ts')),
+  },
   'a run that touched one module of three': {
     previous: at(BASELINE, 'test/alpha.test.ts', WIDE),
     current: at(LOCAL, 'test/beta.test.ts', ['src/decide.ts']),
@@ -351,6 +369,18 @@ describe('layerTestCoverage', () => {
       expect(layerTestCoverage(bytes, current, onDisk).equals(expected)).toBe(true);
     });
   }
+
+  it('keeps a carried test whole over another build of the text it ran', () => {
+    // The layer is what CI writes with: a one-file shard that loaded the
+    // `dist` build of a module, layered over a mainline that holds the `src`
+    // build of the same text, must not send the mainline's tests back to run.
+    const layered = decodeTestCoverage(layerTestCoverage(
+      encodeTestCoverage(at(BASELINE, 'test/alpha.test.ts')),
+      rebuilt(at(LOCAL, 'test/beta.test.ts')),
+    ));
+
+    expect(layered.tests.every((test) => test.complete)).toBe(true);
+  });
 
   it('treats a file it cannot decode as one that is not there', () => {
     const current = at(LOCAL, 'test/beta.test.ts');
