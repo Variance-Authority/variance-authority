@@ -127,17 +127,38 @@ export function recordedBlocks(
   if (own === undefined) return coverageBlocks(blocks, frame);
   const cut = own.rows;
   if (sameRegions(blocks, own.blocks)) return cut;
-  // FIXME: only the module row takes the source's lines here; an `await` the
-  // map closed a line short still ends there and falls out of a merge with the
-  // source's cut. A build whose regions are named apart from its source's lands
-  // here too: the walk names an arrow passed as a JSX attribute `anon#N` in the
-  // source and after the property it became in the build.
+  // A region the source names once, and the build names once, is the same
+  // region in both, and takes the source's lines: an `await` the map closed a
+  // line short ends where the source's does. A region either walk names twice
+  // cannot be told from its namesake and keeps the lines its map gives it, and
+  // so does one the build cut alone. The module is always the source's.
+  // FIXME: a build whose regions are named apart from its source's keeps its
+  // map's lines: the walk names an arrow passed as a JSX attribute `anon#N` in
+  // the source and after the property it became in the build.
+  const counted = (rows: readonly { kind: string; name: string; path: string }[]) => {
+    const count = new Map<string, number>();
+    for (const row of rows) count.set(regionKey(row), (count.get(regionKey(row)) ?? 0) + 1);
+    return count;
+  };
+  const inBuild = counted(blocks);
+  const inSource = counted(own.blocks);
+  const sourceRow = new Map(cut.map((row) => [regionKey(row), row]));
   const [module, ...inside] = blocks.map((block) => coverageBlock(frame.text, block, frame.extentOf));
   const whole = cut[0]!;
   return digested([
     whole.startLine === undefined ? module! : { ...module!, startLine: whole.startLine, endLine: whole.endLine },
-    ...inside,
+    ...inside.map((row) => {
+      const key = regionKey(row);
+      const shared = inBuild.get(key) === 1 && inSource.get(key) === 1 ? sourceRow.get(key) : undefined;
+      if (shared?.startLine === undefined) return row;
+      return { ...row, startLine: shared.startLine, endLine: shared.endLine };
+    }),
   ], frame.text);
+}
+
+/** What names a region in a walk, apart from the ordinal the walk gave it. */
+function regionKey(region: { readonly kind: string; readonly name: string; readonly path: string }): string {
+  return `${region.kind}\0${region.name}\0${region.path}`;
 }
 
 /**

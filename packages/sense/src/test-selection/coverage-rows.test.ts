@@ -91,6 +91,25 @@ describe('recordedBlocks', () => {
     });
     expect(rows.length).toBe(own.length + 1);
     expect(rows[0]).toMatchObject({ kind: 'module', startLine: own[0]!.startLine, endLine: own[0]!.endLine, digest: own[0]!.digest });
+    expect(rows[1]).not.toHaveProperty('startLine');
+    expect(rows[1]).not.toHaveProperty('endLine');
+  });
+
+  it('records the regions a build shares with its source at the source\'s lines when the build cut one more', () => {
+    // tsc's shape: the call written over four lines is emitted on one, so the
+    // map closes the `await` on the line it opened. A helper a bundler wrote
+    // above the module keeps the two walks from numbering alike.
+    const source = 'export async function f(a) {\n  await a.go(\n    1,\n  );\n}\n';
+    const code = 'var __name = (target, value) => target;\nexport async function f(a) {\n  await a.go(1);\n}\n';
+    const map = { mappings: ';AAAA;AACA;AAGA', sources: [FILE] };
+    const frame = recordedFrame(code, map, FILE, () => source);
+    const cut = coverageBlocks(instrument(source, FILE)!.blocks, recordedFrame(source, undefined, FILE, () => source));
+    const shared = (row: { name: string; path: string }) => cut.some((own) => own.name === row.name && own.path === row.path);
+
+    const rows = recordedBlocks(instrument(code, FILE)!.blocks, frame, code, 'presence');
+
+    const extent = (row: (typeof cut)[number]) => [row.kind, row.name, row.path, row.startLine, row.endLine, row.digest];
+    expect(rows.filter(shared).map(extent)).toEqual(cut.map(extent));
   });
 
   it('reads a build through its map when it moved regions its source names alike', () => {
