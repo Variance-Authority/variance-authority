@@ -13,7 +13,8 @@ import type { TestCoverage } from '@variance-authority/sense/test-selection';
  * `charge`, for a static import a file other than the test file writes, says
  * where that file references what it imports, and `ran` on a read at load
  * when a case also runs a function that reads it. `reach`, for a static import,
- * says how far from the test file its importer is.
+ * says how far from the test file its importer is, and `exports`, for an
+ * import the subject writes, every value the imported module exports.
  * `shared`: no import brings the module in alone — two paths reach it, or the
  * import that does also brings in code a case entered; `parts` is the nearest
  * file every path to it runs through. `unseen`: no import the graph reads
@@ -28,6 +29,7 @@ export type LoadCause =
     readonly lazy?: true;
     readonly charge?: ImportCharge;
     readonly reach?: ImportReach;
+    readonly exports?: readonly string[];
   }
   | { readonly kind: 'shared'; readonly parts: string }
   | { readonly kind: 'unseen' };

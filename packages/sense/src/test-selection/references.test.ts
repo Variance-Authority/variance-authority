@@ -118,8 +118,41 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
         imported: ['src/a.ts', 'src/b.ts', 'src/c.ts'],
         effects: ['src/c.ts'],
         untraced: false,
+        carries: [],
       });
+      // An `export *` leaves the set to the other file.
+      expect(importReferences(root, undefined, 'src/index.ts')).not.toHaveProperty('exports');
       expect(importReferences(root, undefined, 'src/missing.ts')).toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('lists every value the file exports, and which of them carry a name it reads when it loads', async () => {
+    // What a mock's factory must stand in for, and what a mock of the import changes for a reader of the file.
+    const root = await mkdtemp(join(tmpdir(), 'variance-authority-references-'));
+    try {
+      const files: Record<string, string> = {
+        'src/dialog.ts': [
+          "import Base, { PREFIX, shout } from './base';",
+          "export const label = PREFIX + '!';",
+          'export class Dialog extends Base {}',
+          'export function open() { return shout(label); }',
+          'export type Shape = { label: string };',
+          'export default 3;',
+          '',
+        ].join('\n'),
+        'src/base.ts': "export default class Base {}\nexport const PREFIX = '>';\nexport const shout = (s: string) => s;\n",
+      };
+      for (const [file, body] of Object.entries(files)) {
+        await mkdir(dirname(join(root, file)), { recursive: true });
+        await writeFile(join(root, file), body);
+      }
+      const dialog = importReferences(root, undefined, 'src/dialog.ts');
+      expect(dialog?.exports).toEqual(['label', 'Dialog', 'open', 'default']);
+      expect(dialog?.carries).toEqual(expect.arrayContaining([{ name: 'label', file: 'src/base.ts', origin: 'PREFIX' }]));
+      expect(dialog?.carries.some(({ name }) => name === 'open')).toBe(false);
+      expect(importReferences(root, undefined, 'src/base.ts')?.exports).toEqual(['default', 'PREFIX', 'shout']);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

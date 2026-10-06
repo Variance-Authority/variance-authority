@@ -293,7 +293,7 @@ describe('the CLI distillation boundary', () => {
       {
         file: 'src/heavy-chart.tsx', lines: 30, entered: 0,
         // The cart writes `[Dialog, Chart]` when it loads, so every test file that loads the cart loads the chart.
-        cause: { kind: 'import', importer: 'src/cart.tsx', imported: 'src/heavy-chart.tsx', charge: { kind: 'load', line: 3, name: 'Chart' }, reach: 'subject' },
+        cause: { kind: 'import', importer: 'src/cart.tsx', imported: 'src/heavy-chart.tsx', charge: { kind: 'load', line: 3, name: 'Chart' }, reach: 'subject', exports: ['Chart'] },
       },
       { file: 'src/checkout-dialog.tsx', lines: 20, entered: 1 },
     ]);

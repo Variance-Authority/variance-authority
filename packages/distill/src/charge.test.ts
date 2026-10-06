@@ -21,6 +21,7 @@ function read(
   edges: Readonly<Record<string, readonly string[]>> = {},
   setup: readonly number[] = [],
   own?: FileReferences,
+  pdf: FileReferences = referencing([], { exports: ['create'] }),
 ) {
   const root = (file: string, by: readonly string[]): Block => ({
     ordinal: 0, kind: 'module', digest: `${file}#root`, name: '', path: '', source: true,
@@ -60,7 +61,7 @@ function read(
     coverage,
     execution,
     imports: (file) => imports[file] ?? [],
-    references: (file) => (file === UTILS ? references : file === FILE ? own : undefined),
+    references: (file) => (file === UTILS ? references : file === FILE ? own : file === PDF ? pdf : undefined),
   });
 }
 
@@ -72,7 +73,7 @@ function chargeOf(result: ReturnType<typeof distillFile>): ImportCharge | undefi
 const referencing = (
   references: FileReferences['references'],
   more: Partial<FileReferences> = {},
-): FileReferences => ({ references, passed: [], imported: [PDF], effects: [], untraced: false, ...more });
+): FileReferences => ({ references, passed: [], imported: [PDF], effects: [], untraced: false, carries: [], ...more });
 
 describe('an import a used file writes, charged to the code that reads it', () => {
   it('names the functions no case of the file ran that read it, and how many test files that load the importer run one', () => {
@@ -196,21 +197,53 @@ describe('what to do about an import, by how far from the test file its importer
     ].join('\n'));
   });
 
-  it('proposes mocking, with an empty factory, an import the file\'s subject never reads', () => {
+  it('proposes mocking an import the file\'s subject never reads, with a factory that stands in for every value it exports', () => {
+    // The mock replaces the module for every file the test loads, not only for the subject.
     const result = read(referencing([]));
-    expect(result.modules?.find(({ file }) => file === PDF)?.cause).toMatchObject({ reach: 'subject' });
+    expect(result.modules?.find(({ file }) => file === PDF)?.cause).toMatchObject({ reach: 'subject', exports: ['create'] });
     expect(formatFileDistillation(result)).toContain(
-      `    Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({}));`,
+      `    Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({ create: jest.fn() }));`,
     );
   });
 
-  it('stands a function in, in the factory, for the name the subject reads when it loads', () => {
-    // An empty factory would hand the subject undefined where it calls, constructs or extends what it read.
-    expect(formatFileDistillation(read(referencing([{ file: PDF, name: 'default', line: 6, load: true }])))).toContain(
-      `    Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({ __esModule: true, default: jest.fn() }));`,
+  it('stands a function in for each export, so a reader at load can call, construct or extend any of them', () => {
+    // A factory listing only the first name read at load hands a second one undefined while the module loads.
+    const loaded = read(referencing([{ file: PDF, name: 'default', line: 6, load: true }]), {}, [], undefined,
+      referencing([], { exports: ['default', 'render', 'create'] }));
+    expect(formatFileDistillation(loaded)).toContain(
+      `    Or mock it in this file, so ${UTILS} does not load it: ` +
+        "jest.mock('../src/pdf', () => ({ __esModule: true, default: jest.fn(), render: jest.fn(), create: jest.fn() }));",
     );
-    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'load', line: 6, name: 'render' } }))
+    const charge = { kind: 'load', line: 6, name: 'render' } as const;
+    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge, exports: ['render'] }))
       .toBe(`Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({ render: jest.fn() }));`);
+    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'never' }, exports: [] }))
+      .toBe(`Or mock it in this file, so ${UTILS} does not load it: jest.mock('../src/pdf', () => ({}));`);
+  });
+
+  it('proposes no mock where what the imported module exports is not known', () => {
+    // An `export *` leaves the set to another file, and a factory short of a name hands its reader undefined.
+    expect(reachLine(FILE, { importer: UTILS, imported: PDF, reach: 'subject', charge: { kind: 'never' } })).toBeUndefined();
+    expect(formatFileDistillation(read(referencing([]), {}, [], undefined, referencing([])))).not.toContain('jest.mock(');
+  });
+
+  it('proposes no mock where the test file reads an export of the subject whose value the import carries', () => {
+    // `label` is built from the import when the subject loads: under a mock the case reads what the factory made.
+    const result = read(
+      referencing([{ file: PDF, name: 'PREFIX', line: 6, load: true }], { carries: [{ name: 'label', file: PDF, origin: 'PREFIX' }] }),
+      {}, [], referencing([{ file: UTILS, name: 'label', line: 4, load: false }], { imported: [UTILS] }),
+      referencing([], { exports: ['PREFIX'] }),
+    );
+    expect(chargeOf(result)).toEqual({ kind: 'load', line: 6, name: 'PREFIX', carried: 'label' });
+    expect(formatFileDistillation(result)).not.toContain('jest.mock(');
+    // Read by nothing of the test file, the carried export changes nothing a case sees.
+    const unread = read(
+      referencing([{ file: PDF, name: 'PREFIX', line: 6, load: true }], { carries: [{ name: 'label', file: PDF, origin: 'PREFIX' }] }),
+      {}, [], referencing([{ file: UTILS, name: 'other', line: 4, load: false }], { imported: [UTILS] }),
+      referencing([], { exports: ['PREFIX'] }),
+    );
+    expect(chargeOf(unread)).toEqual({ kind: 'load', line: 6, name: 'PREFIX' });
+    expect(formatFileDistillation(unread)).toContain("jest.mock('../src/pdf', () => ({ PREFIX: jest.fn() }));");
   });
 
   it('proposes no mock where the subject reads the import at load and a case runs a function that reads it too', () => {

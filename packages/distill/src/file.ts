@@ -128,6 +128,7 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
     entered,
   });
   const charge = input.references === undefined ? undefined : chargesOf({
+    file,
     references: input.references,
     coverage: input.coverage,
     execution: input.execution,
@@ -138,7 +139,8 @@ export function readTestFile(file: string, input: Omit<FileDistillInput, 'file'>
     if (found.kind !== 'import' || found.lazy === true) return found;
     const reach = found.importer === file ? 'test' : imports!(file).includes(found.importer) ? 'subject' : 'beyond';
     const reading = charge?.(found.importer, found.imported);
-    return { ...found, ...(reading === undefined ? {} : { charge: reading }), reach };
+    const exports = reach === 'subject' ? input.references?.(found.imported)?.exports : undefined;
+    return { ...found, ...(reading === undefined ? {} : { charge: reading }), reach, ...(exports === undefined ? {} : { exports }) };
   };
   const modules = candidates
     .map((module): LoadedModule => {

@@ -245,14 +245,16 @@ reads as one of three:
   subject, which the test already knows, so mocking the import there
   costs it no new knowledge. The proposal is a mock with a factory: an
   automock requires the real module to read its shape, which is the load
-  the mock is there to stop. The factory stands a function in for the
-  name the subject reads when it loads, so a call, `new` or `extends` at
-  load still works. No mock is proposed where a case runs, or the subject
-  hands on, what reads the import: there the mock changes what the case
-  does, or where it reads the import at load and a case also runs a
-  function that reads it: a factory standing in one name hands that
-  function `undefined` for the rest. None is proposed where what the
-  subject reads is not known, or where loading the import is the point.
+  the mock is there to stop. The mock replaces the module for every file
+  the test loads, so the factory stands a function in for every value the
+  module exports: a call, `new`, `extends` or read at load still works,
+  in the subject or anywhere else. No mock is proposed where it changes
+  what a case does: where a case runs, or the subject hands on, what reads
+  the import; where the subject reads it at load and a case also runs a
+  function that reads it; or where the test file reads an export of the
+  subject whose value that read at load carries. None is proposed where
+  what the subject reads, or what the module exports, is not known, or
+  where loading the import is the point.
 - **Written further away.** Mocking it ties the test to code it does not
   import, against the principle of least knowledge. The reading is a
   warning that names the importer as the place to fix it.

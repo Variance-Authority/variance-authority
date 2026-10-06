@@ -45,7 +45,7 @@ describe('an import no case of a Jest test file needs, by how far from the file 
   });
 
   it('is mocked in the test file when the test file\'s subject writes it', () => {
-    expect(text).toContain(`Or mock it in this file, so ${at}/src/dialog.ts does not load it: jest.mock('../src/editor', () => ({ edit: jest.fn() }));`);
+    expect(text).toContain(`Or mock it in this file, so ${at}/src/dialog.ts does not load it: jest.mock('../src/editor', () => ({ edit: jest.fn(), format: jest.fn() }));`);
     expect(text).toContain(`Or mock it in this file, so ${at}/src/dialog.ts does not load it: jest.mock('../src/fallback', () => ({ fallback: jest.fn() }));`);
   });
 
