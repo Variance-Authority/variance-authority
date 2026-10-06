@@ -74,13 +74,16 @@ and the index line is followed by one naming that process and the file its lines
 go to:
 
 ```text
-follow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process 48213, and the next variance command waits for it; their lines are written to <cache>/test-selection/<digest>/source-index.bin.follow-ups.log
+follow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process 48213, and the next variance command that reads them waits for it; their lines are written to <cache>/test-selection/<digest>/source-index.bin.follow-ups.log
 ```
 
-The next `variance` command you run waits for that process before it reads
-anything, and prints on stderr that it is waiting, so no answer is made from a
-map older than the index. A process that ended before it finished is not waited
-on: the next command makes what it left and prints the lines. `variance index
+The next `variance` command you run that reads any of them waits for that
+process, and prints on stderr that it is waiting, so no answer is made from a
+map older than the index. `variance select` reads none of them: it waits only
+while the process folds the index's working layer into its base, which is the
+first thing the process does. A process that ended before it finished is not
+waited on: the next command that reads what it left makes it and prints the
+lines. `variance index
 --wait` makes them before it returns, which is what it always does in CI: a
 step's log is where its lines are read, and nothing may outlive the step that
 saves the cache.
