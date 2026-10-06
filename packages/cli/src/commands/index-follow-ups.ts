@@ -12,10 +12,11 @@
  * that lock before it reads, so an answer is never made from a map older than
  * the index it prints.
  *
- * The process first readies the index — folds its working layer into its base —
- * which removes the segments the base replaced, so a reader that opened the
- * index before the fold can find them gone. Once that is done it marks the lock
- * `readied`. A command that reads the index and none of the four — the list
+ * The process first brings the index up to date and readies it — folds its
+ * working layer into its base. Each of those publishes and then removes the
+ * segments it replaced, so a reader that opened the index before either can find
+ * them gone. Once both are done it marks the lock `readied`; nothing after that
+ * writes the index. A command that reads the index and none of the four — the list
  * beside `settleFollowUps` — waits for that mark and no longer.
  *
  * A lock whose process is gone — killed, or the machine slept through it — is

@@ -1553,8 +1553,8 @@ the journeys and the last two lines are made by a process it starts for them,
 and a `follow-ups:` line names that process and the file its lines go to. The
 next `variance` command that reads any of them waits for it, and prints that on
 stderr, so no answer comes from a map older than the index. `variance select`
-reads none of them, and waits only while the process folds the index's working
-layer into its base, the first thing it does. A process that ended before it
+reads none of them, and waits only while the process brings the index up to
+date and folds its working layer into its base, which it does before the four. A process that ended before it
 finished is not waited on: the next command that reads them makes them itself
 and prints their lines. `--wait` makes them before `index` returns, which is what it
 always does in CI. `--follow-ups` is what the started process runs.
