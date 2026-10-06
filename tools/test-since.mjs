@@ -359,7 +359,7 @@ async function sinceSlice({ suite: name, config }, { dryRun, asked, ref, shard, 
     // The runner has already printed why on stderr; what is left to say is
     // which question went unanswered and what that stops.
     const status = typeof error?.status === 'number' ? `exited ${error.status}` : `failed: ${String(error?.message ?? error).split('\n')[0]}`;
-    say(`test:since: \`yarn vitest list --filesOnly --config ${config}\` ${status}, so there is no slice to select from.`);
+    say(`test:since: \`vitest list --filesOnly --config ${config}\` ${status}, so there is no slice to select from.`);
     return 1;
   }
   const read = await readChange({
