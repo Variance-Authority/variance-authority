@@ -19,6 +19,7 @@
 // compass: variance-authority.reach
 
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const roots = new Map<string, string>();
@@ -42,6 +43,11 @@ export function repositoryRoot(from: string): string {
 }
 
 function climb(start: string): string {
+  // A directory holding `.git` is the top of its own checkout, in the spelling it
+  // was asked by: every command asks from one, and a worktree's commands from the
+  // primary checkout too. A `GIT_DIR` or `GIT_WORK_TREE` in the environment moves
+  // the checkout away from the directories, so git is asked then.
+  if (process.env['GIT_DIR'] === undefined && process.env['GIT_WORK_TREE'] === undefined && existsSync(resolve(start, '.git'))) return start;
   try {
     const up = execFileSync('git', ['rev-parse', '--show-cdup'], {
       cwd: start,

@@ -1,5 +1,5 @@
 import { OperatorError } from './exit.js';
-import { didYouMean } from '@variance-authority/mcp/tools';
+import { didYouMean } from '@variance-authority/core';
 
 /**
  * The flag lexer: hyphens, `=`, `--`, and nothing about what any command means.
