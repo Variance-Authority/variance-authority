@@ -41,9 +41,10 @@ const DISTANCES: readonly TestDistance[] = [
   { test: GHOST, bearing: 'unexplained' },
 ];
 
-function read(distances: readonly TestDistance[] = DISTANCES): SelectInput {
+function read(distances: readonly TestDistance[] = DISTANCES, incomplete?: readonly string[]): SelectInput {
   const narrowing: ExecutionNarrowing = {
     whole: WHOLE,
+    ...(incomplete === undefined ? {} : { incomplete }),
     entered: [FAR, GHOST, MID, NEAR],
     unread: [],
     stale: [],
@@ -123,6 +124,20 @@ describe('one leg of the selection', () => {
 
     expect(end.skip).toEqual([IDLE, MID, NEAR, PARTIAL]);
     expect(selectionNotes(end)).toContain('skipping 4 test files: 1 of 5 recorded whole covered no changed line, and 3 are outside');
+  });
+
+  it('runs a test the record holds incomplete, and the change did not enter, only in the end leg', () => {
+    const SKIPPED = 'test/skipped.test.ts';
+    const input = read(DISTANCES, [GHOST, SKIPPED]);
+    const near = inLeg(skippableTests(input), input, { from: 0, to: 2 });
+    const end = inLeg(skippableTests(input), input, { from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.skip).toEqual([FAR, GHOST, IDLE, SKIPPED]);
+    expect(near.left).toEqual([FAR, GHOST, SKIPPED]);
+    expect(end.skip).toEqual([IDLE, MID, NEAR]);
+    expect(selectionNotes(near)).toContain(
+      '1 test file the record never saw whole and the change did not enter is left for the leg that reaches the end',
+    );
   });
 
   it('names what the leg left and the leg that runs it, on stderr', () => {

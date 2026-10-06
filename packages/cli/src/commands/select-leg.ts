@@ -16,15 +16,17 @@
  * the files it left in `left`, and stderr gives their count and the flag that
  * runs them.
  *
- * ## A test the change did not enter and the record never saw whole runs in every leg
+ * ## A test the record never saw whole runs with the leg that reaches the end
  *
  * `test:since` knows the suite, so a test the record never saw whole — new
  * since the recording, or recorded incomplete — goes with the other unplaced
- * tests into the leg that reaches the end. `select` reads no suite, and the
- * narrowing names only the tests seen whole or entered, so such a test is in
- * no skip list and runs in every leg. A test the change entered is placed by
- * its hops whether or not the record saw it whole. That is the safe side of a skip list: it
- * costs a file run twice, never a file run zero times.
+ * tests into the leg that reaches the end. `select` reads no suite, so it can
+ * do that only for a test the record names: one it holds incomplete, such as a
+ * file whose every case skipped, is on the skip list of every leg with an end.
+ * A test new since the recording is named nowhere, so it is in no skip list and
+ * runs in every leg. That is the safe side of a skip list: it costs a file run
+ * twice, never a file run zero times. A test the change entered is placed by
+ * its hops whether or not the record saw it whole.
  *
  * ## The reading a leg was cut from is said with it
  *
@@ -78,10 +80,15 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   const reading: readonly TestDistance[] = entered
     .map((test): TestDistance => placed.get(test) ?? { test, bearing: 'unexplained' })
     .sort((one, other) => codeUnitOrder(one.test, other.test));
-  const left = remaining(reading, leg.from, leg.to);
+  const cut = remaining(reading, leg.from, leg.to);
+  // Unplaced, and named only by the record: the leg that reaches the end runs them.
+  const entering = new Set(entered);
+  const unseen =
+    leg.to === Number.MAX_SAFE_INTEGER ? [] : (input.ground.narrowing.incomplete ?? []).filter((test) => !entering.has(test));
+  const left = [...cut, ...unseen].sort(codeUnitOrder);
   const skip = [...new Set([...selection.skip, ...left])].sort(codeUnitOrder);
-  const nearer = left.filter((test) => (placed.get(test)?.hops ?? Number.MAX_SAFE_INTEGER) < leg.from);
-  const further = left.length - nearer.length;
+  const nearer = cut.filter((test) => (placed.get(test)?.hops ?? Number.MAX_SAFE_INTEGER) < leg.from);
+  const further = cut.length - nearer.length;
   const whole = selection.recorded?.whole ?? 0;
 
   return {
@@ -99,6 +106,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     notes: [
       ...byDistance(reading),
       ...leftNote(further, 'for a later leg', `${leg.to + 1}-`),
+      ...unseenNote(unseen.length, `${leg.to + 1}-`),
       ...leftNote(nearer.length, `for an earlier leg, nearer than ${many(leg.from, 'hop')}`, spelled({ from: 0, to: leg.from - 1 })),
       ...selection.notes,
     ],
@@ -122,6 +130,16 @@ function leftNote(count: number, where: string, range: string): readonly string[
   if (count === 0) return [];
   return [
     `${many(count, 'selected test file')} ${count === 1 ? 'is' : 'are'} left ${where}: ` +
+      `the same command with \`--at-distance ${range}\` runs ${count === 1 ? 'it' : 'them'}`,
+  ];
+}
+
+/** How many tests the record never saw whole this leg left, and the leg that runs them. */
+function unseenNote(count: number, range: string): readonly string[] {
+  if (count === 0) return [];
+  return [
+    `${many(count, 'test file')} the record never saw whole and the change did not enter ` +
+      `${count === 1 ? 'is' : 'are'} left for the leg that reaches the end: ` +
       `the same command with \`--at-distance ${range}\` runs ${count === 1 ? 'it' : 'them'}`,
   ];
 }
