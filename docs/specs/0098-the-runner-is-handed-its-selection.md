@@ -171,7 +171,10 @@ Vitest path form — go with the formats in item 6.
 **2. The Jest seam drops through `filter`.** With `VARIANCE_AUTHORITY_SINCE`
 set, a Jest run under `withTestSelection` does not start a file in `skip`, under
 `--shard` and `--listTests` alike, a project `filter` still runs, and
-`--filter` or `--skipFilter` on the command line is reported.
+`--filter` or `--skipFilter` on the command line is reported. The filter drops
+the `skip` that `selectSuite` returned in the process that loaded the
+configuration: it reads no path from argv, the environment or a file, and
+selects nothing again.
 
 **3. The Vitest seam drops through the sequencer.** The same, on Vitest 2 to 5,
 under `--shard` and under `projects`, with a project sequencer still consulted.
