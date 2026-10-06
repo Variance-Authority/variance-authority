@@ -1,4 +1,3 @@
-import { transformSync } from '@swc/core';
 import { describe, expect, it } from 'vitest';
 import { instrument } from '../instrument/index.js';
 import { coverageBlocks } from './coverage-rows.js';
@@ -24,21 +23,27 @@ export class Cart {
 }
 `;
 
-/** One build of {@link SOURCE}: the emitted text and its map back to the file. */
-function build(target: 'es2015' | 'es2022', source = SOURCE): { code: string; map: TransformSourceMap } {
-  const out = transformSync(source, {
-    filename: FILE,
-    sourceMaps: true,
-    jsc: { target, parser: { syntax: 'typescript' } },
-  });
-  return { code: out.code, map: JSON.parse(out.map!) as TransformSourceMap };
-}
+// Two builds of SOURCE: swc's output and map at `es2015` and at `es2022`, verbatim.
+const LOWERED = {
+  code: 'export function price(order) {\n    var _ref;\n    const total = (_ref = order === null || order === void 0 ? void 0 : order.total) !== null && _ref !== void 0 ? _ref : 0;\n    if (total > 100) {\n        var _ref1;\n        var _order_tier;\n        return total * ((_ref1 = order === null || order === void 0 ? void 0 : (_order_tier = order.tier) === null || _order_tier === void 0 ? void 0 : _order_tier.rate) !== null && _ref1 !== void 0 ? _ref1 : 1);\n    } else {\n        return total;\n    }\n}\nexport class Cart {\n    add(items, value) {\n        for (const item of [\n            value\n        ])items.push(item !== null && item !== void 0 ? item : 0);\n    }\n}\n',
+  map: {
+    mappings:
+      'AAEA,OAAO,SAASA,MAAMC,KAAwB;;IAC5C,MAAMC,gBAAQD,kBAAAA,4BAAAA,MAAOC,KAAK,uCAAI;IAC9B,IAAIA,QAAQ,KAAK;;YACCD;QAAhB,OAAOC,kBAASD,kBAAAA,6BAAAA,cAAAA,MAAOE,IAAI,cAAXF,kCAAAA,YAAaG,IAAI,yCAAI;IACvC,OAAO;QACL,OAAOF;IACT;AACF;AAEA,OAAO,MAAMG;IACXC,IAAIC,KAAe,EAAEC,KAAc,EAAQ;QACzC,KAAK,MAAMC,QAAQ;YAACD;SAAM,CAAED,MAAMG,IAAI,CAACD,iBAAAA,kBAAAA,OAAQ;IACjD;AACF',
+    sources: [FILE],
+  },
+};
+const MODERN = {
+  code: 'export function price(order) {\n    const total = order?.total ?? 0;\n    if (total > 100) {\n        return total * (order?.tier?.rate ?? 1);\n    } else {\n        return total;\n    }\n}\nexport class Cart {\n    add(items, value) {\n        for (const item of [\n            value\n        ])items.push(item ?? 0);\n    }\n}\n',
+  map: {
+    mappings:
+      'AAEA,OAAO,SAASA,MAAMC,KAAwB;IAC5C,MAAMC,QAAQD,OAAOC,SAAS;IAC9B,IAAIA,QAAQ,KAAK;QACf,OAAOA,QAASD,CAAAA,OAAOE,MAAMC,QAAQ,CAAA;IACvC,OAAO;QACL,OAAOF;IACT;AACF;AAEA,OAAO,MAAMG;IACXC,IAAIC,KAAe,EAAEC,KAAc,EAAQ;QACzC,KAAK,MAAMC,QAAQ;YAACD;SAAM,CAAED,MAAMG,IAAI,CAACD,QAAQ;IACjD;AACF',
+    sources: [FILE],
+  },
+};
 
-function rows(target: 'es2015' | 'es2022', source = SOURCE) {
-  const { code, map } = build(target, source);
-  const frame = recordedFrame(code, map, FILE, () => source);
-  const done = instrument(code, FILE)!;
-  return coverageBlocks(done.blocks, frame);
+function rows(build: { code: string; map: TransformSourceMap }, source = SOURCE) {
+  const frame = recordedFrame(build.code, build.map, FILE, () => source);
+  return coverageBlocks(instrument(build.code, FILE)!.blocks, frame);
 }
 
 describe('coverageBlocks', () => {
@@ -48,19 +53,16 @@ describe('coverageBlocks', () => {
   // depended on the emitted text would read every region as edited the moment
   // the two met in one merge.
   it('digests a region from the source it maps to, whichever build was instrumented', () => {
-    const lowered = rows('es2015');
-    const modern = rows('es2022');
-    expect(build('es2015').code).not.toBe(build('es2022').code);
-
-    const identity = (row: (typeof lowered)[number]) => [row.name, row.path, row.startLine, row.endLine, row.digest];
-    expect(lowered.map(identity)).toEqual(modern.map(identity));
+    const identity = (row: ReturnType<typeof rows>[number]) => [row.name, row.path, row.startLine, row.endLine, row.digest];
+    expect(rows(LOWERED).map(identity)).toEqual(rows(MODERN).map(identity));
   });
 
   // The lines inside a region a region owns are that region's, so an edit there
   // is charged to it and to nothing around it.
   it('charges an edit to the region whose own lines it lands on', () => {
-    const before = rows('es2022');
-    const after = rows('es2022', SOURCE.replace('return total * (order?.tier?.rate ?? 1);', 'return total * (order?.tier?.rate ?? 2);'));
+    const edit = (text: string) => text.replace('rate ?? 1)', 'rate ?? 2)');
+    const before = rows(MODERN);
+    const after = rows({ code: edit(MODERN.code), map: MODERN.map }, edit(SOURCE));
     const changed = before
       .filter((row, index) => row.digest !== after[index]!.digest)
       .map((row) => `${row.name} ${row.path}`);
