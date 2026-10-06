@@ -247,3 +247,21 @@ describe('a landing handed the files the suite collects', () => {
     expect(await readCommitRuns(into)).toMatchObject({ commit: 'C', files: ['other.test.ts'], standing: [] });
   });
 });
+
+describe('a run handed the runner\'s answer to what the suite collects', () => {
+  it('lets go of a test file the record holds that the run did not run and the runner says it does not collect', async () => {
+    await partial();
+    const asked: string[] = [];
+    const collects = async (file: string): Promise<boolean | undefined> => {
+      asked.push(file);
+      // `near` has no answer, and a file without one stays.
+      return file.endsWith('far.test.ts') ? false : undefined;
+    };
+
+    await landRun(into, run('C', ['other.test.ts']), home, undefined, undefined, collects);
+
+    expect(asked.sort()).toEqual([join(home, 'far.test.ts'), join(home, 'near.test.ts')]);
+    expect((await readTestCoverage(into)).tests.map((test) => test.file)).toEqual(['near.test.ts', 'other.test.ts']);
+    expect((await readCommitRuns(into))?.standing).toEqual([{ commit: 'H', files: ['near.test.ts'] }]);
+  });
+});
