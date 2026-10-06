@@ -144,17 +144,24 @@ type Cut = readonly [line: number, callers: readonly string[], name?: string];
 
 /** One module cut at the lines given, each region a one-line callback its callers entered. */
 function cutAt(cases: readonly string[], file: string, regions: readonly Cut[]): Buffer {
+  // `lines.map(...)` callbacks of one function: one name, one path, told apart by occurrence.
+  return cutOf(cases, file, regions.map(([line, callers, name = 'warningBlocks/map.arg0']) =>
+    ['function', name, 'entry', [line, line], callers] as const));
+}
+
+/** A region of one cut: its kind, name, path and lines, and the cases that called it. */
+type Spelled = readonly [kind: string, name: string, path: string, lines: readonly [number, number], callers: readonly string[]];
+
+/** One module cut into the regions given, spelled out. */
+function cutOf(cases: readonly string[], file: string, regions: readonly Spelled[]): Buffer {
   const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
   const sets = new CrossingSets(tests.length);
   sets.intern([]);
   const at = new Map(cases.map((id, position) => [id, position]));
   const module: SetExecutionModule = {
     file,
-    // `lines.map(...)` callbacks of one function: one name, one path, told apart by occurrence.
-    blocks: regions.map(([line, , name = 'warningBlocks/map.arg0']) => ({
-      kind: 'function', name, path: 'entry', startLine: line, endLine: line, source: true,
-    })),
-    called: Uint32Array.from(regions, ([, callers]) => sets.intern(callers.map((id) => at.get(id)!))),
+    blocks: regions.map(([kind, name, path, [startLine, endLine]]) => ({ kind, name, path, startLine, endLine, source: true })),
+    called: Uint32Array.from(regions, ([, , , , callers]) => sets.intern(callers.map((id) => at.get(id)!))),
     loaded: new Uint8Array(regions.length),
   };
   return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
@@ -259,23 +266,6 @@ describe('a module the index holds at an older text than the snapshot', () => {
   });
 });
 
-/** A region of one cut: its kind, name, path and lines, and the cases that called it. */
-type Spelled = readonly [kind: string, name: string, path: string, lines: readonly [number, number], callers: readonly string[]];
-
-function cutOf(cases: readonly string[], file: string, regions: readonly Spelled[]): Buffer {
-  const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
-  const sets = new CrossingSets(tests.length);
-  sets.intern([]);
-  const at = new Map(cases.map((id, position) => [id, position]));
-  const module: SetExecutionModule = {
-    file,
-    blocks: regions.map(([kind, name, path, [startLine, endLine]]) => ({ kind, name, path, startLine, endLine, source: true })),
-    called: Uint32Array.from(regions, ([, , , , callers]) => sets.intern(callers.map((id) => at.get(id)!))),
-    loaded: new Uint8Array(regions.length),
-  };
-  return encodeSetExecutionIndex({ tests, modules: [module], sets: sets.pool() });
-}
-
 describe('two cuts of one text', () => {
   const kept = 'ignore.test.ts > keeps';
   const loads = 'other.test.ts > loads';
@@ -320,6 +310,43 @@ describe('two cuts of one text', () => {
     expect(decodeExecutionIndex(before!).modules[0]!.blocks.map((block) => [block.startLine, block.endLine])).toEqual([
       [16, 419], [338, 354], [343, 343], [345, 345],
     ]);
+  });
+
+  it('still names a module unlined when a held callback finds no sibling at its lines and the module starts apart', () => {
+    const map = 'changelogOf/map.arg0';
+    const whole = cutOf([kept, loads], 'src/changelog.ts', [
+      ['module', '', 'module', [1, 300], [loads]],
+      ['function', map, 'entry', [276, 276], [kept]],
+      ['function', map, 'entry', [283, 283], [loads]],
+    ]);
+    const lacking = cutOf([loads], 'src/changelog.ts', [
+      ['module', '', 'module', [16, 300], [loads]],
+      ['function', map, 'entry', [283, 283], [loads]],
+    ]);
+
+    expect(layerCaseIndex(whole, lacking, same).unlined).toEqual(['src/changelog.ts']);
+  });
+
+  it('reads a module whose last line moved as cut from another text when the two number their callbacks apart', () => {
+    // A callback written below the last one: every region the cuts share stands still.
+    const older = cutOf([kept, loads], 'src/ignores.ts', [
+      ['module', '', 'module', [1, 30], [loads]],
+      ['function', 'anon#0', 'entry', [10, 12], [kept]],
+      ['function', 'anon#1', 'entry', [20, 22], [loads]],
+    ]);
+    const newer = cutOf([loads], 'src/ignores.ts', [
+      ['module', '', 'module', [1, 37], [loads]],
+      ['function', 'anon#0', 'entry', [10, 12], []],
+      ['function', 'anon#1', 'entry', [20, 22], [loads]],
+      ['function', 'anon#2', 'entry', [33, 35], []],
+    ]);
+
+    const { merged, unlined } = layerCaseIndex(older, newer, same);
+
+    expect(unlined).toEqual(['src/ignores.ts']);
+    const decoded = decodeExecutionIndex(merged);
+    expect(decoded.modules[0]!.blocks.flatMap((block) => block.crossings.map((crossing) => decoded.tests[crossing.test]!.id)))
+      .not.toContain(kept);
   });
 });
 

@@ -170,7 +170,9 @@ export function layerCaseIndex(
     const same = (files.base === undefined ? files.sameText : files.sameBeforeText)?.(module.file);
     if (recorded === undefined || same !== true) return module;
     const lined = relined(module, recorded);
-    if (lined === undefined || (lined === module && strayed(module, recorded))) unlined.push(module.file);
+    // A module that kept every held region was not re-cut, so a stray among them is still the cut's to name.
+    const whole = lined !== undefined && lined.blocks.length === module.blocks.length;
+    if (lined === undefined || (whole && strayed(module, recorded))) unlined.push(module.file);
     return lined ?? module;
   });
   return {
@@ -198,13 +200,11 @@ export function layerCaseIndex(
  * holds it, and kept at a line of the older one it would pair with whatever
  * region stands there now.
  *
- * The module's own region does not say which text `held` was cut at. It spans
- * from the first to the last line the build that cut it kept — the source
- * keeps line 1, a build may start at the first statement — so two cuts of one
- * text part there. A line written above everything moves every other region as
- * well, and one written below adds or takes away a region of its own, which
- * lands nothing. When only that region moved, `held` takes the recorded lines
- * whatever the numbering.
+ * Where the module's own region starts does not say which text `held` was cut
+ * at: the source starts it at line 1, a build at the first statement it kept,
+ * so two cuts of one text part there. When nothing else moved, `held` comes
+ * back whole with the recorded start. Its end still counts, since a line
+ * written below the last region moves nothing else.
  */
 // FIXME: regions told apart only by occurrence carry no seat for
 // `sameNumbering` to compare, so a sibling taken out in front of them and
@@ -220,8 +220,13 @@ function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExe
     held.blocks[from]!.startLine !== recorded.blocks[block]!.startLine ||
     held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine);
   if (moved.length === 0) return held;
-  const older = moved.some(([from]) => held.blocks[from]!.kind !== 'module');
-  if (older && !sameNumbering(held.blocks, recorded.blocks)) return undefined;
+  const [only] = moved;
+  if (moved.length === 1 && held.blocks[only![0]]!.kind === 'module' &&
+    held.blocks[only![0]]!.endLine === recorded.blocks[only![1]]!.endLine) {
+    const startLine = recorded.blocks[only![1]]!.startLine;
+    return { ...held, blocks: held.blocks.map((block, at) => (at === only![0] ? { ...block, startLine } : block)) };
+  }
+  if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
   const kept = [...to.keys()].sort((left, right) => left - right);
   return {
     file: held.file,
