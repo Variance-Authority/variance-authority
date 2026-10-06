@@ -23,7 +23,7 @@ async function instrumented() {
   const source = resolve(here, `${service}.mjs`);
   const code = await readFile(source, 'utf8');
   const probes = testSelectionProbes({ root: here, label: service });
-  const transformed = probes.transform.call({ getCombinedSourcemap: () => ({ mappings: '' }) }, code, source);
+  const transformed = probes.transform(code, source);
   const built = resolve(process.env.VARIANCE_AUTHORITY_BUILD, `${service}-${process.pid}.mjs`);
   await mkdir(dirname(built), { recursive: true });
   // The collector import is the page's half; this realm already has a factory.

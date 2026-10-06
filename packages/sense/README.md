@@ -287,7 +287,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `root` | the configuration root, then the current directory | the configuration is evaluated outside the checkout it records. Recorded paths are relative to the checkout that contains `root`, never to `root` itself, so a package-level configuration and a repository-level one name a file the same way. Relative option paths resolve against `root` |
 | `suite` | none; required once the root config declares `suites` | the repository declares its suites, and this configuration runs one of them. It cannot be combined with `coverageFile` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
-| `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path after Vitest transforms it, and for a module it refuses whose map leads to exactly one source, that source's path |
+| `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path, and first, for a build whose sibling map leads to exactly one source, that source's path ([below](#a-library-loaded-from-its-build)) |
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
@@ -508,10 +508,11 @@ export default {
 
 ## Cut a Jest run down to a diff
 
-Wrap the configuration once. Each `transform` entry is wrapped so your own
-transformer — `@swc/jest`, `ts-jest`, `babel-jest`, any module with Jest's
-transformer shape — still runs first, on its own pattern with its own options,
-and the probes land on what it produced. `setupFiles` keep their order and gain
+Wrap the configuration once. Each `transform` entry is wrapped: the probes go
+into the text you wrote, and your own transformer — `@swc/jest`, `ts-jest`,
+`babel-jest`, any module with Jest's transformer shape — then compiles it, on its
+own pattern with its own options. The probes keep every line where it was, so
+a stack trace points where it did before. `setupFiles` keep their order and gain
 the counter factory at the start; `setupFilesAfterEnv` gain the journal writer
 at the end; reporters gain one at the end, and a configuration with no reporters
 keeps Jest's default.
@@ -533,8 +534,8 @@ The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
 `mode`, and `continuations`, with the meanings above. Jest does not report which
 config file it loaded, so name it in `preconditions`. There is no `include`:
 product source is every JavaScript and TypeScript module the configuration's
-`testMatch` or `testRegex` does not name, less dependencies and built output whose map does
-not lead to exactly one source. A
+`testMatch` or `testRegex` does not name, less dependencies and built output that
+is not [a library loaded from its build](#a-library-loaded-from-its-build). A
 setup entry that names a package — `dotenv/config` — is left alone. A
 configuration with `projects` is instrumented project by project, each keeping
 its own transform and setup files, with one reporter for the run. Each test's
@@ -627,9 +628,8 @@ export default defineConfig(withTestSelection({
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
 `preconditions`, `mode`, and `continuations`, with the meanings above. Rstest
 does not report which config file it loaded, so name it in `preconditions`. The
-loader runs at `enforce: 'post'`, after SWC, and reads the block extents back
-through the map the bundler already made, so the lines a record carries are the
-ones you edited rather than the ones the transpiler emitted.
+loader runs ahead of SWC, on the text you wrote, so the lines a record carries
+are the ones you edited.
 
 Recording per case needs nothing from the configuration. Rstest has no runner option, so
 the per-case bracket goes around `it` and `test` themselves — on the realm when
@@ -781,13 +781,23 @@ last. Give the driver the same label. `testSelectionProbes` also takes `include`
 and `cacheRoot` — where the label's store lives, defaulting to the cache root
 above.
 
+`testSelectionProbes` runs at `enforce: 'pre'`, ahead of every other
+transform: the probes go into the text you wrote, and a record is named after
+that file, digested as its text and placed on its lines. TypeScript, JSX,
+decorators and `vi.mock` hoisting are compiled after the probes, so a region a
+compiler writes is never recorded.
+
+### A library loaded from its build
+
 A workspace library your application imports through its `tsc` build is
-recorded under its source. When `include` refuses a module and the map the
-transform received leads to exactly one source outside `node_modules`, the
-module is judged and recorded as that source, so `ui/dist/Button.js` counts as
-`ui/src/Button.ts`. A Vite dev server reads the build's own `.js.map` and hands
-it on; `vite build` does not, so a build of the application leaves the library
-out. The Vitest, Jest and Rstest seams decide the same way.
+recorded under its source. When a module ends in a `//# sourceMappingURL=`
+comment naming a sibling map, that map names exactly one source outside
+`node_modules`, and `include` accepts that source, the module is recorded as
+the source, on the source's lines: `ui/dist/Button.js` counts as
+`ui/src/Button.ts`. Anything else is recorded under its own name, if `include`
+accepts that: an inline map, a bundle's map of many sources, a map or source
+that cannot be read. A Vite dev server and `vite build` decide alike, and so do
+the Vitest, Jest and Rstest seams.
 
 A module reports the id it was instrumented under, and that id is the digest of
 its repository-relative path. Nothing allocates it and no build has to have

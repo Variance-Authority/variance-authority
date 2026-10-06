@@ -2,16 +2,19 @@
 '@variance-authority/sense': patch
 ---
 
-A workspace library loaded from its build is recorded as its source
+The probes go in first, and a workspace library loaded from its build is recorded as its source
 
-The probes asked `include` about the module id before they followed the map
-back to the file it was built from. The default include refuses `dist`, so a
-library an application imported through its `tsc` build got no probes, and a
-change to its source selected nothing that ran it. Now a module `include`
-refuses is asked again under the source its map leads to, when the map names
-exactly one source outside `node_modules`, and it is instrumented and recorded
-under that source. `testSelectionProbes` decides this way on a Vite dev server,
-and so do the Vitest, Jest and Rstest seams. A bundle whose map names several
-sources, a build with no map back, and a dependency are left out as before.
-`vite build` hands the plugin no map back to the source, so a production build
-still leaves the library out.
+Every seam now places its probes on the text you wrote, before any other
+transform: `testSelectionProbes` and the Vitest plugin at `enforce: 'pre'`, the
+Jest transformer ahead of the one it wraps, and the Rstest loader ahead of SWC.
+A record is named after the file, digested as its text and placed on its own
+lines, so nothing a compiler writes — decorator helpers, a generated
+constructor — is recorded, and Jest stack traces keep their lines.
+
+A module that ends in a `//# sourceMappingURL=` comment naming a sibling map of
+exactly one source outside `node_modules` is recorded as that source, on its
+lines, when `include` accepts it: `ui/dist/Button.js` counts as
+`ui/src/Button.ts`. A library an application imports through its `tsc` build
+is now recorded by a Vite dev server and by `vite build` alike, where before the
+default include refused it. Anything else — an inline map, a bundle's many
+sources, a map that cannot be read — is recorded under its own name.

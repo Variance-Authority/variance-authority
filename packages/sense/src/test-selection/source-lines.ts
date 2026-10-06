@@ -196,32 +196,59 @@ export function recordedFrame(
 }
 
 /**
- * The frame of a module the include accepts, asked about the file the module is
- * recorded under rather than the one the host loaded; `undefined` when it refuses.
+ * The frame of a module read as it is on disk, before any transform: named
+ * after the file, digested as the text, its lines the text's own.
  *
- * A workspace library consumed through its manifest arrives as `dist/x.js`, and
- * an include refuses built output; its map leads to `src/x.ts`, which is what
- * the record is named after. So a module refused under its own name is asked
- * about again under the one its map gives — and only then is the map asked for,
- * because a host builds one for every module it is asked about. A module under
- * `node_modules` is not asked again: a dependency's map leads into the
- * dependency. The map is a thunk for that reason.
+ * Except for a workspace library consumed as its build. `tsc` writes
+ * `dist/thing.js` ending in `//# sourceMappingURL=thing.js.map`, and that map
+ * names `src/thing.ts`, the file a diff is written against. When the file ends
+ * in such a comment, the text handed over is that file, the sibling map names
+ * exactly one source outside `node_modules`, and `include` accepts it, the
+ * frame is that source's: its name, its digest, and lines read back through
+ * the map. Anything else — an inline map, a bundle's many sources, a map or
+ * source that cannot be read — is the file under its own name, and so is a
+ * source `include` refuses: a module accepted under its own name is never
+ * dropped because of where its map points.
+ *
+ * `undefined` when neither name is accepted.
  */
-export function includedFrame(
+export function rawFrame(
   code: string,
-  map: () => TransformSourceMap | undefined,
   file: string,
   include: (file: string) => boolean,
   original: (path: string) => string,
 ): RecordedFrame | undefined {
-  const own = include(file);
-  if (!own && /[/\\]node_modules[/\\]/.test(file)) return undefined;
-  const prior = map();
-  if (!own && originalFile(prior, file) === undefined) return undefined;
-  const frame = recordedFrame(code, prior, file, original);
-  // A map whose original cannot be read leaves the frame under the host's name,
-  // and that name was answered already.
-  return (frame.file === file ? own : include(frame.file)) ? frame : undefined;
+  const map = builtMap(code, file, original);
+  const source = map === undefined ? undefined : originalFile(map, file);
+  if (source !== undefined && !NODE_MODULES.test(source) && include(source)) {
+    const frame = recordedFrame(code, map, file, original);
+    if (frame.file === source) return frame;
+  }
+  return include(file) ? recordedFrame(code, undefined, file, original) : undefined;
+}
+
+/** A sibling's name only: a `data:` map or a path elsewhere has a `/` in it. */
+const SOURCE_MAPPING_URL = /\/\/[#@] sourceMappingURL=([^\s'"/\\]+)(?=\s*$)/;
+const NODE_MODULES = /[/\\]node_modules[/\\]/;
+
+/**
+ * The map the file on disk points at, when `code` is that file: as it is, or
+ * with the comment blanked in place, which is what a Vite dev server hands a
+ * plugin once it has read the map itself.
+ */
+function builtMap(code: string, file: string, original: (path: string) => string): TransformSourceMap | undefined {
+  if (NODE_MODULES.test(file)) return undefined;
+  try {
+    const disk = original(file);
+    const pointer = SOURCE_MAPPING_URL.exec(disk);
+    if (pointer === null) return undefined;
+    const end = pointer.index + pointer[0].length;
+    if (code !== disk && code !== `${disk.slice(0, pointer.index)}${' '.repeat(pointer[0].length)}${disk.slice(end)}`) return undefined;
+    const map = JSON.parse(original(resolve(dirname(file), pointer[1]!))) as Partial<TransformSourceMap> | null;
+    return typeof map?.mappings === 'string' && Array.isArray(map.sources) ? map as TransformSourceMap : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The frame of a module whose transformed text is empty: the file, every line of it. */
@@ -241,14 +268,11 @@ function wholeFile(file: string, original: (path: string) => string): RecordedFr
 /**
  * The file a map says the text was written in, when it says one and only one.
  *
- * A host hands the transform hook whatever it was asked to load, and for a
- * package consumed as a build that is `dist/thing.js`. Its map points back at
- * `src/thing.ts`, and {@link sourceLines} already follows the pointer — the
- * block extents recorded for such a module are lines of the original, not of
- * the file the name says. Following it for the lines and not for the name
- * leaves a record nothing can join: a graph walk asks the scanner about
- * `dist/thing.js`, the scanner reads imports and has never seen it, and every
- * test that entered the module comes back unplaced.
+ * For a package consumed as a build the host names `dist/thing.js`, and its
+ * map leads {@link sourceLines} to lines of `src/thing.ts`. Following it for
+ * the lines and not for the name leaves a record nothing can join: the scanner
+ * reads imports, has never seen `dist/thing.js`, and every test that entered
+ * the module comes back unplaced.
  *
  * So the name follows the lines, for the reason the digest does. The map is
  * read the same way here as there and answers only where it is unambiguous:

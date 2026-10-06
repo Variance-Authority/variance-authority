@@ -4,10 +4,9 @@ import { dirname, relative, resolve, sep } from 'node:path';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { instrument, type InstrumentMode } from '../instrument/index.js';
-import { priorMap, type TransformingContext } from './probes.js';
 import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
-import { includedFrame } from './source-lines.js';
+import { rawFrame } from './source-lines.js';
 import {
   carriedJournal,
   readFinished,
@@ -102,13 +101,9 @@ interface TestConfig {
 }
 
 interface VitePlugin extends ConfigPlugin {
-  readonly enforce: 'post';
+  readonly enforce: 'pre';
   readonly config: (config: TestConfig) => void;
-  readonly transform: (
-    this: TransformingContext,
-    code: string,
-    id: string,
-  ) => { code: string; map: null } | null;
+  readonly transform: (code: string, id: string) => { code: string; map: null } | null;
   readonly closeBundle: () => Promise<void>;
   readonly watchChange: (id: string) => void;
 }
@@ -150,7 +145,8 @@ export function withTestSelection(
       .filter((file): file is string => typeof file === 'string')
       .map((file) => resolve(configRoot, file)),
   );
-  const include = options.include ?? defaultInclude;
+  const chosen = options.include ?? defaultInclude;
+  const include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
   const setupFiles = array(config.test?.setupFiles);
   // What the author declared is declared for the tests this configuration
   // governs, which for the one that describes the run is every test.
@@ -276,7 +272,10 @@ function selectionPlugin(
   let closing: Promise<void> | undefined;
   return {
     name: 'variance-authority:test-selection',
-    enforce: 'post',
+    // First, on the file as it is on disk: the record is named, digested and
+    // counted in the text a diff is written against, and Vite's own transforms
+    // — TypeScript, JSX, the mock hoisting — carry the probes along after it.
+    enforce: 'pre',
     // A command-line `--reporter` replaces the configured reporters rather
     // than adding to them, and an editor that runs a test from the gutter
     // passes its own. Vitest 2 has no hook that could put this seam's back.
@@ -331,23 +330,12 @@ function selectionPlugin(
       // The runner module is this seam's too, and both sit under the root the
       // default include reaches. Compared after the query suffix is stripped,
       // because the runner is a file on disk now and a real file is the kind of
-      // id a bundler decorates. A `globalSetup` file is the file Vitest runs,
-      // so it is refused by the name it was loaded under, whatever its map says.
+      // id a bundler decorates.
       const file = cleanId(id);
+      // A `globalSetup` file is refused by the file it is as well as by the name
+      // `include` is asked about, which a build's map may have changed.
       if (file === setupId || file === runnerId || globalSetup.has(file)) return null;
-      // The digest is of the text on disk, which is what the block lines are
-      // coordinates in once the prior transforms' maps are read back through —
-      // and of `code`, which is what those transforms made of it, when there is
-      // no map to read back through and the lines stay where they were left.
-      // The include is asked about the file the frame names, so a build is
-      // product source by its source.
-      const frame = includedFrame(
-        code,
-        () => priorMap(this),
-        file,
-        include,
-        (at) => readFileSync(at, 'utf8'),
-      );
+      const frame = rawFrame(code, file, include, (at) => readFileSync(at, 'utf8'));
       if (frame === undefined) return null;
       const { extentOf, sourceDigest, file: wrote } = frame;
 

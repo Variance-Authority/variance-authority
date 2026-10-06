@@ -9,8 +9,9 @@ import { testSelectionProbes } from './probes.js';
 /**
  * A workspace library an application imports through its build: `ui/dist/Button.js`,
  * which `tsc` wrote beside `Button.js.map`, leading to `ui/src/Button.ts`. The
- * texts are `tsc` 5's, verbatim. Vite is the host, and what it hands the
- * plugin's `getCombinedSourcemap` decides which file the module is named after.
+ * texts are `tsc` 5's, verbatim. A dev server reads the map itself and hands
+ * the plugin the file with its `sourceMappingURL` comment blanked; `vite build`
+ * hands it the file as written. Both are recorded under the source, alike.
  */
 const SOURCE = "export function label(pressed: boolean): string {\n  if (pressed) {\n    return 'on';\n  }\n  return 'off';\n}\n";
 const BUILT = "export function label(pressed) {\n    if (pressed) {\n        return 'on';\n    }\n    return 'off';\n}\n//# sourceMappingURL=Button.js.map";
@@ -43,44 +44,47 @@ async function workspace(): Promise<string> {
   return root;
 }
 
+/** The record `testSelectionProbes` wrote for `ui/src/Button.ts`, cut to what a reading decides. */
+async function recorded(root: string, cacheRoot: string) {
+  const record = await readRecord(recordStore(root, 'build', cacheRoot), 'ui/src/Button.ts');
+  return record && {
+    file: record.file,
+    instrumented: record.instrumented,
+    blocks: record.blocks.map((block) => [block.path, block.startLine, block.endLine]),
+  };
+}
+
 describe('a library an application loads from its tsc build', () => {
-  it('is instrumented under its source by a Vite dev server, which reads the build\'s own map', async () => {
+  it('is recorded under its source, on the source\'s lines, by a Vite dev server and by `vite build` alike', async () => {
     const root = await workspace();
-    const cacheRoot = resolve(root, 'cache');
+    const devCache = resolve(root, 'dev-cache');
     const server = await createServer({
       root,
       configFile: false,
       logLevel: 'silent',
-      plugins: [testSelectionProbes({ root, cacheRoot })],
+      plugins: [testSelectionProbes({ root, cacheRoot: devCache })],
       server: { middlewareMode: true, hmr: false, ws: false },
     });
     try {
       const done = await server.transformRequest('/ui/dist/Button.js');
-
       expect(done?.code).toContain('.r("ui/src/Button.ts",');
-      expect(await readRecord(recordStore(root, 'build', cacheRoot), 'ui/src/Button.ts'))
-        .toMatchObject({ file: 'ui/src/Button.ts', instrumented: true });
     } finally {
       await server.close();
     }
-  });
 
-  // What `vite build` 6.4 hands the plugin for the built file is an identity
-  // map of the file itself: Rollup reads no `sourceMappingURL`, so nothing leads
-  // back to the source, and the default include refuses the build by its name.
-  it('is left out by `vite build`, which hands the plugin no map back to its source', async () => {
-    const root = await workspace();
-    const cacheRoot = resolve(root, 'cache');
+    const buildCache = resolve(root, 'build-cache');
     await build({
       root,
       configFile: false,
       logLevel: 'silent',
-      plugins: [testSelectionProbes({ root, cacheRoot })],
+      plugins: [testSelectionProbes({ root, cacheRoot: buildCache })],
       build: { write: false, rollupOptions: { input: resolve(root, 'app/main.js') } },
     });
 
-    expect(await readRecord(recordStore(root, 'build', cacheRoot), 'ui/src/Button.ts')).toBeUndefined();
+    const served = await recorded(root, devCache);
+    expect(served).toMatchObject({ file: 'ui/src/Button.ts', instrumented: true });
+    // `return 'off'` is line 5 of `Button.ts`, as it is of the build.
+    expect(served?.blocks).toContainEqual(['if#0/after', 5, 5]);
+    expect(await recorded(root, buildCache)).toEqual(served);
   });
-
-  it.todo('is instrumented under its source by `vite build` — needs the build\'s own `.js.map` in the chain `getCombinedSourcemap` answers from, which Rollup never loads');
 });
