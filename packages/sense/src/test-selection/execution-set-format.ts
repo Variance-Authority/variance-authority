@@ -288,7 +288,7 @@ function stringsOf(opened: OpenedSections): string[] {
 }
 
 /** Every string of a table, decoded. */
-export function decodedStrings(table: StringTable): string[] {
+function decodedStrings(table: StringTable): string[] {
   const decoder = new TextDecoder();
   const strings: string[] = [];
   for (let id = 0; id + 1 < table.offsets.length; id += 1) {
