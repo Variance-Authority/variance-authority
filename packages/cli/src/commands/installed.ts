@@ -46,11 +46,10 @@
 
 // compass: variance-authority.reach
 
-import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
-import { promisify } from 'node:util';
 import type { Lockfile } from '@variance-authority/sense/lock';
+import { blobs, entriesIn, patchEnds } from './patch-blobs.js';
 
 /** A package name each importing file gets an edge to, and the package it rests on. */
 export type Depends = readonly (readonly [string, string])[];
@@ -154,8 +153,8 @@ async function installDiffAt(
   if (path.startsWith('..')) return undefined;
 
   const manifests = [pathTail(found.file), MANIFEST];
-  const moved = await movedSince(point, changed, from);
-  const before = await point.at(path);
+  // Asked in one turn, so a point that reads its files together reads them at once.
+  const [moved, before] = await Promise.all([movedSince(point, changed, from), point.at(path)]);
   if (before === found.text) return { packages: [], manifests, moved };
 
   if (before === undefined) {
@@ -201,18 +200,15 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
 
   // Every manifest the patch names, read by the same blob names. One with no
   // `index` line has no ends to read, and is a move.
-  const blobs = new Map(entriesIn(patch, (path) => pathTail(path) === MANIFEST).map((entry) => [entry.path, entry]));
-  const moved = await movedManifests([...blobs.keys()], async (file) => {
-    const entry = blobs.get(file)!;
-    if (!entry.indexed) return [undefined, undefined];
-    return await Promise.all([
-      entry.before === undefined ? undefined : blob(entry.before, root),
-      entry.after === undefined
-        ? undefined
-        : blob(entry.after, root).then((text) => text ?? worktree(file, entry.after!, root)),
-    ]);
-  });
+  const entries = new Map(entriesIn(patch, (path) => pathTail(path) === MANIFEST).map((entry) => [entry.path, entry]));
   const found = entriesIn(patch, (path) => names.includes(pathTail(path)))[0];
+  // Every end the patch names, the lockfile's included, is read in one go.
+  const read = await patchEnds([...entries.values(), ...(found === undefined ? [] : [found])], root);
+  const moved = await movedManifests([...entries.keys()], async (file) => {
+    const entry = entries.get(file)!;
+    if (!entry.indexed) return [undefined, undefined];
+    return [read.before(entry), read.after(entry)];
+  });
   // An `exports` or a `type` is not the install's business, so it moves with every lockfile alone.
   if (found === undefined) return moved.length === 0 ? undefined : { packages: [], manifests: [MANIFEST], moved };
   const manifests = [pathTail(found.path), MANIFEST];
@@ -223,11 +219,8 @@ export async function installDiffOfPatch(patch: string, root: string = process.c
         'blobs, so there is no install to compare. Hand in the output of `git diff` itself',
     };
   }
-  const { path, before: from, after: to } = found;
-  const [before, after] = await Promise.all([
-    blob(from, root),
-    blob(to, root).then((text) => text ?? worktree(path, to, root)),
-  ]);
+  const { before: from, after: to } = found;
+  const [before, after] = [read.before(found), read.after(found)];
   if (before === undefined || after === undefined) {
     const missing = before === undefined ? from : to;
     return {
@@ -255,15 +248,14 @@ async function movedManifests(
 ): Promise<readonly string[]> {
   const candidates = changed.filter((file) => pathTail(file) === MANIFEST);
   if (candidates.length === 0) return [];
+  // Every end is asked for before anything is awaited, so a caller that reads
+  // the asks of one turn together reads them in one go.
+  const read = candidates.map(ends);
   const moves = await import('@variance-authority/sense/lock')
     .then((lock) => lock.manifestMoved)
     .catch(() => () => true);
-  const moved: string[] = [];
-  for (const file of candidates) {
-    const [before, after] = await ends(file);
-    if (moves(before, after)) moved.push(file);
-  }
-  return moved;
+  const texts = await Promise.all(read);
+  return candidates.filter((_, at) => moves(...texts[at]!));
 }
 
 /** The packages that moved from `before` to `after`, which is parsed once however many commits read it. */
@@ -291,40 +283,6 @@ async function compared(
   }
 }
 
-/** A file a patch changes, and the blob names its `index` line gives each end. */
-interface PatchEntry {
-  readonly path: string;
-  /** Whether an `index` line named the blobs at all; an absent end is an all-zero name. */
-  readonly indexed: boolean;
-  readonly before?: string;
-  readonly after?: string;
-}
-
-/** Every file a patch changes whose path `wanted` accepts, in patch order. */
-function entriesIn(patch: string, wanted: (path: string) => boolean): readonly PatchEntry[] {
-  const found: PatchEntry[] = [];
-  const lines = patch.split('\n');
-  for (let at = 0; at < lines.length; at += 1) {
-    const header = /^diff --git a\/(.+) b\/(.+)$/u.exec(lines[at]!);
-    if (header === null || !wanted(header[2]!)) continue;
-    let entry: PatchEntry = { path: header[2]!, indexed: false };
-    for (let next = at + 1; next < lines.length && !lines[next]!.startsWith('diff --git '); next += 1) {
-      const index = /^index ([0-9a-f]+)\.\.([0-9a-f]+)/u.exec(lines[next]!);
-      if (index === null) continue;
-      const absent = (id: string) => /^0+$/u.test(id);
-      entry = {
-        path: header[2]!,
-        indexed: true,
-        ...(absent(index[1]!) ? {} : { before: index[1]! }),
-        ...(absent(index[2]!) ? {} : { after: index[2]! }),
-      };
-      break;
-    }
-    found.push(entry);
-  }
-  return found;
-}
-
 /**
  * The text each file had before `patch`, read from the blob its `index` line
  * names. A file the patch names no old blob for — new, or written without
@@ -332,29 +290,12 @@ function entriesIn(patch: string, wanted: (path: string) => boolean): readonly P
  */
 export async function patchPreimages(patch: string, root: string = process.cwd()): Promise<ReadonlyMap<string, string>> {
   const entries = entriesIn(patch, () => true).filter((entry) => entry.before !== undefined);
-  const texts = await Promise.all(entries.map(async (entry) => [entry.path, await blob(entry.before!, root)] as const));
-  return new Map(texts.filter((pair): pair is readonly [string, string] => pair[1] !== undefined));
-}
-
-async function blob(id: string, root: string): Promise<string | undefined> {
-  try {
-    const { stdout } = await promisify(execFile)('git', ['cat-file', 'blob', id], {
-      cwd: root,
-      maxBuffer: 256 * 1024 * 1024,
-    });
-    return stdout;
-  } catch {
-    return undefined;
-  }
-}
-
-async function worktree(path: string, id: string, root: string): Promise<string | undefined> {
-  try {
-    const { stdout } = await promisify(execFile)('git', ['hash-object', '--', path], { cwd: root });
-    return stdout.trim().startsWith(id) ? await readFile(join(root, path), 'utf8') : undefined;
-  } catch {
-    return undefined;
-  }
+  const texts = await blobs(
+    entries.map((entry) => entry.before!),
+    root,
+  );
+  const pairs = entries.map((entry) => [entry.path, texts.get(entry.before!)] as const);
+  return new Map(pairs.filter((pair): pair is readonly [string, string] => pair[1] !== undefined));
 }
 
 /**

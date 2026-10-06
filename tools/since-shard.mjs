@@ -21,7 +21,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { isAbsolute } from 'node:path';
-import { assign, parseShard } from '../packages/cli/dist/commands/shard.js';
+import { assign } from '../packages/cli/dist/commands/shard.js';
+import { parseShard } from '../packages/cli/dist/shard-args.js';
 import { suiteFiles } from './since-change.mjs';
 
 /** The flags that take a value. */

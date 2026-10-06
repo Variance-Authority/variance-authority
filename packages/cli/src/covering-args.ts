@@ -193,7 +193,7 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
  * refused rather than read as one distance: `0-e` narrowing silently to zero
  * hops would answer *nothing is near* about a line six tests reach.
  */
-function parseAtDistance(
+export function parseAtDistance(
   flags: Flags,
 ): { readonly from: number; readonly to: number } | undefined {
   const raw = flags.values.get('--at-distance');

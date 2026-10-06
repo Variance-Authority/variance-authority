@@ -50,13 +50,31 @@ export function ask(root: string, args: readonly string[], input?: string): Prom
 /** Non-empty lines. */
 const lines = (text: string): string[] => text.split('\n').filter((line) => line !== '');
 
+const shallowFiles = new Map<string, Promise<Answer>>();
+
+/**
+ * Where `root`'s clone keeps its shallow list, asked once per process: a
+ * reader counts several distances in one checkout, and the place git keeps the
+ * list does not move while it runs. The list itself is read each time.
+ */
+function shallowFile(root: string): Promise<Answer> {
+  const held = shallowFiles.get(root);
+  if (held !== undefined) return held;
+  const asked = ask(root, ['rev-parse', '--git-path', 'shallow']);
+  shallowFiles.set(root, asked);
+  void asked.then((answer) => {
+    if (answer.code !== 0) shallowFiles.delete(root);
+  });
+  return asked;
+}
+
 /**
  * The commits a shallow clone's history was cut at, none when it is not
  * shallow, or why that cannot be said. Only a missing `shallow` file means the
  * clone is whole; a file that cannot be found or read may hide a cut.
  */
 async function cut(root: string): Promise<Set<string> | string> {
-  const at = await ask(root, ['rev-parse', '--git-path', 'shallow']);
+  const at = await shallowFile(root);
   if (at.code !== 0) return `git said: ${at.said}`;
   try {
     const text = await readFile(resolve(root, at.out), 'utf8');
@@ -153,14 +171,17 @@ export async function cutShort(root: string, tip: string, over: string): Promise
  * How many commits `tip` holds that `over` does not, as `git rev-list --count
  * over..tip` would say, or `undefined` when this clone cannot count them: a
  * revision it does not hold, or a walk between them that reached its cut. A
- * clone that is not shallow is asked for the count alone; a shallow one lists
- * the walk, fenced below `over`'s own cut, and its length is the count.
+ * clone that is not shallow is answered by the count; a shallow one lists the
+ * walk, fenced below `over`'s own cut, and its length is the count.
  */
 export async function countPast(root: string, over: string, tip: string): Promise<number | undefined> {
+  // Asked beside the cut rather than after it: most clones are whole, and the
+  // count a shallow one asks here goes unread.
+  const counting = ask(root, ['rev-list', '--count', tip, `^${over}`, '--']);
   const shallow = await cut(root);
   if (typeof shallow === 'string') return undefined;
   if (shallow.size === 0) {
-    const counted = await ask(root, ['rev-list', '--count', tip, `^${over}`, '--']);
+    const counted = await counting;
     return counted.code === 0 && counted.out !== '' ? Number(counted.out) : undefined;
   }
   const fence = await fenceOf(root, shallow, over);
