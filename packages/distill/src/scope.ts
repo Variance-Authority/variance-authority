@@ -184,8 +184,9 @@ export function formatScopeDistillation(result: ScopeDistillation): string {
     const files = new Set(spills.flatMap((spill) => spill.files)).size;
     return `${modules} module(s) in ${files} test file(s), ${spills.reduce((sum, spill) => sum + spill.lines, 0)} line(s)`;
   };
-  const imports = result.spills.filter((spill) => spill.cause === undefined || spill.cause.kind === 'import');
-  const rest = result.spills.slice(imports.length);
+  const byImport = (spill: Spill): boolean => spill.cause === undefined || spill.cause.kind === 'import';
+  const imports = result.spills.filter(byImport);
+  const rest = result.spills.filter((spill) => !byImport(spill));
   const folded = imports.slice(SPILLS_SHOWN);
   const withheld = result.withheld.slice(0, WITHHELD_SHOWN).map(({ file }) => file);
   return [
