@@ -20,7 +20,8 @@ import type { ExecutionNarrowing } from '@variance-authority/sense/test-selectio
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import type { InstallDiff } from './installed.js';
-import type { Costs, Shard } from './shard.js';
+import type { Shard } from '../shard-args.js';
+import type { Costs } from './shard.js';
 import type { SuitePart } from './suite-part.js';
 import {
   run,

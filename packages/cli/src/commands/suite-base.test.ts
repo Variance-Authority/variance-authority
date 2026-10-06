@@ -295,6 +295,25 @@ describe('every reader of a worktree that has run nothing starts from the same r
     const later = await mainlineBase(worktree, declared, { env: LOCAL, now: Date.now() + MAINLINE_REUSE_MS + 60_000 });
     expect(later).toMatchObject({ commit: first, earlier: { unanswered: { kind: 'unreachable' } } });
   });
+  it('asks for the merge base with the mainline once, fetching or reusing', async () => {
+    const { origin, first } = await mainline();
+    const { worktree } = await laptop(origin, first);
+    const trace = join(home, 'trace2.json');
+    const mergeBases = async (): Promise<number> => {
+      const asked = (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"') && line.includes('"merge-base"')).length;
+      await rm(trace);
+      return asked;
+    };
+    process.env['GIT_TRACE2_EVENT'] = trace;
+    try {
+      expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline' });
+      expect(await mergeBases()).toBe(1);
+      expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ mainline: { earlier: { reused: true } } });
+      expect(await mergeBases()).toBe(1);
+    } finally {
+      delete process.env['GIT_TRACE2_EVENT'];
+    }
+  });
 });
 
 describe('a mainline publish counts a whole run against what the runner collects', () => {

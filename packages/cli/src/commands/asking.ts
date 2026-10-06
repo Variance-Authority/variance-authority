@@ -1,9 +1,9 @@
+import { didYouMean } from '@variance-authority/core';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import {
   COSTS_TOOLS,
   TOOLS,
   VANTAGE_TOOLS,
-  didYouMean,
   type CostsSubject,
   type Tool,
 } from '@variance-authority/mcp/tools';
