@@ -72,8 +72,9 @@ describe('atDistance', () => {
 
   it('leaves the unplaced to the leg that holds the furthest hop', () => {
     // A leg that picks up where the last one stopped must not re-run what it
-    // already ran, or a banded loop costs more than the whole suite — and the
-    // near end must not be made expensive by everything nobody could place.
+    // already ran, or a banded loop costs more than the whole suite — and a
+    // near leg short of the furthest measured hop must not be made expensive by
+    // everything nobody could place.
     expect(atDistance(distances, 0, 1)).toEqual(['test/abstract-button.test.tsx']);
     expect(atDistance(distances, 3, 4)).toEqual([
       'test/card.test.tsx',

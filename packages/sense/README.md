@@ -1107,8 +1107,8 @@ in an edit loop: a test whose own source you just changed.
 
 A test nobody could place runs with the one range that holds the furthest hop
 measured, or with the range that has no end when nothing was measured. So `0-2`
-then `3-` runs every placed file exactly once, and no near range is made
-expensive by everything nobody could place. A current test file that is not
+then `3-` runs every selected file exactly once, and no range nearer than the
+furthest test is made expensive by everything nobody could place. A current test file that is not
 represented in `distances` remains outside both arrays; keep it selected and
 run it in your final leg.
 

@@ -90,7 +90,10 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 source you changed, which is zero. `3-` runs the rest. Every selected file runs
 in one of the two: a test the record cannot place runs in the one that holds
 the furthest hop measured, or in `3-` when none was, and a test it never saw
-whole, such as a new one, runs in both. A value that is not a range fails the run rather than running another
+whole, such as a new one, runs in both. The exception is a test the record holds
+incomplete, such as a file whose every case skipped, that ran none of the code
+you changed: it runs only in `3-`, so a near edit still needs `3-` while the
+record holds one. A value that is not a range fails the run rather than running another
 leg. The first leg is feedback, not a verdict; [distance](distance.md) is the
 page about what a hop count tells you and what it does not.
 
