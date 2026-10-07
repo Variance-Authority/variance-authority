@@ -3,7 +3,7 @@ import type {
   Digest,
   RenderIdentity,
 } from '@variance-authority/core/format';
-import { incomparableBecause, recipeOnly } from './renderer.js';
+import { describeIdentity, incomparableBecause, recipeOnly } from './renderer.js';
 import type { Described } from './store.js';
 
 /**
@@ -117,11 +117,13 @@ export function settle(
   /**
    * The identity this run would paint under.
    *
-   * Required so the refusal can name what differs between the two sides, and
-   * so a difference in this tool's recipe alone can be told from a different
-   * machine. See `incomparableBecause`.
+   * What lets the refusal name what differs between the two sides, and a
+   * difference in this tool's recipe alone be told from a different machine
+   * (see `incomparableBecause`). Absent, the caller has not said what it paints
+   * under, so nothing shows its machine is the baseline's: the refusal names
+   * the stored side alone and nothing is painted.
    */
-  mine: RenderIdentity,
+  mine?: RenderIdentity,
   accessibility?: AccessibilitySnapshot,
 ): Settlement {
   if (found === null) {
@@ -131,21 +133,31 @@ export function settle(
     };
   }
 
-  // Painted, because this run's image is the candidate. The machine is the
-  // same and only this tool's recipe moved, so there is nothing machine-bound to
-  // protect; refusing here left a run with no candidate, nothing `accept` could
-  // promote, and a directory to delete by hand. Painted whether or not the
-  // document moved too: the sentence says which, and only an unmoved document
-  // is called a re-baseline. The verdict stays `incomparable` — the lookup after
-  // the render reaches it with the same sentence — and the image is what makes
-  // it acceptable.
-  const stored = { identity: found.storedUnder, documentDigest: found.documentDigest };
-  const current = { identity: mine, documentDigest: digest };
-  if (!found.comparable && recipeOnly(found.storedUnder, mine)) {
-    return { kind: 'render', because: incomparableBecause(stored, current) };
-  }
-
   if (!found.comparable) {
+    if (mine === undefined) {
+      return {
+        kind: 'settled',
+        verdict: 'incomparable',
+        because:
+          `a baseline exists but was rendered by ${describeIdentity(found.storedUnder)}, and ` +
+          'this run did not say what it paints under; pixels are machine-bound, so the two are ' +
+          'not comparable and no image was produced',
+      };
+    }
+
+    const stored = { identity: found.storedUnder, documentDigest: found.documentDigest };
+    const current = { identity: mine, documentDigest: digest };
+    // Painted, because this run's image is the candidate. The machine is the
+    // same and only this tool's recipe moved, so there is nothing machine-bound to
+    // protect; refusing here left a run with no candidate, nothing `accept` could
+    // promote, and a directory to delete by hand. Painted whether or not the
+    // document moved too: the sentence says which, and only an unmoved document
+    // is called a re-baseline or adopted in bulk. The verdict stays
+    // `incomparable` — the lookup after the render reaches it with the same
+    // sentence — and the image is what makes it acceptable.
+    if (recipeOnly(found.storedUnder, mine)) {
+      return { kind: 'render', because: incomparableBecause(stored, current) };
+    }
     return {
       kind: 'settled',
       verdict: 'incomparable',

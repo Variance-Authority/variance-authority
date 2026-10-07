@@ -152,6 +152,25 @@ describe('settle', () => {
     expect(settlement.because).not.toContain('accept');
   });
 
+  it('refuses a recipe re-baseline when the caller did not say what this run paints under', () => {
+    // `mine` is optional, as it was before the recipe was told apart: a caller
+    // that does not pass it has not said its machine is the baseline's, so the
+    // stored image's recipe moving is no evidence of anything and the refusal
+    // stands.
+    const found: Described = {
+      documentDigest: documentDigest(document),
+      comparable: false,
+      storedUnder: OLD_RECIPE,
+      missingFonts: [],
+    };
+
+    const settlement = settle(digest, found);
+    expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
+    expect(settlement.because).toContain('rasterization');
+    expect(settlement.because).toContain('no image was produced');
+    expect(settlement.because).not.toContain('accept');
+  });
+
   it('keeps the fonts the baseline was painted without when the digest settles it', () => {
     // The digest is sound about pixels and says nothing about fonts. A baseline
     // painted while the renderer lacked Inter is an image of a substituted font,

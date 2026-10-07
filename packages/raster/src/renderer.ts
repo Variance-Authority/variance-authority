@@ -1,4 +1,9 @@
-import type { Raster, RenderDocument, RenderIdentity } from '@variance-authority/core/format';
+import {
+  identityDigest,
+  type Raster,
+  type RenderDocument,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
 
 /**
  * Rendering — phase two, and the only phase that is allowed to be expensive.
@@ -121,9 +126,19 @@ export function describeIdentity(identity: RenderIdentity): string {
 export interface IncomparableSides {
   readonly stored: string;
   readonly current: string;
+  /**
+   * Whether `current` is a candidate that can replace `stored`, so the sentence
+   * may end at the command that does. True between a baseline and this run;
+   * absent between two images handed in, where there is no baseline to replace.
+   */
+  readonly replaceable?: boolean;
 }
 
-const BASELINE_AND_RUN: IncomparableSides = { stored: 'the baseline', current: 'this run' };
+const BASELINE_AND_RUN: IncomparableSides = {
+  stored: 'the baseline',
+  current: 'this run',
+  replaceable: true,
+};
 
 /**
  * Whether two identities differ by the machine or only by this tool's recipe.
@@ -144,6 +159,10 @@ const BASELINE_AND_RUN: IncomparableSides = { stored: 'the baseline', current: '
  * Each entry is a field that differs, with both values, stored side first. A
  * field the two share is not listed: a reader handed two full descriptions has
  * to find the one that moved by diffing seven fields by eye.
+ *
+ * This shapes the sentence and decides nothing. Whether only the recipe moved is
+ * asked of `identityDigest`, which partitions baselines (`recipeOnly`), so a
+ * field the digest gains before this list does is still a difference.
  */
 function identityDifference(
   stored: RenderIdentity,
@@ -230,28 +249,33 @@ export function incomparableBecause(
   const { machine, recipe, unrecorded } = identityDifference(stored.identity, current.identity);
   const both = `${sides.stored} and ${sides.current}`;
 
-  if (machine.length === 0 && unrecorded.length === 0 && recipe.length > 0) {
+  if (recipeOnly(stored.identity, current.identity)) {
     const sameDocument = stored.documentDigest === current.documentDigest;
-    const between = sides === BASELINE_AND_RUN;
+    const replaceable = sides.replaceable === true;
     return (
       `${both} were painted on the same machine under different recipes ` +
       `(${recipe.join(', ')}). The recipe is variance-authority's, not the machine's — ` +
       'an upgrade or a changed renderer option moves it' +
       (sameDocument
         ? `; the document is the one ${sides.stored} was painted from, so only the recipe moved` +
-          (between
-            ? ': review the new images and adopt them with `variance accept --all` ' +
-              "(or the test runner's update-snapshots flag)"
+          (replaceable
+            ? ': review the new images and adopt them with `variance accept --all`, or your ' +
+              "test runner's update flag (`--update-snapshots` in Playwright, `--update` in Vitest)"
             : '')
-        : `; the document changed too, so what ${sides.current} painted is unreviewed` +
-          (between ? ': review each image as a change before accepting it by name' : ''))
+        : `; the document changed too, so the change ${sides.current} carries is unreviewed` +
+          (replaceable
+            ? ': review its image as a change, then adopt it alone with `variance accept <subject>`, ' +
+              'or that one test under `--update-snapshots=all` in Playwright or `--update` in Vitest'
+            : ''))
     );
   }
 
-  // Nothing differs by field and the digests still disagreed: the identity grew
-  // a field this function does not know. Both descriptions in full, then, since
-  // there is no narrower true sentence.
-  if (machine.length === 0 && unrecorded.length === 0) {
+  // No field this function names differs, a recipe aside, and the digest still
+  // disagreed: the identity grew a field the wording has not learned. Without a
+  // recipe move both descriptions go in full, since there is no narrower true
+  // sentence; with one, the recipe is named and the rest is the unknown it is.
+  const unnamed = machine.length === 0 && unrecorded.length === 0;
+  if (unnamed && recipe.length === 0) {
     return (
       `${sides.stored} was painted by ${describeIdentity(stored.identity)}, and ${sides.current} by ` +
       `${describeIdentity(current.identity)}; pixels are machine-bound, so the two are not comparable`
@@ -264,23 +288,40 @@ export function incomparableBecause(
       ? []
       : [`in a recipe one side did not record (${unrecorded.join(', ')})`]),
     ...(recipe.length === 0 ? [] : [`under different recipes (${recipe.join(', ')})`]),
+    ...(unnamed ? ['in a field of the render identity this version does not name'] : []),
   ];
   return (
     `${both} differ ${clauses.join(', and ')}; ` +
-    (machine.length === 0
-      ? 'a recipe nobody recorded cannot show the machine is the same, and pixels are machine-bound, '
-      : 'pixels are machine-bound, ') +
+    (machine.length > 0
+      ? 'pixels are machine-bound, '
+      : unnamed
+        ? 'that field may be the machine, and pixels are machine-bound, '
+        : 'a recipe nobody recorded cannot show the machine is the same, and pixels are machine-bound, ') +
     'so the two are not comparable'
   );
 }
 
 /**
- * Whether a difference between two identities is the recipe's alone: no machine
- * field moved, and both sides recorded every recipe digest that did.
+ * Whether a difference between two identities is the recipe's alone.
+ *
+ * Asked of `identityDigest`, the owner of what partitions baselines: the stored
+ * identity under this run's recipe digests is this run's identity, so nothing
+ * else the digest covers moved — including a field added to it after this was
+ * written, which a list of machine fields here would wave through. And both
+ * sides recorded every recipe digest, since an unrecorded one is an unknown,
+ * not a recipe of its own.
  */
 export function recipeOnly(stored: RenderIdentity, current: RenderIdentity): boolean {
-  const { machine, recipe, unrecorded } = identityDifference(stored, current);
-  return machine.length === 0 && unrecorded.length === 0 && recipe.length > 0;
+  const { recipe, unrecorded } = identityDifference(stored, current);
+  if (unrecorded.length > 0 || recipe.length === 0) return false;
+  const { stabilization: _s, rasterization: _r, ...machine } = stored;
+  return (
+    identityDigest({
+      ...machine,
+      ...(current.stabilization === undefined ? {} : { stabilization: current.stabilization }),
+      ...(current.rasterization === undefined ? {} : { rasterization: current.rasterization }),
+    }) === identityDigest(current)
+  );
 }
 
 /** A recipe digest as printed, or the fact that none was recorded. */
