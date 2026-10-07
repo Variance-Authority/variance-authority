@@ -1,5 +1,5 @@
 ---
-'@variance-authority/sense': major
+'@variance-authority/sense': minor
 '@variance-authority/playwright-test': patch
 '@variance-authority/storybook-collector': patch
 ---
