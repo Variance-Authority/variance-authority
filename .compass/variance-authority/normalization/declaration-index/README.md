@@ -51,11 +51,16 @@ degrades to the component name it already had; a capitalized top-level function
 that is not a component can be matched, and can only surface if attribution
 already named that identifier.
 
-The source scan reads the same answer, without lines, off the tree it already
-parsed for a module's requests, so a declaration a comment, a string or a
-template spells is not one there. The text scan here takes a file's contents
-and no parser, which is what a caller with neither the native addon nor a parse
-of its own still has.
+Two readers fill it, and they differ. `sense` reads the names off the module's
+parse: the functions, classes and `const` or `let` bindings of its own top-level
+statements whose name starts with a capital, each at its statement's line. A
+declaration a comment, a string or a template spells is not one there, a name
+bound inside a function is that function's, and a file the parser cannot read
+declares nothing. The CLI and the Storybook collector index that way.
+`indexSource` here reads lines of text with no parser, for a caller without
+`sense` — the route collector, or an index built by hand — and it matches all
+three: a commented-out declaration, an indented one inside a function, and a
+line in a file no parser accepts.
 
 It ranks nothing, opens nothing, and never decides which of several
 declarations is the one that moved.
@@ -65,7 +70,9 @@ declarations is the one that moved.
 - `packages/core/src/attribute/source.ts` — `indexSource`,
   `mergeSourceIndexes`, `resolveSource`, `formatSource`, `SourceIndex`
 - `packages/sense/native/src/declarations.rs` — `declarations`, the components
-  a module declares, read off its parsed tree for the source scan
+  a module declares, read off its parsed tree
+- `packages/sense/src/declarations.ts` — `indexDeclarations`, those names at
+  their lines, as a `SourceIndex`
 
 ## Diagram
 

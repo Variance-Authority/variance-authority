@@ -259,8 +259,8 @@ through its bundler plugin or Jest resolver. It is not required for component
 attribution, which works from names alone.
 
 With none of the three, attribution falls back to matching a component name
-against a repository scan (`indexSource` in `@variance-authority/core`) — the
-declaration site rather than the call site.
+against a repository scan (`indexDeclarations` in `@variance-authority/sense`)
+— the declaration site rather than the call site.
 
 An element whose props were rebuilt by a custom JSX runtime — Emotion does this
 for anything with a `css` prop, copying with `for…in`, which drops symbol

@@ -96,9 +96,14 @@ export function formatSource(resolution: Resolution): string {
  * Both failures are survivable in a way a wrong file path would not be: a miss
  * degrades the report to the component name, which is what it said before, and a
  * false positive can only appear if attribution already named that identifier.
- * The source scan reads the same names off a parsed tree
- * ([`declarations.rs`](../../../sense/native/src/declarations.rs)); this one
- * takes text and depends on nothing, for a caller with no parse of its own.
+ *
+ * It reads text because `core` has no parser to read anything else with: the
+ * package that parses, `@variance-authority/sense`, depends on this one. A
+ * caller that holds `sense` indexes with `indexDeclarations`
+ * ([`declarations.ts`](../../../sense/src/declarations.ts)) instead, which reads
+ * the module's own top-level statements off its parse, so a commented-out
+ * declaration, one indented inside a function and a file no parser accepts
+ * match here and not there. This scan is for a caller without `sense`.
  */
 export function indexSource(file: string, contents: string): SourceIndex {
   const found: Record<string, SourceRef[]> = {};
