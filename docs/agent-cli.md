@@ -163,10 +163,9 @@ scoped answer counts it in the first line instead.
 
 ## Ask the code, when the name is not in the run
 
-[`locate`](locate.md) finds a subject in a completed run by the names that run
-wrote down: components, visible text, files. When the thing you can only
+`locate` finds a subject by the names a run saw. When the thing you can only
 describe is a function, a type or a package rather than a rendered state, the
-names are in the source, and `variance ask` reads them there:
+names are in the source, and the same command reads them:
 
 ```bash
 variance ask search --query viewport
@@ -176,11 +175,6 @@ variance ask uses --name collect --from packages/cli/src/index.ts
 variance ask packages
 variance ask entrypoint --package @acme/ui
 ```
-
-These questions read the checkout under the working directory and nothing else:
-no report has to exist and `variance.config.json` is not opened. `--from` and
-`--to` take a path in the source tree, answered from what it reaches or what
-reaches it, as they do on `locate`.
 
 `search` tells you what a thing is called, where it is written, and how to
 import it. You ask for one of two reasons. To use it, you need an import line:
@@ -227,11 +221,11 @@ specifier per name, each name with how many files import it, and
 `variance ask uses --name <name> --package <specifier>` lists the importer's
 file and line for one name. A package with ten thousand importers answers in
 one row per file, and a specifier in one row per name, never one line per
-import. Asked by the name of a package that
-declares an entry, `entrypoint` lists the names its main entry opens and then
-counts the imports past it the same way. A package whose `exports` opens only
-subpaths has no main entry, so asked by its name it lists the specifiers it
-opens instead. The answer ends with the narrower questions it has.
+import. Asked by the name of a package that declares an entry, `entrypoint`
+lists the names its main entry opens and then counts the imports past it the
+same way. A package whose `exports` opens only subpaths has no main entry, so
+asked by its name it lists the specifiers it opens instead. The answer ends
+with the narrower questions it has.
 
 `symbol` prints one name's import line, declaration, signature, documentation
 and consumers; `uses` prints every import site, ordered by how much path it
@@ -251,13 +245,17 @@ start point. An exported row carries `at` and `line`. A section that was not run
 is missing: `loose` is present only when the other two are empty, and a refused
 start point returns `refused` with no sections. Only `search` answers in JSON.
 
-Carry a path into `search` when the ticket, editor or stack trace already
-supplied one: the words find candidate names and the import graph removes
-candidates outside that relation. Then ask `symbol` and `uses` only for the
-name that remains. The graph is at file and module level; it does not record
-function calls. The reading, its caches and what an answer does and does not
-show are one boundary, whichever transport carries the question: [inspect the
-workspace public API](agent-workspace-api.md).
+These questions read the checkout under the working directory and nothing else:
+no report has to exist and `variance.config.json` is not opened. `--from` and
+`--to` mean what they mean on `locate` — a path in the source tree, answered
+from what it reaches or what reaches it. Carry the path into `search` when the
+ticket, editor or stack trace already supplied one: the words find candidate
+names and the import graph removes candidates outside that relation. Then ask
+`symbol` and `uses` only for the name that remains. The graph is at file and
+module level; it does not record function calls. The reading, its caches and
+what an answer does and does not show are one boundary, whichever transport
+carries the question: [inspect the workspace public
+API](agent-workspace-api.md).
 
 ## Distill one completed test
 
