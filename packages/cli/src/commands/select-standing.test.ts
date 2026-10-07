@@ -331,11 +331,15 @@ const NAMES = ['far', 'near'];
 const NEAR_PAD = "import leftPad from 'left-pad';\n\nexport const near = leftPad('1', 2);\n";
 const FAR_PAD = "import leftPad from 'left-pad';\n\nexport const far = leftPad('1', 2);\n";
 
-/** Each module at `value`, and a test file for each, as the tree holds them. */
+/**
+ * Each module at `value`, and a test file for each, as the tree holds them. The
+ * module writes `value` where its importer can see it, so a change to it is
+ * charged to the test that loads the module, from either side of a commit.
+ */
 function sources(value: number, names: readonly string[] = [...NAMES, 'gone']): Record<string, string> {
   return Object.fromEntries(
     names.flatMap((name) => [
-      [`src/${name}.ts`, `export const ${name} = ${value};\n`],
+      [`src/${name}.ts`, `export const ${name} = ${value};\nglobalThis.${name} = ${value};\n`],
       [`test/${name}.test.ts`, `import '../src/${name}.js';\n`],
     ]),
   );
