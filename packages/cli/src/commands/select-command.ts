@@ -38,27 +38,27 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CommitRuns, ExecutionNarrowing, Stand, StandReading } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { readExecutionFor } from './execution-input.js';
-import { installDiff, installDiffs, installDiffOfPatch, patchPreimages, withoutManifests, type InstallDiff } from './installed.js';
+import { installDiffs, installDiffOfPatch, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, withWhole } from './select-beyond.js';
 import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineMissed, mainlineRead, primaryRead } from './mainline-base.js';
 import { many } from './reach.js';
-import { journeySuite, restingOf } from './select-before.js';
-import { inLeg, type Leg } from './select-leg.js';
+import { restingOf } from './select-before.js';
+import { handedDiff, journeyReading } from './select-journey.js';
+import type { Leg } from './select-leg.js';
+import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
 import { relationsFor } from './source-graph.js';
 import { suiteBase } from './suite-base.js';
 import { landingRecord, oneRecord, recordedSuite } from './suite-record.js';
 import {
   formatSelection,
   selectionNotes,
-  skippableTests,
   type SelectFormat,
   type SelectGround,
   type SelectInput,
@@ -98,6 +98,30 @@ export interface SelectOutput {
 
 /** Read the journal against what has changed, and say what may be skipped. */
 export async function selectOutput(request: SelectRequest): Promise<SelectOutput> {
+  const { cwd, format, ...asked } = request;
+  const { reading } = await selectSuite({ root: cwd, ...asked });
+  return { out: formatSelection(reading, format, cwd), err: deprecated(format) + selectionNotes(reading) };
+}
+
+/**
+ * The two runner formats hand a selection to a runner on its command line,
+ * which a large one outgrows; the seam takes it in memory instead (spec 0098).
+ * They print this for one minor release, then go without an alias.
+ */
+function deprecated(format: SelectFormat): string {
+  if (format !== 'vitest' && format !== 'jest') return '';
+  return (
+    `\`--format ${format}\` is deprecated: set VARIANCE_AUTHORITY_SINCE, and a config wrapped by \`withTestSelection\` ` +
+    'drops the skipped files inside the runner, with no path on its command line\n'
+  );
+}
+
+/**
+ * The selection, as the sets a runner acts on and the reading `variance select`
+ * prints. Every caller asks this one function: the command, and each seam that
+ * drops the files in `skip` inside its runner.
+ */
+export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> {
   const selection = await import('@variance-authority/sense/test-selection');
   // A snapshot handed in by path — the JVM agent's `coverage.va` — is read the
   // way this checkout's own is. Anything else `--execution` names is a journey
@@ -106,14 +130,13 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     request.execution !== undefined &&
     !((await exists(request.execution)) && selection.isTestCoverageFile(request.execution))
   ) {
-    return await journeyOutput({ ...request, execution: request.execution });
+    return await journeyReading({ ...request, execution: request.execution });
   }
   // A snapshot named by path is the record, and so is the one `--suite` names.
   oneRecord(request.suite, request.execution, '--execution');
   const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
   const { at, source } = found;
-  const said = (input: Parameters<typeof saidOf>[0]) =>
-    saidOf(source === undefined ? input : { ...input, source }, request);
+  const said = (input: SelectInput) => suiteOf(source === undefined ? input : { ...input, source }, request.atDistance);
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to
@@ -135,7 +158,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     // operator's two different afternoons, and the reader is what tells them
     // apart — asked here for the empty diff, so an unreadable snapshot is
     // refused by name instead of being reported as a missing coordinate.
-    await journeyAgainst(request.cwd, '', undefined, at);
+    await journeyAgainst(request.root, '', undefined, at);
     throw new OperatorError(
       `the execution journal at ${at} names no commit, so there is no coordinate to measure a ` +
         'diff from. Pass `--since <ref>` to name one, or record the suite again from a git ' +
@@ -161,9 +184,9 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   const handed = request.diff !== undefined;
   // The stands, the diff, the installs and the import graph are named from the top
   // of the checkout `cwd` is in, as git spells it, which is how the journal names files.
-  const top = await topLevel(request.cwd);
-  const here = top ?? request.cwd;
-  const own = at === (await landingRecord(request.cwd, request.suite));
+  const top = await topLevel(request.root);
+  const here = top ?? request.root;
+  const own = at === (await landingRecord(request.root, request.suite));
   const stood = commit === undefined || top === undefined ? undefined : await standsOf(at, top, handed, own);
   const reading = stood === undefined || 'unread' in stood ? undefined : stood.reading;
   const standing =
@@ -228,7 +251,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     recordAgainst(
       here,
       withWhole([selection.withoutFiles(diff, whole), ...whole.map(selection.wholeEntry)].join('\n'), beyond.get(stand)!.files),
-      { relations, at, checkout: request.cwd, unmeasured: selection.unmeasuredOf(declared), distances: request.atDistance !== undefined },
+      { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), distances: request.atDistance !== undefined },
     );
   const asked = stands.length === 0 ? await ask([], undefined) : await recordPerStand(stands, ask);
   const narrowing: ExecutionNarrowing | undefined = asked?.narrowing;
@@ -339,13 +362,13 @@ function handedNotes(reading: StandReading, commit: string): readonly string[] {
  * record it read, because they select differently and a skip list alone does not say which.
  */
 async function recordedOrMainline(
-  request: SelectRequest,
+  request: SuiteRequest,
 ): Promise<{ readonly at: string; readonly held: boolean; readonly source?: SelectSource }> {
-  const recorded = await recordedSuite(request.cwd, request.suite);
+  const recorded = await recordedSuite(request.root, request.suite);
   const suite = recorded.declared?.carry === 'share' ? recorded.declared.name : undefined;
   if (suite === undefined) return { at: recorded.file, held: await exists(recorded.file) };
-  const base = await suiteBase(request.cwd, { suite });
-  if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: await checkoutRead(suite, request.cwd, base) } };
+  const base = await suiteBase(request.root, { suite });
+  if (base.from === 'own') return { at: base.file, held: true, source: { from: 'checkout', says: await checkoutRead(suite, request.root, base) } };
   if (base.from === 'mainline') {
     const read = base.mainline;
     const distance = read.distance === undefined ? {} : { distance: read.distance };
@@ -357,105 +380,6 @@ async function recordedOrMainline(
   }
   if (base.missed === undefined) return { at: base.file, held: false };
   return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) } };
-}
-
-/**
- * `--execution`: read a journey file against a change the caller hands in.
- *
- * A journey file names no commit, so it never looks for its own change: it is
- * given one, as a patch, on stdin, or as whatever `--since` measures. Each
- * changed line goes to the innermost region holding it, and only the cases that
- * entered that region run. Each changed file is read first from both of its
- * texts, the old one from the blob the patch names, so a comment or a new
- * function between two declarations is not charged to the module's importers.
- * A list of paths is refused: it carries no line, so
- * the only answer it can have is the import graph's, and that is `reach`.
- *
- * The lockfile is read as an install, not as a changed file. A handed-in patch
- * names both ends of it by blob, and the packages that moved between them are
- * walked back through the install to every file that imports them.
- */
-async function journeyOutput(request: SelectRequest & { readonly execution: string }): Promise<SelectOutput> {
-  const selection = await import('@variance-authority/sense/test-selection');
-  if (request.diff === undefined && request.since === undefined) {
-    throw new OperatorError(
-      'a journey file names no commit, so the change has to be given: pass `--diff <patch>` ' +
-        '(`-` reads stdin) or `--since <ref>`',
-    );
-  }
-  const from = request.since ?? 'HEAD';
-  // The diff is named from `cwd`, as the relations and the preimages below are, and git spells it through symlinks.
-  const here = await realpath(request.cwd).catch(() => request.cwd);
-  const text = request.diff === undefined ? await diffSince(from, [], undefined, { cwd: here }) : await handedDiff(request.diff);
-  if (text === undefined) {
-    return saidOf({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request);
-  }
-  if (!/^diff --git /mu.test(text) && /^@@ /mu.test(text)) {
-    throw new OperatorError(
-      '`--execution` reads the lines a change moved from the blobs `git diff` names on its `index` ' +
-        `line, and the patch handed in is a plain unified diff, starting \`${text.trimStart().split('\n')[0] ?? ''}\`, ` +
-        'which names none. Hand in `git diff` of the change, committed or in the working tree.',
-    );
-  }
-  if (!/^diff --git /mu.test(text)) {
-    throw new OperatorError(
-      `\`--execution\` selects by changed lines, and the change handed in is a list of paths, ` +
-        `starting \`${text.trimStart().split('\n')[0] ?? ''}\`. Hand in the patch — \`git diff\`, ` +
-        'not `git diff --name-only`. A list of paths can only be answered by the import graph, ' +
-        'and that is `variance reach`.',
-    );
-  }
-  const installed = request.diff === undefined
-    ? await installDiff(await diffPoint(from, [], here), [...selection.changedLines(text).keys()])
-    : await installDiffOfPatch(text, here);
-  if (installed !== undefined && 'whole' in installed) {
-    return saidOf({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request);
-  }
-  const relations = await relationsFor(request.cwd, ['.'], [], [], {
-    why: 'a whole-file change is answered by the file graph',
-    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  }, request.noGit);
-  // A bump or a moved manifest is the files it changed, changed whole.
-  const beyond = beyondOf(relations, installed);
-  const changed = selection.changedLines(withWhole(text, beyond.files));
-  // What the suite rests on, moved by the patch or the install, runs the whole suite.
-  const suite = await journeySuite(here, request.suite);
-  const { whole, ...rest } = await restingOf(here, suite, relations, [...changed.keys()]);
-  const base = { at: request.execution, given: true, ...rest };
-  if (whole !== undefined) return saidOf({ ...base, ground: { kind: 'before', whole } }, request);
-  const preimages = await patchPreimages(text, request.cwd);
-  const { read, readings } = selection.readJourneyChange(text, (file) => preimages.get(file), {
-    root: request.cwd,
-    relations,
-  });
-  const unmeasured = selection.unmeasuredOf(selection.declaredSuites(here)?.find((one) => one.name === suite));
-  const options = { relations, read, ...(unmeasured === undefined ? {} : { unmeasured }) };
-  const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
-    ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
-  const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...beyond.unplaced].sort();
-  return saidOf({ ...base, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } }, request);
-}
-
-/** A patch handed in by `--diff`: a file, or `-` for stdin. */
-async function handedDiff(diff: string): Promise<string> {
-  return diff === '-' ? await stdin() : await readFile(diff, 'utf8');
-}
-
-async function stdin(): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString('utf8');
-}
-
-function saidOf(
-  input: SelectInput,
-  request: { readonly format: SelectFormat; readonly cwd: string; readonly atDistance?: Leg },
-): SelectOutput {
-  const selection = inLeg(skippableTests(input), input, request.atDistance);
-  return {
-    out: formatSelection(selection, request.format, request.cwd),
-    err: selectionNotes(selection),
-  };
 }
 
 /**

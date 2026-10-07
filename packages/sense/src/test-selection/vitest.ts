@@ -32,6 +32,9 @@ import { removeSeamModules, reopenRun, runFor, runStamp, writeSeamModule, type S
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
+import type { SuiteSelection } from './suite-selection.js';
+import { selectionFrom } from './selection-environment.js';
+import { selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
 
 export interface TestSelectionOptions {
   /**
@@ -88,6 +91,14 @@ export interface TestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
+  /**
+   * The selection this run is handed, read once when Vitest first sorts its
+   * files. A wrapping `sequence.sequencer` drops what it may skip and hands
+   * the rest to the project's own, and stderr says `selected N of M`. Absent,
+   * `VARIANCE_AUTHORITY_SINCE` asks for the one `variance select` reads, and
+   * with that unset every file runs.
+   */
+  readonly selection?: () => Promise<SuiteSelection>;
 }
 
 interface ConfigPlugin {
@@ -172,7 +183,7 @@ export function withTestSelection(
         name: 'variance-authority:test-selection-config',
         configResolved: declareConfig(run, declared, [setupId, runnerId]),
       } satisfies ConfigPlugin],
-      test: { ...config.test, reporters: [...reporters, reporter] },
+      test: { ...config.test, ...selecting(config, root, configRoot, options), reporters: [...reporters, reporter] },
     };
   }
 
@@ -186,6 +197,7 @@ export function withTestSelection(
     plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
+      ...selecting(config, root, configRoot, options),
       // First, so what a setup file of the project's loads is logged into the
       // file's own bucket: before the shim opens it, a probe in a realm that
       // already ran a file writes into the idle one, and under a runner of the
@@ -223,6 +235,23 @@ export function withTestSelection(
         : {}),
     },
   };
+}
+
+/** The sequencer that drops what the selection skips; nothing when none is asked for. */
+function selecting(
+  config: UserConfig,
+  root: string,
+  configRoot: string,
+  options: TestSelectionOptions,
+): Pick<NonNullable<UserConfig['test']>, 'sequence'> {
+  const suite = options.suite === undefined ? {} : { suite: options.suite };
+  const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
+  if (selection === undefined) return {};
+  const sequence = config.test?.sequence;
+  const own = sequence?.sequencer as unknown as SequencerClass | undefined;
+  const sequencer = selectingSequencer(own, { root, configRoot, selection, shuffle: sequence?.shuffle });
+  type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
+  return { sequence: { ...sequence, sequencer: sequencer as unknown as NonNullable<Sequence['sequencer']> } };
 }
 
 /**

@@ -22,7 +22,7 @@ import { formatSelection, selectionNotes, skippableTests, type SelectInput } fro
 /**
  * `variance select --at-distance`: one leg of the selection, as a skip list.
  *
- * The leg is the same one `test:since --dry-run --at-distance` runs, so the
+ * The leg is the same one a seam runs under `VARIANCE_AUTHORITY_AT_DISTANCE`, so the
  * cases below hold the two together on the property that makes a loop of legs
  * safe: `0-2` and then `3-` run every selected file, and a selection that
  * declines to narrow skips nothing whichever leg was asked.

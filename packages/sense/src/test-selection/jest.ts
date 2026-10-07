@@ -26,8 +26,11 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
+import { selectingFilter } from './jest-selection.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
+import { selectionFrom } from './selection-environment.js';
+import type { SuiteSelection } from './suite-selection.js';
 
 export interface JestTestSelectionOptions {
   /**
@@ -86,6 +89,13 @@ export interface JestTestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
+  /**
+   * The selection this run is handed, read once when Jest first filters what
+   * it found. A `filter` drops what it may skip after the project's own, and
+   * stderr says `selected N of M`. Absent, `VARIANCE_AUTHORITY_SINCE` asks for
+   * the one `variance select` reads, and with that unset every file runs.
+   */
+  readonly selection?: () => Promise<SuiteSelection>;
 }
 
 /** Record per-test journeys from Jest without creating a test-selection snapshot. */
@@ -281,11 +291,14 @@ export function withTestSelection(
     ...(mode === undefined ? {} : { mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
   };
+  const suite = options.suite === undefined ? {} : { suite: options.suite };
+  const selection = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
 
   return {
     ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
+    ...(selection === undefined ? {} : selectingFilter(config, { root, rootDir, selection })),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
   };
 }

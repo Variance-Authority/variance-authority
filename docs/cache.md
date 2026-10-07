@@ -169,7 +169,7 @@ To reset only the source index and keep the recording, delete
 
 A recording is removed only with its checkout. It is one file each run
 rewrites, so it stays the same size however long you keep it, and without it
-the next `test:since` runs the whole suite. Everything else in
+the next selected run declines and runs the whole suite. Everything else in
 `test-selection/<repository>/` stays as long as that directory does.
 
 The rest is removed when git, the file system or the process table shows that

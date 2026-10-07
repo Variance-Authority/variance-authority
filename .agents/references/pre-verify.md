@@ -53,9 +53,9 @@ Verification runs in waves, nearest and cheapest first, and each wave starts
 only when the one before it is green:
 
 ```bash
-yarn verify:near    # 1. lint, tsc --build, test:since --at-distance 0-2
+yarn verify:near    # 1. lint, tsc --build, the selection within two imports
 yarn verify:rules   # 2. yarn check, once near is green
-yarn verify:far     # 3. test:since --at-distance 3-, once, before the PR
+yarn verify:far     # 3. the rest of the selection, once, before the PR
 ```
 
 The order is the order failures arrive in. Lint and an incremental
@@ -66,8 +66,8 @@ seconds and is the only wave the edit loop repeats. It type-checks with
 The repository checks are minutes and cannot be selected, so they run once the
 change has stopped moving. The far wave is the
 rest of the selection — `0-2` and `3-` partition it, so together they run every
-selected file exactly once — and it runs once, as the last thing before the
-pull request.
+selected file once, and a test file the recording never saw in both — and it
+runs once, as the last thing before the pull request.
 
 **A red wave sends you back to the edit, then to wave 1**, not to the wave that
 failed: the fix is a new edit, and its nearest tests are wave 1's. **A green
@@ -78,9 +78,10 @@ be sure is the time this loop exists to save.
 config> <file>`, never by re-running the wave. One file re-run under a quiet
 machine says whether it was the change; a wave re-run says it again slower.
 
-**A slice the reading runs whole is not a wave.** `yarn test:since --dry-run`
-first: when it prints `running the whole slice`, the near wave is the whole
-suite and `--at-distance` is never consulted. Run the test files you edited by
+**A slice the reading runs whole is not a wave.** Read `yarn variance select
+--suite <slice>` first: when it skips nothing, or the runner prints
+`declined:`, the near wave is the whole slice and the distance is never
+consulted. Run the test files you edited by
 path, wave 2, and push — CI runs the whole suite on its own runners.
 
 **The gate is CI's.** `verify` is `yarn lint && yarn check && yarn measure &&
@@ -118,20 +119,31 @@ recording: a worktree that has not run reads the primary checkout's, and a
 checkout where `yarn test` has never run has nothing to read.
 
 ```bash
-yarn test:since                    # since the commit each test last ran at
-yarn test:since main               # since the merge base with main
-yarn test:since --dry-run          # decide, explain, run nothing
-yarn test:since --at-distance 0-2  # only the tests within two imports of the change
-yarn test:since --help             # every flag
+yarn test:since                                    # every slice, since the commit each test last ran at
+VARIANCE_AUTHORITY_SINCE= yarn test:unit           # one slice
+VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test:since # only the tests within two imports of the change
+yarn variance select --suite unit                  # decide, explain, run nothing
 ```
+
+`test:since` takes no arguments of its own: it is three `vitest run` calls,
+and anything written after it reaches only the last one, the chromium slice. To
+hand Vitest a flag, run one slice with the variable set:
+`VARIANCE_AUTHORITY_SINCE= yarn test:unit --shard=1/4`.
+
+`test:since` is `yarn test` with `VARIANCE_AUTHORITY_SINCE` set. The seam
+each slice's config is wrapped in reads the selection, the runner drops the
+files it skips before it starts any, and one line says what happened:
+`selected 12 of 676`, `selected none of 676`, or `declined: <why>`. The `read`
+lines, one per changed file, are `variance select`'s; the run prints only its
+count and notes. Set to a ref, the variable also names the base for a recording
+that names no commit of its own.
 
 Each test is read from the commit it last ran at. A leg stamps the snapshot
 with `HEAD`, and the tests it did not run are still read from where they last
 ran, so the next leg selects them. Once every test has run at the snapshot's
-commit, the reading starts there. A ref reads every test from no later than the
-merge base with it. A file this machine skips whole, such as a browser-gated one
-with no browser installed, never records whole here, so it is selected every
-time.
+commit, the reading starts there. A file this machine skips whole, such as a
+browser-gated one with no browser installed, never records whole here, so it
+is selected every time. A test file the recording never saw runs.
 
 It selects on what the recording measured, and on nothing else. Each changed
 file is read from both of its texts first, and prints a `read` line saying what
@@ -154,12 +166,7 @@ no installed package moved. A fixture a test reads with `fs` is named in
 
 The whole suite runs only when the reading itself could not be made — an install
 it could not compare, or a snapshot with no whole observation of any file the
-suite collects — and it says which:
-
-```
-test:since: running the whole suite — the install could not be compared against 03984ae78218.
-  429 files
-```
+suite collects — and the runner says which, after `declined:`.
 
 So a green `test:since` is a smaller claim than a green `verify`: use it in the
 waves, and report against CI's gate.
@@ -173,17 +180,15 @@ is five hops out answers it with nothing, which is the true answer. Start at
 
 The near and far waves are a partition: `0-2` then `3-`. A leg open at the top
 carries the tests with no measurable distance, so the two legs run every
-selected file exactly once. Every run prints how many selected files its leg
-left behind, and the range that runs them.
+selected file once. `variance select --at-distance` prints how many selected
+files a leg leaves behind, and the range that runs them.
 
-`--at-distance` narrows a reading; it cannot narrow a widening. When the reading
-could not be made, the run is the whole suite and the flag is never consulted,
+A distance narrows a reading; it cannot narrow a widening. When the reading
+could not be made, the run is the whole suite and the distance is never consulted,
 so no leg is shorter than `yarn test` until the install compares or the
 recording has a whole observation.
 
-Two findings arrive whether or not anything failed: an import that reached past
-a directory's own entry point, and a test the change entered by no route it
-imported. [`docs/distance.md`](../../docs/distance.md) is the reference.
+[`docs/distance.md`](../../docs/distance.md) is the reference.
 
 **The recording is not in git.** It sits in [the cache](../../docs/cache.md),
 under `<cache>/test-selection/`, in a directory keyed by a digest of this

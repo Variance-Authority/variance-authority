@@ -5,7 +5,7 @@ that the marks are never older than the last edit. Here, the record is as old as
 the last `yarn test`. `test:since` already selects the tests an edit reaches,
 nearest first. Nothing starts it from an editor, streams its outcomes back, or
 folds the run into the record the editor is painting from.
-**Built on:** the selection behind `tools/test-since.mjs` and
+**Built on:** the selection behind tools/test-since.mjs and
 `variance select --at-distance <hops> --format vitest|jest`, the distance grouping in
 `packages/sense/src/test-selection/at-distance.ts`,
 [0063](0063-an-editor-asks-about-the-text-it-holds.md) (the reader and its

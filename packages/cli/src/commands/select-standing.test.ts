@@ -255,6 +255,20 @@ describe('a test that did not run at the journal commit', () => {
     await expect(refused).rejects.toThrow('delete it first only if it is a directory');
   });
 
+  it("runs, from a worktree that has not run, what the primary checkout's runs record says last ran before the journal's commit", async () => {
+    // Spelled as git spells it, so the worktree finds the primary checkout's layer under the key it was written by.
+    const { root, P } = await partialRun(realpathSync(mkdtempSync(join(tmpdir(), 'va-select-standing-'))));
+    const worktree = join(mkdtempSync(join(tmpdir(), 'va-select-standing-worktree-')), 'worktree');
+    execFileSync('git', ['worktree', 'add', '--quiet', '--detach', worktree, 'HEAD'], { cwd: root });
+    process.chdir(worktree);
+    await indexOutput({ cwd: worktree });
+
+    const said = await selectOutput({ cwd: worktree, format: 'plain' });
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
+  });
+
   it("refuses the primary checkout's unreadable runs record from a worktree without telling it to delete that record", async () => {
     // Spelled as git spells it, so the worktree finds the primary checkout's layer under the key it was written by.
     const { root, file } = await partialRun(realpathSync(mkdtempSync(join(tmpdir(), 'va-select-standing-'))));
