@@ -6,8 +6,7 @@ import { createContext, runInContext } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
 import probeLog from '../instrument/probe-log.cjs';
 import { createTransformer, type JestTransformRequest, type JestTransformedSource } from './jest-transform.js';
-import { jestStore } from './jest.js';
-import { readRecord } from './instrumented-modules.js';
+import { deriveModules, moduleId } from './captured-modules.js';
 import { sourceLines, type TransformSourceMap } from './source-lines.js';
 
 const temporary: string[] = [];
@@ -44,23 +43,25 @@ const MAP = { version: 3, sources: ['../src/pick.ts'], names: [], mappings: 'AAA
  * `dist/pick.js`, which names the map `tsc` wrote beside it. The wrapped
  * transformer hands back what it was given, so the test reads what reached it.
  */
-async function built(sources: readonly string[] = MAP.sources): Promise<{ code: string; options: JestTransformRequest }> {
+async function built(sources: readonly string[] = MAP.sources): Promise<{ code: string; root: string }> {
   const root = await project('variance-jest-built-');
   await writeFile(resolve(root, 'src/pick.ts'), SOURCE);
+  await writeFile(resolve(root, 'dist/pick.js'), BUILT);
   await writeFile(resolve(root, 'dist/pick.js.map'), JSON.stringify({ ...MAP, sources }));
   await writeFile(resolve(root, 'transformer.cjs'), 'module.exports = { process: (source) => ({ code: source }) };\n');
   const options = transformOptions(root);
   const transformer = await createTransformer({ root, transformer: resolve(root, 'transformer.cjs') });
-  return { code: transformer.process!(BUILT, resolve(root, 'dist/pick.js'), options).code, options };
+  return { code: transformer.process!(BUILT, resolve(root, 'dist/pick.js'), options).code, root };
 }
 
 describe('the Jest transformer over a module loaded from its build', () => {
-  it('places probes and records them under the source its map file names, which the default include accepts', async () => {
-    const { code, options } = await built();
+  it('places probes whose module reads under the source its map file names, which the default include accepts', async () => {
+    const { code, root } = await built();
 
-    expect(code).toContain('globalThis.__VA__');
-    const record = await readRecord(jestStore(options.config.cacheDirectory, options.config.id), 'src/pick.ts');
-    expect(record).toEqual(expect.objectContaining({ file: 'src/pick.ts', instrumented: true }));
+    const id = moduleId('dist/pick.js', BUILT);
+    expect(code).toContain(JSON.stringify(id));
+    const module = (await deriveModules(root, [id], undefined)).get(id);
+    expect(module).toEqual(expect.objectContaining({ file: 'src/pick.ts', instrumented: true }));
   });
 
   it('leaves a bundle whose map names several sources as it arrived', async () => {

@@ -43,8 +43,10 @@ describe('a test that did not run at the journal commit', () => {
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     // `near` ran at the journal's commit, after both edits; `far` last ran at P.
+    // The landing at H re-cut `far`'s module over the edit, so `far` is no
+    // longer recorded whole either; the runs record still says where it ran.
     expect(said.out).toBe('test/near.test.ts\n');
-    expect(said.err).toContain('skipping 1 of 2 test files recorded whole');
+    expect(said.err).toContain('skipping 1 of 1 test file recorded whole');
     expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
   });
 
@@ -255,6 +257,20 @@ describe('a test that did not run at the journal commit', () => {
     await expect(refused).rejects.toThrow('delete it first only if it is a directory');
   });
 
+  it("runs, from a worktree that has not run, what the primary checkout's runs record says last ran before the journal's commit", async () => {
+    // Spelled as git spells it, so the worktree finds the primary checkout's layer under the key it was written by.
+    const { root, P } = await partialRun(realpathSync(mkdtempSync(join(tmpdir(), 'va-select-standing-'))));
+    const worktree = join(mkdtempSync(join(tmpdir(), 'va-select-standing-worktree-')), 'worktree');
+    execFileSync('git', ['worktree', 'add', '--quiet', '--detach', worktree, 'HEAD'], { cwd: root });
+    process.chdir(worktree);
+    await indexOutput({ cwd: worktree });
+
+    const said = await selectOutput({ cwd: worktree, format: 'plain' });
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit`);
+  });
+
   it("refuses the primary checkout's unreadable runs record from a worktree without telling it to delete that record", async () => {
     // Spelled as git spells it, so the worktree finds the primary checkout's layer under the key it was written by.
     const { root, file } = await partialRun(realpathSync(mkdtempSync(join(tmpdir(), 'va-select-standing-'))));
@@ -317,11 +333,15 @@ const NAMES = ['far', 'near'];
 const NEAR_PAD = "import leftPad from 'left-pad';\n\nexport const near = leftPad('1', 2);\n";
 const FAR_PAD = "import leftPad from 'left-pad';\n\nexport const far = leftPad('1', 2);\n";
 
-/** Each module at `value`, and a test file for each, as the tree holds them. */
+/**
+ * Each module at `value`, and a test file for each, as the tree holds them. The
+ * module writes `value` where its importer can see it, so a change to it is
+ * charged to the test that loads the module, from either side of a commit.
+ */
 function sources(value: number, names: readonly string[] = [...NAMES, 'gone']): Record<string, string> {
   return Object.fromEntries(
     names.flatMap((name) => [
-      [`src/${name}.ts`, `export const ${name} = ${value};\n`],
+      [`src/${name}.ts`, `export const ${name} = ${value};\nglobalThis.${name} = ${value};\n`],
       [`test/${name}.test.ts`, `import '../src/${name}.js';\n`],
     ]),
   );
@@ -376,8 +396,8 @@ function npmLock(version: string): string {
 /**
  * What a run records: the tests it ran, and the module each loaded, with the
  * digest of the text on disk. Recorded under the recipe the seam records with,
- * so the landing re-cuts a carried module whose text moved and keeps its test
- * whole, as it does after a real partial run.
+ * so the landing re-cuts a carried module whose text moved and demotes the
+ * test on the edited region, as it does after a real partial run.
  */
 function run(root: string, commit: string, names: readonly string[]): TestCoverage {
   return {

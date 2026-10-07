@@ -14,9 +14,8 @@ needless re-record imposes),
 
 ## Purpose
 
-Three headers exist in this repository and the important one is the least
-equipped. `record-format.ts:30` opens with eight magic bytes and carries a
-checksum. `packages/core`'s segment header carries a format name and guards its
+Two headers exist in this repository and the important one is the less
+equipped. `packages/core`'s segment header carries a format name and guards its
 own `JSON.parse`. The execution record — the file every other artifact exists to
 produce — opens with a `uint32` length and a bare
 `JSON.stringify({ version, sections })`.

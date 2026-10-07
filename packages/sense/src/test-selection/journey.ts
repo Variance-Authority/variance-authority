@@ -145,8 +145,7 @@ export function mintJourney(): string {
 export interface JourneyCollectorOptions {
   /**
    * What this head calls itself. Defaults to {@link JOURNEY_HEAD_VARIABLE}, then
-   * `head`. It is the `label` its build gave `testSelectionProbes()`: an ordinal
-   * means something only against the inventory that minted it.
+   * `head`. It is the `label` its build gave `testSelectionProbes()`.
    */
   readonly head?: string;
   /**

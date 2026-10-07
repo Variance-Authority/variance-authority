@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { instrument } from '../instrument/index.js';
-import { coverageBlocks } from './coverage-rows.js';
+import { coverageBlocks, recordedBlocks } from './coverage-rows.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 
 const FILE = '/checkout/src/price.ts';
@@ -67,5 +67,119 @@ describe('coverageBlocks', () => {
       .filter((row, index) => row.digest !== after[index]!.digest)
       .map((row) => `${row.name} ${row.path}`);
     expect(changed).toEqual(['price if#0/then']);
+  });
+});
+
+describe('recordedBlocks', () => {
+  // What a runner's own transform hands `instrumentModule` with its map, and
+  // what a seam reads of a build through the map beside it.
+  const built = (build: { code: string; map: TransformSourceMap }) => {
+    const frame = recordedFrame(build.code, build.map, FILE, () => SOURCE);
+    return recordedBlocks(instrument(build.code, FILE)!.blocks, frame, build.code, 'presence');
+  };
+  const own = coverageBlocks(instrument(SOURCE, FILE)!.blocks, recordedFrame(SOURCE, undefined, FILE, () => SOURCE));
+
+  it('records a build that cut the regions its source cuts as the source', () => {
+    expect(built(MODERN)).toEqual(own);
+  });
+
+  it('opens and closes the module of a build that cut regions its source has not where the source does', () => {
+    // A helper a bundler wrote above the module, with no origin in its map.
+    const rows = built({
+      code: `var __name = (target, value) => target;\n${MODERN.code}`,
+      map: { ...MODERN.map, mappings: `;${MODERN.map.mappings}` },
+    });
+    expect(rows.length).toBe(own.length + 1);
+    expect(rows[0]).toMatchObject({ kind: 'module', startLine: own[0]!.startLine, endLine: own[0]!.endLine, digest: own[0]!.digest });
+    expect(rows[1]).not.toHaveProperty('startLine');
+    expect(rows[1]).not.toHaveProperty('endLine');
+  });
+
+  it('records the regions a build shares with its source at the source\'s lines when the build cut one more', () => {
+    // tsc's shape: the call written over four lines is emitted on one, so the
+    // map closes the `await` on the line it opened. A helper a bundler wrote
+    // above the module keeps the two walks from numbering alike.
+    const source = 'export async function f(a) {\n  await a.go(\n    1,\n  );\n}\n';
+    const code = 'var __name = (target, value) => target;\nexport async function f(a) {\n  await a.go(1);\n}\n';
+    const map = { mappings: ';AAAA;AACA;AAGA', sources: [FILE] };
+    const frame = recordedFrame(code, map, FILE, () => source);
+    const cut = coverageBlocks(instrument(source, FILE)!.blocks, recordedFrame(source, undefined, FILE, () => source));
+    const shared = (row: { name: string; path: string }) => cut.some((own) => own.name === row.name && own.path === row.path);
+
+    const rows = recordedBlocks(instrument(code, FILE)!.blocks, frame, code, 'presence');
+
+    const extent = (row: (typeof cut)[number]) => [row.kind, row.name, row.path, row.startLine, row.endLine, row.digest];
+    expect(rows.filter(shared).map(extent)).toEqual(cut.map(extent));
+  });
+
+  it('keeps a build region with no source of its own off the lines of the source region named like it', () => {
+    // A region the build cut empty is not the region the source wrote under that
+    // name: a span would charge it for lines it does not cover.
+    const source = 'export async function f(a) {\n  await a.go(\n    1,\n  );\n}\n';
+    const code = 'var __name = (target, value) => target;\nexport async function f(a) {\n  await a.go(1);\n}\n';
+    const map = { mappings: ';AAAA;AACA;AAGA', sources: [FILE] };
+    const frame = recordedFrame(code, map, FILE, () => source);
+    const blocks = instrument(code, FILE)!.blocks;
+    const at = blocks.findIndex((block) => block.kind === 'resume');
+    const emptied = blocks.map((block, index) => (index === at ? { ...block, end: block.start } : block));
+
+    const rows = recordedBlocks(emptied, frame, code, 'presence');
+
+    expect(rows[at]).toMatchObject({ kind: 'resume', path: 'await#0', source: false });
+    expect(rows[at]!.endLine).toBe(rows[at]!.startLine);
+  });
+
+  it('keeps a region a transform inserted off the lines of the source region it took the name of', () => {
+    // The walk numbers a function's decisions in order, so the guard written
+    // above the source's `if` takes `if#0`, and the source's own `if` is `if#1`.
+    const source = 'export function f(a) {\n  if (a) return 1;\n  return 0;\n}\n';
+    const code = 'export function f(a) {\n  if (a === undefined) throw 0;\n  if (a) return 1;\n  return 0;\n}\n';
+    const map = { mappings: 'AAAA;;AACA;AACA;AACA', sources: [FILE] };
+    const frame = recordedFrame(code, map, FILE, () => source);
+    const blocks = instrument(code, FILE)!.blocks;
+    const guard = blocks.findIndex((block) => block.path === 'if#0/then');
+    const mapped = coverageBlocks(blocks, frame)[guard]!;
+
+    const rows = recordedBlocks(blocks, frame, code, 'presence');
+
+    expect(rows[guard]).toMatchObject({ path: 'if#0/then', startLine: mapped.startLine, endLine: mapped.endLine });
+    expect(rows[guard]!.startLine).not.toBe(2);
+  });
+
+  it('reads a build through its map when it moved regions its source names alike', () => {
+    // The walk names both callbacks `f/on.arg1`; the build swapped their lines.
+    const source = "export function f(a) {\n  a.on('x', () => 1);\n  a.on('x', () => 22);\n}\n";
+    const lines = source.split('\n');
+    const code = [lines[0], lines[2], lines[1], ...lines.slice(3)].join('\n');
+    const map = { mappings: 'AAAA;AAEA;AADA;AAEA', sources: [FILE] };
+    const frame = recordedFrame(code, map, FILE, () => source);
+    const blocks = instrument(code, FILE)!.blocks;
+    const twentyTwo = blocks.findIndex((block) => block.name === 'f/on.arg1' && code.slice(block.start, block.end).includes('22'));
+
+    const rows = recordedBlocks(blocks, frame, code, 'presence');
+
+    expect(rows[twentyTwo]).toMatchObject({ name: 'f/on.arg1', startLine: 3, endLine: 3 });
+  });
+
+  it('leaves a build region its map cannot place without lines, though its source names one like it', () => {
+    // The map starts on the build's second line, so nothing places `g`; the
+    // arrow below it keeps the two walks from numbering alike.
+    const source = 'export function g() {\n  return 1;\n}\n';
+    const code = 'export function g() { return 1; }\nvar h = () => 0;\n';
+    const frame = recordedFrame(code, { mappings: ';AAAA', sources: [FILE] }, FILE, () => source);
+
+    const rows = recordedBlocks(instrument(code, FILE)!.blocks, frame, code, 'presence');
+
+    const g = rows.find((row) => row.name === 'g')!;
+    expect(g).not.toHaveProperty('startLine');
+    expect(g).not.toHaveProperty('endLine');
+  });
+
+  it('reads a build through its map when the source it maps to does not parse', () => {
+    // A source the walk refuses has no cut of its own to record a build at.
+    const broken = `${SOURCE}export function (\n`;
+    const frame = recordedFrame(MODERN.code, MODERN.map, FILE, () => broken);
+    const blocks = instrument(MODERN.code, FILE)!.blocks;
+    expect(recordedBlocks(blocks, frame, MODERN.code, 'presence')).toEqual(coverageBlocks(blocks, frame));
   });
 });

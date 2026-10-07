@@ -1,9 +1,8 @@
 /**
  * One place to say what this run records, instead of two that have to agree.
  *
- * The recording fixtures and the reporter read the same five values — the
- * root, the label and cache the build wrote its records under, the coverage
- * index, the probe recipe — and a configuration that spells them twice is a
+ * The recording fixtures and the reporter read the same values — the root,
+ * the cache, the coverage index, the probe recipe — and a configuration that spells them twice is a
  * configuration where they can differ. A mismatch is not an error anybody
  * sees: the workers stage crossings recorded against one root and the fold
  * resolves them against another, and the result is a record written under
@@ -15,7 +14,7 @@
  *
  * export default defineConfig(withTestSelection({
  *   projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }],
- * }, { label: 'app', preconditions: ['playwright/fixtures.ts'] }));
+ * }, { preconditions: ['playwright/fixtures.ts'] }));
  * ```
  *
  * Every project is given the recording, because a project is a second run of

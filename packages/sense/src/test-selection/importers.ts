@@ -82,7 +82,9 @@ export interface ExecutionNarrowingOptions {
    */
   readonly unmeasured?: Unmeasured;
   /**
-   * Every name the snapshot may hold a graph file under. Identity when absent.
+   * Every name the snapshot may hold a graph file under. When absent, the
+   * record's own names that the `tsconfig` under `root` builds from the file,
+   * and identity without `root`.
    *
    * A package's own tests load its `src`; every other package loads its built
    * output, and the snapshot records each name as its own row. Both rows are one

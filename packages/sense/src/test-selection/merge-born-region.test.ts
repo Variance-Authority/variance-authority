@@ -145,10 +145,11 @@ describe('a region born between two runs', () => {
       expect(asked(merged(), edit(line)).entered).toEqual([CART, CHECKOUT]);
     });
 
-    it('leaves both crossers whole rather than demoting them', () => {
+    it('demotes both crossers, neither of which ran the text the module has now', () => {
+      // The landing keeps that text, so no later diff shows them the extraction.
       expect(merged().tests.map((test) => [test.file, test.complete])).toEqual([
-        [CART, true],
-        [CHECKOUT, true],
+        [CART, false],
+        [CHECKOUT, false],
         [OTHER, true],
       ]);
     });

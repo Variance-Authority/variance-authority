@@ -1,4 +1,5 @@
 import { blocksAround, regionOf } from './blocks-around.js';
+import { builtNamesOf } from './built-names.js';
 import type { TestCoverageView } from './format-view.js';
 import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
 import { findModules } from './lookup.js';
@@ -202,16 +203,23 @@ export function selectTestFilesFromView(
 function readDiff(
   coverage: TestCoverageView,
   diff: string,
-  given: ExecutionNarrowingOptions,
+  asked: ExecutionNarrowingOptions,
 ): Required<Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale' | 'readings'>> &
   Pick<ExecutionNarrowing, 'declined'> {
+  // A checkout to read layouts in lets the record say which of its names are
+  // built from which source, and the graph's walk asks under the same names.
+  const changed = changedLines(diff);
+  const known: ExecutionNarrowingOptions =
+    asked.knownAs !== undefined || asked.root === undefined
+      ? asked
+      : { ...asked, knownAs: builtNamesOf(coverage, asked.root, changed.keys()) };
   // Every changed name the loop below reads a recorded text under, named to
   // `sourceAt` with each ask: filled before the first ask, so a reader fetches
   // those texts together and none of the rest of the diff.
   const asking: string[] = [];
-  const sourceAt = given.sourceAt;
+  const sourceAt = known.sourceAt;
   const options: ExecutionNarrowingOptions =
-    sourceAt === undefined ? given : { ...given, sourceAt: (file, commit) => sourceAt(file, commit, asking) };
+    sourceAt === undefined ? known : { ...known, sourceAt: (file, commit) => sourceAt(file, commit, asking) };
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
@@ -219,7 +227,6 @@ function readDiff(
     reasons.push(reason);
     selected.set(test, reasons);
   };
-  const changed = changedLines(diff);
   const governing = new Set<string>();
   const rowed = new Set<string>();
   const stale = new Set<string>();
@@ -298,8 +305,10 @@ function readDiff(
       const rebased = rebasedChange(file, frame.text, options.sourceAt?.(file, coverage.commit), context.hunks.get(file) ?? []);
       if (rebased === undefined) frame = 'stale';
       else if (rebased.ranges.length === 0) {
-        // The tests ran over the text the diff arrives at. No parser was
-        // asked, so the reading says so rather than claim equal runtime text.
+        // The record was taken over the text the diff arrives at, and a test
+        // carried onto it from an earlier text of an edited region was demoted
+        // when it landed. No parser was asked, so the reading says so rather
+        // than claim equal runtime text.
         readings.push({ file, verdict: 'none', names: [], kept: true });
         continue;
       } else {

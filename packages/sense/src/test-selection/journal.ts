@@ -18,9 +18,9 @@
  * 1. **The plugin** ({@link testSelectionProbes}, next door in `probes.ts` with
  *    the rest of the build half) belongs in the adopter's own build — a
  *    Storybook `viteFinal`, an application dev server. It instruments
- *    product source, hoists a collector in front of it, and writes each module's
- *    block record down under the id it instrumented that module with, for a run
- *    that has not started yet.
+ *    product source and hoists a collector in front of it. Its probes report the
+ *    file and the digest of the text they were placed on, and nothing else is
+ *    written down.
  * 2. **The collector** is a string, evaluated in the instrumented realm. No Node
  *    built-ins, no imports, no bundler assumptions — the same constraint that
  *    made the emitted runtime portable in the first place.
@@ -64,9 +64,8 @@ import {
   codeUnitOrder,
   isMissing,
   projectPath,
-  readRecords,
-  recordStores,
 } from './instrumented-modules.js';
+import { deriveModules } from './captured-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { recordFileFor } from './record-location.js';
 import {
@@ -90,6 +89,7 @@ export {
 
 /** What a module reports itself as, for a driver that writes its own journal. */
 export type { ModuleId };
+export { moduleId } from './captured-modules.js';
 
 /** The probe recipe both halves of this seam have to agree on. */
 export type { InstrumentMode };
@@ -118,14 +118,11 @@ export interface RecordExecutionOptions {
   readonly root: string;
   readonly subjects: readonly ObservedSubject[];
   /**
-   * Where the record stores live. Defaults to the repository's cache, `cacheRootFor(root)`.
-   *
-   * Matches {@link testSelectionProbes}'s `cacheRoot`, and is worth setting only
-   * to keep one run's records out of the cache another run reads.
+   * Where the coverage layers live. Defaults to the repository's cache,
+   * `cacheRootFor(root)`, and is worth setting only to keep one run's layers
+   * out of the cache another run reads.
    */
   readonly cacheRoot?: string;
-  /** Matches {@link testSelectionProbes}'s `label`. Defaults to `build`. */
-  readonly label?: string;
   /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
   /**
@@ -134,19 +131,6 @@ export interface RecordExecutionOptions {
    * `coverageFile`.
    */
   readonly suite?: string;
-  /**
-   * Other builds this same run drove, by the label each instrumented under.
-   *
-   * Their stores join this call rather than getting one of their own, because a
-   * second call describing the same subjects looks to the merge like a second
-   * run and retires the first's evidence for every owner they share. Where two
-   * stores hold one module and disagree about the text it was cut from, that
-   * module is recorded as **not instrumented** — the builds transformed it
-   * differently, so no ordinal in it means one thing, and unknown widens where
-   * a guess would skip. Every subject that entered it declares it instead, so
-   * the widening is those subjects' and not the whole run's.
-   */
-  readonly heads?: readonly string[];
   /**
    * Where this recording stands. Defaults to the checkout's `HEAD`, which is the
    * answer in every case except a caller that already knows better.
@@ -196,14 +180,14 @@ export interface ExecutionRecord {
 }
 
 /**
- * Join drained journals to the block records they name and merge them into the index.
+ * Join drained journals to the modules they name and merge them into the index.
  *
  * A journal reports ids, and the id is what the join is: every module the page
- * entered says which record describes it, so the driver asks the stores for
- * those and nothing else. No build has to have ended, and no process ever holds
- * a module it did not instrument.
+ * entered names its file and the text its probes were placed on, so the driver
+ * cuts that text again from the checkout, and only those. No build has to have
+ * ended, and nothing the build learned is kept for the run.
  *
- * It refuses in one direction only. A reported module no store can identify, a
+ * It refuses in one direction only. A run none of whose modules is in the checkout, a
  * record from another probe recipe, a journal from a page whose collector
  * predates this driver — each records nothing and says so, which costs the next
  * run its full suite. The opposite failure, half a journal written as though it
@@ -223,11 +207,6 @@ export async function recordExecution(
   const subjects = joinObservations([options.subjects]);
   const instrumentation = instrumentationId(options.mode);
   const coverageFile = recordFileFor(root, root, options);
-  // One entry per label, each read across its layers: a worktree's own records
-  // after the primary checkout's for the same build. Labels are the peers.
-  const stores = [...new Set([options.label, ...(options.heads ?? [])])].map((label) =>
-    recordStores(root, label, options.cacheRoot),
-  );
 
   const foreign = subjects.find(
     (subject) => subject.journal.instrumentation !== instrumentation,
@@ -246,22 +225,20 @@ export async function recordExecution(
 
   // Only the modules the journals name. A module nothing entered this run keeps
   // whatever the index already says about it, which is the merge's job and not
-  // this call's, and asking the store for the rest would be reading a whole
-  // build back out of a place that never holds one.
+  // this call's.
   const ids = new Set(
     subjects.flatMap((subject) => subject.journal.modules.map((module) => module.id)),
   );
-  const byId = await readRecords(stores, ids, instrumentation);
+  const byId = await deriveModules(root, ids, options.mode);
   if (ids.size > 0 && byId.size === 0) {
     return {
       recorded: false,
       coverageFile,
       subjects: 0,
       because:
-        `no source identity for any of the ${ids.size} modules the run reported, in ` +
-        `${stores.join(', ')}: add \`testSelectionProbes()\` to the build this run drives, ` +
-        `build it with the same version of this package, and give it the same \`mode\` this ` +
-        `fold reads records under (${instrumentation})`,
+        `none of the ${ids.size} modules the run reported is a file under ${root}: the build ` +
+        `this run drives was made from another checkout, or with another version of ` +
+        `\`testSelectionProbes()\``,
     };
   }
 
@@ -285,8 +262,8 @@ export async function recordExecution(
       if (known === undefined) continue;
       const evaluating = new Set(module.shared);
       if (!known.instrumented) {
-        // Two peer stores cut this path from different texts, so `readRecords`
-        // handed it back with no blocks and no ordinal in it means one thing.
+        // The file has moved on since the build placed these probes, so no
+        // ordinal in it means what it meant then.
         // One thing can still be said about it honestly, and it is the thing
         // `jest-reporter.ts` already says for a module its transformer never
         // instrumented: this subject depends on that file's text, whole.

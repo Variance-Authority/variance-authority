@@ -13,7 +13,7 @@
  *
  * - `none`: the runtime text is equal. Nothing is charged. A `none` marked
  *   `kept` is not the addon's: the selection found the diff's new side equal
- *   to the text the recorded tests ran over, and asked no parser.
+ *   to the text the record was taken over, and asked no parser.
  * - `bodies`: what the module does as it loads is equal, and every binding it
  *   makes holds the same value. The regions the lines map to are charged,
  *   without the module's own region.
@@ -81,9 +81,11 @@ export type FileReading =
        */
       readonly effects?: readonly string[];
       /**
-       * A `none` the parser never decided: the record kept the text its tests
-       * ran over, and the diff's new side is that text, so nothing is left for
-       * them to run (`rebasedChange`). Absent for every verdict the parser gave.
+       * A `none` the parser never decided: the record kept the text it was
+       * taken over, and the diff's new side is that text (`rebasedChange`).
+       * It says nothing of a test carried from an earlier text: the landing
+       * demoted each that ran an edited region, and it is selected as
+       * incomplete. Absent for every verdict the parser gave.
        */
       readonly kept?: true;
     }

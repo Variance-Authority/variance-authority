@@ -85,7 +85,6 @@ over it, so a repository that names its cache keeps one answer for everyone.
     suites/<name>/               the same files for each suite you declare
     source-index.bin             the source index, and its segments beside it
     source-index.bin.map         the code map `variance ask orient` reads
-    <label>/                     one record store per runner or plugin
     checkout.json                the checkout this directory belongs to
     .texts/<hash>                the text a run recorded a module from, when the commit does not hold it
     .run-<pid>-*/                a run in progress, removed when it ends
@@ -169,7 +168,7 @@ To reset only the source index and keep the recording, delete
 
 A recording is removed only with its checkout. It is one file each run
 rewrites, so it stays the same size however long you keep it, and without it
-the next `test:since` runs the whole suite. Everything else in
+the next selected run declines and runs the whole suite. Everything else in
 `test-selection/<repository>/` stays as long as that directory does.
 
 The rest is removed when git, the file system or the process table shows that

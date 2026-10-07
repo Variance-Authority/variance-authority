@@ -147,7 +147,7 @@ describe('a runner with no seam, through @variance-authority/sense/runner', () =
   }, 60_000);
 
   it('keeps a file incomplete when its probes fired and nothing the run reads says what they meant', async () => {
-    const { coverageFile } = await record('--records-elsewhere');
+    const { coverageFile } = await record('--names-another-root');
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     // What each file reached is not known, so it is evidence that selects the
     // file and never a reach that skips it.
