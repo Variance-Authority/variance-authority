@@ -21,8 +21,9 @@ import { readDependencyLexicon, refreshDependencyLexicon } from './dependency-le
  * Each corpus is indexed once through the CLI into a cache of its own, so every
  * question reads a published generation the way a user's does. The catalogue is
  * then refreshed cold (no lexicon on disk), again over the unchanged install and index, and once more
- * with the record of what it was built from removed. Three answers are timed end to end, node start
- * included, and each must come in under a second warm. So is `orient` over the start point, which reads
+ * with the record of what it was built from removed. Four answers are timed end to end, node start
+ * included, and each must come in under a second warm; `ask packages` is one of them because it takes no
+ * argument, so nothing narrows what it reads. So is `orient` over the start point, which reads
  * the package graph, the external requests and the recorded cases. Its cost is the working-tree reading,
  * `status`, which walks every file unless the repository turns on the two accelerators
  * `docs/performance.md` names; on seven copies of Material UI that walk is 2.2 s. The orient child is
@@ -112,6 +113,7 @@ for (const corpus of CORPORA) {
         stack: ['ask', 'stack', '--from', corpus.pick],
         search: ['ask', 'search', '--query', corpus.word, '--from', corpus.pick],
         symbol: ['ask', 'symbol', '--name', corpus.symbol, '--from', corpus.pick],
+        packages: ['ask', 'packages'],
       };
       const answers = Object.entries(asks).map(([ask, args]) => {
         const runs = Array.from({ length: RUNS }, () => timed(() => cli(corpus.root, cache, args)));

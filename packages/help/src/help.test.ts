@@ -18,9 +18,9 @@ function call(name: string, args: Record<string, unknown> = {}): string {
   return tool.run(READING, args);
 }
 
-describe('the first question', () => {
+describe('the question that takes no argument', () => {
   it('answers with the specifiers every other tool takes as an argument', () => {
-    // The whole reason this tool is first. A model that has to guess a package
+    // The whole reason this tool takes no argument. A model that has to guess a package
     // name to ask anything will guess, and a wrong guess reads exactly like a
     // workspace that does not publish the thing.
     const text = call('docs_packages');
@@ -30,7 +30,7 @@ describe('the first question', () => {
   });
 
   it('says how much of each door is used and documented', () => {
-    expect(call('docs_packages')).toMatch(/alpha — \d+ names, \d+ imported elsewhere, \d+ documented/);
+    expect(call('docs_packages')).toMatch(/alpha — \d+ names?, \d+ imported elsewhere, \d+ documented/);
   });
 
   it('reports a specifier that reaches past a published entrypoint', () => {
@@ -39,7 +39,11 @@ describe('the first question', () => {
       deep: [{ specifier: 'alpha/values', by: 'beta', at: 'packages/beta/src/index.ts', line: 2, names: [] }],
     };
     const tool = HELP_TOOLS.find((candidate) => candidate.name === 'docs_packages')!;
-    expect(tool.run(reaching, {})).toContain('alpha/values — beta at packages/beta/src/index.ts:2');
+    expect(tool.run(reaching, {})).toMatch(/^ {2}alpha — 1 import$/m);
+    expect(tool.run(reaching, {})).toMatch(/^ {2}variance ask entrypoint --package alpha$/m);
+    const door = HELP_TOOLS.find((candidate) => candidate.name === 'docs_entrypoint')!;
+    expect(door.run(reaching, { package: 'alpha' })).toContain('  alpha/values — 0 names, imported by 1 file');
+    expect(door.run(reaching, { package: 'alpha/values' })).toMatch(/^ {2}the whole module, no name read — imported by 1 file$/m);
   });
 
   it('says when a file could not be read, because a missed import makes a live name look dead', () => {

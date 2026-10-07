@@ -19,6 +19,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { CasesEntered, ExternalOrientation, JourneysAround, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
+import { narrower, plural, shell } from './format.js';
 import { formatJourneys } from './orient-journeys-format.js';
 
 /** Everything an orientation answer is made of. */
@@ -34,8 +35,6 @@ export interface OrientReading {
   readonly journeysUnread?: string;
 }
 
-const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
-
 /** Below this many uses in a denominator a percentage says less than the count does, so only the count is printed. */
 export const SHARE_FLOOR = 10;
 
@@ -48,11 +47,6 @@ export function counted(share: number, uses: number, of: number): string {
 export function percent(share: number): string {
   const whole = Math.round(share * 100);
   return whole === 0 && share > 0 ? '<1%' : `${whole}%`;
-}
-
-/** An argument a shell passes through unchanged, quoted only when it would not be. */
-function shell(value: string): string {
-  return /^[\w@./:=+-]+$/u.test(value) ? value : `'${value.replace(/'/gu, `'\\''`)}'`;
 }
 
 /** A name as a reader would look for it: `*` is the whole module, not a name. */
@@ -254,6 +248,6 @@ export function formatOrientation(reading: OrientReading): string {
     ...external(reading),
     ...cases(reading),
     ...(reading.journeysUnread === undefined ? formatJourneys(reading.journeys ?? []) : ['', `Journeys: not read: ${reading.journeysUnread.replace(/\.$/u, '')}.`]),
-    ...(asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)]),
+    ...narrower(asks),
   ].join('\n');
 }

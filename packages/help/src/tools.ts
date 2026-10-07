@@ -16,11 +16,12 @@ import { uses } from './tools/uses.js';
 /**
  * The questions, and the order they are meant to be asked in.
  *
- * `docs_packages` needs nothing and answers with the arguments the next call
- * takes; `docs_entrypoint` and `docs_search` narrow to a name; `docs_symbol`
- * spends the length. That shape is the whole design: a model that has to guess
- * a package name to ask its first question will guess, and a wrong guess costs
- * a turn and reads exactly like a workspace that does not publish the thing.
+ * `docs_packages` needs nothing and counts, one row per package or specifier,
+ * each row the argument `docs_entrypoint` takes; `docs_entrypoint` and
+ * `docs_search` narrow to a name; `docs_symbol` spends the length. That shape is
+ * the whole design: a model that has to guess a package name to ask its first
+ * question will guess, and a wrong guess costs a turn and reads exactly like a
+ * workspace that does not publish the thing.
  *
  * `docs_uses` follows `docs_symbol` because it is the other half of one
  * question. A signature says what a name is *supposed* to be; where the

@@ -3,8 +3,8 @@ import { realpathSync } from 'node:fs';
 import { readHelp, sourceIndexPath } from '@variance-authority/sense';
 
 import {
+  readImportTargets,
   readOfferings,
-  readUnentered,
   type Deep,
   type Help,
   type HelpOptions,
@@ -67,7 +67,7 @@ export async function refreshWorkspaceFromIndex(
   if (kept !== undefined && workspaceIndexDigest(documented) === indexDigest) return kept;
   let reading: Awaited<ReturnType<typeof readHelp>>;
   try {
-    reading = await readHelp(scope.root, opened, readUnentered(where), index);
+    reading = await readHelp(scope.root, opened, readImportTargets(where), index);
   } catch {
     return undefined;
   }
@@ -87,6 +87,7 @@ export async function refreshWorkspaceFromIndex(
     names,
     deep: read.deep.map(byPathOf),
     byPath: read.byPath.map(byPathOf),
+    unfollowed: read.unfollowed.map(byPathOf),
     exported: [],
     unreadable: read.unreadable,
   };
@@ -106,6 +107,7 @@ export async function refreshWorkspaceFromIndex(
       packages: JSON.stringify(help.packages),
       deep: JSON.stringify(help.deep),
       byPath: JSON.stringify(help.byPath),
+      unfollowed: JSON.stringify(help.unfollowed),
       unreadable: JSON.stringify(help.unreadable),
       published: publishedRows(help),
     });

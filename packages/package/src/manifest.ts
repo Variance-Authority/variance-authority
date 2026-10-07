@@ -1,11 +1,10 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { legacyEntry, unentered } from './entry.js';
-import { subpathsOf } from './exports.js';
+import { type ImportTargets, declaresEntry, entrySubpaths, importTargets, isPublished } from './entry.js';
 import { members } from './members.js';
 
-export { publishes, requested } from './exports.js';
+export { requested } from './exports.js';
 
 /**
  * What a workspace publishes, read from the manifests rather than from a build.
@@ -54,6 +53,8 @@ export interface Offering {
   readonly name: string;
   readonly dir: string;
   readonly declared: Readonly<Record<string, unknown>>;
+  /** Whether the manifest declares an entry, by {@link declaresEntry}: read from the whole manifest, whichever keys `declared` records. */
+  readonly entry: boolean;
   readonly entrypoints: readonly Entrypoint[];
   /** Published subpaths whose source could not be established. */
   readonly unreadable?: readonly string[];
@@ -400,12 +401,9 @@ function followed(dir: string, condition: unknown, custom: ReadonlySet<string>):
   return condition;
 }
 
-/**
- * The workspace packages that declare no entry, private or not, as
- * {@link unentered} reads them.
- */
-export function readUnentered(root: string): ReadonlySet<string> {
-  return unentered(members(resolve(root), read).map((path) => read(path)));
+/** The workspace packages an import between packages is followed into, as {@link importTargets} reads them. */
+export function readImportTargets(root: string): ImportTargets {
+  return importTargets(members(resolve(root), read).map((path) => read(path)));
 }
 
 /**
@@ -423,7 +421,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
 
   for (const path of members(resolve(root), read)) {
     const manifest = read(path);
-    if (manifest['private'] === true || typeof manifest['name'] !== 'string') continue;
+    if (!isPublished(manifest)) continue;
 
     const dir = dirname(path);
     const declared: Record<string, unknown> = {};
@@ -433,7 +431,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
     const unreadable: string[] = [];
     let subpaths: readonly (readonly [string, unknown])[] = [];
     try {
-      subpaths = manifest['exports'] === undefined ? legacyEntry(manifest) : subpathsOf(path, manifest['exports']);
+      subpaths = entrySubpaths(path, manifest);
     } catch (error) {
       if (options.tolerant !== true) throw error;
       unreadable.push(`${manifest['name']} — ${error instanceof Error ? error.message : String(error)}`);
@@ -463,6 +461,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
       name: manifest['name'],
       dir,
       declared,
+      entry: declaresEntry(manifest),
       entrypoints,
       ...(unreadable.length === 0 ? {} : { unreadable }),
     });
