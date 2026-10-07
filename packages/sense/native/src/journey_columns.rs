@@ -152,8 +152,9 @@ impl Head {
         self.sections
             .into_iter()
             .map(|section| {
-                let end = section.offset.checked_add(section.length).filter(|end| base + *end <= length)?;
-                Some(Placed { name: section.name, width: section.width, rows: section.rows, stored: base + section.offset..base + end })
+                let start = base.checked_add(section.offset)?;
+                let end = start.checked_add(section.length).filter(|end| *end <= length)?;
+                Some(Placed { name: section.name, width: section.width, rows: section.rows, stored: start..end })
             })
             .collect()
     }

@@ -170,3 +170,12 @@ fn refuses_what_it_cannot_read_in_the_reader_s_words() {
     let refused = Coverage::open(&b"nonsense".to_vec(), 8).err().unwrap();
     assert_eq!(refused.reason, "not a variance-authority test coverage artifact");
 }
+
+#[test]
+fn refuses_a_section_placed_past_the_end_of_the_address_space() {
+    let header = format!(r#"{{"version":10,"sections":[{{"name":"modules","offset":{},"length":5,"width":1}}]}}"#, usize::MAX - 5);
+    let mut bytes = (header.len() as u32).to_le_bytes().to_vec();
+    bytes.extend_from_slice(header.as_bytes());
+    let refused = Coverage::open(&bytes, bytes.len()).err().unwrap();
+    assert_eq!(refused.reason, "not a variance-authority test coverage artifact");
+}
