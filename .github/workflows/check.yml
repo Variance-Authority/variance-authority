@@ -24,8 +24,12 @@ on:
   # request laid on `main` and the groups queued ahead of it. With `check`
   # required on `main`, the queue merges a group only when it is green, so two
   # pull requests green on their own bases cannot break what `check` tests
-  # together through the queue. A group runs every file, as a push to `main`
-  # does, and publishes nothing.
+  # together through the queue. A group runs the `queue` job alone: lint, the
+  # repository's rules and the tests within two imports of what the group
+  # changes, `verify:near`'s wave. Every pull request in it already ran its own
+  # whole selection, and the push to `main` after it runs every file, so the
+  # queue asks only whether the group's changes break each other's neighbours.
+  # It publishes nothing.
   merge_group:
   workflow_dispatch:
 
@@ -50,7 +54,8 @@ jobs:
     # The repository's own rules, read as data: lint, and the `tools/*.check.ts`
     # suite. The cheapest failures there are, so they report while the suite is
     # still installing. The native crate's unit tests run last, for the reason
-    # written at their step.
+    # written at their step. A merge group runs `queue` instead.
+    if: github.event_name != 'merge_group'
     runs-on: ubuntu-24.04
 
     steps:
@@ -152,9 +157,8 @@ jobs:
       #
       # The toolchain file names `stable`, not a version, so a Rust release can
       # change the answer with no file moving. A push to `main` therefore always
-      # runs, and so do a merge group, which this step reads no base for, and a
-      # pull request whose base cannot be read: a base that is not there is not
-      # a base that matches.
+      # runs, and so does a pull request whose base cannot be read: a base that
+      # is not there is not a base that matches.
       - name: native unit tests
         if: ${{ !cancelled() }}
         shell: bash
@@ -185,6 +189,9 @@ jobs:
     # Timed on a machine nothing else is running on. The suite instruments every
     # module it loads and heats the machine doing it, so a bound on what the
     # product costs is read in its own job rather than after three hundred files.
+    # A merge group times nothing: no group's change moves a bound the pull
+    # requests in it did not already move.
+    if: github.event_name != 'merge_group'
     runs-on: ubuntu-24.04
 
     steps:
@@ -217,7 +224,9 @@ jobs:
     # to `main` can move it while this run's suite jobs are starting. Read by
     # each job on its own, two jobs of one run read two records, select from
     # two bases, and hand on records `record` then refuses to fold. Read here
-    # once, every job lays the same base.
+    # once, every job lays the same base. A merge group's one `queue` job reads
+    # the line for itself, so `base` and the jobs that need it do not run there.
+    if: github.event_name != 'merge_group'
     runs-on: ubuntu-24.04
     # Whether the upload made an artifact. The artifact's id rather than the
     # step's outcome, for the reason written at the same output in `record`:
@@ -501,11 +510,11 @@ jobs:
       # wave spends minutes saying less. The near wave records over the base,
       # so the far wave reads the tests it ran as run at this commit.
       #
-      # A push to `main`, a merge group and a dispatch run every file. That is
-      # the gate a selection is a smaller claim than, and on a push it is what
-      # the record `main` publishes is cut from: every file observed at
-      # `main`'s own commit, so the next pull request selects from rows no older
-      # than its base. A merge group publishes nothing. A shard of it records
+      # A push to `main` and a dispatch run every file. That is the gate a
+      # selection is a smaller claim than, and on a push it is what the record
+      # `main` publishes is cut from: every file observed at `main`'s own
+      # commit, so the next pull request selects from rows no older than its
+      # base. A shard of it records
       # into `shard-record/`, a cache of its own named by
       # `VARIANCE_AUTHORITY_CACHE`, so its record holds its own run alone and
       # `record` below can fold the shards over the base.
@@ -561,7 +570,7 @@ jobs:
     # `publish`. It runs when a suite job failed too, for the reason written
     # at the upload steps above.
     needs: [base, suite]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.event_name != 'merge_group' }}
     runs-on: ubuntu-24.04
     outputs:
       shared: ${{ steps.carry.outputs.shared-suites }}
@@ -602,8 +611,7 @@ jobs:
       #
       # The base: on a pull request the checkout is the merge of its head into
       # the base, and the merge's first parent is the base tip, so the change is
-      # the pull request's own. On a push it is the commit the push replaced. In
-      # a merge group it is the commit the group is laid on.
+      # the pull request's own. On a push it is the commit the push replaced.
       - name: what to carry
         id: carry
         shell: bash
@@ -1002,14 +1010,105 @@ jobs:
         shell: bash
         run: yarn test:unit cases && yarn test:chromium cases
 
-  # The one check a branch rule names, and the one line that combines the three
-  # above. `needs` alone would skip this job when one of them failed, and a
-  # skipped job counts as passing to a branch rule — so it runs `always()` and
-  # turns every harness's result into its own colour. Anything but `success`
-  # is red, `cancelled` and `skipped` included: a harness that did not finish
-  # said nothing about the change.
+  queue:
+    # A merge group's gate, and the only job a group runs: lint, the
+    # repository's rules, then the tests within two imports of what the group
+    # changes, the wave `verify:near` runs on a laptop. The whole gate took
+    # thirteen minutes a group, four of them `base` building before any test
+    # started, and it answered again what each pull request in the group had
+    # already answered on its own base.
+    #
+    # One job, so no `base` to hand a read to: it reads the mainline itself, as
+    # a laptop does, and selects from it. The group's commit is `main` with the
+    # pull requests laid on it, so the selection is what they changed together
+    # since the record was published. A slice whose record is not read runs
+    # whole and says why. In the Playwright image, for the reason written at
+    # `suite`: the near wave includes chromium files.
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --ipc=host
+
+    steps:
+      # For the reason written at the same step in `cases`.
+      - name: version control and compiler
+        shell: bash
+        run: apt-get update && apt-get install -y --no-install-recommends git build-essential curl ca-certificates
+
+      # Every commit, for the reason written at the checkout in `suite`.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+          persist-credentials: false
+
+      # Node 24, for the reason written at the same step in `rules`.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: rust
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      # For the reason written at the same step in `cases`.
+      - name: trust the workspace
+        shell: bash
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      - name: lint
+        shell: bash
+        run: yarn lint
+
+      - name: check
+        shell: bash
+        run: yarn check
+
+      # Each shared suite's mainline record, laid as `suite` lays one slice's.
+      - name: keep the base records
+        shell: bash
+        run: |
+          node --input-type=module -e "
+            const cli = await import('@variance-authority/cli');
+            const selection = await import('@variance-authority/sense/test-selection');
+            const root = process.cwd();
+            for (const { name, carry } of selection.declaredSuites(root) ?? []) {
+              if (carry !== 'share') continue;
+              const base = await cli.suiteBase(root, { suite: name });
+              if (base.from === 'mainline') {
+                await cli.layMainline(root, base.mainline);
+                console.error(cli.mainlineRead(base.mainline));
+              } else if ('missed' in base && base.missed !== undefined) {
+                console.error(cli.mainlineMissed(base.missed));
+              }
+            }
+          "
+
+      - name: near tests
+        shell: bash
+        run: |
+          yarn variance index
+          VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test
+
+  # The one check a branch rule names, and the one line that combines the
+  # harnesses its event runs: `queue` for a merge group, the other five for
+  # everything else. `needs` alone would skip this job when one of them failed,
+  # and a skipped job counts as passing to a branch rule — so it runs
+  # `always()` and turns every harness's result into its own colour. Anything
+  # but `success` is red, `cancelled` and `skipped` included: a harness that did
+  # not finish said nothing about the change. The jobs the event does not run
+  # are skipped on purpose and are not read.
   check:
-    needs: [rules, measure, base, suite, record]
+    needs: [rules, measure, base, suite, record, queue]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
@@ -1017,10 +1116,17 @@ jobs:
         shell: bash
         env:
           RESULTS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          failed=$(echo "$RESULTS" | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key): \(.value.result)"')
-          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if [ "$EVENT" = merge_group ]; then
+            gate='["queue"]'
+          else
+            gate='["rules","measure","base","suite","record"]'
+          fi
+          read=$(echo "$RESULTS" | jq -c --argjson gate "$gate" 'with_entries(select(.key as $k | $gate | index($k)))')
+          failed=$(echo "$read" | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key): \(.value.result)"')
+          echo "$read" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           if [ -n "$failed" ]; then
             echo "::error::not every harness passed — $(echo "$failed" | paste -sd, -)"
             exit 1
