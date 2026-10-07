@@ -135,6 +135,14 @@ describe('docs_entrypoint on a package other packages import by path', () => {
     expect(text).toMatch(/^ {2}variance ask uses --name roundTax --package @acme\/lib\/src\/internal\/math$/m);
   });
 
+  it('counts no name for an import that holds the module whole, as the per-name answer counts it', () => {
+    const help = { ...BY_PATH, byPath: [...BY_PATH.byPath, importOf('@acme/kit/src/money/tax', '@acme/app', 'apps/app/src/whole.ts', ['*'])] };
+    const text = entrypoint.run(help, { package: '@acme/kit' });
+
+    expect(text).toMatch(/ Other packages import 2 names from 2 of its files by path, most imported first:$/m);
+    expect(text).toContain('  @acme/kit/src/money/tax — 1 name, imported by 2 files');
+  });
+
   it('says the counts are floors when a file could not be read', () => {
     const text = entrypoint.run({ ...BY_PATH, unreadable: ['apps/app/src/broken.ts'] }, { package: '@acme/lib' });
 

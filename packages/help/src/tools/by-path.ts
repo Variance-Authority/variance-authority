@@ -103,14 +103,17 @@ export function takenByPath(help: Help): ReadonlyMap<string, readonly Deep[]> {
   return taken;
 }
 
-/** The names and files `imports` take: a name counted once per file that exports it, a file once. */
+/**
+ * The names and files `imports` take: a name counted once per file that exports
+ * it, a file once. A module held whole is not a name, as {@link isName} says.
+ */
 export function tally(imports: readonly Deep[]): { readonly names: number; readonly files: number } {
   const pairs = new Set<string>();
   const files = new Set<string>();
   for (const held of imports) {
     const file = held.to ?? held.specifier;
     files.add(file);
-    for (const taken of held.names) pairs.add(`${file}\0${taken.name}`);
+    for (const taken of held.names) if (isName(taken.name)) pairs.add(`${file}\0${taken.name}`);
   }
   return { names: pairs.size, files: files.size };
 }
