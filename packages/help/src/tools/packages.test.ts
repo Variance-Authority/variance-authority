@@ -112,6 +112,14 @@ describe('docs_packages', () => {
     expect(packages.run(BY_PATH, {})).not.toContain('could not follow');
   });
 
+  it('names a package whose entry it could not follow only when imports reach past that entry', () => {
+    const text = packages.run({ ...QUIET, deep: BY_PATH.deep }, {});
+
+    expect(text).toMatch(/could not follow to a source file.*\n {2}@acme\/quiet — 1 import$/m);
+    expect(text).toMatch(/^ {2}variance ask entrypoint --package @acme\/lib$/m);
+    expect(text).not.toMatch(/^ {2}variance ask entrypoint --package @acme\/quiet$/m);
+  });
+
   it('is as long for a hundred imports of each file as for one', () => {
     expect(packages.run(busier(100), {}).split('\n')).toHaveLength(packages.run(BY_PATH, {}).split('\n').length);
   });

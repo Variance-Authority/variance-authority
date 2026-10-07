@@ -1,4 +1,3 @@
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { NO_ARGS } from '@variance-authority/mcp/tools';
 import type { Documented, Help } from '@variance-authority/package/help';
@@ -100,10 +99,11 @@ export const packages: Tool<Help> = {
 };
 
 /**
- * Of the packages whose entry leads to no file, the one with the most imports
- * past it, ties and packages nothing imports in code-unit order.
+ * Of the packages whose entry this reading could not follow, the one with the
+ * most imports past it, in the order `deep` counts them. None when no import
+ * reaches past any of them.
  */
 function mostReached(unfollowed: readonly Documented[], deep: readonly (readonly [string, number])[]): string | undefined {
   const names = new Set(unfollowed.map((published) => published.name));
-  return deep.find(([owner]) => names.has(owner))?.[0] ?? [...names].sort(codeUnitOrder)[0];
+  return deep.find(([owner]) => names.has(owner))?.[0];
 }
