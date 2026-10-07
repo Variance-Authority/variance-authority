@@ -90,7 +90,8 @@ export { keptTexts } from './kept-texts.js';
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
-export type { Bearing, DistanceOptions, Face, Faces, ReachThrough, TestDistance } from './distance.js';
+export type { Bearing, DistanceOptions, TestDistance } from './distance.js';
+export type { Face, Faces, ReachThrough } from './faces.js';
 export { selectedLines, type SuiteSelection } from './suite-selection.js';
 export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
