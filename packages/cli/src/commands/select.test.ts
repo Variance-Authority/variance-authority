@@ -198,13 +198,21 @@ describe('what reaches the runner', () => {
     );
   });
 
-  it('writes vitest exclusions against the place on disk, not the path the journal counts from', () => {
-    // A workspace is many vitest projects, and each one matches an exclude
-    // pattern against its own directory. A pattern relative to the repository
-    // root matches inside none of them, and an exclusion that matches nothing
-    // is not an error in any runner — so a narrowed run would quietly be the
-    // whole suite.
-    expect(formatSelection(selection, 'vitest', '/repo')).toBe(
+  it('writes each vitest exclusion from the directory vitest runs in, and as the place on disk', () => {
+    // Vitest 2 matches an exclusion only relative to the project's directory;
+    // vitest 3 and later also match the absolute path, which is the only form
+    // that reaches every project of a workspace. An exclusion that matches
+    // nothing is not an error, so a narrowed run would quietly be the whole
+    // suite: each file goes out in both forms.
+    expect(formatSelection(selection, 'vitest', '/repo', '/repo/test')).toBe(
+      '--exclude=alpha.test.ts\n--exclude=/repo/test/alpha.test.ts\n--exclude=gamma.test.ts\n--exclude=/repo/test/gamma.test.ts\n',
+    );
+  });
+
+  it('writes only the place on disk for a vitest run from outside the file', () => {
+    // A project rooted in `/repo/src` globs nothing under `/repo/test`, and a
+    // `../` pattern is one no glob of that project ever produces.
+    expect(formatSelection(selection, 'vitest', '/repo', '/repo/src')).toBe(
       '--exclude=/repo/test/alpha.test.ts\n--exclude=/repo/test/gamma.test.ts\n',
     );
   });

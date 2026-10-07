@@ -113,7 +113,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   const found = request.execution === undefined ? await recordedOrMainline(request) : { at: request.execution, held: true };
   const { at, source } = found;
   const said = (input: Parameters<typeof saidOf>[0], root = request.cwd) =>
-    saidOf(source === undefined ? input : { ...input, source }, { ...request, cwd: root });
+    saidOf(source === undefined ? input : { ...input, source }, request, root);
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to
@@ -449,10 +449,11 @@ async function stdin(): Promise<string> {
 function saidOf(
   input: SelectInput,
   request: { readonly format: SelectFormat; readonly cwd: string; readonly atDistance?: Leg },
+  root = request.cwd,
 ): SelectOutput {
   const selection = inLeg(skippableTests(input), input, request.atDistance);
   return {
-    out: formatSelection(selection, request.format, request.cwd),
+    out: formatSelection(selection, request.format, root, request.cwd),
     err: selectionNotes(selection),
   };
 }

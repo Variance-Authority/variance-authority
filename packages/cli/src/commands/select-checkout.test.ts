@@ -340,7 +340,7 @@ describe('reading this checkout', () => {
     const said = await selectOutput({ cwd: root, format: 'vitest' });
 
     expect(said.out).toBe(
-      ['alpha', 'beta', 'gamma'].map((name) => `--exclude=${join(root, `test/${name}.test.ts`)}\n`).join(''),
+      ['alpha', 'beta', 'gamma'].map((name) => `--exclude=test/${name}.test.ts\n--exclude=${join(root, `test/${name}.test.ts`)}\n`).join(''),
     );
     expect(said.err).not.toContain('skipping nothing');
     expect(said.err).not.toContain('records nothing about');
@@ -350,6 +350,7 @@ describe('reading this checkout', () => {
   it('hands vitest paths from the top of the checkout when run from a directory inside it', async () => {
     // The journal names files from the top, so an exclude resolved against `src/`
     // names `src/test/alpha.test.ts`, which is no file, and the run skips nothing.
+    // The tests lie outside `src/`, so only the place on disk is written.
     const { root, head } = checkout();
     await writeTestCoverage(testCoverageFile(root), snapshot(head));
     writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));

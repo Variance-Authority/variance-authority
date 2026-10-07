@@ -1621,9 +1621,12 @@ back empty would run nothing, and the suite would go green in seconds.
 So stdout gets paths and nothing else, and every sentence about the reading
 goes to stderr, where a `$(...)` cannot pick it up and hand it to a runner as a
 path. `--format plain` writes one path per line, relative to the repository;
-`vitest` writes `--exclude=` arguments naming each file's absolute path, because
-a workspace is many projects and a project matches an exclude pattern against
-its own directory rather than the root the journal counts from; `jest` writes
+`vitest` writes two `--exclude=` arguments for each file: its path from the
+directory `select` runs in, which every vitest matches in a project rooted there,
+and its absolute path, which vitest 3 and later match in every project of a
+workspace. Run `select` where vitest runs, and when your config moves `root` or
+`test.dir`, from that directory:
+`vitest run $(cd packages/app && variance select --format vitest)`. `jest` writes
 `--testPathIgnorePatterns=` arguments and re-states jest's `/node_modules/`
 default, which that flag would otherwise replace. `--format json` reports the
 counts and the widening reason together for a program that decides for
