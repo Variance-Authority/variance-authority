@@ -3,14 +3,17 @@
 // where the text standing now holds regions no run was ever cut over.
 
 import { describe, expect, it } from 'vitest';
-import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
+import { INSTRUMENTATION_ID, instrument, instrumentModeOf } from '../instrument/index.js';
 import { changedLines } from './diff-lines.js';
 import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
-import { coverageBlock } from './coverage-rows.js';
+import { coverageBlock, coverageBlocks } from './coverage-rows.js';
+import { editKey } from './edit-readings.js';
+import { digestString } from '../digest.js';
 import { recutRows } from './merge-carry.js';
 import { mergeCoverage } from './merge.js';
 import { narrowByExecutionFromView } from './select.js';
+import { sourceLines } from './source-lines.js';
 import type { CoverageModule, TestCoverage } from './index.js';
 
 const BASELINE = '1111111111111111111111111111111111111111';
@@ -103,8 +106,9 @@ describe('carrying crossings onto repeated addresses', () => {
     // carrying by the address alone hands both previous rows to the first effect
     // and beta ends up recorded against both bodies while alpha is recorded
     // against neither. Nothing reports it: alpha still holds the module and the
-    // component entry, so it is not a mislaid test and stays whole, and a diff
-    // inside the first effect skips the test that entered it.
+    // component entry, so it is not a mislaid test, and a diff inside the first
+    // effect skips the test that entered it. Both are demoted for the line the
+    // module gained, which neither ran; the placement is what this pins.
     const merged = mergeCoverage(
       widget(BASELINE, WIDGET, [BOTH, BOTH, ['test/alpha.test.ts'], ['test/beta.test.ts']]),
       {
@@ -123,7 +127,7 @@ describe('carrying crossings onto repeated addresses', () => {
 
     expect(effects(merged)).toEqual([['test/alpha.test.ts'], ['test/beta.test.ts']]);
     expect(merged.modules[0]?.blocks.map((block) => block.startLine)).toEqual([1, 3, 4, 8]);
-    expect(merged.tests.every((test) => test.complete)).toBe(true);
+    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual(BOTH);
   });
 
   it('demotes a carried test whose region was edited under a run that did not observe it', () => {
@@ -265,7 +269,8 @@ describe('re-cutting over text a region was written into', () => {
     // was last recorded, and the diff is inside it. Answered with the empty the
     // re-cut invented, cart is in the caller's skip list over a change to the
     // only code it covers — and stays there for every later diff, because the
-    // row holding the invention is stamped with the text standing now.
+    // row holding the invention is stamped with the text standing now. Cart is
+    // also demoted, for `surcharge` itself, which it never ran.
     const merged = mergeCoverage(
       suite(rules(V1, [CART])),
       {
@@ -280,7 +285,107 @@ describe('re-cutting over text a region was written into', () => {
     const answer = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(merged)), EDIT);
 
     expect([...changedLines(EDIT).get(RULES) ?? []]).toEqual([{ start: 9, end: 9 }]);
-    expect(answer.whole).toEqual([CART, OTHER]);
+    expect(answer.whole).toEqual([OTHER]);
     expect(answer.entered).toEqual([CART]);
+  });
+});
+
+const PRICING = 'src/pricing.ts';
+
+/** Two functions, each entered by its own test. */
+const PRICED = `export function price(order) {
+  return order.total;
+}
+
+export function label(order) {
+  return order.name;
+}
+`;
+
+/**
+ * `src/pricing.ts` cut from `source` as the landing cuts it, each function's
+ * region entered by the test `entered` names for it and the module by all of
+ * them.
+ */
+function pricing(source: string, entered: Readonly<Record<string, string>>): CoverageModule {
+  const fresh = instrument(source, PRICING, PRICING, { mode: instrumentModeOf(INSTRUMENTATION_ID)! })!;
+  const rows = coverageBlocks(fresh.blocks, { extentOf: sourceLines(source, undefined, PRICING), text: source });
+  return {
+    file: PRICING,
+    sourceDigest: fresh.sourceDigest,
+    instrumented: true,
+    blocks: rows.map((row) => ({
+      ...row,
+      testFiles: row.kind === 'module' ? Object.values(entered).sort() : [entered[row.name]].filter((test) => test !== undefined),
+    })),
+  };
+}
+
+describe('re-cutting over an edited body', () => {
+  it('demotes the test on the region whose text moved, and only that one', () => {
+    // A run of a third test lands while `price`'s body is edited on disk and
+    // loads nothing of `src/pricing.ts`. The landing re-cuts the module in the
+    // edited text and keeps that text, so the next selection reads no diff
+    // there: cart ran the old body of `price` and nothing has run the new one,
+    // and only a demotion still runs it. `label` is the text other ran, as it
+    // stands.
+    const previous: TestCoverage = {
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: BASELINE,
+      tests: [CART, OTHER].map((file) => ({ file, complete: true, preconditions: [] })),
+      modules: [pricing(PRICED, { price: CART, label: OTHER })],
+    };
+    const merged = mergeCoverage(previous, {
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: LOCAL,
+      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    }, new Map([[PRICING, PRICED.replace('return order.total;', 'return order.total * 2;')]]));
+
+    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toEqual([CART]);
+  });
+
+  it('demotes nobody over an edit the selector reads as running nothing differently', () => {
+    // A comment moves the digest of the region it is written in, and the
+    // selector, reading the two texts, finds the program they run equal.
+    const edited = PRICED.replace('  return order.total;', '  // the total, taxes included\n  return order.total;');
+    const merged = mergeCoverage({
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: BASELINE,
+      tests: [CART, OTHER].map((file) => ({ file, complete: true, preconditions: [] })),
+      modules: [pricing(PRICED, { price: CART, label: OTHER })],
+    }, {
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: LOCAL,
+      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    }, new Map([[PRICING, edited]]), new Map([[editKey(PRICING, digestString(PRICED), digestString(edited)), 'none']]));
+
+    expect(merged.tests.filter((test) => !test.complete)).toEqual([]);
+  });
+
+  it('demotes a test the edit left with no region at all', () => {
+    // `other` entered `label` alone, and the edit deleted `label`: no region of
+    // the text standing now holds `other`, so no diff could reach it again.
+    const priced = pricing(PRICED, { price: CART, label: OTHER });
+    const merged = mergeCoverage({
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: BASELINE,
+      tests: [CART, OTHER].map((file) => ({ file, complete: true, preconditions: [] })),
+      modules: [{ ...priced, blocks: priced.blocks.map((row) => (row.kind === 'module' ? { ...row, testFiles: [CART] } : row)) }],
+    }, {
+      version: 3,
+      instrumentation: INSTRUMENTATION_ID,
+      commit: LOCAL,
+      tests: [{ file: 'test/third.test.ts', complete: true, preconditions: [] }],
+      modules: [],
+    }, new Map([[PRICING, PRICED.slice(0, PRICED.indexOf('export function label'))]]));
+
+    expect(merged.tests.filter((test) => !test.complete).map((test) => test.file)).toContain(OTHER);
   });
 });

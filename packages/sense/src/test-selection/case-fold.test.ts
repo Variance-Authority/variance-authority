@@ -15,7 +15,7 @@ import type { CapturedModule } from './instrumented-modules.js';
 import type { ExecutionIndex } from './reverse.js';
 import preconditions from './case-preconditions.cjs';
 import journalFormat from './journal-format.cjs';
-import { frameRecord, segmentHeader } from './record-format.js';
+import { nativeModule } from './jest-journey-artifact.js';
 
 const temporary: string[] = [];
 
@@ -71,18 +71,15 @@ async function directory(): Promise<string> {
   return cases;
 }
 
-/** A record store beside `cases` holding `src/branch.ts`, three regions. */
-async function branchStore(cases: string): Promise<{ store: string; module: CapturedModule }> {
-  const store = resolve(cases, '..', 'store');
-  await mkdir(store);
+/** `src/branch.ts`, three regions. */
+function branchModule(): CapturedModule {
   const blocks = captured('src/branch.ts', 'src/branch.ts', 3).blocks;
   const module: CapturedModule = {
     ...captured('src/branch.ts', 'src/branch.ts', 3),
     sourceDigest: digestString('source'),
     blocks: blocks.map((block) => ({ ...block, digest: digestString(`block-${block.ordinal}`) })),
   };
-  await writeFile(resolve(store, 'one.rec'), Buffer.concat([segmentHeader('sense:instrument/presence-v5'), frameRecord(module)]));
-  return { store, module };
+  return module;
 }
 
 describe('the bounded case fold', () => {
@@ -284,14 +281,14 @@ describe('the bounded case fold', () => {
 
   it.runIf(nativeAvailable())('refuses a repeated name numbered onto a case literally named so, as the native fold does', async () => {
     const cases = await directory();
-    const { store } = await branchStore(cases);
+    const module = branchModule();
     const branch = (name: string, id: string) =>
       journalFormat.encodeJournal(packCase('/repo/test/branch.test.ts', name, id), new Map([['src/branch.ts', counters(3, [0])]]));
     await writeFile(resolve(cases, 'worker.vac'), packFrames([branch('pays', '0'), branch('pays', '1'), branch('pays#1', '2')]));
     const refusal = 'cannot number the cases of test/branch.test.ts: "pays#1" is the name of one case and the number of a repeated "pays". Rename one of them.';
 
     await expect(inspectCaseRun(cases, '/repo')).rejects.toThrow(refusal);
-    expect(() => native()!.foldJourney!(cases, '/repo', [store], 'sense:instrument/presence-v5', 1)).toThrow(refusal);
+    expect(() => native()!.foldJourney!(cases, '/repo', [nativeModule(module)], 1)).toThrow(refusal);
   });
 
   it('keeps the base under every invocation at one commit, and names it until a file runs again', async () => {

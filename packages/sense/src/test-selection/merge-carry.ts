@@ -15,11 +15,10 @@
  */
 
 import { digestString } from '../digest.js';
-import { instrument, instrumentModeOf } from '../instrument/index.js';
+import { instrumentModeOf } from '../instrument/index.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { coverageBlocks } from './coverage-rows.js';
-import { sourceLines } from './source-lines.js';
+import { sourceCut } from './coverage-rows.js';
 
 /**
  * A row with both crossing lists replaced, each distinct and in code-unit
@@ -327,6 +326,9 @@ export function crossingsAround(
  * {@link crossingsAround} — the alternative is a row saying nobody entered
  * lines nobody has measured.
  *
+ * The rows say nothing about who ran the edit; {@link owedByRecut} names the
+ * tests they owe a run.
+ *
  * `undefined` when there is nothing to re-cut: the text is the text the rows
  * were recorded over, or the module was recorded as not instrumented. The second
  * is the one worth naming — that row says this build never measured this module,
@@ -375,12 +377,9 @@ export function recutRows(
   if (!module.instrumented) return undefined;
   if (digestString(source) === module.sourceDigest) return undefined;
   const mode = instrumentModeOf(instrumentation);
-  const fresh = mode === undefined ? undefined : instrument(source, module.file, module.file, { mode });
+  const fresh = mode === undefined ? undefined : sourceCut(source, module.file, mode);
   if (fresh === undefined) return 'mislaid';
-  // One lookup for the whole module: the default counts newlines from the top
-  // of the file on every offset, and a module re-cut here asks twice per region.
-  const extentOf = sourceLines(source, undefined, module.file);
-  const rows = coverageBlocks(fresh.blocks, { extentOf, text: source });
+  const rows = fresh.rows;
   if (!sameNumbering(module.blocks, rows)) return 'mislaid';
   const before = new Map(addressed(module.blocks));
   // Rows by ordinal as they are decided, which is what a gained region reads its
@@ -410,19 +409,45 @@ export function recutRows(
 }
 
 /**
- * The tests the re-cut rows have nowhere to put a crossing for.
+ * The tests a re-cut leaves without a whole observation of the text it is cut
+ * from, which the caller demotes unless this run observed them.
  *
- * Losing one region is not losing a test. Arrival nests — a test that entered a
- * region entered every region around it, up to the module — so a test whose
- * function was deleted still has its crossing on whatever now spans the place
- * that function was, and a diff there still reaches it. A test is only mislaid
- * when the new text holds no region it is recorded against at all.
+ * A test on a region whose text moved never ran the text the rows now stand
+ * on. The re-cut rows carry the digest of the text standing now, the landing
+ * keeps that text, and selection frames the rows by it, so the next diff no
+ * longer holds the edit: undemoted, the test is skipped over a body it never
+ * ran. A region the text gained is edited text too, holding the crossings of
+ * the region around it. Both are decided by {@link editedRegion}, as a
+ * re-recorded module's are, so the two paths demote for the same edit.
+ *
+ * Neither demotes for a region `reaches` says the edit left alone, by the
+ * selector's verdict ({@link editReaches}): a type or a comment moves the
+ * digest of every region around it, and every test on those would otherwise be
+ * owed a run.
+ *
+ * A test the new text holds no region for at all is owed a run as well. Losing
+ * one region is not losing a test — arrival nests, so a deleted function's
+ * test keeps its crossing on whatever spans the place it was — but a test with
+ * no region left has nowhere a diff could reach it.
  */
-export function lostCrossings(before: CoverageModule, after: CoverageModule): readonly string[] {
+export function owedByRecut(
+  before: CoverageModule,
+  after: CoverageModule,
+  reaches: (kind: string) => boolean,
+): readonly string[] {
+  const previous = new Map(addressed(before.blocks));
+  const owed = new Set<string>();
+  for (const [address, row] of addressed(after.blocks)) {
+    const was = previous.get(address);
+    const unmoved = was !== undefined && reusableBlock(row, was) && !editedRegion(
+      { sourceDigest: after.sourceDigest, digest: row.digest },
+      { sourceDigest: before.sourceDigest, digest: was.digest },
+    );
+    if (!unmoved && reaches(row.kind)) for (const test of row.testFiles) owed.add(test);
+  }
   const kept = new Set(after.blocks.flatMap((block) => block.testFiles));
-  return [...new Set(before.blocks.flatMap((block) => block.testFiles))].filter(
-    (test) => !kept.has(test),
-  );
+  for (const block of before.blocks) for (const test of block.testFiles) if (!kept.has(test)) owed.add(test);
+  return [...owed];
 }
 
 /**

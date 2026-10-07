@@ -12,7 +12,8 @@
  */
 
 import { rm } from 'node:fs/promises';
-import { instrumentationId, type ModuleId } from '../instrument/index.js';
+import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
 import { landRun } from './commit-runs.js';
 import {
@@ -20,7 +21,6 @@ import {
   crossingsOf,
   loadedOf,
   projectPath,
-  readRecords,
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
@@ -62,15 +62,16 @@ export interface FoldDestination {
    */
   readonly shims: readonly string[];
   /**
-   * Where transforms in other processes wrote what their probes mean, for a
-   * run whose {@link SelectionRun.modules} nobody in this process filled.
+   * The probes were placed by transforms in other processes, so nobody in this
+   * one filled {@link SelectionRun.modules}: cut each module the journals name
+   * again from the checkout.
    *
-   * A journal that names a module no store answers for is a file whose reach
-   * is not known, so the file is recorded incomplete and the module left out,
-   * as the Jest reporter does. Without stores that is a lost identity, and it
-   * throws.
+   * A journal that names a module the checkout no longer has is a file whose
+   * reach is not known, so the file is recorded incomplete and the module left
+   * out, as the Jest reporter does. Without `derive` that is a lost identity,
+   * and it throws.
    */
-  readonly stores?: readonly (string | readonly string[])[];
+  readonly derive?: boolean;
   /** What a run that placed no module should check first, when the seam knows better than the default. */
   readonly unreached?: string;
 }
@@ -97,9 +98,9 @@ export function foldRun(
       ...await readJournals(runDirectory),
       ...finished.flatMap((file) => (file.journal === undefined ? [] : [file.journal])),
     ];
-    const placed = destination.stores === undefined
-      ? { journals: written, unplaced: new Set<string>() }
-      : await placeFrom(destination.stores, written, modules, root, instrumentationId(mode));
+    const placed = destination.derive === true
+      ? await placeFrom(written, modules, root, mode)
+      : { journals: written, unplaced: new Set<string>() };
     const { unplaced } = placed;
     // A file the run read twice is one record, and every row is read in it.
     const joined = joinReadings(modules);
@@ -184,24 +185,19 @@ export function foldRun(
 }
 
 /**
- * The records every journal names, read into the run, and the files whose
- * journal named one no store answers for.
- *
- * Read by the ids the journals name and no others: a store keeps every module
- * any earlier run transformed, and the run is about the ones this run's files
- * went through.
+ * Every module the journals name, cut again into the run, and the files whose
+ * journal named one the checkout no longer has.
  */
 async function placeFrom(
-  stores: readonly (string | readonly string[])[],
   journals: readonly ReadJournal[],
   modules: Map<ModuleId, CapturedModule>,
   root: string,
-  instrumentation: string,
+  mode: InstrumentMode,
 ): Promise<{ journals: readonly ReadJournal[]; unplaced: ReadonlySet<string> }> {
-  const read = await readRecords(
-    stores,
+  const read = await deriveModules(
+    root,
     journals.flatMap((journal) => journal.modules.map((entered) => entered.id)),
-    instrumentation,
+    mode,
   );
   for (const [id, module] of read) modules.set(id, module);
   const unplaced = new Set<string>();

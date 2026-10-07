@@ -129,7 +129,7 @@ import { testSelectionProbes } from '@variance-authority/sense/journal';
 export default {
   viteFinal: (config) => ({
     ...config,
-    plugins: [...config.plugins, testSelectionProbes({ label: 'storybook' })],
+    plugins: [...config.plugins, testSelectionProbes()],
   }),
 };
 ```
@@ -137,14 +137,19 @@ export default {
 `testSelectionProbes(options?: TestSelectionProbeOptions)` takes five optional
 fields: `root` (a directory in the repository, defaults to the current directory;
 recorded paths are relative to the checkout that contains it), `include`
-(which transformed modules count as product source), `label` (defaults to
-`build`, and separates two bundlers over one repository), `cacheRoot` (where
-the module records go, defaulting to [the cache](cache.md)), and `mode` (`presence`,
+(which transformed modules count as product source), `mode` (`presence`,
 the default, probes every arrival region; `entries` probes modules and functions
-only). Every seam that shares a coverage file needs the same `mode`: a record
-cut by one mode is discarded when the other merges over it. Give a Storybook preview
-and the application a Playwright suite drives different labels — one label for
-both answers a block ordinal with whichever build wrote its inventory last.
+only), and `journeys` with `label` (install a journey head named `label`,
+`build` by default, before anything the build instrumented runs). Every seam
+that shares a coverage file needs the same `mode`: a record cut by one mode is
+discarded when the other merges over it.
+
+The build writes nothing beside its output. Each probe reports the module's
+repository-relative file and a digest of the text the probe was placed on, and
+the driver reads that file from your checkout and cuts it into regions again. A
+file whose text no longer matches the digest is recorded as not instrumented,
+so a preview built from an older checkout widens selection instead of
+narrowing it.
 
 The flag alone records nothing: with `tests` on and no probes in the preview, the
 run prints one line to stderr saying so and continues, and the next `--since`
@@ -159,11 +164,10 @@ than empty when the reading was never taken.
 The instrumented build writes more than an uninstrumented one, and the driver
 does one extra thing at teardown.
 
-- **Extra artifacts.** Each instrumenting build keeps a store of module records
-  under its own `<label>`. A run in progress keeps a `.run-<pid>-<uuid>`
-  directory next to them until the reporter folds the journals into the
-  snapshot and removes it. All of this sits in the
-  cache directory rather than your work tree.
+- **Extra artifacts.** A run in progress keeps a `.run-<pid>-<uuid>`
+  directory in [the cache](cache.md) until the reporter folds the journals into
+  the snapshot and removes it. The instrumenting build writes nothing beside
+  its own output, and nothing lands in your work tree.
 - **Extra wall clock, at teardown.** Nothing in a head or a page writes a file
   during the run; the driver merges every journal into one snapshot after the
   suite finishes. [The execution record](execution-record.md) gives the cost of a
@@ -271,9 +275,10 @@ export function handled(cookie, run) {
 on from `VARIANCE_AUTHORITY_JOURNEYS`, so that `env` block is the whole of the
 configuration on the service side. With neither set, it installs nothing and
 `enter` is the identity function — which is why the call above ships to
-production rather than sitting behind a build flag. The name must match the
-`label` that service's build gave `testSelectionProbes()`; an ordinal means
-something only against the record that minted it.
+production rather than sitting behind a build flag. Each module the head
+reports names its file and the digest of the text its probes were placed on, and
+the driver cuts that file again from your checkout to learn what each ordinal
+means.
 
 `heads` is empty by default, and empty is the ordinary case. A Storybook preview
 or a Vitest file is one process, the realm that executes is the realm that is

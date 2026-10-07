@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -108,17 +108,8 @@ describe('the Jest integration', () => {
     await expect(readFile(resolve(directory, 'user-reporter.txt'), 'utf8')).resolves.toBe('ran\n');
 
     // A warm run: Jest serves the probed text from its cache without calling
-    // the transformer, and the inventory written beside it still attributes.
-    const inventories = resolve(cacheDirectory, 'variance-authority-test-selection');
-    const written = async (): Promise<Record<string, number>> => Object.fromEntries(
-      await Promise.all((await readdir(inventories)).map(async (name) => [
-        name,
-        (await stat(resolve(inventories, name))).mtimeMs,
-      ])),
-    );
-    const before = await written();
+    // the transformer, and the checkout still says what the probes meant.
     await run('test/alpha.case.ts');
-    expect(await written()).toEqual(before);
     await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([at('test/alpha.case.ts')]);
   }, 120_000);
 

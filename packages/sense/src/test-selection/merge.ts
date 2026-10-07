@@ -10,6 +10,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
+import { editReaches, type EditReadings } from './edit-readings.js';
 import { decodeTestCoverage } from './format.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
@@ -18,7 +19,7 @@ import {
   crossedBlock,
   crossingsAround,
   editedRegion,
-  lostCrossings,
+  owedByRecut,
   recutRows,
   reusableBlock,
   sameNumbering,
@@ -205,7 +206,8 @@ function agree(
  * them by that text, so the edit between the text the carried test ran over and
  * this one is in no diff a later selection reads. A digest that moved over a
  * source that did not is another build of the same text, not an edit
- * ({@link editedRegion}), and demotes nobody.
+ * ({@link editedRegion}), and demotes nobody. Nor does an edit `readings` says
+ * did not reach the region, by the selector's verdict ({@link editReaches}).
  *
  * A module the run never loaded is carried, and its rows are line ranges in the
  * text the module had when it was recorded. The index moves to where this run
@@ -224,6 +226,7 @@ export function mergeCoverage(
   previous: TestCoverage | undefined,
   current: TestCoverage,
   onDisk: ReadonlyMap<string, string> = new Map(),
+  readings?: EditReadings,
 ): TestCoverage {
   if (previous === undefined) return current;
   if (previous.instrumentation !== current.instrumentation) return current;
@@ -291,7 +294,7 @@ export function mergeCoverage(
         if (editedRegion(
           { sourceDigest: module.sourceDigest, digest: block.digest },
           { sourceDigest: old!.sourceDigest, digest: before.digest },
-        )) {
+        ) && editReaches(readings, module.file, old!.sourceDigest, module.sourceDigest, before.kind)) {
           for (const test of before.testFiles) if (!currentTests.has(test)) stale.add(test);
         }
         continue;
@@ -342,7 +345,8 @@ export function mergeCoverage(
         : recutRows(module, now, current.instrumentation);
     const lost = recut === 'mislaid'
       ? [...new Set(module.blocks.flatMap((block) => block.testFiles))]
-      : recut === undefined ? [] : lostCrossings(module, recut);
+      : recut === undefined ? [] : owedByRecut(module, recut, (kind) =>
+        editReaches(readings, module.file, module.sourceDigest, recut.sourceDigest, kind));
     for (const test of lost) if (!currentTests.has(test)) stale.add(test);
     carried.push(recut === undefined || recut === 'mislaid' ? module : recut);
   }

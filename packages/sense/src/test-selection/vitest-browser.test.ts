@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
+import { moduleId } from './captured-modules.js';
 import { keepsCases } from './case-record.js';
 import { decodeTestCoverage } from './format.js';
 import { carriedJournal, type ReportedModule } from './finished-files.js';
@@ -79,7 +80,7 @@ describe('a test file that runs in a page', () => {
       // Loading the module entered its header, which every file that loads it
       // shares; the test entered the function and the branch it took.
       expect(journal?.modules).toEqual([
-        { id: 'src/price.ts', hits: [0, 1, 2], shared: [0], loaded: [0] },
+        { id: moduleId('src/price.ts', PRICE), hits: [0, 1, 2], shared: [0], loaded: [0] },
       ]);
     } finally {
       await rm(root, { recursive: true, force: true });

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
+import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import {
   landRun,
   testCoverageFile,
@@ -244,23 +245,29 @@ describe('reading this checkout', () => {
   });
 
   it('runs a test a partial run did not observe, over a body edited in a module the run never loaded', async () => {
-    // As above, but the run is `gamma` alone, which loads nothing: the landing
-    // cuts `widget.ts`'s carried rows again in the edited text.
-    const { root, head } = checkout();
-    await landRun(testCoverageFile(root), snapshot(head), root);
+    // As above, but `gamma` alone runs, loading `src/elsewhere.ts` and not
+    // `widget.ts`: the landing re-cuts `widget.ts` onto the edited text and
+    // keeps that text. Under the seam's recipe, since another one mislays the
+    // module and demotes every test on it whether the re-cut would or not.
+    const { root, head } = checkout({ 'src/elsewhere.ts': ELSEWHERE });
+    const recorded = bySeam(snapshot(head));
+    await landRun(testCoverageFile(root), recorded, root);
 
     writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'a';", "return 'A';"));
-    const recorded = snapshot(head);
     await landRun(testCoverageFile(root), {
       ...recorded,
       tests: recorded.tests.filter((test) => test.file === 'test/gamma.test.ts'),
-      modules: [],
+      modules: [{ file: 'src/elsewhere.ts', sourceDigest: digestString(ELSEWHERE), instrumented: true, blocks: [
+        { ordinal: 0, kind: 'module', digest: digestString('elsewhere'), name: '', path: 'module', startLine: 1, endLine: 1, source: true, testFiles: ['test/gamma.test.ts'] },
+      ] }],
     }, root);
     process.chdir(root);
 
     await indexOutput({ cwd: root });
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
+    // `gamma` ran the text standing now; `alpha` never ran the edited body.
+    expect(said.out).toContain('test/gamma.test.ts');
     expect(said.out).not.toContain('test/alpha.test.ts');
   });
 
@@ -389,6 +396,8 @@ describe('reading this checkout', () => {
   });
 });
 
+const ELSEWHERE = 'export const elsewhere = 1;\n';
+
 const SOURCE = [
   'export function widget(): string {',
   "  return 'a';",
@@ -420,6 +429,19 @@ function checkout(files: Readonly<Record<string, string>> = {}): { root: string;
   return { root, head: git(['rev-parse', 'HEAD']) };
 }
 
+/** The snapshot under the seam's recipe, each row at the address that recipe's cut gives it. */
+function bySeam(recorded: TestCoverage): TestCoverage {
+  return {
+    ...recorded,
+    instrumentation: INSTRUMENTATION_ID,
+    modules: recorded.modules.map((module) => ({
+      ...module,
+      blocks: module.blocks.map((block) =>
+        block.kind === 'module' ? { ...block, name: '' } : { ...block, path: 'entry' }),
+    })),
+  };
+}
+
 /** Every region `lines` further down, the module's own included, as a comment above the first statement puts them. */
 function below(blocks: TestCoverage['modules'][number]['blocks'], lines: number): TestCoverage['modules'][number]['blocks'] {
   return blocks.map((block) => ({ ...block, startLine: block.startLine + lines, endLine: block.endLine + lines }));
@@ -445,41 +467,9 @@ function snapshot(commit: string): TestCoverage {
         sourceDigest: digestString(SOURCE),
         instrumented: true,
         blocks: [
-          {
-            ordinal: 0,
-            kind: 'module',
-            digest: digestString('module'),
-            name: 'widget.ts',
-            path: 'module',
-            startLine: 1,
-            endLine: 8,
-            source: true,
-            testFiles: ['test/alpha.test.ts', 'test/beta.test.ts'],
-          },
-          {
-            ordinal: 1,
-            kind: 'function',
-            owner: 0,
-            digest: digestString('widget'),
-            name: 'widget',
-            path: 'widget',
-            startLine: 1,
-            endLine: 3,
-            source: true,
-            testFiles: ['test/alpha.test.ts'],
-          },
-          {
-            ordinal: 2,
-            kind: 'function',
-            owner: 0,
-            digest: digestString('other'),
-            name: 'other',
-            path: 'other',
-            startLine: 5,
-            endLine: 7,
-            source: true,
-            testFiles: ['test/beta.test.ts'],
-          },
+          { ordinal: 0, kind: 'module', digest: digestString('module'), name: 'widget.ts', path: 'module', startLine: 1, endLine: 8, source: true, testFiles: ['test/alpha.test.ts', 'test/beta.test.ts'] },
+          { ordinal: 1, kind: 'function', owner: 0, digest: digestString('widget'), name: 'widget', path: 'widget', startLine: 1, endLine: 3, source: true, testFiles: ['test/alpha.test.ts'] },
+          { ordinal: 2, kind: 'function', owner: 0, digest: digestString('other'), name: 'other', path: 'other', startLine: 5, endLine: 7, source: true, testFiles: ['test/beta.test.ts'] },
         ],
       },
     ],
