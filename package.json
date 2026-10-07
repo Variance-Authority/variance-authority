@@ -21,7 +21,7 @@
     "measure": "vitest run --config vitest.measure.config.ts",
     "release:version": "changeset version && node tools/changelog-tidy.mjs",
     "release:publish": "changeset publish",
-    "test": "yarn test:unit && yarn test:integration && yarn test:chromium",
+    "test": "vitest run && vitest run --config vitest.integration.config.mts && vitest run --config vitest.chromium.config.mts",
     "test:unit": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.mts",
     "test:chromium": "vitest run --config vitest.chromium.config.mts",
@@ -33,8 +33,8 @@
     "documented": "node tools/documented.mjs",
     "typecheck": "tsc --build --force",
     "verify": "yarn lint && yarn check && yarn measure && yarn test",
-    "verify:far": "VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn test:since",
-    "verify:near": "yarn lint && tsc --build && VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test:since",
+    "verify:far": "variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn test",
+    "verify:near": "oxlint && tsc --build && variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test",
     "verify:rules": "yarn check"
   },
   "devDependencies": {
