@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import {
   withExamples,
   type ComponentInstance,
@@ -7,8 +6,10 @@ import {
   type LexiconValues,
   type SubjectComposition,
 } from '@variance-authority/core/attribute';
+import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
 import type { SuiteIndex } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
+import { settle } from '../settle.js';
 import { writeSuiteIndex } from '@variance-authority/report/file';
 import { UNCOVERED } from './merge.js';
 import { censusOf, examplesOf, lexiconReportFrom, type LexiconReading } from './compose.js';
@@ -82,25 +83,44 @@ export function suitePartOf(
   };
 }
 
+/** A part as it is written: canonical, so equal parts are equal bytes. */
+export function encodeSuitePart(part: SuitePart): Uint8Array {
+  return new TextEncoder().encode(`${canonicalize(part as unknown as CanonicalValue)}\n`);
+}
+
 export async function writeSuitePart(reportPath: string, part: SuitePart): Promise<void> {
-  const path = suitePartPath(reportPath);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(part)}\n`);
+  await settle(suitePartPath(reportPath), encodeSuitePart(part));
 }
 
 /** The part beside a report, or nothing when there is none to read. */
 export async function readSuitePart(reportPath: string): Promise<SuitePart | undefined> {
+  const part = await openSuitePart(suitePartPath(reportPath));
+  if (typeof part === 'string') throw new Error(part);
+  return part;
+}
+
+/**
+ * The part at `path`; nothing when no file is there; otherwise why it is not
+ * `what` this version reads. Its shape is trusted past the version: the merge
+ * checks what a part says against every other part before composing.
+ */
+export async function openSuitePart(path: string, what = 'a suite part'): Promise<SuitePart | string | undefined> {
   let text: string;
   try {
-    text = await readFile(suitePartPath(reportPath), 'utf8');
+    text = await readFile(path, 'utf8');
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return undefined;
+    return `${path} could not be read${code === undefined ? `: ${(error as Error).message}` : ` (${code})`}`;
+  }
+  let part: Partial<SuitePart>;
+  try {
+    part = JSON.parse(text) as Partial<SuitePart>;
   } catch {
-    return undefined;
+    return `${path} is not JSON`;
   }
-  const part = JSON.parse(text) as Partial<SuitePart>;
-  if (part.version !== 1 || typeof part.planned !== 'number' || !Array.isArray(part.subjects)) {
-    throw new Error(`${suitePartPath(reportPath)} is not a suite part this version reads`);
-  }
-  return part as SuitePart;
+  const whole = part.version === 1 && typeof part.planned === 'number' && Array.isArray(part.subjects);
+  return whole ? (part as SuitePart) : `${path} is not ${what} this version reads`;
 }
 
 /**

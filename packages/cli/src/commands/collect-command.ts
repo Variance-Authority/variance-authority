@@ -9,7 +9,8 @@ import { collectEvidence } from './collect.js';
 import { mergeEvidence, type FailedSubject, type Named } from './collect-merge.js';
 import { collectorPath, loadCollector, planFor, type Collector, type CollectorContext } from './collector.js';
 import { evidenceIdentity } from './evidence-identity.js';
-import { encodeEvidencePart, readEvidencePart, type EvidenceDiagnostic } from './evidence-part.js';
+import { readEvidencePart, type EvidenceDiagnostic } from './evidence-part.js';
+import { encodeSuitePart } from './suite-part.js';
 import { liveIgnores } from './ignores.js';
 import { scanSourceDirs } from './source-graph.js';
 
@@ -58,7 +59,7 @@ export async function runCollect(parsed: Collecting, config: Config, streams: St
     recipe: identity.recipe,
   });
   const part = { ...collected, diagnostics: [...identity.diagnostics, ...collected.diagnostics] };
-  await settle(parsed.out, encodeEvidencePart(part));
+  await settle(parsed.out, encodeSuitePart(part));
 
   const failed = part.outcomes.filter((outcome) => outcome.outcome === 'failed');
   const done = part.outcomes.length - failed.length;

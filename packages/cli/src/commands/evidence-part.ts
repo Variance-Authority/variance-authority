@@ -1,8 +1,7 @@
 // compass: variance-authority.report.shard-merge
-import { readFile } from 'node:fs/promises';
 import { canonicalize, digestValue, type CanonicalValue, type Viewport } from '@variance-authority/core/format';
 import type { Plan } from './collector.js';
-import type { SuitePart } from './suite-part.js';
+import { openSuitePart, type SuitePart } from './suite-part.js';
 
 /**
  * What one `variance collect` job read: a suite part, and what makes it
@@ -99,30 +98,11 @@ export function recipeOf(reads: CanonicalValue): EvidenceRecipe {
   return { digest: digestValue(reads), reads };
 }
 
-/** A part as it is written: canonical, so equal parts are equal bytes. */
-export function encodeEvidencePart(part: EvidencePart): Uint8Array {
-  return new TextEncoder().encode(`${canonicalize(part as unknown as CanonicalValue)}\n`);
-}
-
-/**
- * A part from disk, or why it is not one this version reads. Its shape is
- * trusted past the version: a part is written by `variance collect`, and the
- * merge checks what it says against every other part before composing.
- */
+/** A collection part from disk, or why it is not one this version reads. */
 export async function readEvidencePart(path: string): Promise<EvidencePart | string> {
-  let text: string;
-  try {
-    text = await readFile(path, 'utf8');
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    return `${path} could not be read${code === undefined ? `: ${(error as Error).message}` : ` (${code})`}`;
-  }
-  let value: Partial<EvidencePart>;
-  try {
-    value = JSON.parse(text) as Partial<EvidencePart>;
-  } catch {
-    return `${path} is not JSON`;
-  }
-  const whole = value.version === 1 && Array.isArray(value.subjects) && Array.isArray(value.outcomes) && Array.isArray(value.plan?.subjects);
-  return whole ? (value as EvidencePart) : `${path} is not a collection part this version reads`;
+  const what = 'a collection part';
+  const part = (await openSuitePart(path, what)) ?? `${path} could not be read (ENOENT)`;
+  if (typeof part === 'string') return part;
+  const { outcomes, plan } = part as Partial<EvidencePart>;
+  return Array.isArray(outcomes) && Array.isArray(plan?.subjects) ? (part as EvidencePart) : `${path} is not ${what} this version reads`;
 }

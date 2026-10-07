@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readdir } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -11,10 +11,11 @@ import type { Config } from '../config.js';
 import { composeReports } from './compose.js';
 import { SOURCE, SUITE, instance } from './compose-fixture.js';
 import { IDENTITY } from './run-fixture.js';
-import { writeCliRunReport, shardOwnedBecause, type CliRunReport } from './run-report.js';
+import { suitePartPath, writeCliRunReport, shardOwnedBecause, type CliRunReport } from './run-report.js';
 import { publishedLine, suiteIndexPath } from './share.js';
 import {
   composeSuiteIndex,
+  encodeSuitePart,
   readSuitePart,
   shareOutput,
   suitePartOf,
@@ -190,5 +191,34 @@ describe('share --publish over every shard', () => {
     const reports = await writeShards(false);
     const lines = await shareOutput(configOf(), { publish: true, reports });
     expect(lines[0]).toBe(`nothing published: ${reports[0]} has no ${join(home, 'shard-1', 'run.suite-part.json')} beside it.`);
+  });
+});
+
+describe('a part on disk', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'variance-suite-part-disk-'));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('is written canonically, so equal parts are equal bytes whoever wrote them', async () => {
+    const [part] = parts(SUITE, 1, () => 1);
+    const report = join(root, 'run.json');
+    await writeSuitePart(report, part!);
+
+    expect(new Uint8Array(await readFile(suitePartPath(report)))).toEqual(encodeSuitePart(part!));
+    expect(await readSuitePart(report)).toEqual(part);
+  });
+
+  it('refuses a torn part by its path, and reads nothing where there is none', async () => {
+    const report = join(root, 'run.json');
+    expect(await readSuitePart(report)).toBeUndefined();
+
+    await writeFile(suitePartPath(report), '{"version":');
+    await expect(readSuitePart(report)).rejects.toThrow(`${suitePartPath(report)} is not JSON`);
   });
 });

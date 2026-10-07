@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { collectEvidence } from './collect.js';
 import { collecting, planOf, rendered } from './evidence-fixture.js';
-import { encodeEvidencePart, readEvidencePart, recipeOf, type EvidencePart } from './evidence-part.js';
+import { readEvidencePart, recipeOf, type EvidencePart } from './evidence-part.js';
+import { encodeSuitePart } from './suite-part.js';
 import { configOf } from './run-fixture.js';
 
 let root: string;
@@ -33,7 +34,7 @@ describe('readEvidencePart: a part from disk, or why it is not one', () => {
   it('reads back the part it wrote', async () => {
     const written = await part();
     const path = join(root, 'evidence-1.json');
-    await writeFile(path, encodeEvidencePart(written));
+    await writeFile(path, encodeSuitePart(written));
 
     expect(await readEvidencePart(path)).toEqual(written);
   });
