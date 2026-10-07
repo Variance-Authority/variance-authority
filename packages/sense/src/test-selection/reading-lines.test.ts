@@ -32,7 +32,11 @@ describe('what a selector prints about each changed file', () => {
     expect(readingLines([])).toEqual([]);
   });
 
-  it('tells a text the recorded tests already ran apart from a runtime text the parser found equal', () => {
+  it('tells a text the record was taken over apart from a runtime text the parser found equal', () => {
+    // The record a run lays is taken over that run's text, and it still names
+    // the tests carried from an earlier one. The line claims nothing about
+    // them: the landing demoted each that ran an edited region, so it is not
+    // skipped, and the line says that once rather than claim it ran this text.
     expect(
       readingLines([
         { file: 'src/kept.ts', verdict: 'none', names: [], kept: true },
@@ -40,9 +44,9 @@ describe('what a selector prints about each changed file', () => {
         { file: 'src/again.ts', verdict: 'none', names: [], kept: true },
       ]),
     ).toEqual([
-      'read src/kept.ts: none (the recorded tests already ran this text)',
+      'read src/kept.ts: none (the record was taken over this text) — a test recorded over an earlier text of an edited region is not skipped',
       'read src/equal.ts: none — the runtime text is equal',
-      'read src/again.ts: none (the recorded tests already ran this text)',
+      'read src/again.ts: none (the record was taken over this text)',
     ]);
   });
 });
