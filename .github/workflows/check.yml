@@ -854,10 +854,11 @@ jobs:
           path: ${{ steps.records.outputs.dir }}
 
       # The test files the runner collects at this commit, asked of the runner:
-      # a test file the suite stopped collecting keeps its rows in the record
-      # and last ran before this commit, and only the runner can say it no
-      # longer counts against a whole run. Each shared suite is asked under its
-      # own slice's config, which `slicesOf` in `tools/test-since.mjs` names. A
+      # a test file the suite stopped collecting is carried in the record from
+      # before this commit, and only the runner can say it no longer counts
+      # against a whole run. The publish retires its rows on the same answer.
+      # Each shared suite is asked under its own slice's config, which
+      # `slicesOf` in `tools/test-since.mjs` names. A
       # suite whose files cannot be listed is left without a list and the others
       # are still listed: the publish below refuses that suite alone.
       - name: what the suite collects

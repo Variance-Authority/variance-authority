@@ -186,8 +186,8 @@ export {
   type LastCaseRun,
   type ModuleTexts,
 } from './case-landing.js';
-export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordedCases, recordedEyesAt, recordedEyesOf } from './case-record.js';
-export { recordOfCases, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
+export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections } from './case-record.js';
+export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
 export { RecordWithoutCoverage } from './format-validation.js';
 export {
