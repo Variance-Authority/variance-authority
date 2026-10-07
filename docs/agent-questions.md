@@ -19,6 +19,7 @@ A missing domain is unavailable, never an empty measurement.
 | completed visual report | What changed? | `variance ask summary` | `variance_summary` |
 | live watcher | Is this the watcher the suite connected to? | `variance ask self` | `variance_self` |
 | [execution index](execution-record.md) and the [Eyes](eyes.md) journals it keeps | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
+| current workspace source | What is each package imported for, and which packages are imported past their entry? | `variance ask packages` | `docs_packages` on the workspace API server |
 | current workspace source | What does this package publish, and what do other packages import from it? | `variance ask entrypoint --package <name>` | `docs_entrypoint` on the workspace API server |
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
 | current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance ask search --query <word> --from <path>` | `docs_search` on the workspace API server |

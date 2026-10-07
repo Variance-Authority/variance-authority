@@ -1,10 +1,9 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { NO_ARGS } from '@variance-authority/mcp/tools';
-import type { Documented, Help, Opening } from '@variance-authority/package/help';
+import type { Help } from '@variance-authority/package/help';
 import { REACHING, counted, countsByPath } from './by-path.js';
 import { NOTHING_PUBLISHED, specifierOf } from './find.js';
-import { section } from './format.js';
-import { narrower, plural, shell } from './orient-format.js';
+import { mostUsed, narrower, openingRow, plural, section, shell } from './format.js';
 
 /**
  * `docs_packages` — what each package in this workspace is imported for, counted.
@@ -74,21 +73,3 @@ export const packages: Tool<Help> = {
     return [...lines, ...narrower(asks)].join('\n');
   },
 };
-
-/** `<specifier> — N names, U imported elsewhere, D documented`. */
-function openingRow(published: Documented, held: Opening): string {
-  return `${specifierOf(published, held)} — ${plural(held.entries.length, 'name')}, ${used(held)} imported elsewhere, ${written(held)} documented`;
-}
-
-const used = (held: Opening): number => held.entries.filter((entry) => entry.usedBy.length > 0).length;
-const written = (held: Opening): number => held.entries.filter((entry) => entry.doc !== undefined).length;
-
-/** The door whose names the most packages import, the first of equals; none when nothing imports any. */
-function mostUsed(
-  opened: readonly (readonly [Documented, Opening])[],
-): readonly [Documented, Opening] | undefined {
-  return opened.reduce<readonly [Documented, Opening] | undefined>(
-    (best, door) => (used(door[1]) > (best === undefined ? 0 : used(best[1])) ? door : best),
-    undefined,
-  );
-}

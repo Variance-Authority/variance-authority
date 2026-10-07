@@ -112,6 +112,8 @@ behind its count. The answer ends with an `entrypoint` question for each of the
 most-imported specifier, the package that declares no entry with the most names
 imported by path, and the package with the most imports past its entry, those
 the repository has.
+Asked by the name of a package whose `exports` opens only subpaths,
+`entrypoint` lists the specifiers it opens in place of the names of a main entry.
 
 `packages` and `entrypoint` answer for the JavaScript half of a mixed
 repository. The other verbs read the source and answer for every language: ask

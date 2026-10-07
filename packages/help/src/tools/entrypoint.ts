@@ -1,10 +1,10 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
-import type { Deep, Help } from '@variance-authority/package/help';
-import { REACHING, counted, isName, ownerOf, reachingPast, surfaceByPath } from './by-path.js';
+import type { Deep, Documented, Help } from '@variance-authority/package/help';
+import { REACHING, busiestOf, counted, isName, ownerOf, reachingPast, surfaceByPath } from './by-path.js';
 import { doorOf, specifierOf } from './find.js';
-import { line } from './format.js';
-import { narrower, plural, shell } from './orient-format.js';
+import { line, mostUsed, narrower, openingRow, plural, shell } from './format.js';
 
 /**
  * `docs_entrypoint` — what one import specifier opens, most-used first.
@@ -22,7 +22,9 @@ import { narrower, plural, shell } from './orient-format.js';
  * the package's name, the answer lists those imports after the names, one line
  * per site; asked by a specifier no entry opens, it lists the imports written as
  * that specifier. `docs_packages` counts them per package and names this
- * question; this is where the sites behind a count are listed.
+ * question; this is where the sites behind a count are listed. A package whose
+ * `exports` opens only subpaths has no names to list under its name, so the
+ * specifiers it opens are listed in their place.
  */
 export const entrypoint: Tool<Help> = {
   name: 'docs_entrypoint',
@@ -31,7 +33,8 @@ export const entrypoint: Tool<Help> = {
     'kind and the first line of its documentation. Names marked UNDOCUMENTED have nothing ' +
     'written above them — the source is the only thing that says what they do. Asked by a ' +
     "package's name, it also lists each import that reaches past the package's entry; asked by a " +
-    'specifier past the entry, it lists the imports of that specifier. For a package that declares ' +
+    'specifier past the entry, it lists the imports of that specifier. For a package that opens only ' +
+    'subpaths, asked by its name, it lists the specifiers it opens. For a package that declares ' +
     'no entry it lists what other packages import from it by path. Use docs_symbol for the full ' +
     'signature and documentation of one name.',
   inputSchema: {
@@ -59,7 +62,7 @@ export const entrypoint: Tool<Help> = {
     const asked = subpath === undefined || subpath === '.' ? said : `${said}${subpath.replace(/^\./u, '')}`;
     const owner = ownerOf(asked);
 
-    const unentered = subpath === undefined ? unenteredAnswer(help, asked, owner) : undefined;
+    const unentered = unenteredAnswer(help, asked, owner);
     if (unentered !== undefined) return sites(help, unentered);
 
     const published = help.packages.find((candidate) => candidate.name === owner);
@@ -74,12 +77,14 @@ export const entrypoint: Tool<Help> = {
       if (reaching.length === 0) return `${owner} opens no entry, and no other package imports a file of it.`;
       const past = pastEntry(reaching, owner);
       return sites(help, { ...past, lines: [`${owner} opens no entry.`, '', ...past.lines] });
+    } else if (published !== undefined && subpath === undefined && !published.openings.some((held) => held.subpath === '.')) {
+      return subpathsOnly(help, published);
     }
 
     const [door, held] = doorOf(help, said, subpath);
     const names = held.entries.length === 0
       ? [`${specifierOf(door, held)} opens no names.`]
-      : [`${specifierOf(door, held)} — ${held.entries.length} names`, '', ...held.entries.map(line)];
+      : [`${specifierOf(door, held)} — ${plural(held.entries.length, 'name')}`, '', ...held.entries.map(line)];
     // The package asked by its name alone: the imports past its entry are part of what it is used for.
     const reaching = subpath === undefined && said === door.name ? reachingPast(help, door.name) : [];
     if (reaching.length === 0) return names.join('\n');
@@ -94,16 +99,44 @@ interface Sites {
   readonly asks: readonly string[];
 }
 
-/** The imports past the entry of `owner`, one line per site, and the question about the first name they take. */
+/**
+ * The imports past the entry of `owner`, one line per import, and the narrower
+ * questions: the specifier with the most imports, ties in code-unit order, when
+ * they are under more than one, and the first name taken in specifier then name
+ * order.
+ */
 function pastEntry(reaching: readonly Deep[], owner: string): Sites {
-  const first = reaching.flatMap((held) => held.names.map((taken) => [taken.name, held.specifier] as const)).find(([name]) => isName(name));
+  const first = reaching
+    .flatMap((held) => held.names.map((taken) => [taken.name, held.specifier] as const))
+    .filter(([name]) => isName(name))
+    .sort((left, right) => codeUnitOrder(left[1], right[1]) || codeUnitOrder(left[0], right[0]))[0];
+  const busiest = busiestOf(reaching.map((held) => held.specifier));
   return {
     lines: [
       `${plural(reaching.length, 'import reaches', 'imports reach')} past a published entrypoint of ${owner}. ${REACHING}:`,
       ...reaching.map((held) => `  ${held.specifier} — ${held.by} at ${held.at}:${held.line}`),
     ],
-    asks: first === undefined ? [] : [usesOf(...first)],
+    asks: [
+      ...(busiest === undefined ? [] : [`variance ask entrypoint --package ${shell(busiest)}`]),
+      ...(first === undefined ? [] : [usesOf(...first)]),
+    ],
   };
+}
+
+/**
+ * A package whose `exports` opens subpaths and no `.`, asked by its name: there
+ * is no main entry to list the names of, so the answer is the specifiers it
+ * opens, counted the way `docs_packages` counts them, and the imports past them.
+ */
+function subpathsOnly(help: Help, published: Documented): string {
+  const opened = published.openings.map((held) => [published, held] as const);
+  const door = mostUsed(opened) ?? opened[0]!;
+  const lines = [`${published.name} opens no main entry. It opens:`, ...opened.map((pair) => `  ${openingRow(...pair)}`)];
+  const asks = [`variance ask entrypoint --package ${shell(specifierOf(...door))}`];
+  const reaching = reachingPast(help, published.name);
+  if (reaching.length === 0) return [...lines, ...narrower(asks)].join('\n');
+  const past = pastEntry(reaching, published.name);
+  return sites(help, { lines: [...lines, '', ...past.lines], asks: [...asks, ...past.asks] });
 }
 
 /**
@@ -116,7 +149,7 @@ function unenteredAnswer(help: Help, asked: string, owner: string): Sites | unde
   const { lines } = surface;
   const heading = `${owner} declares no entry: no \`exports\`, \`main\` or \`types\`.`;
   if (lines.length === 0) return { lines: [`${heading} No other package imports ${asked === owner ? 'a file of it' : asked}.`], asks: [] };
-  const count = asked === owner ? counted(surface) : `${plural(lines.length, 'name')} from ${asked}`;
+  const count = asked === owner ? counted(surface) : `${plural(surface.names, 'name')} from ${asked}`;
   const asks = [
     ...(surface.busiest === undefined ? [] : [`variance ask entrypoint --package ${shell(surface.busiest)}`]),
     ...(surface.first === undefined ? [] : [usesOf(surface.first.name, surface.first.specifier)]),

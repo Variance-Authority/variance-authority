@@ -1,3 +1,4 @@
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Documented, Entry, Opening } from '@variance-authority/package/help';
 import { opening } from '@variance-authority/package/help';
 import { specifierOf } from './find.js';
@@ -51,6 +52,36 @@ export function line(entry: Listed): string {
 /** `block` after what `lines` already holds, a blank line between them. */
 export function section(lines: string[], ...block: readonly string[]): void {
   lines.push(...(lines.length > 0 ? [''] : []), ...block);
+}
+
+/** `count` and the noun, singular at one. */
+export const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
+
+/** An argument a shell passes through unchanged, quoted only when it would not be. */
+export function shell(value: string): string {
+  return /^[\w@./:=+-]+$/u.test(value) ? value : `'${value.replace(/'/gu, `'\\''`)}'`;
+}
+
+/** The commands that take an answer further, after a blank line and a heading; nothing when there are none. */
+export function narrower(asks: readonly string[]): readonly string[] {
+  return asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)];
+}
+
+/** `<specifier> — N names, U imported elsewhere, D documented`. */
+export function openingRow(published: Documented, held: Opening): string {
+  return `${specifierOf(published, held)} — ${plural(held.entries.length, 'name')}, ${used(held)} imported elsewhere, ${written(held)} documented`;
+}
+
+const used = (held: Opening): number => held.entries.filter((entry) => entry.usedBy.length > 0).length;
+const written = (held: Opening): number => held.entries.filter((entry) => entry.doc !== undefined).length;
+
+/** The specifier whose names the most packages import, ties in code-unit order; none when nothing imports any. */
+export function mostUsed(
+  opened: readonly (readonly [Documented, Opening])[],
+): readonly [Documented, Opening] | undefined {
+  return opened
+    .filter(([, held]) => used(held) > 0)
+    .sort((a, b) => used(b[1]) - used(a[1]) || codeUnitOrder(specifierOf(...a), specifierOf(...b)))[0];
 }
 
 /** The line a caller writes to reach this name. */

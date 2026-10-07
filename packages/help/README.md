@@ -145,8 +145,8 @@ stays available without taking space from the first answer.
 
 | verb / tool | takes | answers |
 |---|---|---|
-| `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is, and for each package that declares no entry, how many of its names and files other packages import by path |
-| `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also each import that reaches past its entry, or, for a package that declares no entry, each import of its files by path |
+| `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is, for each package that declares no entry, how many of its names and files other packages import by path, and for each package that declares one, how many imports reach past it; then the `entrypoint --package` questions for the most-imported specifier and the first row of each count |
+| `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also each import that reaches past its entry, or, for a package that declares no entry, each import of its files by path; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the specifier with the most imports, and `uses` on the first name taken |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading finds |

@@ -221,7 +221,9 @@ of those imports with the importer's file and line:
 `variance ask entrypoint --package @acme/legacy`. Both kinds of row go to the
 same `--package` flag. Asked by the name of a package that publishes an entry,
 `entrypoint` lists the names its main entry opens and then each import that
-reaches past it. The answer ends with the narrower questions it has.
+reaches past it. A package whose `exports` opens only subpaths has no main
+entry, so asked by its name it lists the specifiers it opens instead. The answer
+ends with the narrower questions it has.
 
 `symbol` prints one name's import line, declaration, signature, documentation
 and consumers; `uses` prints every import site, ordered by how much path it
