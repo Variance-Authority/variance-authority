@@ -1874,10 +1874,10 @@ under the commit the shards share:
 variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
 ```
 
-It publishes nothing, and names which file or shard, when a report has no part
-beside it, a shard is missing or given twice, or an unsharded run is named with
-shards or beside another unsharded run. An unsharded
-run publishes its own index and needs no merge.
+It publishes nothing, and says why, when a report has no part beside it, a
+part cannot be read, a shard is missing or given twice, or an unsharded run is
+named with shards or beside another unsharded run. An unsharded run publishes
+its own index and needs no merge.
 
 The lookup is the same one the [suite index](https://variance-authority.dev/docs/sharing#looking-up-mainlines-record)
 uses, and every shard of one build reads the same line, so they place alike. A
