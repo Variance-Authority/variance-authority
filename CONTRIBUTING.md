@@ -73,14 +73,24 @@ executed without a comparison.
 ## Running less than the whole suite
 
 `yarn test` records which test file executed which part of which module, and
-writes that to a snapshot for each slice. `yarn test:since` reads each slice's
-snapshot back, in the same order, and runs the files your change reached:
+writes that to a snapshot for each slice. `yarn test:since` runs the same three
+slices with `VARIANCE_AUTHORITY_SINCE` set, and each slice's runner drops the
+files your change did not reach before it starts any:
 
 ```bash
-yarn test:since             # since the commit each test last ran at
-yarn test:since main        # since the merge base with main
-yarn test:since --dry-run   # print the reading, run nothing
+yarn test:since                             # since the commit each test last ran at
+VARIANCE_AUTHORITY_SINCE= yarn test:unit    # one slice
+yarn variance select --suite unit           # print the reading, run nothing
 ```
+
+The variable is read by `withTestSelection`, the seam each slice's config is
+wrapped in, which is the seam this repository ships. Set and empty, it selects
+from the commit the snapshot names. Set to a ref, it also names the base for a
+snapshot that names no commit of its own. The runner prints one line
+before it starts: `selected 12 of 676`, `selected none of 676`, or
+`declined: <why>` when the reading could not be made and the slice runs whole.
+Nothing else changes: `--shard`, a file filter and the reporters are Vitest's.
+Watch mode does not select.
 
 It selects on what the snapshot measured, and on nothing else. A changed file
 the snapshot has no row for — a stylesheet, a file added since the recording —
@@ -89,17 +99,8 @@ select their tests. One the graph does not list either — a README, a fixture �
 selects nothing, and the reading names it in one line. What the harness loads
 without importing it is declared: the Vitest seam declares `vitest.config.mts`
 and the local modules it imports, and the config names the rest in
-`preconditions`. A change to any of them selects every test.
-
-A slice runs whole only when its reading could not be made, and it says
-which:
-
-```
-$ yarn test:since --dry-run
-test:since: the unit slice, from vitest.config.mts.
-test:since: running the whole slice — the install could not be compared against 03984ae78218.
-  429 files
-```
+`preconditions`. A change to any of them selects every test. A test file the
+snapshot has never seen runs.
 
 So a green `test:since` is a smaller claim than a green `verify`, and `verify` is
 the gate.
@@ -110,44 +111,17 @@ nearest tests fail first and for the simplest reason, so you can run them while
 the edit is still open and leave the rest for later:
 
 ```bash
-yarn test:since --at-distance 0-2   # within two imports of the change
-yarn test:since --at-distance 3-    # the rest of the selection
-yarn test:since --help              # every flag
+VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test:since   # within two imports of the change
+VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn test:since    # the rest of the selection
 ```
 
 `0-2` means *no more than two imports away*. Zero is a test whose own source you
-edited. Tests whose distance could not be measured run with the leg that reaches
-the end, so those two commands together run every selected file exactly once.
-[`docs/distance.md`](docs/distance.md) is the reference; `--help` prints the
-whole surface:
-
-```
-$ yarn test:since --help
-test:since — run the tests a change reached, nearest first.
-
-usage: yarn test:since [<ref>] [--at-distance <range>] [--dry-run]
-
-  <ref>                 read every test from no later than the merge base
-                        with this ref. Without one, each test is read from
-                        the commit it last ran at. A leg stamps the
-                        snapshot with HEAD, and the tests it did not run
-                        are still read from where they last ran, so the
-                        next leg selects them. Once every test has run at
-                        the snapshot's commit, the reading starts there. A
-                        file this machine skips whole, such as a
-                        browser-gated one with no browser installed, never
-                        records whole here, so it is selected every time.
-  --at-distance <range> run only the tests this many imports from the change.
-                        `0-2`, `2`, or `3-`. Zero is a test whose own source
-                        you edited. Tests with no measurable distance ride
-                        with the leg that reaches the end.
-  --dry-run             print the reading and run nothing.
-  --help                this.
-```
-
-Every run prints the whole reading before the leg it took out of it, the files a
-leg left for later, and two findings that need no red test: imports that reached
-past a unit face, and tests the change entered by no route they imported.
+edited. `2` is exactly two, and `3-` is three or more. Tests whose distance
+could not be measured run with the leg that reaches the end, so those two
+commands together run every selected file. `yarn verify:near` and
+`yarn verify:far` are those two legs. [`docs/distance.md`](docs/distance.md) is
+the reference, and `yarn variance select --suite unit --at-distance 0-2` prints
+what a leg would run.
 
 ## Which named tests a change reached
 

@@ -2,7 +2,7 @@
  * What the parser made of each changed file, as the lines a run prints.
  *
  * Two selectors print this: `variance run --since` and `variance select` in the
- * CLI, and `yarn test:since` in this repository. They share this function so the
+ * CLI. They share this function so the
  * wording has one implementation; a second copy of a printed finding drifts from
  * the first the day one of them learns a new verdict.
  *

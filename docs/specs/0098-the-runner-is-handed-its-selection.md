@@ -183,7 +183,7 @@ under `--shard` and under `projects`, with a project sequencer still consulted.
 M`, `declined: <which>` or `selected none of M`, and fails by name where
 `select` refuses.
 
-**5. This repository uses it.** `tools/test-since.mjs` and the
+**5. This repository uses it.** tools/test-since.mjs and the
 `tools/since-*.mjs` helpers are deleted, and what they did is carried as
 follows. `test:since` is the runner calls for each suite, joined so the first red
 suite stops the rest, each with the variables set. `--dry-run` is `variance

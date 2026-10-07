@@ -497,8 +497,7 @@ recorded on the story's row and on its case, once however many times the story
 was read, and a story the run did not time is recorded without one.
 
 `variance ask slowest-tests` lists the slowest recorded files and the slowest
-recorded cases, anywhere or under the paths you name, and `yarn test:since`
-adds up the recorded cost of the files it selects.
+recorded cases, anywhere or under the paths you name.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —

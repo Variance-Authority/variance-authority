@@ -26,15 +26,15 @@
     "test:integration": "vitest run --config vitest.integration.config.mts",
     "test:chromium": "vitest run --config vitest.chromium.config.mts",
     "test:coverage": "vitest run --config tools/coverage.config.mts",
-    "test:since": "variance index && node tools/test-since.mjs",
+    "test:since": "variance index && VARIANCE_AUTHORITY_SINCE=${VARIANCE_AUTHORITY_SINCE:-} yarn test",
     "test:watch": "vitest",
     "unrun": "node tools/unrun.mjs",
     "surface": "node tools/surface.mjs",
     "documented": "node tools/documented.mjs",
     "typecheck": "tsc --build --force",
     "verify": "yarn lint && yarn check && yarn measure && yarn test",
-    "verify:far": "yarn test:since --at-distance 3-",
-    "verify:near": "yarn lint && tsc --build && yarn test:since --at-distance 0-2",
+    "verify:far": "VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn test:since",
+    "verify:near": "yarn lint && tsc --build && VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn test:since",
     "verify:rules": "yarn check"
   },
   "devDependencies": {
