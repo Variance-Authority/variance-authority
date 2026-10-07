@@ -230,6 +230,9 @@ export interface Read {
   /** Top-level declarations reduced while the AST is already resident. */
   readonly symbols?: readonly SourceSymbol[];
 
+  /** The component names the file declares, sorted. Absent when it declares none. */
+  readonly declares?: readonly string[];
+
   /** What the file mocks and loads for real, read off the same tree. Recorded, never applied. */
   readonly mocks?: ImportDiff;
 

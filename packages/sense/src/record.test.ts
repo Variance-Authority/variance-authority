@@ -65,6 +65,16 @@ describe('recordFor', () => {
     }
   });
 
+  it('declares the components a module\'s code declares, and none its comments spell', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
+    made.push(root);
+    const source = '/*\nexport function Retired() { return null; }\n*/\nexport function Button() { return null; }\n';
+    await writeFile(join(root, 'Button.tsx'), source, 'utf8');
+
+    const record = (await recordFor({ ...subject(root, 'Button.tsx'), largestFile: 1024 })).record;
+    expect(record.declares).toEqual(['Button']);
+  });
+
   it.skipIf(process.platform === 'win32')('names no bytes for a stylesheet it declined through a link', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
     made.push(root);

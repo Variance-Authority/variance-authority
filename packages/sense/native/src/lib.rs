@@ -26,6 +26,7 @@ mod case_owner;
 mod case_preconditions;
 mod compact;
 mod conditions;
+mod declarations;
 mod declared_role;
 mod declared_roles_check;
 mod depends;
