@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { layerCaseIndex, type CaseRunFiles } from './case-layer.js';
+import type { CasePrecondition } from './case-precondition-column.js';
 import { caseMotion } from './case-motion.js';
 import { coverageChange } from './coverage-count.js';
 import { CrossingSets } from './crossing-sets.js';
@@ -9,9 +10,19 @@ import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-se
 /** A region, the cases that called it by id, and whether it ran at load. */
 type Region = readonly [name: string, callers: readonly string[], loaded?: boolean, kind?: string];
 
-/** Spell a case index the way a fold writes one, from cases and the regions they called. */
-function index(cases: readonly string[], modules: Record<string, readonly Region[]>): Buffer {
-  const tests = cases.map((id) => ({ id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]! }));
+/**
+ * Spell a case index the way a fold writes one, from cases and the regions
+ * they called, and what each case said it arranged where `said` names it.
+ */
+function index(
+  cases: readonly string[],
+  modules: Record<string, readonly Region[]>,
+  said: (id: string) => readonly CasePrecondition[] | undefined = () => undefined,
+): Buffer {
+  const tests = cases.map((id) => {
+    const preconditions = said(id);
+    return { id, file: id.split(' > ')[0]!, name: id.split(' > ')[1]!, ...(preconditions === undefined ? {} : { preconditions }) };
+  });
   const sets = new CrossingSets(tests.length);
   sets.intern([]);
   const at = new Map(cases.map((id, position) => [id, position]));
@@ -133,9 +144,83 @@ describe('layerCaseIndex', () => {
   it('writes the run alone, and no before, when there is no index to lay it over', () => {
     const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
 
-    const alone = { merged: fresh, cases: ['a.test.ts > one'], last: ['a.test.ts > one'], announced: ['a.test.ts > one'] };
-    expect(layerCaseIndex(undefined, fresh, ran(['a.test.ts']))).toEqual(alone);
-    expect(layerCaseIndex(Buffer.from('not an index'), fresh, ran(['a.test.ts']))).toEqual(alone);
+    const alone = { merged: fresh, last: ['a.test.ts > one'], announced: ['a.test.ts > one'] };
+    for (const previous of [undefined, Buffer.from('not an index')]) {
+      const { cases, ...layers } = layerCaseIndex(previous, fresh, ran(['a.test.ts']));
+      expect(layers).toEqual(alone);
+      expect(cases()).toEqual(['a.test.ts > one']);
+    }
+  });
+
+  it('reads no string of a case or region the run did not touch, and asks once a file whether it is present', () => {
+    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
+    const layered = (files: number, each: number): { readonly decoded: number; readonly asked: number } => {
+      // The kept cases take turns across the files, so no two neighbours share one.
+      const kept = Array.from({ length: files * each }, (_, at) => `kept-${at % files}.test.ts > case ${at}`);
+      const held = index([...kept, 'a.test.ts > one'], {
+        'src/shared.ts': [['entry', ['a.test.ts > one']]],
+        ...Object.fromEntries(kept.map((id, at) => [`src/kept-${at}.ts`, [['entry', [id]], ['idle', []]]])),
+      });
+      let asked = 0;
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        layerCaseIndex(held, fresh, { ...ran(['a.test.ts']), present: () => (asked += 1) > 0 });
+        return { decoded: decode.mock.calls.length, asked };
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(layered(4, 100)).toEqual(layered(4, 3));
+    const more = layered(5, 3);
+    const fewer = layered(4, 3);
+    expect(more.asked - fewer.asked).toBe(1);
+    expect(more.decoded - fewer.decoded).toBe(1);
+  });
+
+  it('reads no precondition of a case the run did not touch, however many spellings the index holds', () => {
+    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
+    const decoded = (untouched: number): number => {
+      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
+      // Each case says it in its own body, so no two share a spelling.
+      const said = (id: string): readonly CasePrecondition[] =>
+        [{ name: 'flag', value: id, site: `kept.test.ts:${kept.indexOf(id) + 2}`, level: 65535 }];
+      const held = index([...kept, 'a.test.ts > one'], {
+        'src/shared.ts': [['entry', ['a.test.ts > one', ...kept]]],
+      }, said);
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        const { merged } = layerCaseIndex(held, fresh, ran(['a.test.ts']));
+        const count = decode.mock.calls.length;
+        expect(decodeExecutionIndex(merged).tests.filter((test) => test.preconditions !== undefined)).toHaveLength(untouched);
+        return count;
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(decoded(400)).toBe(decoded(10));
+  });
+
+  it('reads no module of the landing\'s base that no shard of it recorded', () => {
+    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
+    const decoded = (untouched: number): number => {
+      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
+      const base = index([...kept, 'a.test.ts > one'], {
+        'src/shared.ts': [['entry', ['a.test.ts > one']]],
+        ...Object.fromEntries(kept.map((id, at) => [`src/kept-${at}.ts`, [['entry', [id]], ['idle', []]]])),
+      });
+      const files = { ...ran(['a.test.ts']), sameText: () => true, base, sameBeforeText: new Set(['src/shared.ts']) };
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        layerCaseIndex(base, fresh, files);
+        return decode.mock.calls.length;
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(decoded(400)).toBe(decoded(10));
   });
 });
 
@@ -185,8 +270,8 @@ describe('a module the index holds at an older text than the snapshot', () => {
     const files = { ...same, base: held };
 
     expect(linesOf(layerCaseIndex(fresh, fresh, files).before)).toEqual([414, 415, 416]);
-    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: () => false }).before)).toEqual([414, 415, 416]);
-    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: () => true }).before)).toEqual([415, 416, 417]);
+    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: new Set<string>() }).before)).toEqual([414, 415, 416]);
+    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: new Set(['src/blocks.ts']) }).before)).toEqual([415, 416, 417]);
   });
 
   it('leaves out a region the recorded cut has no address for, since no line of the newer text holds it', () => {

@@ -219,7 +219,7 @@ function repinnedEyes(
     watched: held.watched.filter((id) => ours.has(id)),
     journals: held.journals.filter((row) => ours.has(row.case)),
   };
-  return layEyes(milestone, fresh, index.tests.map((test) => test.id), ran);
+  return layEyes(milestone, fresh, () => index.tests.map((test) => test.id), ran);
 }
 
 /**

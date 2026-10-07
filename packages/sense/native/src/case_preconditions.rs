@@ -91,20 +91,62 @@ pub fn resolve(said: Vec<Precondition>) -> Vec<Precondition> {
     resolved.into_iter().map(|(_, precondition)| precondition).collect()
 }
 
-/// The string the column stores a case's row as: `JSON.stringify` of its tuples.
+/// The string the column stores a case's row as: `JSON.stringify` of its
+/// tuples, byte for byte, so a layer carries a row whichever writer stored it.
 pub fn spelled(preconditions: &[Precondition]) -> String {
-    let tuples: Vec<Value> = preconditions
+    let tuples: Vec<String> = preconditions
         .iter()
         .map(|precondition| {
-            Value::Array(vec![
-                Value::String(precondition.name.clone()),
-                precondition.value.clone(),
-                Value::String(precondition.site.clone()),
-                Value::from(precondition.level),
-            ])
+            format!(
+                "[{},{},{},{}]",
+                Value::from(precondition.name.as_str()),
+                spelled_value(&precondition.value),
+                Value::from(precondition.site.as_str()),
+                precondition.level,
+            )
         })
         .collect();
-    Value::Array(tuples).to_string()
+    format!("[{}]", tuples.join(","))
+}
+
+/// A value as `JSON.stringify` spells it. serde_json writes a fraction as Rust
+/// does, `1e-6` and `1.2345678901234568e20`, where JavaScript writes `0.000001`
+/// and `123456789012345680000`.
+fn spelled_value(value: &Value) -> String {
+    match value.as_f64() {
+        Some(number) if value.is_f64() => js_number(number),
+        _ => value.to_string(),
+    }
+}
+
+/// `Number.prototype.toString` of a finite number: the shortest digits that
+/// read back as it, which Rust's `{:e}` writes too, placed as ECMA-262 places them.
+fn js_number(number: f64) -> String {
+    if number == 0.0 {
+        return "0".to_owned();
+    }
+    if number < 0.0 {
+        return format!("-{}", js_number(-number));
+    }
+    let scientific = format!("{number:e}");
+    let (mantissa, exponent) = scientific.split_once('e').unwrap_or((&scientific, "0"));
+    let digits: String = mantissa.chars().filter(|unit| *unit != '.').collect();
+    let count = digits.len() as i64;
+    // The value is `0.digits × 10^point`.
+    let point = exponent.parse::<i64>().unwrap_or(0) + 1;
+    if count <= point && point <= 21 {
+        format!("{digits}{}", "0".repeat((point - count) as usize))
+    } else if 0 < point && point <= 21 {
+        let (whole, fraction) = digits.split_at(point as usize);
+        format!("{whole}.{fraction}")
+    } else if -6 < point && point <= 0 {
+        format!("0.{}{digits}", "0".repeat(-point as usize))
+    } else {
+        let (first, rest) = digits.split_at(1);
+        let fraction = if rest.is_empty() { String::new() } else { format!(".{rest}") };
+        let sign = if point > 0 { '+' } else { '-' };
+        format!("{first}{fraction}e{sign}{}", (point - 1).abs())
+    }
 }
 
 /// A row read back off the column's string. `preconditionsFrom`.
@@ -221,6 +263,19 @@ mod tests {
         let row = vec![said("n", Value::from(2), "a\u{1}:1", 65535), said("t", Value::Bool(true), "s:1", 0)];
         assert_eq!(spelled(&row), r#"[["n",2,"a\u0001:1",65535],["t",true,"s:1",0]]"#);
         assert_eq!(unspelled(&spelled(&row)).unwrap(), row);
+    }
+
+    #[test]
+    fn spells_a_number_as_json_stringify_does() {
+        // What `JSON.stringify` writes for each number.
+        for written in [
+            "0.000001", "0.0000015", "1e-7", "1.5e-7", "0.1", "1.5", "-2.5", "123.456", "123456789012345680000",
+            "100000000000000000000", "1e+21", "1.5e+300", "-1e+21", "2", "-3",
+        ] {
+            let value = Value::from(written.parse::<f64>().unwrap());
+            assert_eq!(spelled(&[said("n", value, "s:1", 0)]), format!(r#"[["n",{written},"s:1",0]]"#));
+        }
+        assert_eq!(spelled(&[said("n", Value::from(-0.0), "s:1", 0)]), r#"[["n",0,"s:1",0]]"#);
     }
 
     #[test]

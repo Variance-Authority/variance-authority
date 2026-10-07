@@ -87,10 +87,11 @@ export function checkoutSaid(root: string, said: Said): Said {
  */
 export const PRECONDITIONS_COLUMN = 'tests.casePreconditions';
 
-const UNHEARD = 0xffffffff;
+/** The word of a case whose producer never listened. */
+export const UNHEARD = 0xffffffff;
 
 /** The string a case's preconditions are stored as, or nothing for a case nobody listened to. */
-function spelled(test: ExecutionTest): string | undefined {
+function spelled(test: Pick<ExecutionTest, 'preconditions'>): string | undefined {
   return test.preconditions === undefined
     ? undefined
     : JSON.stringify(test.preconditions.map(({ name, value, site, level }) => [name, value, site, level]));
@@ -111,13 +112,20 @@ export function preconditionColumn(
   tests: readonly ExecutionTest[],
   id: (value: string) => number,
 ): Readonly<Record<string, Stored>> {
-  if (tests.every((test) => test.preconditions === undefined)) return {};
-  return {
-    [PRECONDITIONS_COLUMN]: column(Uint32Array.from(tests, (test) => {
-      const text = spelled(test);
-      return text === undefined ? UNHEARD : id(text);
-    })),
-  };
+  return preconditionSection(preconditionWords(tests, id));
+}
+
+/** One word per case: the id its preconditions are stored under, or {@link UNHEARD}. */
+export function preconditionWords(tests: readonly ExecutionTest[], id: (value: string) => number): Uint32Array {
+  return Uint32Array.from(tests, (test) => {
+    const text = spelled(test);
+    return text === undefined ? UNHEARD : id(text);
+  });
+}
+
+/** The column of these words, or no column at all when no case was listened to. */
+export function preconditionSection(words: Uint32Array): Readonly<Record<string, Stored>> {
+  return words.every((word) => word === UNHEARD) ? {} : { [PRECONDITIONS_COLUMN]: column(words) };
 }
 
 /**

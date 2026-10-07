@@ -1,5 +1,6 @@
 import { codeUnitOrder } from './instrumented-modules.js';
 import { settledModule } from './format.js';
+import { findString, stringBound } from './lookup.js';
 import type { TestCoverageView } from './format-view.js';
 import type { CrossingSetsView } from './crossing-sets-read.js';
 import type { LayeredOrder } from './format-dictionary.js';
@@ -69,14 +70,15 @@ export function layeredRows(input: {
   readonly view: TestCoverageView;
   readonly columns: CarriedColumns;
   readonly previousSets: CrossingSetsView;
-  readonly previousTestRows: readonly CoverageTest[];
+  /** Each previous test row's file, in row order. */
+  readonly previousFiles: readonly string[];
   readonly currentTests: ReadonlyMap<string, CoverageTest>;
   readonly retired: ReadonlySet<string>;
   readonly current: TestCoverage;
   readonly onDisk: ReadonlyMap<string, string>;
   readonly readings: EditReadings | undefined;
 }): LayeredRows {
-  const { view, previousSets, previousTestRows, currentTests, retired, current, onDisk, readings } = input;
+  const { view, previousSets, previousFiles, currentTests, retired, current, onDisk, readings } = input;
   const {
     modulePath, moduleSource, moduleInstrumented, moduleBlocks,
     blockOrdinal, blockKind, blockOwner, blockDigest, blockName, blockPath,
@@ -93,21 +95,9 @@ export function layeredRows(input: {
   // off the snapshot's axis: a run that re-recorded ten modules of two hundred
   // thousand asks about ten names, and the other 199,990 rows are never
   // decoded, grouped or compared as text.
-  const stringBound = (value: string): number => {
-    let low = 0;
-    let high = view.strings;
-    while (low < high) {
-      const middle = (low + high) >>> 1;
-      if (codeUnitOrder(view.string(middle), value) < 0) low = middle + 1;
-      else high = middle;
-    }
-    return low;
-  };
+  const sortsAt = (value: string): number => stringBound(view.strings, (id) => codeUnitOrder(view.string(id), value));
   /** The string a path was interned under, or nothing if this file never held it. */
-  const interned = (value: string): number | undefined => {
-    const id = stringBound(value);
-    return id < view.strings && view.string(id) === value ? id : undefined;
-  };
+  const interned = (value: string): number | undefined => findString(view, value);
   /** The first module row whose path sorts at or after this string. */
   const moduleBound = (id: number): number => {
     let low = 0;
@@ -157,7 +147,7 @@ export function layeredRows(input: {
   const loadedOf = (at: number): readonly string[] => {
     const files: string[] = [];
     for (const test of previousSets.members(blockLoadedSet[at]!)) {
-      files.push(previousTestRows[test]!.file);
+      files.push(previousFiles[test]!);
     }
     return files;
   };
@@ -166,7 +156,7 @@ export function layeredRows(input: {
   const blockAt = (at: number): CoverageBlock => {
     const testFiles: string[] = [];
     for (const test of previousSets.members(blockSet[at]!)) {
-      testFiles.push(previousTestRows[test]!.file);
+      testFiles.push(previousFiles[test]!);
     }
     const loadedBy = loadedOf(at);
     return {
@@ -221,7 +211,7 @@ export function layeredRows(input: {
         ) {
           const files: string[] = [];
           for (const test of previousSets.members(blockSet[before]!)) {
-            files.push(previousTestRows[test]!.file);
+            files.push(previousFiles[test]!);
           }
           surviving.set(block, { files, loaded: loadedOf(before) });
           if (editedRegion(
@@ -233,7 +223,7 @@ export function layeredRows(input: {
           continue;
         }
         for (const test of previousSets.members(blockSet[before]!)) {
-          const file = previousTestRows[test]!.file;
+          const file = previousFiles[test]!;
           if (!currentTests.has(file)) stale.add(file);
         }
       }
@@ -300,7 +290,7 @@ export function layeredRows(input: {
     .map((module, at) => at)
     .sort((left, right) =>
       codeUnitOrder(rerecorded[left]!.file, rerecorded[right]!.file) || left - right);
-  const splicedAt = rerecorded.map((module) => moduleBound(stringBound(module.file)));
+  const splicedAt = rerecorded.map((module) => moduleBound(sortsAt(module.file)));
   let carriedCount = 0;
   for (let row = 0; row < moduleCount; row += 1) if (claimed[row] === 0) carriedCount += 1;
   const order = new Int32Array(rerecorded.length + carriedCount);

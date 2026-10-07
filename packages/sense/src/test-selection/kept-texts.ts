@@ -26,11 +26,11 @@
 
 // compass: variance-authority.reach
 
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
+import { workingTreeChanges } from '../working-tree-changes.js';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import type { TestCoverageView } from './format-view.js';
 import { findModules } from './lookup.js';
@@ -67,17 +67,18 @@ export async function keepRecordedTexts(
 ): Promise<readonly string[]> {
   if (record.commit === undefined) return [];
   let repository: string;
-  let dirty: readonly string[];
   let top: string;
   try {
     repository = repositoryRoot(root);
-    dirty = dirtyFiles(repository);
     ({ top } = repositoryLayers(repository, cacheRoot));
   } catch {
     return [];
   }
+  // Asked as the scan asks it, so a checkout's untracked cache answers it.
+  const changes = await workingTreeChanges(repository, '');
+  if (changes === undefined) return [];
   const kept: string[] = [];
-  for (const file of dirty) {
+  for (const file of changes.changed) {
     const rows = findModules(record, file).filter((module) => record.moduleInstrumented.at(module) === 1);
     if (rows.length === 0) continue;
     const digests = new Set(rows.map((module) => record.string(record.moduleSource.at(module))));
@@ -129,28 +130,4 @@ export function keptTexts(root: string, cacheRoot?: string): (digest: string) =>
     }
     return undefined;
   };
-}
-
-/**
- * The paths git says differ from `HEAD` in the working tree or the index, and
- * the untracked ones it does not ignore, relative to the repository root.
- *
- * `--porcelain` spells paths from the root whatever the directory it runs in,
- * and `-z` leaves them unquoted.
- */
-function dirtyFiles(repository: string): readonly string[] {
-  const output = execFileSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames'], {
-    cwd: repository,
-    encoding: 'utf8',
-    maxBuffer: 1 << 28,
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
-  const files: string[] = [];
-  for (const entry of output.split('\0')) {
-    if (entry.length < 4) continue;
-    // `XY path`: a path deleted from the tree has no text to keep.
-    if (entry[1] === 'D') continue;
-    files.push(entry.slice(3));
-  }
-  return files;
 }

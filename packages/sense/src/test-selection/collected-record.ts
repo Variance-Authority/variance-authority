@@ -82,7 +82,7 @@ function withoutCases(sections: CaseSections, collected: ReadonlySet<string>): C
   const index = cut(sections.index);
   const before = cut(sections.before);
   const cases = openPrevious(index)?.tests;
-  const eyes = cases === undefined ? sections.eyes : layEyes(sections.eyes, undefined, cases.map((test) => test.id), []);
+  const eyes = cases === undefined ? sections.eyes : layEyes(sections.eyes, undefined, () => cases.map((test) => test.id), []);
   return {
     ...(index === undefined ? {} : { index }),
     ...(before === undefined ? {} : { before }),

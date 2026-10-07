@@ -97,13 +97,15 @@ export function readableEyes(bytes: Uint8Array | undefined): EyesSection | undef
 /**
  * The Eyes section once a run's Eyes are laid over the record's.
  *
- * `cases` are the ids of the index the run leaves in the record, and `ran` the
- * cases the run recorded. A case that ran has its journals, and whether it was
- * watched, replaced by the run's: every attempt, and none when the run opened
- * none for it. What `fresh` holds of a case the run did not record, as a
- * shard's seed carries it, is not the run's and is not laid. `fresh` is `undefined` for a run that did not compose Eyes. A
- * case the index no longer holds loses its journals with it. Every other case
- * keeps what it had. A section this build cannot read is laid over as none.
+ * `cases` reads the ids of the index the run leaves in the record, asked only
+ * when there are Eyes to lay, and `ran` the cases the run recorded. A case that
+ * ran has its journals, and whether it was watched, replaced by the run's:
+ * every attempt, and none when the run opened none for it. What `fresh` holds
+ * of a case the run did not record, as a shard's seed carries it, is not the
+ * run's and is not laid. `fresh` is `undefined` for a run that did not compose
+ * Eyes. A case the index no longer holds loses its journals with it. Every
+ * other case keeps what it had. A section this build cannot read is laid over
+ * as none.
  *
  * A fresh journal whose case is not in `cases` is refused: the run's own fold
  * named the cases, and a journal it cannot join is a producer that named its
@@ -112,12 +114,12 @@ export function readableEyes(bytes: Uint8Array | undefined): EyesSection | undef
 export function layEyes(
   previous: Uint8Array | undefined,
   fresh: EyesSection | undefined,
-  cases: readonly string[],
+  cases: () => readonly string[],
   ran: readonly string[],
 ): Uint8Array | undefined {
   const prior = readableEyes(previous);
   if (prior === undefined && fresh === undefined) return undefined;
-  const held = new Set(cases);
+  const held = new Set(cases());
   for (const row of fresh?.journals ?? []) {
     if (!held.has(row.case)) throw new Error(`an Eyes journal names a case the run did not record: ${row.case}`);
   }

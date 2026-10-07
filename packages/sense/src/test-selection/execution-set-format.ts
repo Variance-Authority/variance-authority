@@ -1,18 +1,26 @@
-import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
-import {
-  blob,
-  column,
-  durationWord,
-  NO_DURATION,
-  sections,
-  validSections,
-  type Header,
-  type Section,
-} from './format-layout.js';
-import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
-import { CrossingSets, type CrossingSetsPool, type SetId } from './crossing-sets.js';
+import { blob, column, sections } from './format-layout.js';
+import { type CrossingSetsView } from './crossing-sets-read.js';
+import { CrossingSets, type CrossingSetsPool } from './crossing-sets.js';
 import { codeUnitOrder, intern } from '@variance-authority/core/segment';
-import { PRECONDITIONS_COLUMN, preconditionColumn, preconditionStrings, preconditionsFrom } from './case-precondition-column.js';
+import { preconditionSection, preconditionStrings, preconditionWords, preconditionsFrom } from './case-precondition-column.js';
+import {
+  columnWords,
+  durationColumn,
+  durationFrom,
+  fail,
+  LOADED_SETS_FORMAT,
+  members,
+  sectionsOf,
+  setColumns,
+  stoppedColumn,
+  stoppedFrom,
+  stringTable,
+  testColumns,
+  type OpenedSections,
+  type SetColumns,
+  type StringTable,
+  type TestColumns,
+} from './execution-set-columns.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 
 /**
@@ -27,8 +35,6 @@ import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } f
  * it — the addon's journeys among them — reads as cases that said nothing.
  */
 export const SET_EXECUTION_FORMAT = 3;
-
-const LOADED_SETS_FORMAT = 2;
 
 export interface SetExecutionModule {
   readonly file: string;
@@ -102,27 +108,60 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   }
   moduleBlocks[modules.length] = block;
 
+  return writeSetColumns({
+    strings: { blob: Buffer.concat(encoded), offsets: stringOffsets },
+    testId: Uint32Array.from(index.tests, (test) => id(test.id)),
+    testFile: Uint32Array.from(index.tests, (test) => id(test.file)),
+    testName: Uint32Array.from(index.tests, (test) => id(test.name)),
+    testStopped: stoppedColumn(index.tests),
+    testDuration: durationColumn(index.tests),
+    testPreconditions: preconditionWords(index.tests, id),
+    moduleFile,
+    moduleBlocks,
+    blockKind,
+    blockName,
+    blockPath,
+    blockStart,
+    blockEnd,
+    blockSource,
+    blockCalled,
+    blockLoaded,
+  }, index.sets);
+}
+
+/** The columns an index is written from: every one {@link SetColumns} reads, none of them optional. */
+export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testPreconditions'> {
+  readonly testStopped: Uint8Array;
+  readonly testDuration: Uint32Array;
+  readonly testPreconditions: Uint32Array;
+}
+
+/**
+ * Write an index from its columns. Modules in code-unit order of path, and
+ * every id naming a string of `columns.strings`, are the caller's to keep.
+ */
+export function writeSetColumns(columns: WrittenSetColumns, sets: CrossingSetsPool): Buffer {
   return sections({
-    'strings.blob': blob(Buffer.concat(encoded), stringOffsets),
-    'strings.off': column(stringOffsets),
-    'tests.id': column(Uint32Array.from(index.tests, (test) => id(test.id))),
-    'tests.file': column(Uint32Array.from(index.tests, (test) => id(test.file))),
-    'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
-    'tests.stopped': column(stoppedColumn(index.tests)),
-    'tests.duration': column(durationColumn(index.tests)),
-    ...preconditionColumn(index.tests, id),
-    'modules.file': column(moduleFile),
-    'modules.blocks': column(moduleBlocks),
-    'blocks.kind': column(blockKind),
-    'blocks.name': column(blockName),
-    'blocks.path': column(blockPath),
-    'blocks.start': column(blockStart),
-    'blocks.end': column(blockEnd),
-    'blocks.source': column(blockSource),
-    'blocks.calledSet': column(blockCalled),
-    'blocks.loaded': column(blockLoaded),
-    'sets.blob': blob(index.sets.bytes, index.sets.offsets),
-    'sets.off': column(index.sets.offsets),
+    'strings.blob': blob(columns.strings.blob, columns.strings.offsets),
+    'strings.off': column(columns.strings.offsets),
+    'tests.id': column(columns.testId),
+    'tests.file': column(columns.testFile),
+    'tests.name': column(columns.testName),
+    'tests.stopped': column(columns.testStopped),
+    'tests.duration': column(columns.testDuration),
+    ...preconditionSection(columns.testPreconditions),
+    'modules.file': column(columns.moduleFile),
+    'modules.blocks': column(columns.moduleBlocks),
+    'blocks.kind': column(columns.blockKind),
+    'blocks.name': column(columns.blockName),
+    'blocks.path': column(columns.blockPath),
+    'blocks.start': column(columns.blockStart),
+    'blocks.end': column(columns.blockEnd),
+    'blocks.source': column(columns.blockSource),
+    'blocks.calledSet': column(columns.blockCalled),
+    'blocks.loaded': column(columns.blockLoaded),
+    'sets.blob': blob(sets.bytes, sets.offsets),
+    'sets.off': column(sets.offsets),
   }, SET_EXECUTION_FORMAT);
 }
 
@@ -139,10 +178,19 @@ export interface OpenedSetExecutionIndex {
  * nothing for the row spelling, which has no sets to hand over.
  */
 export function openSetExecutionIndex(bytes: Uint8Array): OpenedSetExecutionIndex | undefined {
+  const columns = openSetColumns(bytes);
+  return columns === undefined ? undefined : openedSets(columns);
+}
+
+/**
+ * The compact spelling as its columns, every one checked and no string
+ * decoded; nothing for the row spelling.
+ */
+export function openSetColumns(bytes: Uint8Array): SetColumns | undefined {
   const opened = sectionsOf(bytes);
   const version = opened.header.version;
   if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT) return undefined;
-  return openedSets(opened);
+  return setColumns(opened);
 }
 
 /** Read the compact journey spelling into the runner-independent object model. */
@@ -152,7 +200,7 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT) {
     throw new Error(`unsupported execution index version: ${opened.header.version}`);
   }
-  const { tests, modules, sets } = openedSets(opened);
+  const { tests, modules, sets } = openedSets(setColumns(opened));
   return {
     tests,
     modules: modules.map((module): ExecutionModule => ({
@@ -236,15 +284,15 @@ export function journeyGaps(bytes: Uint8Array): JourneyGaps | undefined {
 }
 
 function stringsOf(opened: OpenedSections): string[] {
-  const stringOffsets = columnWords(opened, 'strings.off');
-  const stringBlob = columnBlob(opened, 'strings.blob', stringOffsets);
+  return decodedStrings(stringTable(opened));
+}
+
+/** Every string of a table, decoded. */
+function decodedStrings(table: StringTable): string[] {
   const decoder = new TextDecoder();
   const strings: string[] = [];
-  for (let id = 0; id + 1 < stringOffsets.length; id += 1) {
-    const from = stringOffsets[id]!;
-    const to = stringOffsets[id + 1]!;
-    if (to < from || to > stringBlob.length) throw invalid();
-    strings.push(decoder.decode(stringBlob.subarray(from, to)));
+  for (let id = 0; id + 1 < table.offsets.length; id += 1) {
+    strings.push(decoder.decode(table.blob.subarray(table.offsets[id]!, table.offsets[id + 1]!)));
   }
   return strings;
 }
@@ -265,86 +313,54 @@ export function executionTestsOf(bytes: Uint8Array, rows: readonly number[]): re
 }
 
 function testsOf(opened: OpenedSections, strings: readonly string[]): ExecutionTest[] {
-  const words = (name: string): Uint32Array => columnWords(opened, name);
+  const columns = testColumns(opened, strings.length);
   const string = (id: number): string => strings[id] ?? fail();
-  const testId = words('tests.id');
-  const testFile = words('tests.file');
-  const testName = words('tests.name');
-  // Written since a case carries how it settled; a file without it says nothing.
-  const testStopped = opened.found.has('tests.stopped') ? columnBytes(opened, 'tests.stopped') : undefined;
-  // Written since a case carries its runner's duration; a file without it timed none.
-  const testDuration = opened.found.has('tests.duration') ? words('tests.duration') : undefined;
-  if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
-  if (testDuration !== undefined && testDuration.length !== testId.length) throw invalid();
-  // Written since a case carries the preconditions it named; a file without it listened to none.
-  const said = opened.found.has(PRECONDITIONS_COLUMN) ? words(PRECONDITIONS_COLUMN) : undefined;
-  if (said !== undefined && said.length !== testId.length) throw invalid();
-  const tests: ExecutionTest[] = [];
-  for (let at = 0; at < testId.length; at += 1) {
-    tests.push({
-      id: string(testId[at]!),
-      file: string(testFile[at]!),
-      name: string(testName[at]!),
-      ...stoppedFrom(testStopped, at),
-      ...durationFrom(testDuration, at),
-      ...preconditionsFrom(said, at, string),
-    });
-  }
-  return tests;
+  return Array.from(columns.testId, (_, at) => testAt(columns, at, string));
 }
 
-function openedSets(opened: OpenedSections): OpenedSetExecutionIndex {
-  const version = opened.header.version;
-  const words = (name: string): Uint32Array => columnWords(opened, name);
-  const flags = (name: string): Uint8Array => columnBytes(opened, name);
-  const strings = stringsOf(opened);
-  const string = (id: number): string => strings[id] ?? fail();
-  const tests = testsOf(opened, strings);
+/** One case off the test columns. */
+export function testAt(columns: TestColumns, at: number, string: (id: number) => string): ExecutionTest {
+  return {
+    id: string(columns.testId[at]!),
+    file: string(columns.testFile[at]!),
+    name: string(columns.testName[at]!),
+    ...stoppedFrom(columns.testStopped, at),
+    ...durationFrom(columns.testDuration, at),
+    ...preconditionsFrom(columns.testPreconditions, at, string),
+  };
+}
 
-  const moduleFile = words('modules.file');
-  const moduleBlocks = words('modules.blocks');
-  const blockKind = words('blocks.kind');
-  const blockName = words('blocks.name');
-  const blockPath = words('blocks.path');
-  const blockStart = words('blocks.start');
-  const blockEnd = words('blocks.end');
-  const blockSource = flags('blocks.source');
-  const blockCalled = words('blocks.calledSet');
-  const blockLoaded = version === LOADED_SETS_FORMAT ? words('blocks.loadedSet') : flags('blocks.loaded');
-  if (moduleBlocks.length !== moduleFile.length + 1) throw invalid();
-  const blockCount = blockKind.length;
-  if ([blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded]
-    .some((column) => column.length !== blockCount)) throw invalid();
-
-  const setOffsets = words('sets.off');
-  const setBytes = columnBlob(opened, 'sets.blob', setOffsets);
-  const sets = openCrossingSets({ bytes: setBytes, offsets: setOffsets, testCount: tests.length });
-  const modules: SetExecutionModule[] = [];
-  for (let module = 0; module < moduleFile.length; module += 1) {
-    const first = moduleBlocks[module]!;
-    const last = moduleBlocks[module + 1]!;
-    if (last < first || last > blockCount) throw invalid();
-    const blocks: Omit<ExecutionBlock, 'crossings'>[] = [];
-    const called = new Uint32Array(last - first);
-    const loaded = new Uint8Array(last - first);
-    for (let block = first; block < last; block += 1) {
-      if (blockCalled[block]! >= sets.size) throw invalid();
-      called[block - first] = blockCalled[block]!;
-      loaded[block - first] = (version === LOADED_SETS_FORMAT
-        ? members(sets, blockLoaded[block]!, tests.length).length > 0
-        : blockLoaded[block] === 1) ? 1 : 0;
-      blocks.push({
-        kind: string(blockKind[block]!),
-        name: string(blockName[block]!),
-        path: string(blockPath[block]!),
-        startLine: blockStart[block]!,
-        endLine: blockEnd[block]!,
-        source: blockSource[block] === 1,
-      });
-    }
-    modules.push({ file: string(moduleFile[module]!), blocks, called, loaded });
+/** One module off the module and region columns, its regions naming the sets they are stored with. */
+export function moduleAt(columns: SetColumns, at: number, string: (id: number) => string): SetExecutionModule {
+  const first = columns.moduleBlocks[at]!;
+  const last = columns.moduleBlocks[at + 1]!;
+  const blocks: Omit<ExecutionBlock, 'crossings'>[] = [];
+  for (let block = first; block < last; block += 1) {
+    blocks.push({
+      kind: string(columns.blockKind[block]!),
+      name: string(columns.blockName[block]!),
+      path: string(columns.blockPath[block]!),
+      startLine: columns.blockStart[block]!,
+      endLine: columns.blockEnd[block]!,
+      source: columns.blockSource[block] === 1,
+    });
   }
-  return { tests, modules, sets };
+  return {
+    file: string(columns.moduleFile[at]!),
+    blocks,
+    called: columns.blockCalled.slice(first, last),
+    loaded: columns.blockLoaded.slice(first, last),
+  };
+}
+
+function openedSets(columns: SetColumns): OpenedSetExecutionIndex {
+  const strings = decodedStrings(columns.strings);
+  const string = (id: number): string => strings[id] ?? fail();
+  return {
+    tests: Array.from(columns.testId, (_, at) => testAt(columns, at, string)),
+    modules: Array.from(columns.moduleFile, (_, at) => moduleAt(columns, at, string)),
+    sets: columns.sets,
+  };
 }
 
 function dictionary(index: SetExecutionIndex): ReadonlySet<string> {
@@ -364,121 +380,4 @@ function dictionary(index: SetExecutionIndex): ReadonlySet<string> {
     }
   }
   return held;
-}
-
-function members(
-  sets: CrossingSetsView,
-  set: SetId,
-  testCount: number,
-): Uint32Array {
-  if (set < 0 || set >= sets.size) throw invalid();
-  const found = sets.members(set);
-  if (found.some((test) => test >= testCount)) throw invalid();
-  return found;
-}
-
-interface OpenedSections {
-  readonly file: Bytes;
-  readonly bytes: Uint8Array;
-  readonly header: Header;
-  readonly base: number;
-  readonly found: ReadonlyMap<string, Section>;
-}
-
-function sectionsOf(bytes: Uint8Array): OpenedSections {
-  if (bytes.length < 4) throw invalid();
-  const headerLength = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).readUInt32LE(0);
-  if (headerLength <= 0 || headerLength + 4 > bytes.length) throw invalid();
-  const header = JSON.parse(
-    Buffer.from(bytes.buffer, bytes.byteOffset + 4, headerLength).toString('utf8').replace(/\0+$/u, ''),
-  ) as Header;
-  const base = 4 + headerLength;
-  if (!validSections(header.sections, bytes.length - base)) throw invalid();
-  return {
-    file: resident(bytes),
-    bytes,
-    header,
-    base,
-    found: new Map(header.sections.map((section) => [section.name, section])),
-  };
-}
-
-function stored(opened: OpenedSections, name: string): Bytes {
-  const section = opened.found.get(name);
-  if (section === undefined) throw invalid();
-  const from = opened.base + section.offset;
-  return { length: section.length, read: (first, last) => opened.file.read(from + first, from + last) };
-}
-
-function whole(opened: OpenedSections, name: string): Uint8Array {
-  const section = opened.found.get(name);
-  if (section === undefined) throw invalid();
-  return opened.file.read(opened.base + section.offset, opened.base + section.offset + section.length);
-}
-
-function columnWords(opened: OpenedSections, name: string): Uint32Array {
-  const section = opened.found.get(name);
-  if (section === undefined) throw invalid();
-  if (section.rows !== undefined) return openWords(stored(opened, name), section.rows).all();
-  if (section.length % 4 !== 0) throw invalid();
-  const bytes = whole(opened, name);
-  return new Uint32Array(bytes.buffer, bytes.byteOffset, section.length / 4);
-}
-
-function columnBytes(opened: OpenedSections, name: string): Uint8Array {
-  const section = opened.found.get(name);
-  if (section === undefined) throw invalid();
-  return section.rows === undefined ? whole(opened, name) : openBytes(stored(opened, name), section.rows).all();
-}
-
-function columnBlob(opened: OpenedSections, name: string, offsets: Uint32Array): Uint8Array {
-  const section = opened.found.get(name);
-  if (section === undefined) throw invalid();
-  return section.rows === undefined
-    ? whole(opened, name)
-    : openBlob(stored(opened, name), () => offsets).all();
-}
-
-/**
- * How each case settled, one byte per test: nothing said, finished, stopped.
- *
- * Three states, as `crossings.loaded` has, because a producer that cannot see
- * a case settle must not be read as one that saw it finish.
- */
-const UNSETTLED = 0;
-const FINISHED = 1;
-const STOPPED = 2;
-
-export function stoppedColumn(tests: readonly ExecutionTest[]): Uint8Array {
-  return Uint8Array.from(tests, (test) =>
-    test.stopped === undefined ? UNSETTLED : test.stopped ? STOPPED : FINISHED);
-}
-
-export function stoppedFrom(column: Uint8Array | undefined, at: number): { readonly stopped?: boolean } {
-  const held = column?.[at];
-  if (held === undefined || held === UNSETTLED) return {};
-  if (held === FINISHED) return { stopped: false };
-  if (held === STOPPED) return { stopped: true };
-  throw invalid();
-}
-
-/**
- * Each case's duration as its runner reported it, one word per test in whole
- * milliseconds, {@link NO_DURATION} for a case no runner timed.
- */
-export function durationColumn(tests: readonly ExecutionTest[]): Uint32Array {
-  return Uint32Array.from(tests, (test) => durationWord(test.duration));
-}
-
-export function durationFrom(column: Uint32Array | undefined, at: number): { readonly duration?: number } {
-  const held = column?.[at];
-  return held === undefined || held === NO_DURATION ? {} : { duration: held };
-}
-
-function fail(): never {
-  throw invalid();
-}
-
-function invalid(): Error {
-  return new Error('not a variance-authority execution index');
 }

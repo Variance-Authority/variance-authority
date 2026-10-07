@@ -27,7 +27,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { cacheRootFor, primaryCheckout } from './cache-layers.js';
+import { cacheRootFor, primaryCacheRoot } from './cache-layers.js';
 import { commitRunsFile, type CommitRuns } from './commit-runs.js';
 import { caseSectionsOf } from './case-record.js';
 import { decodeExecutionTests } from './execution-format.js';
@@ -139,7 +139,7 @@ function fetchCaches(root: string, cacheRoot: string | undefined): readonly stri
   if (cacheRoot !== undefined) return [cacheRoot];
   const here = repositoryRoot(root);
   const own = cacheRootFor(here);
-  const primary = cacheRootFor(primaryCheckout(here));
+  const primary = primaryCacheRoot(here);
   return primary === own ? [own] : [own, primary];
 }
 

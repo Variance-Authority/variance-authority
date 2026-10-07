@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { digestString } from '../digest.js';
 import { repositoryLayers } from './cache-layers.js';
 import { landRun } from './commit-runs.js';
@@ -215,6 +215,41 @@ describe('a run recorded over an edit keeps the text it ran over', () => {
       const { top, base } = repositoryLayers(worktree, at.cacheRoot);
       expect(top).not.toBe(base);
       expect(await select(at, coverageFile, worktree)).toEqual({ entered: ['test/second.test.ts'], stale: [] });
+    });
+  });
+
+  // Git keeps an untracked cache for a checkout that turns it on, so that
+  // asking what moved does not read every directory again; it answers the
+  // question only in the shape the scan asks it (`tree.ts`). Asked in any other,
+  // every landing pays a walk of the whole checkout.
+  it('asks git what moved in the shape its untracked cache answers, so a landing does not walk every file', async () => {
+    await checkout(async (at) => {
+      const files = 200;
+      for (let file = 0; file < files; file += 1) await writeFile(resolve(at.root, 'src', `f${file}.ts`), `${file}\n`, 'utf8');
+      await at.git('add', '--all');
+      await at.git('commit', '--quiet', '--message', 'a directory of files');
+      await at.git('config', 'core.untrackedCache', 'true');
+      const commit = await at.git('rev-parse', 'HEAD');
+      await writeFile(resolve(at.root, FILE), NOTED, 'utf8');
+      // Older than the index, so git does not distrust the cache it is about to write.
+      const past = new Date(Date.now() - 60_000);
+      for (const directory of [at.root, resolve(at.root, 'src')]) await utimes(directory, past, past);
+      await at.git('status', '--porcelain');
+      const trace = resolve(at.cacheRoot, 'git-trace');
+      await mkdir(at.cacheRoot, { recursive: true });
+
+      vi.stubEnv('GIT_TRACE2_PERF', trace);
+      let kept: readonly string[];
+      try {
+        kept = await keepRecordedTexts(at.root, openTestCoverage(encodeTestCoverage(recording(NOTED, commit))), at.cacheRoot);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      expect(kept).toEqual([digestString(NOTED)]);
+      const visited = [...(await readFile(trace, 'utf8')).matchAll(/paths-visited:(\d+)/gu)].map(([, count]) => Number(count));
+      expect(visited.length).toBeGreaterThan(0);
+      expect(Math.max(...visited)).toBeLessThan(files);
     });
   });
 });

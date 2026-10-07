@@ -142,10 +142,10 @@ export function layCases(
     sameText: (file) => recorded.has(file) && recorded.get(file) === held?.get(file),
     ...(base === undefined ? {} : {
       base: base.index,
-      sameBeforeText: (file: string) => {
+      sameBeforeText: new Set([...recorded.keys(), ...(base.recorded?.keys() ?? [])].filter((file) => {
         const text = recorded.get(file) ?? base.recorded?.get(file);
         return text !== undefined && text === base.texts?.get(file);
-      },
+      })),
     }),
   });
   const prior = lastCaseRunOf(previous);

@@ -40,12 +40,8 @@ import { removeSeamModules, type SelectionRun } from './selection-run.js';
 import { governingPreconditions } from './governing-config.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
-import {
-  noteSeeded,
-  seedTestCoverage,
-  type CoverageModule,
-  type TestCoverage,
-} from './index.js';
+import type { CoverageModule, TestCoverage } from './index.js';
+import { noteSeeded, seedTestCoverage } from './record-location.js';
 
 /** Where a fold writes, and which of this seam's own files it clears up after. */
 export interface FoldDestination {

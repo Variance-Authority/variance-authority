@@ -7,7 +7,7 @@
 // file. A rule added to the merge and not to the layer fails here rather than
 // in an index somebody has already written.
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { editKey, type EditReading } from './edit-readings.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
@@ -424,6 +424,39 @@ describe('layerTestCoverage', () => {
     ));
 
     expect(layered.tests.every((test) => test.complete)).toBe(true);
+  });
+
+  it('decodes no precondition of a test the run did not touch', () => {
+    // A test's preconditions are its module closure: a hundred and more
+    // digests a test, against the one file a local run lands. The run's own
+    // tests are compared on theirs; every other test is carried, and a carried
+    // precondition is an integer the dictionary renumbers. What more of them
+    // cost is the search for the run's names going a few levels deeper, which
+    // stays under one string for each test the run did not touch.
+    const untouched = Array.from({ length: 30 }, (_, test) => `test/untouched-${test}.test.ts`);
+    const decoded = (each: number): number => {
+      const previous: TestCoverage = {
+        ...at(BASELINE, 'test/alpha.test.ts'),
+        tests: ['test/alpha.test.ts', ...untouched].map((file) => ({
+          file,
+          complete: true,
+          preconditions: Array.from({ length: each }, (_, input) => ({
+            name: `${file}/input-${input}`,
+            digest: `${file}/digest-${input}`,
+          })),
+        })),
+      };
+      const bytes = encodeTestCoverage(previous);
+      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+      try {
+        layerTestCoverage(bytes, at(LOCAL, 'test/alpha.test.ts'));
+        return decode.mock.calls.length;
+      } finally {
+        decode.mockRestore();
+      }
+    };
+
+    expect(decoded(40) - decoded(1)).toBeLessThan(untouched.length);
   });
 
   it('treats a file it cannot decode as one that is not there', () => {
