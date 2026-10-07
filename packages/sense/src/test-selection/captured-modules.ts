@@ -89,12 +89,21 @@ export async function deriveModules(
   mode: InstrumentMode | undefined,
 ): Promise<ReadonlyMap<ModuleId, CapturedModule>> {
   const found = new Map<ModuleId, CapturedModule>();
-  await Promise.all([...new Set(ids)].map(async (id) => {
-    const module = await deriveModule(root, id, mode);
-    if (module !== undefined) found.set(id, module);
-  }));
+  // A suite's journals can name tens of thousands of modules: a read for each
+  // at once runs out of file descriptors, so a few readers share the list.
+  const pending = new Set(ids).values();
+  const reader = async () => {
+    for (const id of pending) {
+      const module = await deriveModule(root, id, mode);
+      if (module !== undefined) found.set(id, module);
+    }
+  };
+  await Promise.all(Array.from({ length: READERS }, reader));
   return found;
 }
+
+/** How many files {@link deriveModules} reads at once. */
+const READERS = 64;
 
 const ID = /^(.+)@([0-9a-f]+)$/;
 

@@ -1,9 +1,26 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { captureModule, deriveModules, pathOf } from './captured-modules.js';
 import { defaultInclude } from './instrumented-modules.js';
+
+/** The most reads the derivation had in flight at once. */
+const reading = vi.hoisted(() => ({ now: 0, most: 0 }));
+vi.mock('node:fs/promises', async (actual) => {
+  const fs = await actual<typeof import('node:fs/promises')>();
+  return {
+    ...fs,
+    readFile: async (...args: Parameters<typeof fs.readFile>) => {
+      reading.most = Math.max(reading.most, ++reading.now);
+      try {
+        return await fs.readFile(...args);
+      } finally {
+        reading.now -= 1;
+      }
+    },
+  };
+});
 
 const SOURCE = 'export function total(items) {\n  return items.length > 0 ? items.length : 0;\n}\n';
 
@@ -63,6 +80,16 @@ describe('a module cut again from the checkout', () => {
     const { root } = await checkout(SOURCE);
 
     expect((await deriveModules(root, ['src-cart.js'], undefined)).size).toBe(0);
+  });
+
+  it('reads a bounded number of files at once however many modules the journals name', async () => {
+    const { root } = await checkout(SOURCE);
+    const ids = Array.from({ length: 1000 }, (_, at) => `missing-${at}.js@${'0'.repeat(32)}`);
+    reading.most = 0;
+
+    await deriveModules(root, ids, undefined);
+
+    expect(reading.most).toBeLessThanOrEqual(64);
   });
 
   it('throws what reading the file threw when the file is there', async () => {
