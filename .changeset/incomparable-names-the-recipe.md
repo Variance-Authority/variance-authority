@@ -15,9 +15,9 @@ and this run, and says whether they are the machine (renderer, engine, platform,
 scale, fonts) or only variance-authority's recipe (the stabilization or
 rasterization digest). It used to print both identities in full and blame the
 machine either way. A refusal no longer says pixels are machine-bound and
-the two not comparable: it says the two were not compared because this tool
-compares only within one identity, and that nothing measured whether another
-machine paints the same pixels. `incomparableBecause` and its `IncomparableSides` wording,
+the two not comparable: it says nothing was compared because this tool
+compares images only within one identity, and that nothing measured whether
+another machine paints the same pixels. `incomparableBecause` and its `IncomparableSides` wording,
 whose `replaceable` says whether the reason may offer a re-baseline, are
 exported from `@variance-authority/raster` for a caller that writes the same
 sentence.
@@ -63,6 +63,12 @@ differ and `machine` otherwise, as `recipeOnly`, now exported from
 since no pixels were compared.
 TypeScript code that reads `Observation.signals.pixels` must now handle it
 being absent.
+
+`@variance-authority/vitest-browser` asks `bulkSkips` too, and now depends on
+`@variance-authority/report`: Vitest's `--update` reaches every selected test,
+so it skips the same `incomparable` subjects. It used to promote every candidate
+it painted, including another machine's image and a re-painted recipe whose
+document moved. A plugin declared `accept: true` still adopts them.
 
 `variance ask summary` prints a reason that several subjects share once, with a
 count, and lists the subjects under it, so an upgrade that leaves every subject

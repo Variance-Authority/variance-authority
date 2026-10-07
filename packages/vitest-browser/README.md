@@ -188,8 +188,12 @@ afterwards does not turn that verdict into a pass. Open the PNG it wrote under
 `.variance/baselines` before you commit it — that review is the approval. Run the
 suite again and the subject reports `unchanged`.
 
-Set `accept: false` on the plugin to keep baselines out of `--update`
-altogether, or `accept: true` for a job whose whole purpose is to write them.
+`--update` reaches every selected test, so it skips the `incomparable` subjects
+`variance accept --all` skips: an image another machine painted, and a
+re-painted recipe whose document moved. Nothing compared either one with
+anything. Set `accept: false` on
+the plugin to keep baselines out of `--update` altogether, or `accept: true` for
+a job whose whole purpose is to write them, which adopts every image it painted.
 
 ### Commit the baselines
 

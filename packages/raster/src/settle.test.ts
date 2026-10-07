@@ -83,7 +83,7 @@ describe('settle', () => {
     // seven-field identity that is where the field that moved gets missed.
     expect(settlement.because).toContain('platform darwin/arm64 → linux/x64');
     expect(settlement.because).not.toContain('chromium@131');
-    expect(settlement.because).toContain('these two were not compared');
+    expect(settlement.because).toContain('nothing here was compared');
     expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
   });
 
@@ -133,6 +133,9 @@ describe('settle', () => {
     expect(settlement.because).not.toContain('only the recipe moved');
     expect(settlement.because).not.toContain('regression');
     expect(settlement.because).not.toContain('--all');
+    // Vitest's `--update` is a sweep and skips this subject, so it is no route.
+    expect(settlement.because).toContain('`variance accept <subject>`');
+    expect(settlement.because).not.toContain('Vitest');
   });
 
   it('refuses a side that did not record its recipe, since an unrecorded recipe is not a value', () => {
@@ -149,7 +152,7 @@ describe('settle', () => {
     const settlement = settle(digest, found, IDENTITY);
     expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
     expect(settlement.because).toContain('rasterization e5ed66c6 → not recorded');
-    expect(settlement.because).toContain('these two were not compared');
+    expect(settlement.because).toContain('nothing here was compared');
     expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
     expect(settlement.because).not.toContain('accept');
   });
@@ -170,6 +173,9 @@ describe('settle', () => {
     expect(settlement).toMatchObject({ kind: 'settled', verdict: 'incomparable' });
     expect(settlement.because).toContain('rasterization');
     expect(settlement.because).toContain('no image was produced');
+    // No image was painted, so there is no second one to call one of two.
+    expect(settlement.because).toContain('nothing here was compared');
+    expect(settlement.because).not.toMatch(/these two|two images/);
     expect(settlement.because).not.toMatch(/machine-bound|not comparable/);
     expect(settlement.because).not.toContain('accept');
   });

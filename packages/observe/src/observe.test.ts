@@ -140,7 +140,7 @@ describe('a durable observation above 1x', () => {
     // find it by diffing two parentheses.
     expect(observation.because).toContain('scale 1x → 2x');
     expect(observation.because).not.toContain('chromium@131.0.0');
-    expect(observation.because).toContain('these two were not compared');
+    expect(observation.because).toContain('nothing here was compared');
     expect(observation.because).not.toMatch(/machine-bound|not comparable/);
   });
 
@@ -252,7 +252,7 @@ describe('a durable observation above 1x', () => {
     });
     expect(observation.because).toContain('fonts +Roboto/400/normal/def');
     expect(observation.because).not.toContain('Inter/400/normal/abc');
-    expect(observation.because).toContain('these two were not compared');
+    expect(observation.because).toContain('nothing here was compared');
     expect(observation.because).not.toMatch(/machine-bound|not comparable/);
   });
 

@@ -226,11 +226,12 @@ type Painted = Pick<Raster, 'identity' | 'documentDigest'>;
 /**
  * What every refusal says in place of a law about pixels. Two machines can paint
  * the same image or different ones. Comparing only within one identity is this
- * tool's rule, not a measurement of the two images, and the sentence says so.
+ * tool's rule, not a measurement of any image, and the sentence says so. It
+ * names no second image, because `settle` refuses before one is painted.
  */
 export const NOT_COMPARED =
-  'two images are compared only when they were painted under one identity, so these two were not ' +
-  'compared; another machine may paint the same pixels or different ones, and nothing measured which';
+  'images are compared only within one identity, so nothing here was compared; another machine ' +
+  'may paint the same pixels or different ones, and nothing measured which';
 
 /**
  * The reason a stored image and this run's cannot be compared, for every caller
@@ -275,7 +276,7 @@ export function incomparableBecause(
         : `; the document changed too, so the change ${sides.current} carries is unreviewed` +
           (replaceable
             ? ': review its image as a change, then adopt it alone with `variance accept <subject>`, ' +
-              'or that one test under `--update-snapshots=all` in Playwright or `--update` in Vitest'
+              'or that one test under `--update-snapshots=all` in Playwright'
             : ''))
     );
   }

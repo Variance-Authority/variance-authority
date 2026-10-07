@@ -119,10 +119,9 @@ rather than a diff across two painters:
 ```
 ios:checkout: incomparable — the before image and the after image differ in the
 machine that painted them (renderer, engine, platform
-declared:ios-simulator-17.4 → declared:figma-export); two images are compared
-only when they were painted under one identity, so these two were not compared;
-another machine may paint the same pixels or different ones, and nothing
-measured which
+declared:ios-simulator-17.4 → declared:figma-export); images are compared only
+within one identity, so nothing here was compared; another machine may paint
+the same pixels or different ones, and nothing measured which
 ```
 
 The reason names only the fields that differ. When those are only the recipe —
