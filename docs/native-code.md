@@ -100,6 +100,12 @@ platform's entries in it. Both leave the JavaScript wrappers in place and the
   tree-sitter grammars, it still reads JavaScript, TypeScript and stylesheets,
   and records every Python, Rust, Java, Kotlin and Swift file as unknown, with
   that reason.
+- **Component indexing does not degrade.** The `file:line` index that
+  `variance run`, `variance collect` and the Storybook and route collectors
+  build from `source.dirs` reads each file through the addon, so on a machine
+  without it the index fails at its first file and names why the addon did not
+  load. A platform outside the four indexes once you build the addon from the
+  checkout with `cargo`.
 - **Recording does not degrade.** The probes a test run records through are
   placed by the addon and by nothing else, so a run on a machine without it
   fails at its first module and names the package that did not load. A
