@@ -9,7 +9,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import {
-  testSelectionProbes,
+  moduleId,
   type EvaluatingPage,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
@@ -48,7 +48,7 @@ function pageReporting(journal: ExecutionJournal): EvaluatingPage {
 
 const journal = (...hits: number[]): ExecutionJournal => ({
   instrumentation: INSTRUMENTATION,
-  modules: [{ id: 'price.js', hits, shared: [] }],
+  modules: [{ id: moduleId('price.js', SOURCE), hits, shared: [] }],
 });
 
 async function inRoot(
@@ -57,9 +57,7 @@ async function inRoot(
   const root = await mkdtemp(resolve(tmpdir(), 'variance-storybook-execution-'));
   try {
     const cacheRoot = resolve(root, 'cache');
-    const module = resolve(root, 'price.js');
-    await writeFile(module, SOURCE, 'utf8');
-    testSelectionProbes({ root, cacheRoot }).transform(SOURCE, module);
+    await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
     const index = resolve(root, 'index.json');
     await writeFile(index, JSON.stringify(INDEX), 'utf8');
     await run({ root, cacheRoot, coverageFile: resolve(root, 'coverage.bin'), index });
@@ -126,11 +124,9 @@ describe('a Storybook run records what each story executed', () => {
       const root = resolve(checkout, 'packages/ui');
       await mkdir(resolve(root, 'src'), { recursive: true });
       const cacheRoot = resolve(checkout, 'cache');
-      const module = resolve(root, 'price.js');
-      await writeFile(module, SOURCE, 'utf8');
+      await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
       await writeFile(resolve(root, 'src/Price.stories.tsx'), 'export default {};\n', 'utf8');
-      testSelectionProbes({ root, cacheRoot }).transform(SOURCE, module);
-      const index = resolve(root, 'storybook-static/index.json');
+        const index = resolve(root, 'storybook-static/index.json');
       await mkdir(dirname(index), { recursive: true });
       const entry = INDEX.entries['price--premium'];
       await writeFile(
@@ -148,7 +144,7 @@ describe('a Storybook run records what each story executed', () => {
         coverageFile: 'coverage.bin',
       });
       await recorder.note(
-        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id: 'packages/ui/price.js', hits: [0], shared: [] }] }),
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id: moduleId('packages/ui/price.js', SOURCE), hits: [0], shared: [] }] }),
         'story:price--premium',
         true,
       );

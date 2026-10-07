@@ -5,8 +5,8 @@ import type { Page, TestInfo } from '@playwright/test';
 import {
   closeStage,
   foldStage,
+  moduleId,
   openStage,
-  testSelectionProbes,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
@@ -51,16 +51,12 @@ async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
   }
 }
 
-/** One real instrumented module's record, so ordinals mean something. */
+/** One real module on disk, so the ordinals its id names mean something. */
 async function instrumented(
   root: string,
 ): Promise<{ cacheRoot: string; id: string; ordinals: number[] }> {
-  const cacheRoot = resolve(root, 'cache');
-  const module = resolve(root, 'price.js');
-  await writeFile(module, SOURCE, 'utf8');
-  const plugin = testSelectionProbes({ root, cacheRoot });
-  plugin.transform(SOURCE, module);
-  return { cacheRoot, id: 'price.js', ordinals: [0, 1] };
+  await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
+  return { cacheRoot: resolve(root, 'cache'), id: moduleId('price.js', SOURCE), ordinals: [0, 1] };
 }
 
 /**

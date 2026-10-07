@@ -4,14 +4,13 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import type { ModuleId } from '../instrument/index.js';
-import { native, nativeAvailable } from '../native.js';
+import { native, nativeAvailable, type NativeJourneyModule } from '../native.js';
 import preconditions from './case-preconditions.cjs';
 import { packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { stitchJourneyArtifacts } from './jest-journey-artifact.js';
+import { nativeModule, stitchJourneyArtifacts } from './jest-journey-artifact.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import journalFormat from './journal-format.cjs';
-import { frameRecord, segmentHeader } from './record-format.js';
 
 const temporary: string[] = [];
 
@@ -32,21 +31,19 @@ async function shard(
   root: string,
   name: string,
   owners: readonly (string | readonly [string, ReadonlyMap<ModuleId, Uint32Array>])[],
-  stores: readonly string[] = [],
+  modules: readonly NativeJourneyModule[] = [],
 ): Promise<string> {
   const cases = resolve(root, name);
   await mkdir(cases);
   await writeFile(resolve(cases, 'worker.vac'), packFrames(owners.map((owned) =>
     typeof owned === 'string' ? journalFormat.encodeJournal(owned, new Map()) : journalFormat.encodeJournal(...owned))));
   const output = resolve(root, `${name}.bin`);
-  native()!.foldJourneyTo!(cases, '/repo', stores, 'sense:instrument/presence-v5', output);
+  native()!.foldJourneyTo!(cases, '/repo', modules, output);
   return output;
 }
 
-/** A record store holding one three-region module, `src/pay.ts`. */
-async function store(root: string): Promise<string> {
-  const held = resolve(root, 'store');
-  await mkdir(held);
+/** One three-region module, `src/pay.ts`. */
+function pay(): NativeJourneyModule {
   const module: CapturedModule = {
     file: 'src/pay.ts',
     id: 'src/pay.ts',
@@ -64,8 +61,7 @@ async function store(root: string): Promise<string> {
       testFiles: [],
     })),
   };
-  await writeFile(resolve(held, 'one.rec'), Buffer.concat([segmentHeader('sense:instrument/presence-v5'), frameRecord(module)]));
-  return held;
+  return nativeModule(module);
 }
 
 /** `src/pay.ts` with the case calling into the region at `ordinal`. */
@@ -115,13 +111,13 @@ describe.runIf(nativeAvailable())('stitched shard artifacts', () => {
   it('keep two cases that share a name apart when a shard ran only the second', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-authority-stitch-'));
     temporary.push(root);
-    const stores = [await store(root)];
+    const modules = [pay()];
     const first = (said: Said) => preconditions.packSaid(packCase(file, 'pays', '0'), said);
     const second = (said: Said) => preconditions.packSaid(packCase(file, 'pays', '1'), said);
     const live: Said = [['network', 'live', `${file}:3`, preconditions.CASE_LEVEL]];
     const mocked: Said = [['network', 'mocked', `${file}:9`, preconditions.CASE_LEVEL]];
-    const both = await shard(root, 'both', [[first(live), entering(1)], [second(mocked), entering(2)]], stores);
-    const only = await shard(root, 'only', [[second(mocked), entering(2)]], stores);
+    const both = await shard(root, 'both', [[first(live), entering(1)], [second(mocked), entering(2)]], modules);
+    const only = await shard(root, 'only', [[second(mocked), entering(2)]], modules);
     const output = resolve(root, 'journeys.bin');
 
     await stitchJourneyArtifacts([both, only], output);

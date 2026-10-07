@@ -288,3 +288,85 @@ describe('a module the runner loaded from its build alone', () => {
     }
   });
 });
+
+/**
+ * A TypeScript source, and what `tsc` made of it with the map it wrote: the
+ * `import type` above the first import erased, and the call written over four
+ * lines emitted on one, its closing `)` mapped to the line of its last
+ * argument.
+ */
+const TYPED = [
+  "import type { Item } from './item.js';",
+  "import { price } from './price.js';",
+  '',
+  'export async function total(items: readonly Item[]): Promise<number> {',
+  '  return await price(',
+  '    items,',
+  '    0,',
+  '  );',
+  '}',
+  '',
+].join('\n');
+const EMITTED = [
+  "import { price } from './price.js';",
+  'export async function total(items) {',
+  '    return await price(items, 0);',
+  '}',
+  '//# sourceMappingURL=cart.js.map',
+].join('\n');
+const EMITTED_MAP = JSON.stringify({
+  version: 3,
+  file: 'cart.js',
+  sourceRoot: '',
+  sources: ['../src/cart.ts'],
+  names: [],
+  mappings: 'AACA,OAAO,EAAE,KAAK,EAAE,MAAM,YAAY,CAAC;AAEnC,MAAM,CAAC,KAAK,UAAU,KAAK,CAAC,KAAsB;IAChD,OAAO,MAAM,KAAK,CAChB,KAAK,EACL,CAAC,CACF,CAAC;AACJ,CAAC',
+});
+
+/** {@link EMITTED} by a bundler that put a helper of its own above it, which the map gives no origin. */
+const HELPED = `var __name = (target, value) => target;\n${EMITTED}`;
+
+/** What a run that loaded only `reading` of {@link TYPED} records of it. */
+async function recordedTyped(reading: 'source' | 'build' | 'helped'): Promise<TestCoverage['modules']> {
+  const root = await mkdtemp(resolve(tmpdir(), 'variance-typed-reading-'));
+  const coverageFile = resolve(root, 'coverage.bin');
+  try {
+    await mkdir(resolve(root, 'src'), { recursive: true });
+    await mkdir(resolve(root, 'dist'), { recursive: true });
+    await writeFile(resolve(root, 'src/cart.ts'), TYPED, 'utf8');
+    const built = reading === 'helped' ? HELPED : EMITTED;
+    const map = reading === 'helped'
+      ? JSON.stringify({ ...JSON.parse(EMITTED_MAP), mappings: `;${JSON.parse(EMITTED_MAP).mappings}` })
+      : EMITTED_MAP;
+    await writeFile(resolve(root, 'dist/cart.js'), built, 'utf8');
+    await writeFile(resolve(root, 'dist/cart.js.map'), map, 'utf8');
+    const configured = withTestSelection({}, { root, coverageFile, include: () => true });
+    const plugin = (configured.plugins as unknown as Array<{ transform: Transform }>)[0]!;
+    const reporter = (configured.test!.reporters as unknown as Array<{
+      onFinished(files: readonly []): Promise<void>;
+    }>)[1]!;
+    if (reading === 'source') plugin.transform(TYPED, resolve(root, 'src/cart.ts'));
+    else plugin.transform(built, resolve(root, 'dist/cart.js'));
+    await reporter.onFinished([]);
+    return decodeTestCoverage(await readFile(coverageFile)).modules;
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+describe('a module tsc built from TypeScript', () => {
+  it('is recorded at the regions its source has, where its source has them', async () => {
+    const build = await recordedTyped('build');
+
+    expect(build.map((module) => module.file)).toEqual(['src/cart.ts']);
+    expect(build).toEqual(await recordedTyped('source'));
+  });
+
+  it('opens its module where its source does when the build cut a region its source has not', async () => {
+    const [helped] = await recordedTyped('helped');
+    const [source] = await recordedTyped('source');
+
+    expect(helped!.blocks.length).toBeGreaterThan(source!.blocks.length);
+    expect(helped!.blocks[0]).toEqual(source!.blocks[0]);
+  });
+});

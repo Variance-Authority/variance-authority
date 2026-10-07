@@ -287,7 +287,6 @@ describe('a run recorded by more than one process', () => {
               preconditions: [{ name: 'e2e/fixture.json', digest: attempt }],
             },
           ],
-          heads: [`head ${at}`],
           cases: [
             {
               file: 'e2e/price.spec.ts',

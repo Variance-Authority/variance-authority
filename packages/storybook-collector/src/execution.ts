@@ -36,9 +36,7 @@ export interface StoryExecutionOptions {
    * read from here, because it is relative to the directory Storybook ran in.
    */
   readonly root?: string;
-  /** Matches the `label` the build's `testSelectionProbes()` used. Defaults to `build`. */
-  readonly label?: string;
-  /** Where the build wrote its block records. Defaults to the repository's cache. */
+  /** Where the coverage layers live. Defaults to the repository's cache. */
   readonly cacheRoot?: string;
   /** Coverage index. Defaults to the repository-keyed cache the runner seams share. */
   readonly coverageFile?: string;
@@ -61,14 +59,6 @@ export interface StoryExecutionOptions {
    * the ones no story declares and nothing enters.
    */
   readonly preconditions?: readonly string[];
-  /**
-   * Other builds this same run drove, by the label each instrumented under.
-   *
-   * A preview and the application behind it are two builds of overlapping
-   * source, and a story that reaches both is one observation. Their stores
-   * join this recording rather than getting one of their own.
-   */
-  readonly heads?: readonly string[];
   /**
    * Where this recording stands. Defaults to the checkout's `HEAD`, which is
    * the answer in every case except a caller that already knows better.
@@ -181,7 +171,6 @@ export async function createStoryRecorder(
         record = await recordExecution({
           root,
           subjects: zip(observed, timedOnce(observed.map((one) => one.owner), costs)),
-          ...(options.label === undefined ? {} : { label: options.label }),
           ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
           // Against `root`, as the runner seams resolve them, never the checkout.
           ...(options.coverageFile === undefined
@@ -192,9 +181,6 @@ export async function createStoryRecorder(
           ...(options.preconditions === undefined
             ? {}
             : { preconditions: options.preconditions }),
-          ...(options.heads === undefined || options.heads.length === 0
-            ? {}
-            : { heads: options.heads }),
           ...(options.commit === undefined ? {} : { commit: options.commit }),
           ...(cases.length === 0
             ? {}

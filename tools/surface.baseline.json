@@ -2963,6 +2963,7 @@
         "foldStage": "function",
         "joinObservations": "function",
         "listenForPreconditions": "function",
+        "moduleId": "function",
         "openStage": "function",
         "preconditionOf": "function",
         "preconditionText": "function",
@@ -3059,7 +3060,6 @@
         "SelectionReporterConfig": "interface",
         "SelectionTransformerConfig": "interface",
         "TRACE_ENVIRONMENT": "const",
-        "jestStore": "function",
         "mergeCoverage": "function",
         "withJourneyCoverage": "function",
         "withTestSelection": "function"
@@ -3080,7 +3080,6 @@
       "./runner": {
         "FinishedTestCase": "interface",
         "FinishedTestFile": "interface",
-        "InstrumentModuleOptions": "interface",
         "RECORDING_VARIABLE": "const",
         "Recording": "interface",
         "RecordingOptions": "interface",

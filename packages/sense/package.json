@@ -113,7 +113,6 @@
     "storage": "node scripts/storage.mjs",
     "overhead": "node scripts/overhead.mjs",
     "probe-write": "node scripts/probe-write.mjs",
-    "records": "node scripts/records.mjs",
     "coverage": "node scripts/coverage.mjs",
     "native": "node scripts/native.mjs",
     "round-trip": "node scripts/round-trip.mjs"

@@ -134,8 +134,8 @@ export async function record(
 type HeadOptions = { readonly source?: string; readonly lazy?: boolean };
 
 export interface Head {
-  /** What `recordExecution` needs to find this head's records and its index. */
-  readonly where: { readonly cacheRoot: string; readonly label: string; readonly coverageFile: string };
+  /** Where `recordExecution` writes this head's index. */
+  readonly where: { readonly coverageFile: string };
   readonly currency: Currency;
   readonly code: string;
 }
@@ -146,13 +146,12 @@ export interface Head {
  */
 export async function head(root: string, label = 'build', options: HeadOptions = {}): Promise<Head> {
   const source = options.source ?? SOURCE;
-  const cacheRoot = resolve(root, 'cache');
   const module = resolve(root, 'currency.js');
   await writeFile(module, source, 'utf8');
-  const plugin = testSelectionProbes({ root, label, cacheRoot });
+  const plugin = testSelectionProbes({ root, label });
   const transformed = plugin.transform(source, module)!;
   return {
-    where: { cacheRoot, label, coverageFile: resolve(root, 'coverage.bin') },
+    where: { coverageFile: resolve(root, 'coverage.bin') },
     currency: options.lazy ? unevaluated : evaluate(transformed.code),
     code: transformed.code,
   };
