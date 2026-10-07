@@ -26,14 +26,16 @@
 
 // compass: variance-authority.reach
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { digestOfSha256 } from '@variance-authority/core/format';
 import { digestString } from '../digest.js';
 import { workingTreeChanges, type WorkingTreeChanges } from '../working-tree-changes.js';
 import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import type { TestCoverageView } from './format-view.js';
-import { findModules } from './lookup.js';
+import { codeUnitOrder } from './instrumented-modules.js';
+import { findModules, findString } from './lookup.js';
 import { writeCoverageBytes } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 
@@ -151,4 +153,67 @@ export function keptTexts(root: string, cacheRoot?: string): (digest: string) =>
     }
     return undefined;
   };
+}
+
+/**
+ * A lister of every digest a landing kept a text for, in this checkout's layer
+ * and the primary checkout's: one directory read per layer, and no text read.
+ *
+ * A reader asks it to find what the diff from the commit cannot name: a module
+ * recorded over an edit that has since been undone (`recordedOverKept`).
+ */
+export function keptDigests(root: string, cacheRoot?: string): () => readonly string[] {
+  return () => {
+    let layers: ReturnType<typeof repositoryLayers>;
+    try {
+      layers = repositoryLayers(root, cacheRoot);
+    } catch {
+      return [];
+    }
+    const digests = new Set<string>();
+    for (const directory of layeredFiles(layers, KEPT_TEXTS)) {
+      let names: string[];
+      try {
+        names = readdirSync(directory);
+      } catch {
+        continue;
+      }
+      // `keepRecordedTexts` names each text by its digest's hex alone; anything
+      // else in the directory, a write in flight among them, is not a kept text.
+      for (const name of names) {
+        const digest = digestOfSha256(name);
+        if (/^[0-9a-f]+$/u.test(name) && digest.endsWith(`:${name}`)) digests.add(digest);
+      }
+    }
+    return [...digests];
+  };
+}
+
+/**
+ * The paths of the instrumented rows cut from one of the kept `digests` that
+ * `named` does not hold, code-unit sorted.
+ *
+ * A row cut from a kept text was recorded over an edit. When the diff from the
+ * commit does not name its file, the file is back at the commit's text: the
+ * edit was undone, and the undo is a change the tests that ran the edit have
+ * not run.
+ */
+export function recordedOverKept(
+  coverage: TestCoverageView,
+  digests: readonly string[],
+  named: (file: string) => boolean,
+): readonly string[] {
+  const ids = new Set<number>();
+  for (const digest of digests) {
+    const id = findString(coverage, digest);
+    if (id !== undefined) ids.add(id);
+  }
+  if (ids.size === 0) return [];
+  const files = new Set<string>();
+  for (let module = 0; module < coverage.moduleSource.length; module += 1) {
+    if (!ids.has(coverage.moduleSource.at(module)) || coverage.moduleInstrumented.at(module) !== 1) continue;
+    const file = coverage.string(coverage.modulePath.at(module));
+    if (!named(file)) files.add(file);
+  }
+  return [...files].sort(codeUnitOrder);
 }

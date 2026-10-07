@@ -2860,6 +2860,7 @@
         "journeysApart": "function",
         "keepsCases": "function",
         "keepsEyes": "function",
+        "keptDigests": "function",
         "keptTexts": "function",
         "landCases": "function",
         "landRun": "function",

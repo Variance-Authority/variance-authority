@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
-import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { landRun, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
 import { selectOutput, selectSuite } from './select-command.js';
 
@@ -71,6 +71,24 @@ describe('a change to a source the record holds under its built name', () => {
     const { root, head } = checkout();
     await writeTestCoverage(testCoverageFile(root), snapshot(head, false));
     rmSync(join(root, 'packages/lib/src/kinds.ts'));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const { skip } = await selectSuite({ root });
+
+    expect([...skip]).toEqual([OTHER]);
+  });
+
+  it('selects it when an edit a run recorded over is undone', async () => {
+    const { root, head } = checkout();
+    await writeTestCoverage(testCoverageFile(root), snapshot(head, true));
+    writeFileSync(join(root, 'packages/lib/src/kinds.ts'), LOADED);
+    const recorded = snapshot(head, true);
+    await landRun(testCoverageFile(root), {
+      ...recorded,
+      modules: recorded.modules.map((module) => (module.file === 'packages/lib/src/kinds.ts' ? moduleOf(module.file, LOADED, [OWN]) : module)),
+    }, root);
+    writeFileSync(join(root, 'packages/lib/src/kinds.ts'), KINDS);
     process.chdir(root);
     await indexOutput({ cwd: root });
 
