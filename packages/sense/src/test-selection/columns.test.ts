@@ -386,6 +386,23 @@ describe('when a column gives up and materializes', () => {
     expect(new Set(decoded).size).toBe(decoded.length);
   });
 
+  it('keeps the run a walk keeps coming back to, and drops the runs it read once', () => {
+    // A walk over more runs than the column may hold, returning to its first
+    // run as it goes: the run read last is the one kept, not the one decoded
+    // last, so the walk's own runs pass through and its first stays.
+    const { column, decoded } = watchedWide();
+
+    for (let run = 0; run < wide; run += 1) {
+      column.at(run * RUN);
+      column.at(0);
+    }
+    decoded.length = 0;
+    column.at(0);
+    column.at(RUN);
+
+    expect(decoded).toEqual([1]);
+  });
+
   it('does for a reader that keeps coming back to runs it has dropped', () => {
     // A walk over more runs than the column may hold decodes every run again on
     // every pass. Once it has paid for the column twice over, the column is

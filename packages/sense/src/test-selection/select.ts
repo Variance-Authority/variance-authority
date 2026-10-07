@@ -2,7 +2,7 @@ import { blocksAround, regionOf } from './blocks-around.js';
 import { builtNamesOf } from './built-names.js';
 import type { TestCoverageView } from './format-view.js';
 import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
-import { findModules } from './lookup.js';
+import { findModules, testPathOf } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
 import { frameOf } from './frame.js';
@@ -171,7 +171,7 @@ export function narrowByExecutionFromView(
   const whole: string[] = [];
   const incomplete: string[] = [];
   for (let test = 0; test < coverage.testPath.length; test += 1) {
-    (coverage.testComplete.at(test) === 1 ? whole : incomplete).push(coverage.string(coverage.testPath.at(test)));
+    (coverage.testComplete.at(test) === 1 ? whole : incomplete).push(testPathOf(coverage, test));
   }
 
   return {
@@ -395,7 +395,7 @@ function readDiff(
   const declining = options.unmeasured === 'nothing';
 
   const because = [...selected]
-    .map(([test, via]): SelectionCause => ({ test: coverage.string(coverage.testPath.at(test)), via }))
+    .map(([test, via]): SelectionCause => ({ test: testPathOf(coverage, test), via }))
     .sort((left, right) => codeUnitOrder(left.test, right.test));
 
   return {
