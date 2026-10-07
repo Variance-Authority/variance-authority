@@ -39,6 +39,13 @@ const GONE = {
   'apps/app/src/entered.ts': "import { hush } from '@acme/gone';\nexport const entered = hush('loud');\n",
 };
 
+/** A published package that declares its entry by `typings` alone, naming a declaration file the checkout does not hold. */
+const TYPED = {
+  'packages/typed/package.json': JSON.stringify({ name: '@acme/typed', typings: 'dist/index.d.ts' }),
+  'packages/typed/src/shout.ts': 'export const shout = (text: string): string => text;\n',
+  'apps/app/src/typed.ts': "import { shout } from '@acme/typed';\nexport const typed = shout('hey');\n",
+};
+
 /** The paragraph of `text` that opens with `heading`. */
 function paragraph(text: string, heading: RegExp): string {
   return text.split('\n\n').find((block) => heading.test(block)) ?? '';
@@ -315,5 +322,22 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(uses.out).toMatch(/^apps\/app\/src\/again\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush$/m);
     expect(uses.out).toMatch(/^apps\/app\/src\/hushed\.ts:1 — @acme\/app, deep import of @acme\/gone\/src\/hush$/m);
     expect(uses.out).toMatch(/^apps\/app\/src\/entered\.ts:1 — @acme\/app, through @acme\/gone, an entry this reading could not follow to a source file$/m);
+  });
+
+  it('reads an entry declared by `typings` alone as declared, in the count of packages and of their imports alike', async () => {
+    checkout(TYPED);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const packages = await run(['ask', 'packages']);
+    expect(packages.code).toBe(EXIT_CLEAN);
+    expect(paragraph(packages.out, /could not follow to a source file/)).toBe(
+      '1 package declares an entry this reading could not follow to a source file, such as a build output the checkout ' +
+        'does not hold, so none of its names are listed. 1 import names an entry like that, most first:\n  @acme/typed — 1 import',
+    );
+    expect(packages.out).not.toMatch(/^ {2}@acme\/typed — \d+ names? from/m);
+
+    const typed = await run(['ask', 'entrypoint', '--package', '@acme/typed']);
+    expect(typed.code).toBe(EXIT_CLEAN);
+    expect(typed.out).toMatch(/^@acme\/typed declares an entry this reading could not follow to a source file, .* so none of its names are listed\.$/m);
   });
 });

@@ -83,6 +83,8 @@ export interface Documented {
   readonly name: string;
   /** The manifest keys `OFFERED` names, present-or-absent, verbatim. */
   readonly declared: Readonly<Record<string, unknown>>;
+  /** Whether the manifest declares an entry — `exports`, `main`, `types` or `typings` — whether or not any of it was opened. */
+  readonly entry: boolean;
   readonly openings: readonly Opening[];
 }
 
@@ -230,6 +232,7 @@ export function assembleHelp(
   const packages = offerings.map((offering) => ({
     name: offering.name,
     declared: offering.declared,
+    entry: offering.entry,
     openings: offering.entrypoints.map((entry) => {
       const key = `${offering.name} ${entry.subpath}`;
       const entries = [...namesOf(entry.source)]

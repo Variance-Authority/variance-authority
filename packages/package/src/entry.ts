@@ -55,8 +55,12 @@ export interface ImportTargets {
   readonly declared: ReadonlySet<string>;
 }
 
-/** Whether a manifest declares an entry: writes any of `exports`, `main`, `types` or `typings`. */
-function declaresEntry(manifest: Record<string, unknown>): boolean {
+/**
+ * Whether a manifest declares an entry: writes any of `exports`, `main`,
+ * `types` or `typings`. The one answer to the question, for the import targets
+ * and the offerings alike.
+ */
+export function declaresEntry(manifest: Record<string, unknown>): boolean {
   return ['exports', 'main', 'types', 'typings'].some((key) => manifest[key] !== undefined);
 }
 

@@ -30,6 +30,7 @@ export const BY_PATH: Help = {
     {
       name: '@acme/lib',
       declared: { main: 'src/index.ts' },
+      entry: true,
       openings: [
         {
           subpath: '.',
@@ -73,7 +74,7 @@ export function busier(more: number, base: Help = BY_PATH): Help {
  */
 export const QUIET: Help = {
   ...BY_PATH,
-  packages: [...BY_PATH.packages, { name: '@acme/quiet', declared: { main: 'gone.js' }, openings: [] }],
+  packages: [...BY_PATH.packages, { name: '@acme/quiet', declared: { main: 'gone.js' }, entry: true, openings: [] }],
   deep: [importOf('@acme/quiet/src/hush', '@acme/app', 'apps/app/src/hushed.ts', ['hush'])],
   byPath: [],
   unfollowed: [
@@ -93,6 +94,7 @@ export const SUBPATHS_ONLY: Help = {
     {
       name: '@acme/srv',
       declared: { exports: { './server': './src/server.ts' } },
+      entry: true,
       openings: [
         {
           subpath: './server',

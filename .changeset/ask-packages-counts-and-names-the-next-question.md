@@ -43,6 +43,12 @@ one import between packages lands: opened by an entry, at a declared entry the
 reading could not follow, past every declared entry, or by path into a package
 that declares none. `Help` and `Usage` carry those imports as `unfollowed`.
 
+A package that declares its entry by `typings` alone is read as declaring one
+in every answer, where `variance ask packages` counted its imports as of an
+entry it could not follow and left the package out of that count.
+`declaresEntry` is the one answer to whether a manifest declares an entry, and
+`Offering` and `Documented` carry it as `entry`.
+
 On a repository whose packages declare no entry, `variance ask packages` went
 from 200,330 lines in 29.9 to 45.9 seconds to 1,339 lines in under half a
 second, and `variance ask entrypoint --package @kbn/core` went from 23,463

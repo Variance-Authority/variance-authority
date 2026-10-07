@@ -50,6 +50,7 @@ describe('docs_packages', () => {
     const opening = (name: string) => ({
       name,
       declared: { main: 'src/index.ts' },
+      entry: true,
       openings: [
         {
           subpath: '.',
@@ -94,7 +95,7 @@ describe('docs_packages', () => {
   });
 
   it('opens on its first row when no published package opens an entry', () => {
-    const text = packages.run({ ...BY_PATH, packages: [{ name: '@acme/lib', declared: {}, openings: [] }] }, {});
+    const text = packages.run({ ...BY_PATH, packages: [{ name: '@acme/lib', declared: {}, entry: false, openings: [] }] }, {});
 
     expect(text.split('\n')[0]).toBe('2 packages that declare no entry are imported by path, most names first:');
   });

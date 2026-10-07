@@ -361,11 +361,12 @@ export function sameSurface(read: Pick<WorkspaceScan, 'root' | 'offerings' | 'ch
   return samePackages(read, documented) && sameExportedSurface(read, exported, documented);
 }
 
-/** The offerings as `documented` published them: names, declarations and openings. */
+/** The offerings as `documented` published them: names, declarations, whether each declares an entry, and openings. */
 export function samePackages(read: Pick<WorkspaceScan, 'root' | 'offerings'>, documented: Help): boolean {
   const shape = read.offerings.map((offering) => ({
     name: offering.name,
     declared: offering.declared,
+    entry: offering.entry,
     openings: offering.entrypoints.map((entry) => ({
       subpath: entry.subpath,
       source: relative(read.root, entry.source),
@@ -374,6 +375,7 @@ export function samePackages(read: Pick<WorkspaceScan, 'root' | 'offerings'>, do
   const previous = documented.packages.map((published) => ({
     name: published.name,
     declared: published.declared,
+    entry: published.entry,
     openings: published.openings.map(({ subpath, source }) => ({ subpath, source })),
   }));
   return isDeepStrictEqual(shape, previous);

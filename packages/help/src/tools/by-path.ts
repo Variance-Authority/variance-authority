@@ -70,10 +70,10 @@ export function how(site: Pick<PathSite, 'held' | 'kind'>): string {
 
 /**
  * Whether a published package declares an entry its reading opened nothing of:
- * it writes `exports`, `main` or `types`, and no file of it was read.
+ * its manifest declares one, as {@link Documented.entry} records, and no file of it was read.
  */
 export function unfollowedEntry(published: Documented): boolean {
-  return published.openings.length === 0 && ['exports', 'main', 'types'].some((key) => published.declared[key] !== undefined);
+  return published.entry && published.openings.length === 0;
 }
 
 /**

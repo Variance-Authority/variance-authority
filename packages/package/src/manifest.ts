@@ -1,7 +1,7 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { type ImportTargets, importTargets, isPublished, legacyEntry } from './entry.js';
+import { type ImportTargets, declaresEntry, importTargets, isPublished, legacyEntry } from './entry.js';
 import { subpathsOf } from './exports.js';
 import { members } from './members.js';
 
@@ -54,6 +54,8 @@ export interface Offering {
   readonly name: string;
   readonly dir: string;
   readonly declared: Readonly<Record<string, unknown>>;
+  /** Whether the manifest declares an entry, by {@link declaresEntry}: read from the whole manifest, whichever keys `declared` records. */
+  readonly entry: boolean;
   readonly entrypoints: readonly Entrypoint[];
   /** Published subpaths whose source could not be established. */
   readonly unreadable?: readonly string[];
@@ -460,6 +462,7 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
       name: manifest['name'],
       dir,
       declared,
+      entry: declaresEntry(manifest),
       entrypoints,
       ...(unreadable.length === 0 ? {} : { unreadable }),
     });
