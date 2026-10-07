@@ -67,7 +67,11 @@ repository.
 - `packages/cli/src/commands/collector.ts` — `Collector`, `Plan`, `Collected`,
   `CollectorContext`, `loadCollector`
 - `packages/cli/src/commands/schedule.ts` — `serial`, `pool`, `concurrencyOf`
-- `packages/cli/src/commands/run.ts` — the collection lane and per-subject refusal handling
+- `packages/cli/src/commands/acquire.ts` — `acquire`, the collection lanes and
+  per-subject refusal handling `run` and `collect` share
+- `packages/cli/src/commands/lanes.ts` — `openLanes`, `steal`, `closeLanes`
+- `packages/cli/src/commands/collect.ts` — `collectEvidence`, `acquire` with
+  nothing compared after it
 - `packages/unit-test/src/contract.ts` and
   `packages/{storybook-collector,route-collector}/src/contract.ts` — structural
   restatements, so a surface package does not pull the binary into an adopter's

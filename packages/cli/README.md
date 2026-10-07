@@ -187,6 +187,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | prints what this machine can observe, before a run, not after one |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
+| `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
 | `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite's record alone |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
@@ -1872,8 +1873,10 @@ under the commit the shards share:
 variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
 ```
 
-It publishes nothing when a report has no part beside it or a shard is missing,
-and names which. An unsharded run publishes its own index and needs no merge.
+It publishes nothing, and names which file or shard, when a report has no part
+beside it, a part cannot be read, a shard is missing or given twice, or an
+unsharded run is named with shards or beside another unsharded run. An unsharded
+run publishes its own index and needs no merge.
 
 The lookup is the same one the [suite index](https://variance-authority.dev/docs/sharing#looking-up-mainlines-record)
 uses, and every shard of one build reads the same line, so they place alike. A

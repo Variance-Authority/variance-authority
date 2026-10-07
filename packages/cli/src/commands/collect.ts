@@ -1,4 +1,4 @@
-// compass: variance-authority.acquisition.suite-observation
+// compass: variance-authority.acquisition.collector-contract
 import { performance } from 'node:perf_hooks';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';

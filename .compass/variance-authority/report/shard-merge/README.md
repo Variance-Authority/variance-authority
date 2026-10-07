@@ -54,11 +54,30 @@ The ignore ledger is recomputed over the merged observations rather than summed,
 because a rule is dead when it absorbed nothing anywhere and no shard is in a
 position to say so.
 
+The suite index is the exception that is composed rather than dropped: each
+shard writes its part, and `variance share` and `variance collect merge` fold
+the parts into the index one unsharded run would have written, through one
+`composeSuiteIndex`. Shard numbering is checked first — a missing, repeated or
+differently cut shard, or an unsharded part beside another part, is refused.
+`collect merge` then refuses parts that read a different build, config, plan,
+scope or environment, a subject no part owns, and a row holding a field its part
+did not read, each naming the shard to collect again. A failed subject keeps the
+published index as it was and writes the composed one beside it as incomplete.
+
 ## Implementation coordinates
 
 - `packages/cli/src/commands/merge.ts` — `mergeReports`, `agree`, `coverageOf`,
   `ignoresOf`, `unmergeable`
 - `packages/cli/src/commands/run-report.ts` — `shardFilterBecause`, `isShardFilter`
+- `packages/cli/src/commands/suite-part.ts` — `encodeSuitePart`, `openSuitePart`,
+  `missingShards`, `composeSuiteIndex`
+- `packages/cli/src/commands/collect-merge.ts` — the refusals `collect merge`
+  adds and the incomplete index
+- `packages/cli/src/commands/evidence-part.ts` and `evidence-identity.ts` — what a
+  collection part records, and the build and recipe it is compared on
+- `packages/cli/src/commands/collect-command.ts` — `variance collect` and
+  `collect merge` from argv to the files they write
+- `packages/cli/src/settle.ts` — `settle`, a write through a temp file and a rename
 
 ## Diagram
 

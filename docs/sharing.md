@@ -114,13 +114,20 @@ The suite index is one binary file with four things in it:
 | --- | --- |
 | the census | which component was mounted in how many subjects, and which subject shows each one with the fewest other components around it |
 | the subject denominator | the ids of the subjects that contributed a capture: the total each census count is divided by |
-| the [lexicon](lexicon.md) | per subject, the words and names read off it, in the nine fields [the lexicon lists](lexicon.md#what-the-run-writes-down) |
+| the [lexicon](lexicon.md) | per subject, the words and names read off it, in the nine fields [the lexicon lists](lexicon.md#what-the-run-writes-down), its [landmarks](lexicon.md#the-same-pass-writes-the-arrangement), and the file each component is declared in |
 | the commit | the revision all of the above was read at |
 
 A suite index lists only the subjects its own run captured: two runs that
 capture the same subjects at one commit write the same bytes. A sharded build's
 index is composed from every shard's part, so it lists what one run over the
-whole suite would have.
+whole suite would have. A field the run did not read is left out, and a field it
+read and found empty is kept empty, so the index never claims a subject has no
+names when nobody looked.
+
+An index written by [`variance collect`](../packages/cli/README.md#collect-the-suite-index-without-a-visual-run),
+the command that reads the same facts with no screenshot, also records what
+became of every subject the plan named — collected, failed, excluded or
+unreached — and the plan, build and config it was read under.
 
 ### What it exposes
 
@@ -398,9 +405,10 @@ wrote suite-index-v1, subject-costs-v1 to mainline main in refs/variance on orig
 
 Keep each part beside its run report when you move the reports between jobs.
 The command publishes nothing, and names the file, when a run report has no part
-beside it, when a shard is missing, or when you name one shard's run report
-alone. A build that does not shard publishes from its own run and needs no extra
-job.
+beside it, when a part is there but cannot be read, when a shard is missing or
+named twice, when you name one shard's run report alone, and when the reports
+mix an unsharded run with shards or name two unsharded runs. A build that does
+not shard publishes from its own run and needs no extra job.
 
 ## Looking up mainline's record
 

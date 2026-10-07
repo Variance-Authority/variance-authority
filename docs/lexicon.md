@@ -329,9 +329,16 @@ more often than a run happens.
 
 So the lexicon is also written to the **suite index**, the binary artifact a run
 leaves beside its report: the census, the subject denominator the census's
-shares are counted against, the lexicon, and the commit they were read at. Equal
-facts encode to equal bytes there, which is what lets a cache store it and a
-second machine recognise it.
+shares are counted against, the lexicon with its landmarks and `declaredIn`, and
+the commit they were read at. A field the run did not read stays absent there
+too. Equal facts encode to equal bytes, which is what lets a cache store it and
+a second machine recognise it.
+
+A suite that never compares pixels still gets one. [`variance
+collect`](../packages/cli/README.md#collect-the-suite-index-without-a-visual-run)
+reads the same subjects the same way with no baseline and no image, one part per
+CI job, and `variance collect merge` folds the parts into the index after
+checking they read one build under one config.
 
 That is what a second machine reads instead of deriving the same thing again.
 Mainline's names were read on a runner that no longer exists, and a branch that
