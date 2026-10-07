@@ -14,7 +14,9 @@ request for `y`.
 
 A declaration package's `export =` is read from the code as well, so an
 `export = name` inside a comment publishes nothing, and `export=Name` or
-`export = Name` without a semicolon publishes its namespace.
+`export = Name` without a semicolon publishes its namespace. An `export =`
+inside a `declare module "x" { … }` body names a namespace or an
+`import x = require('y')` from that body or from the top of the file.
 
 The source index format moves to version 17, so an index written before this
 release is rebuilt once instead of keeping the requests it read from comments.
