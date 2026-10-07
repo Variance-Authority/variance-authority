@@ -9,7 +9,8 @@
  * each is placed at the line of the statement that declares it, which the same
  * parse already gives every symbol. A declaration a comment or a string spells is
  * not code and declares nothing, and a file the parser cannot read declares
- * nothing either; its record says why.
+ * nothing either. The index does not say so: the reason `readModule` gives in
+ * `unknown` is not carried, so such a file is missing and nothing names it.
  */
 
 import type { SourceIndex, SourceRef } from '@variance-authority/core/attribute';
