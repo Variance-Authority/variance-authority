@@ -139,21 +139,22 @@ next recording on a change to it runs every test that declared it.
 
 ## What a selection costs
 
-On this repository's own unit suite, 682 recorded test files, reading the
-selection for a one-statement edit takes under 0.3 seconds: 0.28 s, the median
-of nine warm runs of `variance select` on one Mac. That is the reading the
-runner makes before it starts.
+On this repository's own unit suite, 686 recorded test files, reading the
+selection for a one-statement edit takes 0.39 s, the median of eight warm runs of
+`node_modules/.bin/variance select --suite unit`, which skips 677 of the 686.
+That is the reading the runner makes before it starts.
 
 The whole loop on the same suite takes a few seconds. Change one statement in a
 function that nine of the suite's test files execute, and
 `VARIANCE_AUTHORITY_SINCE= yarn vitest run` prints `selected 9 of 686`, runs
 those nine and exits in 3.4 s. Run it again on the same tree and it prints
-`selected none of 686` and exits in 0.8 s. Each time is the median of seven warm
-runs on an Apple M4 Max with 64 GB under Node 24, with a one-minute load average
-between 6 and 9 on its 16 cores.
+`selected none of 686` and exits in 0.8 s. Each of those two times is the median
+of seven warm runs.
 
-What recording adds to a run is measured on
-public suites in
+Every time in this section was measured on an Apple M4 Max with 64 GB under
+Node 24, with a one-minute load average between 4 and 9 on its 16 cores.
+
+What recording adds to a run is measured on public suites in
 [what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs).
 
 ---
