@@ -493,3 +493,14 @@ describe('choosing what to observe when nothing has rendered what changed', () =
     expect(answer.whole).toContain('no baseline records (RootLayout)');
   });
 });
+
+describe('the component index', () => {
+  it('indexes what the code declares and nothing a comment spells', () => {
+    const source = indexOf(
+      new Map([
+        ['src/ds/Button.tsx', '/*\nexport function Retired() { return null }\n*/\nexport function Button() { return null }'],
+      ]),
+    );
+    expect(source).toEqual({ Button: [{ file: 'src/ds/Button.tsx', line: 4, via: 'function' }] });
+  });
+});

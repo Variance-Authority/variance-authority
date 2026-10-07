@@ -24,10 +24,10 @@ import { messageOf } from './resources.js';
 /**
  * The component index, from the directories the config names.
  *
- * The same walk both shipped collectors do, for the same reason and with the same
- * rule owner: `indexSource` in `core` decides how a file becomes an index, and
- * this decides which files. Selection needs it *before* anything is collected, so
- * it cannot borrow the collector's.
+ * The same walk the shipped collectors do, for the same reason: the module reader
+ * in `sense` decides how a file becomes an index ([`indexOf`](./affected.ts)),
+ * and this decides which files. Selection needs it *before* anything is
+ * collected, so it cannot borrow the collector's.
  */
 export async function scanSourceDirs(
   root: string,
