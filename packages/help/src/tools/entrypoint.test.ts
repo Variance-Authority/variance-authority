@@ -168,6 +168,38 @@ describe('docs_entrypoint on a package other packages import by path', () => {
     expect(entrypoint.run(help, { package: '@acme/tool' })).toBe('@acme/tool opens no entry, and no other package imports a file of it.');
   });
 
+  it('answers a package that declares no entry and imports only its own files that no other package imports it, by its name or a specifier', () => {
+    const help = { ...BY_PATH, byPath: [importOf('@acme/kit/src/money/tax', '@acme/kit', 'packages/kit/src/self.ts', ['taxOf'])] };
+    const heading = '@acme/kit declares no entry: no `exports`, `main`, `types` or `typings`.';
+
+    expect(entrypoint.run(help, { package: '@acme/kit' })).toBe(`${heading} No other package imports a file of it.`);
+    expect(entrypoint.run(help, { package: '@acme/kit/src/money/tax' })).toBe(`${heading} No other package imports @acme/kit/src/money/tax.`);
+  });
+
+  it('lists the specifiers a package opens when it opens no main entry and nothing reaches past them, and no imports', () => {
+    const text = entrypoint.run({ ...SUBPATHS_ONLY, deep: BY_PATH.deep }, { package: '@acme/srv' });
+
+    expect(text).toBe(
+      ['@acme/srv opens no main entry. It opens:', '  @acme/srv/server — 1 name, 1 imported elsewhere, 0 documented', '', 'Narrower questions:', '  variance ask entrypoint --package @acme/srv/server'].join('\n'),
+    );
+  });
+
+  it('counts one file under every specifier that reaches it, most importing first, and names the name the most files take through the first', () => {
+    const taxJs = { ...importOf('@acme/kit/src/money/tax.js', '@acme/app', 'apps/app/src/c.ts', ['taxOf']), to: 'packages/kit/src/money/tax.ts' };
+    const help = {
+      ...BY_PATH,
+      byPath: [
+        importOf('@acme/kit/src/money/tax', '@acme/app', 'apps/app/src/a.ts', ['taxOf', 'roundTax']),
+        importOf('@acme/kit/src/money/tax', '@acme/app', 'apps/app/src/b.ts', ['roundTax']),
+        taxJs,
+      ],
+    };
+    const text = entrypoint.run(help, { package: '@acme/kit' });
+
+    expect(text).toContain('  @acme/kit/src/money/tax, @acme/kit/src/money/tax.js — 2 names, imported by 3 files');
+    expect(text).toMatch(/^ {2}variance ask uses --name roundTax --package @acme\/kit\/src\/money\/tax$/m);
+  });
+
   it('refuses a specifier nothing opens and nothing imports, saying which of the two its package lacks', () => {
     expect(() => entrypoint.run(QUIET, { package: '@acme/quiet/src/nowhere' })).toThrow(
       '`@acme/quiet/src/nowhere`: @acme/quiet declares an entry this reading could not follow to a source file, such as a build ' +
