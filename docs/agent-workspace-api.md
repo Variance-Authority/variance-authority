@@ -237,9 +237,10 @@ must resolve the installed package binary.
 
 ## Read from entrypoint to symbol
 
-Call `docs_packages` first. It returns the package import specifiers the
-workspace publishes, derived from its manifests, and gives the remaining calls
-an exact entrypoint.
+Call `docs_packages` when you have no specifier. It counts, one row per package
+or specifier, the names each publishes and the names other packages import from
+it by path, and each row is the exact argument the remaining calls take. Pass
+one of those rows as `package` to list the import sites behind its counts.
 
 Choose one specifier and call `docs_entrypoint` to see the names it opens,
 ranked by how many workspace packages import them. Then call `docs_symbol` for

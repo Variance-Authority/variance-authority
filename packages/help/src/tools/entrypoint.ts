@@ -65,8 +65,8 @@ function unenteredAnswer(help: Help, asked: string): string | undefined {
     if (help.deep.some((held) => ownerOf(held.specifier) === owner)) return undefined;
     return `${asked} opens no entry, and no other package imports a file of it.`;
   }
-  const surface = surfaceByPath(help, owner);
-  const lines = asked === owner ? surface.lines : surface.lines.filter((line) => line.startsWith(`  ${asked} — `));
+  const surface = surfaceByPath(help, owner, asked === owner ? undefined : asked);
+  const { lines } = surface;
   const heading = `${owner} declares no entry: no \`exports\`, \`main\` or \`types\`.`;
   if (lines.length === 0) return `${heading} No other package imports ${asked === owner ? 'a file of it' : asked}.`;
   const count = asked === owner ? counted(surface) : `${lines.length} ${lines.length === 1 ? 'name' : 'names'} from ${asked}`;

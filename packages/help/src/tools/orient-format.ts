@@ -34,7 +34,7 @@ export interface OrientReading {
   readonly journeysUnread?: string;
 }
 
-const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
+export const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
 /** Below this many uses in a denominator a percentage says less than the count does, so only the count is printed. */
 export const SHARE_FLOOR = 10;
@@ -51,7 +51,7 @@ export function percent(share: number): string {
 }
 
 /** An argument a shell passes through unchanged, quoted only when it would not be. */
-function shell(value: string): string {
+export function shell(value: string): string {
   return /^[\w@./:=+-]+$/u.test(value) ? value : `'${value.replace(/'/gu, `'\\''`)}'`;
 }
 

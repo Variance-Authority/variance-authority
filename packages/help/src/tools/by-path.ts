@@ -56,21 +56,30 @@ export function how(site: Pick<PathSite, 'held' | 'deep'>): string {
   return site.deep ? `, deep import of ${site.held.specifier}` : `, by path from ${site.held.specifier}`;
 }
 
-/**
- * What other packages import from a package that declares no entry: one line
- * per name each import takes, and the counts a heading states. A package's own
- * imports of itself are not its surface, and are left out.
- */
-export function surfaceByPath(help: Help, owner: string): {
+/** What other packages import by path from one package: the counts a heading states, and a line per name. */
+export interface Surface {
+  /** Distinct names, each counted once per file that exports it. */
   readonly names: number;
   readonly files: number;
   readonly lines: readonly string[];
-} {
+  /** The first name the lines take, other than the whole module, for the narrower question about one name. */
+  readonly first?: string;
+  /** The specifier most lines are under, when they are under more than one, for the narrower question about one specifier. */
+  readonly busiest?: string;
+}
+
+/**
+ * What other packages import from a package that declares no entry: one line
+ * per name each import takes, and the counts a heading states. A package's own
+ * imports of itself are not its surface, and are left out. With `specifier`,
+ * only the imports written as that specifier.
+ */
+export function surfaceByPath(help: Help, owner: string, specifier?: string): Surface {
   const pairs = new Set<string>();
   const files = new Set<string>();
   const rows: (readonly [string, string, string, number, string])[] = [];
   for (const held of help.byPath) {
-    if (ownerOf(held.specifier) !== owner || held.by === owner) continue;
+    if ((specifier !== undefined && held.specifier !== specifier) || ownerOf(held.specifier) !== owner || held.by === owner) continue;
     const file = held.to ?? held.specifier;
     files.add(file);
     if (held.names.length === 0) rows.push([held.specifier, '', held.at, held.line, `  ${held.specifier} — ${held.by} at ${held.at}:${held.line}`]);
@@ -80,7 +89,17 @@ export function surfaceByPath(help: Help, owner: string): {
     }
   }
   rows.sort((a, b) => byCodeUnit(a[0], b[0]) || byCodeUnit(a[1], b[1]) || byCodeUnit(a[2], b[2]) || a[3] - b[3]);
-  return { names: pairs.size, files: files.size, lines: rows.map((row) => row[4]) };
+  const first = rows.find((row) => row[1] !== '' && row[1] !== '*')?.[1];
+  const under = new Map<string, number>();
+  for (const row of rows) under.set(row[0], (under.get(row[0]) ?? 0) + 1);
+  const busiest = under.size > 1 ? [...under].reduce((best, next) => (next[1] > best[1] ? next : best))[0] : undefined;
+  return {
+    names: pairs.size,
+    files: files.size,
+    lines: rows.map((row) => row[4]),
+    ...(first === undefined ? {} : { first }),
+    ...(busiest === undefined ? {} : { busiest }),
+  };
 }
 
 /** `N names from M of its files`, counted. */
@@ -88,12 +107,43 @@ export function counted(surface: { readonly names: number; readonly files: numbe
   return `${surface.names} ${surface.names === 1 ? 'name' : 'names'} from ${surface.files} of its files`;
 }
 
-/** The packages that declare no entry and that another package imports a file of, in code-unit order. */
-export function unenteredImported(help: Help): readonly string[] {
-  const owners = new Set(help.byPath.filter((held) => held.by !== ownerOf(held.specifier)).map((held) => ownerOf(held.specifier)));
-  return [...owners].sort(byCodeUnit);
+/**
+ * Every package other packages import by path, counted in one walk of the
+ * imports: what is taken from each package that declares no entry, and how
+ * many imports reach past the entry of each package that declares one. Most
+ * taken first, then in code-unit order.
+ *
+ * One walk, because the counts are per package and the imports are not. In a
+ * repository whose packages declare no entry there are a hundred thousand
+ * imports, and a walk of all of them per package is quadratic.
+ */
+export function countsByPath(help: Help): {
+  readonly unentered: readonly (readonly [string, { readonly names: number; readonly files: number }])[];
+  readonly deep: readonly (readonly [string, number])[];
+} {
+  const taken = new Map<string, { readonly pairs: Set<string>; readonly files: Set<string> }>();
+  for (const held of help.byPath) {
+    const owner = ownerOf(held.specifier);
+    if (held.by === owner) continue;
+    let counts = taken.get(owner);
+    if (counts === undefined) taken.set(owner, (counts = { pairs: new Set(), files: new Set() }));
+    const file = held.to ?? held.specifier;
+    counts.files.add(file);
+    for (const name of held.names) counts.pairs.add(`${file}\0${name.name}`);
+  }
+  const deep = new Map<string, number>();
+  for (const held of help.deep) {
+    const owner = ownerOf(held.specifier);
+    deep.set(owner, (deep.get(owner) ?? 0) + 1);
+  }
+  const unentered = [...taken].map(([owner, counts]) => [owner, { names: counts.pairs.size, files: counts.files.size }] as const);
+  return {
+    unentered: unentered.sort((a, b) => b[1].names - a[1].names || byCodeUnit(a[0], b[0])),
+    deep: [...deep].sort((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0])),
+  };
 }
 
-function byCodeUnit(left: string, right: string): number {
+/** Code-unit order, the same on every machine. */
+export function byCodeUnit(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }

@@ -96,14 +96,21 @@ server.
 
 ## The verbs
 
-### `packages`
+### `packages [--package <name or specifier>]`
 
-Start here unless you already have an exact specifier. A published specifier is
-each subpath a `package.json` `exports` field opens, or, with no `exports`, the
-bare name its `types` or `main` opens. `packages` and `entrypoint` answer for
-the JavaScript half of a mixed repository. The other verbs read the source and
-answer for every language: ask `search` or `symbol` for a Python, Rust, Java,
-Kotlin or Swift name.
+Ask it when you have no exact specifier. A published specifier is each subpath a
+`package.json` `exports` field opens, or, with no `exports`, the bare name its
+`types` or `main` opens. With no argument it counts, one row per specifier: the
+names it opens, how many anything imports, how many are documented. A package
+that declares no entry gets a row with how many of its names and files other
+packages import by path, and imports past a published entry are counted per
+package. It lists no import site. `--package` takes a row's package or
+specifier and lists the sites behind its counts, each with the importer's file
+and line. Either answer ends with the narrower questions to ask next.
+
+`packages` and `entrypoint` answer for the JavaScript half of a mixed
+repository. The other verbs read the source and answer for every language: ask
+`search` or `symbol` for a Python, Rust, Java, Kotlin or Swift name.
 
 ### `entrypoint`
 
