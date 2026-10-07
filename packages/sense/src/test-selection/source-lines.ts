@@ -203,6 +203,16 @@ export function recordedFrame(
  * source `include` refuses: a module accepted under its own name is never
  * dropped because of where its map points.
  *
+ * Under its own name it is still the file, not the text handed over. A map
+ * with no positions in it — `tsc`'s for a module of nothing but types, which
+ * builds to `export {};` — leaves the build recorded under its own name, and a
+ * dev server hands that build over with its comment blanked. Digested as
+ * handed, the record names a text no commit holds: every landing of a run that
+ * did not load the module reads the file on disk as moved, cuts it again, and
+ * demotes every test that loaded it, and the next run of those tests records
+ * the blanked text again. Blanking keeps every offset and every line, so the
+ * frame is the file's: its digest, and regions cut from it.
+ *
  * `undefined` when neither name is accepted.
  */
 export function rawFrame(
@@ -211,13 +221,16 @@ export function rawFrame(
   include: (file: string) => boolean,
   original: (path: string) => string,
 ): RecordedFrame | undefined {
-  const map = builtMap(code, file, original);
+  const disk = handedFile(code, file, original);
+  const map = disk === undefined ? undefined : builtMap(disk, file, original);
   const source = map === undefined ? undefined : originalFile(map, file);
   if (source !== undefined && !NODE_MODULES.test(source) && include(source)) {
     const frame = recordedFrame(code, map, file, original);
     if (frame.file === source) return frame;
   }
-  return include(file) ? recordedFrame(code, undefined, file, original) : undefined;
+  if (!include(file)) return undefined;
+  const frame = recordedFrame(code, undefined, file, original);
+  return disk === undefined || frame.text !== code ? frame : { ...frame, sourceDigest: digestString(disk), text: disk };
 }
 
 /** A sibling's name only: a `data:` map or a path elsewhere has a `/` in it. */
@@ -225,16 +238,25 @@ const SOURCE_MAPPING_URL = /\/\/[#@] sourceMappingURL=([^\s'"/\\]+)(?=\s*$)/;
 const NODE_MODULES = /[/\\]node_modules[/\\]/;
 
 /**
- * The map the file on disk points at, when `code` is that file: as it is, or
- * with the comment blanked in place, which is what a Vite dev server hands a
- * plugin once it has read the map itself.
+ * The file on disk, when `code` is that file: as it is, or with the comment
+ * blanked in place, which is what a Vite dev server hands a plugin once it has
+ * read the map itself.
  */
-function builtMap(code: string, file: string, original: (path: string) => string): TransformSourceMap | undefined {
+function handedFile(code: string, file: string, original: (path: string) => string): string | undefined {
   if (NODE_MODULES.test(file)) return undefined;
   try {
     const disk = original(file);
+    return handedTexts(disk).includes(code) ? disk : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The map {@link handedFile}'s text points at. */
+function builtMap(disk: string, file: string, original: (path: string) => string): TransformSourceMap | undefined {
+  try {
     const pointer = SOURCE_MAPPING_URL.exec(disk);
-    if (pointer === null || !handedTexts(disk).includes(code)) return undefined;
+    if (pointer === null) return undefined;
     const map = JSON.parse(original(resolve(dirname(file), pointer[1]!))) as Partial<TransformSourceMap> | null;
     return typeof map?.mappings === 'string' && Array.isArray(map.sources) ? map as TransformSourceMap : undefined;
   } catch {
