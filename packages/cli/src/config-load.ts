@@ -10,7 +10,7 @@
 import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { beforeOf, cacheRootFor, declaredSuites, repositoryRoot } from '@variance-authority/sense/test-selection';
+import { beforeOf, cacheRootFor, declaredSuites, repositoryRoot, rootConfig } from '@variance-authority/sense/test-selection';
 import { ConfigError, messageOf } from './config-values.js';
 import { OperatorError } from './exit.js';
 import { said } from './here.js';
@@ -98,9 +98,16 @@ export async function loadConfig(path: string): Promise<Config> {
     );
   }
   const suites = declaredSuites(baseDir);
-  // Again once the root's suites are in: a member file may hold the share, and
-  // the suites it would carry are only ever declared at the root.
-  if (suites !== undefined) checkCarriers({ share: config.share, reportCarry: undefined, suites }, { source, baseDir });
+  // Again once the root's suites are in, against the file they came from: a
+  // suite carries to the root's `share`, which `share --suite` and `select` read
+  // back, so a member file is held to its root's section and never its own.
+  const root = rootConfig(baseDir);
+  if (suites !== undefined && root !== undefined) {
+    checkCarriers(
+      { share: root.value['share'], reportCarry: undefined, suites },
+      { source: said(root.file), baseDir: dirname(root.file) },
+    );
+  }
   // Inherited the same way: what every suite rests on is declared once, at the
   // root, and a member config runs those suites. `beforeOf` answers empty only
   // for a root that declares none, since a declared list is never empty.
