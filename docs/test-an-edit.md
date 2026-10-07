@@ -140,9 +140,12 @@ next recording on a change to it runs every test that declared it.
 ## What a selection costs
 
 On this repository's own unit suite, 686 recorded test files, reading the
-selection for a one-statement edit takes 0.39 s, the median of eight warm runs of
+selection for a one-statement edit against the record CI publishes for `main`
+takes 0.32 s, the median of twelve warm runs of
 `node_modules/.bin/variance select --suite unit`, which skips 677 of the 686.
-That is the reading the runner makes before it starts.
+That is the reading the runner makes before it starts. A record whose tests last
+ran at two commits, such as your own runs layered over `main`'s, costs about
+0.1 s more: each file changed between those commits is read from both texts.
 
 The whole loop on the same suite takes a few seconds. Change one statement in a
 function that nine of the suite's test files execute, and
@@ -152,7 +155,7 @@ those nine and exits in 3.4 s. Run it again on the same tree and it prints
 of seven warm runs.
 
 Every time in this section was measured on an Apple M4 Max with 64 GB under
-Node 24, with a one-minute load average between 4 and 9 on its 16 cores.
+Node 24, with a one-minute load average between 3 and 9 on its 16 cores.
 
 What recording adds to a run is measured on public suites in
 [what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs).
