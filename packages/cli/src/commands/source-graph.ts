@@ -57,7 +57,7 @@ export interface GraphAsk {
 
 const BY_CONFIG: GraphAsk = {
   why: 'config sets `source.relations`',
-  fix: 'Install `@variance-authority/sense`, or remove the key to select by declaration alone.',
+  fix: 'Install `@variance-authority/sense`: it reads the tree, and selecting by declaration alone needs it too.',
 };
 
 /**
@@ -76,9 +76,9 @@ const BY_CONFIG: GraphAsk = {
  *
  * {@link GraphAsk} is who wanted the graph and what they can do about not
  * having it, and it is a parameter because the two differ: a run reached here
- * through a config key an operator can take back out, and `reach` reached here
- * through the command they typed, which has no key to remove. Advice to edit a
- * file they do not have is the kind of message that costs an afternoon.
+ * through a config key, and `reach` reached here through the command they
+ * typed. Removing the key is no way out: the component index a run selects by
+ * without it is read by `sense` as well ([`indexOf`](./affected.ts)).
  *
  * The graph is read, never built here. One step publishes the checkout's
  * source index — `variance index` — and every reader reads that generation, so a
