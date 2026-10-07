@@ -22,13 +22,18 @@ collector resolve a component to its `file:line` from the same reading, through
 they build from `source.dirs`:
 
 - The line is the first line of the declaring statement. A decorated class
-  sits at its first decorator, and a second name in a multi-line `const` at the
-  line of the `const`.
+  sits at its first decorator, or at its `export` when the decorator is written
+  above the `export`, and a second name in a multi-line `const` at the line of
+  the `const`.
 - `.d.ts` files, and test, spec and story files your own `exclude` lets
   through, declare nothing.
-- A file the parser cannot read, such as a Flow-annotated `.js` file, declares
-  nothing. The text scan found the components in it; the record of that file
-  in the source index names the parse error.
+- A file the parser cannot read declares nothing, where the text scan found
+  the components in it. That covers a Flow-annotated `.js` file, and a `.vue`,
+  `.svelte` or `.mdx` file you add to a collector's `extensions`, which is
+  parsed as TSX and fails. The index built from `source.dirs` or a collector's
+  `source` does not say so: the file's components are missing, and nothing
+  names the file. Only `sense`'s source index, for a file it records, names the
+  parse error in that file's record.
 - Building the index needs `sense`'s native addon, which ships for macOS on
   arm64, Linux on x64 and arm64 with glibc, and Windows on x64. On any other
   machine, including an Intel Mac, an Alpine image and Windows on arm64, a
