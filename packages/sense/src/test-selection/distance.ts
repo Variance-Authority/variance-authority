@@ -202,13 +202,13 @@ export interface DistanceOptions {
  * to reach past everything measured to get to them.
  *
  * A test the record holds `incomplete` and the change did not enter is placed
- * too, by the shortest path it executed from any file the diff was read in
- * (`readings`), and left out when it executed none. Its record is missing the
- * cases it did not run, so *entered nothing* is no evidence it is far, and the
- * path it did run is the nearest the change can be to it. The landing that
- * recorded an edit over a kept text is the ordinary way to get one: it demotes
- * every test carried over the edited region, and the reading of that file is
- * then `none`.
+ * too, by the shortest path it executed to a file the diff was read in
+ * (`readings`) and the test entered, and left out when it executed none. Its
+ * record is missing the cases it did not run, so *entered no changed region* is
+ * no evidence it is far. A changed file it never entered is no seed: the last
+ * hop to it would be an edge nothing says the test ran. A partial run over an
+ * edit is the ordinary way to get one: it demotes every test carried over the
+ * edited region, and the reading of that file is then `none`.
  */
 export function distanceFromView(
   coverage: TestCoverageView,
@@ -219,9 +219,12 @@ export function distanceFromView(
   const placed = narrowing.because.map((cause) => place(coverage, cause, entered, options));
   const selected = new Set(narrowing.entered);
   const read = (narrowing.readings ?? []).map((reading) => reading.file);
+  const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   for (const test of narrowing.incomplete ?? []) {
-    if (selected.has(test) || read.length === 0) continue;
-    const distance = measure(coverage, test, read, new Map(), entered, options);
+    const ran = entered.get(findTest(coverage, test) ?? -1);
+    const seeds = read.filter((file) => knownAs(file).some((name) => ran?.has(name) === true));
+    if (selected.has(test) || seeds.length === 0) continue;
+    const distance = measure(coverage, test, seeds, new Map(), entered, options);
     if (distance.hops !== undefined) placed.push(distance);
   }
   return placed.sort(nearestFirst);

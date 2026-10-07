@@ -20,8 +20,8 @@
  * A test the record holds incomplete, such as a file a partial run demoted, or
  * one whose every case skipped, may call the change from a case the record did
  * not see. When the change entered it, it is placed by its hops like any other.
- * When it did not, sense places it by the shortest path it executed from a
- * file the change touched, and it runs in the leg those hops fall in. With no
+ * When it did not, sense places it by the shortest path it executed to a
+ * changed file it entered, and it runs in the leg those hops fall in. With no
  * such path it is unplaced, and is on the skip list of every leg with an end.
  * A test new since the recording is named nowhere, so it is in no skip list and
  * runs in every leg. That is the safe side of a skip list: it costs a file run
@@ -80,7 +80,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     .map((test): TestDistance => placed.get(test) ?? { test, bearing: 'unexplained' })
     .sort((one, other) => codeUnitOrder(one.test, other.test));
   // Named only by the record, which never saw them whole: placed by the path
-  // they executed from the change when sense measured one, and otherwise run
+  // they executed to a changed file when sense measured one, and otherwise run
   // by the leg that reaches the end.
   const entering = new Set(entered);
   const partial = (input.ground.narrowing.incomplete ?? []).filter((test) => !entering.has(test));
@@ -109,7 +109,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
       'every other test file runs',
     notes: [
       ...byDistance(reading),
-      ...placedNote(measured.length - reading.length),
+      ...placedNote(partial.filter((test) => placed.has(test) && !cut.includes(test)).length),
       ...leftNote(further, 'for a later leg', `${leg.to + 1}-`),
       ...unseenNote(unseen.length, `${leg.to + 1}-`),
       ...leftNote(nearer.length, `for an earlier leg, nearer than ${many(leg.from, 'hop')}`, spelled({ from: 0, to: leg.from - 1 })),
@@ -130,12 +130,15 @@ function byDistance(reading: readonly TestDistance[]): readonly string[] {
   return [`the change entered ${many(reading.length, 'test file')}: ${listed}`];
 }
 
-/** How many tests the record never saw whole were cut by the path they ran from the change. */
+/**
+ * How many tests the record never saw whole this leg runs by the path they ran
+ * to the change. Said once, by the leg that runs them.
+ */
 function placedNote(count: number): readonly string[] {
   if (count === 0) return [];
   return [
     `${many(count, 'test file')} the record never saw whole and the change did not enter ` +
-      `${count === 1 ? 'is' : 'are'} cut by the hops ${count === 1 ? 'it' : 'they'} ran from a changed file`,
+      `${count === 1 ? 'is' : 'are'} placed in this leg by the hops ${count === 1 ? 'it' : 'they'} ran to a changed file`,
   ];
 }
 

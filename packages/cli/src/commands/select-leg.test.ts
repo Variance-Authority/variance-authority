@@ -328,7 +328,44 @@ describe('a leg read from a real record and a real graph', () => {
     expect(near.skip).not.toContain(PARTIAL);
     expect(near.distances).toContainEqual(expect.objectContaining({ test: PARTIAL, hops: 1 }));
     expect(end.left).toContain(PARTIAL);
-    expect(near.notes).toContain('1 test file the record never saw whole and the change did not enter is cut by the hops it ran from a changed file');
+    // Said by the leg that runs it, and by no other.
+    const placedIn = /never saw whole and the change did not enter (is|are) placed in this leg/;
+    expect(near.notes).toContain('1 test file the record never saw whole and the change did not enter is placed in this leg by the hops it ran to a changed file');
+    expect(end.notes.filter((note: string) => placedIn.test(note))).toEqual([]);
+  });
+
+  // A file whose every case skipped, such as a browser file with no page built,
+  // is recorded incomplete with only the modules it loaded. It waits for the
+  // end leg until an edit lands in one of those, and then runs at its hops.
+  it('runs a file whose every case skipped in the near leg only when it loaded the changed file', async () => {
+    const LOADED = 'test/loaded.chromium.test.ts';
+    const ELSEWHERE = 'test/elsewhere.chromium.test.ts';
+    const { root, head } = checkout({
+      'src/spare.ts': SPARE,
+      [LOADED]: "import { spare } from '../src/spare';\nit.skip('spare', () => spare());\n",
+      [ELSEWHERE]: "it.skip('nothing', () => {});\n",
+    });
+    const recorded = snapshot(head);
+    const spare = spareModule();
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      tests: [...recorded.tests, ...[LOADED, ELSEWHERE].map((file) => ({ file, complete: false, preconditions: [] }))],
+      modules: [...recorded.modules, { ...spare, blocks: spare.blocks.map((block) => ({ ...block, testFiles: [], loadedBy: [LOADED] })) }],
+    });
+    writeFileSync(join(root, 'src/spare.ts'), SPARE.replace("return 'b';", "return 'y';"));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const skipOf = async (atDistance: { from: number; to: number }) =>
+      JSON.parse((await selectOutput({ cwd: root, format: 'json', atDistance })).out);
+    const near = await skipOf({ from: 0, to: 2 });
+    const end = await skipOf({ from: 3, to: Number.MAX_SAFE_INTEGER });
+
+    expect(near.distances).toContainEqual(expect.objectContaining({ test: LOADED, hops: 1 }));
+    expect(near.skip).not.toContain(LOADED);
+    expect(near.left).toContain(ELSEWHERE);
+    expect(end.left).toContain(LOADED);
+    expect(end.skip).not.toContain(ELSEWHERE);
   });
 });
 

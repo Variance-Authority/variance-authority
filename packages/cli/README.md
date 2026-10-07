@@ -1652,11 +1652,12 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- vitest run
 A leg is still a skip list. A selection that declines to narrow skips nothing
 in any leg, and a test new since the recording is on no skip list, so it runs in
 both. A test recorded incomplete, such as one a partial run over an edit left,
-and that the change did not enter, runs in the leg of the shortest path it ran
-from a changed file; with no such path, it runs in the furthest leg. A test the
-change entered by no import it executed has no hop count and runs in the
-furthest leg too. stderr counts the entered tests at each hop count, and names
-how many selected files the leg left and the command that runs them.
+and that the change did not enter, runs in the leg of the shortest import path
+it ran to a changed file it loaded; with no such path, it runs in the furthest
+leg. A test the change entered by no import it executed has no hop count and
+runs in the furthest leg too. stderr counts the entered tests at each hop count,
+counts the incomplete tests the leg runs by their path, and names how many
+selected files the leg left and the command that runs them.
 `--format json` gives the leg as `leg`, those files as `left`, and each placed
 test's `hops`, `bearing` and, where no distance was measured, `because`, as
 `distances`.

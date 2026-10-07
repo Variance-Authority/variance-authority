@@ -90,8 +90,8 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 source you changed, which is zero. `3-` runs the rest. Every selected file runs
 in one of the two: a test the record cannot place runs in the second. A test
 recorded incomplete, such as one a partial run over your edit left, runs in the
-leg of the shortest path it ran from a changed file, and a new test runs in
-both. A value that is not a range fails the run rather than running another
+leg of the shortest import path it ran to a changed file it loaded, and a new
+test runs in both. A value that is not a range fails the run rather than running another
 leg. The first leg is feedback, not a verdict; [distance](distance.md) is the
 page about what a hop count tells you and what it does not.
 

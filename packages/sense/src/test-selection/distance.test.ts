@@ -131,6 +131,28 @@ describe('distanceFromView', () => {
     expect(distances.map(({ test }) => test)).not.toContain('test/registry.test.ts');
   });
 
+  it('measures a test the record never saw whole only from a changed file it entered', () => {
+    // The card test's record holds the card and the button's face, not the base
+    // the edit is in. The graph has the face's edge to the base, but nothing
+    // says this test ran it, so a path ending on that edge is not one it ran.
+    const coverage = openTestCoverage(encodeTestCoverage({
+      ...layerCoverage,
+      tests: layerCoverage.tests.map((test) => (test.file === 'test/card.test.tsx' ? { ...test, complete: false } : test)),
+      modules: layerCoverage.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) => ({
+          ...block,
+          testFiles: block.testFiles.filter((test) => module.file !== 'src/button/abstract-button.tsx' || test !== 'test/card.test.tsx'),
+        })),
+      })),
+    }));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    const distances = distanceFromView(coverage, { ...narrowing, incomplete: ['test/card.test.tsx'] }, { relations });
+
+    expect(narrowing.entered).not.toContain('test/card.test.tsx');
+    expect(distances.map(({ test }) => test)).not.toContain('test/card.test.tsx');
+  });
+
   it('places nothing without a graph, and says so as absence', () => {
     // No graph is not "everything is far away". Every test comes back unplaced,
     // which is what a caller banding on this must see rather than a flat zero.
