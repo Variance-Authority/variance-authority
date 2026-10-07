@@ -35,7 +35,8 @@ run's identity as an optional third argument, as before, and refuses a recipe
 re-baseline when it is absent.
 
 `variance accept --all` skips an `incomparable` subject unless its
-`signals.document` is `unchanged`, names the command that adopts it alone, and
+`signals.document` is `unchanged` and its `signals.identity` is `recipe`, names
+the command that adopts it alone, and
 exits non-zero as for any refusal; `variance accept <subject>` adopts it. A
 report written before the signal was carried is skipped too. In
 `@variance-authority/report`, `promotionOf` takes a `PromotionOptions` with
@@ -47,14 +48,16 @@ shown to be this machine's. In `@variance-authority/playwright-test`,
 `@variance-authority/playwright-test` now depends on
 `@variance-authority/report` and asks `bulkSkips`, so the two cannot adopt
 different images. Deferred capture paints against an older recipe, so both flags
-have an image to adopt. The rule reads the document, not the cause, so in-place
-mode's `=changed` now also skips another machine's image of a moved document,
-which it used to write over the baseline; one whose document did not move is
-still written.
+have an image to adopt. In-place mode's `=changed` now also skips another
+machine's image, which it used to write over the baseline; `=all` still writes
+it, as naming the subject does.
 
 An incomparable observation from `@variance-authority/observe` carries
 `signals.document`, saying whether the document is the one the baseline was
-painted from, and `signals.pixels` is optional, since no pixels were compared.
+painted from, and `signals.identity`, `recipe` when only the recipe digests
+differ and `machine` otherwise, as `recipeOnly`, now exported from
+`@variance-authority/raster`, answers it. `signals.pixels` is optional,
+since no pixels were compared.
 TypeScript code that reads `Observation.signals.pixels` must now handle it
 being absent.
 

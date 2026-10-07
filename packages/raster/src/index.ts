@@ -35,7 +35,7 @@
 export { assemble, SUBJECT_PATH } from './assemble.js';
 export type { AssembleOptions } from './assemble.js';
 
-export { describeIdentity, familiesOf, identityAtScale, incomparableBecause } from './renderer.js';
+export { describeIdentity, familiesOf, identityAtScale, incomparableBecause, recipeOnly } from './renderer.js';
 export type { IncomparableSides, Renderer } from './renderer.js';
 
 export { DEFAULT_POLICY, STRICT_POLICY } from './policy.js';

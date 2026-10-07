@@ -261,7 +261,8 @@ The rerun exits `0` once the subject is `unchanged` and nothing else is open.
 subjects that are `new`, subjects that are `changed`, and subjects that are
 `incomparable` only because the recipe moved on an unchanged document,
 identically, whether or not anyone opened the page. A subject whose recipe and
-document both moved has an image no comparison read, so `--all` skips it,
+document both moved, or whose image another machine painted, has an image no
+comparison read, so `--all` skips it,
 names it and exits non-zero; `accept <subject-id>` adopts it once you have looked. Name ids explicitly in anything unattended, and keep
 `--all` for the moment you have just reviewed the whole report yourself.
 `accept --message-file` writes a commit message describing the promotion, which

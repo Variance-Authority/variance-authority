@@ -274,6 +274,13 @@ export interface ObservationRecord {
   readonly signals?: {
     readonly document?: 'unchanged' | 'changed';
     /**
+     * On an `incomparable` subject, what differed between the two render
+     * identities: `recipe` when only the recipe digests did, `machine` for
+     * anything else. A bulk acceptance adopts only `recipe` with the document
+     * `unchanged`.
+     */
+    readonly identity?: 'recipe' | 'machine';
+    /**
      * `unobservable` when the subject occupies no pixels — there was nothing to
      * measure, as against `unchanged`, which is a measurement that found nothing
      * moved. A reader that saw `unchanged` would take the image as evidence it

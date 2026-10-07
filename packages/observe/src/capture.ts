@@ -10,6 +10,7 @@ import {
 import { declaredIgnores } from './decide.js';
 import {
   documentMoved,
+  identityMoved,
   observeAgainstBaseline,
   observeRasters,
   type CompareInputs,
@@ -106,7 +107,10 @@ export async function observeCaptureAgainstBaseline(
       regions: [],
       rendered: false,
       missingFonts: candidate.missingFonts,
-      signals: { document: documentMoved(found.raster, candidate) },
+      signals: {
+        document: documentMoved(found.raster, candidate),
+        identity: identityMoved(found.storedUnder, candidate.identity),
+      },
       ...declaredField,
     };
   }

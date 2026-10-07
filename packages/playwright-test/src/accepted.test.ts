@@ -14,6 +14,7 @@ import type { VarianceRun } from './run.js';
 
 const VERDICTS = ['unchanged', 'changed', 'new', 'incomparable', 'ignored'] as const;
 const DOCUMENTS = [undefined, 'unchanged', 'changed'] as const;
+const IDENTITIES = [undefined, 'recipe', 'machine'] as const;
 
 const RUNS: ReadonlyArray<{ readonly flag: string; readonly run: VarianceRun; readonly bulk: boolean }> = [
   { flag: '=changed', run: { id: 'a', accepting: true, overwriting: false } as VarianceRun, bulk: true },
@@ -23,9 +24,12 @@ const RUNS: ReadonlyArray<{ readonly flag: string; readonly run: VarianceRun; re
 describe('adopts', () => {
   for (const verdict of VERDICTS) {
     for (const document of DOCUMENTS) {
-      for (const { flag, run, bulk } of RUNS) {
-        it(`agrees with variance accept on ${verdict}, document ${String(document)}, under ${flag}`, () => {
-          const signals = document === undefined ? {} : { signals: { document } };
+      for (const identity of IDENTITIES) {
+        for (const { flag, run, bulk } of RUNS) {
+          const named = `${verdict}, document ${String(document)}, identity ${String(identity)}, under ${flag}`;
+          it(`agrees with variance accept on ${named}`, () => {
+          const signals =
+            document === undefined ? {} : { signals: { document, ...(identity === undefined ? {} : { identity }) } };
           const record: ObservationRecord = {
             subject: 'story:a',
             verdict,
@@ -38,10 +42,24 @@ describe('adopts', () => {
           const observation = { subject: 'story:a', verdict, because: 'asked', ...signals } as unknown as Observation;
 
           expect(adopts(observation, run)).toBe(promotionOf(record, { bulk }).kind === 'promotable');
-        });
+          });
+        }
       }
     }
   }
+
+  it("leaves another machine's image of an unchanged document to =all", () => {
+    const foreign = {
+      subject: 'story:a',
+      verdict: 'incomparable',
+      because: 'asked',
+      signals: { document: 'unchanged', identity: 'machine' },
+    } as unknown as Observation;
+    expect(adopts(foreign, RUNS[0]!.run)).toBe(false);
+    expect(adopts(foreign, RUNS[1]!.run)).toBe(true);
+    const recipe = { ...foreign, signals: { document: 'unchanged', identity: 'recipe' } } as unknown as Observation;
+    expect(adopts(recipe, RUNS[0]!.run)).toBe(true);
+  });
 
   it('leaves an incomparable that does not say its document to =all', () => {
     const unsaid = { subject: 'story:a', verdict: 'incomparable', because: 'asked' } as unknown as Observation;

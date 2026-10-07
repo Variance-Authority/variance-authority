@@ -494,7 +494,7 @@ Four flags:
 
 | Flag | What it does |
 | --- | --- |
-| `--all` | Promotes every candidate in the report: `new`, `changed`, and `incomparable` where only the recipe moved on an unchanged document. A subject whose document moved with the recipe is skipped and named; accept it by its id. Keep it for a first run and for deliberate re-baselines: it cannot distinguish a candidate somebody reviewed from one nobody opened. |
+| `--all` | Promotes every candidate in the report: `new`, `changed`, and `incomparable` where only the recipe moved on an unchanged document. A subject whose document moved with the recipe, or whose image another machine painted, is skipped and named; accept it by its id. Keep it for a first run and for deliberate re-baselines: it cannot distinguish a candidate somebody reviewed from one nobody opened. |
 | `--shape <fingerprint>[,…]` | Promotes one category of difference wherever it accounts for the *whole* change, and refuses by name any subject where something else also changed. Copy a fingerprint out of a report; every region has its own. |
 | `--message-file <path>` | Writes a commit message for the baseline update to that path, for `git commit -F`. It commits nothing itself. |
 | `--message <text>` | The subject line of that message. Only meaningful with `--message-file`. |

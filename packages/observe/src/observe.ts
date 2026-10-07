@@ -10,6 +10,7 @@ import type {
   Diagnostic,
   Raster,
   RenderDocument,
+  RenderIdentity,
   SemanticSnapshot,
 } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
@@ -17,6 +18,7 @@ import { identityDigest } from '@variance-authority/core/format';
 import type { PngDecoder } from '@variance-authority/png';
 import {
   incomparableBecause,
+  recipeOnly,
   type BaselineKey,
   type CompareOptions,
   type RasterComparison,
@@ -89,11 +91,18 @@ export interface Observation {
    * The three independently observed boundaries and the retained ARIA diff.
    *
    * A missing member was not measured. An `incomparable` subject carries
-   * `document` alone: no pixels were compared, and whether the document moved
-   * is what decides that a bulk acceptance may adopt its image (`promotionOf`).
+   * `document` and `identity`: no pixels were compared, and only an image of
+   * the same document whose recipe alone moved may be adopted by a bulk
+   * acceptance (`promotionOf`).
    */
   readonly signals?: {
     readonly document: 'unchanged' | 'changed';
+    /**
+     * Set on an `incomparable` subject: `recipe` when the two identities differ
+     * in the recipe digests alone (`recipeOnly`), `machine` for any other
+     * difference, including one nobody recorded.
+     */
+    readonly identity?: 'recipe' | 'machine';
     /**
      * `unobservable` when the subject occupies no pixels — a wrapper whose only
      * child went to a portal, a mount with no children. Distinct from
@@ -327,7 +336,10 @@ export async function observeRasters(
       regions: [],
       rendered: false,
       missingFonts: [],
-      signals: { document: documentMoved(before, after) },
+      signals: {
+        document: documentMoved(before, after),
+        identity: identityMoved(before.identity, after.identity),
+      },
     };
   }
 
@@ -418,7 +430,10 @@ export async function observeAgainstBaseline(
       regions: [],
       rendered: fresh.rendered,
       missingFonts: fresh.raster.missingFonts,
-      signals: { document: documentMoved(found.raster, fresh.raster) },
+      signals: {
+        document: documentMoved(found.raster, fresh.raster),
+        identity: identityMoved(found.storedUnder, identity),
+      },
       ...declaredField,
     };
   }
@@ -435,4 +450,9 @@ export function documentMoved(
   after: Pick<Raster, 'documentDigest'>,
 ): 'unchanged' | 'changed' {
   return before.documentDigest === after.documentDigest ? 'unchanged' : 'changed';
+}
+
+/** Which part of the render identity differs between two incomparable images. */
+export function identityMoved(stored: RenderIdentity, current: RenderIdentity): 'recipe' | 'machine' {
+  return recipeOnly(stored, current) ? 'recipe' : 'machine';
 }

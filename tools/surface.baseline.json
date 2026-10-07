@@ -1861,6 +1861,7 @@
         "messageOf": "function",
         "neverFails": "function",
         "rasterFrom": "function",
+        "recipeOnly": "function",
         "recordFrom": "function",
         "settle": "function",
         "sidecarFrom": "function",

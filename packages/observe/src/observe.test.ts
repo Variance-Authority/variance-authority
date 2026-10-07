@@ -160,6 +160,8 @@ describe('a durable observation above 1x', () => {
     );
 
     expect(observation.verdict).toBe('incomparable');
+    // Carried, so a bulk accept adopts this and not another machine's image.
+    expect(observation.signals).toMatchObject({ document: 'unchanged', identity: 'recipe' });
     expect(observation.because).toContain('rasterization e5ed66c6 → 865368fe');
     expect(observation.because).toContain('same machine');
     expect(observation.because).toContain('only the recipe moved');
@@ -245,7 +247,7 @@ describe('a durable observation above 1x', () => {
     expect(observation).toMatchObject({
       verdict: 'incomparable',
       rendered: false,
-      signals: { document: 'unchanged' },
+      signals: { document: 'unchanged', identity: 'machine' },
     });
     expect(observation.because).toContain('fonts +Roboto/400/normal/def');
     expect(observation.because).not.toContain('Inter/400/normal/abc');

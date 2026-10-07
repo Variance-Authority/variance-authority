@@ -96,10 +96,15 @@ export function promotionOf(
   }
 
   if (options.bulk === true && bulkSkips(observation)) {
+    const signals = observation.signals;
     const document =
-      observation.signals?.document === 'changed'
+      signals?.document === 'changed'
         ? 'its document is not the one the baseline was painted from'
-        : 'the report does not say whether its document is the one the baseline was painted from';
+        : signals?.document === undefined
+          ? 'the report does not say whether its document is the one the baseline was painted from'
+          : signals.identity === 'machine'
+            ? 'its image differs from the baseline in more than the recipe, so another machine painted one of them'
+            : 'the report does not say whether only the recipe moved between its image and the baseline';
     return {
       kind: 'refused',
       because:
@@ -116,18 +121,14 @@ export function promotionOf(
  * Whether an acceptance that sweeps a whole run skips this subject.
  *
  * True for every `incomparable` subject but one whose `signals.document` says
- * `unchanged`. Nothing compared an incomparable image with anything, so the only
- * thing a sweep can stand on is that the page is the one the baseline was
- * painted from and only the recipe re-painted it. A moved document has a change
- * nobody read, and a missing signal is not evidence the document stayed: a
- * report written before the signal was carried says nothing either way. A
- * changed subject's diff was in the report a sweep followed; these have none,
- * and only a reviewer naming one can stand in for it.
- *
- * The rule reads the document and not the cause. Another machine's baseline
- * with a moved document is skipped as well, which is what keeps Playwright's
- * in-place `--update-snapshots=changed` from adopting that image; one whose
- * document did not move is still adopted there.
+ * `unchanged` and whose `signals.identity` says `recipe`. Nothing compared an
+ * incomparable image with anything, so the only thing a sweep can stand on is
+ * that the page is the one the baseline was painted from and only the recipe
+ * re-painted it. A moved document has a change nobody read; another machine's
+ * image differs in fonts, engine or scale nobody read; and a missing signal is
+ * not evidence of either: a report written before the signal was carried says
+ * nothing. A changed subject's diff was in the report a sweep followed; these
+ * have none, and only a reviewer naming one can stand in for it.
  *
  * `variance accept --all` and `@variance-authority/playwright-test` under
  * `--update-snapshots=changed` are both sweeps and both ask this, so the two
@@ -135,9 +136,13 @@ export function promotionOf(
  */
 export function bulkSkips(observation: {
   readonly verdict: ObservationRecord['verdict'];
-  readonly signals?: { readonly document?: 'unchanged' | 'changed' };
+  readonly signals?: {
+    readonly document?: 'unchanged' | 'changed';
+    readonly identity?: 'recipe' | 'machine';
+  };
 }): boolean {
-  return observation.verdict === 'incomparable' && observation.signals?.document !== 'unchanged';
+  if (observation.verdict !== 'incomparable') return false;
+  return observation.signals?.document !== 'unchanged' || observation.signals.identity !== 'recipe';
 }
 
 /** How a promotion was asked for. */

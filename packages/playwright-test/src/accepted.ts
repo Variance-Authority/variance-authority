@@ -19,14 +19,11 @@ export function accepted(observation: Observation): Observation {
  * Whether an accepting run adopts this observation's image.
  *
  * `=changed` sweeps the suite as `variance accept --all` does and skips what that
- * sweep skips (`bulkSkips`): an `incomparable` subject not shown to have kept its
- * document. `=all` overwrites every image it takes, as naming a subject does.
+ * sweep skips (`bulkSkips`): an `incomparable` subject not shown to be the same
+ * document re-painted under a new recipe, which includes another machine's
+ * image. `=all` overwrites every image it takes, as naming a subject does.
  */
 export function adopts(observation: Observation, run: VarianceRun): boolean {
-  // FIXME: in-place mode adopts another machine's image whose document did not
-  // move, under `=changed` as under `=all`: nothing compared it, and the
-  // partition exists to refuse it. Deferred mode paints no image for it. Only a
-  // recipe-only `incomparable` should reach a sweep here.
   if (run.accepting !== true || observation.verdict === 'unchanged') return false;
   return run.overwriting === true || !bulkSkips(observation);
 }

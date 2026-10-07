@@ -160,8 +160,33 @@ describe('what may become a baseline', () => {
     expect(promotionOf(moved)).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
 
     // The same image of the same document is a re-baseline, and bulk adopts it.
-    const same = { ...moved, signals: { document: 'unchanged' as const } };
+    const same = { ...moved, signals: { document: 'unchanged' as const, identity: 'recipe' as const } };
     expect(promotionOf(same, { bulk: true }).kind).toBe('promotable');
+  });
+
+  it("keeps another machine's image out of a bulk accept even when its document is unchanged", () => {
+    // Same page, other machine: nothing compared the two images, and the
+    // difference between them is the machine's, which no reviewer has seen.
+    const foreign: ObservationRecord = {
+      subject: 'story:a',
+      verdict: 'incomparable',
+      because: 'painted by another machine',
+      changedPixels: 0,
+      regions: [],
+      images: { after: 'images/story%3Aa.after.png' },
+      signals: { document: 'unchanged', identity: 'machine' },
+    };
+    const bulk = promotionOf(foreign, { bulk: true });
+    expect(bulk.kind).toBe('refused');
+    expect(bulk.kind === 'refused' && bulk.because).toContain('more than the recipe');
+    expect(bulk.kind === 'refused' && bulk.because).toContain('variance accept story:a');
+    expect(promotionOf(foreign).kind).toBe('promotable');
+
+    // A report that carried the document but not what differed shows no more.
+    const unsaid = { ...foreign, signals: { document: 'unchanged' as const } };
+    const refused = promotionOf(unsaid, { bulk: true });
+    expect(refused.kind).toBe('refused');
+    expect(refused.kind === 'refused' && refused.because).toContain('does not say whether only the recipe');
   });
 
   it('keeps an incomparable that does not say its document is unchanged out of a bulk accept', () => {
@@ -182,10 +207,19 @@ describe('what may become a baseline', () => {
     expect(promotionOf(unsaid).kind).toBe('promotable');
   });
 
-  it('skips in bulk every incomparable but one whose document is unchanged', () => {
+  it('skips in bulk every incomparable but one whose document is unchanged and whose recipe alone moved', () => {
     const base = changed('story:a');
     expect(bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'changed' } })).toBe(true);
-    expect(bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'unchanged' } })).toBe(false);
+    expect(bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'changed', identity: 'recipe' } })).toBe(
+      true,
+    );
+    expect(bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'unchanged' } })).toBe(true);
+    expect(
+      bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'unchanged', identity: 'machine' } }),
+    ).toBe(true);
+    expect(
+      bulkSkips({ ...base, verdict: 'incomparable', signals: { document: 'unchanged', identity: 'recipe' } }),
+    ).toBe(false);
     expect(bulkSkips({ ...base, verdict: 'incomparable' })).toBe(true);
     expect(bulkSkips({ ...base, signals: { document: 'changed' } })).toBe(false);
   });
