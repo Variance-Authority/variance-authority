@@ -16,7 +16,7 @@ import {
 import type { ComponentRecord } from './composition.js';
 import type { NotObservedKind, RunReport } from './format.js';
 import type { LexiconField, LexiconReport, SubjectLexicon } from './lexicon.js';
-import { decodeFacts, encodeFacts, factVocabulary } from './suite-index-facts.js';
+import { decodeFacts, encodeFacts, factVocabulary, listColumns, listReader } from './suite-index-facts.js';
 
 /**
  * What a run knew about its suite, at a commit, as bytes.
@@ -137,21 +137,6 @@ export function suiteIndexOf(report: RunReport): SuiteIndex | undefined {
   };
 }
 
-/** One list per row, as the offset column and the values it points into. */
-function listColumns<Row>(
-  rows: readonly Row[],
-  pick: (row: Row) => readonly string[],
-  id: (value: string) => number,
-): { readonly offsets: Uint32Array; readonly values: Uint32Array } {
-  const values: number[] = [];
-  const lengths = rows.map((row) => {
-    const list = pick(row);
-    for (const value of list) values.push(id(value));
-    return list.length;
-  });
-  return { offsets: offsetsOf(lengths), values: Uint32Array.from(values) };
-}
-
 /** Encode a suite index: interned strings, dense columns, and offset lists. */
 export function encodeSuiteIndex(index: SuiteIndex): Uint8Array {
   const lexicon = index.lexicon;
@@ -248,16 +233,7 @@ function decodeColumns(opened: OpenSegment): {
   const renderings = opened.u32('components.renderings');
   sameLength(name.length, [instances, variants, renderings], reject);
 
-  const list = (
-    offsetColumn: string,
-    valueColumn: string,
-    rows: number,
-  ): ((row: number) => string[]) => {
-    const offsets = opened.u32(offsetColumn);
-    const values = opened.u32(valueColumn);
-    validateOffsets(offsets, values.length, rows, reject);
-    return (row) => rangeOf(offsets, row, reject).map((at) => text(values[at]!));
-  };
+  const list = (offsetColumn: string, valueColumn: string, rows: number) => listReader(opened, offsetColumn, valueColumn, rows, text);
 
   const subjectsOf = list('components.subjects', 'component-subjects.value', name.length);
   const examplesOf = list('components.examples', 'component-examples.value', name.length);

@@ -43,6 +43,35 @@ export function factVocabulary(index: SuiteIndex, into: Set<string>): void {
   for (const key of PROVENANCE) if (index.provenance?.[key] !== undefined) into.add(index.provenance[key]);
 }
 
+/** One list per row, as the offset column and the values it points into. */
+export function listColumns<Row>(
+  rows: readonly Row[],
+  pick: (row: Row) => readonly string[],
+  id: (value: string) => number,
+): { readonly offsets: Uint32Array; readonly values: Uint32Array } {
+  const values: number[] = [];
+  const lengths = rows.map((row) => {
+    const list = pick(row);
+    for (const value of list) values.push(id(value));
+    return list.length;
+  });
+  return { offsets: offsetsOf(lengths), values: Uint32Array.from(values) };
+}
+
+/** Each row's list, from the columns `listColumns` wrote, checked against `rows` once. */
+export function listReader(
+  opened: OpenSegment,
+  offsetColumn: string,
+  valueColumn: string,
+  rows: number,
+  text: (id: number) => string,
+): (row: number) => string[] {
+  const offsets = opened.u32(offsetColumn);
+  const values = opened.u32(valueColumn);
+  validateOffsets(offsets, values.length, rows, opened.reject);
+  return (row) => rangeOf(offsets, row, opened.reject).map((at) => text(values[at]!));
+}
+
 export function encodeFacts(
   index: SuiteIndex,
   id: (value: string) => number,
@@ -54,12 +83,13 @@ export function encodeFacts(
   const landmarks = subjects.flatMap((subject) => subject.landmarks ?? []);
   const coverage = index.coverage ?? [];
   const provenance = index.provenance;
+  const files = listColumns(declared, ([, held]) => held, id);
 
   const columns: Record<string, Column> = {
     'declared.present': Uint8Array.of(lexicon?.declaredIn === undefined ? 0 : 1),
     'declared.component': Uint32Array.from(declared, ([component]) => id(component)),
-    'declared.files': offsetsOf(declared.map(([, files]) => files.length)),
-    'declared-files.value': Uint32Array.from(declared.flatMap(([, files]) => files), id),
+    'declared.files': files.offsets,
+    'declared-files.value': files.values,
     'lexicon-subjects.landmarks-present': Uint8Array.from(subjects, (subject) => (subject.landmarks === undefined ? 0 : 1)),
     'lexicon-subjects.landmarks': offsetsOf(subjects.map((subject) => subject.landmarks?.length ?? 0)),
     'lexicon-subjects.elided-landmarks': Uint32Array.from(subjects, (subject) => subject.elidedLandmarks ?? NONE),
@@ -136,12 +166,8 @@ function decodeLexiconFacts(
   let declaredIn: Record<string, readonly string[]> | undefined;
   if (flagOf(opened.u8('declared.present')[0], reject)) {
     const component = opened.u32('declared.component');
-    const offsets = opened.u32('declared.files');
-    const files = opened.u32('declared-files.value');
-    validateOffsets(offsets, files.length, component.length, reject);
-    declaredIn = Object.fromEntries(
-      [...component].map((name, row) => [text(name), rangeOf(offsets, row, reject).map((at) => text(files[at]!))]),
-    );
+    const filesOf = listReader(opened, 'declared.files', 'declared-files.value', component.length, text);
+    declaredIn = Object.fromEntries([...component].map((name, row) => [text(name), filesOf(row)]));
   }
 
   const present = opened.u8('lexicon-subjects.landmarks-present');
