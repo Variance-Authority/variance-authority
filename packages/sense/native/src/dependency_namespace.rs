@@ -1,10 +1,9 @@
 //! Names published by a declaration package through `export = Namespace`.
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{Statement, TSNamespaceDeclarationBody};
+use oxc_ast::ast::{Expression, Program, Statement, TSModuleReference, TSNamespaceDeclarationBody};
 use oxc_parser::Parser;
 use oxc_span::SourceType;
-use regex::Regex;
 
 use crate::harvest::TextSpan;
 use crate::read::read_module;
@@ -30,14 +29,25 @@ pub(crate) fn doc(source: &[u16], span: Option<TextSpan>) -> Option<String> {
     if cleaned.is_empty() { None } else { Some(cleaned) }
 }
 
+/// The name a declaration file's `export = name` statement publishes.
+fn assigned(program: &Program) -> Option<String> {
+    program.body.iter().find_map(|statement| match statement {
+        Statement::TSExportAssignment(it) => match &it.expression {
+            Expression::Identifier(name) => Some(name.name.to_string()),
+            _ => None,
+        },
+        _ => None,
+    })
+}
+
+fn dialect(file: &str) -> SourceType {
+    SourceType::from_path(file).unwrap_or_else(|_| SourceType::ts())
+}
+
 pub(crate) fn exported_namespace(file: &str, source: &str) -> Vec<NamespaceSymbol> {
-    let Ok(expression) = Regex::new(r"(?m)^\s*export\s*=\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*;") else { return Vec::new() };
-    let Some(namespace) = expression.captures(source).and_then(|found| found.get(1).map(|name| name.as_str().to_owned())) else {
-        return Vec::new();
-    };
     let allocator = Allocator::default();
-    let source_type = SourceType::from_path(file).unwrap_or_else(|_| SourceType::ts());
-    let parsed = Parser::new(&allocator, source, source_type).parse();
+    let parsed = Parser::new(&allocator, source, dialect(file)).parse();
+    let Some(namespace) = assigned(&parsed.program) else { return Vec::new() };
     let mut answer = Vec::new();
     for statement in &parsed.program.body {
         let Statement::TSNamespaceDeclaration(declaration) = statement else { continue };
@@ -62,11 +72,45 @@ pub(crate) fn exported_namespace(file: &str, source: &str) -> Vec<NamespaceSymbo
 }
 
 /** A declaration that assigns an imported module to its public export. */
-pub(crate) fn exported_import(source: &str) -> Vec<String> {
-    let Ok(import_equals) = Regex::new(r#"(?m)^\s*import\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*require\(\s*["']([^"']+)["']\s*\)"#)
-        else { return Vec::new() };
-    import_equals.captures_iter(source).filter_map(|found| {
-        let (local, request) = (found.get(1)?, found.get(2)?);
-        source.contains(&format!("export = {};", local.as_str())).then(|| request.as_str().to_owned())
+pub(crate) fn exported_import(file: &str, source: &str) -> Vec<String> {
+    let allocator = Allocator::default();
+    let parsed = Parser::new(&allocator, source, dialect(file)).parse();
+    let Some(local) = assigned(&parsed.program) else { return Vec::new() };
+    parsed.program.body.iter().filter_map(|statement| match statement {
+        Statement::TSImportEqualsDeclaration(it) if it.id.name == local.as_str() => match &it.module_reference {
+            TSModuleReference::ExternalModuleReference(reference) => Some(reference.expression.value.to_string()),
+            _ => None,
+        },
+        _ => None,
     }).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{exported_import, exported_namespace};
+
+    #[test]
+    fn an_import_assigned_to_the_export_is_read_from_code() {
+        let source = "import globbing = require(\"./lib/globbing\");\nexport = globbing;\n";
+        assert_eq!(exported_import("index.d.ts", source), ["./lib/globbing"]);
+    }
+
+    #[test]
+    fn an_import_assigned_in_a_comment_is_not_an_export() {
+        let source = "/*\nimport hidden = require('./hidden');\nexport = hidden;\n*/\n";
+        assert!(exported_import("index.d.ts", source).is_empty());
+    }
+
+    #[test]
+    fn a_namespace_assigned_in_a_comment_is_not_an_export() {
+        let source = "/*\nexport = Kit;\n*/\ndeclare namespace Kit {\nfunction pulse(): boolean;\n}\n";
+        assert!(exported_namespace("index.d.ts", source).is_empty());
+    }
+
+    #[test]
+    fn a_namespace_assigned_in_code_publishes_its_members() {
+        let source = "export = Kit;\ndeclare namespace Kit {\nfunction pulse(): boolean;\n}\n";
+        let names: Vec<_> = exported_namespace("index.d.ts", source).into_iter().map(|symbol| symbol.name).collect();
+        assert!(names.contains(&"pulse".to_owned()), "{names:?}");
+    }
 }

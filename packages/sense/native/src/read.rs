@@ -301,10 +301,10 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         }
     }
 
-    let required = read_requires(source, &lines);
+    let required = crate::requires::requires_in(&parsed.program, &lines);
     requests.extend(required.requests);
-    if let Some(reason) = required.unknown {
-        reasons.push(reason);
+    if required.unread > 0 {
+        reasons.push(format!("{} `require()` call(s) with a specifier this cannot read", required.unread));
     }
     let depends = crate::depends::depends_in(source, &parsed.program.comments, &lines);
     requests.extend(depends.requests);
@@ -375,54 +375,6 @@ fn quoted(text: &str) -> Option<String> {
     }
     let value = &trimmed[1..trimmed.len() - 1];
     (!value.contains("${")).then(|| value.to_owned())
-}
-
-fn read_requires(source: &str, lines: &Lines) -> Read {
-    let mut calls = 0usize;
-    let mut requests = Vec::new();
-    for (at, _) in source.match_indices("require") {
-        if at > 0 && is_word(source.as_bytes()[at - 1]) {
-            continue;
-        }
-        let rest = &source[at + "require".len()..];
-        let Some(open) = rest.find(|c: char| !c.is_whitespace()) else {
-            continue;
-        };
-        if rest.as_bytes()[open] != b'(' {
-            continue;
-        }
-        calls += 1;
-        let inner = rest[open + 1..].trim_start();
-        let Some(quote) = inner.as_bytes().first().copied() else {
-            continue;
-        };
-        if quote != b'\'' && quote != b'"' {
-            continue;
-        }
-        let Some(shut) = inner[1..].find(quote as char) else {
-            continue;
-        };
-        if inner[shut + 2..].trim_start().as_bytes().first() != Some(&b')') {
-            continue;
-        }
-        requests.push(Request {
-            value: inner[1..shut + 1].to_owned(),
-            kind: Kind::Imports,
-            bindings: Vec::new(),
-            line: lines.at(at as u32),
-        });
-    }
-    let unread = calls - requests.len();
-    Read {
-        requests,
-        unknown: (unread > 0)
-            .then(|| format!("{unread} `require()` call(s) with a specifier this cannot read")),
-        ..Read::default()
-    }
-}
-
-fn is_word(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
 fn declarations(file: &str, source: &str) -> Vec<String> {

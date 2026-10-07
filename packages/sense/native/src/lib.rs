@@ -109,6 +109,7 @@ mod promisor;
 mod read;
 mod ready_index;
 mod record;
+mod requires;
 mod resolve;
 mod seed;
 mod segment;

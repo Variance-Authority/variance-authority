@@ -141,7 +141,7 @@ impl Reader<'_> {
                 names.entry((name.name.clone(), name.kind.clone())).or_insert(name);
             }
             if names.is_empty() {
-                for request in crate::dependency_namespace::exported_import(&source) {
+                for request in crate::dependency_namespace::exported_import(&file.to_string_lossy(), &source) {
                     if let Some(target) = self.target(file, &request) {
                         for name in self.names(&target) {
                             names.entry((name.name.clone(), name.kind.clone())).or_insert(name);
