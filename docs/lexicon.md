@@ -338,7 +338,7 @@ A suite that never compares pixels still gets one. [`variance
 collect`](../packages/cli/README.md#collect-the-suite-index-without-a-visual-run)
 reads the same subjects the same way with no baseline and no image, one part per
 CI job, and `variance collect merge` folds the parts into the index after
-checking they read one build under one config.
+checking they read one build with the same settings.
 
 That is what a second machine reads instead of deriving the same thing again.
 Mainline's names were read on a runner that no longer exists, and a branch that

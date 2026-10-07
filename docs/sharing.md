@@ -124,10 +124,10 @@ whole suite would have. A field the run did not read is left out, and a field it
 read and found empty is kept empty, so the index never claims a subject has no
 names when nobody looked.
 
-An index written by [`variance collect`](../packages/cli/README.md#collect-the-suite-index-without-a-visual-run),
-the command that reads the same facts with no screenshot, also records what
+An index built with [`variance collect`](../packages/cli/README.md#collect-the-suite-index-without-a-visual-run),
+the command that reads the same facts with no screenshot, holds two more: what
 became of every subject the plan named — collected, failed, excluded or
-unreached — and the plan, build and config it was read under.
+unreached — and the plan, build and reading settings it was composed from.
 
 ### What it exposes
 
@@ -404,10 +404,10 @@ wrote suite-index-v1, subject-costs-v1 to mainline main in refs/variance on orig
 ```
 
 Keep each part beside its run report when you move the reports between jobs.
-The command publishes nothing, and names the file, when a run report has no part
-beside it, when a part is there but cannot be read, when a shard is missing or
-named twice, when you name one shard's run report alone, and when the reports
-mix an unsharded run with shards or name two unsharded runs. A build that does
+The command publishes nothing, and names the file or shard, when a run report
+has no part beside it, when a shard is missing or named twice, when you name one
+shard's run report alone, and when the reports mix an unsharded run with shards
+or name two unsharded runs. A build that does
 not shard publishes from its own run and needs no extra job.
 
 ## Looking up mainline's record

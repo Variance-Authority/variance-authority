@@ -235,8 +235,8 @@ keeps a field nobody read apart from one read and found empty. An index that
 `variance collect merge` wrote adds `coverage`, what became of every planned
 subject, and `provenance`, the plan, config and build it was composed from; one
 `suiteIndexOf` takes out of a run report leaves both out, because the report
-already holds them. An index written before these facts existed still decodes,
-with none of them filled in.
+already holds them. A version 1 index still decodes, with none of them filled
+in.
 
 ## Check a run against what you said you were doing
 

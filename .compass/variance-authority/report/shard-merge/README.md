@@ -59,9 +59,11 @@ shard writes its part, and `variance share` and `variance collect merge` fold
 the parts into the index one unsharded run would have written, through one
 `composeSuiteIndex`. Shard numbering is checked first — a missing, repeated or
 differently cut shard, or an unsharded part beside another part, is refused.
-`collect merge` then refuses parts that read a different build, config, plan,
-scope or environment, a subject no part owns, and a row holding a field its part
-did not read, each naming the shard to collect again. A failed subject keeps the
+`collect merge` then refuses parts that read a different build, recipe, plan,
+scope or environment; a part that names the wrong subject at a position, claims
+one another shard owns, or leaves out one it owns; and a row holding a field its
+part did not read. Each refusal names the part file or the shard to collect
+again. A failed subject keeps the
 published index as it was and writes the composed one beside it as incomplete.
 
 ## Implementation coordinates

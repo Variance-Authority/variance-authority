@@ -588,7 +588,7 @@ flowchart TB
   `packages/cli/src/commands/run-select.ts` joins them into `skipped:
   ReadonlyMap<string, string>` plus `notes`, so the reason a **subject** was
   removed and the reason printed are one value.
-- Narrowing to plan — `run.ts` reads `selected.skipped.get(id)` per planned
+- Narrowing to plan — `acquire.ts` reads the `skipped` map `run.ts` passes it, through `declinedBy`, per planned
   **subject** and writes `{ kind: 'unreached', because }`, never `excluded`: the
   run derived the exclusion, so filing it as a decision would report one nobody
   made. The plan it subtracts from is `Plan` from
@@ -598,7 +598,7 @@ flowchart TB
   is a union whose failure arm is `{ ok: false, because: string }`, restated
   structurally in `packages/route-collector/src/contract.ts` and
   `packages/storybook-collector/src/contract.ts` so a surface package does not
-  pull the binary in. `run.ts` maps `!collected.ok` to `{ kind: 'failed',
+  pull the binary in. `acquire.ts` maps `!collected.ok` to `{ kind: 'failed',
   because }`.
 - Arrival to that refusal — `awaitSuspense` in `packages/react/src/arrival.ts`
   answers `settled | pending | unobserved`; `suspenseRefusal` reduces a
