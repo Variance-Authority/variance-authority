@@ -66,6 +66,13 @@ describe('selecting after a partial run over an edit', () => {
     expect(said.out).toBe('test/alpha.test.ts\ntest/delta.test.ts\ntest/gamma.test.ts\n');
   });
 
+  it('skips them again once they have run the undone text', async () => {
+    // `beta` ran the commit's text after the undo, so nothing it ran has moved.
+    const said = await afterPartialRun(SOURCE.replace("return 'b';", "return 'B';"), ['module', 'other'], { undo: true, rerun: true });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/delta.test.ts\ntest/gamma.test.ts\n');
+  });
+
   it('reads a patch handed in as the whole change, and not the edit a run recorded over', async () => {
     // The edit is still on disk and `beta` ran it. The patch names another
     // file, and a patch handed in is the change as given.
@@ -90,10 +97,14 @@ describe('selecting after a partial run over an edit', () => {
 /**
  * Land the full record at the commit, write `edited` over the module, land a
  * run of `beta` alone over it with the named regions' digests moved, and select,
- * with `undo` after writing the commit's text back, and with `patch` handed in
- * as the diff.
+ * with `undo` after writing the commit's text back, `rerun` after landing `beta`
+ * again over that text, and with `patch` handed in as the diff.
  */
-async function afterPartialRun(edited: string, moved: readonly string[], { undo = false, patch }: { undo?: boolean; patch?: string } = {}) {
+async function afterPartialRun(
+  edited: string,
+  moved: readonly string[],
+  { undo = false, rerun = false, patch }: { undo?: boolean; rerun?: boolean; patch?: string } = {},
+) {
   const { root, head } = checkout();
   await landRun(testCoverageFile(root), snapshot(head), root);
 
@@ -114,6 +125,20 @@ async function afterPartialRun(edited: string, moved: readonly string[], { undo 
     }],
   }, root);
   if (undo) writeFileSync(join(root, 'src/widget.ts'), SOURCE);
+  if (rerun) {
+    const again = snapshot(head);
+    await landRun(testCoverageFile(root), {
+      ...again,
+      tests: again.tests.filter((test) => test.file === 'test/beta.test.ts'),
+      modules: again.modules.map((recordedModule) => ({
+        ...recordedModule,
+        blocks: recordedModule.blocks.map((block) => ({
+          ...block,
+          testFiles: block.testFiles.filter((test) => test === 'test/beta.test.ts'),
+        })),
+      })),
+    }, root);
+  }
   process.chdir(root);
 
   await indexOutput({ cwd: root });
