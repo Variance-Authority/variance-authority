@@ -420,7 +420,7 @@ are only the recipe — `stabilization` or `rasterization`, moved by an upgrade 
 a changed renderer option on the same machine — the run still painted every
 subject. Where the reason also says the document is the one the baseline was
 painted from, `variance accept --all` re-baselines after you review the images;
-where it says the document changed too, `--all` passes the subject by, and you
+where it says the document changed too, `--all` skips the subject, and you
 review its image as a change and accept it by its id.
 Otherwise run `variance doctor`. It prints your current
 identity, then every identity your baseline root stores and every identity in

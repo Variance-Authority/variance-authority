@@ -52,7 +52,7 @@ findings: none in 3 inspected subject(s).
 
 A reason several subjects share is printed once, under a count, with the
 subjects it covers listed beneath it. An upgrade that moves the identity key
-reads as one line, `[incomparable] 4697 subject(s): …`, not as four thousand
+reads as one line, `[incomparable] 4697 subjects: …`, not as four thousand
 copies of it.
 
 **`changes`** groups changed subjects into distinct changes: a token edit that

@@ -156,6 +156,10 @@ export function settle(
     // `incomparable` — the lookup after the render reaches it with the same
     // sentence — and the image is what makes it acceptable.
     if (recipeOnly(found.storedUnder, mine)) {
+      // FIXME: the image is painted and not compared, so a recipe change that
+      // moved no pixels and one that moved half the page read alike, and a
+      // moved document reaches review with no regions. Comparing the two images
+      // here, with the verdict still `incomparable`, would show both.
       return { kind: 'render', because: incomparableBecause(stored, current) };
     }
     return {

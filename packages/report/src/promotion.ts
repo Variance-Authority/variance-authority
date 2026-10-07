@@ -95,13 +95,16 @@ export function promotionOf(
     return { kind: 'refused', because: noImage(observation) };
   }
 
-  if (options.bulk === true && bulkPassesBy(observation)) {
+  if (options.bulk === true && bulkSkips(observation)) {
+    const document =
+      observation.signals?.document === 'changed'
+        ? 'its document is not the one the baseline was painted from'
+        : 'the report does not say whether its document is the one the baseline was painted from';
     return {
       kind: 'refused',
       because:
-        'its image was painted under a new recipe from a document the baseline was not ' +
-        'painted from, so no comparison has read the change it carries; a bulk accept ' +
-        `adopts only what was compared or only re-painted. Review the image, then ` +
+        `it is incomparable, so no verdict says what changed, and ${document}; ` +
+        'a bulk accept skips it. Review the image, then ' +
         `\`variance accept ${observation.subject}\``,
     };
   }
@@ -110,22 +113,31 @@ export function promotionOf(
 }
 
 /**
- * Whether an acceptance that sweeps a whole run passes this subject by.
+ * Whether an acceptance that sweeps a whole run skips this subject.
  *
- * True only for an `incomparable` subject painted under a new recipe against a
- * baseline of another document. Nothing compared that image with anything, so
- * the change it carries is unread. A changed subject's diff was in the report a
- * sweep followed; this one has none, and only a reviewer naming it can stand in
- * for one.
+ * True for every `incomparable` subject but one whose `signals.document` says
+ * `unchanged`. Nothing compared an incomparable image with anything, so the only
+ * thing a sweep can stand on is that the page is the one the baseline was
+ * painted from and only the recipe re-painted it. A moved document has a change
+ * nobody read, and a missing signal is not evidence the document stayed: a
+ * report written before the signal was carried says nothing either way. A
+ * changed subject's diff was in the report a sweep followed; these have none,
+ * and only a reviewer naming one can stand in for it.
  *
- * `variance accept --all` and Playwright's `--update-snapshots=changed` are both
- * sweeps and both ask this, so the two cannot adopt different images.
+ * The rule reads the document and not the cause. Another machine's baseline
+ * with a moved document is skipped as well, which is what keeps Playwright's
+ * in-place `--update-snapshots=changed` from adopting that image; one whose
+ * document did not move is still adopted there.
+ *
+ * `variance accept --all` and `@variance-authority/playwright-test` under
+ * `--update-snapshots=changed` are both sweeps and both ask this, so the two
+ * cannot adopt different images.
  */
-export function bulkPassesBy(observation: {
+export function bulkSkips(observation: {
   readonly verdict: ObservationRecord['verdict'];
   readonly signals?: { readonly document?: 'unchanged' | 'changed' };
 }): boolean {
-  return observation.verdict === 'incomparable' && observation.signals?.document === 'changed';
+  return observation.verdict === 'incomparable' && observation.signals?.document !== 'unchanged';
 }
 
 /** How a promotion was asked for. */
@@ -135,7 +147,7 @@ export interface PromotionOptions {
    *
    * A name is a reviewer's decision about one subject; `--all` is a decision
    * about the report. The one case that differs is an `incomparable` subject
-   * whose document moved, which `--all` passes by and a name adopts.
+   * not shown to have kept its document, which `--all` skips and a name adopts.
    */
   readonly bulk?: boolean;
 }

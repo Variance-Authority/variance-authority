@@ -376,7 +376,6 @@ Matching a fingerprint alone does not authorize promotion.
 | A selected, changed subject does not reproduce in a clean world | Refuse: the candidate depends on shared state |
 | A selected subject has no candidate image, or its image or sidecar cannot be read | Refuse: approval never renders a replacement |
 | Captures are incomparable because the machine differs | No comparison image is produced, so there is no candidate to promote |
-| Captures are incomparable because only the recipe differs | The run painted the candidate; apply the remaining checks |
 
 The command reports refusals by subject and promotes eligible subjects. Review
 additional changes before accepting a refused subject by name. A fingerprint

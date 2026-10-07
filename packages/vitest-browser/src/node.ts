@@ -89,6 +89,10 @@ export function varianceCommands(options: VarianceNodeOptions = {}): VarianceCom
       // other bands and says nothing about that one.
 
       const accepting = options.accept ?? updating(context);
+      // FIXME: `--update` promotes an `incomparable` from another machine's
+      // baseline, which nothing compared and the partition exists to refuse, and
+      // a recipe re-baseline whose document moved, which nothing read. Vitest has
+      // one update mode, so the rule has no sweep to tell from a named test.
       if (accepting && observation.verdict !== 'unchanged') {
         await promote(store, painter, artifact, key);
       }

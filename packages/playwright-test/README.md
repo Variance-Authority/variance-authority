@@ -133,7 +133,7 @@ The two differ on one case. After an upgrade of this package moves its render
 recipe, every baseline comes back `incomparable` with the new image painted, and
 both flags adopt it when the document is the one the baseline was painted from.
 When the document moved too, nothing compared the new image against anything:
-`=changed` passes it by, and `=all` adopts it, so run that one test under `=all`
+`=changed` skips it, and `=all` adopts it, so run that one test under `=all`
 once you have looked at its image.
 
 Use an explicit `subjectId` for long-lived baselines. When it is omitted, the id

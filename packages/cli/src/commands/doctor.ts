@@ -443,9 +443,9 @@ async function baselines(
   // digests (stabilization, rasterization), as every baseline does after an
   // upgrade that moves them, gets this finding: "not painted by a machine like
   // this one", and two ways out that are both wrong for it. The run paints those
-  // subjects and `accept --all` re-baselines them (`recipeOnly` in
-  // @variance-authority/raster); this compares the whole digest and cannot say
-  // so. The partition directory names a digest, not the identity behind it, so
+  // subjects (`recipeOnly` in packages/raster/src/renderer.ts), `accept --all`
+  // re-baselines those whose document did not move, and `accept <subject>` the
+  // rest; this compares the whole digest and cannot say so. The partition directory names a digest, not the identity behind it, so
   // telling the two apart here needs a sidecar read per partition.
   return {
     kind: store.kind,

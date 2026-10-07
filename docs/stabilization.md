@@ -237,7 +237,7 @@ the full one. So:
   The `incomparable` reason names the recipe digest that moved, the run still
   paints each subject, and `variance accept --all` adopts the new images once
   you have looked at them. A subject whose document moved in the same run is
-  a change no comparison has read, so `--all` passes it by and you accept it
+  a change no comparison has read, so `--all` skips it and you accept it
   by its id. An upgrade of variance-authority that changes the recipe reads
   the same way.
 - `undefined` means *observed untouched*, and is absent from the key, not

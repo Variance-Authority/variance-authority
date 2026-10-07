@@ -115,10 +115,10 @@ not in `settles`.
 `promotionOf(observation, { bulk })` is the same rule as a function, for a
 caller that has to answer what accepting a subject would do without promoting
 it. Set `bulk` when the subject is swept in rather than named, as
-`--all` sweeps it: an `incomparable` subject painted under a new recipe whose
-`signals.document` is `changed` was compared against nothing, so a bulk accept
-refuses it and naming it adopts it. `bulkPassesBy(observation)` is that one
-condition alone, for a runner whose own update flag sweeps a suite;
+`--all` sweeps it: an `incomparable` subject was compared against nothing, so
+a bulk accept adopts it only when its `signals.document` is `unchanged`, and
+refuses it otherwise, including when the record does not carry the signal;
+naming it adopts it. `bulkSkips(observation)` is that one condition alone, for a runner whose own update flag sweeps a suite;
 `@variance-authority/playwright-test` asks it under `--update-snapshots=changed`.
 
 ## The shape

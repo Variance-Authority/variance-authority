@@ -113,7 +113,7 @@ chromium_('deferred capture after a recipe-only upgrade', () => {
 
   it('leaves a moved document to =all, which a reviewer narrows to the one test', async () => {
     // Nothing compared the new image against anything: the recipe moved and so
-    // did the cart. `=changed` sweeps the suite, so it passes this one by, the
+    // did the cart. `=changed` sweeps the suite, so it skips this one, the
     // way `variance accept --all` does; `=all` overwrites every image it takes.
     const old = 'v1:8040e1a2e35d148b301ebd30e5ed66c6';
     const recipe = 'v1:54323cded938fde38b41cdd3865368fe';

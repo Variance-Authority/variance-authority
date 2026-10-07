@@ -43,6 +43,12 @@ describe('adopts', () => {
     }
   }
 
+  it('leaves an incomparable that does not say its document to =all', () => {
+    const unsaid = { subject: 'story:a', verdict: 'incomparable', because: 'asked' } as unknown as Observation;
+    expect(adopts(unsaid, RUNS[0]!.run)).toBe(false);
+    expect(adopts(unsaid, RUNS[1]!.run)).toBe(true);
+  });
+
   it('adopts nothing in a run that does not accept', () => {
     const observation = { verdict: 'changed' } as unknown as Observation;
     expect(adopts(observation, { id: 'a' } as VarianceRun)).toBe(false);

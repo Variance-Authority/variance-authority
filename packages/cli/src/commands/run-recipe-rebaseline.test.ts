@@ -106,7 +106,7 @@ describe('a run against a baseline from an older recipe', () => {
     // Nothing compared this image against anything: the baseline is under the
     // old recipe and the document is not the one it was painted from. Adopting
     // it in bulk would make a change nobody looked at the baseline, so `--all`
-    // passes it by and says to name it; naming it is the review.
+    // skips it and says to name it; naming it is the review.
     const { report } = await runWith(configOf(), movedCollector, storeAnswering(storedUnder(OLD_RECIPE)), {
       renderer: fakeRenderer(NEW_RECIPE),
     });

@@ -160,9 +160,10 @@ const BASELINE_AND_RUN: IncomparableSides = {
  * field the two share is not listed: a reader handed two full descriptions has
  * to find the one that moved by diffing seven fields by eye.
  *
- * This shapes the sentence and decides nothing. Whether only the recipe moved is
- * asked of `identityDigest`, which partitions baselines (`recipeOnly`), so a
- * field the digest gains before this list does is still a difference.
+ * It shapes the sentence, and `recipeOnly` asks it two things: whether a recipe
+ * digest moved, and whether one went unrecorded. Whether anything else moved is
+ * asked of `identityDigest`, which partitions baselines, so a field the digest
+ * gains before this list does is still a difference.
  */
 function identityDifference(
   stored: RenderIdentity,
