@@ -245,7 +245,7 @@ function selecting(
   options: TestSelectionOptions,
 ): Pick<NonNullable<UserConfig['test']>, 'sequence'> {
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  const selection = options.selection ?? selectionFrom(process.env, { root, ...suite });
+  const selection = options.selection ?? selectionFrom(process.env, { root, from: configRoot, ...suite });
   if (selection === undefined) return {};
   const sequence = config.test?.sequence;
   const own = sequence?.sequencer as unknown as SequencerClass | undefined;

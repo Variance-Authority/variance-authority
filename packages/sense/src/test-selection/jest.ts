@@ -292,7 +292,7 @@ export function withTestSelection(
     ...(options.continuations === true ? { continuations: true } : {}),
   };
   const suite = options.suite === undefined ? {} : { suite: options.suite };
-  const selection = options.selection ?? selectionFrom(process.env, { root, ...suite });
+  const selection = options.selection ?? selectionFrom(process.env, { root, from: rootDir, ...suite });
 
   return {
     ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),

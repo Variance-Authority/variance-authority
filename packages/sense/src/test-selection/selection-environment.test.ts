@@ -56,4 +56,18 @@ describe('the selection the environment asks for', () => {
       await rm(root, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it('resolves the cli from the configuration\'s directory, where a package installed it as its own', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-environment-'));
+    try {
+      const from = resolve(root, 'packages/app');
+      await mkdir(resolve(from, 'node_modules/@variance-authority'), { recursive: true });
+      await symlink(CLI, resolve(from, 'node_modules/@variance-authority/cli'), 'dir');
+      const selection = selectionFrom({ VARIANCE_AUTHORITY_SINCE: '' }, { root, from }, () => {});
+
+      expect((await selection!()).declined).toMatch(/^no execution journal at /);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 30_000);
 });

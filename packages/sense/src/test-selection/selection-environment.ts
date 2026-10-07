@@ -10,9 +10,9 @@
  * The reading is `selectSuite` from `@variance-authority/cli`, the function
  * `variance select` prints. It parses the execution journal through
  * `@variance-authority/distill`, which depends on this package, so it is not
- * imported here: it is resolved from the checkout when the run first asks, and
- * a configuration that loads with neither variable set costs nothing it did not
- * cost before.
+ * imported here: it is resolved from the configuration's directory when the run
+ * first asks, and a configuration that loads with neither variable set costs
+ * nothing it did not cost before.
  */
 
 // compass: variance-authority.reach
@@ -23,10 +23,17 @@ import { pathToFileURL } from 'node:url';
 import { distanceRange } from './at-distance.js';
 import type { SuiteSelection } from './suite-selection.js';
 
-/** Where the selection is read: the checkout, and whose record. */
+/** Where the selection is read: the checkout, whose record, and where the cli is installed. */
 export interface SelectionRequest {
   readonly root: string;
   readonly suite?: string;
+  /**
+   * The directory the run's configuration is in, which is where the project
+   * installs the cli: a package can hold it as its own devDependency under an
+   * isolated install or Plug'n'Play, where the checkout's top does not resolve
+   * it. The checkout when absent.
+   */
+  readonly from?: string;
 }
 
 /** What `@variance-authority/cli` is asked for; its own types stay on its side of the cycle. */
@@ -70,7 +77,7 @@ export function selectionFrom(
     );
   }
   return async () => {
-    const { selectSuite } = await selector(request.root);
+    const { selectSuite } = await selector(request.from ?? request.root);
     return selectSuite({
       root: request.root,
       ...(since === '' ? {} : { since }),
@@ -80,14 +87,14 @@ export function selectionFrom(
   };
 }
 
-/** `@variance-authority/cli` as the checkout installed it, or a refusal that names it. */
-async function selector(root: string): Promise<Selector> {
+/** `@variance-authority/cli` as the project installed it, or a refusal that names it. */
+async function selector(from: string): Promise<Selector> {
   let entry: string;
   try {
-    entry = createRequire(resolve(root, 'package.json')).resolve(CLI);
+    entry = createRequire(resolve(from, 'package.json')).resolve(CLI);
   } catch {
     throw new Error(
-      `VARIANCE_AUTHORITY_SINCE is set, and the selection is read by ${CLI}, which ${root} does not resolve: ` +
+      `VARIANCE_AUTHORITY_SINCE is set, and the selection is read by ${CLI}, which ${from} does not resolve: ` +
         `add it to the project's devDependencies, or unset the variable to run every file`,
     );
   }
