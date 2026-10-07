@@ -221,6 +221,14 @@ describe('reading a module', () => {
     expect(computed.unknown).toContain('require()');
   });
 
+  it('reads a require only where it is a call, never in a comment or a string', () => {
+    // Kibana's `// require('...')` was a third-party package named `...`.
+    const read = readModule('a.cjs', "// require('...')\nconst text = 'require(name)';\nconst a = require('./req');\n");
+
+    expect(read.requests).toEqual([{ value: './req', kind: 'imports', bindings: [], line: 3 }]);
+    expect(read.unknown).toBeUndefined();
+  });
+
   it('reads JSX in a file whose extension does not announce it', () => {
     // `.jsx` is the rarer spelling. Most React components written in JavaScript
     // sit in a `.js`, and the parser's own inference leaves JSX off for that

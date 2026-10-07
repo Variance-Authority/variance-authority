@@ -74,7 +74,7 @@ it('indexes every declared available package, including one no source file impor
   const first = await refreshDependencyLexicon(root);
   expect(first).toMatchObject({ packages: 7, entrypoints: 6, reused: 0, unavailable: 0 });
   const read = readDependencyLexicon(root).lexicon;
-  expect(read?.version).toBe(7);
+  expect(read?.version).toBe(8);
   expect(read?.availability.map((entry) => [entry.owner, entry.specifier, entry.imported])).toEqual([
     ['package.json', 'fancy-lib', false], ['package.json', 'globbing', false], ['package.json', 'react', false], ['package.json', 'state-kit', false],
     ['package.json', 'undocumented-kit', true],
@@ -129,4 +129,24 @@ it('reads a subpath a package wildcard opens only when a source file imports it'
   expect(queryDependencyLexicon(root, 'deepName')?.total).toBe(1);
   expect(queryDependencyLexicon(root, 'otherName')?.total).toBe(0);
   expect(queryDependencyLexicon(root, 'privateName')?.total).toBe(0);
+});
+
+it('reads a namespace a declaration assigns to its export however the statement is spaced', async () => {
+  process.env['VARIANCE_AUTHORITY_CACHE'] = mkdtempSync(join(tmpdir(), 'va-lexicon-cache-'));
+  const root = mkdtempSync(join(tmpdir(), 'va-lexicon-assigned-'));
+  execFileSync('git', ['init', '--quiet', root]);
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'fixture', dependencies: { tight: '1.0.0', loose: '1.0.0' } }));
+  execFileSync('git', ['add', '.'], { cwd: root });
+  const declare = (name: string, body: string): void => {
+    const installed = join(root, 'node_modules', name);
+    mkdirSync(installed, { recursive: true });
+    writeFileSync(join(installed, 'package.json'), JSON.stringify({ name, version: '1.0.0', types: 'index.d.ts' }));
+    writeFileSync(join(installed, 'index.d.ts'), body);
+  };
+  declare('tight', 'export=Tight;\ndeclare namespace Tight {\nfunction squeeze(): boolean;\n}\n');
+  declare('loose', 'export   =   Loose\ndeclare namespace Loose {\nfunction relax(): boolean;\n}\n');
+  await updateSourceIndex(root);
+  await refreshDependencyLexicon(root);
+  const names = readDependencyLexicon(root).lexicon?.entries.flatMap((entry) => entry.api.names?.map((name) => name.name) ?? []).sort();
+  expect(names).toEqual(['Loose', 'Tight', 'relax', 'squeeze']);
 });

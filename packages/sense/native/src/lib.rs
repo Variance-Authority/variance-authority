@@ -81,6 +81,7 @@ mod journeys_record;
 mod journeys_roots;
 mod journeys_steps;
 mod journeys_walk;
+mod loads;
 mod log;
 mod louvain;
 mod members;
