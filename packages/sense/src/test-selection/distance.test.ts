@@ -131,6 +131,18 @@ describe('distanceFromView', () => {
     expect(distances.map(({ test }) => test)).not.toContain('test/registry.test.ts');
   });
 
+  it('places a test the record never saw whole once, by its entry, when the change entered it', () => {
+    // The incomplete list names every test not seen whole, entered or not. One
+    // the change entered already has its distance from what it entered; a
+    // second placement by its path would list it twice.
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    const distances = distanceFromView(coverage, { ...narrowing, incomplete: ['test/card.test.tsx'] }, { relations });
+
+    expect(narrowing.entered).toContain('test/card.test.tsx');
+    expect(distances.filter(({ test }) => test === 'test/card.test.tsx')).toHaveLength(1);
+  });
+
   it('measures a test the record never saw whole from no file the parser read as changing nothing', () => {
     // A whitespace or comment edit reads `none`: the change cannot reach a test
     // through that file, so it seeds no path. A `none` the record's kept text
