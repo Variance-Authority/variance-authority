@@ -146,7 +146,7 @@ stays available without taking space from the first answer.
 | verb / tool | takes | answers |
 |---|---|---|
 | `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is, for each package that declares no entry, how many of its names and files other packages import by path, and for each package that declares one, how many imports reach past it; then the `entrypoint --package` questions for the most-imported specifier and the first row of each count |
-| `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, each import of it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
+| `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
 | `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading finds |
@@ -162,7 +162,8 @@ indented row per package other packages import by path: a file inside the
 package rather than an entry its manifest publishes. It counts and lists no
 import site. Either row goes to `entrypoint --package` exactly as printed: a
 specifier lists the names it opens, and a package name counts the import sites
-behind its count per file, each file's specifier the question that lists them.
+behind its count per file. Each file's specifier is the question that counts
+its imports per name, and `uses` lists the sites of one name.
 
 Every answer ends with the UTC time of the generation it used. A generation is
 manifests and module records, not a compilation, and the module records come

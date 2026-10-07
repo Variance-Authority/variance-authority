@@ -137,8 +137,8 @@ export interface FileTaken {
 /**
  * `imports` counted per file they reach, the file the most files import first,
  * then the one with the most names, then in code-unit order of its first
- * specifier. One row per file, however many sites import it: the sites are
- * what asking for one specifier lists.
+ * specifier. One row per file, however many sites import it: asking for one
+ * specifier counts them per name, and `uses` lists the sites of one name.
  */
 export function perFile(imports: readonly Deep[]): readonly FileTaken[] {
   const files = new Map<string, Deep[]>();

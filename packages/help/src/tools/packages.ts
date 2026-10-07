@@ -14,7 +14,8 @@ import { mostUsed, narrower, openingRow, plural, section, shell } from './format
  *
  * It counts, and lists no import. `docs_entrypoint` asked by a package counts
  * the sites behind its count per file, and asked by one of those files'
- * specifiers lists them; the first is printed with its argument. In a
+ * specifiers counts them per name; `docs_uses` lists the sites of one name.
+ * The first is printed with its argument. In a
  * repository whose packages declare no entry, every import between packages is
  * by path, and listing them all is the whole import graph.
  */
