@@ -267,11 +267,8 @@ module's parse with `indexDeclarations` in [Sense](../packages/sense): a
 function, a class or a `const` or `let` binding among the module's own
 top-level statements, named with a capital, at the line of its statement. A
 declaration a comment or a string spells is not one, and neither is a name
-bound inside a function.
-Without Sense, `indexSource` in `@variance-authority/core` builds the same map
-from lines of text, and matches those too. It is what a repository that has
-configured nothing still gets, and it answers with a declaration, which is
-coarser than a call site and enough to open the right file.
+bound inside a function. A declaration is coarser than a call site, and
+enough to open the right file.
 
 A name may map to several files, and that is not an error to be resolved by
 picking one. Two components genuinely can share a name, and silently choosing the

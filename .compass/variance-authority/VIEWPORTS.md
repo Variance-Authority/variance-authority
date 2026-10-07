@@ -163,9 +163,8 @@ sequenceDiagram
   **baseline**.
 
 - Component → declaring file. `indexDeclarations(file, contents): SourceIndex`
-  in `packages/sense/src/declarations.ts` reads it off the parse;
-  `indexSource(file, contents): SourceIndex` reads lines of text for a caller
-  without `sense`; and `resolveSource(name, index): Resolution | null` in
+  in `packages/sense/src/declarations.ts` reads it off the parse, and
+  `resolveSource(name, index): Resolution | null` in
   `packages/core/src/attribute/source.ts` answers it, formatted by
   `formatSource`. A name declared in several files carries the ambiguity into
   the answer rather than picking one.
