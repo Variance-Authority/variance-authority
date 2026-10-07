@@ -141,19 +141,17 @@ describe('mergeEvidence: the index of the whole suite, from every shard of one c
     it('with a shard missing, named twice, or cut a different number of ways', async () => {
       const four = await partsOf(4);
       expect(refusal(four.slice(0, 3))).toMatch(/shard 4\/4 is missing/);
-      expect(refusal([...four, four[1]!])).toMatch(/shard 2\/4 was given twice: evidence-2\.json and evidence-2\.json/);
+      expect(refusal([...four, four[1]!])).toMatch(/shard 2\/4 was given twice/);
       expect(refusal([...(await partsOf(2)), ...four.slice(2)])).toMatch(/cut 2 ways and 4 ways/);
     });
 
     it('with a whole collection beside a shard of one', async () => {
-      expect(refusal([...(await partsOf(undefined)), ...(await partsOf(2))])).toMatch(/evidence-1\.json is unsharded/);
+      expect(refusal([...(await partsOf(undefined)), ...(await partsOf(2))])).toMatch(/an unsharded part was given with shard 1\/2/);
     });
 
     it('with two whole collections', async () => {
       const [whole] = await partsOf(undefined);
-      expect(refusal([whole!, { ...whole!, path: 'evidence-2.json' }])).toBe(
-        'evidence-1.json and evidence-2.json are both a whole collection; give one',
-      );
+      expect(refusal([whole!, { ...whole!, path: 'evidence-2.json' }])).toMatch(/two unsharded parts were given/);
     });
 
     it('from plans of the same length that differ', async () => {
@@ -188,12 +186,6 @@ describe('mergeEvidence: the index of the whole suite, from every shard of one c
       expect(refusal([swapped, second!])).toMatch(/nobody--here at position/);
     });
 
-    it('with fields its own rows do not imply', async () => {
-      const [first, second] = await partsOf(2);
-      const widened = edit(first!, (part) => ({ ...part, fields: [...(part.fields ?? []), 'regions'] }));
-      expect(refusal([widened, second!])).toMatch(/fields/);
-    });
-
     it('holding a field in a row it does not say it read', async () => {
       const [first, second] = await partsOf(2);
       const stray = edit(first!, (part) => ({
@@ -207,27 +199,6 @@ describe('mergeEvidence: the index of the whole suite, from every shard of one c
 
     it('with no parts at all', () => {
       expect(refusal([])).toBe('no parts were given');
-    });
-
-    it('saying twice what became of one subject', async () => {
-      const [first, second] = await partsOf(2);
-      const twice = edit(first!, (part) => ({ ...part, outcomes: [...part.outcomes, part.outcomes[0]!] }));
-      expect(refusal([twice, second!])).toMatch(/evidence-1\.json says twice what became of /);
-    });
-
-    it('with a row it did not collect, two rows for one subject, or a snapshot and no row', async () => {
-      const [first, second] = await partsOf(2);
-      const row = first!.part.subjects[0]!;
-      const unread = edit(first!, (part) => ({
-        ...part,
-        outcomes: part.outcomes.map((outcome) => (outcome.position === row.position ? { ...outcome, snapshot: false } : outcome)),
-      }));
-      const doubled = edit(first!, (part) => ({ ...part, subjects: [...part.subjects, row] }));
-      const rowless = edit(first!, (part) => ({ ...part, subjects: part.subjects.slice(1) }));
-
-      expect(refusal([unread, second!])).toMatch(new RegExp(`holds a row for ${row.subject} at position \\d+, which it did not collect with a snapshot`));
-      expect(refusal([doubled, second!])).toMatch(new RegExp(`holds two rows for ${row.subject}`));
-      expect(refusal([rowless, second!])).toMatch(new RegExp(`collected a snapshot of ${row.subject} and holds no row for it`));
     });
   });
 });

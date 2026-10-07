@@ -117,7 +117,7 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     const late = await order({ 'card--default': 30, 'page--home': 15 });
 
     expect(semanticOf(late)).toEqual(semanticOf(early));
-    expect(early.located).toEqual({ Button: ['src/a/Button.tsx'] });
+    expect(early.declaredIn).toEqual({ Button: ['src/a/Button.tsx'] });
   });
 
   it('closes every world it opened when a second one cannot be opened', async () => {
@@ -126,12 +126,12 @@ describe('collectEvidence: one job of a collection, with nothing compared', () =
     expect(opened.worlds).toEqual({ opened: 2, closed: 2 });
   });
 
-  it('carries the scan, and lays nothing of it into the rows', async () => {
-    const source = { Button: [{ file: 'src/Button.tsx', line: 1, via: 'function' as const }] };
-    const part = await collectEvidence(inputOf(collecting(PLAN, (id) => rendered(id, [{ owner: 'Button' }])), { source }));
+  it('lays the scan into the rows, under what the engine located, as a run does', async () => {
+    const source = { Button: [{ file: 'src/Button.tsx', line: 1, via: 'function' as const }], Card: [{ file: 'src/Card.tsx', line: 1, via: 'function' as const }] };
+    const part = await collectEvidence(inputOf(collecting(PLAN, located), { source }));
 
-    expect(part.declaredIn).toEqual({ Button: ['src/Button.tsx'] });
-    expect(part.subjects[0]!.lexicon.fields.files).toBeUndefined();
+    expect(part.declaredIn).toEqual({ Button: ['src/a/Button.tsx'], Card: ['src/Card.tsx'] });
+    expect(part.subjects[0]!.lexicon.fields.files).toEqual(['src/Button.tsx', 'src/a/Button.tsx']);
     expect(part.fields).toContain('files');
   });
 });

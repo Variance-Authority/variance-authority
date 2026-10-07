@@ -1,19 +1,12 @@
 // compass: variance-authority.acquisition.suite-observation
 import { performance } from 'node:perf_hooks';
-import {
-  componentInstances,
-  lexiconValuesOf,
-  type LexiconField,
-  type LexiconValues,
-  type SourceIndex,
-} from '@variance-authority/core/attribute';
+import { componentInstances, lexiconValuesOf, withDeclaredIn, type SourceIndex } from '@variance-authority/core/attribute';
 import { canonicalize, type CanonicalValue } from '@variance-authority/core/format';
 import type { Config } from '../config.js';
 import type { Shard } from '../shard-args.js';
 import type { Collector } from './collector.js';
+import { fieldsRead } from './compose.js';
 import {
-  EVIDENCE_FORMAT,
-  EVIDENCE_VERSION,
   evidencePlanOf,
   type EvidenceBuild,
   type EvidenceDiagnostic,
@@ -112,24 +105,29 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
     rows.sort((left, right) => left.position - right.position);
     for (const [, said] of [...subjectDiagnostics].sort(([left], [right]) => left - right)) diagnostics.push(...said);
 
-    const declaredIn = input.source === undefined ? undefined : filesByComponent(input.source);
-    const locatedFiles = located.size === 0 ? undefined : Object.fromEntries([...located].sort(([l], [r]) => codeUnit(l, r)));
-    const fields = evidenceFieldsOf(rows.map((row) => row.lexicon), declaredIn !== undefined || locatedFiles !== undefined);
+    // The scan, with what the engines located laid over it, and laid into the
+    // rows as a run lays its source index into its own.
+    const scanned = input.source === undefined ? [] : Object.entries(input.source).map(([component, refs]) => [component, filesOf(refs)] as const);
+    const declared = new Map([...scanned, ...[...located].sort(([l], [r]) => codeUnit(l, r))]);
+    const subjects = declared.size === 0 ? rows : rows.map((row) => ({ ...row, lexicon: withDeclaredIn(row.lexicon, row.instances, declared) }));
+    const fields = fieldsRead({ snapshot: true, files: declared.size > 0 || subjects.some((row) => row.lexicon.fields.files !== undefined), regions: false });
+    const { commit, ...build } = input.build;
 
     return {
-      format: EVIDENCE_FORMAT,
-      version: EVIDENCE_VERSION,
-      build: input.build,
+      version: 1,
+      ...(commit === undefined ? {} : { commit }),
+      ...(input.shard === undefined ? {} : { shard: { index: input.shard.index, total: input.shard.total } }),
+      planned: plan.subjects.length,
+      subjects,
+      // A part that read no snapshot read no field.
+      ...(subjects.length === 0 ? {} : { fields }),
+      ...(declared.size === 0 ? {} : { declaredIn: Object.fromEntries(declared) }),
+      build,
       recipe: input.recipe,
       plan: evidencePlanOf(plan),
-      ...(input.shard === undefined ? {} : { shard: { index: input.shard.index, total: input.shard.total } }),
-      assignment: { by: 'checksum' },
+      assignment: 'checksum',
       ...(input.scope === undefined ? {} : { scope: input.scope }),
       outcomes,
-      subjects: rows,
-      ...(fields === undefined ? {} : { fields }),
-      ...(declaredIn === undefined ? {} : { declaredIn }),
-      ...(locatedFiles === undefined ? {} : { located: locatedFiles }),
       diagnostics,
       acquisition: { ms: elapsed() - started, subjects: costs },
     };
@@ -138,34 +136,16 @@ export async function collectEvidence(input: CollectInput): Promise<EvidencePart
   }
 }
 
-/**
- * Which fields a set of rows was read under — the rule a run applies
- * (`lexiconReadingOf`), over rows already taken. Every row here carried a
- * snapshot, so a row at all is the evidence for `names`, `text` and `roles`.
- * `undefined` for no rows, which read nothing.
- */
-export function evidenceFieldsOf(rows: readonly LexiconValues[], sourced: boolean): readonly LexiconField[] | undefined {
-  if (rows.length === 0) return undefined;
-  const fields: LexiconField[] = ['example', 'components', 'createdBy', 'tokens', 'names', 'text', 'roles'];
-  if (sourced || rows.some((row) => row.fields.files !== undefined)) fields.push('files');
-  return fields;
-}
-
-/** Each component's declaring files, once each, in the order the index named them. */
-export function filesByComponent(source: SourceIndex): Record<string, readonly string[]> {
-  return Object.fromEntries(Object.entries(source).map(([component, refs]) => [component, filesOf(refs)]));
-}
-
 function filesOf(refs: readonly { readonly file: string }[]): readonly string[] {
   return [...new Set(refs.map((ref) => ref.file))];
 }
 
 /**
  * Keep the answer whose canonical form sorts first. A minimum is the same over
- * any order and any grouping, so the subject that finished first, the worker it
- * ran in and the shard that held it never decide which file a component is in.
+ * any order, so neither the subject that finished first nor the worker it ran
+ * in decides which file a component is in.
  */
-export function locate(into: Map<string, readonly string[]>, component: string, files: readonly string[]): void {
+function locate(into: Map<string, readonly string[]>, component: string, files: readonly string[]): void {
   const held = into.get(component);
   if (held === undefined || codeUnit(canonicalize(files as CanonicalValue), canonicalize(held as CanonicalValue)) < 0) {
     into.set(component, files);

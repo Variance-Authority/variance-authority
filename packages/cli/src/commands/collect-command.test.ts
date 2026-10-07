@@ -61,7 +61,7 @@ describe('variance collect merge: every part, one index', () => {
     expect(await runCollectMerge({ command: 'collect', operation: 'merge', parts, out: index }, streams)).toBe(0);
     const read = decodeSuiteIndex(await readFile(index));
     expect(read.coverage?.map((entry) => entry.subject)).toEqual(IDS);
-    expect(await readFile(parts[0]!, 'utf8')).toMatch(/variance-authority-evidence-part/);
+    expect(await readFile(parts[0]!, 'utf8')).toMatch(/"outcomes"/);
     expect(out.join('')).toMatch(/4 subjects/);
   });
 
@@ -71,7 +71,7 @@ describe('variance collect merge: every part, one index', () => {
     await writeFile(index, 'previous');
 
     await expect(runCollectMerge({ command: 'collect', operation: 'merge', parts: [first!], out: index }, streams)).rejects.toThrow(
-      /shard 2\/2 is missing; collect it with `variance collect --shard 2\/2`/,
+      /shard 2\/2 is missing; collect each shard with `variance collect --shard k\/n` and merge again/,
     );
     expect(await readFile(index, 'utf8')).toBe('previous');
   });
@@ -80,7 +80,7 @@ describe('variance collect merge: every part, one index', () => {
     const bogus = join(root, 'bogus.json');
     await writeFile(bogus, '{"format":"other"}');
     await expect(runCollectMerge({ command: 'collect', operation: 'merge', parts: [bogus], out: join(root, 'i') }, streams)).rejects.toThrow(
-      /bogus\.json is not an evidence part this version reads: its format is "other"/,
+      /bogus\.json is not a collection part this version reads/,
     );
   });
 

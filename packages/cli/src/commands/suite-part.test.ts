@@ -89,15 +89,23 @@ describe('a composed suite index', () => {
     expect((forward as { lexicon?: { declaredIn?: unknown } }).lexicon?.declaredIn).toEqual({ Button: ['src/one/Button.tsx'] });
   });
 
-  it('refuses a build with a shard missing, one cut two ways, or one subject twice', () => {
+  it('refuses a build with a shard missing, one cut two ways, one named twice, or one subject twice', () => {
     const [one, two] = parts(SUITE, 2, (i) => (i === 0 ? 1 : 2));
     const cutThree = parts(SUITE, 3, (i) => i + 1)[2]!;
 
     expect(composeSuiteIndex([one!], COMMIT)).toBe('shard 2/2 is missing');
     expect(composeSuiteIndex([one!, two!, cutThree], COMMIT)).toBe('the shards were cut 2 ways and 3 ways');
     expect(composeSuiteIndex([one!, { ...two!, shard: { index: 1, total: 2 } }], COMMIT)).toBe('shard 2/2 is missing');
-    const { shard: _, ...unnumbered } = one!;
-    expect(composeSuiteIndex([unnumbered, unnumbered], COMMIT)).toMatch(/was composed by two shards/);
+    expect(composeSuiteIndex([one!, two!, two!], COMMIT)).toBe('shard 2/2 was given twice');
+    expect(composeSuiteIndex([one!, { ...two!, subjects: one!.subjects }], COMMIT)).toMatch(/was composed by two shards/);
+  });
+
+  it('refuses an unsharded part beside a shard, and two unsharded parts', () => {
+    const [one] = parts(SUITE, 2, (i) => (i === 0 ? 1 : 2));
+    const { shard: _, ...whole } = one!;
+
+    expect(composeSuiteIndex([one!, whole], COMMIT)).toBe('an unsharded part was given with shard 1/2; they are not one build');
+    expect(composeSuiteIndex([whole, whole], COMMIT)).toBe('two unsharded parts were given; they are not one build');
   });
 });
 

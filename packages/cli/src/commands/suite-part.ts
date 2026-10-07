@@ -137,17 +137,27 @@ export function composeSuiteIndex(parts: readonly SuitePart[], commit: string): 
   return { commit, subjects: census.subjects, components: census.components, lexicon };
 }
 
-/** Which `k/n` are absent or repeated, when every part names one. */
-function missingShards(parts: readonly SuitePart[]): string | undefined {
-  const shards = parts.map((part) => part.shard);
-  if (shards.some((shard) => shard === undefined)) return undefined;
-  const totals = new Set(shards.map((shard) => shard!.total));
+/**
+ * Whether the parts are one cut of one build: every shard of one count, each
+ * once, or a single unsharded part. A `--subjects` slice names no shard either,
+ * and is refused by its caller before it gets here.
+ */
+export function missingShards(parts: readonly SuitePart[]): string | undefined {
+  const unsharded = parts.filter((part) => part.shard === undefined).length;
+  const shards = parts.flatMap((part) => (part.shard === undefined ? [] : [part.shard]));
+  if (unsharded > 1) return 'two unsharded parts were given; they are not one build';
+  if (unsharded === 1 && shards.length > 0) {
+    return `an unsharded part was given with shard ${String(shards[0]!.index)}/${String(shards[0]!.total)}; they are not one build`;
+  }
+  if (shards.length === 0) return undefined;
+  const totals = new Set(shards.map((shard) => shard.total));
   if (totals.size > 1) return `the shards were cut ${[...totals].map((n) => `${String(n)} ways`).join(' and ')}`;
   const total = [...totals][0]!;
-  const held = shards.map((shard) => shard!.index);
+  const held = shards.map((shard) => shard.index);
   const absent = Array.from({ length: total }, (_, i) => i + 1).filter((index) => !held.includes(index));
   if (absent.length > 0) return `shard ${absent.map((index) => `${String(index)}/${String(total)}`).join(', ')} is missing`;
-  if (held.length > total) return `a shard of ${String(total)} was named twice`;
+  const twice = held.find((index, i) => held.indexOf(index) !== i);
+  if (twice !== undefined) return `shard ${String(twice)}/${String(total)} was given twice`;
   return undefined;
 }
 

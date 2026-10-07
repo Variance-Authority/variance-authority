@@ -7,7 +7,7 @@ import type { CanonicalValue } from '@variance-authority/core/format';
 import type { Config } from '../config.js';
 import { CLI_VERSION } from '../version.js';
 import { sourceFiles } from './source-graph.js';
-import { EVIDENCE_VERSION, recipeOf, sha256Hex, type EvidenceBuild, type EvidenceDiagnostic, type EvidenceRecipe } from './evidence-part.js';
+import { recipeOf, sha256Hex, type EvidenceBuild, type EvidenceDiagnostic, type EvidenceRecipe } from './evidence-part.js';
 
 /**
  * Which bytes a collection read, and how — the two things every part of one
@@ -58,7 +58,6 @@ export function readsOf(config: Config, cwd: string): CanonicalValue {
   const subjects = config.subjects;
   return {
     cli: CLI_VERSION,
-    evidence: EVIDENCE_VERSION,
     lexicon: LEXICON_VERSION,
     profile: config.profile,
     viewport: { width: config.viewport.width, height: config.viewport.height },
