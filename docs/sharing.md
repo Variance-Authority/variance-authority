@@ -669,6 +669,9 @@ record](#a-suite-your-checkout-has-not-recorded).
 
 - `variance share --publish` with no run report at the path, or one that does
   not parse;
+- `variance share --publish` over shard reports when a suite part beside one
+  cannot be read, for example
+  `nothing published: shard-2/report.suite-part.json is not a suite part this version reads.`;
 - a run report whose commit is not a commit id, for example
   `cannot publish suite-index-v1: "HEAD" is not a commit`;
 - a config the CLI refuses, such as `"mainlines": []`, a `share` carrier with no
