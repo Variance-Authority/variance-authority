@@ -4,9 +4,9 @@ import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 import type { CanonicalValue } from '@variance-authority/core/format';
-import { gitDigests } from '@variance-authority/sense';
 import type { Config } from '../config.js';
 import { CLI_VERSION } from '../version.js';
+import { sourceFiles } from './source-graph.js';
 import { EVIDENCE_VERSION, recipeOf, sha256Hex, type EvidenceBuild, type EvidenceDiagnostic, type EvidenceRecipe } from './evidence-part.js';
 
 /**
@@ -41,18 +41,11 @@ export async function evidenceIdentity(config: Config, cwd: string): Promise<Ide
   if (commit === undefined) {
     diagnostics.push({ severity: 'warn', code: 'build', message: `${cwd} is not a git checkout; the parts name no commit` });
   }
-  if (source === 'unread') {
-    diagnostics.push({
-      severity: 'warn',
-      code: 'build',
-      message: 'source.dirs is not in a git checkout; the parts cannot say which edits the scan read',
-    });
-  }
   return {
     build: {
       ...(commit === undefined ? {} : { commit }),
       ...(storybook === undefined ? {} : { storybook }),
-      ...(source === undefined || source === 'unread' ? {} : { source }),
+      ...(source === undefined ? {} : { source }),
     },
     recipe: recipeOf(readsOf(config, cwd)),
     diagnostics,
@@ -103,15 +96,13 @@ export async function directoryDigest(root: string): Promise<string> {
   return sha256Hex(lines.join('\n'));
 }
 
-/** The digest of the bytes on disk under `dirs`, edits included; `unread` outside git. */
-async function sourceDigest(cwd: string, dirs: readonly string[]): Promise<string | 'unread' | undefined> {
+/** The digest of the files the source scan reads, as they are on disk, edits and git-ignored files included. */
+async function sourceDigest(cwd: string, dirs: readonly string[]): Promise<string | undefined> {
   if (dirs.length === 0) return undefined;
-  const digests = await gitDigests(cwd);
-  if (digests === undefined) return 'unread';
-  const under = dirs.map((dir) => relative(cwd, dir).split(sep).join('/')).map((dir) => (dir === '' ? '' : `${dir}/`));
-  const lines = [...digests]
-    .filter(([path]) => under.some((dir) => path.startsWith(dir)))
-    .map(([path, digest]) => `${path}\0${String(digest)}`)
-    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  const files = [...new Set(sourceFiles(cwd, dirs))]
+    .map((file) => [relative(cwd, file).split(sep).join('/'), file] as const)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  const lines: string[] = [];
+  for (const [path, file] of files) lines.push(`${path}\0${sha256Hex((await readFile(file)).toString('latin1'))}`);
   return sha256Hex(lines.join('\n'));
 }

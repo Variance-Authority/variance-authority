@@ -72,15 +72,28 @@ describe('evidenceIdentity: the build and recipe every part of one collection mu
     expect(dirty.build.source).not.toBe(clean.build.source);
   });
 
-  it('outside git, names no commit and no source, and says why', async () => {
+  it('digests every file the scan reads, git-ignored ones included, and none it skips', async () => {
     await put('sb/index.json', '{}');
+    await put('.gitignore', 'src/generated/\n');
+    await put('src/Button.tsx', 'export const Button = 1;');
+    await put('src/generated/tokens.ts', 'export const blue = 1;');
+    await put('src/Button.stories.tsx', 'export default {};');
+    await committed();
+    const before = (await evidenceIdentity(storybookAt('sb'), root)).build.source;
+
+    await put('src/Button.stories.tsx', 'export default { title: "x" };');
+    expect((await evidenceIdentity(storybookAt('sb'), root)).build.source).toBe(before);
+    await put('src/generated/tokens.ts', 'export const blue = 2;');
+    expect((await evidenceIdentity(storybookAt('sb'), root)).build.source).not.toBe(before);
+  });
+
+  it('outside git, names no commit and says why, and still digests the source', async () => {
+    await put('sb/index.json', '{}');
+    await put('src/Button.tsx', 'export const Button = 1;');
     const { build, diagnostics } = await evidenceIdentity(storybookAt('sb'), root);
 
-    expect(build).toEqual({ storybook: await directoryDigest(join(root, 'sb')) });
-    expect(diagnostics.map((diagnostic) => diagnostic.message)).toEqual([
-      expect.stringMatching(/not a git checkout/),
-      expect.stringMatching(/source\.dirs/),
-    ]);
+    expect(build).toEqual({ storybook: await directoryDigest(join(root, 'sb')), source: expect.stringMatching(/^[0-9a-f]{64}$/) });
+    expect(diagnostics.map((diagnostic) => diagnostic.message)).toEqual([expect.stringMatching(/not a git checkout/)]);
   });
 
   it('reads the recipe with paths relative to the job, so two machines agree', () => {

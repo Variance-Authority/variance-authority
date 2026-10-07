@@ -1819,8 +1819,8 @@ workers each open eight browsers at once. A shard splits the plan the way
 the merge can tell it from a missing one.
 
 Every part records the plan it split, the build it read (the Storybook build's
-digest, the commit, and the files under `source.dirs` including uncommitted
-edits), the config that shaped the reading, and an outcome for every subject it
+digest, the commit, and every source file under `source.dirs` as it is on
+disk, uncommitted and git-ignored ones included), the config that shaped the reading, and an outcome for every subject it
 owns. The merge refuses parts that disagree on the plan, the build or the
 config, a missing or repeated shard, sharded and unsharded parts together, and
 a subject no part accounts for. It names the shard to collect again. The index it writes is the
