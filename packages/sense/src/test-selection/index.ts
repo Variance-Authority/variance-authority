@@ -86,6 +86,9 @@ export { changedLines, type LineRange } from './diff-lines.js';
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording, textsAt } from './recorded-text.js';
 export { keptTexts } from './kept-texts.js';
+// A text cut as a seam records it, so rows written by hand stand where a
+// landing that cuts the text again puts them.
+export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export type { Bearing, DistanceOptions, Face, Faces, ReachThrough, TestDistance } from './distance.js';
 export { selectedLines, type SuiteSelection } from './suite-selection.js';

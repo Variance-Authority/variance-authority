@@ -2916,6 +2916,7 @@
         "selectedLines": "function",
         "sharedPreconditions": "function",
         "sharedRecord": "function",
+        "sourceCut": "function",
         "standDiff": "const",
         "standsAt": "function",
         "stateOf": "function",
