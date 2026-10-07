@@ -118,6 +118,7 @@ mod source_size;
 mod source_update;
 mod specifier;
 mod stored;
+mod top_level;
 mod tree;
 mod witness;
 mod witness_aliases;

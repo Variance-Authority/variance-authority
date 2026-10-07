@@ -13,8 +13,9 @@
 
 use std::collections::HashMap;
 
-use oxc_ast::ast::{Program, Statement};
-use oxc_span::GetSpan;
+use oxc_ast::ast::Program;
+
+use crate::top_level::top_level;
 
 /// `@testOnly`: only tests may run it.
 pub const TEST_ONLY: u8 = 1;
@@ -81,12 +82,11 @@ impl DeclaredRoles {
     pub(crate) fn new(program: &Program<'_>, tagged: HashMap<u32, u8>) -> Self {
         let mut names = HashMap::new();
         if !tagged.is_empty() {
-            for statement in &program.body {
-                let Some(&tags) = tagged.get(&statement.span().start) else { continue };
-                for name in declared(statement) {
-                    names.insert(name, tags);
-                }
-            }
+            // A statement that is not an export: an export's own doc is read by `of`.
+            top_level(program, |bound| {
+                let Some(&tags) = tagged.get(&bound.statement.start).filter(|_| !bound.exported) else { return };
+                names.insert(bound.name.to_owned(), tags);
+            });
         }
         Self { at: tagged, names }
     }
@@ -99,20 +99,6 @@ impl DeclaredRoles {
             None => local.and_then(|name| self.names.get(name)).copied().unwrap_or(0),
         }
     }
-}
-
-/// The names a top-level statement that is not an export declares.
-fn declared(statement: &Statement<'_>) -> Vec<String> {
-    let Some(declaration) = statement.as_declaration() else { return Vec::new() };
-    if let oxc_ast::ast::Declaration::VariableDeclaration(variables) = declaration {
-        return variables
-            .declarations
-            .iter()
-            .flat_map(|declarator| declarator.id.get_binding_identifiers())
-            .map(|id| id.name.to_string())
-            .collect();
-    }
-    declaration.id().map(|id| vec![id.name.to_string()]).unwrap_or_default()
 }
 
 #[cfg(test)]
