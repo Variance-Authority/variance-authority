@@ -13,25 +13,14 @@ import { NO_LINE } from './written-lines.js';
 
 /** The `region` reason for one recorded block of the module held under `file`. */
 export function regionOf(coverage: TestCoverageView, file: string, block: number) {
-  return regionsOf(coverage, file, [block])[0]!;
-}
-
-/**
- * The `region` reason for each of these blocks of the module held under
- * `file`, in the order they are asked. Asked together, the names and paths
- * they share are decoded once.
- */
-export function regionsOf(coverage: TestCoverageView, file: string, blocks: readonly number[]) {
-  if (blocks.length === 0) return [];
-  const { strings, names, paths } = coverage.lookup.regions(Uint32Array.from(blocks));
-  return blocks.map((block, at) => ({
+  return {
     kind: 'region' as const,
     file,
-    name: strings[names[at]!]!,
-    path: strings[paths[at]!]!,
+    name: coverage.string(coverage.blockName.at(block)),
+    path: coverage.string(coverage.blockPath.at(block)),
     startLine: coverage.blockStart.at(block),
     endLine: coverage.blockEnd.at(block),
-  }));
+  };
 }
 
 /** Whether the block is the module's own region, which is every test that loaded the file. */

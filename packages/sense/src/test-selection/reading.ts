@@ -57,7 +57,7 @@ import { declaredEffects } from './effects.js';
 import { frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
 import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
-import { findModules, findTest, testPathsOf } from './lookup.js';
+import { findModules, findTest } from './lookup.js';
 import { applied, hunksOf } from './patch.js';
 import type { SelectionReason } from './select.js';
 
@@ -300,18 +300,18 @@ function readValues(
   // followed reached it by an edge the graph does not hold. It is named, not
   // charged: charging it would select every such test for every change.
   if (rowsOf.size === 0) return undefined;
-  const unseen = new Set<number>();
+  const unseen = new Set<string>();
   for (const rows of rowsOf.values()) {
     for (const module of rows) {
       for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) {
         if (!moduleRegion(coverage, block)) continue;
         for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
-          if (!covered.has(test)) unseen.add(test);
+          if (!covered.has(test)) unseen.add(coverage.string(coverage.testPath.at(test)));
         }
       }
     }
   }
-  return [...testPathsOf(coverage, [...unseen])].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  return [...unseen].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
 /**

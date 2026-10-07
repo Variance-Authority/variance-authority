@@ -26,8 +26,6 @@ mod case_owner;
 mod case_preconditions;
 mod compact;
 mod conditions;
-mod coverage_columns;
-mod coverage_lookup;
 mod declared_role;
 mod declared_roles_check;
 mod depends;

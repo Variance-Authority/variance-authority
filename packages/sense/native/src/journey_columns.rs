@@ -117,70 +117,71 @@ pub(crate) struct Placed {
     pub stored: std::ops::Range<usize>,
 }
 
-/// A header read and not yet placed: the version it names, where its sections
-/// begin, and the sections themselves.
-pub(crate) struct Head {
-    pub version: u8,
-    base: usize,
-    sections: Vec<Section>,
-}
-
-/// The header at the front of `bytes`, which need hold no more of the file than
-/// the header itself: its four-byte length and the JSON that length covers.
-/// Nothing when those bytes are not a header.
-pub(crate) fn head(bytes: &[u8]) -> Option<Head> {
-    let length = u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) as usize;
-    if length == 0 || 4 + length > bytes.len() {
-        return None;
-    }
-    let end = bytes[4..4 + length].iter().position(|byte| *byte == 0).map_or(4 + length, |at| 4 + at);
-    let header: Header = serde_json::from_slice(&bytes[4..end]).ok()?;
-    Some(Head { version: header.version, base: 4 + length, sections: header.sections })
-}
-
-/// How long a header is with its length prefix, from the prefix alone.
-pub(crate) fn head_length(prefix: &[u8]) -> Option<usize> {
-    let length = u32::from_le_bytes(prefix.get(..4)?.try_into().ok()?) as usize;
-    (length != 0).then_some(4 + length)
-}
-
-impl Head {
-    /// Every section placed in a file of `length` bytes; nothing when one of
-    /// them lies outside it.
-    pub fn place(self, length: usize) -> Option<Vec<Placed>> {
-        let base = self.base;
-        self.sections
-            .into_iter()
-            .map(|section| {
-                let start = base.checked_add(section.offset)?;
-                let end = start.checked_add(section.length).filter(|end| *end <= length)?;
-                Some(Placed { name: section.name, width: section.width, rows: section.rows, stored: start..end })
-            })
-            .collect()
-    }
-}
-
 /// Every column the header names, placed in `bytes` and not decoded.
 pub(crate) fn place(bytes: &[u8], version: u8) -> Result<Vec<Placed>, String> {
-    let not_ours = || "not a variance-authority journey artifact".to_owned();
-    let head = head(bytes).ok_or_else(not_ours)?;
-    if head.version != version {
-        return Err(format!("unsupported journey artifact version: {}", head.version));
+    if bytes.len() < 4 {
+        return Err("not a variance-authority journey artifact".to_owned());
     }
-    head.place(bytes.len()).ok_or_else(not_ours)
+    let header_length = u32::from_le_bytes(bytes[..4].try_into().unwrap_or_default()) as usize;
+    if header_length == 0 || 4 + header_length > bytes.len() {
+        return Err("not a variance-authority journey artifact".to_owned());
+    }
+    let header_end = bytes[4..4 + header_length]
+        .iter()
+        .position(|byte| *byte == 0)
+        .map_or(4 + header_length, |at| 4 + at);
+    let header: Header = serde_json::from_slice(&bytes[4..header_end])
+        .map_err(|_| "not a variance-authority journey artifact".to_owned())?;
+    if header.version != version {
+        return Err(format!("unsupported journey artifact version: {}", header.version));
+    }
+    let base = 4 + header_length;
+    header
+        .sections
+        .into_iter()
+        .map(|section| {
+            let end = section
+                .offset
+                .checked_add(section.length)
+                .filter(|end| base + *end <= bytes.len())
+                .ok_or_else(|| "not a variance-authority journey artifact".to_owned())?;
+            Ok(Placed {
+                name: section.name,
+                width: section.width,
+                rows: section.rows,
+                stored: base + section.offset..base + end,
+            })
+        })
+        .collect()
 }
 
 /// The case index a recording holds: the `cases` section when `bytes` are a
 /// coverage record that carries one, and `bytes` themselves otherwise, which
 /// the journey reader then opens or refuses on its own terms.
 pub(crate) fn recorded_cases(bytes: Vec<u8>) -> Vec<u8> {
-    let cases = head(&bytes).and_then(|head| head.place(bytes.len())).and_then(|placed| {
+    let cases = place_any(&bytes).ok().and_then(|placed| {
         placed.into_iter().find(|column| column.name == "cases" && column.rows.is_none())
     });
     match cases {
         Some(column) => bytes[column.stored].to_vec(),
         None => bytes,
     }
+}
+
+fn place_any(bytes: &[u8]) -> Result<Vec<Placed>, String> {
+    if bytes.len() < 4 {
+        return Err(String::new());
+    }
+    let header_length = u32::from_le_bytes(bytes[..4].try_into().unwrap_or_default()) as usize;
+    if header_length == 0 || 4 + header_length > bytes.len() {
+        return Err(String::new());
+    }
+    let header_end = bytes[4..4 + header_length]
+        .iter()
+        .position(|byte| *byte == 0)
+        .map_or(4 + header_length, |at| 4 + at);
+    let header: Header = serde_json::from_slice(&bytes[4..header_end]).map_err(|_| String::new())?;
+    place(bytes, header.version)
 }
 
 pub fn decode(bytes: &[u8], version: u8) -> Result<Decoded, String> {

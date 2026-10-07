@@ -10,7 +10,6 @@ import {
   findTest,
   sharedPreconditions,
   testPathOf,
-  testPathsOf,
   testsGovernedBy,
 } from './lookup.js';
 
@@ -285,12 +284,42 @@ describe('a row found by its path, from a lookup the view keeps', () => {
     expect(reads).toBe(once);
   });
 
-  it('names test rows by their paths, in the order they are asked', () => {
-    const from = openTestCoverage(encodeTestCoverage(wide));
+  it('decodes each row it probes once per view, however many lookups probe it', () => {
+    const opened = openTestCoverage(encodeTestCoverage(wide));
+    let decoded = 0;
+    const from: TestCoverageView = {
+      ...opened,
+      string: (id) => {
+        decoded += 1;
+        return opened.string(id);
+      },
+    };
 
-    expect(tests.map((_, row) => testPathOf(from, row))).toEqual(tests);
-    expect(testPathsOf(from, [3, 0, 3])).toEqual([tests[3], tests[0], tests[3]]);
-    expect(testPathsOf(from, [])).toEqual([]);
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (const file of [...modules, ...tests, ...absent]) {
+        findModules(from, file);
+        findTest(from, file);
+      }
+    }
+
+    expect(decoded).toBeLessThanOrEqual(from.modulePath.length + from.testPath.length);
+  });
+
+  it('names a test row by its path, decoded once per view', () => {
+    const opened = openTestCoverage(encodeTestCoverage(wide));
+    let decoded = 0;
+    const from: TestCoverageView = {
+      ...opened,
+      string: (id) => {
+        decoded += 1;
+        return opened.string(id);
+      },
+    };
+
+    for (let pass = 0; pass < 2; pass += 1) {
+      expect(tests.map((_, row) => testPathOf(from, row))).toEqual(tests);
+    }
+    expect(decoded).toBe(tests.length);
   });
 });
 

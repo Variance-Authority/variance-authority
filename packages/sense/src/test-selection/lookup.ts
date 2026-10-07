@@ -1,3 +1,4 @@
+import type { WordColumn } from './columns.js';
 import type { TestCoverageView } from './format-view.js';
 
 /**
@@ -15,25 +16,46 @@ import type { TestCoverageView } from './format-view.js';
  * can be turned into the integer it was interned under before any column is
  * touched. That is what lets a question about a name be asked in integers.
  *
- * ## Why the searches run in the addon
+ * ## Why a view keeps what its searches decoded
  *
- * A search reads the path at every row it probes, and every search over one
+ * A search decodes the path at every row it probes, and every search over one
  * column probes the same rows first: the middle, then a quarter in, and so on.
  * One selection asks a few thousand paths — every name of every changed file,
  * every importer the walks reach, every name the precondition table is asked
- * about. Made in JavaScript, each probe is a string built from the dictionary's
- * bytes to be compared once and dropped.
+ * about — so decoding each probe afresh decoded the same rows over and over, at
+ * three reads of the dictionary's offsets apiece: forty-four thousand decodes
+ * in one `variance select` over this repository, for under two thousand
+ * distinct rows and strings.
  *
- * The addon compares the stored UTF-8 against the asked path in place, in the
- * order JavaScript's code units sort, and keeps each run of a column or of the
- * dictionary it decompressed for as long as the view is open
- * ({@link TestCoverageView.lookup}). What crosses back is row numbers, and the
- * strings of the rows a caller is about to report.
+ * So each view keeps the paths its searches decoded, by row, and the strings
+ * `findString` decoded, by id, for as long as the view is held. A row is
+ * decoded once per view at most, and only a row some search probed: a whole
+ * table built up front would decode every row of a recording to answer a diff
+ * that names three files, which on a recording of a few hundred thousand
+ * modules is more than the searches it replaces.
  */
+
+/** What one view's lookups decoded: a path by its row in each table, a string by its id. */
+interface Decoded {
+  readonly modules: Map<number, string>;
+  readonly tests: Map<number, string>;
+  readonly strings: Map<number, string>;
+}
+
+const decodedBy = new WeakMap<TestCoverageView, Decoded>();
+
+function decoded(coverage: TestCoverageView): Decoded {
+  let found = decodedBy.get(coverage);
+  if (found === undefined) {
+    found = { modules: new Map(), tests: new Map(), strings: new Map() };
+    decodedBy.set(coverage, found);
+  }
+  return found;
+}
 
 /** One module row recorded under exactly this path, if there is one; {@link findModules} has them all. */
 export function findModule(coverage: TestCoverageView, file: string): number | undefined {
-  return findModules(coverage, file)[0];
+  return search(coverage, coverage.modulePath, decoded(coverage).modules, file);
 }
 
 /**
@@ -46,22 +68,26 @@ export function findModule(coverage: TestCoverageView, file: string): number | u
  * a caller that reads one leaves the other's crossings on the floor.
  */
 export function findModules(coverage: TestCoverageView, file: string): readonly number[] {
-  return coverage.lookup.modules(file);
+  const held = decoded(coverage).modules;
+  const found = search(coverage, coverage.modulePath, held, file);
+  if (found === undefined) return [];
+  let first = found;
+  while (first > 0 && pathAt(coverage, coverage.modulePath, held, first - 1) === file) first -= 1;
+  let end = found + 1;
+  while (end < coverage.modulePath.length && pathAt(coverage, coverage.modulePath, held, end) === file) end += 1;
+  const rows: number[] = [];
+  for (let row = first; row < end; row += 1) rows.push(row);
+  return rows;
 }
 
 /** The test row recorded under exactly this path, if there is one. */
 export function findTest(coverage: TestCoverageView, file: string): number | undefined {
-  return coverage.lookup.test(file) ?? undefined;
+  return search(coverage, coverage.testPath, decoded(coverage).tests, file);
 }
 
-/** The path a test row was recorded under. */
+/** The path a test row was recorded under, decoded once per view whoever asks for it. */
 export function testPathOf(coverage: TestCoverageView, test: number): string {
-  return testPathsOf(coverage, [test])[0]!;
-}
-
-/** The paths these test rows were recorded under, in the order they are asked. */
-export function testPathsOf(coverage: TestCoverageView, tests: readonly number[]): readonly string[] {
-  return tests.length === 0 ? [] : coverage.lookup.testPaths(Uint32Array.from(tests));
+  return pathAt(coverage, coverage.testPath, decoded(coverage).tests, test);
 }
 
 /**
@@ -72,7 +98,48 @@ export function testPathsOf(coverage: TestCoverageView, tests: readonly number[]
  * search a column for it already has its answer and can decline to look.
  */
 export function findString(coverage: TestCoverageView, value: string): number | undefined {
-  return coverage.lookup.interned(value) ?? undefined;
+  const held = decoded(coverage).strings;
+  let low = 0;
+  let high = coverage.strings - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    let candidate = held.get(middle);
+    if (candidate === undefined) {
+      candidate = coverage.string(middle);
+      held.set(middle, candidate);
+    }
+    if (candidate === value) return middle;
+    if (candidate < value) low = middle + 1;
+    else high = middle - 1;
+  }
+  return undefined;
+}
+
+function search(
+  coverage: TestCoverageView,
+  column: WordColumn,
+  held: Map<number, string>,
+  file: string,
+): number | undefined {
+  let low = 0;
+  let high = column.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const candidate = pathAt(coverage, column, held, middle);
+    if (candidate === file) return middle;
+    if (candidate < file) low = middle + 1;
+    else high = middle - 1;
+  }
+  return undefined;
+}
+
+function pathAt(coverage: TestCoverageView, column: WordColumn, held: Map<number, string>, row: number): string {
+  let path = held.get(row);
+  if (path === undefined) {
+    path = coverage.string(column.at(row));
+    held.set(row, path);
+  }
+  return path;
 }
 
 /**
@@ -105,7 +172,7 @@ export function findString(coverage: TestCoverageView, value: string): number | 
  * same question asked about a module.
  *
  * So each wanted path is looked up in the sorted dictionary first, which is
- * about twenty probes apiece, and the scan then compares `u32` to `u32` and
+ * about twenty decodes apiece, and the scan then compares `u32` to `u32` and
  * decodes nothing. A path the dictionary never interned cannot be anyone's
  * precondition, so when none of them is interned the table is not read at all —
  * which is every diff that touches a document, an asset, or anything else the
@@ -117,12 +184,35 @@ export function testsGovernedBy(
 ): { readonly tests: ReadonlyMap<number, readonly string[]>; readonly unread: readonly string[] } {
   if (files.length === 0) return { tests: new Map(), unread: [] };
 
+  const wanted = new Map<number, string>();
+  for (const file of files) {
+    const id = findString(coverage, file);
+    if (id !== undefined) wanted.set(id, file);
+  }
+  if (wanted.size === 0) return { tests: new Map(), unread: [...files].sort(codeUnitOrder) };
+
   const matched = new Set<string>();
   const tests = new Map<number, string[]>();
-  for (const { test, files: declared } of coverage.lookup.governed([...files])) {
-    const governing = declared.map((at) => files[at]!);
-    for (const name of governing) matched.add(name);
-    tests.set(test, governing);
+  const preconditions = coverage.testPreconditions;
+  const named = coverage.preconditionName;
+
+  // The offsets are a CSR: one test's end is the next one's start, so the
+  // column is read once per test rather than twice per row.
+  let end = preconditions.at(0);
+  for (let test = 0; test < coverage.testPath.length; test += 1) {
+    const start = end;
+    end = preconditions.at(test + 1);
+    let governing: string[] | undefined;
+    for (let input = start; input < end; input += 1) {
+      const name = wanted.get(named.at(input));
+      if (name === undefined) continue;
+      matched.add(name);
+      if (governing === undefined) {
+        governing = [];
+        tests.set(test, governing);
+      }
+      governing.push(name);
+    }
   }
 
   return {
@@ -141,7 +231,25 @@ export function testsGovernedBy(
  * recording with no tests has no harness to name.
  */
 export function sharedPreconditions(coverage: TestCoverageView): readonly string[] {
-  return coverage.lookup.shared();
+  const tests = coverage.testPath.length;
+  if (tests === 0) return [];
+  const counts = new Map<number, number>();
+  const preconditions = coverage.testPreconditions;
+  const named = coverage.preconditionName;
+  let end = preconditions.at(0);
+  for (let test = 0; test < tests; test += 1) {
+    const start = end;
+    end = preconditions.at(test + 1);
+    const own = coverage.testPath.at(test);
+    for (let input = start; input < end; input += 1) {
+      const name = named.at(input);
+      if (name !== own) counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+  }
+  return [...counts]
+    .filter(([, count]) => count === tests)
+    .map(([name]) => coverage.string(name))
+    .sort(codeUnitOrder);
 }
 
 function codeUnitOrder(left: string, right: string): number {
