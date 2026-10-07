@@ -49,6 +49,7 @@ import { layeredCoverage } from './format-layer.js';
 import { openTestCoverage } from './format-view.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { TestCoverage } from './index.js';
+import { installAfter, keepRecordedInstall, type KeptInstall } from './kept-install.js';
 import { keepRecordedTexts } from './kept-texts.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
@@ -101,6 +102,15 @@ export interface CommitRuns {
    * `over` or to `commit`, says it did.
    */
   readonly standing?: readonly StandingEntry[];
+  /**
+   * The install the tests in `files` ran on, where it differs from `commit`'s:
+   * each lockfile and manifest the runs found edited, by the digest of the
+   * text kept for it, or `null` for one they found deleted (`kept-install.ts`).
+   * Empty when they ran on the commit's own. Absent when that is not known: a
+   * record written before installs were kept, a landing of shards, or runs at
+   * this commit over two installs. A reader compares from `commit` then.
+   */
+  readonly installed?: KeptInstall;
 }
 
 /** Tests that last ran at one commit, or were assumed to have when no record could say. */
@@ -171,11 +181,13 @@ export async function landRun(
   // commit it names holds none of the edited ones. Kept after the write, so a
   // text is never kept for a row that did not land.
   const kept = await keepRecordedTexts(root, openTestCoverage(bytes), cacheRoot);
+  // So is the install it ran on, before the record that names it.
+  const installed = current.commit === undefined ? undefined : await keepRecordedInstall(root, cacheRoot);
   // FIXME: two writes, and nothing makes them one. A failed record write, or a
   // process killed between them, leaves the snapshot at this run's commit
   // beside the record of the one before: the shape `commitRunsAfter` reads as
   // a retried landing, which the next run here repairs and nothing else does.
-  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current));
+  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, current, installed));
   // The ledger last: it names this run's tests as this checkout's, and a
   // landing that died before it leaves them read as the milestone's, which a
   // re-run here corrects. A record with no ledger was laid before there was
@@ -231,11 +243,15 @@ async function coveredRecord(coverageFile: string): Promise<Buffer | undefined> 
  *
  * {@link landRun} reads both inputs off the disk. A landing of shard snapshots
  * has already read the snapshot to merge over it, and passes that.
+ *
+ * `installed` is the install `current` ran on, which {@link landRun} keeps; a
+ * landing of shards ran nowhere this process can see, and passes none.
  */
 export function commitRunsAfter(
   before: RecordedTests | undefined,
   held: CommitRuns | undefined,
   current: RecordedTests,
+  installed?: KeptInstall,
 ): CommitRuns {
   const prior = before?.instrumentation === current.instrumentation ? before : undefined;
   const stood = prior?.commit;
@@ -256,6 +272,7 @@ export function commitRunsAfter(
   const over = again ? held.over : retried ? held.commit : stood;
   const ran = again ? [...new Set([...held.files, ...files])].sort(codeUnitOrder) : files;
   const standing = current.commit === undefined ? undefined : standingAfter(prior, held, retried ? held.commit : stood, ran);
+  const install = again ? installAfter(held, files, installed) : installed;
   return {
     ...(current.commit === undefined ? {} : { commit: current.commit }),
     ...(over === undefined ? {} : { over }),
@@ -264,6 +281,7 @@ export function commitRunsAfter(
     runs: again ? held.runs + 1 : 1,
     files: ran,
     ...(standing === undefined ? {} : { standing }),
+    ...(install === undefined ? {} : { installed: install }),
   };
 }
 

@@ -84,6 +84,31 @@ export interface DiffPoint {
 }
 
 /**
+ * `point` as the install a recording ran on: each lockfile and manifest the
+ * runs record keeps (`kept-install.ts` in sense) answers with its kept text,
+ * or as absent where the run had deleted it, and every other file with the
+ * commit's. `installed` names paths from the top of the checkout, as `at` does.
+ *
+ * `{ missing }` names the first kept path whose text `kept` cannot produce:
+ * the record was copied here without it. Half an install is no install, so
+ * the caller reads the commit's whole.
+ */
+export function ranOn(
+  point: DiffPoint,
+  installed: Readonly<Record<string, string | null>>,
+  kept: (digest: string) => string | undefined,
+): DiffPoint | { readonly missing: string } {
+  const texts = new Map<string, string | undefined>();
+  for (const [path, digest] of Object.entries(installed)) {
+    const text = digest === null ? undefined : kept(digest);
+    if (digest !== null && text === undefined) return { missing: path };
+    texts.set(path, text);
+  }
+  if (texts.size === 0) return point;
+  return { ...point, at: async (path) => (texts.has(path) ? texts.get(path) : await point.at(path)) };
+}
+
+/**
  * Which packages this diff installed differently, or the reason it cannot say.
  *
  * `undefined` is *there is no install to compare* — no lockfile anywhere above

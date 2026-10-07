@@ -1,0 +1,111 @@
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { promisify } from 'node:util';
+import { describe, expect, it } from 'vitest';
+import { digestString } from '../digest.js';
+import { commitRunsAfter, type RecordedTests } from './commit-runs.js';
+import { installAfter, keepRecordedInstall } from './kept-install.js';
+import { keptTexts } from './kept-texts.js';
+
+/**
+ * The install a run ran on is the lockfiles and manifests on disk while it ran.
+ * These keep it over a real repository, the way a landing does, and merge it
+ * into the runs at one commit the way the runs record does.
+ */
+
+async function checkout<T>(run: (root: string, cacheRoot: string) => Promise<T>): Promise<T> {
+  const scratch = await realpath(await mkdtemp(resolve(tmpdir(), 'variance-kept-install-')));
+  const root = resolve(scratch, 'repository');
+  const cacheRoot = resolve(scratch, 'cache');
+  try {
+    await mkdir(resolve(root, 'packages/a'), { recursive: true });
+    await writeFile(resolve(root, 'package.json'), '{"name":"root"}\n');
+    await writeFile(resolve(root, 'packages/a/package.json'), '{"name":"a"}\n');
+    await writeFile(resolve(root, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n");
+    await writeFile(resolve(root, 'index.ts'), 'export {};\n');
+    const git = async (...args: string[]): Promise<string> =>
+      (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
+    await git('init', '--quiet');
+    await git('config', 'user.email', 'fixture@example.invalid');
+    await git('config', 'user.name', 'Fixture');
+    await git('add', '--all');
+    await git('commit', '--quiet', '--message', 'an install');
+    return await run(root, cacheRoot);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+describe('the install a run ran on', () => {
+  it('is the commit\'s exactly over a clean tree', async () => {
+    await checkout(async (root, cacheRoot) => {
+      expect(await keepRecordedInstall(root, cacheRoot)).toEqual({});
+    });
+  });
+
+  it('keeps each edited lockfile and manifest, names a deleted one, and leaves source alone', async () => {
+    await checkout(async (root, cacheRoot) => {
+      const bumped = "lockfileVersion: '9.0'\n\npackages: {}\n";
+      await writeFile(resolve(root, 'pnpm-lock.yaml'), bumped);
+      await rm(resolve(root, 'packages/a/package.json'));
+      await mkdir(resolve(root, 'packages/b'));
+      await writeFile(resolve(root, 'packages/b/package.json'), '{"name":"b"}\n');
+      await writeFile(resolve(root, 'index.ts'), 'export const edited = 1;\n');
+
+      const installed = await keepRecordedInstall(root, cacheRoot);
+
+      expect(installed).toEqual({
+        'packages/a/package.json': null,
+        'packages/b/package.json': digestString('{"name":"b"}\n'),
+        'pnpm-lock.yaml': digestString(bumped),
+      });
+      expect(keptTexts(root, cacheRoot)(installed!['pnpm-lock.yaml']!)).toBe(bumped);
+    });
+  });
+
+  it('cannot be said outside a checkout', async () => {
+    const scratch = await mkdtemp(resolve(tmpdir(), 'variance-kept-install-'));
+    try {
+      expect(await keepRecordedInstall(scratch, resolve(scratch, 'cache'))).toBeUndefined();
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the install the runs at one commit ran on', () => {
+  const bumped = { 'yarn.lock': 'digest:bumped' };
+
+  it('stays when another run lands over the same install', () => {
+    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['b.test.ts'], { ...bumped })).toEqual(bumped);
+  });
+
+  it('is the latest run\'s when that run observed every test the earlier runs did', () => {
+    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['a.test.ts', 'b.test.ts'], {})).toEqual({});
+    expect(installAfter({ files: ['a.test.ts'] }, ['a.test.ts'], bumped)).toEqual(bumped);
+  });
+
+  it('is unknown when the runs at one commit ran on two installs', () => {
+    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['b.test.ts'], {})).toBeUndefined();
+    expect(installAfter({ files: ['a.test.ts'] }, ['b.test.ts'], bumped)).toBeUndefined();
+    expect(installAfter({ files: ['a.test.ts'], installed: bumped }, ['a.test.ts'], undefined)).toBeUndefined();
+  });
+
+  it('is written into the runs record, and left out where it is not known', () => {
+    const at = (commit: string, files: readonly string[]): RecordedTests => ({
+      instrumentation: 'fixture',
+      commit,
+      tests: files.map((file) => ({ file })),
+    });
+    const first = commitRunsAfter(at('base', ['a.test.ts']), undefined, at('head', ['a.test.ts']), bumped);
+    expect(first.installed).toEqual(bumped);
+
+    const partial = commitRunsAfter(at('head', ['a.test.ts', 'b.test.ts']), first, at('head', ['b.test.ts']), {});
+    expect(partial).not.toHaveProperty('installed');
+
+    const shards = commitRunsAfter(at('head', ['a.test.ts']), undefined, at('next', ['a.test.ts']));
+    expect(shards).not.toHaveProperty('installed');
+  });
+});

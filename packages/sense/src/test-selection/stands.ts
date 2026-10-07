@@ -43,6 +43,7 @@
  */
 
 import type { CommitRuns } from './commit-runs.js';
+import type { KeptInstall } from './kept-install.js';
 import { askCoverageFile } from './coverage-file.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { nearestFirst, type TestDistance } from './distance.js';
@@ -88,6 +89,13 @@ export interface StandReading {
   readonly widened?: string;
   /** Tests the runs place before the snapshot's commit that are not on disk, in no stand; only {@link standsAt} asks. */
   readonly gone?: readonly string[];
+  /**
+   * The install every test read from `base` ran on, as the runs record keeps
+   * it (`kept-install.ts`); only {@link standsAt} asks. Absent when the record
+   * does not say, or when some of those tests are there on an assumption and
+   * may have run on another: the install is then read at `base`.
+   */
+  readonly installed?: KeptInstall;
 }
 
 /**
@@ -316,7 +324,12 @@ export function standsAt(
   const gone = new Set([...stands].filter(([test, stand]) => stand !== commit && !exists(test)).map(([test]) => test));
   const tests = recorded.tests.filter((test) => !gone.has(test));
   const reading = readingFrom({ commit, ref: undefined, runs, tests, git });
-  return gone.size === 0 ? reading : { ...reading, gone: [...gone].sort(codeUnitOrder) };
+  const ran = new Set(runs?.files);
+  const installed =
+    runs?.commit === commit && runs.installed !== undefined && tests.every((test) => stands.get(test) !== commit || ran.has(test))
+      ? { installed: runs.installed }
+      : {};
+  return { ...reading, ...(gone.size === 0 ? {} : { gone: [...gone].sort(codeUnitOrder) }), ...installed };
 }
 
 /** A path as a `diff --git` header spells it, unquoted where git quoted it. */

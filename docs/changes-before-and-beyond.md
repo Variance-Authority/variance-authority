@@ -75,7 +75,11 @@ direction.
 `package.json` is a request, the lockfile is the answer, and neither is a
 changed file here. They are read at two revisions — the base and the working
 tree — and compared as installs, which is a different question from *did this
-file's bytes change*:
+file's bytes change*. For `variance select` the base is the install the
+recorded suite ran on: the journal's commit, unless the recording ran over
+lockfiles or manifests you had not committed. A run keeps those texts, and they
+are what your tree is compared from; a recording that kept none is compared from
+its commit.
 
 - A workspace edit rewrites `yarn.lock` and changes no package. Compared as an
   install it contributes nothing.

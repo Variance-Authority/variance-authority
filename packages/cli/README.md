@@ -1680,12 +1680,18 @@ When a test does read that fixture, name it in the `preconditions` option of the
 Vitest recorder in `@variance-authority/sense`: from the next recording on, a
 change to it selects every test it governs.
 
-A changed lockfile is compared as an install, from the lockfile at the journal's
-commit to the one in your tree. Every package it resolves differently is walked
-back through the packages that depend on it to the files that import them, and
-those files are read as changed whole. stderr names the lockfile, the packages,
-the package each one was imported through and the files, and `json` gives the
-lockfile, the packages and the count of files under `install`:
+A changed lockfile is compared as an install, from the install the suite ran on
+to the one in your tree. A recording keeps the lockfiles and manifests that
+differed from its commit while it ran, so an install you had not committed yet
+when you recorded is the one compared from, and selecting over it with nothing
+else edited skips the whole recorded suite. A recording that kept no install,
+or one whose texts this cache does not hold, is compared from the journal's
+commit, and stderr says which. Every package the lockfile resolves differently
+is walked back through the packages that depend on it to the files that import
+them, and those files are read as changed whole. stderr names the lockfile, the
+packages, the package most of each one's files imported it through and the
+files, and `json` gives the lockfile, the packages and the count of files under
+`install`:
 
 ```
 $ variance select

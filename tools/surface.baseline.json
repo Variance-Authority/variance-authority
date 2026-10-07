@@ -2732,6 +2732,7 @@
         "JourneyRegion": "interface",
         "JourneySelectionOptions": "interface",
         "KeptEntry": "interface",
+        "KeptInstall": "type",
         "KindOverlap": "interface",
         "LaidRun": "interface",
         "LandedShard": "interface",

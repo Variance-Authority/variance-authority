@@ -90,20 +90,29 @@ export async function keepRecordedTexts(
     }
     const digest = digestString(text);
     if (!digests.has(digest)) continue;
-    const at = resolve(top, keptName(digest));
-    try {
-      // The name is the content, so a text already there is this text.
-      await access(at);
-    } catch {
-      try {
-        await writeCoverageBytes(at, Buffer.from(text, 'utf8'));
-      } catch {
-        continue;
-      }
-    }
-    kept.push(digest);
+    if (await keepText(top, digest, text)) kept.push(digest);
   }
   return kept;
+}
+
+/**
+ * Write `text` into the layer at `top` under `digest`, its own digest, unless
+ * it is there already. `false` when it could not be written.
+ */
+export async function keepText(top: string, digest: string, text: string): Promise<boolean> {
+  const at = resolve(top, keptName(digest));
+  try {
+    // The name is the content, so a text already there is this text.
+    await access(at);
+    return true;
+  } catch {
+    try {
+      await writeCoverageBytes(at, Buffer.from(text, 'utf8'));
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 /**

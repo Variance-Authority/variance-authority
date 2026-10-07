@@ -57,7 +57,7 @@ export function withWhole(diff: string, files: readonly string[]): string {
 
 /**
  * What the install changed whole, said: the lockfile, the packages it resolves
- * differently and the package each was imported through, the moved manifests,
+ * differently and the package most of each one's files imported it through, the moved manifests,
  * and the files they reached. `undefined` when it reached none.
  *
  * Each install is keyed by the stand it was compared from, `undefined` for the
@@ -82,7 +82,9 @@ export function installReached(
     .sort((left, right) => right.files.length - left.files.length || codeUnitOrder(left.name, right.name));
   const named = packages.map(({ name, files }) => {
     const imported = mostFirst(files.map((file) => chains.get(file)!.at(-1)!).filter((last) => last !== name));
-    return imported.length === 0 ? name : `${name} through ${listed(imported)}`;
+    // One importer per package: a list inside the list of packages reads as more packages.
+    if (imported.length === 0) return name;
+    return `${name} through ${imported[0]}${imported.length === 1 ? '' : ` and ${many(imported.length - 1, 'other')}`}`;
   });
 
   const files = new Set(reaching.flatMap(([, one]) => one.files));
@@ -98,7 +100,7 @@ export function installReached(
   if (packages.length > 0) {
     says.push(
       `${lockfile ?? 'the install'} resolves ${many(packages.length, 'package')} differently than ${where} ` +
-        `(${listed(named)}), so ${many(bumped.length, 'file')} importing ${packages.length === 1 ? 'it' : 'them'} ` +
+        `(${entries(named)}), so ${many(bumped.length, 'file')} importing ${packages.length === 1 ? 'it' : 'them'} ` +
         `(${listed(bumped)}) ${bumped.length === 1 ? 'was' : 'were'} read as changed whole`,
     );
   }
@@ -118,6 +120,15 @@ export function installReached(
     reached: files.size,
     says,
   };
+}
+
+/**
+ * The first three entries and a count of the rest, apart by semicolons: an
+ * entry says `and` itself (`tinyglobby through vitest and 2 others`), so a comma
+ * and an `and` between entries would read as more entries.
+ */
+function entries(named: readonly string[]): string {
+  return named.length <= 3 ? named.join('; ') : `${named.slice(0, 3).join('; ')}; and ${named.length - 3} more`;
 }
 
 /** Each distinct name once, the most frequent first. */

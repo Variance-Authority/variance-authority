@@ -1,10 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import {
+  commitRunsFile,
+  landRun,
+  readCommitRuns,
   testCoverageFile,
   writeTestCoverage,
   type TestCoverage,
@@ -140,6 +143,120 @@ describe('a diff that moved the install', () => {
     expect(said.out).toBe('');
     expect(said.err).toContain('skipping nothing');
     expect(said.err).toContain(`package-lock.json is not in the tree at ${head.slice(0, 12)}, where this install is compared from`);
+  });
+});
+
+/**
+ * A suite is recorded by being run, and the tree is often dirty when it runs:
+ * bump, `yarn test`, then commit. The tests ran on the install on disk, not
+ * the one the commit holds, so that install is what a later change is
+ * compared from.
+ */
+describe('the install a recording ran on', () => {
+  const cwd = process.cwd();
+  let cache: string;
+
+  beforeEach(() => {
+    cache = mkdtempSync(join(tmpdir(), 'va-select-install-cache-'));
+    process.env['VARIANCE_AUTHORITY_CACHE'] = cache;
+  });
+
+  afterEach(() => {
+    process.chdir(cwd);
+    delete process.env['VARIANCE_AUTHORITY_CACHE'];
+  });
+
+  /** Commit `left-pad` 1.3.0, put `recorded` on disk, and land a run over it the way a runner's teardown does. */
+  async function recordedOver(recorded: string): Promise<{ root: string; head: string }> {
+    const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0') });
+    writeFileSync(join(root, 'package-lock.json'), npmLock(recorded));
+    await landRun(testCoverageFile(root), snapshot(head), root);
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+    return { root, head };
+  }
+
+  it('skips every test when the install is the one the run was recorded over, bump uncommitted', async () => {
+    const { root } = await recordedOver('1.4.0');
+
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).not.toContain('resolves');
+  });
+
+  it('runs the tests that entered a bumped package when the bump came after a clean recording', async () => {
+    const { root, head } = await recordedOver('1.3.0');
+    expect(await readCommitRuns(testCoverageFile(root))).toMatchObject({ installed: {} });
+
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.4.0'));
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain(`package-lock.json resolves 1 package differently than at ${head.slice(0, 12)} (left-pad)`);
+  });
+
+  it('compares a later bump from the install the run was recorded over', async () => {
+    const { root, head } = await recordedOver('1.4.0');
+
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.5.0'));
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain(
+      `package-lock.json resolves 1 package differently than the install recorded at ${head.slice(0, 12)} (left-pad)`,
+    );
+  });
+
+  it('runs the tests that entered a bump undone after the recording', async () => {
+    // Back to the commit's own lockfile: no change from the commit, and a
+    // change from what the tests ran on.
+    const { root } = await recordedOver('1.4.0');
+
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.3.0'));
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+  });
+
+  it('compares from the commit when some test read there is placed on an assumption', async () => {
+    // The runs at this commit observed `alpha` alone over the bump; `beta` is
+    // read from the commit because nothing says where it ran, so nothing says
+    // on which install either.
+    const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0') });
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.4.0'));
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+    const at = new Date().toISOString();
+    writeFileSync(commitRunsFile(testCoverageFile(root)), JSON.stringify({
+      commit: head,
+      first: at,
+      latest: at,
+      runs: 1,
+      files: ['test/alpha.test.ts'],
+      installed: { 'package-lock.json': digestString(npmLock('1.4.0')) },
+    }));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain(`package-lock.json resolves 1 package differently than at ${head.slice(0, 12)} (left-pad)`);
+  });
+
+  it('compares from the commit, and says so, when the recorded install is not kept here', async () => {
+    const { root, head } = await recordedOver('1.4.0');
+    const kept = readdirSync(cache, { recursive: true, encoding: 'utf8' }).filter((path) => path.endsWith('.texts'));
+    expect(kept).not.toEqual([]);
+    for (const path of kept) rmSync(join(cache, path), { recursive: true, force: true });
+
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain(
+      `the suite ran over a package-lock.json ${head.slice(0, 12)} does not hold, and that text is not kept here, ` +
+        `so the install is compared from ${head.slice(0, 12)}`,
+    );
   });
 });
 
