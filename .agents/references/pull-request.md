@@ -36,7 +36,7 @@ code.
 | Kind | The body shows | Complete when it carries | Never contains |
 |---|---|---|---|
 | `feat` | A capability that does not exist, or behaviour that works as built and is wanted different, and who asked for it | Tests that fail on the base, with those that pinned the old behaviour amended; the page, README or help text that names it, rewritten where it described the old; a changeset, saying what an upgrader does when behaviour changed | A test still asserting the old behaviour |
-| `fix` | Behaviour that departs from what a doc, spec, test or issue states, quoted | A test that fails on the base; every place the same defect lives; a changeset when a package ships | Behaviour nobody stated |
+| `fix` | Behaviour that departs from what a doc, spec, test or issue states, quoted | A test that fails on the base; every place the same defect lives, each a block row; a changeset when a package ships | Behaviour nobody stated |
 | `perf` | A cost, measured | The same measurement before and after (CI's `measure` job on the base and on the PR, or a named benchmark), its command and machine quoted in the body | A changed assertion |
 | `refactor` | A shape that makes a named next change hard | Every existing test unchanged and green on both sides | A changed assertion |
 | `test` | Behaviour on the base that no test pins | Tests that pass on the base | A test for code an open PR adds: it goes in that PR |
@@ -62,11 +62,12 @@ came with it. See [change](change.md).
 
 The body follows
 [`.github/pull_request_template.md`](../../.github/pull_request_template.md):
-the problem, and how it was solved, a few lines each, and one line per scope
-when the change has more than one part. It is not a report of the
-work. The tests, the diff and the checks carry the evidence; the body points at
-them, it does not restate them. `gh pr create --body-file` skips the template,
-so apply it yourself.
+the problem, the solution in the project's concepts, and one row per block the
+change touches. It is not a report of the work. The tests, the diff and the
+checks carry the evidence; a row points at the one that pins its block, it does
+not restate it. A test that does not assert the stated symptom does not pin it,
+and what a commit message says about itself is a claim, not evidence.
+`gh pr create --body-file` skips the template, so apply it yourself.
 
 Before anything is pushed, three subagents review the change, and a fourth when
 the change writes a top-layer page. Each starts with
@@ -74,17 +75,17 @@ no other context, and each gets only what its question needs, read from your
 worktree and `origin/main`, never from local `main`:
 
 1. **Description** — the body alone. Does it say what the problem was and
-   how it was solved, in a few lines a stranger can follow? Anything else in it
-   is noise, and blocking.
+   how it was solved, in a few lines a stranger can follow, and does each block
+   row say what changes there? Anything else in it is noise, and blocking.
 2. **Direction** — the body and the repository. Should this change happen at
    all? Is it proportionate to the problem the body states, does something that
    already exists carry it, and what is missing from it? These are
    [refine](refine.md)'s questions, asked by a reader who did not write the
    change.
-3. **Fidelity** — the body, the diff and `origin/main`. Is every claim in the
-   body true of the diff? Does each claimed behaviour have the test the body
-   names, and, where it pins a change, does the body show that test failing on
-   `origin/main`? For a top-layer page, does each fact the brief puts off the
+3. **Fidelity** — the body, the diff and `origin/main`. Is every block row
+   true of the diff, and does every hunk fall in a block a row names? A hunk no
+   row covers is a finding. Does each row's *pinned by* test assert the change
+   and fail on `origin/main`? For a top-layer page, does each fact the brief puts off the
    spine sit in the file it names, and does that file say it? Does each fact
    marked *nowhere* carry the reason it was left out?
 

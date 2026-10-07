@@ -140,7 +140,7 @@ Look around:
 
 Write the body to
 [`.github/pull_request_template.md`](.github/pull_request_template.md): the
-problem, and how it was solved, a few lines each. Before
+problem, the solution, and one row per block the change touches. Before
 anything is pushed, three subagents with no other context review the change,
 each for one question: does the body say the problem and the solution, should the change
 happen at all, and does the diff do what the body says. A change that writes a

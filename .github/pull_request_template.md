@@ -1,15 +1,30 @@
 ## Problem
 
-<!-- What was wrong or missing, in one or two sentences. Link the failing run,
-issue or line if there is one. -->
+<!-- What was wrong or missing, in one or two sentences, apart from the fix.
+Link the failing run, issue or line that shows it. -->
 
 ## Solution
 
-<!-- What changed to fix it, in one or two sentences. Add the before/after
-number for a perf change, and any review finding you set aside, with why. -->
+<!-- What changed, in one or two sentences in the project's own concepts, no
+paths: what a concept now is, does, or where it is held. -->
 
-## Scopes
+## Blocks
 
-<!-- Only when the change has more than one part. One line per group of files
-that changes for one reason: what it changes. A one-part change deletes this
-section. -->
+<!-- One row per block the change touches: a unit that changes for one reason.
+Mark: Upgrade (modified), Extract (separated out so callers share it), Ghost
+(new: nothing existing carries it), Acquire (a dependency brought in),
+Deconstruct (removed). A Ghost or Acquire names what existing code it ruled
+out, and why. Pinned by: the test that fails without the block, or the command
+and result that show it. -->
+
+| Mark | Block | Change | Pinned by |
+| --- | --- | --- | --- |
+|  |  |  |  |
+
+<!-- When the change crosses packages, add a mermaid `flowchart TB` of the
+touched packages: label a dependency it adds `+` and one it removes `−`. -->
+
+## Assumptions
+
+<!-- Delete when empty. Each choice between plausible alternatives, with the
+alternative, and each review finding set aside, with why. One line each. -->
