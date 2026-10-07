@@ -200,6 +200,12 @@ export async function recordAgainst(
      * charged whole, rather than read from the kept text to that side.
      */
     readonly keptTexts?: false;
+    /**
+     * `false` for a diff that is the whole change as given, a patch handed in:
+     * a module recorded over a kept text it does not name is left unread,
+     * rather than read as an edit undone since.
+     */
+    readonly undone?: false;
   },
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
   const { relations, at, checkout = root, unmeasured } = options;
@@ -210,7 +216,10 @@ export async function recordAgainst(
     sourceAt,
     ...(options.keptTexts === false
       ? {}
-      : { keptText: selection.keptTexts(checkout), keptDigests: selection.keptDigests(checkout) }),
+      : {
+          keptText: selection.keptTexts(checkout),
+          ...(options.undone === false ? {} : { keptDigests: selection.keptDigests(checkout) }),
+        }),
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),

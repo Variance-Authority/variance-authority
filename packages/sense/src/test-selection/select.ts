@@ -277,6 +277,10 @@ function readDiff(
   // tests that ran the edit have not run. The diff from the commit cannot say
   // so, and the record can: its rows name the text they ran over. Asked only
   // where that text can be read, so the change is read rather than assumed.
+  // FIXME: an undone edit whose text was not kept, or whose file has no
+  // instrumented row (a test file, a setup file), is found by nothing here and
+  // selects nothing; the ledger's dirty-run tree names every undone file. An
+  // undone file governs no precondition: a test that declared it is not re-run.
   const undone = new Set(
     options.keptDigests === undefined || options.keptText === undefined || options.sourceAt === undefined
       ? []
