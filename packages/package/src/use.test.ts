@@ -79,7 +79,7 @@ describe('what a workspace imports from what it publishes', () => {
   });
 });
 
-describe('an import into a package nothing the reading opens', () => {
+describe('an import into a package the reading opens nothing of', () => {
   const importing = (specifier: string) => [
     { at: 'apps/app/src/a.ts', by: 'app', requests: [{ specifier, line: 1, names: [{ imported: 'hush', type: false, line: 1 }] }] },
   ];

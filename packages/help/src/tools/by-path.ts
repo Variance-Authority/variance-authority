@@ -151,7 +151,7 @@ export function perFile(imports: readonly Deep[]): readonly FileTaken[] {
     const name = [...importersBy(through, (held) => held.names.map((taken) => taken.name).filter(isName))].sort(mostFirst)[0]?.[0];
     return {
       specifiers,
-      names: new Set(group.flatMap((held) => held.names.map((taken) => taken.name))).size,
+      names: tally(group).names,
       importers: new Set(group.map((held) => held.at)).size,
       ...(name === undefined ? {} : { name }),
     };
