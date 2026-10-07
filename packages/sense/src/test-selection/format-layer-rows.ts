@@ -11,7 +11,7 @@ import {
   crossedBlock,
   crossingsAround,
   editedRegion,
-  lostCrossings,
+  owedByRecut,
   recutRows,
   reusableBlock,
   sameNumbering,
@@ -277,7 +277,7 @@ export function layeredRows(input: {
       const recut = recutRows(held, now, current.instrumentation);
       const lost = recut === 'mislaid'
         ? [...new Set(held.blocks.flatMap((block) => block.testFiles))]
-        : recut === undefined ? [] : lostCrossings(held, recut);
+        : recut === undefined ? [] : owedByRecut(held, recut);
       for (const test of lost) if (!currentTests.has(test)) stale.add(test);
       if (recut === undefined || recut === 'mislaid') continue;
       recuts.set(row, objects.push(settledModule(withoutRetired(recut, retired))) - 1);

@@ -120,10 +120,10 @@ async function primaryAndWorktree() {
       say: () => {},
     });
   /**
-   * Whether the worktree's own snapshot still holds `far.test` as whole. A run
-   * whose instrumentation the carry cannot cut again marks every test of a
-   * moved module incomplete, and selects it for that reason instead of where
-   * it last ran — which would pass every case here without reading a stand.
+   * Whether the worktree's own snapshot still holds `far.test` as whole. A
+   * landing that re-cuts `far.ts` over an edit `far.test` never ran demotes it,
+   * so a selection of `far.test` after that edit has two causes: the demotion
+   * and where it last ran. A case that pins the second reads the stands too.
    */
   const farWhole = async () =>
     (await readTestCoverage(own)).tests.find((test) => test.file === 'test/far.test.ts')?.complete;
@@ -138,8 +138,11 @@ describe('a worktree reads a test it has not run from where the primary checkout
     const H2 = await commitIn(worktree, source('near', 2), 'H2');
     await ranHere(H2, ['near']);
 
-    expect(await farWhole()).toBe(true);
+    expect(await farWhole()).toBe(false);
     const reading = await read();
+    expect(reading.start.stands.map((stand: { commit: string; tests: string[] }) => [stand.commit, stand.tests])).toEqual([
+      [M, ['test/far.test.ts', 'test/other.test.ts']],
+    ]);
     expect(reading.decided).toEqual({ selected: ['test/far.test.ts'] });
     expect(reading.start.assumed).toBeUndefined();
     expect(await readCommitRuns(own)).toMatchObject({
@@ -165,12 +168,13 @@ describe('a worktree reads a test it has not run from where the primary checkout
     const H = await commitIn(worktree, source('near', 2), 'H');
     await ranHere(H, ['near']);
     expect((await readCommitRuns(own))?.standing).toBeUndefined();
-    expect(await farWhole()).toBe(true);
+    expect(await farWhole()).toBe(false);
     const reading = await read();
     expect(reading.start.assumed).toBe(
       `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from ${M1.slice(0, 12)}, where its runs started`,
     );
-    expect(reading.decided).toEqual({ selected: [] });
+    // Read from M1, the edit to `far.ts` is behind the assumed start; the landing at M1 demoted `far.test` for it.
+    expect(reading.decided).toEqual({ selected: ['test/far.test.ts'] });
   });
 
   it('copies a primary runs record that does not place every test as it stands, so the worktree reports the primary\'s assumption', async () => {
@@ -200,10 +204,11 @@ describe('a worktree reads a test it has not run from where the primary checkout
     const assumed = [{ commit: M1, files: ['test/far.test.ts', 'test/other.test.ts'], assumed: true }];
     expect(await readCommitRuns(own)).toMatchObject({ commit: M2, over: M2, runs: 1, standing: assumed });
     const carried = `the runs record beside the snapshot does not say where 2 test(s) last ran, so they are read from the commits they were assumed at, ${M1.slice(0, 12)}`;
-    // Read from M1, `near.ts` changed since, and only `near.test` ran it, at M2: nothing is selected.
+    // Read from M1, `near.ts` changed since, and only `near.test` ran it, at M2. The edit to `far.ts` is behind
+    // the assumed start, and `far.test` is selected only because the landing at M1 demoted it.
     const first = await read();
     expect(first.start.assumed).toBe(carried);
-    expect(first.decided).toEqual({ selected: [] });
+    expect(first.decided).toEqual({ selected: ['test/far.test.ts'] });
 
     const H = await commitIn(worktree, source('other', 2), 'H');
     await landRun(own, run(worktree, H, ['near']), worktree);
@@ -245,7 +250,7 @@ describe('a worktree reads a test it has not run from where the primary checkout
 
     const H = await commitIn(worktree, source('near', 2), 'H');
     await landRun(own, run(worktree, H, ['near']), worktree);
-    expect(await farWhole()).toBe(true);
+    expect(await farWhole()).toBe(false);
     const reading = await read();
     expect(reading.start.stands.map((stand: { commit: string; tests: string[] }) => [stand.commit, stand.tests])).toEqual([
       [M, ['test/far.test.ts', 'test/other.test.ts']],
@@ -269,9 +274,12 @@ describe('a worktree reads a test it has not run from where the primary checkout
     await ranHere(H, ['near']);
     const H2 = await commitIn(worktree, source('near', 2), 'H2');
     await ranHere(H2, ['near']);
-    expect(await farWhole()).toBe(true);
+    expect(await farWhole()).toBe(false);
     const reading = await read();
     expect(reading.start.assumed).toBeUndefined();
+    expect(reading.start.stands.map((stand: { commit: string; tests: string[] }) => [stand.commit, stand.tests])).toEqual([
+      [M, ['test/far.test.ts', 'test/other.test.ts']],
+    ]);
     expect(reading.decided).toEqual({ selected: ['test/far.test.ts'] });
   });
 
