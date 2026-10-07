@@ -46,6 +46,7 @@ import { dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations } fr
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
 import { findTest } from './lookup.js';
+import { reachesThrough } from './reading.js';
 import type { ExecutionNarrowing, SelectionCause } from './select.js';
 
 /**
@@ -166,10 +167,11 @@ export interface DistanceOptions {
  * `none` — whitespace, a comment — is no seed either: that verdict says the
  * change reaches no test through it. A `none` the record's kept text decided
  * (`kept`) is, because a partial run over an edit reads its own edit that way.
- * Every other reading seeds, an `unread` one included. A changed file with no
- * reading seeds nothing: a stale one, or one whose text was checked and that
- * has no line ranges, such as a rename, mode or binary change.
- * A test the walk could not measure (`unmeasured`) is left out with the rest.
+ * Every other reading seeds, an `unread` one included ({@link reachesThrough}).
+ * A changed file with no reading seeds nothing: a stale one, or one whose text
+ * was checked and that has no line ranges, such as a rename, mode or binary
+ * change. A test the walk could not measure (`unmeasured`) is left out with the
+ * rest.
  */
 export function distanceFromView(
   coverage: TestCoverageView,
@@ -179,9 +181,7 @@ export function distanceFromView(
   const entered = enteredByTest(coverage);
   const placed = narrowing.because.map((cause) => place(coverage, cause, entered, options));
   const selected = new Set(narrowing.entered);
-  const read = (narrowing.readings ?? [])
-    .filter((reading) => reading.verdict !== 'none' || reading.kept === true)
-    .map((reading) => reading.file);
+  const read = (narrowing.readings ?? []).filter(reachesThrough).map((reading) => reading.file);
   for (const test of narrowing.incomplete ?? []) {
     if (selected.has(test)) continue;
     const ran = entered.get(findTest(coverage, test) ?? -1) ?? new Set<string>();
