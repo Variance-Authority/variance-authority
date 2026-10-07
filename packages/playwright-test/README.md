@@ -152,25 +152,24 @@ component files and index them:
 
 ```ts
 import { readFileSync } from 'node:fs';
-import {
-  indexSource,
-  mergeSourceIndexes,
-  type SourceIndex,
-} from '@variance-authority/core/attribute';
+import { mergeSourceIndexes, type SourceIndex } from '@variance-authority/core/attribute';
+import { indexDeclarations } from '@variance-authority/sense';
 
 // Repository-relative paths, so the report is portable between machines and CI.
 const files = ['src/ds/components.tsx', 'src/checkout/Stack.tsx'];
 
 export const source: SourceIndex = mergeSourceIndexes(
-  files.map((file) => indexSource(file, readFileSync(file, 'utf8'))),
+  files.map((file) => indexDeclarations(file, readFileSync(file, 'utf8'))),
 );
 ```
 
-`@variance-authority/core` ships as a dependency of this package; install it
-directly to import from it:
+`indexDeclarations` reads each file's parse, so a declaration a comment or a
+string spells is not indexed. `@variance-authority/core` and
+`@variance-authority/sense` ship as dependencies of this package; install them
+directly to import from them:
 
 ```bash
-npm install --save-dev @variance-authority/core
+npm install --save-dev @variance-authority/core @variance-authority/sense
 ```
 
 Pass the result as `source` to `observe`, `session.observe`, `assertUnchanged` or
