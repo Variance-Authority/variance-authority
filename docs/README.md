@@ -31,10 +31,10 @@ depend on.
 <p>Stop a Playwright test at a line you chose and inspect the page and announced work while that exact test is still running.</p>
 <em>Interrogate the test →</em>
 </a>
-<a class="doc-link-card doc-link-card--compact" href="selecting.md">
+<a class="doc-link-card doc-link-card--compact" href="test-an-edit.md">
 <span>Selection</span>
 <strong>Run the tests this edit affects</strong>
-<p>Combine source relationships with recorded execution to select affected test files and explain every selection.</p>
+<p>Set one variable and the Vitest or Jest run you already call leaves out every test file that never executed the code you changed.</p>
 <em>Focus the next run →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="test-level-coverage.md">

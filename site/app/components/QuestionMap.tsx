@@ -22,8 +22,8 @@ const QUESTIONS = [
   },
   {
     question: "Run the tests this edit needs.",
-    answer: "Use recorded execution and source relationships to select affected test files and see why each was selected. Missing evidence expands the run.",
-    href: "#selection",
+    answer: "Set one variable and the Vitest or Jest run you already call leaves out every test file that never executed the code you changed. Each run moves the record forward; missing evidence runs the test.",
+    href: "/docs/test-an-edit",
     route: "test selection",
     action: "Focus the next run",
   },

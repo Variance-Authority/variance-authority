@@ -60,6 +60,7 @@ import replacing from "../../../docs/replacing.md?raw";
 import reasoning from "../../../docs/reasoning.md?raw";
 import runRelevantWork from "../../../docs/run-relevant-work.md?raw";
 import scale from "../../../docs/scale.md?raw";
+import testAnEdit from "../../../docs/test-an-edit.md?raw";
 import testLevelCoverage from "../../../docs/test-level-coverage.md?raw";
 import casePreconditions from "../../../docs/case-preconditions.md?raw";
 import scenarios from "../../../docs/scenarios.md?raw";
@@ -161,6 +162,7 @@ const documents = [
   ["parting", parting, "docs/parting.md"],
   ["source", source, "docs/source.md"],
   ["changes-before-and-beyond", changesBeforeAndBeyond, "docs/changes-before-and-beyond.md"],
+  ["test-an-edit", testAnEdit, "docs/test-an-edit.md"],
   ["selecting", selecting, "docs/selecting.md"],
   ["coverage-test-selection", coverageTestSelection, "docs/coverage-test-selection.md"],
   ["how-selection-scales", howSelectionScales, "docs/how-selection-scales.md"],

@@ -6,6 +6,9 @@ records **which parts each test actually covered**. It selects the tests that
 reached those lines and shows when no test did —
 [what a record shows that no graph can](#what-a-record-shows-that-no-graph-can).
 
+For a Vitest or Jest suite, [run the tests an edit needs](test-an-edit.md) puts
+that selection inside the runner you already call.
+
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Any
 uncertainty widens the run, and the report explains why.
