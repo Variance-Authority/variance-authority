@@ -5,7 +5,7 @@ import {
   type IgnoreLedger,
   type IgnoreUsage,
 } from '@variance-authority/report';
-import type { IgnoreConfig } from '../config.js';
+import type { Config, IgnoreConfig } from '../config.js';
 import type { CliObservationRecord } from './run-report.js';
 
 /**
@@ -71,6 +71,16 @@ export function liveIgnores(
   now: string | undefined,
 ): readonly IgnoreConfig[] {
   return rules.filter((rule) => !isExpired(rule, now));
+}
+
+/**
+ * The config a collector is handed: the rules still live at `now`. Expiry is a
+ * run-level decision with a clock in it, and a collector — which runs in a
+ * browser — is the wrong place to make one. An expired rule is simply never
+ * sent, so what it used to absorb is reported again with no other machinery.
+ */
+export function withLiveIgnores(config: Config, now: string): Config {
+  return config.ignore === undefined ? config : { ...config, ignore: liveIgnores(config.ignore, now) };
 }
 
 export function ledgerOf(

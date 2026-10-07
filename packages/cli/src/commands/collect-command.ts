@@ -11,7 +11,7 @@ import { collectorPath, loadCollector, planFor, type Collector, type CollectorCo
 import { evidenceIdentity } from './evidence-identity.js';
 import { readEvidencePart, type EvidenceDiagnostic } from './evidence-part.js';
 import { encodeSuitePart } from './suite-part.js';
-import { liveIgnores } from './ignores.js';
+import { withLiveIgnores } from './ignores.js';
 import { scanSourceDirs } from './source-graph.js';
 
 /**
@@ -39,11 +39,10 @@ const LIVE: CollectDeps = { cwd: process.cwd(), load: loadCollector };
 export async function runCollect(parsed: Collecting, config: Config, streams: Streams, deps: CollectDeps = LIVE): Promise<ExitCode> {
   // The rules still live today, as `run` hands them over: an expired ignore
   // stops hiding a subtree from the evidence the day it stops hiding pixels.
-  const effective: Config = {
-    ...config,
-    ...(parsed.workers === undefined ? {} : { workers: parsed.workers }),
-    ...(config.ignore === undefined ? {} : { ignore: liveIgnores(config.ignore, new Date().toISOString()) }),
-  };
+  const effective = withLiveIgnores(
+    parsed.workers === undefined ? config : { ...config, workers: parsed.workers },
+    new Date().toISOString(),
+  );
   const [plan, identity] = await Promise.all([planFor(effective), evidenceIdentity(effective, deps.cwd)]);
   const dirs = effective.source?.dirs ?? [];
   const source = dirs.length === 0 ? undefined : await scanSourceDirs(deps.cwd, dirs);
