@@ -294,7 +294,7 @@ describe('the commit a diff is measured from', () => {
       delete process.env['GIT_TRACE2_EVENT'];
     }
 
-    expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: names.filter((_, at) => at % 2 === 0) });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: names.filter((_, at) => at % 2 === 0) });
     const reads = readFileSync(trace, 'utf8').split('\n').filter((line) => line.includes('"event":"start"') && /"(show|cat-file)"/.test(line));
     expect(reads).toHaveLength(1);
   });

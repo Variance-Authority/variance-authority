@@ -46,9 +46,66 @@ describe('a diff that moved the install', () => {
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     // `beta` entered `src/pad.ts`, which imports `left-pad`; the other two never
-    // did, and the lockfile the comparison already answered is named nowhere.
+    // did. The reason names the lockfile, the package it moved and the file that
+    // imports it, and the lockfile is not also a path the journal could not read.
     expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
-    expect(said.err).not.toContain('package-lock.json');
+    expect(said.err).toContain(
+      'skipping 2 of 3 test files recorded whole: none covered a changed line or entered a file the install moved',
+    );
+    expect(said.err).toContain(
+      `package-lock.json resolves 1 package differently than at ${head.slice(0, 12)} (left-pad), so 1 file ` +
+        'importing it (src/pad.ts) was read as changed whole',
+    );
+    expect(said.err).not.toContain('records nothing about');
+  });
+
+  it('names the package a bump reached a file through', async () => {
+    // `pad-core` moved and no file imports it: `src/pad.ts` loads it through
+    // `left-pad`, and the reason says so rather than that a line was covered.
+    const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0', '2.0.0') });
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+
+    writeFileSync(join(root, 'package-lock.json'), npmLock('1.3.0', '2.1.0'));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'json' });
+
+    expect(JSON.parse(said.out)).toMatchObject({
+      skip: ['test/alpha.test.ts', 'test/gamma.test.ts'],
+      because:
+        'skipping 2 of 3 test files recorded whole: none covered a changed line or entered a file the install ' +
+        'moved; every other test file runs',
+      notes: expect.arrayContaining([
+        `package-lock.json resolves 1 package differently than at ${head.slice(0, 12)} (pad-core through left-pad), ` +
+          'so 1 file importing it (src/pad.ts) was read as changed whole',
+      ]),
+      install: { lockfile: 'package-lock.json', packages: ['pad-core'], reached: 1 },
+      unread: [],
+    });
+  });
+
+  it('names the manifest whose move changed the files beside it', async () => {
+    // No package resolved differently: `src/package.json` turned its files into
+    // modules, so every file under it loads differently and is read whole.
+    const manifest = (type: string) => JSON.stringify({ name: 'pad', type });
+    const { root, head } = checkout({ 'package-lock.json': npmLock('1.3.0'), 'src/package.json': manifest('commonjs') });
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+
+    writeFileSync(join(root, 'src/package.json'), manifest('module'));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'json' });
+
+    expect(JSON.parse(said.out)).toMatchObject({
+      skip: ['test/alpha.test.ts', 'test/gamma.test.ts'],
+      notes: expect.arrayContaining([
+        'src/package.json moves what its importers load, so 1 file beside it (src/pad.ts) was read as changed whole',
+      ]),
+      install: { packages: [], moved: ['src/package.json'], reached: 1 },
+    });
+    expect(JSON.parse(said.out).install).not.toHaveProperty('lockfile');
   });
 
   it('compares a pnpm lockfile that opens on its environment document', async () => {
@@ -95,7 +152,8 @@ const PAD = [
   '',
 ].join('\n');
 
-function npmLock(version: string): string {
+/** `left-pad` at `version`, and `pad-core` beneath it when `core` is given. */
+function npmLock(version: string, core?: string): string {
   return JSON.stringify(
     {
       name: 'fixture',
@@ -106,7 +164,17 @@ function npmLock(version: string): string {
           version,
           resolved: `https://registry.npmjs.org/left-pad/-/left-pad-${version}.tgz`,
           integrity: `sha512-${version}==`,
+          ...(core === undefined ? {} : { dependencies: { 'pad-core': '^2.0.0' } }),
         },
+        ...(core === undefined
+          ? {}
+          : {
+              'node_modules/pad-core': {
+                version: core,
+                resolved: `https://registry.npmjs.org/pad-core/-/pad-core-${core}.tgz`,
+                integrity: `sha512-${core}==`,
+              },
+            }),
       },
     },
     null,

@@ -79,6 +79,7 @@
 import { resolve } from 'node:path';
 import { readingLines, type ExecutionNarrowing, type FileReading, type TestDistance } from '@variance-authority/sense/test-selection';
 import { many } from './reach.js';
+import type { SelectInstall } from './select-beyond.js';
 
 /** How the answer is written for whoever is about to run the tests. */
 export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
@@ -141,6 +142,8 @@ export interface SelectInput {
   readonly standing?: readonly string[];
   /** What the declared `before` could not cover, or that none is declared. Said after `standing`. */
   readonly resting?: readonly string[];
+  /** What the install changed whole, when it changed a file. Said after `resting`. */
+  readonly install?: SelectInstall;
   readonly ground: SelectGround;
 }
 
@@ -176,6 +179,8 @@ export interface TestSelection {
   /** Counts rather than lists: `whole` is the whole suite, and nobody reads it. */
   readonly recorded?: { readonly whole: number; readonly entered: number };
   readonly unread: readonly string[];
+  /** What the install changed whole; absent when it changed nothing. */
+  readonly install?: SelectInstall;
   /**
    * The changed files the record did not measure, in a suite that declines
    * relations, so the graph was never asked about them. Absent when the suite
@@ -212,8 +217,14 @@ export function skippableTests(input: SelectInput): TestSelection {
     ...(input.source === undefined ? {} : { source: input.source }),
     unread: [] as readonly string[],
     stale: [] as readonly string[],
+    ...(input.install === undefined ? {} : { install: input.install }),
     // Which record answered is the first note, before any other note about it.
-    notes: [...(input.source === undefined ? [] : [input.source.says]), ...(input.standing ?? []), ...(input.resting ?? [])],
+    notes: [
+      ...(input.source === undefined ? [] : [input.source.says]),
+      ...(input.standing ?? []),
+      ...(input.resting ?? []),
+      ...(input.install?.says ?? []),
+    ],
   };
 
   if (input.ground.kind === 'no-journal') {
@@ -288,8 +299,8 @@ export function skippableTests(input: SelectInput): TestSelection {
     ...measured,
     skip,
     because:
-      `skipping ${skip.length} of ${many(whole.length, 'test file')} recorded whole: none ` +
-      'covered a changed line; every other test file runs',
+      `skipping ${skip.length} of ${many(whole.length, 'test file')} recorded whole: none covered a changed ` +
+      `line${input.install === undefined ? '' : ' or entered a file the install moved'}; every other test file runs`,
   };
 }
 
@@ -446,6 +457,8 @@ function jsonOf(selection: TestSelection): object {
       ...(selection.source?.distance === undefined ? {} : { distance: selection.source.distance }),
     },
     unread: selection.unread,
+    // The sentences are among the notes already, and `undefined` is dropped from the text.
+    ...(selection.install === undefined ? {} : { install: { ...selection.install, says: undefined } }),
     ...(selection.declined === undefined ? {} : { declined: selection.declined }),
     stale: selection.stale,
     ...(selection.readings === undefined ? {} : { readings: selection.readings }),

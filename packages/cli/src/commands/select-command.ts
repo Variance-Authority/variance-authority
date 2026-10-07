@@ -43,7 +43,7 @@ import { join } from 'node:path';
 import type { CommitRuns, ExecutionNarrowing, Stand, StandQuestion, StandReading } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { installDiffs, installDiffOfPatch, withoutManifests, type InstallDiff } from './installed.js';
-import { beyondOf, withWhole } from './select-beyond.js';
+import { beyondOf, compared, installReached, withWhole } from './select-beyond.js';
 import { isMissing, journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, topLevel } from './since.js';
 import { checkoutRead } from './checkout-read.js';
@@ -243,7 +243,9 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
   const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])]);
-  const rested = { ...recorded, ...rest };
+  // What the install changed whole is named whichever way the answer goes: a test it entered was entered by no line.
+  const install = installReached(installs, beyond, (stand) => handed ? 'before the patch' : `at ${(stand ?? commit)?.slice(0, 12) ?? base}`);
+  const rested = { ...recorded, ...rest, ...(install === undefined ? {} : { install }) };
   if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole } });
   // Each group is charged the install that moved since it ran, and the files
   // a stand reads whole leave the hunk diff, so none is also read by its hunks.
@@ -282,11 +284,6 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
         };
 
   return said({ ...rested, ground });
-}
-
-/** An install comparison that was made, or `undefined` for one there was nothing to make. */
-function compared(installed: InstallDiff | undefined): Exclude<InstallDiff, { readonly whole: string }> | undefined {
-  return installed === undefined || 'whole' in installed ? undefined : installed;
 }
 
 /**

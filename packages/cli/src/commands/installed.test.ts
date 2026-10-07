@@ -49,7 +49,7 @@ describe('what a diff did to the install', () => {
     const at = await repository(BUMPED);
     const diff = await installDiff(pointAt(at, BEFORE), [], at);
 
-    expect(diff).toEqual({ packages: ['lodash'], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: ['lodash'], manifests: ['yarn.lock', 'package.json'], moved: [] });
   });
 
   it('names nothing when the file was rewritten and the install is the same', async () => {
@@ -59,7 +59,7 @@ describe('what a diff did to the install', () => {
     // The reason the lockfile is a source and never a changed path. Read as a
     // changed file this diff repaints the suite; read as an install it is
     // nothing at all.
-    expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
   });
 
   it('claims the manifests either way, so they are not counted twice', async () => {
@@ -118,8 +118,8 @@ describe('what a diff did to the install', () => {
       at,
     );
 
-    expect(bumped).toEqual({ packages: ['lodash'], manifests: ['yarn.lock', 'package.json'], moved: [] });
-    expect(same).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(bumped).toEqual({ lockfile: 'yarn.lock', packages: ['lodash'], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(same).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
     expect(missing && 'whole' in missing).toBe(true);
   });
 });
@@ -159,14 +159,14 @@ describe('which changed manifests the install does not speak for', () => {
     const repo = await workspace({ ...MANIFEST, exports: { '.': './src/index.ts' } });
     const diff = await installDiff(at(repo), ['packages/ds/package.json'], repo);
 
-    expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: ['packages/ds/package.json'] });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: ['packages/ds/package.json'] });
   });
 
   it('sets aside a manifest whose change is a script and a dependency range', async () => {
     const repo = await workspace({ ...MANIFEST, scripts: { build: 'tsc -b' }, dependencies: { lodash: '^4.17.22' } });
     const diff = await installDiff(at(repo), ['packages/ds/package.json'], repo);
 
-    expect(diff).toEqual({ packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
+    expect(diff).toEqual({ lockfile: 'yarn.lock', packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] });
   });
 
   // A manifest's `type` is not the lockfile's business, so a patch that moves

@@ -155,7 +155,7 @@ async function installDiffAt(
   const manifests = [pathTail(found.file), MANIFEST];
   // Asked in one turn, so a point that reads its files together reads them at once.
   const [moved, before] = await Promise.all([movedSince(point, changed, from), point.at(path)]);
-  if (before === found.text) return { packages: [], manifests, moved };
+  if (before === found.text) return { lockfile: path, packages: [], manifests, moved };
 
   if (before === undefined) {
     return {
@@ -269,6 +269,7 @@ async function compared(
   try {
     const lock = await import('@variance-authority/sense/lock');
     return {
+      lockfile: path,
       manifests,
       packages: lock.changedPackages(lock.readLockfile(path, before), await after()),
       moved,
@@ -362,9 +363,14 @@ function messageOf(error: unknown): string {
  * those fields — `exports`, `main`, `type`, `name` — read at both revisions by
  * the same comparison. Each one's directory is a changed directory: every
  * importer of the package may now load a different file.
+ *
+ * `lockfile` is the lockfile compared, as the repository names it, for the
+ * sentence that says what a bump reached. Absent when none was: the change
+ * left every lockfile alone.
  */
 export type InstallDiff =
   | {
+      readonly lockfile?: string;
       readonly packages: readonly string[];
       readonly manifests: readonly string[];
       readonly moved: readonly string[];
