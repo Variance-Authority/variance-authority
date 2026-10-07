@@ -543,7 +543,6 @@
         "subtractRegions": "function",
         "summarizeCoverage": "function",
         "summarizeInstability": "function",
-        "withDeclaredIn": "function",
         "withExamples": "function",
         "writerLocationOf": "function"
       },
