@@ -60,3 +60,15 @@ export function importTargets(manifests: Iterable<Record<string, unknown>>): Imp
   }
   return { published, unentered };
 }
+
+/**
+ * Where an import between packages lands, by its `requested` key: a specifier
+ * an entry opens, a file past a declared entry, or a file of a package that
+ * declares none. Nothing, for a package an import is not followed into.
+ */
+export function landing(key: string, opened: ReadonlySet<string>, targets: ImportTargets): 'opened' | 'deep' | 'byPath' | undefined {
+  const named = key.slice(0, key.indexOf(' '));
+  if (!targets.published.has(named) && !targets.unentered.has(named)) return undefined;
+  if (opened.has(key)) return 'opened';
+  return targets.unentered.has(named) ? 'byPath' : 'deep';
+}

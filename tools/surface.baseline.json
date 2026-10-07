@@ -1439,6 +1439,7 @@
         "assembleHelp": "function",
         "everyEntry": "function",
         "kindOf": "function",
+        "landing": "function",
         "opening": "function",
         "ownership": "function",
         "publishes": "function",

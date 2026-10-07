@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 import { type Parses, parseFile } from './declare.js';
 import { lineAt } from './doc.js';
-import type { ImportTargets } from './entry.js';
+import { type ImportTargets, landing } from './entry.js';
 import { readImportTargets, requested } from './manifest.js';
 
 /**
@@ -259,7 +259,6 @@ export interface Exported {
  * them that declare no entry, whose imports are listed apart from the deep ones.
  */
 export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>, targets: ImportTargets): Usage {
-  const { published, unentered } = targets;
   const names = new Map<string, Map<string, Use[]>>();
   const deep: Deep[] = [];
   const byPath: Deep[] = [];
@@ -282,12 +281,12 @@ export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>
 
     for (const asked of file.requests) {
       const key = requested(asked.specifier);
-      const named = key.slice(0, key.indexOf(' '));
-      if (!published.has(named) && !unentered.has(named)) continue;
+      const lands = landing(key, opened, targets);
+      if (lands === undefined) continue;
 
-      if (!opened.has(key)) {
+      if (lands !== 'opened') {
         const taken = asked.names.map((bound) => ({ name: bound.imported, by, at, line: bound.line, type: bound.type, kind }));
-        (unentered.has(named) ? byPath : deep).push({ specifier: asked.specifier, by, at, line: asked.line, names: taken });
+        (lands === 'byPath' ? byPath : deep).push({ specifier: asked.specifier, by, at, line: asked.line, names: taken });
         continue;
       }
 

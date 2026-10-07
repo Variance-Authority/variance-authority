@@ -32,7 +32,9 @@ kept as an import past that entry, where every one was dropped and `variance ask
 entrypoint` said no other package imports it. `variance ask packages` counts
 those packages, and `uses` and `symbol` answer for the names taken from them.
 `readUnentered` is replaced by `readImportTargets`, which reads the published
-packages and the ones that declare no entry in one pass.
+packages and the ones that declare no entry in one pass, and `landing` says
+where one import between packages lands: opened by an entry, past a declared
+entry, by path into a package that declares none, or not followed.
 
 On a repository whose packages declare no entry, `variance ask packages` went from
 200,330 lines in 30 to 45 seconds to 1,327 lines in under half a second.

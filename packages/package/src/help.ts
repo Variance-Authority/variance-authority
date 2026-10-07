@@ -301,7 +301,7 @@ export type {
   UseKind,
 } from './use.js';
 export { ownership, publishes, readImportTargets, readOfferings, requested } from './manifest.js';
-export type { ImportTargets } from './entry.js';
+export { landing, type ImportTargets } from './entry.js';
 export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';

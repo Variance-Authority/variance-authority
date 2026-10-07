@@ -7,6 +7,7 @@ import type { Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
   kindOf,
+  landing,
   requested,
   type Deep,
   type ImportTargets,
@@ -34,7 +35,6 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
   targets(at: string, targets: readonly (string | undefined)[]): void;
   read(): Usage;
 } {
-  const { published, unentered } = targets;
   const names = new Map<string, Map<string, Use[]>>();
   const deep: Deep[] = [];
   const byPath: Deep[] = [];
@@ -62,11 +62,11 @@ export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTarg
 
       for (const [index, asked] of parsed.requests.entries()) {
         const key = requested(asked.value);
-        const named = key.slice(0, key.indexOf(' '));
-        if (!published.has(named) && !unentered.has(named)) continue;
-        if (!opened.has(key)) {
+        const lands = landing(key, opened, targets);
+        if (lands === undefined) continue;
+        if (lands !== 'opened') {
           const held: Pending = { specifier: asked.value, by, at, line: asked.line, names: takenBy(asked, index, parsed, by, at, kind) };
-          (unentered.has(named) ? byPath : deep).push(held);
+          (lands === 'byPath' ? byPath : deep).push(held);
           const file = pending.get(at) ?? new Map<number, Pending>();
           pending.set(at, file);
           file.set(index, held);
