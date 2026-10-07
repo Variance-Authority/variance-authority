@@ -22,3 +22,10 @@ and a fusion of the two beside it. They read BM25's shortlists from
 `clef_bm25_lists.json`, expected at `$S/orient/oracle_chart.json`, and need
 Cloudflare's `joint_schema_model.py` and the Clef-flash weights, which are not
 included.
+
+The relation rounds are `rel.py`, which asks each of BM25's top two blocks
+its relation to the spec (`ENGINE=julia` or `ENGINE=clef`, `EXTRA=code` for
+round 2, `CLEF` pointing at the Clef-flash weights), and `rel_score.py`, which
+scores its answers. The answers are `rel_julia.json`, `rel_clef.json`,
+`rel_julia_code.json` and `rel_clef_code.json`. Run `rel_score.py` from this
+directory with those files as arguments.
