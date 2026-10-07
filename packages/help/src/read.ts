@@ -175,31 +175,12 @@ export interface IndexedUsageOptions {
   readonly tree?: (tree: Tree) => void;
 }
 
-/**
- * Read what a repository imports from what it publishes, out of the source index.
- *
- * `opened` is every `<package> <subpath>` the manifests answer, exactly as
- * [`readUsage`](../../package/src/use.ts) takes it: the package half says which
- * specifiers are worth following, and the whole key says which of them came
- * through a published door.
- */
-export async function readIndexedUsage(
-  root: string,
-  opened: ReadonlySet<string>,
-  options: IndexedUsageOptions = {},
-): Promise<Usage> {
-  const scanned = await scanIndexed(root, opened, readImportTargets(root), options);
-  options.tree?.(treeOf(scanned.records, resolve(root)));
-  if (options.save !== false) await scanned.save();
-  return scanned.usage;
-}
-
 async function scanIndexed(
   root: string,
   opened: ReadonlySet<string>,
   targets: ImportTargets,
   options: IndexedUsageOptions,
-  dirs: readonly string[] = ['.'],
+  dirs: readonly string[],
 ): Promise<{
   readonly usage: Usage;
   readonly sources: Map<string, IndexedSource>;
