@@ -188,8 +188,9 @@ than two imports away*, not *the first two groups*: a change whose nearest test
 is five hops out answers it with nothing, which is the true answer. Start at
 `0` — a test whose own source you just edited.
 
-The near and far waves are a partition: `0-2` then `3-`. A leg open at the top
-carries the tests with no measurable distance, so the two legs run every
+The near and far waves are a partition: `0-2` then `3-`. The tests with no
+measurable distance run in the leg that holds the furthest measured hop, or in
+the leg open at the top when nothing was measured, so the two legs run every
 selected file once. `variance select --at-distance` prints how many selected
 files a leg leaves behind, and the range that runs them.
 

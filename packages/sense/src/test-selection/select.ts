@@ -36,7 +36,7 @@ export interface ExecutionNarrowing {
    * Recorded tests whose observation was not whole: a run that skipped every
    * case, or one whose probes fired where nothing could place them. Absence
    * from `entered` is no evidence for them, but they are named, so a caller
-   * that cuts the selection into legs can place them with the unplaced. Absent
+   * that cuts the selection into legs can run them in its open leg. Absent
    * when the reader names no such list, which is not the same as none.
    */
   readonly incomplete?: readonly string[];

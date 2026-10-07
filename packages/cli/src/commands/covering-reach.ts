@@ -19,8 +19,9 @@
  *
  * ## An answer may not carry the unplaced
  *
- * `atDistance` gives tests with no measured distance to whichever leg reaches
- * the end, because a loop that never runs them is a loop that skipped work.
+ * `atDistance` gives tests with no measured distance to the leg that holds the
+ * furthest measured hop, because a loop that never runs them is a loop that
+ * skipped work.
  * This is not a loop. A test nobody could place is not within three hops — it
  * is a test the walk could not measure — so it is dropped from the list and
  * counted in a note. Reporting it inside the band would answer *yes, something

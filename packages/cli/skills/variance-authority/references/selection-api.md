@@ -128,12 +128,12 @@ occurs, and the unplaced last, with no `hops`.
   the boundary the first leg already exercised. `0-2` then `remaining(distances,
   0, 2)` is the partition. Pick one and say which.
 - A test in the reading whose distance could not be measured is **unplaced**: a
-  member of `distances` with no `hops`. `atDistance` gives the unplaced to every
-  leg whose top is at or past the furthest hop the reading placed, and an open
-  top such as `3-` always is. So when nothing was placed beyond two hops, `0-2`
-  and `3-` both return them. Take the later leg from `remaining` to run each
-  test once. A reading that placed nothing gives them to an open range only, so
-  `0-2` returns none of them there.
+  member of `distances` with no `hops`. `atDistance` gives the unplaced to the
+  one leg that holds the furthest hop the reading placed: `0-2` when nothing was
+  placed beyond two hops, and `3-` when something was. A reading that placed
+  nothing gives them to an open range only, such as `3-`. Each leg is cut on its
+  own, so any legs that cover every hop without overlapping run each unplaced
+  test once.
 - A current test file that is **not in `distances` at all** is a different case,
   and `atDistance` cannot return it, because it was never passed in. Your
   integration owns the test inventory: diff it against `distances`, keep the

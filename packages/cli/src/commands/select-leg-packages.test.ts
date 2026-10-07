@@ -18,7 +18,8 @@ import { selectOutput } from './select-command.js';
  * graph reads that landing as its source, so the hops are counted in source
  * names on both sides, the import is one hop like any other, and nothing has to
  * fold `dist` onto `src` for `select`. Without the package's `outDir` and
- * `rootDir`, the test reads as unmeasured and rides the furthest leg.
+ * `rootDir`, the test reads as unmeasured and rides with the leg that holds the
+ * furthest measured hop.
  */
 
 const VIA_PACKAGE = 'packages/app/test/via-package.test.ts';

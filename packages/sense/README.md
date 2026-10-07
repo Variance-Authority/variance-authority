@@ -1105,7 +1105,8 @@ running one distance.
 Start a near range at `0` rather than `1`. Zero is a distance and a common one
 in an edit loop: a test whose own source you just changed.
 
-A test nobody could place runs with the range that has no end. So `0-2`
+A test nobody could place runs with the one range that holds the furthest hop
+measured, or with the range that has no end when nothing was measured. So `0-2`
 then `3-` runs every placed file exactly once, and no near range is made
 expensive by everything nobody could place. A current test file that is not
 represented in `distances` remains outside both arrays; keep it selected and
