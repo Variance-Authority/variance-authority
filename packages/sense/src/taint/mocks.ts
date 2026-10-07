@@ -64,6 +64,11 @@ const DEFAULT_CALLERS: ReadonlySet<string> = new Set(CALLERS);
 const MOCKING = new Set(['mock']);
 const ACTUAL = new Set(['importActual', 'requireActual']);
 
+/**
+ * The taint that cuts every edge a mock replaces. With no `callers` it answers
+ * from what the parse recorded and opens nothing; with its own `callers` it
+ * reads each file it covers.
+ */
 export function mockTaint(options: MockTaintOptions = {}): Taint {
   const callers = new Set(options.callers ?? CALLERS);
   const scanned = options.callers === undefined;
