@@ -45,7 +45,11 @@ past every declared entry, or by path into a package that declares none.
 
 `variance ask entrypoint` on a package that declares no entry says it has "no
 `exports`, `main`, `types` or `typings`", where it left out `typings`, the
-fourth key read for an entry. `Offering` and `Documented` carry whether a
+fourth key read for an entry, and says so of one no other package imports too,
+where it said that package "opens no entry". A manifest that writes
+`"exports": null` is read as one that writes no `exports`, as Node reads it: its
+`main` opens the bare name, and without a `main`, `types` or `typings` it
+declares no entry. `Offering` and `Documented` carry whether a
 manifest declares an entry as `entry`, read from the whole manifest whichever
 keys `declared` records.
 

@@ -97,9 +97,6 @@ export const entrypoint: Tool<Help> = {
       const past = beyond(help, owner);
       if (past === undefined) return `${heading} No other package imports it.`;
       return sites(help, { ...past, lines: [heading, '', ...past.lines] });
-    } else if (published !== undefined && subpath === undefined && published.openings.length === 0) {
-      // It declares no entry, and nothing imports it by path, or `unenteredAnswer` would have answered: a `bin`-only package, say.
-      return `${owner} opens no entry, and no other package imports a file of it.`;
     } else if (published !== undefined && subpath === undefined && !published.openings.some((held) => held.subpath === '.')) {
       return subpathsOnly(help, published);
     }
@@ -208,10 +205,15 @@ function subpathsOnly(help: Help, published: Documented): string {
 /**
  * A package that declares no entry opens nothing, and what other packages
  * import from it by path is the answer in its place: counted per file when it
- * is asked by its name, and per name when asked by a specifier.
+ * is asked by its name, and per name when asked by a specifier. The one answer
+ * for every such package: a published one, a `bin`-only one say, and one known
+ * only by the imports of its files, its own included, since a private package
+ * is not among the published.
  */
 function unenteredAnswer(help: Help, asked: string, owner: string): Sites | undefined {
-  if (!help.byPath.some((held) => ownerOf(held.specifier) === owner)) return undefined;
+  const unentered =
+    help.packages.some((published) => published.name === owner && !published.entry) || help.byPath.some((held) => ownerOf(held.specifier) === owner);
+  if (!unentered) return undefined;
   const heading = `${owner} declares no entry: no \`exports\`, \`main\`, \`types\` or \`typings\`.`;
   if (asked === owner) {
     const imports = takenByPath(help).get(owner) ?? [];

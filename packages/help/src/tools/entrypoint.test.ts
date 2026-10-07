@@ -162,10 +162,12 @@ describe('docs_entrypoint on a package other packages import by path', () => {
     expect(entrypoint.run(QUIET, { package: '@acme/quiet/src/hush' })).toMatch(/^ {2}hush — imported by 1 file$/m);
   });
 
-  it('answers a published package that declares no entry and that no other package imports', () => {
+  it('answers a published package that declares no entry and that no other package imports, by its name or a specifier', () => {
     const help = { ...BY_PATH, packages: [...BY_PATH.packages, { name: '@acme/tool', declared: {}, entry: false, openings: [] }] };
+    const heading = '@acme/tool declares no entry: no `exports`, `main`, `types` or `typings`.';
 
-    expect(entrypoint.run(help, { package: '@acme/tool' })).toBe('@acme/tool opens no entry, and no other package imports a file of it.');
+    expect(entrypoint.run(help, { package: '@acme/tool' })).toBe(`${heading} No other package imports a file of it.`);
+    expect(entrypoint.run(help, { package: '@acme/tool/bin/run' })).toBe(`${heading} No other package imports @acme/tool/bin/run.`);
   });
 
   it('answers a package that declares no entry and imports only its own files that no other package imports it, by its name or a specifier', () => {
