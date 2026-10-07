@@ -578,11 +578,15 @@ Records are read in this order:
    worktree's own, not the primary checkout's.
 2. **The mainline's record.** It is kept at
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
-   run writes, so it is never read as your checkout's own. One fetch is reused
-   for 10 minutes, and so is the result that the line has none for you, with the
-   time of that result. After that, when the remote does not answer, the record
-   fetched earlier is read, and the answer prints when it was fetched and why it
-   was not fetched again.
+   run writes, so it is never read as your checkout's own. The mainline keeps
+   only its newest record, and the nearest one you can use is at your `HEAD`'s
+   merge base with the mainline. A record fetched at or past that merge base
+   is read without asking the remote again, and so is one fetched while your
+   merge base was the one it is now. After a pull or a rebase moves it, the
+   remote is asked once. The result that the line has none for you stands for
+   10 minutes, with the time of that result. When the remote does not answer,
+   the record fetched earlier is read, and the answer prints when it was
+   fetched and why it was not fetched again.
 3. **In a worktree, the primary checkout's record**, only when no mainline
    record was ever fetched on this machine. It is what that checkout last ran,
    so the answer names it as the offline fallback and prints why the mainline's

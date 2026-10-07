@@ -2,13 +2,9 @@ import { said } from '../here.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
-import { createHttpHistoryStore } from '@variance-authority/history/client';
 import type { PngDecoder } from '@variance-authority/png';
-import { cacheRootFor, type ExecutionNarrowing, type Unmeasured } from '@variance-authority/sense/test-selection';
-import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
-import { createRemoteStore } from '@variance-authority/remote/store';
-import { createDurableStore } from '@variance-authority/store/durable';
-import { createLfsStore } from '@variance-authority/store/lfs';
+import { cacheRootFor, type ExecutionNarrowing, type Stand, type TestDistance, type Unmeasured } from '@variance-authority/sense/test-selection';
+import type { RasterStore } from '@variance-authority/raster';
 import type { Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
@@ -175,18 +171,40 @@ export async function journeyAgainst(
   /** `nothing` for a suite that declines relations: a file its record did not measure selects nobody. */
   unmeasured?: Unmeasured,
 ): Promise<ExecutionNarrowing | undefined> {
+  return (await recordAgainst(root, diff, { relations, at, checkout, unmeasured }))?.narrowing;
+}
+
+/**
+ * {@link journeyAgainst}, and with `distances` how far the change travelled to
+ * each test it selected, from the same decode of the snapshot.
+ */
+export async function recordAgainst(
+  root: string,
+  diff: string,
+  options: {
+    readonly relations?: Relations | undefined;
+    readonly at?: string | undefined;
+    readonly checkout?: string | undefined;
+    readonly unmeasured?: Unmeasured | undefined;
+    readonly distances?: boolean;
+  },
+): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances?: readonly TestDistance[] } | undefined> {
+  const { relations, at, checkout = root, unmeasured } = options;
   const selection = await import('@variance-authority/sense/test-selection');
   const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
+  const asked = {
+    sourceAt,
+    keptText: selection.keptTexts(checkout),
+    root,
+    ...(relations === undefined ? {} : { relations }),
+    ...(unmeasured === undefined ? {} : { unmeasured }),
+  };
 
   try {
-    return await selection.narrowByExecution(file, diff, {
-      sourceAt,
-      keptText: selection.keptTexts(checkout),
-      root,
-      ...(relations === undefined ? {} : { relations }),
-      ...(unmeasured === undefined ? {} : { unmeasured }),
-    });
+    return options.distances === true
+      ? await selection.distanceByExecution(file, diff, asked)
+      : { narrowing: await selection.narrowByExecution(file, diff, asked) };
   } catch (error) {
     // A record whose run instrumented nothing measured nothing: it narrows nothing, as no record does.
     if (isMissing(error) || error instanceof selection.RecordWithoutCoverage) return undefined;
@@ -197,6 +215,25 @@ export async function journeyAgainst(
       { cause: error },
     );
   }
+}
+
+/**
+ * The journal asked once per stand, each answer kept for the tests standing
+ * there. A journal that is gone by the time it is asked again answers
+ * `undefined`, the way a journal that was never there does.
+ */
+export async function recordPerStand(
+  stands: readonly Stand[],
+  ask: (whole: readonly string[], stand: string | undefined) => ReturnType<typeof recordAgainst>,
+): ReturnType<typeof recordAgainst> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  let missing = false;
+  const answer = await selection.askPerStand(stands, async (whole, stand) => {
+    const asked = await ask(whole, stand);
+    if (asked === undefined) missing = true;
+    return asked ?? { narrowing: { whole: [], entered: [], unread: [], stale: [], because: [] } };
+  });
+  return missing ? undefined : answer;
 }
 
 /**
@@ -302,9 +339,10 @@ export function isMissing(error: unknown): boolean {
  * with no record configured must not hash three hundred snapshots in order to
  * hand them to something that discards them.
  */
-export function historyFor(config: Config): HistoryStore | undefined {
+export async function historyFor(config: Config): Promise<HistoryStore | undefined> {
   if (config.history === undefined) return undefined;
 
+  const { createHttpHistoryStore } = await import('@variance-authority/history/client');
   return createHttpHistoryStore({
     endpoint: config.history.endpoint,
     token: config.history.token,
@@ -320,7 +358,10 @@ export function historyFor(config: Config): HistoryStore | undefined {
  * layout rather than reimplementing the identity partition.
  */
 export async function storeFor(config: Config): Promise<RasterStore> {
-  if (config.retention === 'ephemeral') return createEphemeralStore();
+  if (config.retention === 'ephemeral') {
+    const { createEphemeralStore } = await import('@variance-authority/raster');
+    return createEphemeralStore();
+  }
 
   const baselines = config.baselines;
   if (baselines === undefined) {
@@ -331,7 +372,8 @@ export async function storeFor(config: Config): Promise<RasterStore> {
   }
 
   switch (baselines.kind) {
-    case 'directory':
+    case 'directory': {
+      const { createDurableStore } = await import('@variance-authority/store/durable');
       // Same rule as the LFS arm below, and for the same reason: every on-disk
       // placement in `docs/placement.md` is a directory the operator commits, so
       // the tracked root holds baselines and nothing else. See
@@ -344,7 +386,9 @@ export async function storeFor(config: Config): Promise<RasterStore> {
         // is a decision this process is not entitled to make on its own.
         ...(baselines.records !== undefined ? { recordRoot: baselines.records } : {}),
       });
-    case 'lfs':
+    }
+    case 'lfs': {
+      const { createLfsStore } = await import('@variance-authority/store/lfs');
       return createLfsStore({
         root: baselines.root,
         // The tracked root holds baselines and nothing else. See
@@ -355,11 +399,14 @@ export async function storeFor(config: Config): Promise<RasterStore> {
         ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
         ...(baselines.records !== undefined ? { recordRoot: baselines.records } : {}),
       });
-    case 'remote':
+    }
+    case 'remote': {
+      const { createRemoteStore } = await import('@variance-authority/remote/store');
       return createRemoteStore({
         endpoint: baselines.endpoint,
         ...(baselines.token !== undefined ? { token: baselines.token } : {}),
       });
+    }
   }
 }
 

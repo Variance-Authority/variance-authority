@@ -14,10 +14,11 @@ import { afterEach, describe, expect, it } from 'vitest';
  * line moves when a push to `main` publishes: two shards read two records,
  * place the slice by two sets of durations, and the fold refuses a file both
  * ran. `check.yml` reads the line once and hands the read root on; this is the
- * step that takes it, and a handed pointer older than the reuse window would
- * send the job back to the line, so it is stamped as read now. A miss is an
- * answer too, handed and stamped the same way; and a job told an artifact was
- * uploaded that cannot find it stops, rather than ask the line itself.
+ * step that takes it. The pointer keeps the merge base the line was asked at,
+ * which is the job's own, so the job asks the line no more. A miss is an answer
+ * too, handed and stamped as given now, because it names no commit and stands
+ * for a while; and a job told an artifact was uploaded that cannot find it
+ * stops, rather than ask the line itself.
  */
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -44,21 +45,19 @@ function take(handed: string, cache: string, uploaded: 'true' | 'false' = 'true'
 }
 
 describe('take-base', () => {
-  it('lays the handed record under the read root and stamps it as read now', async () => {
+  it('lays the handed record under the read root as the base job read it, with the merge base it was asked at', async () => {
     const handed = await temporary('va-handed-');
     const cache = await temporary('va-cache-');
     const anHourAgo = new Date(Date.now() - 3_600_000).toISOString();
     await mkdir(join(handed, 'unit', OLD), { recursive: true });
     await writeFile(join(handed, 'unit', OLD, 'coverage.bin'), 'record');
-    await writeFile(join(handed, 'unit', 'fetched.json'), `${JSON.stringify({ mainline: 'main', commit: OLD, fetched: anHourAgo })}\n`);
-    const before = Date.now();
+    const read = { mainline: 'main', commit: OLD, fetched: anHourAgo, base: OLD };
+    await writeFile(join(handed, 'unit', 'fetched.json'), `${JSON.stringify(read)}\n`);
 
     take(handed, cache);
 
     const readRoot = mainlineReadRoot(cache, 'unit');
-    const pointer = readFetchedMainline(readRoot);
-    expect(pointer).toMatchObject({ mainline: 'main', commit: OLD });
-    expect(Date.parse(pointer!.fetched)).toBeGreaterThanOrEqual(before - 1000);
+    expect(readFetchedMainline(readRoot)).toEqual(read);
     expect(existsSync(join(readRoot, OLD, 'coverage.bin'))).toBe(true);
   });
 

@@ -62,7 +62,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--exit-zero-on-changes',
   ],
   index: ['--no-git', '--wait', '--follow-ups'],
-  select: ['--since', '--execution', '--diff', '--suite', '--format', '--no-git'],
+  select: ['--since', '--execution', '--diff', '--suite', '--at-distance', '--format', '--no-git'],
   reach: ['--since', '--format', '--whole-files', '--no-git'],
   covering: [
     '--file',
@@ -140,7 +140,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]',
   'variance index   [--no-git] [--wait | --follow-ups]',
-  'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]',
+  'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
   'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--root <path>] [--format text|markdown|json]',

@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { checkoutRead } from './commands/checkout-read.js';
 import type { Config } from './config.js';
 import { distanceFrom, headPast, readerMainline } from './share-lines.js';
@@ -74,7 +75,8 @@ describe('a distance in a clone that holds all of it', () => {
     // Past the record: four on main, eight on side, its merge; eight on topic, its merge.
     expect(await headPast(record, clone)).toBe(22);
     expect(await distanceFrom(config, 'main', record, clone)).toBe(13);
-    expect(await readerMainline(config, {}, clone)).toEqual({ name: 'main', since: 9 });
+    const base = git(clone, 'merge-base', 'HEAD', 'refs/remotes/origin/main');
+    expect(await readerMainline(config, {}, clone)).toEqual({ name: 'main', since: 9, base });
     expect(await note(clone, record)).toContain('22 commit(s) before HEAD');
   });
 });
@@ -89,7 +91,8 @@ describe('a distance in a shallow clone that holds the record', () => {
 
     expect.soft(await headPast(record, clone)).toBeUndefined();
     expect.soft(await distanceFrom(config, 'main', record, clone)).toBeUndefined();
-    expect.soft(await readerMainline(config, {}, clone)).toEqual({ name: 'main' });
+    const base = git(clone, 'merge-base', 'HEAD', 'refs/remotes/origin/main');
+    expect.soft(await readerMainline(config, {}, clone)).toEqual({ name: 'main', base });
     expect.soft(await note(clone, record)).toContain('at a distance this clone cannot count');
   });
 
@@ -118,5 +121,67 @@ describe('a distance in a shallow clone that holds the record', () => {
 
     expect.soft(await headPast(record, clone)).toBe(2);
     expect.soft(await note(clone, record)).toContain('2 commit(s) before HEAD');
+  });
+});
+
+/** The argv of every git process `run` started, read from git's own trace. */
+async function gitStarted(at: string, run: () => Promise<unknown>): Promise<string[][]> {
+  const trace = join(at, '.git', 'variance-trace.json');
+  await rm(trace, { force: true });
+  vi.stubEnv('GIT_TRACE2_EVENT', trace);
+  try {
+    await run();
+  } finally {
+    vi.unstubAllEnvs();
+  }
+  const events = existsSync(trace) ? readFileSync(trace, 'utf8').trim().split('\n') : [];
+  return events
+    .map((line) => JSON.parse(line) as { event: string; argv?: string[] })
+    .filter((event) => event.event === 'start')
+    .map((event) => (event.argv ?? []).slice(1));
+}
+
+describe('the git a reader starts', () => {
+  it('asks once whether HEAD contains a commit several states of the note were run at', async () => {
+    const { clone, record } = await history();
+    const head = git(clone, 'rev-parse', 'HEAD');
+    const state = (commit: string, file: string) => ({ commit, files: [file] });
+    let said = '';
+    const started = await gitStarted(clone, async () => {
+      said = await checkoutRead('unit', clone, {
+        layer: {
+          pinned: { mainline: 'main', commit: record },
+          ran: [state(record, 'a.test.ts'), state(head, 'b.test.ts'), { ...state(head, 'c.test.ts'), tree: head }, state(head, 'd.test.ts')],
+        },
+      });
+    });
+
+    const asked = started.filter((argv) => argv.includes('--is-ancestor')).map((argv) => argv.at(-2));
+    expect(asked.sort()).toEqual([head, record].sort());
+    expect(said).toContain('4 test file(s) ran here');
+  });
+
+  it('counts nothing for a record at the merge base itself', async () => {
+    const { clone } = await history();
+    const base = git(clone, 'merge-base', 'HEAD', 'refs/remotes/origin/main');
+    let distance: number | undefined;
+    const started = await gitStarted(clone, async () => {
+      distance = await distanceFrom(config, 'main', base, clone);
+    });
+
+    expect(distance).toBe(0);
+    expect(started.filter((argv) => argv[0] === 'rev-list')).toEqual([]);
+  });
+
+  it('finds the shallow list once for every count a reader makes in one checkout', async () => {
+    const { clone, record } = await history();
+    const started = await gitStarted(clone, async () => {
+      await readerMainline(config, {}, clone);
+      await distanceFrom(config, 'main', record, clone);
+      await note(clone, record);
+    });
+
+    expect(started.filter((argv) => argv.includes('rev-list')).length).toBeGreaterThan(1);
+    expect(started.filter((argv) => argv.includes('--git-path'))).toHaveLength(1);
   });
 });

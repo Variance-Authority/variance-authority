@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type { TestCoverage } from '@variance-authority/sense/test-selection';
 import { landJourneys } from './land.js';
-import { recordedJourneys } from './resources.js';
+import { recordedJourneys, recordPerStand } from './resources.js';
 
 /**
  * The reading of the execution journal that the lexicon draws its regions from.
@@ -283,5 +283,26 @@ describe('landJourneys — N shard snapshots into the one this repository reads'
       `the snapshot already at ${CACHED} could not be read`,
     );
     expect(writeTestCoverage).not.toHaveBeenCalled();
+  });
+});
+
+describe('recordPerStand — the record asked once per stand, the answers folded', () => {
+  const stands = [{ commit: 'c0ffee', tests: ['test/b.test.ts'], whole: ['test/b.test.ts'] }];
+  const narrowing = (entered: readonly string[]) => ({ whole: [], entered, unread: [], stale: [], because: [] });
+
+  it('folds what each stand entered into one answer', async () => {
+    const answer = await recordPerStand(stands, async (_whole, stand) => ({
+      narrowing: narrowing(stand === undefined ? ['test/a.test.ts'] : ['test/b.test.ts']),
+    }));
+
+    expect(answer?.narrowing.entered).toEqual(['test/a.test.ts', 'test/b.test.ts']);
+  });
+
+  it('has no answer when any stand has none, rather than a fold that is missing it', async () => {
+    const answer = await recordPerStand(stands, async (_whole, stand) =>
+      stand === undefined ? { narrowing: narrowing(['test/a.test.ts']) } : undefined,
+    );
+
+    expect(answer).toBeUndefined();
   });
 });

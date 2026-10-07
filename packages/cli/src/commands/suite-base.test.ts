@@ -19,7 +19,7 @@ import type { Config } from '../config.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
-import { MAINLINE_REUSE_MS, mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
+import { mainlineBase, mainlineMissed, mainlineRead } from './mainline-base.js';
 import { DISCOUNTS, GIT_SHARE, PUSH, collectedBoth, gitPublished, recordIn, selectedIn } from './mainline-fixture.js';
 import { layMainline, suiteBase } from './suite-base.js';
 import { publishSuite, suiteShare, suiteShareLines } from './suite-share.js';
@@ -284,16 +284,36 @@ describe('every reader of a worktree that has run nothing starts from the same r
     expect(err).toContain(`record of "unit": read from mainline main, published at ${first}`);
   });
 
-  it('reuses the record it fetched for ten minutes, and past that keeps it when the remote does not answer', async () => {
+  it('keeps the record it fetched at the merge base, a day later and with the remote gone', async () => {
     const { origin, first } = await mainline();
     const { worktree } = await laptop(origin, first);
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline' });
     await git(worktree, 'remote', 'set-url', 'origin', join(home, 'nowhere.git'));
 
-    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first, earlier: { reused: true } } });
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first, earlier: { reused: 'nearest' } } });
     const declared = declaredSuites(worktree)?.find((one) => one.name === 'unit');
-    const later = await mainlineBase(worktree, declared, { env: LOCAL, now: Date.now() + MAINLINE_REUSE_MS + 60_000 });
-    expect(later).toMatchObject({ commit: first, earlier: { unanswered: { kind: 'unreachable' } } });
+    const later = await mainlineBase(worktree, declared, { env: LOCAL, now: Date.now() + 24 * 60 * 60_000 });
+    expect(later).toMatchObject({ commit: first, earlier: { reused: 'nearest' } });
+  });
+
+  it('asks for the merge base with the mainline once, fetching or reusing', async () => {
+    const { origin, first } = await mainline();
+    const { worktree } = await laptop(origin, first);
+    const trace = join(home, 'trace2.json');
+    const mergeBases = async (): Promise<number> => {
+      const asked = (await readFile(trace, 'utf8')).split('\n').filter((line) => line.includes('"event":"start"') && line.includes('"merge-base"')).length;
+      await rm(trace);
+      return asked;
+    };
+    process.env['GIT_TRACE2_EVENT'] = trace;
+    try {
+      expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ from: 'mainline' });
+      expect(await mergeBases()).toBe(1);
+      expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ mainline: { earlier: { reused: 'nearest' } } });
+      expect(await mergeBases()).toBe(1);
+    } finally {
+      delete process.env['GIT_TRACE2_EVENT'];
+    }
   });
 });
 

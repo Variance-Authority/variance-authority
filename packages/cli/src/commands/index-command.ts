@@ -23,7 +23,8 @@
  *
  * Only the index is made before the prompt comes back on a workstation: the
  * map, the journeys, the lexicon and the value are handed to a process of their
- * own (`index-follow-ups.ts`), which every later command waits on. In CI, under
+ * own (`index-follow-ups.ts`), which every later command that reads them waits
+ * on. In CI, under
  * `--wait`, or when `main` is called as a library, they are made in this process.
  *
  * One line per artifact on stdout, because the step's output is read by the
@@ -45,11 +46,8 @@ import {
   type IndexTurnHolder,
   type SourceUpdate,
 } from '@variance-authority/sense';
-import { publishedGeneration, readWorkspace, readWorkspaceSnapshot, refreshDependencyLexicon, refreshWorkspaceFromIndex, workspaceGeneration, workspaceSnapshotPath } from '@variance-authority/help';
 import { OperatorError } from '../exit.js';
-import { rmSync } from 'node:fs';
-import type { Parsed } from '../parse.js';
-import { awaitFollowUps, followUpsLockPath, followUpsLogPath, holdFollowUps, releaseFollowUps, reserveFollowUps, type Detach } from './index-follow-ups.js';
+import { followUpsLogPath, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
 
 export type { Detach } from './index-follow-ups.js';
 
@@ -77,16 +75,16 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
     const pid = request.detach(['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])], log);
     if (pid === undefined) return `${[describe(update), ...(await followUps(request, update))].join('\n')}\n`;
     holdFollowUps(index, { pid, log });
-    return `${describe(update)}\nfollow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command waits for it; their lines are written to ${log}\n`;
+    return `${describe(update)}\nfollow-ups: the code map, the journeys, the dependency lexicon and the questions are being made by process ${pid}, and the next variance command that reads them waits for it; their lines are written to ${log}\n`;
   } finally {
     // A no-op once the lock is handed on: it is then the process's to let go.
     releaseFollowUps(index, process.pid);
   }
 }
 
-async function inline(request: IndexRequest): Promise<string> {
+async function inline(request: IndexRequest, readied?: () => void): Promise<string> {
   const update = await written(request);
-  return `${[describe(update), ...(await followUps(request, update))].join('\n')}\n`;
+  return `${[describe(update), ...(await followUps(request, update, readied))].join('\n')}\n`;
 }
 
 async function written(request: IndexRequest): Promise<SourceUpdate> {
@@ -114,49 +112,29 @@ function turnLine({ pid, root }: IndexTurnHolder): string {
   return `waiting for process ${pid}, which is indexing ${root}: one index at a time uses this machine's cores\n`;
 }
 
-function waitingLine({ pid, log }: { pid: number; log: string }): string {
-  return `waiting for process ${pid} to finish the code map, the journeys, the dependency lexicon and the questions \`variance index\` left to it; its lines are in ${log}\n`;
-}
-
 /**
  * What a detached `index` runs: the update again, which finds the index it was
  * handed and writes nothing, for the listing of the checkout it carries; then
- * the follow-ups; then the lock is let go. A process that failed keeps it, so the
- * next command finds its holder gone and makes the follow-ups itself.
+ * the follow-ups, the lock marked once the index is readied; then the lock is
+ * let go. A process that failed keeps it, so the next command that reads the
+ * follow-ups finds its holder gone and makes them itself.
  */
 export async function followUpsOutput(request: Omit<IndexRequest, 'detach'>): Promise<string> {
-  const output = await inline(request);
-  releaseFollowUps(sourceIndexPath(request.cwd), process.pid);
+  const index = sourceIndexPath(request.cwd);
+  const output = await inline(request, () => readiedFollowUps(index, process.pid));
+  releaseFollowUps(index, process.pid);
   return output;
 }
 
-/**
- * Wait for the follow-ups a detached `index` is making, before any command reads
- * them; the process making them is the one command that does not wait. A process
- * that is gone left them unmade, so they are made here, on stderr, before the
- * command runs — unless the command is `index`, which is about to make them anyway.
- */
-export async function settleFollowUps(parsed: Parsed, streams: { err(text: string): void }): Promise<void> {
-  if (parsed.command === 'index' && parsed.followUps === true) return;
-  const indexing = parsed.command === 'index';
-  const cwd = process.cwd();
-  const index = sourceIndexPath(cwd);
-  const waited = await awaitFollowUps(index, (lock) => streams.err(waitingLine(lock)));
-  if (!waited.held || waited.finished) return;
-  rmSync(followUpsLockPath(index), { force: true });
-  if (indexing) return;
-  const { pid, log } = waited.lock;
-  streams.err(`process ${pid} ended before it finished what \`variance index\` left to it, so it is made now; what it wrote is in ${log}\n`);
-  streams.err(await indexOutput({ cwd, waiting: (text) => streams.err(text) }));
-}
-
-async function followUps(request: IndexRequest, update: SourceUpdate): Promise<readonly string[]> {
+/** `readied` is told once the index is folded, before the map, the journeys, the lexicon and the questions. */
+async function followUps(request: IndexRequest, update: SourceUpdate, readied?: () => void): Promise<readonly string[]> {
   const { cwd } = request;
   const noGit = request.noGit === true;
   return turn(request, async () => {
     // Readied first, so everything below reads the base the next update keeps and
     // the update itself never folds one while somebody waits on it.
     await readySourceIndex(update.path);
+    readied?.();
     // The map, the journeys, the lexicon and the published value each read the index
     // the update wrote and nothing another writes, so they are made at once.
     const [map, walks, names, questions] = await Promise.all([
@@ -175,6 +153,9 @@ async function followUps(request: IndexRequest, update: SourceUpdate): Promise<r
  * cache it could not write is a line in the log rather than a later refusal.
  */
 async function answerable(root: string, index: string, noGit: boolean): Promise<string> {
+  // Loaded here, by the follow-ups alone: the index a command waits on reads no help.
+  const { publishedGeneration, readWorkspace, readWorkspaceSnapshot, refreshWorkspaceFromIndex, workspaceGeneration, workspaceSnapshotPath } =
+    await import('@variance-authority/help');
   const at = workspaceSnapshotPath(index);
   try {
     // The index was written a moment ago, so the previous value is refreshed from it without
@@ -193,6 +174,7 @@ async function answerable(root: string, index: string, noGit: boolean): Promise<
 }
 
 async function lexicon(root: string): Promise<string> {
+  const { refreshDependencyLexicon } = await import('@variance-authority/help');
   try {
     const { path, packages, entrypoints, reused, unavailable, unchanged } = await refreshDependencyLexicon(root);
     if (unchanged) return `dependency lexicon: unchanged, nothing read: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${unavailable} unavailable, at ${path}`;
